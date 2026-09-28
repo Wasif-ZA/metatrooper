@@ -1,12 +1,114 @@
 # CallRouter architecture
 
-Holds under either plan in `spec.md`. Plan A builds the core, the store and one adapter.
-Plan B adds the rest without changing the shape.
+Design for the command-only tool memory in `spec.md`, drafted 2026-09-28. Python, standard
+library only. Pillow is the one exception, already installed, used by the image recipe.
+
+## One flow for every lane
+
+```
+callrouter <lane> <args>
+      |
+   cli.py         parse args, decide human or agent output
+      |
+   lane           run | do | how | save | learn | check | browse | mcp | tools
+      |
+   execute        subprocess, python recipe, browser daemon, or MCP server
+      |
+   log.py         write the full raw output to ~/.callrouter/logs/<date>/
+      |
+   shrink.py      text | json | image | page
+      |
+   hints.py       on failure: match hints, check the breaker
+      |
+   result.py      build the result (refuses a fallback with no marker)
+      |
+   calls.jsonl    append one shape-only line
+      |
+   print          one JSON line, or readable text
+```
+
+Every lane goes through `log`, `shrink`, `hints`, `result` and the call log in that order. That
+is what makes the output contract the same everywhere. A lane only decides how to execute.
+
+## Module layout
+
+```
+callrouter/
+  cli.py            entry point, verb dispatch, output mode
+  result.py         Result type, marker rule, human and JSON printing
+  log.py            raw output logs
+  calls.py          call log append and read, shape normalising
+  shrink.py         text, json, image, page shrinkers
+  hints.py          hint matching, breaker
+  recipes/
+    store.py          load, save, archive, rank (the `how` formula)
+    replace.py        seed recipes, one file each
+    json_get.py
+    json_set.py
+    img.py            reuses hook.shrink_image
+    find.py
+  snapshot.py       file copies before a write
+  learn.py          transcript mining, candidates, --review
+  browse/
+    daemon.py         owns Chrome over --remote-debugging-pipe
+    cdp.py            send and receive CDP messages
+    page.py           accessibility tree to numbered summary, diff after actions
+  mcp.py            stdio JSON-RPC client, phase 6
+  ingest.py         existing measurement
+  hook.py           unhooked; kept for shrink_image
+```
+
+`run.py` becomes the `run` lane inside `cli.py` plus `log.py` and `shrink.py`. Its
+`summarise` function moves to `shrink.py` as the text shrinker.
+
+## Where things live
+
+| Path | What |
+|------|------|
+| `~/.callrouter/recipes/` | Approved recipes, one JSON file each; `archive/` for superseded ones |
+| `~/.callrouter/candidates/` | Mined by `learn`, waiting for human review |
+| `~/.callrouter/hints.json` | Error pattern to fix |
+| `~/.callrouter/calls.jsonl` | Call log, shapes only |
+| `~/.callrouter/logs/<date>/` | Full raw output of every call |
+| `~/.callrouter/snapshots/<id>/` | File copies taken before a write |
+| `~/.callrouter/browser.json` | Browser daemon port and token |
+| `~/.callrouter/chrome-profile/` | The browser's own profile |
+| `~/.callrouter/blocked-hosts.txt` | Hosts `browse` refuses |
+| `~/.callrouter/servers.json` | MCP servers, phase 6 |
+
+Nothing is written inside the vault or the project folder.
+
+## Browser daemon
+
+```
+callrouter browse open <url>
+      |
+   browser.json exists and daemon answers?  -- no -->  start daemon.py in the background
+      |                                                   it starts chrome --headless=new
+      |                                                   --remote-debugging-pipe
+      v
+   POST 127.0.0.1:<port>  {token, verb, args}
+      |
+   daemon sends CDP over the pipe: Page.navigate, Accessibility.getFullAXTree, ...
+      |
+   page.py numbers links, buttons and fields; keeps the last tree to diff against
+      |
+   reply goes back through log, shrink, result like any other lane
+```
+
+The pipe is used instead of a websocket because it needs no library. On Windows the pipe
+handles are passed with `--remote-debugging-io-pipes=<in>,<out>` and must be inheritable.
+Messages are JSON separated by a NUL byte.
+
+## Superseded: the 2026-09-27 hook router design
+
+Rejected 2026-09-28: hooks are out, not deferred. Kept as evidence for why. The hook
+contract and the pipeline order are still accurate descriptions of Claude Code.
 
 Python plus FastMCP. Chosen over TypeScript because the surrounding vault tracks 217 `.py`
 files and effectively no TypeScript, and the code has to be defensible by hand.
 
-## Four layers, one rule
+### Four layers, one rule
 
 **All logic lives in `core/`, which knows nothing about any host. Adapters translate, they
 never decide.**
@@ -24,7 +126,7 @@ foundation would have stranded two thirds of the target surface.
 | Store | SQLite in WAL mode. Tools, calls, templates, cache entries | Schema only |
 | Catalog | Shipped, versioned knowledge of popular CLIs and MCP servers | Static data, no runtime state |
 
-## Module layout
+### Module layout
 
 ```
 callrouter/
@@ -56,7 +158,7 @@ callrouter/
 Plan A needs `core/engine.py`, `core/shapes.py`, `store/`, `adapters/claude_hook.py`,
 `eval/replay.py` and `cli.py`. The rest is Plan B.
 
-## The two interfaces everything passes through
+### The two interfaces everything passes through
 
 ```python
 @dataclass(frozen=True)
@@ -81,7 +183,7 @@ class Decision:
 cannot name what it replaced and why will not construct, so the dangerous version of that
 feature is unbuildable rather than merely discouraged.
 
-## Decision pipeline
+### Decision pipeline
 
 Every intercepted call runs these in order and stops at the first one that decides. Order
 is not arbitrary: safety checks precede savings, and anything that can deny runs before
@@ -107,7 +209,7 @@ After execution the post handler writes `result_tokens`, `outcome` and `ended_at
 asynchronously updates the score, considers promoting a template, and populates the cache
 if the purity class allows.
 
-## Hook contract, verified
+### Hook contract, verified
 
 Claude Code PreToolUse supplies on stdin: `session_id`, `transcript_path`, `cwd`,
 `hook_event_name`, `tool_name`, `tool_input`, `tool_use_id`.
@@ -130,7 +232,7 @@ every tool CallRouter does not act on.
 PostToolUse **cannot** rewrite a tool result. It can only add context. This is why shaping
 happens by rewriting the command before it runs rather than trimming the output after.
 
-## Store schema
+### Store schema
 
 ```sql
 CREATE TABLE tool (
@@ -174,7 +276,7 @@ GROUP BY t.id;
 Database lives at `~/.callrouter/callrouter.db`, never inside the vault. WAL mode because
 several agents, including subagents, share one instance.
 
-## Ranking formula, Plan B only
+### Ranking formula, Plan B only
 
 One explainable formula, deliberately not machine learned:
 
@@ -195,7 +297,7 @@ score = 100*1.0 - 10*log10(1+993) - 5*log10(1+40)
 Tools with fewer than 5 recorded calls take the median score of their kind, so a newly
 registered tool is neither promoted nor buried before it has evidence.
 
-## Catalog entry format, Plan B only
+### Catalog entry format, Plan B only
 
 ```json
 {
@@ -217,7 +319,7 @@ registered tool is neither promoted nor buried before it has evidence.
 }
 ```
 
-## Failure posture
+### Failure posture
 
 The engine must never block a call it did not mean to block. Any unhandled exception
 anywhere in the pipeline is caught at the adapter boundary, logged, and converted to

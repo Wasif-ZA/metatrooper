@@ -1,15 +1,10 @@
 # CallRouter
 
-A registry, ranker and call router for CLI tools and MCP servers, sitting in front of an
-AI coding agent's tool calls.
+The agent's tool memory: one command that remembers how tools were called, reuses what
+worked as recipes, returns known fixes on failure, and shrinks what it prints.
 
-**Status: specified, not built. Plan not yet chosen.** See `docs/spec.md` for the two
-plans on the table and pick one before writing code.
-
-Step 0 is done. Headroom was benchmarked against 1,028 real recorded shell outputs and
-saves 4.2% on this workload against 62.4% for a 400 token cap, because it declines to
-compress 72% of them. It does not cover the gap, so C7 has a measured justification.
-See `docs/benchmark.md`.
+**Status: spec drafted 2026-09-28, not built.** Command only: no hooks, no skill, no caps.
+Only `callrouter ingest` exists today. See `docs/spec.md`.
 
 ## The finding that shapes everything
 
@@ -40,19 +35,19 @@ perfect cache with zero staleness saves 0.12%. Full working in `docs/measurement
 ## Read in this order
 
 1. `docs/measurement.md`, the evidence. Read this first; it is why the plans differ.
-2. `docs/benchmark.md`, the Headroom comparison that settled Step 0.
-3. `docs/spec.md`, the two plans and the decision still to be made.
-4. `docs/architecture.md`, the design, which holds for either plan.
+2. `docs/spec.md`, what gets built, in which order.
+3. `docs/architecture.md`, how the lanes fit together; the old hook design is at the bottom.
+4. `docs/benchmark.md`, Headroom against a 400 token cap on 1,028 real shell outputs.
 5. `docs/ideas.md`, all 29 ideas raised and where each one landed.
 6. `docs/decisions.md`, everything cut and why, tagged for revisit at v2.
 
-## Reproducing the benchmark
+## Use
 
 ```
-uv tool install headroom-ai
-HEADROOM_BEACON=off DO_NOT_TRACK=1 python bench/headroom_bench.py --limit 0 --cap 400
+pip install -e .
+callrouter ingest                     # every transcript
+callrouter ingest --since 2026-09-27  # only entries from that date on
 ```
 
-Reads local transcripts only. Nothing leaves the machine; `headroom.compress()` is a
-library call with no network path. The beacon flags are there because Headroom's
-telemetry upload is on by default.
+Prints tool shares, image cost, shell percentiles and what each cap would save. Saves a JSON
+summary to `~/.callrouter/` unless `--no-save`.

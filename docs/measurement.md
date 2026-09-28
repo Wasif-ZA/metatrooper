@@ -147,6 +147,93 @@ Ranked by measured value per hour of work:
 The cheapest feature is worth more than the other three combined, and it needs none of the
 router. The most expensive per token saved is 390x worse than the cheapest.
 
+## 2026-09-28: what the agent actually runs
+
+Measured 2026-09-28T10:10+10:00 over 498 transcripts, 22,625 tool calls. This is the evidence
+behind the recipe design in `spec.md`. Only tool names, binary names, module names and host
+names were counted; no command text or result text was read out.
+
+| Tool | Calls |
+|------|------:|
+| Bash | 12,822 |
+| Read | 3,007 |
+| Edit | 1,582 |
+| Write | 1,314 |
+| WebFetch | 942 |
+| All MCP tools | about 190, almost all Google Calendar |
+
+Bash is 57% of all tool calls.
+
+### Inline Python is the wheel being reinvented
+
+2,592 throwaway `python -c` or `python - <<` scripts. Median 12 lines, p90 44 lines. Grouped
+by the functions each script calls:
+
+| Group | Scripts |
+|-------|--------:|
+| file edit (find and replace, write back) | 461 |
+| JSON read | 425 |
+| image (open, resize, crop, pixels) | 302 |
+| regex search | 175 |
+| JSON read and write | 90 |
+| smaller mixed groups | about 350 |
+| no known group | 791 |
+
+About 60% of the scripts are five jobs done again and again.
+
+### Other hotspots
+
+| Binary | Calls | Error rate | Failed then fixed within 3 calls |
+|--------|------:|-----------:|---------------------------------:|
+| python | 1,957 | 4% | 55 |
+| curl | 572 | 6% | 26 |
+| ls | 732 | 7% | 21 |
+| node | 289 | 13% | 7 |
+| sleep | 140 | 14% | 2 |
+| agy | 36 | 22% | 5 |
+
+`node` is mostly `codex-companion.mjs` (248 calls). `curl` goes mostly to `r.jina.ai` (197,
+page to text), local dev servers on ports 3000, 3100 and 3400 (about 280), and research APIs
+(legislation.gov.au, arXiv, dblp, GitHub, HN).
+
+"Failed then fixed" means an errored call followed within the next three calls of the same
+session by a successful call to the same binary.
+
+
+## 2026-09-27: the bigger lever: context size
+
+Tool results turned out to be a small part of real usage. Over 17,458 API turns (4.25B
+tokens), 97.6% was cache reads: the whole context re-sent every turn. So the ceiling on
+context size matters far more than any cap on one tool result.
+
+**Rejected 2026-09-28.** A 100k `CLAUDE_CODE_AUTO_COMPACT_WINDOW` cap was set on 2026-09-27
+and removed the next day. The 1M window (`opus[1m]`) is back. Each compaction is an extra
+call that re-reads the whole context, and every file is read again after the summary. The
+model below counts neither. The cap also changes how Claude Code sessions run, which is out
+of scope: callrouter only uses levers that leave the flow as it is. The table stays as the
+modelled history.
+
+Modelled on the same transcripts: each session's context grows turn by turn as it did,
+and when it passes the cap it drops back to its first-turn size plus a 15k summary.
+
+| Cap | Overhead trim per turn | Cut |
+|----:|-----------------------:|----:|
+| none | 0 | 0% |
+| 150k | 0 | 58.1% |
+| 150k | 10k | 60.8% |
+| 150k | 20k | 63.3% |
+| 100k | 0 | 65.4% |
+| 100k | 20k | 70.6% |
+
+Slowing growth (smaller tool results) moves this by under 1 point once a cap is set: it
+changes how often a session compacts, not the average size between compactions. The model
+is optimistic; it ignores the tokens the compaction call itself spends and any file read
+again after a summary.
+
+Working for the 150k row: 466 sessions summed to 4,243,704,940 tokens as they ran. Replayed
+with the cap, they sum to 1,777,256,867. (4,243,704,940 - 1,777,256,867) / 4,243,704,940
+= 58.1%.
+
 ## Caveats worth stating
 
 1. This measures one developer's past usage. A product serves other people, whose patterns

@@ -7,37 +7,37 @@ Numbering is stable. Reference an idea by its number.
 
 ## All 29 ideas
 
-| # | Idea | Landed in |
-|---|------|-----------|
-| 1 | One registry over all CLIs, MCP servers and built-in tools | C2 |
-| 2 | Rank tools by observed success rate, token cost and latency | C3 |
-| 3 | Execute calls through the router, not just recommend them | C3 |
-| 4 | PreToolUse hook logs every tool call, all tools not just Bash | C1 |
-| 5 | Read: inject `limit` when the target file is over 40 KB | C7 |
-| 6 | Bash: rewrite a bare `cat` on a large file to a capped range read | C7 |
-| 7 | Backfill the leaderboard from existing transcripts | C1 |
-| 8 | Pre-call gateway: the agent asks CallRouter before making any tool call | C3 |
-| 9 | Per-project cache of tool call results, scoped by project not global | C4, ceiling 0.12% |
-| 10 | Purity classes deciding which calls are safe to cache at all | C4 |
-| 11 | Real invalidation keys: mtime plus size for files, HEAD SHA for git | C4 |
-| 12 | Repeated call shapes get promoted into stored templates | C5 |
-| 13 | Template supersession: a newer or better template replaces the old one | C5 |
-| 14 | Template pruning: dead targets deleted, unused templates expire | C5 |
-| 15 | Rolling window of recent tool calls per project | C1 |
-| 16 | Jev picks the tool: typed probabilistic decision, confidence scored | v2 epic |
-| 17 | Works across Claude Code, Codex CLI and Gemini via `agy` | C11, and it reshaped the architecture |
-| 18 | Multi-agent: several agents sharing one CallRouter | C1, WAL plus `agent_id` |
-| 19 | A local AI engine plays a role | C5, offline extraction only |
-| 20 | Negative Affordance Injection: warn or refuse on known-bad parameters | C8 |
-| 21 | Cascading Failure Circuit Breaker: stop retrying after N failures | C8 |
-| 22 | Self-Healing Argument Remediation: rewrite a failing argument | C8 |
-| 23 | Fallback Tool Cascade: on error, run the tool that historically recovered | C8, carve-out required |
-| 24 | Project-Adaptive Schema Pruning: expose only tools that succeeded here | C3 |
-| 25 | Contextual Argument Completion: fill omitted optional params | C7 |
-| 26 | Multi-Call Macro Synthesis: collapse always-together sequences | C6 |
-| 27 | Deterministic Replay Sandbox: replay recorded outcomes offline | C9, and it shipped early as `bench/` |
-| 28 | Destructive Action Rollback: snapshot before mutating calls | C10, carve-out required |
-| 29 | Seed catalog of popular CLIs and MCP servers | C12, C13, C14 |
+| # | Idea | Landed in (2026-09-27) | Now (2026-09-28) |
+|---|------|-----------|------------------|
+| 1 | One registry over all CLIs, MCP servers and built-in tools | C2 | `tools`, seeded from transcript binaries |
+| 2 | Rank tools by observed success rate, token cost and latency | C3 | `how` ranking, same formula |
+| 3 | Execute calls through the router, not just recommend them | C3 | `run` and `do` execute every call |
+| 4 | PreToolUse hook logs every tool call, all tools not just Bash | C1 | Dropped with hooks; the transcripts already log every call |
+| 5 | Read: inject `limit` when the target file is over 40 KB | C7 | Dropped with hooks |
+| 6 | Bash: rewrite a bare `cat` on a large file to a capped range read | C7 | Covered by `run`'s shrinker |
+| 7 | Backfill the leaderboard from existing transcripts | C1 | `learn` |
+| 8 | Pre-call gateway: the agent asks CallRouter before making any tool call | C3 | `how`, voluntary |
+| 9 | Per-project cache of tool call results, scoped by project not global | C4, ceiling 0.12% | Still cut |
+| 10 | Purity classes deciding which calls are safe to cache at all | C4 | Recipe `purity` metadata; caching still cut |
+| 11 | Real invalidation keys: mtime plus size for files, HEAD SHA for git | C4 | Still cut |
+| 12 | Repeated call shapes get promoted into stored templates | C5 | Recipes, the core |
+| 13 | Template supersession: a newer or better template replaces the old one | C5 | Old recipe moves to `archive/<name>@<n>` |
+| 14 | Template pruning: dead targets deleted, unused templates expire | C5 | `check` flags recipes unused 60 days or failing |
+| 15 | Rolling window of recent tool calls per project | C1 | Call log `project` field, per-project ranking |
+| 16 | Jev picks the tool: typed probabilistic decision, confidence scored | v2 epic | v2 |
+| 17 | Works across Claude Code, Codex CLI and Gemini via `agy` | C11, and it reshaped the architecture | Free: a command works in every host |
+| 18 | Multi-agent: several agents sharing one CallRouter | C1, WAL plus `agent_id` | Call log `agent` field and append lock |
+| 19 | A local AI engine plays a role | C5, offline extraction only | v2, offline and shape-only |
+| 20 | Negative Affordance Injection: warn or refuse on known-bad parameters | C8 | Pre-run hint check, warn only |
+| 21 | Cascading Failure Circuit Breaker: stop retrying after N failures | C8 | Warn-only breaker |
+| 22 | Self-Healing Argument Remediation: rewrite a failing argument | C8 | Hint carries the exact fixed command; no silent rewrite |
+| 23 | Fallback Tool Cascade: on error, run the tool that historically recovered | C8, carve-out required | Binding: result refuses a fallback with no marker |
+| 24 | Project-Adaptive Schema Pruning: expose only tools that succeeded here | C3 | `tools` lists what worked in this project first |
+| 25 | Contextual Argument Completion: fill omitted optional params | C7 | Recipe argument defaults |
+| 26 | Multi-Call Macro Synthesis: collapse always-together sequences | C6 | Multi-step recipes, v2 |
+| 27 | Deterministic Replay Sandbox: replay recorded outcomes offline | C9, and it shipped early as `bench/` | `check`, and `bench/` as the needle-survival test |
+| 28 | Destructive Action Rollback: snapshot before mutating calls | C10, carve-out required | Snapshots in `replace` and `json-set`, never git |
+| 29 | Seed catalog of popular CLIs and MCP servers | C12, C13, C14 | Five seed recipes plus gotcha hints; public catalog v2 |
 
 Ideas 20 to 28 were generated by Gemini 3.8 Flash via `agy` on 2026-09-27T20:45+10:00
 and all nine were kept. Idea 29 came from review of the first spec list.
@@ -54,7 +54,8 @@ and all nine were kept. Idea 29 came from review of the first spec list.
 | D6 | Structure | Epic plus children, not one issue | 176 hours with no checkpoints stalls at 60% |
 | D7 | Language | Python plus FastMCP | The surrounding codebase is Python, and the code must be defensible by hand |
 | D8 | Home | `projects/callrouter/` | Matches existing practice for nested project clones |
-| D9 | Plan | **Still open** | See `spec.md`. Plan A is 30h, Plan B is 176h |
+| D9 | Plan | Plan A on 2026-09-27, then replaced 2026-09-28 | See `spec.md` |
+| D10 | Direction, 2026-09-28 | Command-only tool memory | No hooks, skill or caps; the agent should stop re-deriving working calls. Replaces D2, D4 and D7 |
 
 ## Framing worth keeping
 

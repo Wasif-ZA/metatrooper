@@ -80,7 +80,12 @@ development laptop, verified by `127.0.0.1:11434` returning no response.
 | Jev-powered tool selection | The differentiator, but it needs C3 and C5 underneath first |
 | Community leaderboard, anonymised rankings pooled across installs | The real moat and the true OpenRouter parallel. Needs privacy design and hosting, both out of v1 |
 
-## Standing question this repo has not answered
+## Standing question, answered 2026-09-27
+
+Not as a router, not now. The measurement tool ships; the router waits for evidence from other
+users' transcripts that this one machine cannot give.
+
+The original framing:
 
 Whether any of this should be built as a product. A second model asked to review the plan
 adversarially returned `BUILD_MUCH_SMALLER` and rated sellability at zero, citing roughly
@@ -90,3 +95,28 @@ reviewing.
 
 The measurement in `measurement.md` is arguably the more valuable output of this work than
 the tool itself, and it is independent of whichever plan is chosen.
+
+## Cut on 2026-09-27, when Plan A was chosen
+
+| Cut | Reason | Revisit |
+|-----|--------|---------|
+| Plan B, 176 hours | 146 hours beyond Plan A chase a combined ceiling near 11% | v2-jev |
+| C7 shell rewrite and cap | Claude Code's `bashOutputMaxChars` already caps Bash output and spills the rest to a file, so nothing is lost. A rewritten `\| head` loses it | v2-jev |
+| C9 replay sandbox | Existed to prove C7's rewrite rules safe. No rewrite rules, nothing to prove | v2-jev |
+| C1 SQLite store and live hooks | The transcripts already log every call. `ingest` reads them and saves a JSON summary per run | v2-jev |
+| Headroom as the capper | Only proxy mode caps output, and proxy mode switches off Remote Control | v2-jev |
+
+## Cut on 2026-09-28, when the direction changed to a command-only tool memory
+
+| Cut | Reason | Revisit |
+|-----|--------|---------|
+| Hooks of any kind, including the Read hook | Wasif wants Claude Code's own flow untouched. Hooks are rejected, not deferred | never |
+| A skill | A skill listing costs tokens in every session. A command costs nothing until it is run | v2-jev |
+| Bash output cap (`BASH_MAX_OUTPUT_LENGTH`) | He does not want caps; they change how Claude Code behaves. Shrinking happens inside callrouter, with the full output kept in a log | never |
+| Wrapping gstack browse | He wants his own browser tooling, not a dependency on someone else's. Replaced by an own CDP driver over Chrome's pipe | never |
+| Playwright | Same reason, and Apache 2.0 fails the MIT gate if callrouter is ever sold | v2-jev |
+| Computer use in v1 | Moved to v2. The goal is recorded in `spec.md`: an agent cursor of its own that does not take over his mouse | v2 |
+| Blocking breaker | A command-only tool must never refuse a call the agent chose. The breaker now warns only | v2-jev |
+| SQLite store | JSON lines are enough for an append-only call log with no queries yet | v2-jev |
+
+Still cut from before: the result cache (ceiling 0.12%).
