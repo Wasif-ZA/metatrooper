@@ -11,19 +11,20 @@ SKIP_EXTS = {".pdf", ".ipynb"}
 CACHE = Path.home() / ".cache" / "callrouter" / "img"
 
 
-def shrink_image(path):
+def shrink_image(path, cache=None):
     from PIL import Image
 
+    cache = cache or CACHE
     st = path.stat()
     key = hashlib.sha1(f"{path.resolve()}|{st.st_mtime_ns}|{st.st_size}".encode()).hexdigest()[:16]
-    out = CACHE / f"{key}.png"
+    out = cache / f"{key}.png"
     if out.exists():
         return out
     with Image.open(path) as im:
         if max(im.size) <= MAX_EDGE:
             return None
         im.thumbnail((MAX_EDGE, MAX_EDGE))
-        CACHE.mkdir(parents=True, exist_ok=True)
+        cache.mkdir(parents=True, exist_ok=True)
         im.save(out)
     return out
 

@@ -40,20 +40,27 @@ call every session.
 | Command | What it does |
 |---------|--------------|
 | `callrouter` | Prints a menu of about 10 lines: the verbs and the most-used recipes |
-| `callrouter run -- <cmd>` | Runs any shell command, logs it, prints the shrunk result |
-| `callrouter do <recipe> [args]` | Runs a saved recipe |
-| `callrouter how <words>` | Finds recipes by plain words, ranked, with arguments and an example |
-| `callrouter save <name> -- <cmd>` | Saves a command that just worked as a recipe |
+| `callrouter exec -- <cmd>` | Runs any shell command, logs it, prints the shrunk result |
+| `callrouter run <recipe> [args]` | Runs a saved recipe |
+| `callrouter search <words>` | Finds recipes by plain words, ranked, with arguments and an example |
+| `callrouter list` | Every recipe, one line each |
+| `callrouter add <name> -- <cmd>` | Saves a command that just worked as a recipe |
 | `callrouter learn` | Mines the Claude Code transcripts for recipe and hint candidates |
 | `callrouter learn --review` | Human-only: approve or reject candidates |
 | `callrouter check` | Re-runs every recipe's example and reports pass or fail |
+| `callrouter undo [snapshot]` | Puts back the files the last write recipe changed |
 | `callrouter browse <verb>` | Drives a browser (phase 6) |
 | `callrouter jobs [id] [--wait]` | Lists and waits on background engine jobs (phase 3) |
 | `callrouter tools`, `callrouter mcp` | Lists and calls CLI and MCP tools (phase 7) |
 | `callrouter ingest` | The existing token measurement, unchanged |
 
+The verbs are copied from tools that do the same job, checked with `gh` on 2026-09-28: `run` a
+named task and `exec` a raw command as in mise (34k stars), `search` as in just (36k), atuin
+(32k) and pet, `add` as in `mise tasks add`, `list` as in pet and `just --list`. The first
+draft used `do`, `how` and `save`, which no comparable tool uses.
+
 Recipe arguments are positional, in the order a person would say them:
-`callrouter do replace <file> <old> <new>`.
+`callrouter run replace <file> <old> <new>`.
 
 ## Output contract
 
@@ -84,7 +91,7 @@ result, and the log path.
 
 - The exit code is the underlying command's exit code.
 - Errors name the exact next command, for example
-  `no recipe "jsn". Did you mean: callrouter do json <file> <path>`.
+  `no recipe "jsn". Did you mean: callrouter run json <file> <path>`.
 - The full raw output is written to the log before anything is shrunk. The log is byte for
   byte what the command printed.
 - If a shrinker crashes, callrouter prints the raw output and the real exit code. A broken
@@ -109,7 +116,9 @@ needle survival from 98.8% to 99.0%.
 
 ## Recipes
 
-One JSON file per recipe in `~/.callrouter/recipes/<name>.json`.
+The five seed recipes are built into the package (`callrouter/recipes/`), so they update with
+it. Saved and learned recipes are one JSON file each in `~/.callrouter/recipes/<name>.json`,
+and a file wins over a seed of the same name.
 
 ```json
 {
@@ -129,6 +138,12 @@ One JSON file per recipe in `~/.callrouter/recipes/<name>.json`.
 - `purity` is `read`, `write`, `external` or `destructive`. A destructive recipe will not run
   without `--yes`.
 - `source` is `seed`, `learned` or `saved`.
+- A Python recipe returns its own compact answer, which is not passed through the text
+  shrinker. When the answer is an object or a list it sits in `out` as real JSON, not as a
+  string. A shell recipe's output goes through the shrinker like `run`.
+- An example carries `setup` (files to create), `args`, `expect_exit` and `expect_out`. `check`
+  runs each one in a temporary folder with a temporary callrouter home, so checks never touch
+  real files or the call log.
 - Success rate, token size and speed are not stored in the recipe. They are computed from the
   call log, so they never go stale.
 - Saving a recipe under a name that already exists moves the old one to
@@ -140,7 +155,7 @@ Written fresh from the group names in `measurement.md`. Nothing is copied from a
 
 | Recipe | Replaces | Built-in traps |
 |--------|----------|----------------|
-| `replace <file> <old> <new>` | 461 file-edit scripts | UTF-8 in and out; snapshot first; reports how many matches changed; `--from-file` for patterns with backslashes |
+| `replace <file> <old> <new>` | 461 file-edit scripts | UTF-8 in and out, line endings kept; snapshot first; reports how many matches changed; `--old-file` and `--new-file` for text with backslashes or newlines |
 | `json <file> <path>` | 425 JSON-read scripts | Stands in for `jq`, which this laptop does not have; paths like `.a.b[0]` |
 | `json-set <file> <path> <value>` | 90 read-and-write scripts | UTF-8; snapshot first; keeps key order |
 | `img <info\|shrink\|diff> <file> [file2]` | 302 image scripts | Reuses `shrink_image`; `diff` reports changed area and percentage |
@@ -148,7 +163,7 @@ Written fresh from the group names in `measurement.md`. Nothing is copied from a
 
 Passing arguments on the command line avoids the heredoc escaping trap entirely.
 
-### `how` ranking
+### `search` ranking
 
 Substring match over name, summary and argument names. Ranked with the formula kept from the
 2026-09-27 architecture:
@@ -186,7 +201,7 @@ Seeded by hand from the tool traps in `meta/gotchas.md`, rewritten as short rule
 `encoding="utf-8"`.
 
 **Before the run (idea 20).** Some hints also carry a command pattern, for example `agy`
-with no `--add-dir`. `run` and `do` check the command against those before running and put
+with no `--add-dir`. `run` and `run` check the command against those before running and put
 the warning in `hint`. The call still runs. It never blocks.
 
 **Breaker.** When the same recipe or binary has failed 3 times in a row within an hour, the
@@ -197,6 +212,10 @@ call the agent chose is the one thing callrouter must not do.
 `browse read` falling back to a plain fetch), the result must carry a `marker` naming the
 tool asked for, the tool that ran, and why. The result builder refuses a fallback with no
 marker, so a silent substitution cannot be built.
+
+Built 2026-09-28 (`callrouter/hints.py`): ten seed hints, six checked before the run and
+four on a failed call's output. `~/.callrouter/hints.json` adds hints and overrides a seed by
+`id`. The breaker key is the recipe name, or the first word of the command shape for `run`.
 
 ## `learn`
 
@@ -217,6 +236,13 @@ to start when `AI_AGENT` or `CLAUDECODE` is set. The agent never reads a candida
 approved, because a candidate is mined from transcripts that can hold real ACU paths or
 values. `learn` itself prints counts and group names only.
 
+Built 2026-09-28 (`callrouter/learn.py`). Thresholds: a shape becomes a recipe candidate at 5
+uses with 80% success (3 uses for shapes from the call log). File plumbing (`ls`, `cat`, `grep`
+and the like) and inline Python never become shell recipes. A hint candidate needs a failed
+call whose output names an error kind, followed within 3 calls by a different shape of the same
+binary that worked. A rejected candidate is remembered in `candidates/rejected.json` and not
+offered again. First run on 506 transcripts: 42 recipe and 41 hint candidates, 11 seconds.
+
 ## Agent glue, phase 3
 
 callrouter is the layer between a coding agent and every other engine it calls: Codex,
@@ -234,10 +260,18 @@ replace it, and carries its known traps:
 
 | Recipe | Runs | Traps built in |
 |--------|------|----------------|
-| `do codex "<task>" [--write]` | `codex-companion.mjs task` | waits for the job; never starts one and walks away |
-| `do codex-review` | `codex-companion.mjs review` | same |
-| `do gemini "<question>" [--add-dir D]` | `meta/scripts/agy-run.sh` | refuses to run a file question with no `--add-dir`, the empty-output trap |
-| `do local "<prompt>" [--lane L]` | `meta/scripts/local.sh` | direct `127.0.0.1:11434` only |
+| `run codex "<task>" [--write]` | `codex-companion.mjs task` | waits for the job; never starts one and walks away |
+| `run codex-review` | `codex-companion.mjs review` | same |
+| `run gemini "<question>" [--add-dir D] [--lane L]` | `meta/scripts/agy-run.sh`, lane `second-opinion` by default | refuses to run a file question with no `--add-dir`, the empty-output trap |
+| `run local "<prompt>" [--model M]`, or `run local <lane> ...` | `meta/scripts/local.sh ask`, gemma4:12b by default; a first word naming a `local.sh` lane passes straight through | direct `127.0.0.1:11434` only |
+
+Engines are called with an argument list, never a shell string, so a prompt cannot run a
+second command. `NODE_NO_WARNINGS=1` keeps Node deprecation noise out of Codex answers.
+`agy-run.sh`'s status footer is cut from the answer and kept in the log.
+
+**Answers are kept whole.** An engine's answer is the output, so it does not go through the
+text shrinker. Up to 8,000 characters come back in `out`; the rest is in the log. An answer
+that parses as JSON comes back as a JSON object.
 
 **One result shape.** An engine's answer comes back in the same `Result` as a shell
 command: `ok`, `exit`, `out`, `errors`, `tail`, `log`. Engine output that is already JSON
@@ -247,12 +281,42 @@ transcript of the engine run is in the log.
 **Jobs.** Engine calls run long. `--background` starts one and returns a job id;
 `callrouter jobs` lists every job from every engine; `callrouter jobs <id> --wait` blocks
 until it ends and returns its result. The default is to wait. A job started in the
-background is still owned by callrouter, so its result is never orphaned.
+background is still owned by callrouter, so its result is never orphaned. `jobs` records the
+folder each job started from, because `codex-companion.mjs` keeps its job list per project
+folder: asking from another folder reports no such job while it is still running (hit
+2026-09-28).
 
 **Boundaries.** An external engine is an external send whatever wraps it: the ACU rule
 applies to `codex` and `gemini` exactly as it does without callrouter. callrouter only
 carries the calls. The two-engine audit rule is unchanged: Codex and Gemini stay two
 separate calls, and callrouter never merges their verdicts.
+
+**Inside the engines' own work.** The forwarder agents (`gemini`, `codex:codex-rescue`, the local
+ones) stay as they are. What changes is the engine at the far end: while Codex or Gemini does a
+job, it uses callrouter as its tool, reads the JSON, evaluates, and finishes the job.
+
+```
+Claude -> gemini / codex forwarder (unchanged) -> Gemini / Codex
+                                                   | during the job:
+                                                   |   callrouter --json exec -- "pytest -q"
+                                                   |   callrouter --json run find <regex> <folder>
+                                                   v
+                                    evaluates, finishes, returns to Claude
+```
+
+- **Codex** reads `~/.codex/AGENTS.md` on every run. It tells Codex to use `exec`, `run json`,
+  `run find`, `run replace`, `search` and `list`, and to fall back to plain commands when
+  callrouter is missing.
+- **Gemini: blocked, not wired.** Decided 2026-09-28: read-only verbs only. Tried and reverted the
+  same day. `agy` checks `command(<prefix>)` allow rules, and an exact rule such as
+  `command(callrouter --json list)` passes that check. The command then still needs
+  `escalate_admin`, because `agy` runs commands in a sandbox and callrouter writes to
+  `~/.callrouter` outside the project folder. Granting that is a sandbox escape, well beyond
+  read-only. A denied command also fails the whole `agy` run, so the preamble change in
+  `agy-run.sh` broke a work-lane job and was reverted with the allow rules. Gemini keeps its
+  read-only file tools.
+- An earlier version routed the forwarders themselves through callrouter, and a separate
+  callrouter agent existed briefly. Both were undone on 2026-09-28.
 
 ## Browser, phase 6
 
@@ -289,11 +353,16 @@ owns Chrome and listens on `127.0.0.1` with a random port and a token, both in
   REDCap and ACU reporting hosts during phase 6, before the first `open`, so a page holding real ACU data cannot be pulled into an
   agent's context by this tool.
 
+Built 2026-09-28 (`callrouter/browse/`). The blocked-hosts list is checked before `open` in the
+CLI, and again inside the daemon after every navigation, so a click that lands on a blocked
+host closes the page. A blocked host also blocks its subdomains.
+
 ## MCP and tools, phase 7
 
 - `mcp <server> <tool> '<json args>'` calls an MCP tool over stdio with plain JSON-RPC:
   initialize, then `tools/call`. Standard library only.
-- Servers are listed in `~/.callrouter/servers.json`, not in Claude Code's config, so their
+- Servers are listed in `~/.callrouter/servers.json`, in the same `{"mcpServers": {name: {command,
+  args, env}}}` shape Claude Code uses, so an entry can be moved across as is. Not in Claude Code's config, so their
   tool definitions never enter the context.
 - `tools` prints one line per tool: the CLI binaries seen in the transcripts, and each MCP
   tool's name, arguments and first sentence. `tools <name>` prints the full definition.
@@ -301,6 +370,29 @@ owns Chrome and listens on `127.0.0.1` with a random port and a token, both in
 
 Low priority by design: MCP is under 1% of calls here. It matters more for Codex and
 Antigravity, which do not defer tool definitions.
+
+## Flows (multi-step recipes), v2
+
+Decided 2026-09-28: the first v2 piece, ahead of computer use. Idea 26 (macro synthesis) and
+old child C6.
+
+A flow is a recipe with `kind: flow` whose body is a list of steps. Each step is one callrouter
+command line without the `callrouter` word, and may use `{1}`..`{9}` for the flow's arguments.
+
+```
+callrouter add read-page --step "browse open {1}" --step "browse read" --summary "open a page and read it"
+callrouter run read-page https://example.com
+```
+
+- Steps run in order through the same lanes as a typed command, so each keeps its own log,
+  call record, hints and shrinking.
+- The first failing step stops the flow. The flow's exit code is that step's exit code.
+- The result's `out` is one entry per step that ran: the step as run, `ok`, `exit`, and its
+  `out` or `note`.
+- A step may not run another flow, so a flow cannot loop.
+- `check` skips flows: their steps are checked as recipes of their own.
+
+Later, not now: `learn` proposing flows from command sequences that always run together.
 
 ## Computer use, v2
 
@@ -328,7 +420,7 @@ the person decides before running it.
 |-----------|--------------------|
 | C1 Foundation | JSONL call log; `learn` is the backfill |
 | C2 Registry | `tools`, seeded from binaries seen in the transcripts |
-| C3 Ranking, schema pruning | `how` ranking with the kept formula; `tools` one-liners |
+| C3 Ranking, schema pruning | `search` ranking with the kept formula; `tools` one-liners |
 | C4 Cache | Still cut. Ceiling 0.12% |
 | C5 Templates | Recipes, with promote, supersede and prune kept |
 | C6 Macro synthesis | Multi-step recipes, v2 |
@@ -349,13 +441,14 @@ Each phase is usable on its own.
 | Phase | What | Needs |
 |------:|------|-------|
 | 1 | Output contract, call log, `run` (from `run.py`), the menu, logs under `~/.callrouter/logs/` | nothing |
-| 2 | Recipe format, five seed recipes, `do`, `how`, `save`, `check`, snapshots | 1 |
+| 2 | Recipe format, five seed recipes, `run`, `search`, `add`, `check`, snapshots | 1 |
 | 3 | Agent glue: codex, gemini and local as engine recipes, one result shape, `jobs` | 2 |
 | 4 | Hints seeded from gotchas, breaker, marker | 1 |
 | 5 | `learn` and `learn --review` | 2, 4 |
 | 6 | `browse`: daemon, CDP over pipe, look, click, type, read, shot | 1 |
 | 7 | `mcp` and `tools` | 1 |
-| v2 | Computer use, multi-step recipes, Jev-powered selection, community catalog | |
+| v2a | Flows: multi-step recipes (built 2026-09-28) | 2 |
+| v2 | Computer use, Jev-powered selection, community catalog | |
 
 ## Acceptance criteria
 
@@ -385,7 +478,7 @@ Each phase is usable on its own.
 14. Two processes appending 1,000 lines each to the call log at once leave 2,000 lines that
     each parse as JSON.
 15. A command matching a pre-run hint pattern returns that hint and still runs.
-16. With calls logged in two projects, `how` ranks by the current project's calls first.
+16. With calls logged in two projects, `search` ranks by the current project's calls first.
 17. An engine recipe returns the same result fields as `run`, and a background job's result
     can always be fetched with `callrouter jobs <id> --wait`, even after the caller exited.
 

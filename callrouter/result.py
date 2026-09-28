@@ -10,7 +10,7 @@ class Result:
     lane: str
     exit: int = 0
     secs: float = 0.0
-    out: str | None = None
+    out: str | dict | list | None = None
     errors: list = field(default_factory=list)
     more_errors: int = 0
     tail: list = field(default_factory=list)
@@ -64,7 +64,7 @@ def render(r, how):
         return r.out or r.note or ""
     status = "ok" if r.ok else "FAIL"
     head = f"{status}  {r.lane}"
-    if r.recipe:
+    if r.recipe and not (r.cmd or "").startswith(r.recipe):
         head += f"  {r.recipe}"
     if r.cmd:
         head += f"  {r.cmd}"
@@ -74,7 +74,7 @@ def render(r, how):
     if r.marker:
         parts.append(f"  ran {r.marker['ran']} instead of {r.marker['requested']}: {r.marker['why']}")
     if r.out:
-        parts.append(r.out.rstrip("\n"))
+        parts.append(r.out.rstrip("\n") if isinstance(r.out, str) else json.dumps(r.out, indent=1, ensure_ascii=False))
     if r.errors:
         parts.append("  errors:")
         parts += [f"    {e}" for e in r.errors]

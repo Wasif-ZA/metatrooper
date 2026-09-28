@@ -41,7 +41,7 @@ callrouter/
   shrink.py         text, json, image, page shrinkers
   hints.py          hint matching, breaker
   recipes/
-    store.py          load, save, archive, rank (the `how` formula)
+    store.py          load, save, archive, rank (the `search` formula)
     replace.py        seed recipes, one file each
     json_get.py
     json_set.py

@@ -3,8 +3,8 @@
 The agent's tool memory: one command that remembers how tools were called, reuses what
 worked as recipes, returns known fixes on failure, and shrinks what it prints.
 
-**Status: spec drafted 2026-09-28, not built.** Command only: no hooks, no skill, no caps.
-Only `callrouter ingest` exists today. See `docs/spec.md`.
+**Status: phases 1 to 7 built 2026-09-28.** Command only: no hooks, no skill, no caps.
+Run `callrouter` for the menu. See `docs/spec.md`.
 
 ## The finding that shapes everything
 
@@ -45,9 +45,24 @@ perfect cache with zero staleness saves 0.12%. Full working in `docs/measurement
 
 ```
 pip install -e .
-callrouter ingest                     # every transcript
-callrouter ingest --since 2026-09-27  # only entries from that date on
+callrouter                                   # the menu
+callrouter exec -- "pytest -q"                # short result, full log kept
+callrouter search resize image                  # find a recipe in plain words
+callrouter list                              # every recipe, one line each
+callrouter run json package.json .version     # run a recipe
+callrouter run replace notes.txt old new      # snapshot first; callrouter undo puts it back
+callrouter undo                              # put back the files the last write changed
+callrouter add count-lines -- 'wc -l < {1}' # keep a command that worked
+callrouter run gemini --dir docs "review spec.md"   # engines: codex, codex-review, gemini, local
+callrouter run codex "write tests for X" --background
+callrouter jobs <id> --wait                  # collect a background job from any folder
+callrouter browse open https://example.com   # then look, click @n, type @n "x", read, shot, close
+callrouter mcp <server> <tool> '{"a": 1}'    # servers in ~/.callrouter/servers.json
+callrouter tools                             # what is used here, MCP tools in one line each
+callrouter learn                             # mine the transcripts; a person runs learn --review
+callrouter check                             # run every recipe's example
+callrouter ingest --since 2026-09-27         # where tool-result tokens go
 ```
 
-Prints tool shares, image cost, shell percentiles and what each cap would save. Saves a JSON
-summary to `~/.callrouter/` unless `--no-save`.
+A person gets readable text. An agent (`AI_AGENT` or `CLAUDECODE` set) gets one line of JSON.
+`--json` and `--human` force either. Everything callrouter writes lives in `~/.callrouter/`.

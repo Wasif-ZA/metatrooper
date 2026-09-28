@@ -24,11 +24,11 @@ def isolated_environment(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "argv",
     [
-        ["run", "--", "printf agent-run"],
+        ["exec", "--", "printf agent-run"],
         [],
         ["rum"],
     ],
-    ids=["run", "bare-menu", "unknown-verb"],
+    ids=["exec", "bare-menu", "unknown-verb"],
 )
 def test_agent_environment_prints_exactly_one_json_line(
     agent_variable, argv, monkeypatch, capsys
@@ -48,11 +48,11 @@ def test_agent_environment_prints_exactly_one_json_line(
 @pytest.mark.parametrize(
     "argv",
     [
-        ["run", "--", "printf human-run"],
+        ["exec", "--", "printf human-run"],
         [],
         ["rum"],
     ],
-    ids=["run", "bare-menu", "unknown-verb"],
+    ids=["exec", "bare-menu", "unknown-verb"],
 )
 def test_without_agent_environment_or_flag_output_is_not_json(argv, capsys):
     cli.main(argv)
@@ -85,7 +85,7 @@ def test_output_flag_overrides_environment(flag, environment, expect_json, monke
 
 
 def test_output_flag_after_bare_separator_belongs_to_command(tmp_path, capsys):
-    exit_code = cli.main(["run", "--", "echo", "--json"])
+    exit_code = cli.main(["exec", "--", "echo", "--json"])
 
     captured = capsys.readouterr()
     assert exit_code == 0
@@ -101,7 +101,7 @@ def test_log_preserves_raw_non_ascii_and_binaryish_bytes(tmp_path, capsys):
     expected = b"caf\xc3\xa9\x00\xff\nraw\rbyte"
     command = r"printf 'caf\303\251\000\377\nraw\rbyte'"
 
-    exit_code = cli.main(["--json", "run", "--", command])
+    exit_code = cli.main(["--json", "exec", "--", command])
 
     captured = capsys.readouterr()
     result = json.loads(captured.out)
@@ -120,7 +120,7 @@ def test_shrinker_failure_prints_raw_output_and_preserves_exit_code(monkeypatch,
 
     monkeypatch.setattr(shrink, "shrink", crash)
 
-    exit_code = cli.main(["--human", "run", "--", "printf 'visible raw output'; exit 3"])
+    exit_code = cli.main(["--human", "exec", "--", "printf 'visible raw output'; exit 3"])
 
     captured = capsys.readouterr()
     assert exit_code == 3
@@ -130,7 +130,7 @@ def test_shrinker_failure_prints_raw_output_and_preserves_exit_code(monkeypatch,
 
 @pytest.mark.parametrize("command_exit", [0, 1, 3, 42])
 def test_main_returns_underlying_command_exit_code(command_exit, capsys):
-    returned = cli.main(["--json", "run", "--", f"exit {command_exit}"])
+    returned = cli.main(["--json", "exec", "--", f"exit {command_exit}"])
 
     result = json.loads(capsys.readouterr().out)
     assert returned == command_exit
@@ -149,13 +149,13 @@ def test_main_returns_underlying_command_exit_code(command_exit, capsys):
 )
 def test_result_rejects_fallback_without_complete_marker(marker):
     with pytest.raises(ValueError, match="fallback result needs a marker"):
-        Result(ok=True, lane="run", fallback="backup", marker=marker)
+        Result(ok=True, lane="exec", fallback="backup", marker=marker)
 
 
 def test_result_accepts_fallback_with_complete_marker():
     marker = {"requested": "primary", "ran": "backup", "why": "primary unavailable"}
 
-    result = Result(ok=True, lane="run", fallback="backup", marker=marker)
+    result = Result(ok=True, lane="exec", fallback="backup", marker=marker)
 
     assert result.fallback == "backup"
     assert result.marker == marker
@@ -169,7 +169,7 @@ def test_all_run_files_stay_under_callrouter_home(tmp_path, monkeypatch, capsys)
     outside_directory.mkdir()
     monkeypatch.chdir(working_directory)
 
-    exit_code = cli.main(["--json", "run", "--", "printf isolated"])
+    exit_code = cli.main(["--json", "exec", "--", "printf isolated"])
 
     result = json.loads(capsys.readouterr().out)
     written_files = [path for path in tmp_path.rglob("*") if path.is_file()]

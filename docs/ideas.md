@@ -10,13 +10,13 @@ Numbering is stable. Reference an idea by its number.
 | # | Idea | Landed in (2026-09-27) | Now (2026-09-28) |
 |---|------|-----------|------------------|
 | 1 | One registry over all CLIs, MCP servers and built-in tools | C2 | `tools`, seeded from transcript binaries |
-| 2 | Rank tools by observed success rate, token cost and latency | C3 | `how` ranking, same formula |
-| 3 | Execute calls through the router, not just recommend them | C3 | `run` and `do` execute every call |
+| 2 | Rank tools by observed success rate, token cost and latency | C3 | `search` ranking, same formula |
+| 3 | Execute calls through the router, not just recommend them | C3 | `run` and `run` execute every call |
 | 4 | PreToolUse hook logs every tool call, all tools not just Bash | C1 | Dropped with hooks; the transcripts already log every call |
 | 5 | Read: inject `limit` when the target file is over 40 KB | C7 | Dropped with hooks |
 | 6 | Bash: rewrite a bare `cat` on a large file to a capped range read | C7 | Covered by `run`'s shrinker |
 | 7 | Backfill the leaderboard from existing transcripts | C1 | `learn` |
-| 8 | Pre-call gateway: the agent asks CallRouter before making any tool call | C3 | `how`, voluntary |
+| 8 | Pre-call gateway: the agent asks CallRouter before making any tool call | C3 | `search`, voluntary |
 | 9 | Per-project cache of tool call results, scoped by project not global | C4, ceiling 0.12% | Still cut |
 | 10 | Purity classes deciding which calls are safe to cache at all | C4 | Recipe `purity` metadata; caching still cut |
 | 11 | Real invalidation keys: mtime plus size for files, HEAD SHA for git | C4 | Still cut |

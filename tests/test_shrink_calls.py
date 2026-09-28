@@ -46,7 +46,7 @@ def test_run_call_log_contains_shape_not_raw_command(capsys):
 
     command = r'printf "%s" 731946 "ultravioletgiraffe" "C:\zebraarchive.csv"'
 
-    exit_code = cli.main(["--json", "run", "--", command])
+    exit_code = cli.main(["--json", "exec", "--", command])
 
     json.loads(capsys.readouterr().out)
     call_log = Path(os.environ["CALLROUTER_HOME"]) / "calls.jsonl"

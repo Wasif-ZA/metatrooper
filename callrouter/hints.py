@@ -1,0 +1,95 @@
+import datetime
+import json
+import re
+
+from callrouter.log import home
+
+BREAKER_RUN = 3
+BREAKER_WINDOW = datetime.timedelta(hours=1)
+
+# when="before" matches the command before it runs; when="fail" matches the output of a failed call.
+SEED = [
+    {"id": "agy-add-dir", "when": "before", "match": r"(^|[;&|]\s*)agy\b(?!.*--add-dir)",
+     "hint": "agy cannot read files outside its folder and returns nothing. Add --add-dir <folder>, "
+             "or use: callrouter run gemini --add-dir <folder> \"<question>\""},
+    {"id": "ollama-v1", "when": "before", "match": r"11434/v1/chat/completions",
+     "hint": "Ollama's /v1/chat/completions returns empty content for qwen3 and gemma4. Use /api/generate "
+             "with \"think\": false and an explicit num_ctx, or: callrouter run local \"<prompt>\""},
+    {"id": "taskkill-node", "when": "before", "match": r"taskkill\b.*(/|//)IM\s+node(\.exe)?\b",
+     "hint": "This kills every node process on the machine, including other sessions' servers. "
+             "Kill the one pid instead"},
+    {"id": "git-clean-x", "when": "before", "match": r"git\s+clean\s+-[a-zA-Z]*x",
+     "hint": "git clean -x deletes ignored files too, which can include the only copy of local data"},
+    {"id": "git-bash-date", "when": "before", "match": r"(^|[;&|(]\s*)date(\s|$|\))",
+     "hint": "Git Bash on Windows reads the clock as UTC here. Use: bash meta/scripts/now-iso.sh"},
+    {"id": "foreground-sleep", "when": "before", "match": r"(^|[;&|]\s*)sleep\s+\d{2,}",
+     "hint": "Long foreground sleeps are blocked by the harness. Wait on a condition, or run the job "
+             "with --background and collect it with callrouter jobs <id> --wait"},
+    {"id": "cp1252", "when": "fail", "match": r"UnicodeDecodeError|UnicodeEncodeError|'charmap' codec",
+     "hint": "Python on Windows reads and writes files as cp1252 by default. Pass encoding=\"utf-8\" to "
+             "open, read_text and write_text"},
+    {"id": "no-jq", "when": "fail", "match": r"jq: (command )?not found|command not found: jq",
+     "hint": "There is no jq here. Use: callrouter run json <file> <path>"},
+    {"id": "store-python", "when": "fail", "match": r"Python was not found; run without arguments to install",
+     "hint": "Bare python is the Microsoft Store stub. Use the full interpreter path"},
+    {"id": "module-missing", "when": "fail", "match": r"ModuleNotFoundError: No module named '([\w.]+)'",
+     "hint": "That module is not installed for this interpreter. Check which python ran, then pip install it there"},
+]
+
+
+def load():
+    hints = list(SEED)
+    path = home() / "hints.json"
+    if path.is_file():
+        try:
+            user = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(user, list):
+                ids = {h.get("id") for h in user}
+                hints = [h for h in hints if h["id"] not in ids] + [h for h in user if h.get("match")]
+        except ValueError:
+            pass
+    return hints
+
+
+def match(cmd, output=None, failed=False):
+    """Return the first matching hint text: a before-hint on the command, else a fail-hint on the output."""
+    for h in load():
+        try:
+            if h.get("when") == "before" and re.search(h["match"], cmd or ""):
+                return h["hint"]
+            if failed and h.get("when") == "fail" and re.search(h["match"], output or ""):
+                if h.get("binary") and h["binary"] != first_word(cmd):
+                    continue
+                return h["hint"]
+        except re.error:
+            continue
+    return None
+
+
+def first_word(cmd):
+    parts = (cmd or "").split()
+    return re.split(r"[/\\]", parts[0])[-1].lower() if parts else ""
+
+
+def breaker_key(record):
+    if record.get("recipe"):
+        return "recipe:" + record["recipe"]
+    return "cmd:" + (record.get("shape") or "").split(" ")[0]
+
+
+def breaker(rows, record):
+    """Return a warning when this call's tool has failed BREAKER_RUN times in a row within the hour."""
+    key = breaker_key(record)
+    mine = [r for r in rows if breaker_key(r) == key][-BREAKER_RUN:]
+    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 for r in mine):
+        return None
+    try:
+        first = datetime.datetime.fromisoformat(mine[0]["time"])
+        last = datetime.datetime.fromisoformat(record["time"])
+    except (KeyError, ValueError):
+        return None
+    if last - first > BREAKER_WINDOW:
+        return None
+    name = key.split(":", 1)[1]
+    return (f"{name} has failed {BREAKER_RUN} times in a row since {first:%H:%M}. "
+            f"Last log: {mine[-1].get('log')}. Check the hint or the log before retrying")

@@ -1,0 +1,117 @@
+import os
+import re
+from pathlib import Path
+
+LOCAL_LANES = {"extract", "audit", "commit", "edit", "work", "look", "ask", "models", "--doctor", "--test"}
+LOCAL_MODEL = "gemma4:12b"
+CODEX_VALUE_FLAGS = {"--model", "--effort", "--resume"}
+CODEX_BARE_FLAGS = {"--write", "--fresh", "--resume-last"}
+FILE_WORD = re.compile(r"[\w./\\-]+\.(?:pdf|png|jpe?g|webp|md|py|txt|json|csv|html?|docx?|pptx?|xlsx?)\b", re.I)
+
+RECIPES = [
+    {"name": "codex", "summary": "ask Codex to do a task and wait for its answer",
+     "args": ["prompt", "--write", "--model", "--effort", "--prompt-file"], "purity": "external", "engine": "codex"},
+    {"name": "codex-review", "summary": "Codex code review of the current changes, waits for the verdict",
+     "args": ["--base", "--scope"], "purity": "external", "engine": "codex-review"},
+    {"name": "gemini", "summary": "ask Gemini through agy; file questions need --add-dir",
+     "args": ["prompt", "--dir", "--add-dir", "--lane", "--prompt-file"], "purity": "external", "engine": "gemini"},
+    {"name": "local", "summary": "ask a local Ollama model on this laptop, or run a local.sh lane",
+     "args": ["prompt", "--model", "--prompt-file"], "purity": "read", "engine": "local"},
+]
+
+
+def version_key(p):
+    return [int(x) if x.isdigit() else 0 for x in re.split(r"[.-]", p.parts[-3])]
+
+
+def codex_companion():
+    if os.environ.get("CALLROUTER_CODEX_COMPANION"):
+        return os.environ["CALLROUTER_CODEX_COMPANION"]
+    found = sorted((Path.home() / ".claude" / "plugins" / "cache" / "openai-codex" / "codex")
+                   .glob("*/scripts/codex-companion.mjs"), key=version_key)
+    if not found:
+        raise FileNotFoundError("codex-companion.mjs not found. Install the Codex plugin or set "
+                                "CALLROUTER_CODEX_COMPANION")
+    return str(found[-1])
+
+
+def vault_script(name):
+    # ponytail: vault path defaults to ~/teehee; set CALLROUTER_VAULT on any other machine
+    vault = Path(os.environ.get("CALLROUTER_VAULT") or Path.home() / "teehee")
+    path = vault / "meta" / "scripts" / name
+    if not path.is_file():
+        raise FileNotFoundError(f"{path} not found. Set CALLROUTER_VAULT to the vault folder")
+    return str(path)
+
+
+def take(args, flag):
+    """Remove every `flag value` pair from args. Return (values, remaining args)."""
+    values, rest, i = [], [], 0
+    while i < len(args):
+        if args[i] == flag and i + 1 < len(args) and not args[i + 1].startswith("--"):
+            values.append(args[i + 1])
+            i += 2
+        else:
+            rest.append(args[i])
+            i += 1
+    return values, rest
+
+
+def has_prompt(args):
+    """True when some argument is not a Codex flag or a flag's value."""
+    i = 0
+    while i < len(args):
+        if args[i] in CODEX_VALUE_FLAGS:
+            i += 2
+            continue
+        if args[i] not in CODEX_BARE_FLAGS:
+            return True
+        i += 1
+    return False
+
+
+def argv(recipe, args, shell):
+    """Return the argument list that runs this engine. Raises ValueError on a bad call."""
+    engine = recipe["engine"]
+    files, args = take(args, "--prompt-file")
+    if files:
+        args = [*args, Path(files[-1]).read_text(encoding="utf-8")]
+    if engine == "codex":
+        if not has_prompt(args):
+            raise ValueError('codex needs a prompt: callrouter run codex "<task>"')
+        return ["node", codex_companion(), "task", *args]
+    if engine == "codex-review":
+        return ["node", codex_companion(), "review", "--wait", *args]
+    if engine == "gemini":
+        dirs, rest = take(args, "--add-dir")
+        lanes, rest = take(rest, "--lane")
+        workdirs, rest = take(rest, "--dir")
+        passed = []
+        for flag in ("--model", "--timeout", "--effort"):
+            vals, rest = take(rest, flag)
+            passed += [flag, vals[-1]] if vals else []
+        prompt = " ".join(rest)
+        if not prompt:
+            raise ValueError('gemini needs a prompt: callrouter run gemini "<question>"')
+        if FILE_WORD.search(prompt) and not dirs and not workdirs:
+            raise ValueError("this question names a file but has no --add-dir or --dir. agy cannot read "
+                             "files outside its folder and comes back empty. Add --dir <folder>")
+        cmd = [shell, vault_script("agy-run.sh"), "--lane", (lanes or ["second-opinion"])[-1],
+               "--prompt", prompt, *passed]
+        for d in workdirs[-1:]:
+            cmd += ["--dir", d]
+        for d in dirs:
+            cmd += ["--add-dir", d]
+        return cmd
+    if engine == "local":
+        lanes, args = take(args, "--lane")
+        if lanes:
+            args = [lanes[-1], *args]
+        if args and args[0] in LOCAL_LANES:
+            return [shell, vault_script("local.sh"), *args]
+        models, rest = take(args, "--model")
+        prompt = " ".join(rest)
+        if not prompt:
+            raise ValueError('local needs a prompt: callrouter run local "<prompt>"')
+        return [shell, vault_script("local.sh"), "ask", (models or [LOCAL_MODEL])[-1], prompt]
+    raise ValueError(f"unknown engine {engine}")
