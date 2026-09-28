@@ -58,13 +58,13 @@ def _lock(path):
     while True:
         try:
             return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
+        except (FileExistsError, PermissionError):  # Windows: PermissionError while a delete is pending
             try:
                 if time.time() - path.stat().st_mtime > LOCK_STALE:
                     path.unlink(missing_ok=True)
                     continue
-            except FileNotFoundError:
-                continue
+            except (FileNotFoundError, PermissionError):
+                pass
             if time.monotonic() - start > LOCK_WAIT:
                 raise TimeoutError(f"call log lock held: {path}")
             time.sleep(0.01)

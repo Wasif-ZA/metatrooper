@@ -53,7 +53,7 @@ def run(args):
     raw = proc.stdout or b""
     text = raw.decode("utf-8", errors="replace")
     try:
-        path = log.write(cmd, raw)
+        path = log.write(calls.shape(cmd), raw)
     except OSError as e:
         return Result(ok=proc.returncode == 0, lane="run", exit=proc.returncode, secs=secs, out=text,
                       cmd=shrink.clip(cmd), note=f"log not written ({e}); output shown whole")

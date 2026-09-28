@@ -5,7 +5,9 @@ History at the bottom; the full text is in git.
 
 ## What it is
 
-One command, `callrouter`, that an agent or a person runs. It is the agent's tool memory.
+One command, `callrouter`, that an agent or a person runs. It is the agent's tool memory, and
+the glue between coding agents: Codex, Gemini, the local models and every repeated script
+all go through it and come back as the same clean JSON.
 
 It does four jobs:
 
@@ -45,8 +47,9 @@ call every session.
 | `callrouter learn` | Mines the Claude Code transcripts for recipe and hint candidates |
 | `callrouter learn --review` | Human-only: approve or reject candidates |
 | `callrouter check` | Re-runs every recipe's example and reports pass or fail |
-| `callrouter browse <verb>` | Drives a browser (phase 5) |
-| `callrouter tools`, `callrouter mcp` | Lists and calls CLI and MCP tools (phase 6) |
+| `callrouter browse <verb>` | Drives a browser (phase 6) |
+| `callrouter jobs [id] [--wait]` | Lists and waits on background engine jobs (phase 3) |
+| `callrouter tools`, `callrouter mcp` | Lists and calls CLI and MCP tools (phase 7) |
 | `callrouter ingest` | The existing token measurement, unchanged |
 
 Recipe arguments are positional, in the order a person would say them:
@@ -121,7 +124,7 @@ One JSON file per recipe in `~/.callrouter/recipes/<name>.json`.
 }
 ```
 
-- `kind` is `python`, `shell`, `browse` or `mcp`. A shell recipe's body is a command template
+- `kind` is `python`, `shell`, `engine`, `browse` or `mcp`. A shell recipe's body is a command template
   with `{placeholders}`.
 - `purity` is `read`, `write`, `external` or `destructive`. A destructive recipe will not run
   without `--yes`.
@@ -214,7 +217,44 @@ to start when `AI_AGENT` or `CLAUDECODE` is set. The agent never reads a candida
 approved, because a candidate is mined from transcripts that can hold real ACU paths or
 values. `learn` itself prints counts and group names only.
 
-## Browser, phase 5
+## Agent glue, phase 3
+
+callrouter is the layer between a coding agent and every other engine it calls: Codex,
+Gemini through `agy`, the local models, and the plain scripting around them. Whatever
+runs underneath, the caller gets the same clean result.
+
+**Why.** This vault already has three separate wrappers doing this job:
+`codex-companion.mjs` for `/codex:*`, `meta/scripts/agy-run.sh` and `agy_jobs_lib.py` for
+`/agy-*`, and `meta/scripts/local.sh` for `/local`. Each has its own flags, job handling and
+output shape. The glue is also where calls fail: `codex-companion.mjs` fails 13% of 248
+calls and `agy` 22% of 36 (`measurement.md`, 2026-09-28).
+
+**Engines are recipes.** `kind: engine`. Each wraps the existing script, it does not
+replace it, and carries its known traps:
+
+| Recipe | Runs | Traps built in |
+|--------|------|----------------|
+| `do codex "<task>" [--write]` | `codex-companion.mjs task` | waits for the job; never starts one and walks away |
+| `do codex-review` | `codex-companion.mjs review` | same |
+| `do gemini "<question>" [--add-dir D]` | `meta/scripts/agy-run.sh` | refuses to run a file question with no `--add-dir`, the empty-output trap |
+| `do local "<prompt>" [--lane L]` | `meta/scripts/local.sh` | direct `127.0.0.1:11434` only |
+
+**One result shape.** An engine's answer comes back in the same `Result` as a shell
+command: `ok`, `exit`, `out`, `errors`, `tail`, `log`. Engine output that is already JSON
+(agy verdicts, the local status object) goes into `out` as JSON, not as text. The full
+transcript of the engine run is in the log.
+
+**Jobs.** Engine calls run long. `--background` starts one and returns a job id;
+`callrouter jobs` lists every job from every engine; `callrouter jobs <id> --wait` blocks
+until it ends and returns its result. The default is to wait. A job started in the
+background is still owned by callrouter, so its result is never orphaned.
+
+**Boundaries.** An external engine is an external send whatever wraps it: the ACU rule
+applies to `codex` and `gemini` exactly as it does without callrouter. callrouter only
+carries the calls. The two-engine audit rule is unchanged: Codex and Gemini stay two
+separate calls, and callrouter never merges their verdicts.
+
+## Browser, phase 6
 
 **Own driver, no dependency.** Talks to the installed Chrome over the DevTools protocol through
 `--remote-debugging-pipe`. Probed 2026-09-28: `Browser.getVersion` answered from stdlib Python
@@ -246,10 +286,10 @@ owns Chrome and listens on `127.0.0.1` with a random port and a token, both in
 
 - Own profile at `~/.callrouter/chrome-profile`, never the everyday Chrome profile.
 - `browse` refuses any host in `~/.callrouter/blocked-hosts.txt`. Wasif fills that file with the
-  REDCap and ACU reporting hosts during phase 5, before the first `open`, so a page holding real ACU data cannot be pulled into an
+  REDCap and ACU reporting hosts during phase 6, before the first `open`, so a page holding real ACU data cannot be pulled into an
   agent's context by this tool.
 
-## MCP and tools, phase 6
+## MCP and tools, phase 7
 
 - `mcp <server> <tool> '<json args>'` calls an MCP tool over stdio with plain JSON-RPC:
   initialize, then `tools/call`. Standard library only.
@@ -310,10 +350,11 @@ Each phase is usable on its own.
 |------:|------|-------|
 | 1 | Output contract, call log, `run` (from `run.py`), the menu, logs under `~/.callrouter/logs/` | nothing |
 | 2 | Recipe format, five seed recipes, `do`, `how`, `save`, `check`, snapshots | 1 |
-| 3 | Hints seeded from gotchas, breaker, marker | 1 |
-| 4 | `learn` and `learn --review` | 2, 3 |
-| 5 | `browse`: daemon, CDP over pipe, look, click, type, read, shot | 1 |
-| 6 | `mcp` and `tools` | 1 |
+| 3 | Agent glue: codex, gemini and local as engine recipes, one result shape, `jobs` | 2 |
+| 4 | Hints seeded from gotchas, breaker, marker | 1 |
+| 5 | `learn` and `learn --review` | 2, 4 |
+| 6 | `browse`: daemon, CDP over pipe, look, click, type, read, shot | 1 |
+| 7 | `mcp` and `tools` | 1 |
 | v2 | Computer use, multi-step recipes, Jev-powered selection, community catalog | |
 
 ## Acceptance criteria
@@ -345,6 +386,8 @@ Each phase is usable on its own.
     each parse as JSON.
 15. A command matching a pre-run hint pattern returns that hint and still runs.
 16. With calls logged in two projects, `how` ranks by the current project's calls first.
+17. An engine recipe returns the same result fields as `run`, and a background job's result
+    can always be fetched with `callrouter jobs <id> --wait`, even after the caller exited.
 
 ## Testing
 
