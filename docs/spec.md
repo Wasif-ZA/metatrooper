@@ -93,7 +93,7 @@ Chosen by what the output looks like, not by which tool made it.
 
 | Kind | What is kept |
 |------|--------------|
-| Text | Line and byte count, every line matching an error pattern (never dropped), the last 3 lines. Lines clipped at 200 characters. Grown from `run.py`'s `summarise`, which today keeps only 5 error lines |
+| Text | Line and byte count, every line matching an error pattern, repeats counted once, up to 40 with a count of the rest (the benchmark smart cap's limit), the last 3 lines. Lines clipped at 300 characters, the needle length limit |
 | JSON | The shape: top-level keys, list lengths, the first 3 items |
 | Image | Resized to 784 px on the long edge. This is `hook.py`'s `shrink_image`, reused |
 | Page (browse) | Title, headings, numbered links, buttons and fields |

@@ -120,7 +120,7 @@ def report(s, n_files):
           f"({100 * s['read_over_40kb_saves'] / total:.1f}% of all)")
 
 
-def main(argv=None):
+def main(argv=None, how="human"):
     ap = argparse.ArgumentParser(prog="callrouter")
     sub = ap.add_subparsers(dest="cmd", required=True)
     ing = sub.add_parser("ingest", help="measure where tool-result tokens go")
@@ -131,12 +131,18 @@ def main(argv=None):
 
     n_files, calls, results = scan(args.root, args.since)
     s = summarise(calls, results)
-    report(s, n_files)
+    out = None
     if not args.no_save:
         OUT_DIR.mkdir(exist_ok=True)
         out = OUT_DIR / f"ingest-{time.strftime('%Y%m%dT%H%M%S')}.json"
         out.write_text(json.dumps({"since": args.since, "transcripts": n_files, **s}, indent=1),
                        encoding="utf-8")
+    if how == "json":
+        print(json.dumps({"ok": True, "lane": "ingest", "transcripts": n_files,
+                          "saved": out.as_posix() if out else None, **s}))
+        return
+    report(s, n_files)
+    if out:
         print(f"\nsaved {out}")
 
 

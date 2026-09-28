@@ -102,3 +102,22 @@ Step 0 in `spec.md` is answered. Headroom does not cover the 62% that capping is
 on this workload, so Plan A's C7 has a measured justification. The rest of the plan is
 unaffected: this says nothing about the registry, ranking, templates or catalog, all of
 which remain governed by the ceilings in `measurement.md`.
+
+## 2026-09-28: callrouter's own shrinker
+
+`bench/shrink_bench.py` runs the phase 1 text and JSON shrinker over the same kind of corpus,
+with the same needle rules and matching rule as `headroom_bench.py`. The corpus has grown
+since the Headroom run: every Bash output of 250 tokens or more, 4,577 of them.
+
+| Arm | Tokens in | Tokens out | Reduction | Needle survival |
+|-----|----------:|-----------:|----------:|----------------:|
+| callrouter shrink | 4,756,954 | 832,426 | 82.5% | 99.93% (4,288 of 4,291) |
+
+The first run scored 98.21%. Every miss was an `error:` or `fatal:` line with text before it,
+because the smart cap pattern only matched those at the start of a line. Allowing them after
+whitespace fixed it. The two error needles still lost sit past the 40-line limit, and they
+are in the log.
+
+Not like for like with the 62.4% row above: the smart cap keeps the head and tail of every
+output, while the shrinker keeps only error lines and the last 3 lines and relies on the log
+for the rest.
