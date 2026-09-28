@@ -330,7 +330,8 @@ def test_list_prints_each_seed_recipe_name_once(capsys):
     exit_code, result = invoke(capsys, "list")
 
     assert exit_code == 0
-    assert result["lane"] == "list"
+    assert result["ok"] is True
+    assert result["exit"] == 0
     names = [entry.split()[0] for entry in result["out"]]
     for name in (
         "codex",
@@ -354,7 +355,20 @@ def test_recipe_saved_with_add_appears_with_source_saved(capsys):
     list_exit, result = invoke(capsys, "list")
 
     assert list_exit == 0
-    assert result["lane"] == "list"
+    assert result["ok"] is True
+    assert result["exit"] == 0
     matches = [entry for entry in result["out"] if entry.split()[0] == "custom-tool"]
     assert len(matches) == 1
     assert "(saved)" in matches[0]
+
+
+def test_exec_echo_hi_with_ai_agent_prints_exact_keys(monkeypatch, capsys):
+    monkeypatch.setenv("AI_AGENT", "1")
+
+    exit_code = cli.main(["exec", "--", "echo hi"])
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert exit_code == 0
+    parsed = json.loads(captured.out)
+    assert set(parsed.keys()) == {"ok", "exit", "out", "log"}

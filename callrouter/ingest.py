@@ -40,7 +40,8 @@ def blocks(line, since):
 
 def scan(root, since=None):
     """Two passes: map tool_use_id to its call, then attribute each result to it."""
-    files = sorted(Path(root).rglob("*.jsonl"))
+    root = Path(root)
+    files = [root] if root.is_file() else sorted(root.rglob("*.jsonl"))
     calls = {}
     for f in files:
         with f.open(encoding="utf-8", errors="replace") as fh:

@@ -214,7 +214,8 @@ def test_background_engine_returns_a_job_id(tmp_path, monkeypatch, capsys):
     )
 
     assert exit_code == 0
-    assert result["lane"] == "jobs"
+    assert result["ok"] is True
+    assert result["exit"] == 0
     assert result["out"]["job"]
     assert result["out"]["collect"].endswith(
         f"jobs {result['out']['job']} --wait"

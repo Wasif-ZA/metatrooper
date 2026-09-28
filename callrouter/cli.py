@@ -232,7 +232,7 @@ def jobs_lane(args):
         return Result(ok=False, lane="jobs", exit=2, note=str(e))
     if s["status"] == "done":
         fields = {k: v for k, v in s["result"].items() if k in Result.__dataclass_fields__}
-        return Result(**fields)
+        return Result(**{"lane": "jobs", **fields})
     code = 0 if s["status"] == "running" else 1
     note = "still running" if code == 0 else "the job stopped without a result; its log may say why"
     return Result(ok=code == 0, lane="jobs", exit=code, out={"job": jid, "status": s["status"]}, note=note)

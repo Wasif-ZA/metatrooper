@@ -58,8 +58,14 @@ def short_home(p):
 
 def render(r, how):
     if how == "json":
-        return json.dumps({k: v for k, v in asdict(r).items() if v not in (None, [], 0) or k in
-                           ("ok", "exit", "out")}, ensure_ascii=False)
+        d = {"ok": r.ok, "exit": r.exit, "out": r.out}
+        shrunk = bool(r.errors or r.tail) or (r.out is None and r.log)
+        extra = ("errors", "more_errors", "tail", "lines") if shrunk else ()
+        for k in (*extra, "log", "hint", "breaker", "note", "fallback", "marker"):
+            v = getattr(r, k)
+            if v not in (None, [], 0, ""):
+                d[k] = v
+        return json.dumps(d, ensure_ascii=False, separators=(",", ":"))
     if r.lane == "menu":
         return r.out or r.note or ""
     status = "ok" if r.ok else "FAIL"

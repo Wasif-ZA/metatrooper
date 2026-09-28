@@ -76,13 +76,22 @@ Every command follows the same contract, whoever runs it.
 A terminal check (`isatty`) is not used. Under Git Bash it reports "not a terminal" even when
 a person is typing, so it would hand JSON to a human.
 
-**Agent form.** Exactly one JSON line:
+**Agent form.** Exactly one compact JSON line, with only what the agent needs:
 
 ```json
-{"ok": true, "lane": "do", "recipe": "json", "exit": 0, "secs": 0.1,
- "out": "\"1.4.2\"", "errors": [], "tail": [], "log": "~/.callrouter/logs/2026-09-28/0957-json.log",
- "hint": null, "breaker": null, "marker": null}
+{"ok":true,"exit":0,"out":"1.4.2","log":"C:/Users/User/.callrouter/logs/2026-09-28/0957-812-json.log"}
 ```
+
+- Always: `ok`, `exit`, `out`, and `log` whenever one was written.
+- Only when the output was shrunk: `errors`, `more_errors`, `tail`, `lines`.
+- Only when present: `hint`, `breaker`, `note`, `fallback`, `marker`.
+- Never: `lane`, `cmd`, `recipe`, `secs`, `bytes`. The agent typed the command, so echoing it
+  back costs tokens and says nothing. The call log still records all of them.
+
+Measured 2026-09-28 in two real sessions (50 callrouter calls): the old envelope carried about
+55 tokens on every result, and on short outputs that was more than the output itself. In one
+session the callrouter results cost 3,219 tokens against 2,718 tokens of raw output. The lean
+envelope is about 25 tokens, most of it the log path.
 
 **Human form.** The same facts as readable text: a tick or cross, the recipe, the short
 result, and the log path.

@@ -48,12 +48,14 @@ def test_add_flow_saves_recipe_file_with_steps_and_summary(tmp_path, capsys):
 
     assert save_exit == 0
     assert save_res["ok"] is True
-    assert save_res["recipe"] == "test-flow"
+    assert save_res["exit"] == 0
+    assert "test-flow" in save_res["out"]
 
     recipe_file = tmp_path / "recipes" / "test-flow.json"
     assert recipe_file.exists()
 
     data = json.loads(recipe_file.read_text(encoding="utf-8"))
+    assert data["name"] == "test-flow"
     assert data["kind"] == "flow"
     assert data["body"] == ["exec -- printf step1", "exec -- printf step2"]
     assert data["summary"] == "synthetic summary"
