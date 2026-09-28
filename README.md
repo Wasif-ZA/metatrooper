@@ -6,6 +6,11 @@ AI coding agent's tool calls.
 **Status: specified, not built. Plan not yet chosen.** See `docs/spec.md` for the two
 plans on the table and pick one before writing code.
 
+Step 0 is done. Headroom was benchmarked against 1,028 real recorded shell outputs and
+saves 4.2% on this workload against 62.4% for a 400 token cap, because it declines to
+compress 72% of them. It does not cover the gap, so C7 has a measured justification.
+See `docs/benchmark.md`.
+
 ## The finding that shapes everything
 
 Before building, 102 real Claude Code sessions (41,209 transcript lines) were measured to
@@ -35,15 +40,19 @@ perfect cache with zero staleness saves 0.12%. Full working in `docs/measurement
 ## Read in this order
 
 1. `docs/measurement.md`, the evidence. Read this first; it is why the plans differ.
-2. `docs/spec.md`, the two plans and the decision still to be made.
-3. `docs/architecture.md`, the design, which holds for either plan.
-4. `docs/decisions.md`, everything cut and why, tagged for revisit at v2.
+2. `docs/benchmark.md`, the Headroom comparison that settled Step 0.
+3. `docs/spec.md`, the two plans and the decision still to be made.
+4. `docs/architecture.md`, the design, which holds for either plan.
+5. `docs/ideas.md`, all 29 ideas raised and where each one landed.
+6. `docs/decisions.md`, everything cut and why, tagged for revisit at v2.
 
-## Before writing any code
+## Reproducing the benchmark
 
-Test Headroom first. It is Apache 2.0, it already compresses tool output by 60 to 95
-percent, and it ships `headroom wrap claude`. Capping is precisely its job. If it covers
-the 34.7% that capping is worth, this repo does not need to exist, and finding that out
-costs twenty minutes against thirty hours of building.
+```
+uv tool install headroom-ai
+HEADROOM_BEACON=off DO_NOT_TRACK=1 python bench/headroom_bench.py --limit 0 --cap 400
+```
 
-That check is the first item in either plan.
+Reads local transcripts only. Nothing leaves the machine; `headroom.compress()` is a
+library call with no network path. The beacon flags are there because Headroom's
+telemetry upload is on by default.

@@ -4,16 +4,26 @@ Two plans. **Neither is chosen yet.** Read `measurement.md` first, then pick one
 
 Both plans start with the same twenty minute check, and that check can end the project.
 
-## Step 0, common to both plans
+## Step 0: done, 2026-09-27T22:10+10:00
 
-Install Headroom and measure it against real usage. Apache 2.0, already compresses tool
-output 60 to 95 percent, ships `headroom wrap claude`, proxy mode and an MCP server, and
-bundles RTK for shell-output rewriting.
+**Answered. Headroom does not cover the gap. C7 is justified.**
 
-Capping shell output is worth 34.7% of all tool tokens and it is exactly Headroom's job.
-If Headroom delivers it, neither plan below needs to exist.
+Benchmarked `headroom-ai` 0.39.1 against 1,028 real recorded Bash outputs:
 
-Twenty minutes against thirty hours. Do this before anything else.
+| Arm | Saved | Reduction | Needle survival |
+|-----|------:|----------:|----------------:|
+| Headroom `compress()` | 44,254 | 4.2% | 98.4% |
+| Smart cap at 400 tokens | 660,066 | **62.4%** | **99.0%** |
+
+Headroom no-ops 72% of these outputs and protects a further 10.5% as error output. It is
+tuned never to break anything, which is correct for a general product and leaves most of
+the saving unclaimed on this workload. A 400 token cap saves 15x more and loses fewer
+needles.
+
+One idea was borrowed from it: never drop a line matching an error pattern. That costs
+2,106 tokens and raises survival from 98.8% to 99.0%, so C7 ships it.
+
+Full working, method and caveats: `benchmark.md`. Harness: `bench/headroom_bench.py`.
 
 ## Plan A, the evidence-led cut, 30 hours
 

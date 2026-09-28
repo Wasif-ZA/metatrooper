@@ -11,3 +11,7 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+
+# Benchmark output: regenerable, and embeds fragments of real commands.
+# Rebuild: HEADROOM_BEACON=off python bench/headroom_bench.py --limit 0 --cap 400 --json bench/results.json
+bench/results.json
