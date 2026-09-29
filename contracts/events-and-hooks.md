@@ -1,0 +1,149 @@
+# Events and hooks contract
+
+Version 1. Every writer here appends one row to `event` (see `schema.sql`) and exits. None of them waits on
+the core.
+
+## The writer: `core/event.js`
+
+One invocation form: `node event.js <kind> [--session <id>] [--pid <n>] [--engine <id>] [--cwd <path>]`.
+
+- Claude hooks: `<kind>` is `claude.<EventName>` (for example `claude.PreToolUse`); the payload is stdin.
+  The session id comes from `HARNESS_SESSION_ID` in the environment.
+- Launch: `node event.js launch --session <id> --pid <n> --engine <id> --cwd <path>`; the payload is built
+  from the flags.
+- The Codex notify wrapper imports the same module and calls its `append(kind, sessionId, payload)` function.
+
+1. Read stdin (hooks) or build the payload from the flags (launch).
+2. Open `harness.db` with `busy_timeout = 200`. Insert one `event` row.
+3. On any error (no database, locked past 200 ms, bad JSON): write one line to
+   `~/.agent-harness/logs/event-errors.log` if that is possible, then exit 0.
+4. Never write to stdout, except for `UserPromptSubmit` (below).
+
+Total time budget: 250 ms from start to exit. A Claude hook that exceeds it is still fine for Claude (its own
+hook timeout is far longer); the budget exists so nothing the user sees slows down.
+
+## Event kinds and payloads
+
+| kind | source | payload (JSON) |
+|---|---|---|
+| `launch` | launch | `{"session_id": str, "pid": int, "cwd": str, "engine": str, "started_at": ts}` |
+| `claude.PreToolUse` | claude-hook | `session_id`, `transcript_path`, `cwd`, `tool_name`, `tool_use_id`, and `tool_input` redacted (below) |
+| `claude.PostToolUse` | claude-hook | as PreToolUse, plus `response_length` (characters). The response itself is never stored |
+| `claude.UserPromptSubmit` | claude-hook | `session_id`, `cwd`, `prompt_length`. The prompt text is never stored |
+| `claude.Notification` | claude-hook | `session_id`, `cwd`, `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
+| `claude.Stop` | claude-hook | `session_id`, `cwd`, `stop_hook_active` |
+| `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
+| `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
+| `herdr.state` | herdr | `{"pane": str, "state": "blocked" or "working" or "done" or "idle" or "unknown", "agent": str}` |
+| `core.*` | core | internal: `core.checkpoint`, `core.recovered`, `core.missed-schedule` |
+
+Every payload is built from an explicit allowlist of fields, exactly as listed in this table. Any field not
+listed is dropped before the insert, including fields a future Claude Code or Codex version adds.
+
+Privacy: no prompt text, assistant text, tool response or terminal output is ever written. Tool inputs are
+redacted before the insert:
+
+| Tool | Stored from `tool_input` |
+|---|---|
+| `Bash`, `PowerShell` | the first word of the command and the command's length |
+| `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `file_path` only |
+| `Grep`, `Glob` | `path` only |
+| `WebFetch` | the URL's host only |
+| anything else, including MCP tools | the key names and the length of each value |
+
+This is what lets test M1-05 (a marker string typed into a session appears nowhere in the harness) pass.
+
+## Linking a harness session to the engine's own session
+
+| Engine | How `session.native_id` is set |
+|---|---|
+| claude | First hook event carrying `HARNESS_SESSION_ID` (inherited from `launch.ps1`); its `session_id` field is the native id. Exact. |
+| codex | First `codex.turn` event with `HARNESS_SESSION_ID`; its `thread-id` is the native id. Before that, the core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event. Exact after the first turn. |
+| agy | The newest folder under `~/.gemini/antigravity-cli/brain/` created within 30 s after the launch event, only if exactly one agy session was launched in that window. Otherwise `native_id` stays NULL and state stays `unknown`. |
+| herdr host | herdr's pane id (`herdr_pane`); native id from herdr's `agent.get` when it reports one. |
+
+## State mapping
+
+The core processes events in `seq` order and sets `session.state`:
+
+| Event | New state |
+|---|---|
+| `launch` | `starting` |
+| `claude.UserPromptSubmit`, `claude.PreToolUse`, `claude.PostToolUse` | `working` |
+| `claude.Notification` with `class` `permission` or `input` | `waiting_for_you` |
+| `claude.Notification` with `class` `other` | no change |
+| `claude.Stop` | `done` |
+| `claude.SessionEnd` | `exited` |
+| `codex.turn` | `done` |
+| codex rollout file grew in the last 5 s (1 s poll of the linked file) | `working` |
+| agy: linked `brain/<id>/.system_generated/logs/` or `conversations/<id>.db-wal` changed in the last 5 s | `working` |
+| agy: no change for 20 s after `working` | `done` |
+| `herdr.state` | blocked to `waiting_for_you`; working, done, idle, unknown map to themselves |
+| pid gone (5 s check) | `exited` |
+| user opens the card or focuses the session while `done` | `idle` |
+
+## Hook installation
+
+Claude Code's settings keep hooks in an object keyed by event name, each holding an array of matcher groups;
+this is the shape already used in the vault's `.claude/settings.json`.
+
+`agent-harness hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
+event name. It prints a unified diff and asks before writing. It never removes or reorders an existing entry.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "node \"<core>/event.js\" claude.PreToolUse", "timeout": 5 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node \"<core>/event.js\" claude.Stop", "timeout": 5 }] }
+    ]
+  }
+}
+```
+
+`matcher` is set only on `PreToolUse` and `PostToolUse`; the other events get a group with no matcher.
+
+Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notification`, `Stop`,
+`SessionEnd`. The entry is identified for uninstall by the exact command string containing
+`<core>/event.js`. `hooks uninstall` removes only entries whose command matches, and deletes an event name's
+array only if it becomes empty and was absent before install (recorded in
+`~/.agent-harness/hooks-install.json`).
+
+Hooks do nothing outside a harness session: when `HARNESS_SESSION_ID` is not set, `event.js` exits 0
+immediately without opening the database.
+
+## The one hook with output: UserPromptSubmit
+
+This is the named exception to "hooks print nothing".
+
+1. Insert the `claude.UserPromptSubmit` event as above.
+2. Select `comment` rows for this session with `prompt_at IS NULL`, ordered by `at`.
+3. If any were selected, print exactly one line and wait for stdout to flush:
+
+```json
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Comments from the Agent Harness browser:\n\n<comment 1 body>\n\n<comment 2 body>"}}
+```
+
+4. After the flush completes, set `prompt_at = now` on exactly those comment ids, with `WHERE prompt_at IS
+   NULL` so a concurrent hook cannot mark them twice.
+5. If anything fails before printing, print nothing and exit 0; the comments go with the next prompt.
+
+Delivery is at least once and never lost. A duplicate is possible only if the hook dies after printing and
+before step 4; each body starts with `[comment <id>]` so a repeat is recognisable. Two prompts within 50 ms can
+both print the same comment for the same reason; that is the accepted cost of never losing one.
+
+## Codex notify wrapper
+
+`agent-harness hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.harness-bak`, then sets
+`notify` to `["node", "<core>/codex-notify.js", <the previous notify array as JSON>]`.
+
+`codex-notify.js`:
+
+1. Spawn the previous notify command (from its own argv) with the same trailing JSON argument, detached, and
+   do not wait for it.
+2. Append a `codex.turn` event.
+3. Exit 0.
+
+Uninstall restores `notify` to the previous array exactly, read from `hooks-install.json`.

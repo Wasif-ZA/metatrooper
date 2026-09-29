@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-harness.dev/schema/pipeline/v1.json",
+  "title": "Agent Harness pipeline, version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "title", "steps"],
+  "properties": {
+    "schema": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}$" },
+    "title": { "type": "string", "maxLength": 120 },
+    "lane": { "enum": ["coding", "design", "video-social", "seo", "research", "lead-gen", "personal-ops", "data", "study", "docs", "desktop-forms", "security", "other"] },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type"],
+        "properties": {
+          "type": { "enum": ["text", "url", "path", "number", "boolean", "choice"] },
+          "label": { "type": "string" },
+          "required": { "type": "boolean", "default": true },
+          "default": {},
+          "choices": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "run_in": { "enum": ["local", "cloud"], "default": "local" },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_tokens": { "type": "integer", "minimum": 1000, "default": 2000000 },
+        "max_usd": { "type": "number", "minimum": 0, "default": 5 },
+        "max_minutes": { "type": "integer", "minimum": 1, "default": 120 },
+        "max_parallel": { "type": "integer", "minimum": 1, "maximum": 8, "default": 3 }
+      }
+    },
+    "requires": {
+      "description": "Plugin ids this pipeline needs. The gallery shows 'ready' only when all are installed and enabled.",
+      "type": "array", "items": { "type": "string" }
+    },
+    "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } }
+  },
+  "$defs": {
+    "template": {
+      "description": "Text with {{ }} references. Allowed references: inputs.<name>, steps.<id>.outputs.<key>, steps.<id>.output_path, steps.<id>.outputs.<key>[<i>] where i is a number or the literal i (the fan-out index), run.dir, run.id, project.path. No other expressions. An unknown reference fails validation.",
+      "type": "string"
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,40}$" },
+        "title": { "type": "string" },
+        "role": { "enum": ["trigger", "ingest", "research", "plan", "worker", "review", "verify", "visual-check", "gate", "publish"] },
+        "kind": {
+          "description": "Exactly one kind per step.",
+          "enum": ["agent", "action", "pipeline", "code", "gate"]
+        },
+        "prompt": { "$ref": "#/$defs/template" },
+        "engine": {
+          "description": "Engine preference. Omit to bind by role and cost_rank.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ]
+        },
+        "continue": {
+          "description": "Reuse the session of the named earlier agent step. Needs the herdr host; without it the step runs as a new session in a new window and the run shows 'memory not kept'.",
+          "type": "string"
+        },
+        "uses": {
+          "description": "For kind=action: plugin:<plugin-id>/<action-id>. For kind=pipeline: pipeline:<pipeline-id>.",
+          "type": "string", "pattern": "^(plugin:[a-z0-9-]+/[a-z0-9-]+|pipeline:[a-z0-9-]+)$"
+        },
+        "with": { "type": "object", "description": "Arguments passed to an action or sub-pipeline; string values are templates." },
+        "code": { "type": "string", "description": "For kind=code: path relative to the pipeline file of an ES module exporting async run(ctx)." },
+        "gate": { "enum": ["approve", "handoff"], "description": "For kind=gate." },
+        "gate_summary": { "$ref": "#/$defs/template" },
+        "external": { "type": "boolean", "default": false },
+        "destination": { "$ref": "#/$defs/template", "description": "Where an agent publish step sends things (repo, account, recipient). Required for kind=agent with role=publish or external=true; part of the gate action_hash." },
+        "fanout": { "type": "integer", "minimum": 2, "maximum": 8 },
+        "worktree": { "type": "boolean", "default": false },
+        "browser": { "type": "boolean", "default": false, "description": "Give this step a browser pane it owns (one per fan-out index)." },
+        "dev_command": { "type": "string", "description": "Command started in the worktree to serve the app, e.g. 'npm run dev -- --port {{port}}'. {{port}} is allocated by the runner." },
+        "outputs": {
+          "description": "Keys the step must write into its output file's front matter. Missing keys fail the step.",
+          "type": "array", "items": { "type": "string" }
+        },
+        "view": { "enum": ["none", "variants-grid", "board", "handback", "review", "diff"], "default": "none" },
+        "loop": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["steps", "until", "max"],
+          "properties": {
+            "steps": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Ids of consecutive steps, ending with this one, repeated as a group." },
+            "until": { "type": "string", "pattern": "^steps\\.[a-z0-9-]+\\.(passed|outputs\\.[a-z0-9_]+ == \"[^\"]*\")$", "description": "Either steps.<verify id>.passed or steps.<id>.outputs.<key> == \"<value>\"." },
+            "max": { "type": "integer", "minimum": 1, "maximum": 20 }
+          }
+        },
+        "timeout_minutes": { "type": "integer", "minimum": 1, "default": 30 }
+      },
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "agent" } }, "required": ["kind"] }, "then": { "required": ["prompt"] } },
+        { "if": { "properties": { "kind": { "const": "action" } }, "required": ["kind"] }, "then": { "required": ["uses"] } },
+        { "if": { "properties": { "kind": { "const": "pipeline" } }, "required": ["kind"] }, "then": { "required": ["uses"] } },
+        { "if": { "properties": { "kind": { "const": "code" } }, "required": ["kind"] }, "then": { "required": ["code"] } },
+        { "if": { "properties": { "kind": { "const": "gate" } }, "required": ["kind"] }, "then": { "required": ["gate"] } },
+        { "if": { "properties": { "kind": { "const": "agent" }, "role": { "const": "publish" } }, "required": ["kind", "role"] }, "then": { "required": ["destination", "engine"], "properties": { "engine": { "type": "string" } } } },
+        { "if": { "properties": { "kind": { "const": "agent" }, "external": { "const": true } }, "required": ["kind", "external"] }, "then": { "required": ["destination", "engine"], "properties": { "engine": { "type": "string" } } } },
+        { "if": { "properties": { "role": { "const": "publish" } }, "required": ["role"] }, "then": { "not": { "required": ["fanout"] } } },
+        { "if": { "properties": { "external": { "const": true } }, "required": ["external"] }, "then": { "not": { "required": ["fanout"] } } }
+      ]
+    }
+  }
+}

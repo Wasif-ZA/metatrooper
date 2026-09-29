@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-harness.dev/schema/plugin/v1.json",
+  "title": "Agent Harness plugin manifest (harness-plugin.json), version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "version", "name"],
+  "properties": {
+    "schema": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,40}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "name": { "type": "string", "maxLength": 80 },
+    "description": { "type": "string", "maxLength": 400 },
+    "platforms": { "type": "array", "items": { "enum": ["windows", "linux", "macos"] }, "default": ["windows"] },
+    "permissions": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^(project:read|project:write|run:write|network|browser|clipboard|secrets:[A-Z][A-Z0-9_]{0,63})$" },
+      "uniqueItems": true
+    },
+    "engines": { "type": "array", "items": { "$ref": "#/$defs/engine" } },
+    "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
+    "pipelines": { "type": "array", "items": { "type": "string", "description": "Paths to pipeline.json files inside the plugin." } },
+    "panes": { "type": "array", "items": { "$ref": "#/$defs/pane" } },
+    "mcp": { "type": "array", "items": { "$ref": "#/$defs/mcp" } },
+    "pane_methods": {
+      "description": "Core pipe methods the plugin's panes may call through the bridge.",
+      "type": "array", "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "command", "version_cmd", "state_source", "roles", "cost_rank"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,30}$" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "prompt_arg": {
+          "description": "How to pass the first prompt. 'positional' appends it as the last argument; a string like '--prompt' passes it after that flag; omit if the CLI takes no prompt argument.",
+          "type": "string"
+        },
+        "version_cmd": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "auth_cmd": { "type": "array", "items": { "type": "string" } },
+        "auth_ok": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "exit_code": { "type": "integer", "default": 0 },
+            "stdout_regex": { "type": "string" }
+          },
+          "description": "auth is 'ok' when auth_cmd exits with exit_code and, if given, stdout matches stdout_regex. Otherwise 'missing'. No auth_cmd means 'unknown'."
+        },
+        "state_source": { "enum": ["hooks", "notify", "file-activity", "herdr", "process"] },
+        "activity_glob": { "type": "string", "description": "Required when state_source is file-activity." },
+        "mcp_attach": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["claude-mcp-config-flag", "codex-config", "agy-config", "env-file", "none"] },
+            "path": { "type": "string" }
+          }
+        },
+        "roles": { "type": "array", "items": { "enum": ["research", "plan", "worker", "review", "verify", "visual-check"] }, "minItems": 1 },
+        "cost_rank": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "provider": { "enum": ["local-cli", "api-key", "gateway"], "default": "local-cli" },
+        "usage_source": { "enum": ["claude-transcript", "codex-session", "none"], "default": "none" }
+      },
+      "allOf": [
+        { "if": { "properties": { "state_source": { "const": "file-activity" } } }, "then": { "required": ["activity_glob"] } }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "run"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,40}$" },
+        "title": { "type": "string" },
+        "run": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "argv, resolved relative to the plugin root. No shell." },
+        "external": { "type": "boolean", "default": false, "description": "True if the action posts, sends, deploys, submits or spends money." },
+        "destination_field": { "type": "string", "description": "Input field naming where an external action sends things (account, channel, recipient). Part of the gate action_hash." },
+        "input_schema": { "type": "object", "description": "JSON Schema for the action input." },
+        "output_schema": { "type": "object", "description": "JSON Schema for outputs." },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 7200, "default": 600 }
+      },
+      "allOf": [
+        { "if": { "properties": { "external": { "const": true } } }, "then": { "required": ["destination_field"] } }
+      ]
+    },
+    "pane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "entry"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "entry": { "type": "string", "description": "HTML file inside the plugin." }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "command", "engines"],
+      "properties": {
+        "id": { "type": "string" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env_keys": { "type": "array", "items": { "type": "string" }, "description": "Each must also appear as secrets:<KEY> in permissions." },
+        "engines": { "type": "array", "items": { "type": "string" }, "description": "Engine ids to attach to, or ['*']. Engines are given the mcp-shim command, never this command directly (plugins.md)." }
+      }
+    }
+  }
+}
