@@ -14,6 +14,13 @@ import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, lineDiff, uninstallClaude, uninstallCodex } from './hooks/install.ts';
 import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
+import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
+import { resolveMcpServer } from './plugins/mcp.ts';
+import type { Runner } from './pipelines/runner.ts';
+import { syncPipelines, validationContext } from './pipelines/store.ts';
+import { validatePipeline } from './pipelines/validate.ts';
+import { browserCall } from './browser/client.ts';
+import { writeClipboard } from './clipboard.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -25,6 +32,14 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
 export interface CoreControl {
   engines: () => EngineSpec[];
   stop: () => void;
+  runner: Runner;
+  uiKey: string;
+}
+
+function int(p: Record<string, unknown>, key: string): number {
+  const v = p[key];
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
+  throw new RpcError(E.INVALID_PARAMS, `${key} must be a whole number`);
 }
 
 export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, MethodSpec> {
@@ -187,7 +202,169 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  for (const name of ['run.start', 'run.cancel', 'run.resume', 'plugin.install', 'plugin.remove', 'pipeline.validate', 'comment.deliver', 'variant.pick', 'variant.combine', 'variant.discard']) {
+  m.set('plugin.preview', { handler: (p) => previewPlugin(db, str(p, 'source')) });
+
+  m.set('plugin.install', {
+    needsUi: true,
+    handler: (p) => {
+      const approved = p.approved_permissions;
+      if (!Array.isArray(approved) || approved.some((x) => typeof x !== 'string')) throw new RpcError(E.INVALID_PARAMS, 'approved_permissions must be an array of strings');
+      const secrets = p.secrets ?? {};
+      if (typeof secrets !== 'object' || Array.isArray(secrets) || Object.values(secrets).some((v) => typeof v !== 'string')) {
+        throw new RpcError(E.INVALID_PARAMS, 'secrets must map names to strings');
+      }
+      const r = installPlugin(db, {
+        source: str(p, 'source'),
+        approved_permissions: approved as string[],
+        manifest_hash: str(p, 'manifest_hash', false) || undefined,
+        secrets: secrets as Record<string, string>,
+      });
+      void checkAll(db, ctl.engines()).catch(() => {});
+      return r;
+    },
+  });
+
+  m.set('plugin.remove', { needsUi: true, handler: (p) => { removePlugin(db, str(p, 'plugin_id')); return {}; } });
+
+  m.set('plugin.secret.set', {
+    needsUi: true,
+    handler: (p) => {
+      if (typeof p.value !== 'string') throw new RpcError(E.INVALID_PARAMS, 'value is required');
+      setPluginSecret(db, str(p, 'plugin_id'), str(p, 'name'), p.value);
+      return {};
+    },
+  });
+
+  m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
+
+  m.set('mcp.missing', {
+    handler: (p) => {
+      const pluginId = str(p, 'plugin_id');
+      const names = Array.isArray(p.names) ? p.names.filter((n): n is string => typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n)) : [];
+      if (!db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+      for (const n of names) raiseMissingSecret(db, pluginId, n);
+      return {};
+    },
+  });
+
+  m.set('pipeline.validate', {
+    handler: (p) => {
+      let json: unknown = p.json;
+      if (typeof json === 'string') {
+        try {
+          json = JSON.parse(json);
+        } catch (e) {
+          return { valid: false, errors: [`not valid JSON: ${(e as Error).message}`] };
+        }
+      }
+      const errors = validatePipeline(json, validationContext(db, syncPipelines(db), null));
+      return { valid: errors.length === 0, errors };
+    },
+  });
+
+  m.set('run.start', {
+    handler: (p) => {
+      const trigger = str(p, 'trigger', false) || 'manual';
+      if (!['manual', 'schedule', 'cli'].includes(trigger)) throw new RpcError(E.INVALID_PARAMS, 'trigger must be manual, schedule or cli');
+      const inputs = p.inputs ?? {};
+      if (typeof inputs !== 'object' || Array.isArray(inputs)) throw new RpcError(E.INVALID_PARAMS, 'inputs must be an object');
+      const run_id = ctl.runner.start({
+        pipeline_id: str(p, 'pipeline_id'), project_id: str(p, 'project_id'), inputs: inputs as Record<string, unknown>, trigger: trigger as 'manual' | 'schedule' | 'cli',
+      });
+      return { run_id };
+    },
+  });
+
+  m.set('run.cancel', { handler: (p) => { ctl.runner.cancel(str(p, 'run_id')); return {}; } });
+
+  m.set('run.resume', {
+    handler: (p) => {
+      const raise: Record<string, number> = {};
+      for (const k of ['max_tokens', 'max_usd', 'max_minutes']) if (typeof p[k] === 'number') raise[k] = p[k] as number;
+      ctl.runner.resume(str(p, 'run_id'), raise);
+      return {};
+    },
+  });
+
+  m.set('variant.pick', { handler: (p) => { ctl.runner.pick(str(p, 'run_id'), int(p, 'idx')); return {}; } });
+  m.set('variant.discard', { handler: (p) => { ctl.runner.discard(str(p, 'run_id'), int(p, 'idx')); return {}; } });
+
+  m.set('needs.dismiss', {
+    needsUi: true,
+    handler: (p) => {
+      const r = db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL').run(nowIso(), str(p, 'id'));
+      if (Number(r.changes) === 0 && !db.prepare('SELECT 1 FROM needs_you WHERE id = ?').get(str(p, 'id'))) throw new RpcError(E.NOT_FOUND, 'item not found');
+      return {};
+    },
+  });
+
+  m.set('pane.open', {
+    needsUi: true,
+    handler: (p) => {
+      const projectId = str(p, 'project_id');
+      if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(projectId)) throw new RpcError(E.NOT_FOUND, 'project not found');
+      const sessionId = str(p, 'session_id', false) || null;
+      if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, projectId)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
+      const id = `bp_${ulid()}`;
+      db.prepare('INSERT INTO browser_pane (id, project_id, session_id, url, open) VALUES (?, ?, ?, ?, 1)').run(id, projectId, sessionId, str(p, 'url', false) || null);
+      return { pane_id: id };
+    },
+  });
+
+  m.set('pane.close', {
+    needsUi: true,
+    handler: (p) => {
+      const r = db.prepare('UPDATE browser_pane SET open = 0 WHERE id = ?').run(str(p, 'pane_id'));
+      if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'pane not found');
+      return {};
+    },
+  });
+
+  m.set('pane.url', {
+    needsUi: true,
+    handler: (p) => {
+      db.prepare('UPDATE browser_pane SET url = ? WHERE id = ?').run(str(p, 'url'), str(p, 'pane_id'));
+      return {};
+    },
+  });
+
+  m.set('pane.assign', {
+    needsUi: true,
+    handler: (p) => {
+      const pane = db.prepare('SELECT project_id FROM browser_pane WHERE id = ?').get(str(p, 'pane_id')) as { project_id: string } | undefined;
+      if (!pane) throw new RpcError(E.NOT_FOUND, 'pane not found');
+      const sessionId = str(p, 'session_id', false) || null;
+      if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, pane.project_id)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
+      db.prepare('UPDATE browser_pane SET session_id = ? WHERE id = ?').run(sessionId, str(p, 'pane_id'));
+      return {};
+    },
+  });
+
+  m.set('pane.capture', {
+    needsUi: true,
+    handler: async (p) => {
+      const label = str(p, 'label');
+      if (!['before', 'after', 'reference', 'comment'].includes(label)) throw new RpcError(E.INVALID_PARAMS, 'label must be before, after, reference or comment');
+      const paneId = str(p, 'pane_id');
+      const shot = (await browserCall(ctl.uiKey, 'browser.capture', { pane_id: paneId, label })) as { url: string; w390_path: string; w1280_path: string };
+      const id = ulid();
+      db.prepare('INSERT INTO snapshot (id, pane_id, label, url, taken_at, w390_path, w1280_path) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, paneId, label, shot.url, nowIso(), shot.w390_path, shot.w1280_path);
+      return { snapshot_id: id };
+    },
+  });
+
+  m.set('comment.deliver', {
+    handler: (p) => {
+      const c = db.prepare('SELECT id, body FROM comment WHERE id = ?').get(str(p, 'comment_id')) as { id: string; body: string } | undefined;
+      if (!c) throw new RpcError(E.NOT_FOUND, 'comment not found');
+      const at = writeClipboard(c.body) ? nowIso() : null;
+      if (at) db.prepare('UPDATE comment SET clipboard_at = ? WHERE id = ?').run(at, c.id);
+      return { clipboard_at: at, herdr_at: null };
+    },
+  });
+
+  for (const name of ['variant.combine']) {
     m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, `${name} arrives with a later child issue`); } });
   }
 

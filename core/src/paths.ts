@@ -38,7 +38,9 @@ export function corePipe(): string {
   return BS + BS + '.' + BS + 'pipe' + BS + pipePrefix();
 }
 
+/** Windows named pipe; on other hosts an absolute socket file, since agents run from other folders. */
 export function browserPipe(): string {
+  if (process.platform !== 'win32') return path.join(os.tmpdir(), `${pipePrefix()}-browser.sock`);
   return BS + BS + '.' + BS + 'pipe' + BS + pipePrefix() + '-browser';
 }
 

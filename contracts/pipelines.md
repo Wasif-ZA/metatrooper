@@ -160,3 +160,37 @@ step while `log` streams. The IPC channel exposes no gate method.
 outputs. `run(ctx)` must return a JSON-serialisable object; the runner writes it to `<step_id>.json` and uses
 it as the step's outputs. Throwing, or returning something that is not JSON-serialisable, fails the step. The
 module runs in a separate node process with the same limits as plugin actions.
+
+## Runner details (child #4)
+
+Choices the sections above leave open, as built:
+
+- Registry: pipelines come from `pipelines/*.json` in the repo (`builtin`), each enabled plugin's `pipelines`
+  (`plugin:<id>`), and `<project>/.troop/pipelines/*.json` for every opened project (`project`); on a clashing
+  id the later source wins. `pipeline.version` is the file's modification time in seconds. First-party plugins
+  in the repo's `plugins/` folder register at core start as source `builtin`, approved as declared.
+- A run copies its pipeline to `<run_dir>/pipeline.json` at start and always executes that copy, so editing
+  the file mid-run changes nothing.
+- Steps run in file order. A fan-out step's indexes run in parallel; agent indexes at most `max_parallel` at
+  once whether or not the pipeline sets a budget. `steps.<id>.outputs.<key>` of a fanned-out step is the list
+  of each index's value.
+- An approval is used up by the one action it covers: when the guarded step starts, its gate becomes `stale`
+  with the note `approval used by <step>`. A resume that re-runs that step asks again. A gate whose hash could
+  not be computed at gate time (its step reads outputs made after the gate) is re-asked with the hash when
+  the guarded step is reached.
+- Rejecting any approve or handoff gate cancels the run.
+- The engine without a `prompt_arg` gets its prompt on the clipboard and a `handoff` gate row; the run does
+  not pause for it, and the gate settles itself when the output file arrives.
+- Budgets count `tokens_in + tokens_out + cache_write`; `cache_read` is left out because cached reads would
+  trip a token budget long before cost matters. A sub-pipeline's budget is the parent's remainder at start.
+- `run.resume` takes optional `max_tokens`, `max_usd` and `max_minutes`, which can only raise the run's
+  limits. It refuses a run waiting at a gate (resolve the gate) and a run stopped by the breaker (start a new
+  run). After `loop-max`, resume carries on with the step after the loop. Resuming a parent resumes its paused
+  sub-pipeline runs.
+- Dev servers start after the agent index writes a `status: done` output, since the worktree has no app to
+  serve before that. They are stopped (and their `dev_server` rows removed) on discard, run end, run failure
+  and core shutdown, and are not restarted when the core starts again.
+- On core start, a step that was running an action, a code module or had no session yet is failed with
+  "interrupted by core restart"; agent steps with a session and sub-pipeline steps are picked up again.
+- `code-host.js` gets `--experimental-default-type=module` only when the running node still accepts it.
+- `variant.combine` arrives with child #8.

@@ -11,6 +11,9 @@ const ENTRIES: Record<string, string> = {
   'event.js': 'hook/event.ts',
   'launch.js': 'hook/launch.ts',
   'codex-notify.js': 'hook/codex-notify.ts',
+  'mcp-shim.js': 'hook/mcp-shim.ts',
+  'code-host.js': 'hook/code-host.ts',
+  'metatrooper-browser.js': 'hook/browser-mcp.ts',
 };
 
 function localImports(code: string): string[] {

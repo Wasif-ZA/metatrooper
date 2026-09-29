@@ -56,7 +56,33 @@ export function syncEngines(db: DatabaseSync, engines: EngineSpec[]): void {
   for (const e of engines) up.run(e.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
 }
 
+const ACTIVE = `SELECT e.id, e.spec_json FROM engine e LEFT JOIN plugin p ON p.id = e.plugin_id
+  WHERE e.plugin_id IS NULL OR p.enabled = 1`;
+
 export function getEngine(db: DatabaseSync, id: string): EngineSpec | null {
-  const row = db.prepare('SELECT spec_json FROM engine WHERE id = ?').get(id) as { spec_json: string } | undefined;
+  const row = db.prepare(`${ACTIVE} AND e.id = ?`).get(id) as { spec_json: string } | undefined;
   return row ? (JSON.parse(row.spec_json) as EngineSpec) : null;
+}
+
+/** Built-in engines plus the engines of enabled plugins. */
+export function activeEngines(db: DatabaseSync): EngineSpec[] {
+  return (db.prepare(ACTIVE).all() as Array<{ spec_json: string }>).map((r) => JSON.parse(r.spec_json) as EngineSpec);
+}
+
+/** The engine for a role: the pin when it is usable, else the lowest cost_rank that lists the role, is installed and is not red. */
+export function bindRole(db: DatabaseSync, role: string, pinned?: string): EngineSpec | null {
+  const usable = (e: EngineSpec) => {
+    const c = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(e.id) as
+      | { installed: number; auth: string }
+      | undefined;
+    return Boolean(c && c.installed && c.auth !== 'missing');
+  };
+  const engines = activeEngines(db);
+  if (pinned) {
+    const e = engines.find((x) => x.id === pinned);
+    return e && usable(e) ? e : null;
+  }
+  return engines
+    .filter((e) => e.roles.includes(role) && usable(e))
+    .sort((a, b) => a.cost_rank - b.cost_rank || a.id.localeCompare(b.id))[0] ?? null;
 }

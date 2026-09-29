@@ -68,7 +68,7 @@
         "usage_source": { "enum": ["claude-transcript", "codex-session", "none"], "default": "none" }
       },
       "allOf": [
-        { "if": { "properties": { "state_source": { "const": "file-activity" } } }, "then": { "required": ["activity_glob"] } }
+        { "if": { "required": ["state_source"], "properties": { "state_source": { "const": "file-activity" } } }, "then": { "required": ["activity_glob"] } }
       ]
     },
     "action": {
@@ -86,7 +86,7 @@
         "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 7200, "default": 600 }
       },
       "allOf": [
-        { "if": { "properties": { "external": { "const": true } } }, "then": { "required": ["destination_field"] } }
+        { "if": { "required": ["external"], "properties": { "external": { "const": true } } }, "then": { "required": ["destination_field"] } }
       ]
     },
     "pane": {

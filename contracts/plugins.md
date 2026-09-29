@@ -15,6 +15,19 @@ licence.
    permissions are stored in `plugin.permissions`; a later version asking for more permissions needs approval
    again.
 3. Nothing from the plugin runs before approval.
+4. The workbench and the CLI call `plugin.preview` to draw the install screen, then `plugin.install` with the
+   permissions the user approved (all of them; approval is all or nothing), the preview's `manifest_hash`
+   (so what installs is what was shown) and any secret values typed on the screen. A git source is cloned
+   into a staging folder under `~/.metatrooper/plugins/` for each call and moved to `<id>/` on install.
+5. An importer is a source too: `claude-import:<plugin folder>`, `codex-import:<config.toml>[;project=<dir>]`,
+   `agy-import:<mcp_config.json>[;project=<dir>]`. Its plugin folder is `~/.metatrooper/plugins/<id>/`, holding
+   the generated `troop-plugin.json` and `import.json` (source, original path, and for each env key either
+   `dpapi` or the `${VAR}` name; never a value).
+6. A secrets permission with no value after install raises a `missing-secret` needs-you item
+   "set <NAME> for <plugin>", resolved by `plugin.secret.set` (`troop plugin secret <id> <NAME>`).
+7. `plugin.remove` deletes the plugin's engines, `engine_check` rows, secrets and, when it lives under
+   `~/.metatrooper/plugins/`, its folder. An engine a session or step still names keeps its row, and the
+   plugin row stays with `enabled = 0`; engines of disabled plugins are never bound, checked or launched.
 
 ## Permissions
 
@@ -55,7 +68,13 @@ filesystem and network sandboxing (AppContainer) is out of scope for this epic a
 - stderr: streamed line by line into the run's `log.jsonl` and the runner view, capped at 1 MB per run.
 - Exit code: 0 with `ok:true` is success; anything else is failure.
 - Timeout: the action's `timeout_seconds` (default 600). On timeout the whole process tree is killed with
-  `taskkill /PID <pid> /T /F`.
+  `taskkill /PID <pid> /T /F` (on other platforms the action runs in its own process group, which is killed).
+- `argv[0]` with a slash is a path inside the plugin folder; a bare name is looked up on the stripped `PATH`
+  with `PATHEXT`. A `.js`, `.mjs` or `.cjs` file runs through the core's `node`. An npm `.cmd` shim is unwrapped
+  to its target; any other `.cmd` or `.bat` runs through `COMSPEC /d /s /c`, with the manifest's fixed
+  arguments only (input goes through stdin, never the command line).
+- `input_schema` is checked before the action starts and `output_schema` after it ends; a mismatch fails the
+  step.
 
 ## Panes: the bridge
 
@@ -82,6 +101,14 @@ command, args and resolved secrets (DPAPI values and `${VAR}` references resolve
 at that moment), then spawns the real server with that environment and relays stdio. No secret is written into
 any engine's config file.
 
+How engines are pointed at the shim (child #3):
+
+| `mcp_attach.kind` | How |
+|---|---|
+| `claude-mcp-config-flag` | the core writes `~/.metatrooper/mcp/<session id>.json` with one shim entry per server and adds `--mcp-config <file>` |
+| `codex-config` | `-c mcp_servers.<plugin>-<server>.command=<node>` and `-c ...args=[<shim>, <plugin>, <server>]` per server; `config.toml` is not edited |
+| `agy-config`, `env-file`, `none` | not attached yet |
+
 If a secret is missing (no DPAPI blob, or a `${VAR}` not set), the shim does not start the server; it answers
 the MCP `initialize` request with an error naming the missing variable and exits. The agent session keeps
 working without that server, and the core raises a needs-you item "set <NAME> for <plugin>".
@@ -100,3 +127,10 @@ read-only on the original files and follow an allowlist:
 | `.agents/skills` | skills | by path |
 
 An imported plugin shows its source and the original file path in the plugin list.
+
+Importer details: a Claude plugin's servers come from `plugin.json` `mcpServers` (inline, or a path to a JSON
+file) and from `.mcp.json` at the plugin root; `${CLAUDE_PLUGIN_ROOT}` in `command` and `args` becomes the
+plugin folder. Only stdio servers (with a `command`) are imported; the rest are listed as skipped. An env value
+that is exactly `${VAR}` or `${VAR:-default}` is a reference; anything else is a literal. An env key that is not
+an upper-case name cannot become a permission and fails the import. The agy config path defaults to
+`~/.gemini/antigravity-cli/mcp_config.json`, which is not verified against a real agy install yet.
