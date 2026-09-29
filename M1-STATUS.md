@@ -41,7 +41,7 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-28 | TODO |  |
 | M1-29 | TODO |  |
 | M1-30 | VERIFIED-LINUX | core/test/core.test.ts:project.open uses canonical path sha1 and refuses work/ACU |
-| M1-31 | TODO | CLI half VERIFIED-LINUX (core/test/cli-run.test.ts:M1-31 troop run start --json ... run wait returns at its first gate, with a gate-only fixture pipeline). Built-in two-engine-review now exists (pipelines/two-engine-review.json); still needs the troop skill file |
+| M1-31 | VERIFIED-LINUX | core/test/cli-run.test.ts:M1-31 troop run start --json ... run wait returns at its first gate; skills/troop/SKILL.md + core/test/troop-skill.test.ts:M1-31 troop skill file documents the run commands. Fake-engine only; not run from inside a real agent session |
 | M1-32 | TODO |  |
 
 ## Child issues
@@ -59,3 +59,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 20. Added core/test/independence.test.ts (M1-03 core half, tests by Claude, Codex not used). core 78: 75 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-07 (long-task observer needs electron/xvfb), then #9/#10/#11/#31/#13 audit and callrouter #2; M1-06 with running pipeline.
 - 2026-09-30: iter 21. Added `troop run start|wait|status` to core/cli.ts (#31) and core/test/cli-run.test.ts (tests by Claude, Codex not used). core 77 tests (glob test/*.test.ts): 74 pass, 0 fail, 3 skipped (earlier counts of 78 were off by one). workbench 4: 3 pass, 1 skipped. M1-32: sdk/, pipelines/, tray/ dirs do not exist yet, so not checkable. Next: #9 two-engine-review pipeline under pipelines/ (MIT, with LICENSE) so M1-26/31 can complete; then troop skill file, #10, #11, callrouter #2, M1-07.
 - 2026-09-30: iter 22. Added pipelines/two-engine-review.json + bucket.mjs + pipelines/LICENSE (MIT) and core/test/two-engine-review.test.ts (3 tests, tests by Claude, Codex not used). core 80: 77 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Review view (workbench, view=review) not built yet. Next: troop skill file (M1-31), then #10 hand-back tray, #11 token meter, callrouter #2, M1-07.
+- 2026-09-30: iter 23. Added skills/troop/SKILL.md and core/test/troop-skill.test.ts (tests by Claude, Codex not used); M1-31 VERIFIED. core 81: 78 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. M1-32: core/workbench/pipelines LICENSE present; tray/ and sdk/ still absent. Next: #10 hand-back tray (M1-27, depends on workbench), #11 meter (M1-28), then callrouter #2 (M1-29), M1-07, M1-23..25.
