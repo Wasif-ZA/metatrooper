@@ -7,7 +7,7 @@ import { dbFile, homeDir, schemaFile } from '../paths.js';
                               
 
 function pragmas(db              , busyMs        )       {
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${busyMs}; PRAGMA foreign_keys = ON;`);
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${busyMs}; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON;`);
 }
 
 export function openCoreDb()               {

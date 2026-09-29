@@ -41,8 +41,10 @@ async function main()                {
   process.env.TROOP_SESSION_ID = sessionId;
   await Promise.race([recordLaunch(sessionId, a.engine || ''), new Promise((r) => setTimeout(r, 250))]);
   const resolved = resolveCommand(args[0]);
-  const [cmd, ...pre] = resolved ?? [args[0]];
-  const child = spawn(cmd, [...pre, ...args.slice(1)], { stdio: 'inherit', shell: !resolved, windowsHide: false });
+  const quote = (s        ) => `"${s.replace(/"/g, '""')}"`;
+  const child = resolved
+    ? spawn(resolved[0], [...resolved.slice(1), ...args.slice(1)], { stdio: 'inherit', windowsHide: false })
+    : spawn([args[0], ...args.slice(1).map(quote)].join(' '), { stdio: 'inherit', shell: true, windowsHide: false });
   process.on('SIGINT', () => {});
   process.on('SIGBREAK', () => {});
   child.on('error', (e) => {

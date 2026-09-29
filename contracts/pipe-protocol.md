@@ -89,6 +89,12 @@ Client insert: `INSERT INTO command (id, at, origin, method, params, status) VAL
 'queued') ON CONFLICT(id) DO NOTHING`. If the pipe already accepted that id, the insert is a no-op and the client
 reads the row's status as usual. This is the complete conflict rule.
 
+Free text never outlives the command. When a row reaches `ok` or `error`, the core rewrites its `params` so each
+`prompt` or `body` string becomes `<key>_length` (an integer). Pending rows keep the text because the queue must
+still run them. On start the core applies the same rewrite to any finished row. The database runs with
+`secure_delete` on, and the core truncates the WAL on start, every 30 s and on stop, so an old copy of a row
+survives in the WAL for at most about 30 s.
+
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):

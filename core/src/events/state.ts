@@ -24,9 +24,12 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
     case 'core.activity':
       if (p.state === 'working') return 'working';
       if (p.state === 'quiet') return current === 'working' ? 'done' : null;
+      if (p.state === 'blocked') return current === 'working' ? 'waiting_for_you' : null;
       return null;
     case 'core.process-gone':
       return 'exited';
+    case 'core.stalled':
+      return current === 'starting' ? 'waiting_for_you' : null;
     case 'core.seen':
       return current === 'done' ? 'idle' : null;
     case 'herdr.state': {

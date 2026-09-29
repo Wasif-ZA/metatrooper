@@ -16,6 +16,7 @@ import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
 import { startDevServer, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
+import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
 
 const POLL_MS = 500;
 const STABLE_MS = 10_000;
@@ -93,9 +94,14 @@ export class Runner {
   private db: DatabaseSync;
   private active = new Set<string>();
   private children = new Map<string, ChildProcess>();
+  private boardCapture: BoardCapture | null = null;
 
   constructor(db: DatabaseSync) {
     this.db = db;
+  }
+
+  setBoardCapture(capture: BoardCapture): void {
+    this.boardCapture = capture;
   }
 
   private run(id: string): RunRow | undefined {
@@ -660,7 +666,22 @@ export class Runner {
     const file = path.join(run.run_dir, fanout ? `${step.id}-${row.fanout_index}.json` : `${step.id}.json`);
     fs.writeFileSync(file, JSON.stringify(r, null, 2) + '\n');
     this.markRunning(run, row, { output_path: slash(file) });
+    if (r.ok && u.plugin === BOARD_ACTION.plugin && u.action === BOARD_ACTION.action) {
+      return { ok: true, outputs: { ...r.outputs, board: await this.board(run, r.outputs) } };
+    }
     return r.ok ? { ok: true, outputs: r.outputs } : { ok: false, error: r.error.message };
+  }
+
+  private async board(run: RunRow, outputs: Record<string, unknown>): Promise<{ items: number; captured: number }> {
+    const items = recordBoard(this.db, run.id, referencesOf(outputs));
+    if (!this.boardCapture) {
+      this.log(run, { board: 'captures skipped: browser not available' });
+      return { items: items.length, captured: 0 };
+    }
+    const { captured, failures } = await captureBoard(this.db, run.project_id, items, this.boardCapture);
+    for (const f of failures) this.log(run, { board: `capture failed: ${f}` });
+    this.log(run, { board: `${captured} of ${items.length} references captured` });
+    return { items: items.length, captured };
   }
 
 

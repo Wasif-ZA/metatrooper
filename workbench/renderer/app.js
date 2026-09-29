@@ -186,7 +186,35 @@ function renderRunDetail() {
     <div class="toolbar"><h3 style="margin:0">${esc(run.pipeline_id)}</h3><span class="state ${esc(run.status)}">${esc(run.status)}${run.paused_why ? `: ${esc(run.paused_why)}` : ''}</span>${actions.join('')}</div>
     <table><thead><tr><th>Step</th><th>Loop</th><th>Index</th><th>Status</th><th>Engine</th><th>Fails</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   </div>
+  ${renderBoard()}
   <div class="panel"><h3>Log</h3><div class="log">${esc(ui.log.map(formatLog).join('\n')) || '<span class="empty">empty</span>'}</div></div>`;
+}
+
+function renderBoard() {
+  const items = ui.snap.board || [];
+  if (!items.length) return '';
+  const img = (file) => {
+    if (!file) return '<p class="empty">no capture</p>';
+    if (ui.images[file] === undefined) {
+      ui.images[file] = null;
+      void api.snapshotImage(file).then((d) => { ui.images[file] = d || ''; render(); });
+    }
+    return ui.images[file] ? `<img src="${esc(ui.images[file])}" alt="">` : '<p class="empty">loading</p>';
+  };
+  const cards = items.map((b) => `<figure class="board-card ${b.pinned ? 'pinned' : ''}">
+      ${img(b.capture_path)}
+      <figcaption>
+        <div class="meta" title="${esc(b.source_url)}">${esc(hostOf(b.source_url))}</div>
+        <p>${esc(b.reason)}</p>
+        <div class="row">
+          <button data-action="board-pin" data-id="${esc(b.id)}" data-on="${b.pinned ? '0' : '1'}">${b.pinned ? 'Unpin' : 'Pin'}</button>
+          <button data-action="board-open" data-url="${esc(b.source_url)}">Open in pane</button>
+          <button class="danger" data-action="board-remove" data-id="${esc(b.id)}">Remove</button>
+        </div>
+      </figcaption>
+    </figure>`).join('');
+  const pinned = items.filter((b) => b.pinned).length;
+  return `<div class="panel"><h3>Inspiration board · ${items.length} references${pinned ? `, ${pinned} pinned` : ''}</h3><div class="board">${cards}</div></div>`;
 }
 
 function formatLog(line) {
@@ -551,6 +579,17 @@ async function onClick(e) {
     case 'pane-comment':
       await startComment();
       return;
+    case 'board-pin':
+      await rpc('board.pin', { item_id: el.dataset.id, pinned: el.dataset.on === '1' });
+      return;
+    case 'board-remove':
+      await rpc('board.remove', { item_id: el.dataset.id });
+      return;
+    case 'board-open': {
+      const r = await rpc('pane.open', { project_id: ui.projectId, url: el.dataset.url });
+      if (r.result) { ui.paneId = r.result.pane_id; ui.tab = 'browser'; save('tab', ui.tab); render(); }
+      return;
+    }
     case 'pane-capture':
       toast(`Capturing ${el.dataset.label} at 390 and 1280 px`);
       await rpc('pane.capture', { pane_id: ui.paneId, label: el.dataset.label });

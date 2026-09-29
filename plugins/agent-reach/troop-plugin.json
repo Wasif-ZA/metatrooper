@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "id": "agent-reach",
+  "version": "0.1.0",
+  "name": "Agent-Reach",
+  "description": "Research sources and the inspiration board, built on Agent-Reach 1.5.0 (Exa search through mcporter, GitHub search through gh).",
+  "platforms": [
+    "windows"
+  ],
+  "permissions": [
+    "network",
+    "run:write"
+  ],
+  "pipelines": [
+    "pipelines/inspiration-board.json"
+  ],
+  "actions": [
+    {
+      "id": "inspiration-board",
+      "title": "Find inspiration references for a brief",
+      "run": [
+        "bin/inspiration-board.js"
+      ],
+      "timeout_seconds": 180,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "brief"
+        ],
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 12,
+            "default": 10
+          },
+          "github_query": {
+            "type": "string"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "references"
+        ],
+        "properties": {
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "source_url",
+                "title",
+                "reason",
+                "kind"
+              ],
+              "properties": {
+                "source_url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "web",
+                    "github"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

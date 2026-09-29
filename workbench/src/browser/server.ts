@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
+import { homeDir } from '../../../core/src/paths.ts';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTable } from '../../../core/src/browser/ancestry.ts';
@@ -83,6 +85,20 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         if (!row || !deps.panes.has(String(params.pane_id))) return fail(id, -32002, 'pane not found');
         const r = await deps.panes.capture(String(params.pane_id), String(params.label ?? 'before'));
         return send({ jsonrpc: '2.0', id, result: r });
+      }
+
+      if (method === 'browser.board_capture') {
+        if (bound?.kind !== 'core') return fail(id, -32030, 'browser.board_capture is for the core connection only');
+        const projectId = String(params.project_id ?? '');
+        const out = path.resolve(String(params.out_path ?? ''));
+        const rel = path.relative(path.join(homeDir(), 'boards'), out);
+        if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || !out.endsWith('.png')) return fail(id, -32602, 'out_path must be a .png under the boards folder');
+        if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(projectId)) return fail(id, -32002, 'project not found');
+        try {
+          return send({ jsonrpc: '2.0', id, result: await deps.panes.boardCapture(projectId, String(params.url ?? ''), out) });
+        } catch (e) {
+          return fail(id, e instanceof ToolError ? e.code : -32099, (e as Error).message);
+        }
       }
 
       const tool = method.startsWith('browser.') ? method.slice(8) : '';

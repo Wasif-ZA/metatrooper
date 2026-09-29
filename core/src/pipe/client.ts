@@ -116,7 +116,6 @@ export async function call(method: string, params: Record<string, unknown> = {},
       ? setTimeout(() => {
           queued = true;
           enqueue(id, method, params);
-          opts.onQueued?.(id);
         }, QUEUE_AFTER_MS)
       : null;
     const waited = await Promise.race([
@@ -125,7 +124,9 @@ export async function call(method: string, params: Record<string, unknown> = {},
     ]);
     if (timer) clearTimeout(timer);
     if (waited) return { kind: 'reply', reply: waited };
-    return queued ? { kind: 'queued', id } : { kind: 'offline' };
+    if (!queued) return { kind: 'offline' };
+    opts.onQueued?.(id);
+    return { kind: 'queued', id };
   } finally {
     client.close();
   }

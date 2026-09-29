@@ -4,14 +4,14 @@ import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import type { MethodSpec } from './pipe/commands.ts';
-import { isAcuPath, projectId, resolveProjectPath } from './project.ts';
+import { canonicalPath, isAcuPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { focusSession, launchSession } from './sessions/launch.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
-import { installClaude, installCodex, lineDiff, uninstallClaude, uninstallCodex } from './hooks/install.ts';
+import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
 import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
@@ -21,6 +21,8 @@ import { syncPipelines, validationContext } from './pipelines/store.ts';
 import { validatePipeline } from './pipelines/validate.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
+import { trustFolder } from './trust.ts';
+import { setBoardFlag } from './board.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -89,7 +91,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         .prepare('SELECT installed FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1')
         .get(engine.id) as { installed: number } | undefined;
       if (check && !check.installed) throw new RpcError(E.ENGINE_UNAVAILABLE, `${engine.id} is not installed`);
+      const worktreesRoot = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
+      const approval = str(p, 'approval', false) || (project.path.toLowerCase().startsWith(worktreesRoot) ? 'contained' : 'ask');
+      if (approval !== 'ask' && !engine.approval_profiles?.[approval]) {
+        throw new RpcError(E.INVALID_PARAMS, `${engine.id} has no approval profile ${approval}`);
+      }
       return launchSession(db, {
+        approval,
         projectId: project.id,
         projectPath: project.path,
         projectName: project.name,
@@ -121,9 +129,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('session.focus', {
     handler: (p) => {
       const id = str(p, 'session_id');
-      const s = db.prepare('SELECT window_name FROM session WHERE id = ?').get(id) as { window_name: string | null } | undefined;
+      const s = db.prepare('SELECT window_name, state FROM session WHERE id = ?').get(id) as
+        | { window_name: string | null; state: string }
+        | undefined;
       if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
       markSeen(id);
+      // wt -w <name> opens a new empty window when <name> no longer exists
+      if (s.state === 'exited') return { focused: false };
       return { focused: s.window_name ? focusSession(s.window_name) : false };
     },
   });
@@ -140,12 +152,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const base = str(p, 'base', false) || 'HEAD';
       const dir = path.join(homeDir(), 'worktrees', project.id, branch.replace(/[\/]/g, '-'));
       fs.mkdirSync(path.dirname(dir), { recursive: true });
+      if (fs.existsSync(path.join(dir, '.git'))) {
+        const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
+        return { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted, existing: true };
+      }
       try {
         execFileSync('git', ['-C', project.path, 'worktree', 'add', dir, '-b', branch, base], { stdio: 'pipe', timeout: 60_000 });
       } catch (e) {
         throw new RpcError(E.VALIDATION, `git worktree add failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`);
       }
-      return { path: dir.split(String.fromCharCode(92)).join('/'), branch };
+      const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
+      return { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted };
     },
   });
 
@@ -171,7 +188,12 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const claude = installClaude();
       const codex = p.codex ? installCodex() : null;
-      return { diff: [lineDiff(claude.before, claude.after), codex ? lineDiff(codex.before, codex.after) : ''].filter(Boolean).join('\n') };
+      const settings = installEngineSettings(ctl.engines());
+      return {
+        diff: [lineDiff(claude.before, claude.after), codex ? lineDiff(codex.before, codex.after) : '', ...settings.map((s) => lineDiff(s.before, s.after))]
+          .filter(Boolean)
+          .join('\n'),
+      };
     },
   });
 
@@ -180,6 +202,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const claude = uninstallClaude();
       const codex = p.codex ? uninstallCodex() : null;
+      uninstallEngineSettings();
       return { diff: [claude ? lineDiff(claude.before, claude.after) : '', codex ? lineDiff(codex.before, codex.after) : ''].filter(Boolean).join('\n') };
     },
   });
@@ -351,6 +374,22 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       db.prepare('INSERT INTO snapshot (id, pane_id, label, url, taken_at, w390_path, w1280_path) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(id, paneId, label, shot.url, nowIso(), shot.w390_path, shot.w1280_path);
       return { snapshot_id: id };
+    },
+  });
+
+  m.set('board.pin', {
+    needsUi: true,
+    handler: (p) => {
+      setBoardFlag(db, str(p, 'item_id'), 'pinned', p.pinned !== false);
+      return {};
+    },
+  });
+
+  m.set('board.remove', {
+    needsUi: true,
+    handler: (p) => {
+      setBoardFlag(db, str(p, 'item_id'), 'removed', p.removed !== false);
+      return {};
     },
   });
 

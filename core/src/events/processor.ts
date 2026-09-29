@@ -40,7 +40,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (ev.kind.startsWith('claude.') && typeof payload.session_id === 'string') setNative.run(payload.session_id, ev.session_id);
         if (ev.kind === 'codex.turn' && typeof payload['thread-id'] === 'string') setNative.run(payload['thread-id'], ev.session_id);
         if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
-        const next = ev.kind === 'launch' ? null : nextState(s.state, { kind: ev.kind, payload });
+        const thread = payload['thread-id'];
+        const otherThread = ev.kind === 'codex.turn' && s.native_id !== null && typeof thread === 'string' && thread !== s.native_id;
+        const next = ev.kind === 'launch' || otherThread ? null : nextState(s.state, { kind: ev.kind, payload });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
           if (next === 'exited') setEnded.run(nowIso(), ev.session_id);

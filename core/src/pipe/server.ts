@@ -51,7 +51,7 @@ export async function startPipeServer(pipePath: string, runner: CommandRunner, u
       } catch (e) {
         send({ jsonrpc: '2.0', id, error: toRpcError(e).toJSON() });
       }
-    });
+    }, (e) => send({ jsonrpc: '2.0', id: null, error: { code: E.PARSE, message: e.message } }));
     socket.on('data', (chunk) => {
       try {
         decode(chunk);

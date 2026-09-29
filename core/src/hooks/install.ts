@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { claudeSettingsFile, codexConfigFile, coreDir, hooksStateFile } from '../paths.ts';
+import type { EngineSpec } from '../engines/registry.ts';
+import { expandHome } from '../trust.ts';
 
 const EVENTS = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'] as const;
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse']);
@@ -11,6 +13,7 @@ type Json = Record<string, any>;
 interface State {
   claude?: { file: string; original: string | null; installed: string; absentEvents: string[] };
   codex?: { file: string; original: string; installed: string; previous: string[] | null };
+  settings?: Record<string, { file: string; previous: Record<string, unknown> }>;
 }
 
 function eventScript(): string {
@@ -165,4 +168,53 @@ export function lineDiff(before: string, after: string): string {
     if (b[i] !== undefined) out.push(`+ ${b[i]}`);
   }
   return out.join('\n');
+}
+
+/** Applies each engine's declared `settings` keys to its JSON settings file and records the old values for uninstall. */
+export function installEngineSettings(engines: EngineSpec[]): Plan[] {
+  const state = readState();
+  state.settings ??= {};
+  const plans: Plan[] = [];
+  for (const e of engines) {
+    if (!e.settings) continue;
+    const file = expandHome(e.settings.file);
+    if (!fs.existsSync(file)) continue;
+    const before = fs.readFileSync(file, 'utf8');
+    const doc: Json = JSON.parse(before);
+    const record = state.settings[e.id] ?? { file, previous: {} };
+    for (const [k, v] of Object.entries(e.settings.set)) {
+      if (!(k in record.previous)) record.previous[k] = k in doc ? doc[k] : null;
+      doc[k] = v;
+    }
+    const after = JSON.stringify(doc, null, 2);
+    if (after !== before) {
+      if (!fs.existsSync(`${file}.troop-bak`)) fs.copyFileSync(file, `${file}.troop-bak`);
+      fs.writeFileSync(file, after);
+    }
+    state.settings[e.id] = record;
+    plans.push({ file, before, after });
+  }
+  writeState(state);
+  return plans;
+}
+
+/** Puts back the values installEngineSettings replaced; a key that did not exist before is removed. */
+export function uninstallEngineSettings(): Plan[] {
+  const state = readState();
+  const plans: Plan[] = [];
+  for (const rec of Object.values(state.settings ?? {})) {
+    if (!fs.existsSync(rec.file)) continue;
+    const before = fs.readFileSync(rec.file, 'utf8');
+    const doc: Json = JSON.parse(before);
+    for (const [k, v] of Object.entries(rec.previous)) {
+      if (v === null) delete doc[k];
+      else doc[k] = v;
+    }
+    const after = JSON.stringify(doc, null, 2);
+    fs.writeFileSync(rec.file, after);
+    plans.push({ file: rec.file, before, after });
+  }
+  delete state.settings;
+  writeState(state);
+  return plans;
 }

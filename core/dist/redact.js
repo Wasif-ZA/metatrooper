@@ -26,7 +26,10 @@ export function redactToolInput(toolName        , input         )      {
   const o = asObject(input);
   if (SHELL_TOOLS.has(toolName)) {
     const cmd = typeof o.command === 'string' ? o.command : '';
-    return { first_word: cmd.trim().split(/\s+/)[0] ?? '', length: cmd.length };
+    const words = cmd.trim().split(/\s+/).filter((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
+    const word = words[0] ?? '';
+    const eq = word.indexOf('=');
+    return { first_word: eq >= 0 ? word.slice(0, eq) : word, length: cmd.length };
   }
   if (FILE_TOOLS.has(toolName)) return typeof o.file_path === 'string' ? { file_path: o.file_path } : {};
   if (PATH_TOOLS.has(toolName)) return typeof o.path === 'string' ? { path: o.path } : {};

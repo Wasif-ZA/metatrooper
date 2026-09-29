@@ -14,6 +14,9 @@ const MAX_CAPTURE_PX = 16_384;
 const EVAL_CAP = 20 * 1024;
 const LOG_KEEP = 200;
 const PARKED_VIEWPORT = { width: 1280, height: 800 };
+const BOARD_PANE = 'board-';
+const BOARD_SETTLE_MS = 1500;
+const BOARD_LOAD_MS = 20_000;
 const ACTIONABLE = new Set(['button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option', 'slider', 'switch', 'listbox', 'spinbutton', 'treeitem']);
 
 export class ToolError extends Error {
@@ -136,6 +139,7 @@ export class PaneManager {
   sync(rows: PaneRow[]): void {
     const open = new Map(rows.filter((r) => r.open).map((r) => [r.id, r]));
     for (const [id, pane] of this.panes) {
+      if (id.startsWith(BOARD_PANE)) continue;
       if (!open.has(id)) this.destroy(id);
       else pane.row = open.get(id) as PaneRow;
     }
@@ -143,6 +147,7 @@ export class PaneManager {
   }
 
   private async create(row: PaneRow): Promise<void> {
+    console.error('C0');
     const ses = this.guardPartition(row.project_id);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
@@ -156,11 +161,13 @@ export class PaneManager {
       pane.dbg.attach('1.3');
     } catch {}
     pane.dbg.on('message', (_e, method, params) => void this.onDebuggerEvent(pane, method, params));
+    console.error('C1 attached');
     await this.cmd(pane, 'Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
     await this.cmd(pane, 'Network.enable', {});
     await this.cmd(pane, 'Runtime.enable', {});
     await this.cmd(pane, 'Page.enable', {});
     await this.cmd(pane, 'DOM.enable', {});
+    console.error('C2 enabled');
     this.layout();
     if (row.url) await this.load(pane, row.url).catch(() => {});
     this.layout();
@@ -490,6 +497,31 @@ export class PaneManager {
     if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
     else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
     return { url: pane.view.webContents.getURL(), w390_path: out[390], w1280_path: out[1280] };
+  }
+
+  /** Inspiration board: loads a URL in a parked pane with no database row, captures its first 1280 by 800 screen to outFile, then closes the pane. */
+  async boardCapture(projectId: string, url: string, outFile: string): Promise<{ url: string; status: number | null }> {
+    const id = `${BOARD_PANE}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    console.error('T1 create');
+    await this.create({ id, project_id: projectId, run_id: null, variant: null, session_id: null, url: null, dev_port: null, open: 1 });
+    try {
+      const pane = this.pane(id);
+      await this.applyViewport(pane, true);
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<never>((_r, reject) => { timer = setTimeout(() => reject(new ToolError(-32099, `load timed out: ${url}`)), BOARD_LOAD_MS); });
+      try {
+        await Promise.race([this.load(pane, url), timeout]);
+      } finally {
+        clearTimeout(timer);
+      }
+      await sleep(BOARD_SETTLE_MS);
+      const shot = await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, ...PARKED_VIEWPORT, scale: 1 } });
+      fs.mkdirSync(path.dirname(outFile), { recursive: true });
+      fs.writeFileSync(outFile, Buffer.from(shot.data, 'base64'));
+      return { url: pane.view.webContents.getURL(), status: pane.status };
+    } finally {
+      this.destroy(id);
+    }
   }
 
   /** Point-to-comment: the next element the user clicks in the pane is described and cropped. */

@@ -173,3 +173,13 @@ td.wrap { white-space: normal; }
 .compare img { width: 100%; height: auto; display: block; }
 .comment-form .crop { max-width: 100%; max-height: 260px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; display: block; }
 .meta { color: var(--muted); font-size: 12px; }
+
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.board-card { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+.board-card.pinned { border-color: var(--accent); }
+.board-card img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; display: block; border-bottom: 1px solid var(--line); }
+.board-card .empty { aspect-ratio: 16 / 10; display: grid; place-items: center; margin: 0; }
+.board-card figcaption { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.board-card figcaption p { margin: 0; font-size: 12px; }
+.board-card .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.board-card .meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

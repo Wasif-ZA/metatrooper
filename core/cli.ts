@@ -1,10 +1,14 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Writable } from 'node:stream';
 import readline from 'node:readline/promises';
-import { installClaude, installCodex, lineDiff, planClaudeInstall, uninstallClaude, uninstallCodex } from './src/hooks/install.ts';
+import { installClaude, installCodex, installEngineSettings, lineDiff, planClaudeInstall, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './src/hooks/install.ts';
+import { loadEngines } from './src/engines/registry.ts';
 import { call, type CallOutcome } from './src/pipe/client.ts';
 import { openReaderDb } from './src/store/db.ts';
+import { isAcuPath, projectId, resolveProjectPath } from './src/project.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -14,8 +18,11 @@ const USAGE = `usage: troop <command> [--json]
   serve                         run the core service in this terminal
   ping                          check the core is up
   open [path]                   register a project folder (default: current folder)
-  launch <engine> [--project <path>] [--prompt <text>]
-                                open claude, codex or agy in a new Windows Terminal window
+  launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]
+                                open claude, codex or agy in a new Windows Terminal window,
+                                optionally in a new (or existing) worktree of the project;
+                                --approval ask|edits|contained (default: contained on a worktree, else ask)
+  launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt"}, ...]
   sessions [--all]              list sessions (hidden ones with --all)
   focus|seen|hide <session>     act on a session by id or id prefix
   engines [--check]             show engine health (--check re-runs the checks)
@@ -35,7 +42,7 @@ interface Args {
   opts: Map<string, string>;
 }
 
-const VALUED = new Set(['--project', '--prompt']);
+const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval']);
 
 function parse(argv: string[]): Args {
   const a: Args = { pos: [], flags: new Set(), opts: new Map() };
@@ -63,12 +70,14 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
     const plan = planClaudeInstall();
     console.log(`Changes to ${plan.file}:\n${lineDiff(plan.before, plan.after) || '(none)'}`);
     if (codex) console.log('The Codex notify setting will be wrapped; a backup is written next to config.toml.');
+    for (const e of loadEngines()) if (e.settings) console.log(`${e.id}: sets ${Object.entries(e.settings.set).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')} in ${e.settings.file}`);
     if (!yes && !(await confirm('Apply?'))) {
       console.log('Nothing changed.');
       return 1;
     }
     installClaude();
     if (codex) installCodex();
+    installEngineSettings(loadEngines());
     console.log('Hooks installed.');
     return 0;
   }
@@ -79,6 +88,7 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
     }
     uninstallClaude();
     if (codex) uninstallCodex();
+    uninstallEngineSettings();
     console.log('Hooks removed.');
     return 0;
   }
@@ -248,6 +258,57 @@ function table(rows: Array<Record<string, unknown>>, cols: string[]): void {
   for (const r of rows) console.log(line(cols.map((c) => String(r[c] ?? ''))));
 }
 
+interface Job {
+  engine: string;
+  project?: string;
+  worktree?: string;
+  prompt?: string;
+  approval?: string;
+}
+
+async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string }> {
+  let canonical: string;
+  try {
+    canonical = resolveProjectPath(dir);
+  } catch {
+    canonical = '';
+  }
+  if (isAcuPath(dir) || isAcuPath(canonical)) {
+    console.error('error -32001: ACU projects are not opened in Metatrooper');
+    return { code: 1 };
+  }
+  if (!canonical) {
+    console.error(`folder not found: ${dir}`);
+    return { code: 1 };
+  }
+  const opened = await rpc('project.open', { path: dir }, json);
+  if (opened.code) return { code: opened.code };
+  return { code: 0, id: String(opened.result?.project_id ?? projectId(canonical)) };
+}
+
+async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: string) => void): Promise<number> {
+  const repo = await openProject(job.project ?? process.cwd(), json);
+  if (repo.code) return repo.code;
+  let target = repo.id!;
+  if (job.worktree) {
+    const wt = await rpc('worktree.create', { project_id: repo.id, branch: job.worktree }, json);
+    if (wt.code) return wt.code;
+    if (!wt.result) {
+      console.error('--worktree needs the core running: start it with `troop serve`');
+      return 3;
+    }
+    const opened = await openProject(String(wt.result.path), json);
+    if (opened.code) return opened.code;
+    target = opened.id!;
+  }
+  const params: Record<string, unknown> = { project_id: target, engine_id: job.engine };
+  if (job.prompt) params.prompt = job.prompt;
+  if (job.approval) params.approval = job.approval;
+  const r = await rpc('session.launch', params, json);
+  if (r.result) emit(r.result, `launched ${job.engine}${job.worktree ? ` on ${job.worktree}` : ''} (approval ${r.result.approval}): session ${r.result.session_id}`);
+  return r.code;
+}
+
 async function main(): Promise<number> {
   const [cmd, ...rest] = process.argv.slice(2);
   const a = parse(rest);
@@ -278,19 +339,27 @@ async function main(): Promise<number> {
     }
 
     case 'launch': {
+      const jobsFile = a.opts.get('--jobs');
+      const project = a.opts.get('--project') ?? process.cwd();
+      if (jobsFile) {
+        let jobs: Job[];
+        try {
+          jobs = JSON.parse(fs.readFileSync(jobsFile, 'utf8'));
+          if (!Array.isArray(jobs) || jobs.some((j) => typeof j?.engine !== 'string')) throw new Error('each job needs an engine');
+        } catch (e) {
+          console.error(`bad jobs file ${jobsFile}: ${(e as Error).message}`);
+          return 2;
+        }
+        let worst = 0;
+        for (const job of jobs) worst = Math.max(worst, await launchOne({ project, approval: a.opts.get('--approval'), ...job }, json, emit));
+        return worst;
+      }
       const engine = a.pos[0];
       if (!engine) {
-        console.error('usage: troop launch <engine> [--project <path>] [--prompt <text>]');
+        console.error('usage: troop launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]\n       troop launch --jobs <jobs.json> [--project <path>]');
         return 2;
       }
-      const opened = await rpc('project.open', { path: a.opts.get('--project') ?? process.cwd() }, json);
-      if (!opened.result) return opened.code || 3;
-      const params: Record<string, unknown> = { project_id: opened.result.project_id, engine_id: engine };
-      const prompt = a.opts.get('--prompt');
-      if (prompt) params.prompt = prompt;
-      const r = await rpc('session.launch', params, json);
-      if (r.result) emit(r.result, `launched ${engine}: session ${r.result.session_id}`);
-      return r.code;
+      return launchOne({ engine, project, worktree: a.opts.get('--worktree'), prompt: a.opts.get('--prompt'), approval: a.opts.get('--approval') }, json, emit);
     }
 
     case 'sessions': {

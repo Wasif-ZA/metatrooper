@@ -35,9 +35,10 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
 | `herdr.state` | herdr | `{"pane": str, "state": "blocked" or "working" or "done" or "idle" or "unknown", "agent": str}` |
-| `core.activity` | core | `{"state": "working" or "quiet"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`) |
+| `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
+| `core.stalled` | core | `{}`: the session is still `starting` 15 s after launch (5 s check); the engine is sitting on a trust prompt, a login, or an empty input box |
 | `core.*` | core | other internal kinds: `core.checkpoint`, `core.recovered`, `core.missed-schedule`; they never change state |
 
 Every payload is built from an explicit allowlist of fields, exactly as listed in this table. Any field not
@@ -61,7 +62,7 @@ This is what lets test M1-05 (a marker string typed into a session appears nowhe
 | Engine | How `session.native_id` is set |
 |---|---|
 | claude | First hook event carrying `TROOP_SESSION_ID` (inherited from `launch.js`); its `session_id` field is the native id. Exact. |
-| codex | First `codex.turn` event with `TROOP_SESSION_ID`; its `thread-id` is the native id. Before that, the core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event. Exact after the first turn. |
+| codex | The core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event; the thread id in that file name is the native id. If a `codex.turn` arrives before that match, its `thread-id` is used instead. A `codex.turn` whose `thread-id` differs from the native id (a side thread) changes no state. |
 | agy | The newest folder under `~/.gemini/antigravity-cli/brain/` created within 30 s after the launch event, only if exactly one agy session was launched in that window. Otherwise `native_id` stays NULL and state stays `unknown`. |
 | herdr host | herdr's pane id (`herdr_pane`); native id from herdr's `agent.get` when it reports one. |
 
@@ -80,8 +81,10 @@ The core processes events in `seq` order and sets `session.state`:
 | `codex.turn` | `done` |
 | `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working` |
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
+| `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `herdr.state` | blocked to `waiting_for_you`; working, done, idle, unknown map to themselves |
 | `core.process-gone` (5 s check) | `exited` |
+| `core.stalled` while `starting` | `waiting_for_you` |
 | `core.seen` while `done` | `idle` |
 
 `exited` is final: once a session is `exited`, no event changes its state again.
@@ -151,3 +154,22 @@ both print the same comment for the same reason; that is the accepted cost of ne
 3. Exit 0.
 
 Uninstall restores `notify` to the previous array exactly, read from `hooks-install.json`.
+
+## Spool ingest (sandbox host, child #32)
+
+A sandboxed engine cannot reach `troop.db` or the named pipe. When `METATROOPER_SPOOL` is set, the event writer
+appends one line per event to `$METATROOPER_SPOOL/events.ndjson` instead of opening the database:
+`{"kind": str, "at": ts, "payload": {...}}`, payload already built by `buildPayload`. It never writes stdout,
+keeps the 250 ms budget, and on any error exits 0 silently.
+
+The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
+
+1. Reads `~/.metatrooper/spool/<session id>/events.ndjson` from the byte offset stored in `meta` under
+   `spool_offset:<session id>`, and only whole lines.
+2. Per line: drops it if it is over 64 KiB, not JSON, or its `kind` is not in the table above; otherwise
+   runs `buildPayload(kind, payload)` again on the host, forces `session_id` to the spool's session (any id in
+   the line is ignored), and inserts the `event` row with `source` as for that kind.
+3. Stores the new offset in the same transaction as the inserts.
+4. Stops ingesting a spool that passes 10 MiB and adds one `needs_you` row (`kind` `spool-too-large`).
+
+Once a session is `exited` and its spool is fully ingested, the core deletes the spool folder.

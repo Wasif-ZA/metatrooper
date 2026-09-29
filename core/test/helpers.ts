@@ -13,7 +13,7 @@ export const bs = String.fromCharCode(92);
 export function isolation() {
   const home = mkdtempSync(join(tmpdir(), 'metatrooper-test-'));
   const prefix = `troop-test-${randomUUID().replaceAll('-', '')}`;
-  return { home, prefix, env: { ...process.env, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix } };
+  return { home, prefix, env: { ...process.env, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };
 }
 
 export function pipePath(prefix) {

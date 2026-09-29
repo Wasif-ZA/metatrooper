@@ -13,7 +13,10 @@ export function encode(msg: object): string {
   return s + '\n';
 }
 
-export function createDecoder(onMessage: (msg: unknown) => void): (chunk: Buffer | string) => void {
+export function createDecoder(
+  onMessage: (msg: unknown) => void,
+  onParseError?: (e: Error) => void,
+): (chunk: Buffer | string) => void {
   let buf = '';
   return (chunk) => {
     buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
@@ -23,7 +26,15 @@ export function createDecoder(onMessage: (msg: unknown) => void): (chunk: Buffer
       buf = buf.slice(nl + 1);
       if (Buffer.byteLength(line) > MAX_LINE) throw new LineTooLong();
       if (line.trim() === '') continue;
-      onMessage(JSON.parse(line));
+      let msg: unknown;
+      try {
+        msg = JSON.parse(line);
+      } catch (e) {
+        if (!onParseError) throw e;
+        onParseError(e as Error);
+        continue;
+      }
+      onMessage(msg);
     }
     if (Buffer.byteLength(buf) > MAX_LINE) {
       buf = '';

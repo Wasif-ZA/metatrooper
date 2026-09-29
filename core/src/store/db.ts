@@ -6,7 +6,7 @@ import { dbFile, homeDir, schemaFile } from '../paths.ts';
 export type Db = DatabaseSync;
 
 function pragmas(db: DatabaseSync, busyMs: number): void {
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${busyMs}; PRAGMA foreign_keys = ON;`);
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${busyMs}; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON;`);
 }
 
 export function openCoreDb(): DatabaseSync {

@@ -31,6 +31,18 @@ export function isQueueable(method: string): boolean {
   return !NOT_QUEUED.has(method) && !method.startsWith('browser.');
 }
 
+export const SENSITIVE_PARAMS = ['prompt', 'body'];
+
+/** Replaces free-text params with their length; pending rows keep them so the queue can still run them. */
+export function scrubParams(params: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (SENSITIVE_PARAMS.includes(k) && typeof v === 'string') out[`${k}_length`] = v.length;
+    else out[k] = v;
+  }
+  return out;
+}
+
 function storedOutcome(row: { status: string; result: string | null }): unknown {
   const parsed = row.result ? JSON.parse(row.result) : null;
   if (row.status === 'error') throw new RpcError(parsed?.code ?? E.INTERNAL, parsed?.message ?? 'error', parsed?.data);
@@ -81,6 +93,7 @@ export class CommandRunner {
         .run(JSON.stringify(err.toJSON()), nowIso(), id);
       throw err;
     } finally {
+      this.db.prepare('UPDATE command SET params = ? WHERE id = ?').run(JSON.stringify(scrubParams(params)), id);
       for (const w of this.waiters.get(id) ?? []) w();
       this.waiters.delete(id);
     }
@@ -114,6 +127,14 @@ export class CommandRunner {
         .prepare('INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, ?, ?, ?)')
         .run(ulid(), nowIso(), 'interrupted-command', r.id, `${r.method} was interrupted by a core restart and was not re-run`);
     }
+    const finished = this.db.prepare("SELECT id, params FROM command WHERE status IN ('ok','error')").all() as Array<{ id: string; params: string }>;
+    const rewrite = this.db.prepare('UPDATE command SET params = ? WHERE id = ?');
+    for (const r of finished) {
+      let params: Record<string, unknown>;
+      try { params = JSON.parse(r.params || '{}'); } catch { continue; }
+      const scrubbed = JSON.stringify(scrubParams(params));
+      if (scrubbed !== r.params) rewrite.run(scrubbed, r.id);
+    }
     await this.runPending(true);
   }
 
@@ -132,7 +153,9 @@ export class CommandRunner {
       const params = JSON.parse(row.params || '{}');
       if (!spec || !isQueueable(row.method) || spec.needsUi) {
         const err = new RpcError(spec ? E.NEEDS_UI : E.METHOD_NOT_FOUND, spec ? `${row.method} cannot run from the queue` : `unknown method ${row.method}`);
-        this.db.prepare("UPDATE command SET status = 'error', result = ?, done_at = ? WHERE id = ?").run(JSON.stringify(err.toJSON()), nowIso(), row.id);
+        this.db
+          .prepare("UPDATE command SET status = 'error', result = ?, done_at = ?, params = ? WHERE id = ?")
+          .run(JSON.stringify(err.toJSON()), nowIso(), JSON.stringify(scrubParams(params)), row.id);
         continue;
       }
       if (row.status === 'queued') {

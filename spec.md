@@ -70,8 +70,11 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D33 | Borrowed | Usage limits and reset timers, done vs idle, free SignPath signing, diff annotation, file drag, an agent-native CLI and skill |
 | D35 | Step handoff | Files between steps always; each agent step starts a fresh session with its prompt; `continue: true` reuses a session through herdr when installed, else falls back with a visible note |
 | D36 | Review fixes | Contracts pack, contradiction cleanup, security hardening, operational fixes: all applied |
-| D37 | Scope | Keep all 31 children, ship in 3 milestones |
+| D37 | Scope | Keep all 31 children, ship in 3 milestones; #32 added 2026-09-29 (D43) |
 | D40 | Phone | Using the terminals and the IDE from a phone (like Claude Code Remote Control) is a v3 epic, after the cloud epic |
+| D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a Metatrooper worktree, `ask` elsewhere (2026-09-29) |
+| D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29) |
+| D43 | Trooper sandbox | Own container host plugin, child #32 in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
 
 ## Current state, verified 2026-09-29
 
@@ -153,7 +156,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | Events | append to `event` (`events-and-hooks.md`) | under 20 ms | rows wait; processed in order on restart |
 | Commands | JSON-RPC on `\\.\pipe\metatrooper` (`pipe-protocol.md`) | p95 under 20 ms | after 300 ms the command becomes a `command` row, shown "queued", run on restart |
 
-The core checkpoints the WAL every 30 s (`PRAGMA wal_checkpoint(PASSIVE)`). Readers rely on SQLite's own
+The core checkpoints the WAL every 30 s (`PRAGMA wal_checkpoint(TRUNCATE)`), so old copies of scrubbed rows leave the WAL. Readers rely on SQLite's own
 `busy_timeout` (200 ms); if a read still fails, the window keeps the previous frame and tries on the next
 wake. Windows read on a read-only connection and open a short-lived read-write connection only to insert
 `command` and `comment` rows.
@@ -392,6 +395,85 @@ An alternative session host (D32). `session.launch` with `host: "herdr"` runs `h
 Control allows it on laptop-ops; if not, it is built and tested on the main PC. herdr is Apache-2.0; the
 plugin only calls its documented CLI and pipe API.
 
+### Trooper sandbox host plugin
+
+An alternative session host (D43), child #32. It exists so the `isolated` approval profile can run an engine
+with every approval skipped: that is only safe inside a boundary Metatrooper controls. The ideas come from
+agent-infra/sandbox (one environment, shared filesystem, localhost only) and TencentCloud/CubeSandbox
+(credentials kept out of reach, egress allow-list); neither product is used. Both stay documented fallbacks:
+AIO Sandbox (Apache-2.0, 6,036 stars, needs `seccomp=unconfined`) and CubeSandbox (12,751 stars, KVM micro-VMs,
+Linux hosts only).
+
+**Runtime.** Docker Desktop on WSL2, or Podman; the plugin uses the first of `docker`, `podman` on PATH. Neither
+is installed on laptop-ops as of 2026-09-29: installing one is a hand-back. Windows Sandbox is rejected (one
+instance at a time).
+
+**Image.** `metatrooper-trooper:<plugin version>`, built by `troop sandbox build` from the plugin's
+`Dockerfile`: Debian 12 slim, node 24, git 2.48 or newer, a non-root user `trooper` (uid 1000), the Metatrooper
+hook scripts copied to `/opt/troop/`, and each engine installed from its registry entry's `sandbox.install`
+lines. Engine hooks inside the image point at `/opt/troop/event.js` and `/opt/troop/codex-notify.js`. No
+credential is ever written into the image.
+
+**Launch.** `session.launch` with `approval: "isolated"` sets `host: "sandbox"`; `isolated` on any other host
+is refused with -32003. The `wt` command is unchanged except `launch.js` gets `--host sandbox`, and the
+launcher, inside the tab, runs:
+
+```
+docker run --rm -it --name troop-<id8> --network troop-egress --user 1000:1000 --cap-drop ALL
+  --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --read-only
+  --tmpfs /tmp --tmpfs /home/trooper
+  -v <worktree>:<mapped worktree> -v <main repo .git>:<mapped .git>
+  -v ~/.metatrooper/spool/<session id>:/troop/spool
+  <login mounts from the engine's sandbox.logins>
+  -e TROOP_SESSION_ID=<id> -e METATROOPER_SPOOL=/troop/spool
+  -e HTTPS_PROXY=http://troop-proxy:3128 -e HTTP_PROXY=http://troop-proxy:3128
+  -w <mapped worktree> metatrooper-trooper:<version> /opt/troop/entry.sh <engine argv with isolated args>
+```
+
+A host path `C:\a\b` maps to `/host/c/a/b`. Worktrees are created with `git worktree add --relative-paths`, so
+the worktree's `.git` file and the main repo's `.git/worktrees/<name>/gitdir` resolve inside the container
+when both are mounted at their mapped paths. The main repo's working tree is not mounted. The terminal owns
+the container (`--rm -it`): closing the window removes it, and the core never starts or stops one.
+
+**Logins.** Each engine's registry `sandbox.logins` lists read-only file mounts,
+for example `~/.claude/.credentials.json` and `~/.codex/auth.json`, mounted `:ro` at the same place under
+`/home/trooper`. Read-only means an engine cannot rotate a refresh token and log the host out. Before
+launching, the launcher checks `claudeAiOauth.expiresAt` in the Claude file and refuses with "run claude once
+on the host to refresh its login" if it expires within 60 minutes; for Codex it runs `codex login status` on
+the host. agy keeps its login in a Linux keyring, so its entry declares a named volume instead
+(`troop-agy-keyring` at `/home/trooper/.local/share/keyrings`); `troop sandbox login agy` opens a container
+that starts dbus and `gnome-keyring-daemon`, runs agy's headless code login, and keeps the volume. The keyring
+password is a DPAPI secret (`sandbox/keyring`) passed in as an environment variable. `entry.sh` starts dbus
+and unlocks the keyring only when that volume is mounted.
+
+**Egress.** `troop-egress` is a Docker network created `--internal` (no route out). `troop-proxy` is a second
+container on both that network and the default bridge, running the plugin's dependency-free node CONNECT
+proxy on port 3128, which is never published to the host (D24 holds: Metatrooper opens no host port). It
+allows only the union of every engine's `sandbox.egress` hosts plus `registry.npmjs.org`, answers 403 to
+anything else, and appends each denied host (host name only) to `~/.metatrooper/logs/egress-denied.log`.
+
+**Event bridge.** Inside the container the event writer sees `METATROOPER_SPOOL` and appends one NDJSON line
+per event to `/troop/spool/events.ndjson` instead of opening `troop.db`, which never crosses the boundary.
+The core ingests every 250 ms (see `events-and-hooks.md`, "Spool ingest"), re-redacting every payload on the
+host, and deletes the spool folder once the session is `exited` and fully ingested.
+
+**Rule exceptions (opt-in, sandbox host only).** Rule 1 holds: the terminal is still owned by `wt.exe`, and
+the engine runs in a container that tab owns. "The engine inherits the user's normal environment" does not
+hold: a sandboxed engine sees only its worktree, the repo's `.git`, its spool and its read-only logins.
+
+**Registry shape.** Per engine, data only:
+
+```ts
+sandbox?: {
+  install: string[];                                   // Dockerfile RUN lines
+  logins: Array<{ file: string; mode: 'ro' } | { volume: string; at: string }>;
+  egress: string[];                                    // host names, no wildcards
+};
+approval_profiles.isolated: string[];                  // e.g. claude ['--dangerously-skip-permissions']
+```
+
+A bypass flag is allowed only in `isolated`; a unit test keeps it out of every other profile.
+
 ## Open core, licence, prior art
 
 Free, with no account: the whole local IDE, every lane and plugin, on the user's own CLI logins and keys.
@@ -446,7 +528,7 @@ Estimates are Claude Code days and were raised after the review said the first o
 
 Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, before milestone 2 starts.
 
-### Milestone 2: design and coding lanes (about 15 CC days)
+### Milestone 2: design and coding lanes (about 18 CC days)
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
@@ -459,6 +541,7 @@ Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, befor
 | 29 | Usage limits and account switcher | 2 | 1, 5 |
 | 30 | Diff annotation and file drag | 1 | 10 |
 | 28 | Signed packaging through SignPath Foundation (Electron now; Tauri in milestone 3) | 1.5 | 5 |
+| 32 | Trooper sandbox host plugin: container image, `--host sandbox` launcher path, read-only logins, agy keyring login, egress proxy, spool bridge, escape self-test | 3 | 1, 3, 4 |
 
 ### Milestone 3: every other lane (about 18.5 CC days)
 
@@ -476,7 +559,7 @@ Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, befor
 | 12 | Tauri tray companion, signed through #28's pipeline | 2 | 1, 28 |
 | 26 | Open-core seams: `provider: gateway` and `run_in: cloud` refusals, account state | 1 | 1, 4 |
 
-Total: about 61.5 CC days (28 + 15 + 18.5). Human-team equivalent: about 12 months.
+Total: about 64.5 CC days (28 + 18 + 18.5). Human-team equivalent: about 12 months.
 
 Sequencing: #1's schema and pipe protocol are frozen before any client is built, because everything else
 reads them. Plugins come before the runner because steps call actions. Callrouter's own code (C1, C9, C7)
@@ -602,6 +685,21 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
 - M2-06. A diff-line comment and a dropped file reach the target session by its delivery route.
 - M2-07. Once SignPath approves, the signed Electron installer installs and launches on laptop-ops with Smart
   App Control on.
+- M2-08. Hands-off: `troop launch --jobs` with `approval: "isolated"` on the tinyutils fixture (3 seeded bugs,
+  one per engine) ends with each engine's own test file passing in its worktree, zero approval prompts, zero
+  trust prompts, and each session reaching `done` from spool events alone.
+- M2-09. Escape self-test (`troop sandbox selftest`, same flags as a trooper, no engine): each of these fails
+  from inside the container, and each positive check passes. Fails: writing any host path outside the mounted
+  worktree, `.git` and spool; reading the host home folder; writing a read-only login file (EROFS); an HTTPS
+  request to a host not on the allow-list (proxy 403); any request that bypasses the proxy (no route); reaching
+  the Docker socket; gaining root. Passes: writing in the worktree; `git commit` on the worktree's branch;
+  an HTTPS request to one allow-listed host.
+- M2-10. A marker typed into a sandboxed session appears in no Metatrooper table, log, spool file or WAL once
+  the session is `exited` and ingested (M1-05 extended to the sandbox).
+- M2-11. Closing a sandboxed session's window leaves no `troop-<id8>` container within 5 s; killing the core
+  mid-turn leaves the agent working, and its spooled events are ingested in order after restart.
+- M2-12. `isolated` on the `wt` host, a launch before `troop sandbox build`, a Claude login expiring within
+  60 minutes, and an ACU path are each refused with a stated reason, and nothing starts.
 
 ### Milestone 3
 
@@ -618,7 +716,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
 
 ## Testing
 
-The builder writes code; Codex writes the tests for #1, #4 and #6 (the parts others will trust), matching the
+The builder writes code; Codex writes the tests for #1, #4, #6 and #32 (the parts others will trust), matching the
 rule already binding callrouter. Every contract file gets a conformance suite: `schema.sql` loads; every
 built-in and template validates against `pipeline.schema.json`; every first-party manifest validates against
 `plugin-manifest.schema.json`; the pipe protocol has a replay suite of recorded requests and replies.
@@ -679,7 +777,7 @@ No terminal library, WebSocket library or native module is needed.
 
 - The metered cloud and phone control: later epics, above.
 - Scheduled runs while the core is not running; back-filling missed schedules.
-- OS-level sandboxing of plugin filesystem and network access (AppContainer).
+- OS-level sandboxing of plugin filesystem and network access (AppContainer). Trooper sandboxing is #32, not this.
 - Auto-update.
 - The sprawll plugin, until sprawll's code is present with its machine contract.
 - Paid data integrations beyond the listed adapters (Ahrefs, Semrush, DataForSEO, Clay, Apollo); users add

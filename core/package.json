@@ -5,6 +5,7 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "engines": { "node": ">=24.16" },
+  "bin": { "troop": "cli.ts" },
   "scripts": {
     "start": "node src/main.ts",
     "test": "node --test \"test/*.test.ts\""

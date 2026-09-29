@@ -3,15 +3,16 @@ import { nowIso, ulid } from './time.ts';
 
 function field(spec: string, value: number, min: number, max: number): boolean {
   for (const part of spec.split(',')) {
-    const [range, stepStr] = part.split('/');
-    const step = stepStr ? Number(stepStr) : 1;
+    const m = /^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(part);
+    if (!m) throw new Error(`bad cron field: ${spec}`);
+    const step = m[4] === undefined ? 1 : Number(m[4]);
     let lo = min;
     let hi = max;
-    if (range !== '*') {
-      const [a, b] = range.split('-').map(Number);
-      lo = a;
-      hi = b === undefined ? a : b;
+    if (m[1] !== '*') {
+      lo = Number(m[2]);
+      hi = m[3] !== undefined ? Number(m[3]) : m[4] !== undefined ? max : lo;
     }
+    if (step < 1 || lo < min || hi > max || lo > hi) throw new Error(`bad cron field: ${spec}`);
     if (value >= lo && value <= hi && (value - lo) % step === 0) return true;
   }
   return false;
@@ -27,7 +28,7 @@ export function cronMatches(cron: string, d: Date): boolean {
     field(f[1], d.getHours(), 0, 23) &&
     field(f[2], d.getDate(), 1, 31) &&
     field(f[3], d.getMonth() + 1, 1, 12) &&
-    (field(f[4], dow, 0, 6) || (dow === 0 && field(f[4], 7, 0, 7)))
+    (field(f[4], dow, 0, 7) || (dow === 0 && field(f[4], 7, 0, 7)))
   );
 }
 
@@ -47,11 +48,11 @@ export function tickSchedules(db: DatabaseSync, startRun: (pipelineId: string, p
     const last = s.last_fired ? new Date(Date.parse(s.last_fired)) : null;
     if (last && minuteKey(last) === minuteKey(now)) continue;
     if (last) {
-      const gap = new Date(last.getTime() + 60_000);
-      gap.setSeconds(0, 0);
       const current = new Date(now);
       current.setSeconds(0, 0);
-      for (let t = gap; t < current && current.getTime() - t.getTime() < 7 * 24 * 3600_000; t = new Date(t.getTime() + 60_000)) {
+      const gap = new Date(Math.max(last.getTime() + 60_000, current.getTime() - 7 * 24 * 3600_000));
+      gap.setSeconds(0, 0);
+      for (let t = gap; t < current; t = new Date(t.getTime() + 60_000)) {
         if (cronMatches(s.cron, t)) {
           db.prepare('UPDATE schedule SET last_missed = ? WHERE id = ?').run(nowIso(t), s.id);
           db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, ?, ?, ?)')

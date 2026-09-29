@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "id": "inspiration-board",
+  "title": "Inspiration board",
+  "lane": "design",
+  "requires": [
+    "agent-reach"
+  ],
+  "inputs": {
+    "brief": {
+      "type": "text",
+      "label": "Design brief"
+    }
+  },
+  "budget": {
+    "max_minutes": 15
+  },
+  "steps": [
+    {
+      "id": "board",
+      "title": "Find references and capture them",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/inspiration-board",
+      "with": {
+        "brief": "{{inputs.brief}}"
+      }
+    }
+  ]
+}

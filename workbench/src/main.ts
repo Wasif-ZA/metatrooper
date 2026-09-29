@@ -19,7 +19,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'needs.dismiss',
-  'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
+  'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -261,7 +261,7 @@ function handlers(): void {
   });
 
   on('snapshotImage', (file: unknown) => {
-    if (typeof file !== 'string' || !inside(path.join(homeDir(), 'snapshots'), file)) return null;
+    if (typeof file !== 'string' || !['snapshots', 'boards'].some((d) => inside(path.join(homeDir(), d), file))) return null;
     try {
       return `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
     } catch {

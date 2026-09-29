@@ -18,6 +18,7 @@ export interface Snapshot {
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; run_id: string | null; variant: number | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
+  board: Array<{ id: string; run_id: string; source_url: string; capture_path: string | null; reason: string; pinned: number }>;
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */
@@ -126,6 +127,13 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
       ).all(projectId) as Snapshot['snapshots'])
     : [];
 
+  const board = runId
+    ? (db.prepare(
+        `SELECT id, run_id, source_url, capture_path, reason, pinned FROM board_item
+         WHERE removed = 0 AND (run_id = ? OR run_id IN (SELECT id FROM run WHERE parent_run = ?)) ORDER BY pinned DESC, rowid`,
+      ).all(runId, runId) as Snapshot['board'])
+    : [];
+
   const needs_you = db.prepare('SELECT id, at, kind, ref, text FROM needs_you WHERE resolved_at IS NULL ORDER BY at DESC LIMIT 100').all() as Snapshot['needs_you'];
 
   return {
@@ -141,6 +149,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     needs_you,
     panes,
     snapshots,
+    board,
   };
 }
 

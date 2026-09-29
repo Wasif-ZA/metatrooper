@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
+import { getEngine } from '../engines/registry.ts';
 
 export function pidAlive(pid: number): boolean {
   try {
@@ -19,6 +20,14 @@ export function checkPids(db: DatabaseSync): void {
     .prepare("SELECT id, pid FROM session WHERE state != 'exited' AND pid IS NOT NULL")
     .all() as Array<{ id: string; pid: number }>;
   for (const r of rows) if (!pidAlive(r.pid)) appendEvent('core.process-gone', r.id, { pid: r.pid }, db);
+}
+
+export const STALL_MS = 15_000;
+
+/** Every 5 s: sessions still `starting` 15 s after launch get a core.stalled event. */
+export function checkStalled(db: DatabaseSync, now = Date.now()): void {
+  const rows = db.prepare("SELECT id, started_at FROM session WHERE state = 'starting'").all() as Array<{ id: string; started_at: string }>;
+  for (const r of rows) if (now - Date.parse(r.started_at) >= STALL_MS) appendEvent('core.stalled', r.id, {}, db);
 }
 
 interface Activity {
@@ -53,12 +62,24 @@ function walkNewest(dir: string, test: (p: string) => boolean, sinceMs: number, 
   return out;
 }
 
-function firstLine(file: string): string {
+function firstLine(file: string, maxBytes = 1024 * 1024): string {
   const fd = fs.openSync(file, 'r');
   try {
-    const buf = Buffer.alloc(8192);
-    const n = fs.readSync(fd, buf, 0, buf.length, 0);
-    return buf.subarray(0, n).toString('utf8').split('\n')[0];
+    const chunks: Buffer[] = [];
+    let pos = 0;
+    while (pos < maxBytes) {
+      const buf = Buffer.alloc(64 * 1024);
+      const n = fs.readSync(fd, buf, 0, buf.length, pos);
+      if (n === 0) break;
+      const nl = buf.subarray(0, n).indexOf(10);
+      if (nl >= 0) {
+        chunks.push(buf.subarray(0, nl));
+        break;
+      }
+      chunks.push(buf.subarray(0, n));
+      pos += n;
+    }
+    return Buffer.concat(chunks).toString('utf8');
   } finally {
     fs.closeSync(fd);
   }
@@ -85,7 +106,10 @@ function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
     }
   });
   candidates.sort((a, b) => fs.statSync(b).birthtimeMs - fs.statSync(a).birthtimeMs);
-  return candidates[0] ?? null;
+  const hit = candidates[0] ?? null;
+  const thread = hit && /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(hit);
+  if (thread) db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(thread[1], s.id);
+  return hit;
 }
 
 function linkAgy(db: DatabaseSync, s: SessionRow): string | null {
@@ -122,6 +146,30 @@ function measure(p: string): { size: number; mtime: number } {
     return { size, mtime };
   } catch {
     return { size: -1, mtime: 0 };
+  }
+}
+
+export function lastLine(file: string, maxBytes = 1024 * 1024): string {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const size = fs.fstatSync(fd).size;
+    const len = Math.min(size, maxBytes);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    const lines = buf.toString('utf8').split('\n').filter((l) => l.trim() !== '');
+    return lines[lines.length - 1] ?? '';
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function isBlocked(db: DatabaseSync, engineId: string, linked: string): boolean {
+  const rule = getEngine(db, engineId)?.activity_waiting;
+  if (!rule) return false;
+  try {
+    return new RegExp(rule.last_line_regex).test(lastLine(rule.file ? path.join(linked, rule.file) : linked));
+  } catch {
+    return false;
   }
 }
 
@@ -164,7 +212,7 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       }
     } else if (a.working && now - a.lastChange >= 20_000) {
       a.working = false;
-      appendEvent('core.activity', s.id, { state: 'quiet' }, db);
+      appendEvent('core.activity', s.id, { state: isBlocked(db, s.engine_id, a.file!) ? 'blocked' : 'quiet' }, db);
     }
   }
 }

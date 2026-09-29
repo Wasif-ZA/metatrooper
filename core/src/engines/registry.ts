@@ -13,6 +13,10 @@ export interface EngineSpec {
   auth_ok?: { exit_code?: number; stdout_regex?: string };
   state_source: 'hooks' | 'notify' | 'file-activity' | 'herdr' | 'process';
   activity_glob?: string;
+  activity_waiting?: { file?: string; last_line_regex: string };
+  trust?: TrustSpec;
+  approval_profiles?: Record<string, string[]>;
+  settings?: { file: string; set: Record<string, string | number | boolean> };
   mcp_attach?: { kind: string; path?: string };
   roles: string[];
   cost_rank: number;
@@ -20,25 +24,41 @@ export interface EngineSpec {
   usage_source?: 'claude-transcript' | 'codex-session' | 'none';
 }
 
+export interface TrustSpec {
+  kind: 'json-map' | 'json-list' | 'toml-table';
+  file: string;
+  at: string[];
+  set?: Record<string, string | number | boolean>;
+  path_style: 'posix' | 'windows' | 'windows-lower';
+}
+
 const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 
 export const BUILT_IN: EngineSpec[] = [
   {
     id: 'claude', command: 'claude', prompt_arg: 'positional', version_cmd: ['claude', '--version'],
+    approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'] },
     state_source: 'hooks', mcp_attach: { kind: 'claude-mcp-config-flag' },
     roles: ['research', 'plan', 'worker', 'review', 'verify', 'visual-check'], cost_rank: 3, usage_source: 'claude-transcript',
+    trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
   },
   {
     id: 'codex', command: 'codex', prompt_arg: 'positional', version_cmd: ['codex', '--version'],
+    approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'] },
     auth_cmd: ['codex', 'login', 'status'], auth_ok: { exit_code: 0 },
     state_source: 'notify', mcp_attach: { kind: 'codex-config', path: '~/.codex/config.toml' },
     roles: ['plan', 'worker', 'review', 'verify'], cost_rank: 2, usage_source: 'codex-session',
+    trust: { kind: 'toml-table', file: '~/.codex/config.toml', at: ['projects'], set: { trust_level: 'trusted' }, path_style: 'windows-lower' },
   },
   {
-    id: 'agy', command: 'agy', version_cmd: ['agy', '--version'],
+    id: 'agy', command: 'agy', prompt_arg: '--prompt-interactive', version_cmd: ['agy', '--version'],
+    approval_profiles: { edits: ['--mode', 'accept-edits'], contained: ['--mode', 'accept-edits', '--sandbox'] },
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
+    activity_waiting: { file: 'transcript.jsonl', last_line_regex: '"type":"PLANNER_RESPONSE".*"tool_calls":\\[\\{' },
     mcp_attach: { kind: 'agy-config' },
     roles: ['research', 'worker', 'review', 'visual-check'], cost_rank: 1, usage_source: 'none',
+    trust: { kind: 'json-list', file: '~/.gemini/antigravity-cli/settings.json', at: ['trustedWorkspaces'], path_style: 'windows' },
+    settings: { file: '~/.gemini/antigravity-cli/settings.json', set: { toolPermission: 'proceed-in-sandbox' } },
   },
 ];
 

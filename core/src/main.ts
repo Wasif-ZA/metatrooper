@@ -1,4 +1,4 @@
-import type net from 'node:net';
+import { connect as netConnect, type Server } from 'node:net';
 import { openCoreDb } from './store/db.ts';
 import { corePipe } from './paths.ts';
 import { nowIso } from './time.ts';
@@ -9,16 +9,31 @@ import { buildMethods } from './methods.ts';
 import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { processEvents } from './events/processor.ts';
-import { checkActivity, checkPids } from './sessions/watch.ts';
+import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { tickSchedules } from './schedules.ts';
 import { Runner } from './pipelines/runner.ts';
+import { browserCall } from './browser/client.ts';
 import { syncBuiltinPlugins, syncPipelines } from './pipelines/store.ts';
 import { ulid } from './time.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
 
+function coreAlreadyRunning(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = netConnect(corePipe());
+    const done = (v: boolean) => { socket.destroy(); resolve(v); };
+    socket.setTimeout(500, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
+}
+
 async function main(): Promise<void> {
+  if (await coreAlreadyRunning()) {
+    console.error(`metatrooper core is already running on ${corePipe()}`);
+    process.exit(1);
+  }
   const db = openCoreDb();
   const setMeta = db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
   setMeta.run('core_pid', String(process.pid));
@@ -31,7 +46,7 @@ async function main(): Promise<void> {
   const runner = new Runner(db);
 
   const timers: NodeJS.Timeout[] = [];
-  let server: net.Server | null = null;
+  let server: Server | null = null;
   let stopping = false;
   const stop = () => {
     if (stopping) return;
@@ -39,14 +54,16 @@ async function main(): Promise<void> {
     for (const t of timers) clearInterval(t);
     server?.close();
     try { runner.shutdown(); } catch {}
-    try { db.exec('PRAGMA wal_checkpoint(PASSIVE)'); } catch {}
+    try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
     db.close();
     process.exit(0);
   };
 
   const uiKey = rotateUiKey();
+  runner.setBoardCapture((req) => browserCall(uiKey, 'browser.board_capture', req, 60_000));
   const commands = new CommandRunner(db, buildMethods(db, { engines: () => activeEngines(db), stop, runner, uiKey }));
   await commands.recover();
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
   processEvents(db);
   runner.recover();
 
@@ -68,7 +85,8 @@ async function main(): Promise<void> {
   every(1000, () => checkActivity(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
   every(5000, () => checkPids(db));
-  every(30_000, () => db.exec('PRAGMA wal_checkpoint(PASSIVE)'));
+  every(5000, () => checkStalled(db));
+  every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));
   every(30_000, () => tickSchedules(db, (pipelineId, projectId, inputs) => {
     try {
       runner.start({ pipeline_id: pipelineId, project_id: projectId, inputs: (inputs ?? {}) as Record<string, unknown>, trigger: 'schedule' });
@@ -84,6 +102,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
   process.on('SIGBREAK', stop);
+  console.log(`metatrooper core running (pid ${process.pid}) on ${corePipe()}. Press Ctrl+C to stop.`);
 }
 
 main().catch((e) => {
