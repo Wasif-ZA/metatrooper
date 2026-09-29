@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-harness.dev/schema/plugin/v1.json",
-  "title": "Agent Harness plugin manifest (harness-plugin.json), version 1",
+  "$id": "https://metatrooper.dev/schema/plugin/v1.json",
+  "title": "Metatrooper plugin manifest (troop-plugin.json), version 1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "id", "version", "name"],

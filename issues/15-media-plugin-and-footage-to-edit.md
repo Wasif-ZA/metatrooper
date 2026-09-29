@@ -1,6 +1,6 @@
 # `media` plugin and `footage-to-edit`
 
-Child #15 of the Agent Harness epic. Milestone 3. Effort: about 2.5 Claude Code days.
+Child #15 of the Metatrooper epic. Milestone 3. Effort: about 2.5 Claude Code days.
 
 Depends on: child #4, child #5.
 

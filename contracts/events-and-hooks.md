@@ -8,15 +8,15 @@ the core.
 One invocation form: `node event.js <kind> [--session <id>] [--pid <n>] [--engine <id>] [--cwd <path>]`.
 
 - Claude hooks: `<kind>` is `claude.<EventName>` (for example `claude.PreToolUse`); the payload is stdin.
-  The session id comes from `HARNESS_SESSION_ID` in the environment.
+  The session id comes from `TROOP_SESSION_ID` in the environment.
 - Launch: `node event.js launch --session <id> --pid <n> --engine <id> --cwd <path>`; the payload is built
   from the flags.
 - The Codex notify wrapper imports the same module and calls its `append(kind, sessionId, payload)` function.
 
 1. Read stdin (hooks) or build the payload from the flags (launch).
-2. Open `harness.db` with `busy_timeout = 200`. Insert one `event` row.
+2. Open `troop.db` with `busy_timeout = 200`. Insert one `event` row.
 3. On any error (no database, locked past 200 ms, bad JSON): write one line to
-   `~/.agent-harness/logs/event-errors.log` if that is possible, then exit 0.
+   `~/.metatrooper/logs/event-errors.log` if that is possible, then exit 0.
 4. Never write to stdout, except for `UserPromptSubmit` (below).
 
 Total time budget: 250 ms from start to exit. A Claude hook that exceeds it is still fine for Claude (its own
@@ -51,14 +51,14 @@ redacted before the insert:
 | `WebFetch` | the URL's host only |
 | anything else, including MCP tools | the key names and the length of each value |
 
-This is what lets test M1-05 (a marker string typed into a session appears nowhere in the harness) pass.
+This is what lets test M1-05 (a marker string typed into a session appears nowhere in Metatrooper) pass.
 
-## Linking a harness session to the engine's own session
+## Linking a Metatrooper session to the engine's own session
 
 | Engine | How `session.native_id` is set |
 |---|---|
-| claude | First hook event carrying `HARNESS_SESSION_ID` (inherited from `launch.ps1`); its `session_id` field is the native id. Exact. |
-| codex | First `codex.turn` event with `HARNESS_SESSION_ID`; its `thread-id` is the native id. Before that, the core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event. Exact after the first turn. |
+| claude | First hook event carrying `TROOP_SESSION_ID` (inherited from `launch.ps1`); its `session_id` field is the native id. Exact. |
+| codex | First `codex.turn` event with `TROOP_SESSION_ID`; its `thread-id` is the native id. Before that, the core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event. Exact after the first turn. |
 | agy | The newest folder under `~/.gemini/antigravity-cli/brain/` created within 30 s after the launch event, only if exactly one agy session was launched in that window. Otherwise `native_id` stays NULL and state stays `unknown`. |
 | herdr host | herdr's pane id (`herdr_pane`); native id from herdr's `agent.get` when it reports one. |
 
@@ -87,7 +87,7 @@ The core processes events in `seq` order and sets `session.state`:
 Claude Code's settings keep hooks in an object keyed by event name, each holding an array of matcher groups;
 this is the shape already used in the vault's `.claude/settings.json`.
 
-`agent-harness hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
+`troop hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
 event name. It prints a unified diff and asks before writing. It never removes or reorders an existing entry.
 
 ```json
@@ -109,9 +109,9 @@ Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notific
 `SessionEnd`. The entry is identified for uninstall by the exact command string containing
 `<core>/event.js`. `hooks uninstall` removes only entries whose command matches, and deletes an event name's
 array only if it becomes empty and was absent before install (recorded in
-`~/.agent-harness/hooks-install.json`).
+`~/.metatrooper/hooks-install.json`).
 
-Hooks do nothing outside a harness session: when `HARNESS_SESSION_ID` is not set, `event.js` exits 0
+Hooks do nothing outside a Metatrooper session: when `TROOP_SESSION_ID` is not set, `event.js` exits 0
 immediately without opening the database.
 
 ## The one hook with output: UserPromptSubmit
@@ -123,7 +123,7 @@ This is the named exception to "hooks print nothing".
 3. If any were selected, print exactly one line and wait for stdout to flush:
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Comments from the Agent Harness browser:\n\n<comment 1 body>\n\n<comment 2 body>"}}
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Comments from the Metatrooper browser:\n\n<comment 1 body>\n\n<comment 2 body>"}}
 ```
 
 4. After the flush completes, set `prompt_at = now` on exactly those comment ids, with `WHERE prompt_at IS
@@ -136,7 +136,7 @@ both print the same comment for the same reason; that is the accepted cost of ne
 
 ## Codex notify wrapper
 
-`agent-harness hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.harness-bak`, then sets
+`troop hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.troop-bak`, then sets
 `notify` to `["node", "<core>/codex-notify.js", <the previous notify array as JSON>]`.
 
 `codex-notify.js`:

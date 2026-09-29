@@ -1,6 +1,6 @@
 # Diff annotation and file drag
 
-Child #30 of the Agent Harness epic. Milestone 2. Effort: about 1 Claude Code days.
+Child #30 of the Metatrooper epic. Milestone 2. Effort: about 1 Claude Code days.
 
 Depends on: child #10.
 

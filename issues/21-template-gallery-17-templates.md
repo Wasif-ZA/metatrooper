@@ -1,6 +1,6 @@
 # Template gallery (17 templates)
 
-Child #21 of the Agent Harness epic. Milestone 3. Effort: about 1 Claude Code days.
+Child #21 of the Metatrooper epic. Milestone 3. Effort: about 1 Claude Code days.
 
 Depends on: child #3, child #4, child #5.
 

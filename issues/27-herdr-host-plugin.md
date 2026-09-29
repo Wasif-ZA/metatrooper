@@ -1,6 +1,6 @@
 # herdr host plugin
 
-Child #27 of the Agent Harness epic. Milestone 2. Effort: about 2 Claude Code days.
+Child #27 of the Metatrooper epic. Milestone 2. Effort: about 2 Claude Code days.
 
 Depends on: child #3, child #4, child #5.
 

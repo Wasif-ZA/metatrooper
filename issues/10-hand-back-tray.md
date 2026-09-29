@@ -1,6 +1,6 @@
 # Hand-back tray
 
-Child #10 of the Agent Harness epic. Milestone 1. Effort: about 0.5 Claude Code days.
+Child #10 of the Metatrooper epic. Milestone 1. Effort: about 0.5 Claude Code days.
 
 Depends on: child #1, child #5.
 

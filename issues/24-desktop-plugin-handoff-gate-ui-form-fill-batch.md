@@ -1,6 +1,6 @@
 # `desktop` plugin, handoff gate UI, `form-fill-batch`
 
-Child #24 of the Agent Harness epic. Milestone 3. Effort: about 3 Claude Code days.
+Child #24 of the Metatrooper epic. Milestone 3. Effort: about 3 Claude Code days.
 
 Depends on: child #4, child #5, child #6.
 

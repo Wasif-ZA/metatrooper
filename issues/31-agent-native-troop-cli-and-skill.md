@@ -1,12 +1,12 @@
-# Agent-native `harness` CLI and skill
+# Agent-native `troop` CLI and skill
 
-Child #31 of the Agent Harness epic. Milestone 1. Effort: about 1.5 Claude Code days.
+Child #31 of the Metatrooper epic. Milestone 1. Effort: about 1.5 Claude Code days.
 
 Depends on: child #1, child #4.
 
 ## What
 
-Agent-native `harness` CLI and skill
+Agent-native `troop` CLI and skill
 
 ## Source of truth
 
@@ -16,7 +16,7 @@ Agent-native `harness` CLI and skill
 
 ## Acceptance criteria
 
-- [ ] M1-31. `harness run start two-engine-review --json` from inside an agent session starts a run, and `harness run wait` returns at its first gate.
+- [ ] M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop run wait` returns at its first gate.
 
 ## Rules that bind every child
 

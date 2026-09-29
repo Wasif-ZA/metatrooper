@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-harness.dev/schema/pipeline/v1.json",
-  "title": "Agent Harness pipeline, version 1",
+  "$id": "https://metatrooper.dev/schema/pipeline/v1.json",
+  "title": "Metatrooper pipeline, version 1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "id", "title", "steps"],

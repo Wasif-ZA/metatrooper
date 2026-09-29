@@ -1,6 +1,6 @@
 # `docs-and-release-notes`
 
-Child #23 of the Agent Harness epic. Milestone 2. Effort: about 1 Claude Code days.
+Child #23 of the Metatrooper epic. Milestone 2. Effort: about 1 Claude Code days.
 
 Depends on: child #14.
 

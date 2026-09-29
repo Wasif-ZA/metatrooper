@@ -5,11 +5,11 @@ licence.
 
 ## Manifest
 
-`harness-plugin.json` at the plugin root, validated against `plugin-manifest.schema.json`.
+`troop-plugin.json` at the plugin root, validated against `plugin-manifest.schema.json`.
 
 ## Install
 
-1. Source: a local folder, or a git URL cloned into `~/.agent-harness/plugins/<id>/`.
+1. Source: a local folder, or a git URL cloned into `~/.metatrooper/plugins/<id>/`.
 2. The manifest is validated. The install screen lists every permission in plain words, every action marked
    `external`, every engine added and every MCP server added. The user approves or cancels. Approved
    permissions are stored in `plugin.permissions`; a later version asking for more permissions needs approval
@@ -22,7 +22,7 @@ licence.
 |---|---|---|
 | `project:read` | read the project folder | cwd is the project; declared only |
 | `project:write` | write in the project folder | declared only |
-| `run:write` | write in the run directory | cwd and `HARNESS_RUN_DIR` |
+| `run:write` | write in the run directory | cwd and `TROOP_RUN_DIR` |
 | `network` | outbound network | declared only; the install screen warns it is not blocked |
 | `secrets:<NAME>` | receive environment variable `<NAME>` | **enforced**: the action's environment contains only these |
 | `browser` | drive browser panes through the core | **enforced**: pipe checks pane ownership |
@@ -35,11 +35,11 @@ filesystem and network sandboxing (AppContainer) is out of scope for this epic a
 
 - Started with `child_process.spawn(argv[0], argv.slice(1), {cwd, env, windowsHide: true})`. No shell.
 - `env` is built from scratch: `PATH`, `PATHEXT`, `COMSPEC`, `SYSTEMROOT`, `WINDIR`, `TEMP`, `TMP`,
-  `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `HARNESS_RUN_DIR`, `HARNESS_PROJECT_DIR`, `HARNESS_PLUGIN_DIR`,
+  `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TROOP_RUN_DIR`, `TROOP_PROJECT_DIR`, `TROOP_PLUGIN_DIR`,
   plus each approved `secrets:<NAME>` value. Nothing else from the parent environment is passed.
 - Secret values: entered once by the user on the install screen (or migrated by an importer, below) and stored
-  encrypted with Windows DPAPI for the current user at `~/.agent-harness/secrets/<plugin>/<NAME>.dpapi`,
-  recorded in `plugin_secret`. No plain-text secret is ever written by the harness.
+  encrypted with Windows DPAPI for the current user at `~/.metatrooper/secrets/<plugin>/<NAME>.dpapi`,
+  recorded in `plugin_secret`. No plain-text secret is ever written by Metatrooper.
   - Encrypt: the core runs `powershell -NoProfile -Command -` and writes to its stdin
     `$v = [Console]::In.ReadLine(); ConvertTo-SecureString -String $v -AsPlainText -Force | ConvertFrom-SecureString`
     followed by the value on the next line; stdout (the DPAPI blob) is written to the `.dpapi` file. The value
@@ -59,11 +59,11 @@ filesystem and network sandboxing (AppContainer) is out of scope for this epic a
 
 ## Panes: the bridge
 
-Plugin panes are served from a custom protocol, `harness-plugin://<plugin id>/<path>`, registered by the
+Plugin panes are served from a custom protocol, `troop-plugin://<plugin id>/<path>`, registered by the
 workbench, and load `entry` in an iframe with `sandbox="allow-scripts"` (no `allow-same-origin`, so the pane
 cannot touch the workbench's storage). Because a sandboxed frame has an opaque origin, `'self'` would match
 nothing; the policy names the scheme origin explicitly:
-`default-src harness-plugin://<plugin id> data:; connect-src 'none'`. They talk to the workbench only by `postMessage`:
+`default-src troop-plugin://<plugin id> data:; connect-src 'none'`. They talk to the workbench only by `postMessage`:
 
 | Message from pane | Reply | Needs permission |
 |---|---|---|
@@ -93,7 +93,7 @@ read-only on the original files and follow an allowlist:
 
 | Imported | Becomes | Rule |
 |---|---|---|
-| Claude Code `.claude-plugin/plugin.json` `mcpServers` | MCP entries attached to Claude sessions | `command` and `args` copied. Each `env` key becomes a `secrets:<KEY>` permission the user must approve. A literal value in the original config is migrated into the DPAPI store on approval (so the import keeps working); a `${VAR}` reference is resolved from the user's environment at launch. No value is written to a harness file in plain text |
+| Claude Code `.claude-plugin/plugin.json` `mcpServers` | MCP entries attached to Claude sessions | `command` and `args` copied. Each `env` key becomes a `secrets:<KEY>` permission the user must approve. A literal value in the original config is migrated into the DPAPI store on approval (so the import keeps working); a `${VAR}` reference is resolved from the user's environment at launch. No value is written to a Metatrooper file in plain text |
 | Claude Code skills | skills available to engines that support skills | files referenced by path, not copied |
 | Claude Code hooks | not imported | hooks run arbitrary commands on every tool call; the install screen lists them and says to install them through Claude Code itself |
 | Codex and agy MCP entries | MCP entries attached to those engines | same env and migration rule as Claude |

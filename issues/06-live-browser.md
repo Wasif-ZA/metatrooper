@@ -1,12 +1,12 @@
 # Live browser
 
-Child #6 of the Agent Harness epic. Milestone 1. Effort: about 5 Claude Code days.
+Child #6 of the Metatrooper epic. Milestone 1. Effort: about 5 Claude Code days.
 
 Depends on: child #1, child #5.
 
 ## What
 
-Live browser: panes, `harness-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after
+Live browser: panes, `metatrooper-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after
 
 ## Source of truth
 
@@ -16,7 +16,7 @@ Live browser: panes, `harness-browser` MCP, browser pipe with ownership checks, 
 
 ## Acceptance criteria
 
-- [ ] M1-09. `Get-NetTCPConnection -State Listen` shows no port owned by the core, workbench or `harness-browser`, and no connection upgrades to WebSocket, during a full `two-engine-review` run.
+- [ ] M1-09. `Get-NetTCPConnection -State Listen` shows no port owned by the core, workbench or `metatrooper-browser`, and no connection upgrades to WebSocket, during a full `two-engine-review` run.
 - [ ] M1-22. Fan-out 3 on the fixture repo gives 3 worktrees, 3 leased ports starting at 3001 (skipping a port the test occupies), and 3 browser panes; each pane is drivable only by the session found through its own process ancestry, including for Codex sessions.
 - [ ] M1-23. The cursor overlay reaches within 5 px of a click point before the click lands, from Claude, Codex and agy sessions.
 - [ ] M1-24. Browser interception blocks `file:`, a loopback port the project does not own, `192.168.x.x`, `[::1]` on an unowned port, a `fd00::` address, and a test hostname that resolves to `127.0.0.1`, including requests made by page scripts and by `evaluate`.

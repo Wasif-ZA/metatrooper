@@ -1,4 +1,4 @@
-# Agent Harness: pipeline IDE, epic
+# Metatrooper: pipeline IDE, epic
 
 Drafted 2026-09-29 through `/gstack-spec`; rewritten 2026-09-29T15:30+10:00 after a Codex (3/10) and Gemini
 (2/10) executability review. Status: draft, waiting for Wasif's confirmation and a re-score.
@@ -13,11 +13,11 @@ the pieces talk. Where they differ, the contract wins and this file is the bug.
 | `contracts/pipe-protocol.md` | named-pipe framing, JSON-RPC methods, error codes, queue fallback, access |
 | `contracts/pipeline.schema.json` and `contracts/pipelines.md` | pipeline file format and how a run executes it |
 | `contracts/plugin-manifest.schema.json` and `contracts/plugins.md` | plugin manifest, permissions, action process contract, pane bridge, importers |
-| `contracts/browser-tools.md` | the 12 `harness-browser` tools, capture, and the browser safety rules |
+| `contracts/browser-tools.md` | the 12 `metatrooper-browser` tools, capture, and the browser safety rules |
 
 ## Context
 
-Agent Harness is a desktop IDE for any coding assistant (Claude Code, Codex, Gemini, or any CLI a plugin
+Metatrooper is a desktop IDE for any coding assistant (Claude Code, Codex, Gemini, or any CLI a plugin
 adds). Each assistant runs in its own native Windows Terminal window, exactly as it does today, and the IDE
 watches from the side. Work flows through pipelines anyone can define, across 12 lanes from coding to video
 to study. It is built for Wasif first, and for anyone to point at a project of their choosing, as an
@@ -56,11 +56,11 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D10 | Shells | Node core service; Electron workbench; Tauri tray companion |
 | D11 | Call log | Callrouter Plan A C1 writes `callrouter.db`; the IDE only reads it |
 | D13, D14 | Browser | Shared live browser with visible agent cursors, an inspiration board, parallel variants |
-| D15 | Plugins | Native `harness-plugin.json` plus importers for Claude Code plugins and Codex/agy MCP and skills |
+| D15 | Plugins | Native `troop-plugin.json` plus importers for Claude Code plugins and Codex/agy MCP and skills |
 | D16 | Pipelines | `pipeline.json` with a form editor, plus optional TypeScript code steps |
 | D17 | Tokens | Live meter, callrouter Plan A as the first plugin, cheapest-capable-engine routing |
 | D19 | Terminals | Native Windows Terminal, owned by `wt.exe`; the IDE only watches. Exception: the optional herdr host (D32) |
-| D21 | Browser MCP | Own `harness-browser` MCP, no WebSocket |
+| D21 | Browser MCP | Own `metatrooper-browser` MCP, no WebSocket |
 | D24 | Transport | Direct database reads; hooks append events; commands over a named pipe with a queue fallback. No TCP port, token file, WebSocket or SSE |
 | D25, D27 | Pipelines shipped | 17 working built-ins across 12 lanes; the other 17 catalog pipelines as templates |
 | D28 | Business model | Open core: the local IDE is free with no account; only things Wasif hosts and pays for are metered |
@@ -75,7 +75,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 
 ## Current state, verified 2026-09-29
 
-- `projects/agent-harness/` holds research, this spec and `contracts/`. No code. Outside vault git
+- `projects/metatrooper/` holds research, this spec and `contracts/`. No code. Outside vault git
   (`.gitignore:15`); it becomes its own repo.
 - Callrouter: specified, not built. Plan A is C1 foundation (12 h), C9 replay (8 h), C7 rewrite and cap
   (10 h) (`projects/callrouter/docs/spec.md:28-47`). Python.
@@ -93,15 +93,15 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 
 ```
  +--------------------------------+   +-------------------------+   +-------------------+
- | Electron workbench             |   | Tauri tray (milestone 3)|   | harness CLI       |
+ | Electron workbench             |   | Tauri tray (milestone 3)|   | troop CLI         |
  | board | browser | variants |   |   | lights, needs-you, meter|   | (agents use it)   |
  | runner | review | hand-back    |   +-----+-------------+-----+   +----+---------+----+
  +----+-------------+-------------+         |             |              |         |
       | reads       | commands              | reads       | commands     | reads   | commands
-      | direct      | \\.\pipe\agent-harness| direct      |              | direct  |
+      | direct      | \\.\pipe\metatrooper| direct      |              | direct  |
       v             +-----------------------+-------------+--------------+---------+
  +----+--------------------------------------------------+
- | ~/.agent-harness/harness.db (SQLite, WAL)             |<---- hooks, launch.ps1, codex notify
+ | ~/.metatrooper/troop.db (SQLite, WAL)             |<---- hooks, launch.ps1, codex notify
  | core-owned tables  |  queue tables: event, command,   |      append `event` rows (250 ms budget,
  |                    |  comment                          |      exit 0 always)
  +----+--------------------------------------------------+
@@ -115,11 +115,11 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
       v                               v
  +----------------------------+   +----------------------+
  | Windows Terminal windows   |   | herdr server panes   |
- | harness-<id>: one per      |   | (only when the herdr |
+ | troop-<id>: one per      |   | (only when the herdr |
  | session, owned by wt.exe   |   |  plugin is chosen)   |
  +----------------------------+   +----------------------+
 
- Agents -> harness-browser (stdio MCP) -> \\.\pipe\agent-harness-browser -> workbench browser panes
+ Agents -> metatrooper-browser (stdio MCP) -> \\.\pipe\metatrooper-browser -> workbench browser panes
 ```
 
 ### Rules
@@ -129,7 +129,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
    Killing the workbench, tray and core mid-turn leaves every agent working. **Exception, opt-in only:** a
    session launched on the herdr host lives in herdr's server; it survives the IDE but depends on herdr.
 2. **Logic lives in the core service.** Shells read the database and send commands; they never decide.
-3. **A broken harness is indistinguishable from an absent one.** Every hook, the launcher step and the
+3. **A broken Metatrooper is indistinguishable from an absent one.** Every hook, the launcher step and the
    notify wrapper finish within 250 ms, swallow every error and exit 0. They print nothing, with one named
    exception: the `UserPromptSubmit` hook prints the exact JSON in `events-and-hooks.md` when it has
    comments to deliver, and nothing otherwise.
@@ -139,7 +139,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 5. **Table ownership.** The core is the only writer of core-owned tables. Three queue tables have other
    writers: `event` (hooks, launcher, notify), `command` (workbench, tray, CLI), `comment` (workbench).
    Only the core marks queue rows processed.
-6. **Nothing the harness writes lives in the vault or OneDrive**, except `<project>/.harness/runs/`, which is
+6. **Nothing Metatrooper writes lives in the vault or OneDrive**, except `<project>/.troop/runs/`, which is
    git-excluded automatically.
 7. **ACU refusal.** `project.open` refuses any path containing `work/ACU` (case-insensitive) with error
    -32001. ACU work stays in plain Claude Code.
@@ -148,10 +148,10 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 
 | Path | How | Target | Core down |
 |---|---|---|---|
-| Reads | Windows open `harness.db` read-only and query it | p95 under 1 ms per query | last state stays, "core offline" badge |
-| Updates | `fs.watch` on the `~/.agent-harness/` folder (Electron) or the `notify` crate (Tauri), filtered to `harness.db*` names, 50 ms debounce, re-query on change. Watching the folder, not the `-wal` file, survives checkpoints deleting or replacing that file. A 1 s poll of `PRAGMA data_version` is the source of truth; the watcher only makes it faster. | under 100 ms write to redraw | nothing changes |
+| Reads | Windows open `troop.db` read-only and query it | p95 under 1 ms per query | last state stays, "core offline" badge |
+| Updates | `fs.watch` on the `~/.metatrooper/` folder (Electron) or the `notify` crate (Tauri), filtered to `troop.db*` names, 50 ms debounce, re-query on change. Watching the folder, not the `-wal` file, survives checkpoints deleting or replacing that file. A 1 s poll of `PRAGMA data_version` is the source of truth; the watcher only makes it faster. | under 100 ms write to redraw | nothing changes |
 | Events | append to `event` (`events-and-hooks.md`) | under 20 ms | rows wait; processed in order on restart |
-| Commands | JSON-RPC on `\\.\pipe\agent-harness` (`pipe-protocol.md`) | p95 under 20 ms | after 300 ms the command becomes a `command` row, shown "queued", run on restart |
+| Commands | JSON-RPC on `\\.\pipe\metatrooper` (`pipe-protocol.md`) | p95 under 20 ms | after 300 ms the command becomes a `command` row, shown "queued", run on restart |
 
 The core checkpoints the WAL every 30 s (`PRAGMA wal_checkpoint(PASSIVE)`). Readers rely on SQLite's own
 `busy_timeout` (200 ms); if a read still fails, the window keeps the previous frame and tries on the next
@@ -165,7 +165,7 @@ wake. Windows read on a read-only connection and open a short-lived read-write c
 The core never spawns an agent as its own child:
 
 ```
-wt.exe -w harness-<first 8 of session id> new-tab --title "<engine> <project name>" -d "<project path>" ^
+wt.exe -w troop-<first 8 of session id> new-tab --title "<engine> <project name>" -d "<project path>" ^
   powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "<core>/launch.ps1" ^
   -SessionId <id> -Engine <engine> -ArgsB64 <base64 of a JSON array: command, args, prompt>
 ```
@@ -175,16 +175,16 @@ literally and because `wt` treats `;` as a command separator. Base64 contains ne
 
 `launch.ps1`:
 
-1. Sets `$env:HARNESS_SESSION_ID`.
+1. Sets `$env:TROOP_SESSION_ID`.
 2. Starts `node <core>/event.js launch --session <id> --pid $PID --engine <engine> --cwd <cwd>` with
    `Start-Process -WindowStyle Hidden` and does not wait.
 3. Decodes `-ArgsB64` and runs the engine command in the same console (`& $cmd @rest`) so the CLI owns the
    terminal directly, then exits with its exit code.
 
-The engine inherits the user's normal environment, exactly as when started by hand; the harness adds only
-`HARNESS_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
+The engine inherits the user's normal environment, exactly as when started by hand; Metatrooper adds only
+`TROOP_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
 
-One Windows Terminal window per session, named `harness-<id8>`. Focus runs `wt -w harness-<id8> focus-tab
+One Windows Terminal window per session, named `troop-<id8>`. Focus runs `wt -w troop-<id8> focus-tab
 -t 0`, which targets that window by its unique name, so tabs opened or closed by hand cannot misdirect it.
 The IDE never kills or closes an agent; the user closes the window.
 
@@ -272,7 +272,7 @@ Tools, capture, cursor and safety rules: `contracts/browser-tools.md`. In short:
 
 - Each browser pane is an Electron `WebContentsView` in a per-project session partition. Electron runs with
   no remote debugging port.
-- Agents drive panes through `harness-browser`, a stdio MCP server attached to every session. Every tool names
+- Agents drive panes through `metatrooper-browser`, a stdio MCP server attached to every session. Every tool names
   a `pane_id`; the workbench only lets the owning session drive a pane (error -32030 otherwise). With
   fan-out, each variant has its own pane owned by its own session.
 - Commands run in-process through `webContents.debugger.sendCommand`. The cursor overlay moves to each click
@@ -282,7 +282,7 @@ Tools, capture, cursor and safety rules: `contracts/browser-tools.md`. In short:
   isolated world under the same interception.
 - Full-page capture uses the pane's debugger (`Page.captureScreenshot` with `captureBeyondViewport`), because
   `capturePage()` only captures the viewport and stitching repeats sticky headers.
-- `harness-browser` finds its own session by walking its parent processes, so Codex's global MCP config works,
+- `metatrooper-browser` finds its own session by walking its parent processes, so Codex's global MCP config works,
   and one session cannot drive another session's pane by accident.
 - Private-range blocking resolves each host first, so a public name pointing at a private address is blocked.
 - If the workbench is closed, the next browser tool call returns "browser not available". The agent keeps
@@ -290,7 +290,7 @@ Tools, capture, cursor and safety rules: `contracts/browser-tools.md`. In short:
 
 Point-to-comment: press C, click an element, type a note, pick a target session. The comment (note, CSS
 selector, first 2,000 characters of outer HTML, and a crop saved at
-`~/.agent-harness/comments/<session_id>/<comment_id>.png`) goes into `comment` and is delivered by the
+`~/.metatrooper/comments/<session_id>/<comment_id>.png`) goes into `comment` and is delivered by the
 session's route: clipboard always; for Claude, also as context on the next prompt (at least once, never lost;
 a rare duplicate is marked with the comment id); on the herdr host, by `agent.prompt`.
 
@@ -303,7 +303,7 @@ The `agent-reach` plugin's `inspiration-board` action returns 8 to 12 references
 libraries) and the core captures each reference's first screen through a browser pane. Cards show capture,
 source link, reason, pin and remove. The step then proposes N directions (default 3) naming the pinned
 references each draws on, and a gate lets the user edit or approve them before the build fan-out. Items are
-stored in `board_item`, captures under `~/.agent-harness/boards/<run_id>/`.
+stored in `board_item`, captures under `~/.metatrooper/boards/<run_id>/`.
 
 ### Variants grid
 
@@ -313,7 +313,7 @@ tiles' crops. Discard removes the worktree (`git worktree remove`) after a confi
 
 ## Hand-back tray
 
-Shows `git diff --cached --stat`, untracked files listed separately and never staged by the harness, binary
+Shows `git diff --cached --stat`, untracked files listed separately and never staged by Metatrooper, binary
 files and submodules shown by name only, a drafted commit message, and the exact command to run. A Copy
 button and no Commit button. No code path runs `git commit`, `git push`, `git rebase` or `git commit
 --amend`.
@@ -334,11 +334,11 @@ never picks a winner. The review lane refuses ACU paths like everything else.
 ## Threat model for gates and pipes
 
 Agents run as the user. Any agent with a shell can already do anything the user's account can, including
-posting or pushing without the IDE. So the harness does not claim to stop a hostile process running as the
+posting or pushing without the IDE. So Metatrooper does not claim to stop a hostile process running as the
 user. What gates guarantee is narrower and testable: a pipeline never performs a publish or external step
 unless a person approved that exact action in the workbench, tray, or an interactive CLI; a pipeline, a code
-step, a plugin action, or a cooperating agent using the `harness` CLI non-interactively cannot approve one.
-Approval needs a trusted UI connection, proven with a per-start key in `~/.agent-harness/ui.key` that only the
+step, a plugin action, or a cooperating agent using the `troop` CLI non-interactively cannot approve one.
+Approval needs a trusted UI connection, proven with a per-start key in `~/.metatrooper/ui.key` that only the
 workbench, tray and interactive CLI read; code steps and plugin actions get no method or helper that reaches
 it. A script that deliberately reads that file is a hostile same-user process and out of scope.
 The named pipes accept requests only from the user's own account (tested, M1-10), and browser panes are bound
@@ -346,8 +346,8 @@ to their session by process ancestry so well-behaved agents cannot drive each ot
 
 ## Agent-native CLI and skill
 
-`harness session launch|list|wait`, `harness run start|status|wait|resume`, `harness worktree create`,
-`harness browser panes|snapshot|click|type`, all with `--json`. Every command is a pipe method or a database
+`troop session launch|list|wait`, `troop run start|status|wait|resume`, `troop worktree create`,
+`troop browser panes|snapshot|click|type`, all with `--json`. Every command is a pipe method or a database
 read. `run wait` returns when the run reaches `done`, `failed`, or any gate. A skill file teaches agents when
 to use each. Publishing still stops at a gate, and `gate.resolve` from the CLI requires an interactive
 terminal (it refuses when stdin is not a TTY), so an agent cannot approve its own gate.
@@ -411,7 +411,7 @@ MIT, both compatible.
 
 Prior art, checked 2026-09-29:
 
-| | Orca (stablyai/orca) | herdr (herdrdev/herdr) | Agent Harness |
+| | Orca (stablyai/orca) | herdr (herdrdev/herdr) | Metatrooper |
 |---|---|---|---|
 | Stars, licence | 80,844, MIT | 41,291, Apache-2.0 | new, AGPL-3.0 core |
 | Where agents run | terminals embedded in the Electron app | herdr's server; viewed in any terminal | Windows Terminal by default; herdr optional |
@@ -431,14 +431,14 @@ Estimates are Claude Code days and were raised after the review said the first o
 |---|---|---|---|
 | 1 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, `wt` launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
 | 3 | Plugin system: manifest validation, install screen and approval, action runner with env stripping and tree kill, pane bridge, Claude and Codex/agy importers | 3.5 | 1 |
-| 2 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `harness-plugin.json` | 2.5 | 3 (for the plugin part only) |
+| 2 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json` | 2.5 | 3 (for the plugin part only) |
 | 4 | Pipeline runner: validation with the publish rule, handoff contract, completion signals, gates with `action_hash`, fan-out, worktrees, port allocation, loops, resume, breaker, budgets, code steps, `repo` plugin | 4.5 | 1, 3 |
 | 5 | Electron workbench: project picker, session cards and focus, engine lights, runner view, form editor, gate panel, needs-you queue, "core offline" badge, database watcher | 3 | 1, 4 |
-| 6 | Live browser: panes, `harness-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after | 5 | 1, 5 |
+| 6 | Live browser: panes, `metatrooper-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after | 5 | 1, 5 |
 | 9 | Two-engine review pipeline and view | 1 | 4, 5 |
 | 10 | Hand-back tray | 0.5 | 1, 5 |
 | 11 | Token meter and prices (reads `usage` from #1 and callrouter "saved") | 1.5 | 1, 2 |
-| 31 | Agent-native `harness` CLI and skill | 1.5 | 1, 4 |
+| 31 | Agent-native `troop` CLI and skill | 1.5 | 1, 4 |
 | 13 | Measurement tooling for the adoption gate | 0.5 | 5 to 11 |
 
 Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, before milestone 2 starts.
@@ -487,12 +487,12 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
 
 - M1-01. `npm run dev` opens the workbench on laptop-ops with Smart App Control on.
 - M1-02. Launching claude, codex and agy for one project opens three Windows Terminal windows named
-  `harness-<id8>`, each a normal interactive session on the existing logins, with no API key set.
+  `troop-<id8>`, each a normal interactive session on the existing logins, with no API key set.
 - M1-03. Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its
   turn, the user can keep typing, and restarting the core rediscovers the live sessions by pid within 10 s.
 - M1-04. With the core never started, every hook and `launch.ps1` exits 0 with no output, and the engine
-  starts no more than 1 s later than without the harness.
-- M1-05. A test types a marker string into a session and asserts it appears in no harness log or table.
+  starts no more than 1 s later than without Metatrooper.
+- M1-05. A test types a marker string into a session and asserts it appears in no Metatrooper log or table.
 - M1-06. Speed with 3 live sessions and a running pipeline: window reads p95 under 1 ms; a hook event is on
   screen within 100 ms; pipe commands p95 under 20 ms.
 - M1-07. Over a 10-minute scripted session, including two core kills and restarts, the workbench renderer has
@@ -505,7 +505,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   of restart. A command that arrives both by pipe and by queue (forced by delaying the reply past 300 ms) runs
   exactly once. `session.focus` is never queued.
 - M1-09. `Get-NetTCPConnection -State Listen` shows no port owned by the core, workbench or
-  `harness-browser`, and no connection upgrades to WebSocket, during a full `two-engine-review` run.
+  `metatrooper-browser`, and no connection upgrades to WebSocket, during a full `two-engine-review` run.
 - M1-10. A standard local account other than the owner cannot complete a request on either pipe.
 - M1-11. A Claude session shows `waiting_for_you` within 2 s of a permission Notification, `done` within
   2 s of Stop, and `idle` after its card is opened (`session.seen`).
@@ -521,7 +521,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   fixture action that prints its environment to a file); a hung action is killed with its child processes at
   its timeout.
 - M1-17. An imported Claude Code plugin with one MCP server and one env key asks for `secrets:<KEY>`, and the
-  value is not written to any harness file.
+  value is not written to any Metatrooper file.
 - M1-18. A pipeline with a publish step and no earlier approve gate fails validation from the file and the
   form view; so does a publish or external step with `fanout`, and an agent publish step without a pinned
   `engine`.
@@ -548,7 +548,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   with the header shown once.
 - M1-25a. An action spawned with the stripped environment can still run `npm` and a `.cmd` script by name.
 - M1-25b. An imported MCP server whose config held a literal env value still starts after import through the
-  MCP shim, and the value appears in no harness file or engine config in plain text (only in its `.dpapi`
+  MCP shim, and the value appears in no Metatrooper file or engine config in plain text (only in its `.dpapi`
   blob). With the variable missing, the session starts, that server reports the missing name, and a needs-you
   item appears.
 - M1-25c. A `dev_command` variant is shown in its pane only after its port answers; discarding the variant
@@ -560,7 +560,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   its transcript.
 - M1-29. Callrouter Plan A passes its own criteria 1 to 8 (`projects/callrouter/docs/spec.md:111-128`).
 - M1-30. `project.open` on a path containing `work/ACU` returns -32001.
-- M1-31. `harness run start two-engine-review --json` from inside an agent session starts a run, and `harness
+- M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop
   run wait` returns at its first gate.
 - M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry
   MIT.
@@ -577,7 +577,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   `~/.gemini/antigravity-cli/conversations/` started in the window, excluding ACU cwds. It is a smoke test
   when its first user message is under 80 characters and matches
   `reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)` (case-insensitive).
-  The harness's own `engine_check` rows are not engine runs.
+  Metatrooper's own `engine_check` rows are not engine runs.
 - A-04. Pasted screenshots per 100 non-ACU prompts fall below 0.5. Baseline: 12 / 496 x 100 = 2.4. Counted as
   prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding ACU
   sessions (same rule as the baseline). #13 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
@@ -630,12 +630,12 @@ built-in and template validates against `pipeline.schema.json`; every first-part
 ## Rollback
 
 - Code: delete the repo; nothing else imports it.
-- Hooks: `agent-harness hooks uninstall` (byte-identical, M1-13); callrouter's own rollback in its
+- Hooks: `troop hooks uninstall` (byte-identical, M1-13); callrouter's own rollback in its
   `spec.md:145-151`.
-- Codex notify: restored by uninstall; a manual backup is at `~/.codex/config.toml.harness-bak`.
-- Worktrees: delete `~/.agent-harness/worktrees/`, then `git worktree prune` in each project.
-- Run files: delete `<project>/.harness/`.
-- Data: delete `~/.agent-harness/`.
+- Codex notify: restored by uninstall; a manual backup is at `~/.codex/config.toml.troop-bak`.
+- Worktrees: delete `~/.metatrooper/worktrees/`, then `git worktree prune` in each project.
+- Run files: delete `<project>/.troop/`.
+- Data: delete `~/.metatrooper/`.
 
 ## Dependencies
 
@@ -643,7 +643,7 @@ built-in and template validates against `pipeline.schema.json`; every first-part
 |---|---|---|---|
 | electron | MIT | 123,297 | workbench |
 | tauri | Apache-2.0 or MIT | 111,464 | tray |
-| @modelcontextprotocol/typescript-sdk | not declared in GitHub metadata | 13,485 | `harness-browser`; its LICENSE file is read before install, and if it is not MIT or Apache-2.0 the server is written as plain JSON-RPC over stdio instead (about 200 lines) |
+| @modelcontextprotocol/typescript-sdk | not declared in GitHub metadata | 13,485 | `metatrooper-browser`; its LICENSE file is read before install, and if it is not MIT or Apache-2.0 the server is written as plain JSON-RPC over stdio instead (about 200 lines) |
 
 No terminal library, WebSocket library or native module is needed.
 
@@ -651,15 +651,15 @@ No terminal library, WebSocket library or native module is needed.
 
 | Path | Change |
 |---|---|
-| `projects/agent-harness/contracts/` | the contracts above (written 2026-09-29) |
-| `projects/agent-harness/core/` | service, `event.js`, `launch.ps1`, `codex-notify.js`, runner, plugins, meter, limits, `harness-browser`, CLI |
-| `projects/agent-harness/workbench/` | Electron main and renderer |
-| `projects/agent-harness/tray/` | Tauri app |
-| `projects/agent-harness/sdk/` | plugin helper library (MIT) |
-| `projects/agent-harness/pipelines/` | 17 built-ins and 17 templates (MIT) |
-| `projects/agent-harness/plugins/` | the first-party plugins above |
-| `projects/agent-harness/tests/fixtures/` | one fixture per built-in |
-| `projects/callrouter/` | Plan A code plus `harness-plugin.json` |
+| `projects/metatrooper/contracts/` | the contracts above (written 2026-09-29) |
+| `projects/metatrooper/core/` | service, `event.js`, `launch.ps1`, `codex-notify.js`, runner, plugins, meter, limits, `metatrooper-browser`, CLI |
+| `projects/metatrooper/workbench/` | Electron main and renderer |
+| `projects/metatrooper/tray/` | Tauri app |
+| `projects/metatrooper/sdk/` | plugin helper library (MIT) |
+| `projects/metatrooper/pipelines/` | 17 built-ins and 17 templates (MIT) |
+| `projects/metatrooper/plugins/` | the first-party plugins above |
+| `projects/metatrooper/tests/fixtures/` | one fixture per built-in |
+| `projects/callrouter/` | Plan A code plus `troop-plugin.json` |
 | `~/.claude/settings.json`, `~/.codex/config.toml` | hook and notify entries, merged and reversible |
 
 ## Later epics
@@ -667,7 +667,7 @@ No terminal library, WebSocket library or native module is needed.
 - **v2, metered cloud:** gateway, cloud runs, hosted media, sync, accounts, payments (D29).
 - **v3, phone:** see and drive sessions from a phone, like Claude Code Remote Control. It must keep rule 1:
   the phone reaches an agent through the engine's own remote feature (Claude Code Remote Control, or the
-  herdr host), never by streaming a Windows Terminal session through the harness. The harness side is
+  herdr host), never by streaming a Windows Terminal session through Metatrooper. Metatrooper's side is
   read-only status, the needs-you queue and gate approvals on the phone, which the cloud epic's relay makes
   possible. Nothing in this epic blocks it: state is already in the database and approvals already need a
   trusted UI connection.

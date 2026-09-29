@@ -4,13 +4,13 @@ Version 1. Two pipes, same framing.
 
 | Pipe | Server | Clients |
 |---|---|---|
-| `\\.\pipe\agent-harness` | core service | workbench, tray, `harness` CLI |
-| `\\.\pipe\agent-harness-browser` | workbench main process | `harness-browser` MCP server (one per agent session) |
+| `\\.\pipe\metatrooper` | core service | workbench, tray, `troop` CLI |
+| `\\.\pipe\metatrooper-browser` | workbench main process | `metatrooper-browser` MCP server (one per agent session) |
 
 ## Access
 
-Trusted UI connections: at every start the core writes 32 random bytes, hex, to `~/.agent-harness/ui.key`
-(replacing the old one). The workbench, the tray, and the `harness` CLI when it is attached to an interactive
+Trusted UI connections: at every start the core writes 32 random bytes, hex, to `~/.metatrooper/ui.key`
+(replacing the old one). The workbench, the tray, and the `troop` CLI when it is attached to an interactive
 terminal read it and send `ui.hello` on connect. Only such connections may call `gate.resolve`. Code steps
 and plugin actions are started by the core with the stripped environment, their cwd in the project, and no
 method or helper that reads the key; the key file is outside every run directory and project. A script that
@@ -101,7 +101,7 @@ Only state-changing methods are ever queued. Not queued (they fail fast with "co
    affected rows.
 4. On start, the core runs every `queued` row in `at` order before accepting new pipe requests.
 
-## Core methods (`\\.\pipe\agent-harness`)
+## Core methods (`\\.\pipe\metatrooper`)
 
 Every other interaction is a database read.
 
@@ -128,17 +128,17 @@ Every other interaction is a database read.
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
 
-## Browser methods (`\\.\pipe\agent-harness-browser`)
+## Browser methods (`\\.\pipe\metatrooper-browser`)
 
 Trusted core connection: the core itself connects to the browser pipe and sends `browser.hello` with
 `{"ui_key": <key>}`. That connection may call `browser.capture` on any open pane of any registered project,
 and nothing else.
 
-`browser.hello`: params `{"session_id": str}` (from `harness-browser`) or `{"ui_key": str}` (from the core);
+`browser.hello`: params `{"session_id": str}` (from `metatrooper-browser`) or `{"ui_key": str}` (from the core);
 result `{"ok": true, "bound": "session" or "core"}` or error -32030 if the session is unknown or not an
 ancestor of the caller, as found below.
 
-Session binding: when `harness-browser` starts, it finds its own session by walking its parent process chain
+Session binding: when `metatrooper-browser` starts, it finds its own session by walking its parent process chain
 (`Get-CimInstance Win32_Process`, `ParentProcessId`, up to 8 levels) until it reaches a pid equal to a
 `session.pid`. It does not rely on environment variables, so it works for engines such as Codex whose MCP
 configuration is global. It sends that session id in a `browser.hello` request first; the connection is then

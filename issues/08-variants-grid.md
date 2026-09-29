@@ -1,6 +1,6 @@
 # Variants grid
 
-Child #8 of the Agent Harness epic. Milestone 2. Effort: about 2 Claude Code days.
+Child #8 of the Metatrooper epic. Milestone 2. Effort: about 2 Claude Code days.
 
 Depends on: child #4, child #6.
 

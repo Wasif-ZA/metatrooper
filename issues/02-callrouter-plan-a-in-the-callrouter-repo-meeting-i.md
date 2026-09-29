@@ -1,12 +1,12 @@
-# Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `harness-plugin.json`
+# Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json`
 
-Child #2 of the Agent Harness epic. Milestone 1. Effort: about 2.5 Claude Code days.
+Child #2 of the Metatrooper epic. Milestone 1. Effort: about 2.5 Claude Code days.
 
 Depends on: child #3 (for the plugin part only).
 
 ## What
 
-Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `harness-plugin.json`
+Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json`
 
 ## Source of truth
 

@@ -1,6 +1,6 @@
 # `security` plugin and `security-review-and-upgrade`
 
-Child #25 of the Agent Harness epic. Milestone 2. Effort: about 1.5 Claude Code days.
+Child #25 of the Metatrooper epic. Milestone 2. Effort: about 1.5 Claude Code days.
 
 Depends on: child #9, child #14.
 

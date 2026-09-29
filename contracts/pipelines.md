@@ -22,7 +22,7 @@ Validation errors are stored in `pipeline.errors` and shown in the form view nex
 
 ## Run directory
 
-`<project>/.harness/runs/<run_id>/`. The runner adds `.harness/` to the project's `.git/info/exclude` on the
+`<project>/.troop/runs/<run_id>/`. The runner adds `.troop/` to the project's `.git/info/exclude` on the
 first run, so run files are never committed by accident.
 
 Contents: `inputs.json`, one `<step_id>[-<i>].md` per agent step and fan-out index, `<step_id>.json` per
@@ -96,7 +96,7 @@ Its stdout JSON becomes the step outputs and is written to `<step_id>.json`.
 ## Fan-out, worktrees, ports
 
 - `fanout: N` runs the step N times in parallel. With `worktree: true`, each index gets
-  `git worktree add <~/.agent-harness/worktrees/<project_id>/<run_id>-<i>> -b harness/<run_id>-<i>`.
+  `git worktree add <~/.metatrooper/worktrees/<project_id>/<run_id>-<i>> -b troop/<run_id>-<i>`.
 - Ports: the core is the only allocator. For each index it takes the lowest port at or above 3001 that has no
   `port_lease` row and is not currently listening (checked with `Get-NetTCPConnection -State Listen`), writes
   the lease in the same transaction, and passes it as `{{port}}` to `dev_command`. Because allocation is one

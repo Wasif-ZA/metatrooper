@@ -1,6 +1,6 @@
 # `docs-export` plugin and `study-notes-to-pdf`
 
-Child #22 of the Agent Harness epic. Milestone 3. Effort: about 1.5 Claude Code days.
+Child #22 of the Metatrooper epic. Milestone 3. Effort: about 1.5 Claude Code days.
 
 Depends on: child #9, child #15.
 

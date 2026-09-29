@@ -1,6 +1,6 @@
 # `cite-check` plugin and `deep-research-cited`
 
-Child #18 of the Agent Harness epic. Milestone 3. Effort: about 1 Claude Code days.
+Child #18 of the Metatrooper epic. Milestone 3. Effort: about 1 Claude Code days.
 
 Depends on: child #4, child #6, child #7.
 

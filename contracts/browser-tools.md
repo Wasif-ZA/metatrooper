@@ -1,8 +1,8 @@
-# harness-browser MCP tools
+# metatrooper-browser MCP tools
 
-Version 1. A stdio MCP server started per agent session through the engine's `mcp_attach`. Each tool call becomes one request on `\\.\pipe\agent-harness-browser` (see
+Version 1. A stdio MCP server started per agent session through the engine's `mcp_attach`. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
-"browser not available: the Agent Harness workbench is closed". It never hangs.
+"browser not available: the Metatrooper workbench is closed". It never hangs.
 
 Its session is found by process ancestry and bound with `browser.hello` (see `pipe-protocol.md`), so it
 needs no per-session configuration. Every tool takes `pane_id` (string). Call `panes` first. When the session owns exactly one pane, `pane_id` may
@@ -47,7 +47,7 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 2. Navigation allowlist: `http:` and `https:` to public addresses, plus `http://localhost:<port>` and
    `http://127.0.0.1:<port>` only for ports owned by this project (`browser_pane.dev_port`, `variant.dev_port`).
    Blocked: `file:`, `chrome:`, `devtools:`, other loopback ports, and these ranges unless the project's
-   `.harness/config.json` lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
+   `.troop/config.json` lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
    ports), `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`; IPv6 `::/128`, `::1/128`
    (except owned dev ports), `fc00::/7`, `fe80::/10`, and IPv4-mapped `::ffff:0:0/96` checked against the IPv4
    list. Enforced with `Fetch.enable` interception on every request, not only top-level navigation, so a
@@ -56,5 +56,5 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
    blocked range, so a public name that resolves to a private address (DNS rebinding) is blocked too.
 3. `evaluate` runs in an isolated world (`Page.createIsolatedWorld`) and is subject to the same request
    interception. Its result is capped at 20 KB.
-4. Browser panes use a separate Electron session partition per project (`persist:harness-<project_id>`), so
+4. Browser panes use a separate Electron session partition per project (`persist:troop-<project_id>`), so
    cookies and storage never mix between projects.

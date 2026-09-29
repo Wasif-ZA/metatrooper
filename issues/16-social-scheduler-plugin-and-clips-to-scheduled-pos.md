@@ -1,6 +1,6 @@
 # `social-scheduler` plugin and `clips-to-scheduled-posts`
 
-Child #16 of the Agent Harness epic. Milestone 3. Effort: about 1.5 Claude Code days.
+Child #16 of the Metatrooper epic. Milestone 3. Effort: about 1.5 Claude Code days.
 
 Depends on: child #15.
 

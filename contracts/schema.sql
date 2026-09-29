@@ -1,4 +1,4 @@
--- Agent Harness store. File: ~/.agent-harness/harness.db
+-- Metatrooper store. File: ~/.metatrooper/troop.db
 -- Opened by every writer with:
 --   PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 200; PRAGMA foreign_keys = ON;
 -- Windows keep one read-only connection (mode=ro) for all reads, and open a short-lived read-write
@@ -47,7 +47,7 @@ CREATE TABLE session (
   project_id    TEXT NOT NULL REFERENCES project(id),
   engine_id     TEXT NOT NULL REFERENCES engine(id),
   host          TEXT NOT NULL CHECK (host IN ('wt','herdr')),
-  window_name   TEXT,                          -- wt: 'harness-<first 8 of id>'; herdr: NULL
+  window_name   TEXT,                          -- wt: 'troop-<first 8 of id>'; herdr: NULL
   herdr_pane    TEXT,                          -- herdr: 'w1:p2'; wt: NULL
   pid           INTEGER,                       -- powershell pid from launch.ps1 (wt) or pane shell pid (herdr)
   native_id     TEXT,                          -- claude session_id, codex thread-id, agy conversation id
@@ -68,7 +68,7 @@ CREATE TABLE event (
   seq         INTEGER PRIMARY KEY AUTOINCREMENT,
   at          TEXT NOT NULL,
   source      TEXT NOT NULL CHECK (source IN ('claude-hook','launch','codex-notify','herdr','core')),
-  session_id  TEXT,                            -- HARNESS_SESSION_ID when present
+  session_id  TEXT,                            -- TROOP_SESSION_ID when present
   kind        TEXT NOT NULL,                   -- see events.md
   payload     TEXT NOT NULL,                   -- JSON, shape per kind in events.md
   processed   INTEGER NOT NULL DEFAULT 0       -- set to 1 by the core only
@@ -119,7 +119,7 @@ CREATE TABLE run (
   depth        INTEGER NOT NULL DEFAULT 0 CHECK (depth <= 3),
   project_id   TEXT NOT NULL REFERENCES project(id),
   inputs       TEXT NOT NULL,                  -- JSON
-  run_dir      TEXT NOT NULL,                  -- <project>/.harness/runs/<run id>/
+  run_dir      TEXT NOT NULL,                  -- <project>/.troop/runs/<run id>/
   status       TEXT NOT NULL CHECK (status IN ('running','paused','failed','done','cancelled')),
   paused_why   TEXT,                           -- 'gate', 'budget', 'loop-max', 'breaker', 'handoff'
   trigger      TEXT NOT NULL CHECK (trigger IN ('manual','schedule','cli')),
@@ -211,7 +211,7 @@ CREATE TABLE port_lease (
 CREATE TABLE plugin_secret (
   plugin_id    TEXT NOT NULL REFERENCES plugin(id),
   name         TEXT NOT NULL,                  -- env key
-  blob_path    TEXT NOT NULL,                  -- ~/.agent-harness/secrets/<plugin>/<name>.dpapi, DPAPI CurrentUser
+  blob_path    TEXT NOT NULL,                  -- ~/.metatrooper/secrets/<plugin>/<name>.dpapi, DPAPI CurrentUser
   set_at       TEXT NOT NULL,
   PRIMARY KEY (plugin_id, name)
 );
