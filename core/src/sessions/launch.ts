@@ -4,14 +4,15 @@ import type { DatabaseSync } from 'node:sqlite';
 import { coreDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import type { EngineSpec } from '../engines/registry.ts';
+import { mcpAttachArgs } from '../plugins/mcp.ts';
 
 export interface LaunchPlan {
   argv: string[];
   promptDelivered: boolean;
 }
 
-export function planArgs(engine: EngineSpec, prompt?: string): LaunchPlan {
-  const argv = [engine.command, ...(engine.args ?? [])];
+export function planArgs(engine: EngineSpec, prompt?: string, extra: string[] = []): LaunchPlan {
+  const argv = [engine.command, ...(engine.args ?? []), ...extra];
   if (!prompt) return { argv, promptDelivered: true };
   if (engine.prompt_arg === 'positional') return { argv: [...argv, prompt], promptDelivered: true };
   if (engine.prompt_arg && engine.prompt_arg.startsWith('-')) return { argv: [...argv, engine.prompt_arg, prompt], promptDelivered: true };
@@ -27,7 +28,7 @@ export function launchSession(
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string },
 ): { session_id: string; prompt_delivered: boolean } {
   const id = ulid();
-  const plan = planArgs(opts.engine, opts.prompt);
+  const plan = planArgs(opts.engine, opts.prompt, mcpAttachArgs(db, opts.engine, id));
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   const win = windowName(id);

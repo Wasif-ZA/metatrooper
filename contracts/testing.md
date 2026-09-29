@@ -20,6 +20,7 @@ from `core/src/`.
 | `METATROOPER_CLAUDE_SETTINGS` | `~/.claude/settings.json` | file that `troop hooks install` edits |
 | `METATROOPER_CODEX_CONFIG` | `~/.codex/config.toml` | file that `troop hooks install --codex` edits |
 | `METATROOPER_ENGINES` | built-in registry | path to a JSON array of engine objects that replaces the built-ins (lets tests use fake engines) |
+| `METATROOPER_FAKE_DPAPI` | unset | `1` on a non-Windows host stores secrets as a reversible encoding instead of calling PowerShell DPAPI, so the secret paths run in Linux CI. Ignored on Windows |
 
 `event.js` and `launch.js` honour `METATROOPER_HOME` too.
 
@@ -27,7 +28,7 @@ from `core/src/`.
 
 | Command | What it does |
 |---|---|
-| `node core/build.ts` | generates `core/event.js`, `core/launch.js`, `core/codex-notify.js` and `core/dist/` from the TypeScript in `core/src/`; `--check` exits 1 if any generated file is out of date. Run once before the tests |
+| `node core/build.ts` | generates `core/event.js`, `core/launch.js`, `core/codex-notify.js`, `core/mcp-shim.js` and `core/dist/` from the TypeScript in `core/src/`; `--check` exits 1 if any generated file is out of date. Run once before the tests |
 | `node core/src/main.ts` | starts the core service in the foreground; exits 0 on SIGINT or the `core.stop` method |
 | `node core/event.js <kind> ...` | the event writer (see `events-and-hooks.md`) |
 | `node core/cli.ts hooks install [--codex]` and `... hooks uninstall [--codex]` | hook installation (see `events-and-hooks.md`); `--yes` skips the confirm |
@@ -52,3 +53,15 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 | `core/src/redact.ts` | `buildPayload(kind: string, raw: object): object` | the allowlists in `events-and-hooks.md` |
 | `core/src/events/state.ts` | `nextState(current: string, event: {kind: string, payload: object}): string \| null` | the state mapping table; `null` means no change |
 | `core/src/pipe/framing.ts` | `encode(msg: object): string`, `createDecoder(onMessage): (chunk: Buffer \| string) => void` | newline-delimited JSON, 1 MiB line cap (over the cap: throws `LineTooLong`) |
+
+## Plugin modules tests may import (child #3)
+
+| Module | Export | Contract |
+|---|---|---|
+| `core/src/jsonschema.ts` | `validate(schema, data): string[]` | the JSON Schema 2020-12 keywords the contracts use; errors read `<pointer>: <message>` |
+| `core/src/plugins/manifest.ts` | `validateManifest(manifest, dir \| null): string[]` | schema errors, then duplicate ids, `env_keys` without `secrets:<KEY>`, forbidden `pane_methods`, paths outside the plugin |
+| `core/src/plugins/actions.ts` | `runAction(req): Promise<{ok, outputs} \| {ok, error}>`, `BASE_ENV` | the action process contract in `plugins.md`; never rejects |
+| `core/src/plugins/bridge.ts` | `paneCsp(id)`, `resolvePaneFile(dir, urlPath)`, `checkPaneMessage(plugin, framePluginId, msg)` | the pane bridge in `plugins.md` |
+| `core/src/plugins/importers.ts` | `importClaude(dir)`, `importCodex(file, project?)`, `importAgy(file?, project?)`, `parseToml(text)` | the importer table in `plugins.md`; literal values stay in memory |
+| `core/src/plugins/mcp.ts` | `mcpAttachArgs(db, engine, sessionId): string[]` | engine arguments pointing plugin MCP servers at the shim |
+| `core/src/engines/registry.ts` | `bindRole(db, role, pinned?)` | lowest `cost_rank` engine listing the role, installed and not red |

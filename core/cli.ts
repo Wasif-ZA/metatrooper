@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { Writable } from 'node:stream';
 import readline from 'node:readline/promises';
 import { installClaude, installCodex, lineDiff, planClaudeInstall, uninstallClaude, uninstallCodex } from './src/hooks/install.ts';
 import { call, type CallOutcome } from './src/pipe/client.ts';
@@ -17,7 +20,14 @@ const USAGE = `usage: troop <command> [--json]
   focus|seen|hide <session>     act on a session by id or id prefix
   engines [--check]             show engine health (--check re-runs the checks)
   stop                          stop the core
-  hooks install|uninstall [--codex] [--yes]`;
+  hooks install|uninstall [--codex] [--yes]
+  plugin list                   installed plugins, their source and original file
+  plugin install <source> [--yes]
+                                show the install screen, then install on approval; <source> is a folder,
+                                a git URL, or claude-import:<folder>, codex-import:<config.toml>,
+                                agy-import:<mcp_config.json>
+  plugin remove <id>            remove a plugin, its engines and its secrets
+  plugin secret <id> <NAME>     set a secret the plugin was approved for (value read from the terminal)`;
 
 interface Args {
   pos: string[];
@@ -74,6 +84,117 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
   }
   console.error('usage: troop hooks install|uninstall [--codex] [--yes]');
   return 2;
+}
+
+async function secretInput(question: string): Promise<string | null> {
+  if (!process.stdin.isTTY) return null;
+  process.stdout.write(question);
+  const muted = new Writable({ write: (_c, _e, cb) => cb() });
+  const rl = readline.createInterface({ input: process.stdin, output: muted, terminal: true });
+  const answer = await rl.question('');
+  rl.close();
+  process.stdout.write('\n');
+  return answer;
+}
+
+function printScreen(screen: Record<string, any>): void {
+  const p = screen.plugin;
+  console.log(`${p.name} ${p.version} (${p.id})${p.description ? `\n${p.description}` : ''}\n`);
+  console.log('Permissions:');
+  if (!screen.permissions.length) console.log('  (none)');
+  for (const x of screen.permissions) console.log(`  ${x.new ? '[new] ' : ''}${x.permission}: ${x.text}`);
+  const section = (title: string, rows: string[]) => {
+    if (rows.length) console.log(`\n${title}:\n${rows.map((r) => `  ${r}`).join('\n')}`);
+  };
+  section('External actions (post, send, deploy or spend; each one stops at a gate)', screen.external_actions.map((a: any) => `${a.id}: ${a.title}, sends to the "${a.destination_field}" input`));
+  section('Engines added', screen.engines.map((e: any) => `${e.id}: runs ${e.command}, roles ${e.roles.join(', ')}`));
+  section('MCP servers added', screen.mcp_servers.map((m: any) => `${m.id}: ${m.command} (for ${m.engines.join(', ')})`));
+  section('Secrets moved into the Windows secret store', screen.secrets_migrated);
+  section('Skills referenced by path', screen.skills);
+  section('Not imported', [...screen.hooks, ...screen.skipped]);
+  console.log('');
+  for (const w of screen.warnings) console.log(`Note: ${w}`);
+}
+
+async function plugin(a: Args, json: boolean): Promise<number> {
+  const [action, target, name] = a.pos;
+  if (action === 'list') {
+    const rows = withDb((db) => db.prepare('SELECT id, version, source, enabled, path FROM plugin ORDER BY id').all() as Array<Record<string, unknown>>) ?? [];
+    for (const r of rows) {
+      try {
+        const rec = JSON.parse(readFileSync(join(String(r.path), 'import.json'), 'utf8'));
+        r.original = rec.original;
+      } catch {
+        r.original = '';
+      }
+    }
+    if (json) console.log(JSON.stringify(rows));
+    else table(rows.map((r) => ({ ...r, enabled: r.enabled ? 'yes' : 'no' })), ['id', 'version', 'source', 'enabled', 'original']);
+    return 0;
+  }
+  if (action === 'install' && target) {
+    const source = /^(claude|codex|agy)-import:/.test(target) || /^(https?|ssh|git):\/\/|^git@/.test(target) ? target : resolve(target);
+    const pre = await rpc('plugin.preview', { source }, json);
+    if (!pre.result) return pre.code;
+    const preview = pre.result as Record<string, any>;
+    if (!preview.valid) {
+      if (json) console.log(JSON.stringify(preview));
+      else console.error(`The plugin is invalid:\n${preview.errors.map((e: string) => `  ${e}`).join('\n')}`);
+      return 1;
+    }
+    if (!json) printScreen(preview.screen);
+    if (!process.stdin.isTTY) {
+      console.error('Installing a plugin needs a person at an interactive terminal.');
+      return 1;
+    }
+    if (!a.flags.has('--yes') && !(await confirm('Approve these permissions and install?'))) {
+      console.log('Nothing installed.');
+      return 1;
+    }
+    const secrets: Record<string, string> = {};
+    const migrated = new Set<string>(preview.screen.secrets_migrated);
+    for (const x of preview.screen.permissions as Array<{ permission: string }>) {
+      if (!x.permission.startsWith('secrets:') || migrated.has(x.permission.slice(8))) continue;
+      const value = await secretInput(`Value for ${x.permission.slice(8)} (Enter to skip): `);
+      if (value) secrets[x.permission.slice(8)] = value;
+    }
+    const r = await rpc('plugin.install', {
+      source,
+      approved_permissions: preview.screen.permissions.map((x: { permission: string }) => x.permission),
+      manifest_hash: preview.manifest_hash,
+      secrets,
+    }, json);
+    if (r.result) {
+      const missing = (r.result.missing_secrets as string[]) ?? [];
+      emit(json, r.result, `installed ${r.result.plugin_id}${missing.length ? `; still to set: ${missing.join(', ')} (troop plugin secret ${r.result.plugin_id} <NAME>)` : ''}`);
+    }
+    return r.code;
+  }
+  if (action === 'remove' && target) {
+    if (!a.flags.has('--yes') && !(await confirm(`Remove ${target}, its engines and its secrets?`))) {
+      console.log('Nothing changed.');
+      return 1;
+    }
+    const r = await rpc('plugin.remove', { plugin_id: target }, json);
+    if (r.result) emit(json, r.result, `removed ${target}`);
+    return r.code;
+  }
+  if (action === 'secret' && target && name) {
+    const value = await secretInput(`Value for ${name}: `);
+    if (value === null) {
+      console.error('Setting a secret needs an interactive terminal.');
+      return 1;
+    }
+    const r = await rpc('plugin.secret.set', { plugin_id: target, name, value }, json);
+    if (r.result) emit(json, r.result, `set ${name} for ${target}`);
+    return r.code;
+  }
+  console.error('usage: troop plugin list | install <source> [--yes] | remove <id> [--yes] | secret <id> <NAME>');
+  return 2;
+}
+
+function emit(json: boolean, result: unknown, text: string): void {
+  console.log(json ? JSON.stringify(result) : text);
 }
 
 async function rpc(method: string, params: Record<string, unknown>, json: boolean): Promise<{ code: number; result?: Record<string, unknown> }> {
@@ -140,6 +261,9 @@ async function main(): Promise<number> {
 
     case 'hooks':
       return hooks(a.pos[0] ?? '', a.flags);
+
+    case 'plugin':
+      return plugin(a, json);
 
     case 'ping': {
       const r = await rpc('core.ping', {}, json);

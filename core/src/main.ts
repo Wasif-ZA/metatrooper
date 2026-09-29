@@ -6,7 +6,7 @@ import { rotateUiKey } from './uikey.ts';
 import { CommandRunner } from './pipe/commands.ts';
 import { startPipeServer } from './pipe/server.ts';
 import { buildMethods } from './methods.ts';
-import { loadEngines, syncEngines } from './engines/registry.ts';
+import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { processEvents } from './events/processor.ts';
 import { checkActivity, checkPids } from './sessions/watch.ts';
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   };
 
   const uiKey = rotateUiKey();
-  const runner = new CommandRunner(db, buildMethods(db, { engines: () => engines, stop }));
+  const runner = new CommandRunner(db, buildMethods(db, { engines: () => activeEngines(db), stop }));
   await runner.recover();
   processEvents(db);
 
@@ -61,9 +61,9 @@ async function main(): Promise<void> {
   every(5000, () => checkPids(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(PASSIVE)'));
   every(30_000, () => tickSchedules(db, () => {}));
-  every(600_000, () => checkAll(db, engines));
+  every(600_000, () => checkAll(db, activeEngines(db)));
   checkPids(db);
-  void checkAll(db, engines).catch(() => {});
+  void checkAll(db, activeEngines(db)).catch(() => {});
 
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);

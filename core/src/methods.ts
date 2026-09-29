@@ -14,6 +14,8 @@ import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, lineDiff, uninstallClaude, uninstallCodex } from './hooks/install.ts';
 import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
+import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
+import { resolveMcpServer } from './plugins/mcp.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -187,7 +189,52 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  for (const name of ['run.start', 'run.cancel', 'run.resume', 'plugin.install', 'plugin.remove', 'pipeline.validate', 'comment.deliver', 'variant.pick', 'variant.combine', 'variant.discard']) {
+  m.set('plugin.preview', { handler: (p) => previewPlugin(db, str(p, 'source')) });
+
+  m.set('plugin.install', {
+    needsUi: true,
+    handler: (p) => {
+      const approved = p.approved_permissions;
+      if (!Array.isArray(approved) || approved.some((x) => typeof x !== 'string')) throw new RpcError(E.INVALID_PARAMS, 'approved_permissions must be an array of strings');
+      const secrets = p.secrets ?? {};
+      if (typeof secrets !== 'object' || Array.isArray(secrets) || Object.values(secrets).some((v) => typeof v !== 'string')) {
+        throw new RpcError(E.INVALID_PARAMS, 'secrets must map names to strings');
+      }
+      const r = installPlugin(db, {
+        source: str(p, 'source'),
+        approved_permissions: approved as string[],
+        manifest_hash: str(p, 'manifest_hash', false) || undefined,
+        secrets: secrets as Record<string, string>,
+      });
+      void checkAll(db, ctl.engines()).catch(() => {});
+      return r;
+    },
+  });
+
+  m.set('plugin.remove', { needsUi: true, handler: (p) => { removePlugin(db, str(p, 'plugin_id')); return {}; } });
+
+  m.set('plugin.secret.set', {
+    needsUi: true,
+    handler: (p) => {
+      if (typeof p.value !== 'string') throw new RpcError(E.INVALID_PARAMS, 'value is required');
+      setPluginSecret(db, str(p, 'plugin_id'), str(p, 'name'), p.value);
+      return {};
+    },
+  });
+
+  m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
+
+  m.set('mcp.missing', {
+    handler: (p) => {
+      const pluginId = str(p, 'plugin_id');
+      const names = Array.isArray(p.names) ? p.names.filter((n): n is string => typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n)) : [];
+      if (!db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+      for (const n of names) raiseMissingSecret(db, pluginId, n);
+      return {};
+    },
+  });
+
+  for (const name of ['run.start', 'run.cancel', 'run.resume', 'pipeline.validate', 'comment.deliver', 'variant.pick', 'variant.combine', 'variant.discard']) {
     m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, `${name} arrives with a later child issue`); } });
   }
 

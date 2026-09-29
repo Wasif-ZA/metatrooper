@@ -92,7 +92,9 @@ reads the row's status as usual. This is the complete conflict rule.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `engines.check`, `pipeline.validate`, and every `browser.*` method.
+`session.focus`, `engines.check`, `pipeline.validate`, every `browser.*` method, and the methods that carry
+secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
+written to the `command` table.
 
 1. Send the request on the pipe.
 2. If no reply arrives within 300 ms, or the pipe does not exist, insert the same request into `command`
@@ -120,8 +122,12 @@ Every other interaction is a database read.
 | `run.resume` | `{run_id}` | `{}` |
 | `gate.resolve` | `{gate_id, decision: "approve" or "reject", action_hash, note?}` | `{}`; -32010 if `action_hash` differs from the gate's; -32012 unless the connection completed `ui.hello`. `meta.origin` is informational only and never trusted |
 | `schedule.set` | `{pipeline_id, project_id, cron, inputs, enabled}` | `{schedule_id}` |
-| `plugin.install` | `{source, approved_permissions}` | `{plugin_id}` |
-| `plugin.remove` | `{plugin_id}` | `{}` |
+| `plugin.preview` | `{source}` | `{valid, errors, manifest_hash, source, screen}`; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |
+| `plugin.install` | `{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}` | `{plugin_id, missing_secrets}`; needs `ui.hello`. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk |
+| `plugin.remove` | `{plugin_id}` | `{}`; needs `ui.hello` |
+| `plugin.secret.set` | `{plugin_id, name, value}` | `{}`; needs `ui.hello`; `name` must be an approved `secrets:<NAME>` |
+| `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
+| `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
 | `pipeline.validate` | `{json}` | `{valid, errors}` |
 | `comment.deliver` | `{comment_id}` | `{clipboard_at, herdr_at}` (prompt delivery happens in the hook) |
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
