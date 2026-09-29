@@ -4,13 +4,13 @@ Version 1. Two pipes, same framing.
 
 | Pipe | Server | Clients |
 |---|---|---|
-| `\\.\pipe\metatrooper` | core service | workbench, tray, `paratroopers` CLI |
+| `\\.\pipe\metatrooper` | core service | workbench, tray, `troop` CLI |
 | `\\.\pipe\metatrooper-browser` | workbench main process | `metatrooper-browser` MCP server (one per agent session) |
 
 ## Access
 
 Trusted UI connections: at every start the core writes 32 random bytes, hex, to `~/.metatrooper/ui.key`
-(replacing the old one). The workbench, the tray, and the `paratroopers` CLI when it is attached to an interactive
+(replacing the old one). The workbench, the tray, and the `troop` CLI when it is attached to an interactive
 terminal read it and send `ui.hello` on connect. Only such connections may call `gate.resolve`. Code steps
 and plugin actions are started by the core with the stripped environment, their cwd in the project, and no
 method or helper that reads the key; the key file is outside every run directory and project. A script that

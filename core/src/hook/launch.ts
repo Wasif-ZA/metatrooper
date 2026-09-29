@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     argv = JSON.parse(Buffer.from(a['args-b64'] || '', 'base64').toString('utf8'));
   } catch {}
   if (!Array.isArray(argv) || argv.length === 0) {
-    console.error('paratroopers launch: no command given');
+    console.error('troop launch: no command given');
     process.exit(2);
   }
   const args = argv.map(String);
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => {});
   process.on('SIGBREAK', () => {});
   child.on('error', (e) => {
-    console.error(`paratroopers launch: could not start ${args[0]}: ${e.message}`);
+    console.error(`troop launch: could not start ${args[0]}: ${e.message}`);
     process.exit(127);
   });
   child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));

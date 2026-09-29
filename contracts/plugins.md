@@ -24,7 +24,7 @@ licence.
    the generated `troop-plugin.json` and `import.json` (source, original path, and for each env key either
    `dpapi` or the `${VAR}` name; never a value).
 6. A secrets permission with no value after install raises a `missing-secret` needs-you item
-   "set <NAME> for <plugin>", resolved by `plugin.secret.set` (`paratroopers plugin secret <id> <NAME>`).
+   "set <NAME> for <plugin>", resolved by `plugin.secret.set` (`troop plugin secret <id> <NAME>`).
 7. `plugin.remove` deletes the plugin's engines, `engine_check` rows, secrets and, when it lives under
    `~/.metatrooper/plugins/`, its folder. An engine a session or step still names keeps its row, and the
    plugin row stays with `enabled = 0`; engines of disabled plugins are never bound, checked or launched.

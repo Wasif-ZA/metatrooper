@@ -91,7 +91,7 @@ The core processes events in `seq` order and sets `session.state`:
 Claude Code's settings keep hooks in an object keyed by event name, each holding an array of matcher groups;
 this is the shape already used in the vault's `.claude/settings.json`.
 
-`paratroopers hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
+`troop hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
 event name. It prints a unified diff and asks before writing. It never removes or reorders an existing entry.
 
 ```json
@@ -140,7 +140,7 @@ both print the same comment for the same reason; that is the accepted cost of ne
 
 ## Codex notify wrapper
 
-`paratroopers hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.troop-bak`, then sets
+`troop hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.troop-bak`, then sets
 `notify` to `["node", "<core>/codex-notify.js", <the previous notify array as JSON>]`.
 
 `codex-notify.js`:

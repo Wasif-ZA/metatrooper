@@ -25,7 +25,7 @@ Plugin system: manifest validation, install screen and approval, action runner w
 Status 2026-09-29: ticked boxes pass in `core/test/plugins.test.ts` on Linux, with `METATROOPER_FAKE_DPAPI=1`
 standing in for DPAPI and a process-group kill standing in for `taskkill`. M1-25a's `npm` half passes; its `.cmd`
 half is a Windows-only test that has not run yet. The install screen's UI is child #5; the core side
-(`plugin.preview`, `plugin.install`) and `paratroopers plugin install` are built.
+(`plugin.preview`, `plugin.install`) and `troop plugin install` are built.
 
 ## Rules that bind every child
 

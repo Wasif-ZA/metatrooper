@@ -17,8 +17,8 @@ from `core/src/`.
 | `METATROOPER_HOME` | `~/.metatrooper` | data folder: `troop.db`, `ui.key`, `logs/`, `secrets/`, `worktrees/` |
 | `METATROOPER_PIPE_PREFIX` | `metatrooper` | pipes become `\\.\pipe\<prefix>` and `\\.\pipe\<prefix>-browser` |
 | `TROOP_LAUNCHER` | `wt` | `spawn`: `session.launch` runs `launch.js` as a hidden detached node process with no Windows Terminal (test mode) |
-| `METATROOPER_CLAUDE_SETTINGS` | `~/.claude/settings.json` | file that `paratroopers hooks install` edits |
-| `METATROOPER_CODEX_CONFIG` | `~/.codex/config.toml` | file that `paratroopers hooks install --codex` edits |
+| `METATROOPER_CLAUDE_SETTINGS` | `~/.claude/settings.json` | file that `troop hooks install` edits |
+| `METATROOPER_CODEX_CONFIG` | `~/.codex/config.toml` | file that `troop hooks install --codex` edits |
 | `METATROOPER_ENGINES` | built-in registry | path to a JSON array of engine objects that replaces the built-ins (lets tests use fake engines) |
 | `METATROOPER_FAKE_DPAPI` | unset | `1` on a non-Windows host stores secrets as a reversible encoding instead of calling PowerShell DPAPI, so the secret paths run in Linux CI. Ignored on Windows |
 
