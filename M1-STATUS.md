@@ -17,7 +17,7 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-09 | NEEDS-WINDOWS | run tests/windows/m1-09-no-ports.ps1 during two-engine-review |
 | M1-10 | NEEDS-WINDOWS | run tests/windows/m1-10-pipe-acl.ps1 as another local user |
 | M1-11 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:processed Claude events move a fake session through working, waiting, done, and seen idle (2s until-timeouts) |
-| M1-12 | TODO |  |
+| M1-12 | VERIFIED-LINUX | core/test/native-id.test.ts:M1-12 * (codex cwd match, no match, agy single, agy ambiguous -> NULL); fixture runs only, real engine dirs unchecked |
 | M1-13 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:hooks install and uninstall preserve fixture settings and config byte for byte (claude+codex fixtures) |
 | M1-14 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:UserPromptSubmit prints one exact comment envelope and marks only delivered comments |
 | M1-15 | VERIFIED-LINUX | core/test/plugins.test.ts:M1-15 a plugin engine appears in engine and binds to a role... |
@@ -53,3 +53,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 5. Audited #3: plugins.test.ts passes (12 pass, 1 skip). Marked M1-16/17/25b VERIFIED, 25a NEEDS-WINDOWS (added tests/windows/m1-25a-cmd.ps1). core 62: 59 pass, 3 skipped. Tests not new this iteration. Next: #6 browser tests (M1-23..25, M1-22 pane ancestry; use codex).
 - 2026-09-30: iter 6. Codex wrote core/test/browser-policy.test.ts (7) and browser-ancestry.test.ts (3); no src changes. core 70 tests: 67 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: #6 electron/xvfb test for panes, cursor overlay (M1-23), evaluate/page-script interception (M1-24), full-page capture (M1-25); write tests/windows script for M1-09.
 - 2026-09-30: iter 7. Wrote tests/windows/ scripts for M1-01/02/09/10 (NEEDS-WINDOWS); marked M1-11 VERIFIED from existing test. No src changes, no new tests (Codex not used). Next: audit M1-12 (codex/agy native_id), M1-03/06/07, then #9/#10/#11/#31/#13 issues; xvfb electron test for M1-23..25.
+- 2026-09-30: iter 8. Audited M1-12: watch.ts already implements codex/agy native_id rules; added core/test/native-id.test.ts (4 tests, tests by Claude, Codex not used). core 74: 71 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-03/06/07 (pid rediscovery, perf p95 tests), then #9/#10/#11/#31/#13; xvfb electron test for M1-23..25.
