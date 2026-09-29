@@ -16,6 +16,8 @@ export interface Snapshot {
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
   gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string }>;
+  panes: Array<{ id: string; url: string | null; session_id: string | null; run_id: string | null; variant: number | null; dev_port: number | null }>;
+  snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */
@@ -114,6 +116,16 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
      WHERE g.status = 'waiting' ORDER BY g.rowid`,
   ).all() as Snapshot['gates']);
 
+  const panes = projectId
+    ? (db.prepare('SELECT id, url, session_id, run_id, variant, dev_port FROM browser_pane WHERE project_id = ? AND open = 1 ORDER BY id').all(projectId) as Snapshot['panes'])
+    : [];
+  const snapshots = projectId
+    ? (db.prepare(
+        `SELECT s.id, s.pane_id, s.label, s.url, s.taken_at, s.w390_path, s.w1280_path FROM snapshot s JOIN browser_pane p ON p.id = s.pane_id
+         WHERE p.project_id = ? ORDER BY s.taken_at DESC LIMIT 40`,
+      ).all(projectId) as Snapshot['snapshots'])
+    : [];
+
   const needs_you = db.prepare('SELECT id, at, kind, ref, text FROM needs_you WHERE resolved_at IS NULL ORDER BY at DESC LIMIT 100').all() as Snapshot['needs_you'];
 
   return {
@@ -127,6 +139,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     steps,
     gates,
     needs_you,
+    panes,
+    snapshots,
   };
 }
 

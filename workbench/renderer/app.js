@@ -13,6 +13,12 @@ const ui = {
   runId: null,
   pipelineId: null,
   editor: null,
+  paneId: null,
+  browserMode: 'live',
+  comment: null,
+  swap: false,
+  images: {},
+  lastBounds: '',
   log: [],
   rendered: {},
 };
@@ -195,6 +201,93 @@ function formatLog(line) {
   }
 }
 
+function hostOf(url) {
+  try { return new URL(url).host || url; } catch { return url || 'blank'; }
+}
+
+function renderBrowser() {
+  const s = ui.snap;
+  if (ui.paneId && !s.panes.some((p) => p.id === ui.paneId)) ui.paneId = null;
+  if (!ui.paneId && s.panes[0]) ui.paneId = s.panes[0].id;
+  const engineOf = (sid) => (s.sessions.find((x) => x.id === sid) || {}).engine_id;
+  const chips = s.panes.map((p) => `<button class="chip ${p.id === ui.paneId ? 'on' : ''}" data-action="pane" data-id="${esc(p.id)}">${esc(hostOf(p.url))}${p.session_id ? ` · ${esc(engineOf(p.session_id) || 'session')}` : p.variant !== null ? ` · variant ${p.variant + 1}` : ''}</button>`).join('');
+  const pane = s.panes.find((p) => p.id === ui.paneId);
+  let body;
+  if (ui.comment) body = renderCommentForm();
+  else if (!pane) body = '<p class="empty">No browser pane. Open one, or run a pipeline step with browser: true.</p>';
+  else if (ui.browserMode === 'compare') body = renderCompare(pane);
+  else body = '<div id="pane-host" class="pane-host"></div>';
+  const controls = pane && !ui.comment ? `<div class="toolbar">
+      <input class="url" data-key="url" id="pane-url" value="${esc(pane.url || '')}" placeholder="https://example.com or http://localhost:3001">
+      <button data-action="pane-go">Go</button>
+      <button data-action="pane-comment" title="Point at an element and leave a comment for a session (C)">Comment</button>
+      <button data-action="pane-capture" data-label="before">Before</button>
+      <button data-action="pane-capture" data-label="after">After</button>
+      <button data-action="pane-mode">${ui.browserMode === 'compare' ? 'Live' : 'Compare'}</button>
+      <select data-action="pane-owner" data-key="pane-owner" title="The one session allowed to drive this pane">
+        <option value="">Driven by: you only</option>
+        ${s.sessions.map((x) => `<option value="${esc(x.id)}" ${x.id === pane.session_id ? 'selected' : ''}>Driven by: ${esc(x.engine_id)} ${esc(x.window_name || '')}</option>`).join('')}
+      </select>
+      <button class="danger" data-action="pane-close">Close</button>
+    </div>` : '';
+  return `<div class="browser">
+    <div class="toolbar">${chips}<button data-action="pane-new">New pane</button></div>
+    ${controls}
+    ${body}
+  </div>`;
+}
+
+function renderCommentForm() {
+  const c = ui.comment;
+  const s = ui.snap;
+  return `<div class="panel comment-form">
+    <h3>Comment on ${esc(c.selector || 'element')}</h3>
+    <img class="crop" src="data:image/png;base64,${esc(c.crop)}" alt="The element you picked">
+    <div class="form">
+      <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} ${esc(x.window_name || '')} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
+      <label>Note</label><textarea id="comment-note" data-key="comment-note" rows="4" placeholder="What should change here?"></textarea>
+      <span></span><div class="toolbar"><button class="primary" data-action="comment-send" ${s.sessions.length ? '' : 'disabled'}>Send</button><button data-action="comment-cancel">Cancel</button></div>
+    </div>
+  </div>`;
+}
+
+function renderCompare(pane) {
+  const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
+  const before = shots.find((x) => x.label === 'before');
+  const after = shots.find((x) => x.label === 'after');
+  if (!before || !after) return '<p class="empty">Take a Before and an After capture to compare them.</p>';
+  const img = (file) => {
+    if (!file) return '';
+    if (ui.images[file] === undefined) {
+      ui.images[file] = null;
+      void api.snapshotImage(file).then((d) => { ui.images[file] = d || ''; render(); });
+    }
+    return ui.images[file] ? `<img src="${esc(ui.images[file])}" alt="">` : '<p class="empty">loading</p>';
+  };
+  const side = (label, shot) => `<figure><figcaption>${label} · <span data-ago="${esc(shot.taken_at)}">${esc(ago(shot.taken_at))}</span></figcaption>`;
+  const [left, right] = ui.swap ? [after, before] : [before, after];
+  return `<p class="meta">Hold Space to swap.</p>
+    ${[390, 1280].map((w) => `<h3>${w} px</h3><div class="compare">
+      ${side(left === before ? 'Before' : 'After', left)}${img(left[`w${w}_path`])}</figure>
+      ${side(right === before ? 'Before' : 'After', right)}${img(right[`w${w}_path`])}</figure>
+    </div>`).join('')}`;
+}
+
+function reportPaneBounds() {
+  const host = ui.tab === 'browser' && !ui.comment && ui.browserMode === 'live' ? document.getElementById('pane-host') : null;
+  const r = host ? host.getBoundingClientRect() : null;
+  const key = r ? `${ui.paneId}:${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}` : 'none';
+  if (key === ui.lastBounds) return;
+  ui.lastBounds = key;
+  void api.paneShow(r ? ui.paneId : null, r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null);
+}
+
+async function startComment() {
+  if (!ui.paneId) return;
+  toast('Click the element you want to comment on.');
+  await api.panePick(ui.paneId);
+}
+
 function blankPipeline() {
   return { schema: 1, id: 'new-pipeline', title: 'New pipeline', steps: [{ id: 'work', kind: 'agent', role: 'worker', prompt: '', outputs: ['summary'] }] };
 }
@@ -298,8 +391,10 @@ function render() {
   if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
   else if (ui.tab === 'runs') html = renderRuns();
   else if (ui.tab === 'pipelines') html = renderPipelines();
+  else if (ui.tab === 'browser') html = renderBrowser();
   else html = renderSessions();
   setHtml('view', html);
+  reportPaneBounds();
   renderRail();
   if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online });
 }
@@ -432,6 +527,53 @@ async function onClick(e) {
       await rpc('gate.resolve', params);
       return;
     }
+    case 'pane':
+      ui.paneId = id;
+      ui.browserMode = 'live';
+      render();
+      return;
+    case 'pane-new': {
+      const r = await rpc('pane.open', { project_id: ui.projectId });
+      if (r.result) ui.paneId = r.result.pane_id;
+      return;
+    }
+    case 'pane-close':
+      await rpc('pane.close', { pane_id: ui.paneId });
+      ui.paneId = null;
+      return;
+    case 'pane-go': {
+      const url = document.getElementById('pane-url').value.trim();
+      if (!url) return;
+      const r = await api.paneNavigate(ui.paneId, url);
+      if (!r.ok) toast(r.error, true);
+      return;
+    }
+    case 'pane-comment':
+      await startComment();
+      return;
+    case 'pane-capture':
+      toast(`Capturing ${el.dataset.label} at 390 and 1280 px`);
+      await rpc('pane.capture', { pane_id: ui.paneId, label: el.dataset.label });
+      return;
+    case 'pane-mode':
+      ui.browserMode = ui.browserMode === 'compare' ? 'live' : 'compare';
+      render();
+      return;
+    case 'comment-cancel':
+      ui.comment = null;
+      render();
+      return;
+    case 'comment-send': {
+      const note = document.getElementById('comment-note').value.trim();
+      const session_id = document.getElementById('comment-session').value;
+      if (!note) return toast('Write a note first.', true);
+      const r = await api.commentSave({ ...ui.comment, session_id, note });
+      if (!r.ok) return toast(r.error, true);
+      toast('Comment sent: on the clipboard, and in the session\'s next prompt for Claude.');
+      ui.comment = null;
+      render();
+      return;
+    }
     case 'dismiss':
       await rpc('needs.dismiss', { id });
       return;
@@ -504,6 +646,10 @@ async function onClick(e) {
 
 function onInput(e) {
   const el = e.target;
+  if (el.dataset.action === 'pane-owner') {
+    if (e.type === 'change') void rpc('pane.assign', { pane_id: ui.paneId, session_id: el.value || null });
+    return;
+  }
   if (!ui.editor) {
     if (el.dataset.action === 'pick-pipeline') {
       ui.pipelineId = el.value;
@@ -587,6 +733,28 @@ api.onSnapshot(async (s) => {
 });
 
 document.addEventListener('click', (e) => void onClick(e));
+document.addEventListener('keydown', (e) => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+  if (ui.tab !== 'browser' || typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
+  if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {
+    e.preventDefault();
+    ui.swap = true;
+    render();
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === ' ' && ui.swap) {
+    ui.swap = false;
+    render();
+  }
+});
+window.addEventListener('resize', reportPaneBounds);
+api.onCommentPicked((info) => {
+  ui.comment = info;
+  ui.tab = 'browser';
+  render();
+});
 document.addEventListener('change', onInput);
 document.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT') onInput(e); });
 observeLongTasks();

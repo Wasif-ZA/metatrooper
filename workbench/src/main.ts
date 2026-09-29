@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron';
-import type { DatabaseSync } from 'node:sqlite';
-import { dbFile, homeDir } from '../../core/src/paths.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { browserPipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
+import { ulid } from '../../core/src/time.ts';
+import { PaneManager, type PaneRow } from './browser/panes.ts';
+import { startBrowserServer } from './browser/server.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, type Snapshot } from './queries.ts';
@@ -16,6 +19,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'needs.dismiss',
+  'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -24,6 +28,7 @@ let view: { projectId: string | null; runId: string | null } = { projectId: null
 let lastVersion = -1;
 let lastOnline: boolean | null = null;
 let pushTimer: NodeJS.Timeout | null = null;
+let panes: PaneManager | null = null;
 
 function db(): DatabaseSync | null {
   if (reader) return reader;
@@ -37,7 +42,7 @@ function db(): DatabaseSync | null {
 }
 
 function emptySnapshot(): Snapshot {
-  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], pipelines: [], runs: [], steps: [], gates: [], needs_you: [] };
+  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], pipelines: [], runs: [], steps: [], gates: [], needs_you: [], panes: [], snapshots: [] };
 }
 
 let lastGood: Snapshot | null = null;
@@ -55,8 +60,17 @@ function read(): Snapshot {
   }
 }
 
+function syncPanes(): void {
+  const d = db();
+  if (!d || !panes) return;
+  try {
+    panes.sync(d.prepare('SELECT * FROM browser_pane WHERE open = 1').all() as unknown as PaneRow[]);
+  } catch {}
+}
+
 function push(): void {
   if (!win || win.isDestroyed()) return;
+  syncPanes();
   const s = read();
   lastOnline = s.core.online;
   win.webContents.send('snapshot', s);
@@ -186,6 +200,75 @@ function handlers(): void {
     }
   });
 
+  on('paneShow', (paneId: unknown, bounds: unknown) => {
+    const b = bounds as { x?: unknown; y?: unknown; width?: unknown; height?: unknown } | null;
+    const rect = b && [b.x, b.y, b.width, b.height].every((v) => typeof v === 'number')
+      ? { x: Math.round(b.x as number), y: Math.round(b.y as number), width: Math.round(b.width as number), height: Math.round(b.height as number) }
+      : null;
+    panes?.show(typeof paneId === 'string' ? paneId : null, rect);
+    return true;
+  });
+
+  on('paneNavigate', async (paneId: unknown, url: unknown) => {
+    if (typeof paneId !== 'string' || typeof url !== 'string' || !panes) return { ok: false, error: 'no pane' };
+    try {
+      await panes.userNavigate(paneId, /^[a-z]+:/i.test(url) ? url : `https://${url}`);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  });
+
+  on('panePick', async (paneId: unknown) => {
+    if (typeof paneId !== 'string' || !panes) return false;
+    await panes.pick(paneId);
+    return true;
+  });
+
+  on('panePickCancel', (paneId: unknown) => {
+    if (typeof paneId === 'string') panes?.cancelPick(paneId);
+    return true;
+  });
+
+  on('commentSave', async (c: { pane_id?: unknown; session_id?: unknown; note?: unknown; url?: unknown; selector?: unknown; html?: unknown; crop?: unknown }) => {
+    if (typeof c?.session_id !== 'string' || typeof c.note !== 'string') return { ok: false, error: 'pick a session and write a note' };
+    const id = ulid();
+    const dir = path.join(homeDir(), 'comments', c.session_id.replace(/[^A-Za-z0-9]/g, ''));
+    fs.mkdirSync(dir, { recursive: true });
+    const crop = path.join(dir, `${id}.png`);
+    if (typeof c.crop === 'string') fs.writeFileSync(crop, Buffer.from(c.crop, 'base64'));
+    const body = [
+      `[comment ${id}] ${c.note}`,
+      `Page: ${String(c.url ?? '')}`,
+      `Element: ${String(c.selector ?? '')}`,
+      '```html',
+      String(c.html ?? '').slice(0, 2000),
+      '```',
+      `Crop: ${crop.split(String.fromCharCode(92)).join('/')}`,
+    ].join('\n');
+    const rw = new DatabaseSync(dbFile());
+    try {
+      rw.exec('PRAGMA busy_timeout = 2000');
+      rw.prepare("INSERT INTO comment (id, at, session_id, kind, body, crop_path) VALUES (?, ?, ?, 'element', ?, ?)")
+        .run(id, new Date().toISOString(), c.session_id, body, crop.split(String.fromCharCode(92)).join('/'));
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    } finally {
+      rw.close();
+    }
+    await call('comment.deliver', { comment_id: id }, { ui: true });
+    return { ok: true, comment_id: id };
+  });
+
+  on('snapshotImage', (file: unknown) => {
+    if (typeof file !== 'string' || !inside(path.join(homeDir(), 'snapshots'), file)) return null;
+    try {
+      return `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
+    } catch {
+      return null;
+    }
+  });
+
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));
   on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state }));
 }
@@ -198,6 +281,7 @@ function lockDown(): void {
   });
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   app.on('web-contents-created', (_e, contents) => {
+    if (contents.session !== session.defaultSession) return;
     contents.on('will-navigate', (ev) => ev.preventDefault());
     contents.on('will-attach-webview', (ev) => ev.preventDefault());
     contents.setWindowOpenHandler(({ url }) => {
@@ -228,9 +312,20 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => {
+    panes?.closeAll();
+    win = null;
+  });
+  panes = new PaneManager(win, {
+    db,
+    probe: (entry) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state: entry }),
+    urlChanged: (paneId, url) => { void call('pane.url', { pane_id: paneId, url }, { ui: true }); },
+    commentPicked: (info) => win?.webContents.send('comment-picked', info),
+  });
   void win.loadFile(INDEX, process.env.METATROOPER_WORKBENCH_PROBE ? { query: { probe: '1' } } : {});
 }
+
+app.setPath('userData', path.join(homeDir(), 'workbench'));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -246,6 +341,18 @@ if (!app.requestSingleInstanceLock()) {
     handlers();
     createWindow();
     watch();
+    void startBrowserServer(browserPipe(), {
+      db,
+      uiKey: () => {
+        try {
+          return fs.readFileSync(uiKeyFile(), 'utf8').trim();
+        } catch {
+          return null;
+        }
+      },
+      panes: panes as PaneManager,
+      refreshPanes: syncPanes,
+    }).catch((e) => console.error(`browser pipe did not start: ${(e as Error).message}`));
   });
   app.on('window-all-closed', () => app.quit());
 }

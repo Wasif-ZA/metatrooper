@@ -19,6 +19,8 @@ import { resolveMcpServer } from './plugins/mcp.ts';
 import type { Runner } from './pipelines/runner.ts';
 import { syncPipelines, validationContext } from './pipelines/store.ts';
 import { validatePipeline } from './pipelines/validate.ts';
+import { browserCall } from './browser/client.ts';
+import { writeClipboard } from './clipboard.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -31,6 +33,7 @@ export interface CoreControl {
   engines: () => EngineSpec[];
   stop: () => void;
   runner: Runner;
+  uiKey: string;
 }
 
 function int(p: Record<string, unknown>, key: string): number {
@@ -295,7 +298,73 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  for (const name of ['comment.deliver', 'variant.combine']) {
+  m.set('pane.open', {
+    needsUi: true,
+    handler: (p) => {
+      const projectId = str(p, 'project_id');
+      if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(projectId)) throw new RpcError(E.NOT_FOUND, 'project not found');
+      const sessionId = str(p, 'session_id', false) || null;
+      if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, projectId)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
+      const id = `bp_${ulid()}`;
+      db.prepare('INSERT INTO browser_pane (id, project_id, session_id, url, open) VALUES (?, ?, ?, ?, 1)').run(id, projectId, sessionId, str(p, 'url', false) || null);
+      return { pane_id: id };
+    },
+  });
+
+  m.set('pane.close', {
+    needsUi: true,
+    handler: (p) => {
+      const r = db.prepare('UPDATE browser_pane SET open = 0 WHERE id = ?').run(str(p, 'pane_id'));
+      if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'pane not found');
+      return {};
+    },
+  });
+
+  m.set('pane.url', {
+    needsUi: true,
+    handler: (p) => {
+      db.prepare('UPDATE browser_pane SET url = ? WHERE id = ?').run(str(p, 'url'), str(p, 'pane_id'));
+      return {};
+    },
+  });
+
+  m.set('pane.assign', {
+    needsUi: true,
+    handler: (p) => {
+      const pane = db.prepare('SELECT project_id FROM browser_pane WHERE id = ?').get(str(p, 'pane_id')) as { project_id: string } | undefined;
+      if (!pane) throw new RpcError(E.NOT_FOUND, 'pane not found');
+      const sessionId = str(p, 'session_id', false) || null;
+      if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, pane.project_id)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
+      db.prepare('UPDATE browser_pane SET session_id = ? WHERE id = ?').run(sessionId, str(p, 'pane_id'));
+      return {};
+    },
+  });
+
+  m.set('pane.capture', {
+    needsUi: true,
+    handler: async (p) => {
+      const label = str(p, 'label');
+      if (!['before', 'after', 'reference', 'comment'].includes(label)) throw new RpcError(E.INVALID_PARAMS, 'label must be before, after, reference or comment');
+      const paneId = str(p, 'pane_id');
+      const shot = (await browserCall(ctl.uiKey, 'browser.capture', { pane_id: paneId, label })) as { url: string; w390_path: string; w1280_path: string };
+      const id = ulid();
+      db.prepare('INSERT INTO snapshot (id, pane_id, label, url, taken_at, w390_path, w1280_path) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, paneId, label, shot.url, nowIso(), shot.w390_path, shot.w1280_path);
+      return { snapshot_id: id };
+    },
+  });
+
+  m.set('comment.deliver', {
+    handler: (p) => {
+      const c = db.prepare('SELECT id, body FROM comment WHERE id = ?').get(str(p, 'comment_id')) as { id: string; body: string } | undefined;
+      if (!c) throw new RpcError(E.NOT_FOUND, 'comment not found');
+      const at = writeClipboard(c.body) ? nowIso() : null;
+      if (at) db.prepare('UPDATE comment SET clipboard_at = ? WHERE id = ?').run(at, c.id);
+      return { clipboard_at: at, herdr_at: null };
+    },
+  });
+
+  for (const name of ['variant.combine']) {
     m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, `${name} arrives with a later child issue`); } });
   }
 

@@ -52,6 +52,10 @@ interface ShimEntry {
   serverId: string;
 }
 
+export function browserServerPath(): string {
+  return path.join(coreDir, 'metatrooper-browser.js');
+}
+
 function entriesFor(db: DatabaseSync, engineId: string): ShimEntry[] {
   const out: ShimEntry[] = [];
   for (const p of listPlugins(db)) {
@@ -64,24 +68,26 @@ function entriesFor(db: DatabaseSync, engineId: string): ShimEntry[] {
   return out;
 }
 
-/** Engine arguments that point each attached plugin MCP server at the shim; the real command and secrets never appear. */
+/** Engine arguments that attach `metatrooper-browser` and point each plugin MCP server at the shim; no real command or secret appears. */
 export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: string): string[] {
-  const entries = entriesFor(db, engine.id);
-  if (!entries.length) return [];
   const node = process.execPath.split(String.fromCharCode(92)).join('/');
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
+  const servers: Array<{ name: string; args: string[] }> = [
+    { name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] },
+    ...entriesFor(db, engine.id).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId] })),
+  ];
   switch (engine.mcp_attach?.kind) {
     case 'claude-mcp-config-flag': {
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      const mcpServers = Object.fromEntries(entries.map((e) => [e.name, { command: node, args: [shim, e.pluginId, e.serverId] }]));
+      const mcpServers = Object.fromEntries(servers.map((s) => [s.name, { command: node, args: s.args }]));
       fs.writeFileSync(file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       return ['--mcp-config', file.split(String.fromCharCode(92)).join('/')];
     }
     case 'codex-config':
-      return entries.flatMap((e) => [
-        '-c', `mcp_servers.${e.name}.command=${JSON.stringify(node)}`,
-        '-c', `mcp_servers.${e.name}.args=${JSON.stringify([shim, e.pluginId, e.serverId])}`,
+      return servers.flatMap((s) => [
+        '-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`,
+        '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`,
       ]);
     default:
       return [];

@@ -28,7 +28,7 @@ from `core/src/`.
 
 | Command | What it does |
 |---|---|
-| `node core/build.ts` | generates `core/event.js`, `core/launch.js`, `core/codex-notify.js`, `core/mcp-shim.js`, `core/code-host.js` and `core/dist/` from the TypeScript in `core/src/`; `--check` exits 1 if any generated file is out of date. Run once before the tests |
+| `node core/build.ts` | generates `core/event.js`, `core/launch.js`, `core/codex-notify.js`, `core/mcp-shim.js`, `core/code-host.js`, `core/metatrooper-browser.js` and `core/dist/` from the TypeScript in `core/src/`; `--check` exits 1 if any generated file is out of date. Run once before the tests |
 | `node core/src/main.ts` | starts the core service in the foreground; exits 0 on SIGINT or the `core.stop` method |
 | `node core/event.js <kind> ...` | the event writer (see `events-and-hooks.md`) |
 | `node core/cli.ts hooks install [--codex]` and `... hooks uninstall [--codex]` | hook installation (see `events-and-hooks.md`); `--yes` skips the confirm |
@@ -78,3 +78,15 @@ Everything else about runs is observable through the pipe (`run.*`, `gate.resolv
 `pipeline.validate`) and the `run`, `run_step`, `gate`, `variant`, `browser_pane`, `dev_server` and
 `port_lease` tables. A fake engine (`METATROOPER_ENGINES`, `TROOP_LAUNCHER=spawn`) that reads the handoff
 footer from its last argument and writes the output file is enough to drive every step kind.
+
+## Browser modules tests may import (child #6)
+
+| Module | Export | Contract |
+|---|---|---|
+| `core/src/browser/policy.ts` | `checkUrl(url, {ownedPorts, allowHosts, lookup?}): Promise<{allow} \| {allow, reason}>`, `blockedAddress(addr)` | `browser-tools.md`, safety rule 2; pass a `lookup` to fake DNS |
+| `core/src/browser/ancestry.ts` | `parentTable()`, `ancestors(pid, table?)` | up to 8 parents |
+
+The tools, ownership and interception are observable end to end with the workbench running under a display
+(`xvfb-run` on Linux): a fake engine that starts `core/metatrooper-browser.js` as its child and speaks MCP on
+its stdio drives only its own pane. `METATROOPER_WORKBENCH_PROBE` also receives `{kind: "cursor", target, at}`
+before every click, `{kind: "click"}`, and `{kind: "blocked", url, reason}` for every refused request.

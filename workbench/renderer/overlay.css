@@ -1,0 +1,18 @@
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; pointer-events: none; }
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: rgb(47 111 228 / 0.85);
+  box-shadow: 0 0 0 2px rgb(47 111 228 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+.cursor.pulse { animation: pulse 260ms ease-out; }
+@keyframes pulse { from { box-shadow: 0 0 0 0 rgb(47 111 228 / 0.6); } to { box-shadow: 0 0 0 14px rgb(47 111 228 / 0); } }

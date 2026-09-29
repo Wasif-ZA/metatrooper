@@ -133,6 +133,11 @@ Every other interaction is a database read.
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
+| `pane.open` | `{project_id, url?, session_id?}` | `{pane_id}`; needs `ui.hello`; a browser pane the user opened |
+| `pane.close` | `{pane_id}` | `{}`; needs `ui.hello` |
+| `pane.url` | `{pane_id, url}` | `{}`; needs `ui.hello`; the workbench reports each navigation |
+| `pane.assign` | `{pane_id, session_id?}` | `{}`; needs `ui.hello`; sets or clears the one session allowed to drive the pane |
+| `pane.capture` | `{pane_id, label}` | `{snapshot_id}`; needs `ui.hello`; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row |
 | `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #5 for items nothing else resolves, such as a missed schedule) |
 
 ## Browser methods (`\\.\pipe\metatrooper-browser`)
@@ -141,7 +146,8 @@ Trusted core connection: the core itself connects to the browser pipe and sends 
 `{"ui_key": <key>}`. That connection may call `browser.capture` on any open pane of any registered project,
 and nothing else.
 
-`browser.hello`: params `{"session_id": str}` (from `metatrooper-browser`) or `{"ui_key": str}` (from the core);
+`browser.hello`: params `{"session_id": str, "pid": int}` (from `metatrooper-browser`; `pid` is its own process id,
+and the workbench checks that the session's `pid` is among that process's ancestors) or `{"ui_key": str}` (from the core);
 result `{"ok": true, "bound": "session" or "core"}` or error -32030 if the session is unknown or not an
 ancestor of the caller, as found below.
 

@@ -458,9 +458,10 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           assert.equal(args[0], '--mcp-config');
           const config = readFileSync(args[1], 'utf8');
           assert.match(config, /mcp-shim\.js/);
+          assert.match(config, /metatrooper-browser\.js/);
           assert.ok(!config.includes(literal));
           const codex = mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2');
-          assert.deepEqual(codex, []);
+          assert.deepEqual(codex.filter((a) => a.startsWith('mcp_servers.')).map((a) => a.split('=')[0]), ['mcp_servers.metatrooper-browser.command', 'mcp_servers.metatrooper-browser.args']);
         } finally {
           db.close();
         }

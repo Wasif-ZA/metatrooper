@@ -58,3 +58,24 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
    interception. Its result is capped at 20 KB.
 4. Browser panes use a separate Electron session partition per project (`persist:troop-<project_id>`), so
    cookies and storage never mix between projects.
+
+## As built (child #6)
+
+- Panes are `WebContentsView`s in the workbench window. The pane on screen has the Browser tab's bounds; every
+  other pane stays attached as a 1 px view in the window corner with `Emulation.setDeviceMetricsOverride`
+  1280 by 800, because a view moved off-window gets a zero-size viewport (no layout, no clicks, a 58 px wide
+  capture) and a hidden view (`setVisible(false)`) never renders a capture.
+- The cursor overlay is a transparent view laid over the pane only while an agent acts (about 1.5 s), so it
+  never takes the user's clicks.
+- Before each request is let through, the host is resolved (results cached for 5 s) and checked by
+  `core/src/browser/policy.ts`. A loopback address is allowed only when the URL names `localhost`, `127.0.0.1`
+  or `[::1]` itself on an owned port, so any other name that resolves to loopback is blocked. `data:`, `blob:`
+  and `about:blank` pass. The pane's partition also cancels every non-web scheme before the request starts.
+- `evaluate` results over 20 KB come back as the first 20 KB of their JSON with `truncated: true`.
+- On hosts other than Windows the browser pipe is the socket file `<tmp>/<prefix>-browser.sock`, because
+  agents run from other folders than the workbench.
+- Point-to-comment uses the pane debugger's inspect mode (`Overlay.setInspectMode`); the body is
+  `[comment <id>] <note>`, then `Page:`, `Element:` (a CSS path), the outer HTML (2,000 characters) and `Crop:`.
+- `metatrooper-browser` is attached to Claude sessions through their `--mcp-config` file and to Codex sessions
+  through `-c mcp_servers.metatrooper-browser.*`. agy sessions are not attached yet (its MCP config file is not
+  verified), so M1-23 for agy waits on that.

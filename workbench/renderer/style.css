@@ -160,3 +160,16 @@ td.wrap { white-space: normal; }
 .toasts { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 10; }
 .toast { background: var(--text); color: var(--bg); padding: 8px 12px; border-radius: 6px; max-width: 560px; box-shadow: 0 4px 14px rgb(0 0 0 / 0.2); }
 .toast.error { background: var(--red); color: #fff; }
+
+.browser { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.view:has(.browser) { overflow: hidden; display: flex; flex-direction: column; }
+.chip { font-size: 12px; }
+.chip.on { background: var(--chip-bg); border-color: var(--accent); font-weight: 600; }
+.url { flex: 1; min-width: 200px; }
+.pane-host { flex: 1; min-height: 240px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.compare figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; overflow: auto; max-height: 70vh; }
+.compare figcaption { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.compare img { width: 100%; height: auto; display: block; }
+.comment-form .crop { max-width: 100%; max-height: 260px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; display: block; }
+.meta { color: var(--muted); font-size: 12px; }

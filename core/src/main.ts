@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   };
 
   const uiKey = rotateUiKey();
-  const commands = new CommandRunner(db, buildMethods(db, { engines: () => activeEngines(db), stop, runner }));
+  const commands = new CommandRunner(db, buildMethods(db, { engines: () => activeEngines(db), stop, runner, uiKey }));
   await commands.recover();
   processEvents(db);
   runner.recover();
