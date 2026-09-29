@@ -2,6 +2,7 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, root, startCore, teardownCore } from './helpers.ts';
 
@@ -51,6 +52,22 @@ test('M1-06 window reads p95 < 1 ms and pipe commands p95 < 20 ms with 3 live se
       readMs.push(performance.now() - t);
       assert.ok(rows.length >= 3);
     }
+    // hook event: time from the event writer exiting to the session row changing (what the UI polls)
+    const sid = db.prepare("SELECT id FROM session WHERE state != 'exited' LIMIT 1").get().id;
+    const hookMs: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const kind = i % 2 === 0 ? 'PreToolUse' : 'Stop';
+      const want = i % 2 === 0 ? 'working' : 'done';
+      const r = spawnSync(process.execPath, ['core/event.js', `claude.${kind}`], { cwd: root, env: { ...env, TROOP_SESSION_ID: sid }, input: JSON.stringify({ session_id: 'n1', cwd: isolated.home, tool_name: 'Read', tool_input: { file_path: '/x' } }) });
+      assert.equal(r.status, 0);
+      const t = performance.now();
+      while (db.prepare('SELECT state FROM session WHERE id = ?').get(sid).state !== want) {
+        assert.ok(performance.now() - t < 2000, 'state never changed');
+        await new Promise((res) => setTimeout(res, 1));
+      }
+      hookMs.push(performance.now() - t);
+    }
+    assert.ok(Math.max(...hookMs) < 100, `hook->row max ${Math.max(...hookMs).toFixed(1)} ms`);
     db.close();
     assert.ok(p95(readMs) < 1, `read p95 ${p95(readMs).toFixed(3)} ms`);
   } finally { pipe.close(); await teardownCore(core, isolated); }
