@@ -6,7 +6,7 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 |---|---|---|
 | M1-01 | NEEDS-WINDOWS | run tests/windows/m1-01-dev.ps1 (SAC on) |
 | M1-02 | NEEDS-WINDOWS | launch 3 engines, then run tests/windows/m1-02-terminals.ps1 |
-| M1-03 | TODO |  |
+| M1-03 | NEEDS-WINDOWS | core half VERIFIED-LINUX (core/test/independence.test.ts:M1-03 a live session survives a core kill...; SIGKILL core, session pid stays alive, row kept after restart, vanished pid -> exited <7s). Still needs Windows: kill workbench+core while a real claude/codex/agy turn runs in Windows Terminal and keep typing; ready check: launch 3 engines (tests/windows/m1-02-terminals.ps1), long turn, `Stop-Process -Name electron,node`, confirm terminals still respond, restart core and see sessions in 10 s |
 | M1-04 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:event writer without TROOP_SESSION_ID produces no output or row |
 | M1-05 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:event writer appends one redacted row and never stores a marker |
 | M1-06 | TODO | partial: read p95<1ms and pipe p95<20ms with 3 sessions VERIFIED-LINUX (core/test/perf.test.ts). hook event -> session row changes <100 ms after event.js exits VERIFIED-LINUX (same test; row only, not real UI paint). Still to prove: with a running pipeline |
@@ -56,3 +56,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 8. Audited M1-12: watch.ts already implements codex/agy native_id rules; added core/test/native-id.test.ts (4 tests, tests by Claude, Codex not used). core 74: 71 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-03/06/07 (pid rediscovery, perf p95 tests), then #9/#10/#11/#31/#13; xvfb electron test for M1-23..25.
 - 2026-09-30: iter 9. Added core/test/perf.test.ts (M1-06 reads/pipe p95, tests by Claude, Codex not used). core 77: 74 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: finish M1-06 (hook->row <100 ms, running pipeline), then M1-03/07, then #9/#10/#11/#31/#13.
 - 2026-09-30: iter 19. Extended core/test/perf.test.ts with hook->row <100 ms check (tests by Claude, Codex not used). core 77: 74 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-03 (pid rediscovery <10 s) and M1-07, then #9/#10/#11/#31/#13 and callrouter #2; M1-06 with running pipeline.
+- 2026-09-30: iter 20. Added core/test/independence.test.ts (M1-03 core half, tests by Claude, Codex not used). core 78: 75 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-07 (long-task observer needs electron/xvfb), then #9/#10/#11/#31/#13 audit and callrouter #2; M1-06 with running pipeline.
