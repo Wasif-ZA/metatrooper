@@ -53,12 +53,13 @@ function decodePng(png: Buffer): { width: number; height: number; pixel: (x: num
 
 const isRed = ([r, g, b]: number[]) => r > 200 && g < 60 && b < 60;
 
-test('M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate, and captures a 5,000 px page with one sticky header', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 on a Linux box with a working Electron+xvfb', timeout: 150_000 }, async () => {
+test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate, and captures a 5,000 px page with one sticky header', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 on a Linux box with a working Electron+xvfb', timeout: 150_000 }, async () => {
   await buildGenerated();
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
   writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }]));
-  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
+  const probeFile = join(iso.home, 'probe.log');
+  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn', METATROOPER_WORKBENCH_PROBE: probeFile };
 
   const hits = { unowned: 0, owned: 0 };
   const unowned = await listen((_req, res) => { hits.unowned++; res.end('secret'); });
@@ -69,7 +70,7 @@ test('M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate,
       res.end('<!doctype html><style>body{margin:0;background:#fff}header{position:sticky;top:0;height:80px;background:#f00}main{height:4920px;background:#fff}</style><header></header><main></main>');
       return;
     }
-    res.end('<!doctype html><title>scripts</title><body>x</body>');
+    res.end('<!doctype html><title>scripts</title><body>x<button style="position:absolute;left:300px;top:200px;width:80px;height:30px">go</button></body>');
   });
 
   const core = await startCore({ ...iso, env });
@@ -110,6 +111,8 @@ test('M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate,
       // A script running inside the page (not through evaluate's own code path) makes the same requests.
       ['inject', 'browser.evaluate', { pane_id: paneId, expression: `document.body.appendChild(Object.assign(document.createElement('script'), { textContent: ${JSON.stringify(targets.map((t) => `fetch(${JSON.stringify(t)}, { mode: 'no-cors' }).catch(() => {});`).join(''))} })), 'injected'` }],
       ['settle', 'browser.wait_for', { pane_id: paneId, text: 'never-there', timeout_ms: 1500 }],
+      ['snap', 'browser.snapshot', { pane_id: paneId }],
+      ['click', 'browser.click', { pane_id: paneId, ref: 'e1' }],
       ['nav', 'browser.navigate', { pane_id: paneId, url: `http://127.0.0.1:${owned.port}/tall` }],
       ['shot', 'browser.screenshot', { pane_id: paneId, full_page: true }],
     ];
@@ -124,6 +127,16 @@ test('M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate,
     await sleep(500);
     assert.equal(hits.unowned, 0, 'the unowned loopback port was contacted');
     assert.equal(hits.owned, 1);
+
+    // M1-23: the overlay cursor is within 5 px of the click point before the click lands.
+    assert.ok(out.steps.click.result?.ok, JSON.stringify(out.steps.snap) + JSON.stringify(out.steps.click));
+    const probes = readFileSync(probeFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).state);
+    const ci = probes.findIndex((e) => e.kind === 'cursor');
+    const ki = probes.findIndex((e) => e.kind === 'click');
+    assert.ok(ci >= 0 && ki > ci, 'cursor probe precedes click probe: ' + JSON.stringify(probes.slice(0, 5)));
+    const cur = probes[ci];
+    assert.ok(cur.at, 'overlay reported a position');
+    assert.ok(Math.hypot(cur.at.x - cur.target.x, cur.at.y - cur.target.y) <= 5, JSON.stringify(cur));
 
     assert.ok(out.steps.shot.result, JSON.stringify(out.steps.shot) + readFileSync(join(iso.home, 'workbench.err'), 'utf8').split('\n').filter((l) => l.includes('METRICS')).join('\n'));
     const png = Buffer.from(out.steps.shot.result.png_base64, 'base64');
