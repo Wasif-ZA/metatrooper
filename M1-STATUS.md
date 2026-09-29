@@ -41,7 +41,7 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-28 | TODO |  |
 | M1-29 | TODO |  |
 | M1-30 | VERIFIED-LINUX | core/test/core.test.ts:project.open uses canonical path sha1 and refuses work/ACU |
-| M1-31 | TODO |  |
+| M1-31 | TODO | CLI half VERIFIED-LINUX (core/test/cli-run.test.ts:M1-31 troop run start --json ... run wait returns at its first gate, with a gate-only fixture pipeline). Still needs the built-in two-engine-review pipeline (#9) and the troop skill file |
 | M1-32 | TODO |  |
 
 ## Child issues
@@ -57,3 +57,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 9. Added core/test/perf.test.ts (M1-06 reads/pipe p95, tests by Claude, Codex not used). core 77: 74 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: finish M1-06 (hook->row <100 ms, running pipeline), then M1-03/07, then #9/#10/#11/#31/#13.
 - 2026-09-30: iter 19. Extended core/test/perf.test.ts with hook->row <100 ms check (tests by Claude, Codex not used). core 77: 74 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-03 (pid rediscovery <10 s) and M1-07, then #9/#10/#11/#31/#13 and callrouter #2; M1-06 with running pipeline.
 - 2026-09-30: iter 20. Added core/test/independence.test.ts (M1-03 core half, tests by Claude, Codex not used). core 78: 75 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-07 (long-task observer needs electron/xvfb), then #9/#10/#11/#31/#13 audit and callrouter #2; M1-06 with running pipeline.
+- 2026-09-30: iter 21. Added `troop run start|wait|status` to core/cli.ts (#31) and core/test/cli-run.test.ts (tests by Claude, Codex not used). core 77 tests (glob test/*.test.ts): 74 pass, 0 fail, 3 skipped (earlier counts of 78 were off by one). workbench 4: 3 pass, 1 skipped. M1-32: sdk/, pipelines/, tray/ dirs do not exist yet, so not checkable. Next: #9 two-engine-review pipeline under pipelines/ (MIT, with LICENSE) so M1-26/31 can complete; then troop skill file, #10, #11, callrouter #2, M1-07.

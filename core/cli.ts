@@ -26,6 +26,11 @@ const USAGE = `usage: troop <command> [--json]
   sessions [--all]              list sessions (hidden ones with --all)
   focus|seen|hide <session>     act on a session by id or id prefix
   engines [--check]             show engine health (--check re-runs the checks)
+  run start <pipeline> [--project <path>] [--input key=value]...
+                                start a pipeline run; prints the run id
+  run wait <run> [--timeout <s>]
+                                block until the run pauses (gate, budget, loop-max, breaker, handoff) or ends
+  run status <run>              show a run's state and open gates
   stop                          stop the core
   hooks install|uninstall [--codex] [--yes]
   plugin list                   installed plugins, their source and original file
@@ -40,15 +45,17 @@ interface Args {
   pos: string[];
   flags: Set<string>;
   opts: Map<string, string>;
+  inputs: string[];
 }
 
-const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval']);
+const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout']);
 
 function parse(argv: string[]): Args {
-  const a: Args = { pos: [], flags: new Set(), opts: new Map() };
+  const a: Args = { pos: [], flags: new Set(), opts: new Map(), inputs: [] };
   for (let i = 0; i < argv.length; i++) {
     const s = argv[i];
-    if (VALUED.has(s)) a.opts.set(s, argv[++i] ?? '');
+    if (s === '--input') a.inputs.push(argv[++i] ?? '');
+    else if (VALUED.has(s)) a.opts.set(s, argv[++i] ?? '');
     else if (s.startsWith('--')) a.flags.add(s);
     else a.pos.push(s);
   }
@@ -309,6 +316,51 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   return r.code;
 }
 
+interface RunRow { id: string; status: string; paused_why: string | null }
+
+function runRow(id: string): RunRow | null {
+  return withDb((db) => (db.prepare('SELECT id, status, paused_why FROM run WHERE id = ?').get(id) as RunRow | undefined) ?? null);
+}
+
+function waitingGates(id: string): Array<Record<string, unknown>> {
+  return withDb((db) => db.prepare("SELECT id, step_id, kind, action_hash, summary FROM gate WHERE run_id = ? AND status = 'waiting'").all(id) as Array<Record<string, unknown>>) ?? [];
+}
+
+async function runCmd(a: Args, json: boolean): Promise<number> {
+  const [sub, target] = a.pos;
+  if (sub === 'start' && target) {
+    const inputs: Record<string, string> = {};
+    for (const kv of a.inputs) {
+      const i = kv.indexOf('=');
+      if (i < 1) { console.error(`--input needs key=value, got ${kv}`); return 2; }
+      inputs[kv.slice(0, i)] = kv.slice(i + 1);
+    }
+    const project = await openProject(a.opts.get('--project') ?? process.cwd(), json);
+    if (project.code || !project.id) return project.code || 1;
+    const r = await rpc('run.start', { pipeline_id: target, project_id: project.id, inputs, trigger: 'cli' }, json);
+    if (r.result) emit(json, r.result, String(r.result.run_id));
+    return r.code;
+  }
+  if ((sub === 'wait' || sub === 'status') && target) {
+    const timeout = Number(a.opts.get('--timeout') ?? 0) * 1000;
+    const started = Date.now();
+    for (;;) {
+      const row = runRow(target);
+      if (!row) { console.error(`no run ${target}`); return 1; }
+      if (sub === 'status' || row.status !== 'running') {
+        const gates = waitingGates(target);
+        const out = { run_id: target, status: row.status, paused_why: row.paused_why, gates };
+        emit(json, out, `${row.status}${row.paused_why ? ` (${row.paused_why})` : ''}${gates.map((g) => `\n  gate ${g.id}: ${g.summary}`).join('')}`);
+        return sub === 'wait' && (row.status === 'failed' || row.status === 'cancelled') ? 1 : 0;
+      }
+      if (timeout && Date.now() - started > timeout) { console.error('timed out'); return 4; }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  console.error('usage: troop run start <pipeline> [--project <path>] [--input k=v] | wait <run> [--timeout <s>] | status <run>');
+  return 2;
+}
+
 async function main(): Promise<number> {
   const [cmd, ...rest] = process.argv.slice(2);
   const a = parse(rest);
@@ -407,6 +459,9 @@ async function main(): Promise<number> {
       else table(rows.map((r) => ({ ...r, installed: r.installed === null ? '?' : r.installed ? 'yes' : 'no' })), ['engine', 'installed', 'version', 'auth', 'checked_at']);
       return 0;
     }
+
+    case 'run':
+      return runCmd(a, json);
 
     case 'stop': {
       const r = await rpc('core.stop', {}, json);
