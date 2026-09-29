@@ -147,7 +147,6 @@ export class PaneManager {
   }
 
   private async create(row: PaneRow): Promise<void> {
-    console.error('C0');
     const ses = this.guardPartition(row.project_id);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
@@ -157,17 +156,17 @@ export class PaneManager {
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
+    // A view with no navigation has no renderer yet; CDP commands would hang forever (seen under Linux/xvfb).
+    await view.webContents.loadURL('about:blank').catch(() => {});
     try {
       pane.dbg.attach('1.3');
     } catch {}
     pane.dbg.on('message', (_e, method, params) => void this.onDebuggerEvent(pane, method, params));
-    console.error('C1 attached');
     await this.cmd(pane, 'Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
     await this.cmd(pane, 'Network.enable', {});
     await this.cmd(pane, 'Runtime.enable', {});
     await this.cmd(pane, 'Page.enable', {});
     await this.cmd(pane, 'DOM.enable', {});
-    console.error('C2 enabled');
     this.layout();
     if (row.url) await this.load(pane, row.url).catch(() => {});
     this.layout();
@@ -272,8 +271,12 @@ export class PaneManager {
   private async applyViewport(pane: Pane, parked: boolean): Promise<void> {
     if (parked === pane.parked) return;
     pane.parked = parked;
-    if (parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false }).catch(() => {});
-    else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+    try {
+      if (parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
+      else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+    } catch {
+      pane.parked = !parked; // the next layout() retries
+    }
   }
 
   private async load(pane: Pane, url: string): Promise<void> {

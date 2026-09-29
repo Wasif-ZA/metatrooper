@@ -11,7 +11,7 @@ import { buildGenerated, client, isolation, sleep, startCore, teardownCore, unti
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', 'electron');
 const xvfb = spawnSync('which', ['xvfb-run']).status === 0;
-// Opt-in: on agent-laptop Electron segfaults (or hangs) right after debugger.attach + Fetch.enable under xvfb, so this cannot run headless there yet.
+// Opt-in (needs Electron + xvfb; slow): set METATROOPER_BROWSER_E2E=1.
 const runnable = process.env.METATROOPER_BROWSER_E2E === '1' && process.platform === 'linux' && existsSync(electron) && xvfb;
 
 function listen(handler: Parameters<typeof createServer>[1]): Promise<{ server: Server; port: number }> {
@@ -125,6 +125,7 @@ test('M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate,
     assert.equal(hits.unowned, 0, 'the unowned loopback port was contacted');
     assert.equal(hits.owned, 1);
 
+    assert.ok(out.steps.shot.result, JSON.stringify(out.steps.shot) + readFileSync(join(iso.home, 'workbench.err'), 'utf8').split('\n').filter((l) => l.includes('METRICS')).join('\n'));
     const png = Buffer.from(out.steps.shot.result.png_base64, 'base64');
     const img = decodePng(png);
     assert.equal(img.height, 5000);
