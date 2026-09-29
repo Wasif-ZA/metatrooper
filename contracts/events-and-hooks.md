@@ -9,8 +9,8 @@ One invocation form: `node event.js <kind> [--session <id>] [--pid <n>] [--engin
 
 - Claude hooks: `<kind>` is `claude.<EventName>` (for example `claude.PreToolUse`); the payload is stdin.
   The session id comes from `TROOP_SESSION_ID` in the environment.
-- Launch: `node event.js launch --session <id> --pid <n> --engine <id> --cwd <path>`; the payload is built
-  from the flags.
+- Launch: `launch.js` appends the `launch` event in-process through the same module. `node event.js launch
+  --session <id> --pid <n> --engine <id> --cwd <path>` also works, for tools that launch engines themselves.
 - The Codex notify wrapper imports the same module and calls its `append(kind, sessionId, payload)` function.
 
 1. Read stdin (hooks) or build the payload from the flags (launch).
@@ -35,7 +35,10 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
 | `herdr.state` | herdr | `{"pane": str, "state": "blocked" or "working" or "done" or "idle" or "unknown", "agent": str}` |
-| `core.*` | core | internal: `core.checkpoint`, `core.recovered`, `core.missed-schedule` |
+| `core.activity` | core | `{"state": "working" or "quiet"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`) |
+| `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists |
+| `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
+| `core.*` | core | other internal kinds: `core.checkpoint`, `core.recovered`, `core.missed-schedule`; they never change state |
 
 Every payload is built from an explicit allowlist of fields, exactly as listed in this table. Any field not
 listed is dropped before the insert, including fields a future Claude Code or Codex version adds.
@@ -45,11 +48,11 @@ redacted before the insert:
 
 | Tool | Stored from `tool_input` |
 |---|---|
-| `Bash`, `PowerShell` | the first word of the command and the command's length |
-| `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `file_path` only |
-| `Grep`, `Glob` | `path` only |
-| `WebFetch` | the URL's host only |
-| anything else, including MCP tools | the key names and the length of each value |
+| `Bash`, `PowerShell` | `{"first_word": str, "length": int}`: the first word of the command and the command's length |
+| `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `{"file_path": str}` only |
+| `Grep`, `Glob` | `{"path": str}` only |
+| `WebFetch` | `{"host": str}`: the URL's host only |
+| anything else, including MCP tools | a flat object mapping each input key to the length of its value, e.g. `{"query": 14, "count": 4}` (strings by character count, anything else by the length of its JSON) |
 
 This is what lets test M1-05 (a marker string typed into a session appears nowhere in Metatrooper) pass.
 
@@ -57,7 +60,7 @@ This is what lets test M1-05 (a marker string typed into a session appears nowhe
 
 | Engine | How `session.native_id` is set |
 |---|---|
-| claude | First hook event carrying `TROOP_SESSION_ID` (inherited from `launch.ps1`); its `session_id` field is the native id. Exact. |
+| claude | First hook event carrying `TROOP_SESSION_ID` (inherited from `launch.js`); its `session_id` field is the native id. Exact. |
 | codex | First `codex.turn` event with `TROOP_SESSION_ID`; its `thread-id` is the native id. Before that, the core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event. Exact after the first turn. |
 | agy | The newest folder under `~/.gemini/antigravity-cli/brain/` created within 30 s after the launch event, only if exactly one agy session was launched in that window. Otherwise `native_id` stays NULL and state stays `unknown`. |
 | herdr host | herdr's pane id (`herdr_pane`); native id from herdr's `agent.get` when it reports one. |
@@ -75,12 +78,13 @@ The core processes events in `seq` order and sets `session.state`:
 | `claude.Stop` | `done` |
 | `claude.SessionEnd` | `exited` |
 | `codex.turn` | `done` |
-| codex rollout file grew in the last 5 s (1 s poll of the linked file) | `working` |
-| agy: linked `brain/<id>/.system_generated/logs/` or `conversations/<id>.db-wal` changed in the last 5 s | `working` |
-| agy: no change for 20 s after `working` | `done` |
+| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working` |
+| `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `herdr.state` | blocked to `waiting_for_you`; working, done, idle, unknown map to themselves |
-| pid gone (5 s check) | `exited` |
-| user opens the card or focuses the session while `done` | `idle` |
+| `core.process-gone` (5 s check) | `exited` |
+| `core.seen` while `done` | `idle` |
+
+`exited` is final: once a session is `exited`, no event changes its state again.
 
 ## Hook installation
 

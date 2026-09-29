@@ -1,0 +1,55 @@
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const BS = String.fromCharCode(92);
+
+function findCoreDir(): string {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (path.basename(dir) !== 'core' && path.dirname(dir) !== dir) dir = path.dirname(dir);
+  return dir;
+}
+
+export const coreDir = findCoreDir();
+export const repoDir = path.resolve(coreDir, '..');
+export const schemaFile = path.join(repoDir, 'contracts', 'schema.sql');
+
+export function homeDir(): string {
+  return process.env.METATROOPER_HOME || path.join(os.homedir(), '.metatrooper');
+}
+
+export function dbFile(): string {
+  return path.join(homeDir(), 'troop.db');
+}
+
+export function uiKeyFile(): string {
+  return path.join(homeDir(), 'ui.key');
+}
+
+export function logsDir(): string {
+  return path.join(homeDir(), 'logs');
+}
+
+export function pipePrefix(): string {
+  return process.env.METATROOPER_PIPE_PREFIX || 'metatrooper';
+}
+
+export function corePipe(): string {
+  return BS + BS + '.' + BS + 'pipe' + BS + pipePrefix();
+}
+
+export function browserPipe(): string {
+  return BS + BS + '.' + BS + 'pipe' + BS + pipePrefix() + '-browser';
+}
+
+export function claudeSettingsFile(): string {
+  return process.env.METATROOPER_CLAUDE_SETTINGS || path.join(os.homedir(), '.claude', 'settings.json');
+}
+
+export function codexConfigFile(): string {
+  return process.env.METATROOPER_CODEX_CONFIG || path.join(os.homedir(), '.codex', 'config.toml');
+}
+
+export function hooksStateFile(): string {
+  return path.join(homeDir(), 'hooks-install.json');
+}

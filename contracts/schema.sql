@@ -49,7 +49,7 @@ CREATE TABLE session (
   host          TEXT NOT NULL CHECK (host IN ('wt','herdr')),
   window_name   TEXT,                          -- wt: 'troop-<first 8 of id>'; herdr: NULL
   herdr_pane    TEXT,                          -- herdr: 'w1:p2'; wt: NULL
-  pid           INTEGER,                       -- powershell pid from launch.ps1 (wt) or pane shell pid (herdr)
+  pid           INTEGER,                       -- launcher pid from launch.js (wt) or pane shell pid (herdr)
   native_id     TEXT,                          -- claude session_id, codex thread-id, agy conversation id
   run_id        TEXT REFERENCES run(id),
   step_id       TEXT,
@@ -63,7 +63,7 @@ CREATE TABLE session (
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
 
--- Queue 1: append-only, written by hooks, launch.ps1 and the codex notify wrapper.
+-- Queue 1: append-only, written by hooks, launch.js and the codex notify wrapper.
 CREATE TABLE event (
   seq         INTEGER PRIMARY KEY AUTOINCREMENT,
   at          TEXT NOT NULL,
@@ -101,6 +101,17 @@ CREATE TABLE comment (
   herdr_at     TEXT                            -- sent with herdr agent.prompt
 );
 CREATE INDEX comment_prompt_idx ON comment (session_id, prompt_at);
+
+-- Items that need the user: waiting gates, interrupted commands, missed schedules, failed runs, missing secrets.
+CREATE TABLE needs_you (
+  id           TEXT PRIMARY KEY,
+  at           TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','other')),
+  ref          TEXT,                           -- gate id, command id, schedule id, run id, or plugin id
+  text         TEXT NOT NULL,
+  resolved_at  TEXT
+);
+CREATE INDEX needs_you_open_idx ON needs_you (resolved_at, at);
 
 CREATE TABLE pipeline (
   id          TEXT PRIMARY KEY,                -- pipeline.json "id"

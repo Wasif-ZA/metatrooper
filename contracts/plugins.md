@@ -40,14 +40,14 @@ filesystem and network sandboxing (AppContainer) is out of scope for this epic a
 - Secret values: entered once by the user on the install screen (or migrated by an importer, below) and stored
   encrypted with Windows DPAPI for the current user at `~/.metatrooper/secrets/<plugin>/<NAME>.dpapi`,
   recorded in `plugin_secret`. No plain-text secret is ever written by Metatrooper.
-  - Encrypt: the core runs `powershell -NoProfile -Command -` and writes to its stdin
-    `$v = [Console]::In.ReadLine(); ConvertTo-SecureString -String $v -AsPlainText -Force | ConvertFrom-SecureString`
-    followed by the value on the next line; stdout (the DPAPI blob) is written to the `.dpapi` file. The value
-    never appears on a command line.
-  - Decrypt: the core runs `powershell -NoProfile -Command -` with stdin
-    `$s = Get-Content -Raw '<blob path>' | ConvertTo-SecureString; [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))`
-    and reads the value from stdout into memory. Decrypted values are cached in the core's memory for the life
-    of the core process and passed only through child process environments.
+  - Encrypt: the core runs `powershell -NoProfile -NonInteractive -Command -` with the script on stdin and the
+    value in the environment variable `TROOP_SECRET_IN` of that one child process:
+    `ConvertTo-SecureString -String $env:TROOP_SECRET_IN -AsPlainText -Force | ConvertFrom-SecureString`.
+    Stdout (the DPAPI blob) is written to the `.dpapi` file. The value never appears on a command line or on disk.
+  - Decrypt: the same way, with the blob path in `TROOP_SECRET_IN`:
+    `$s = Get-Content -Raw -LiteralPath $env:TROOP_SECRET_IN | ConvertTo-SecureString; [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))`,
+    and the value is read from stdout into memory. Decrypted values are cached in the core's memory for the
+    life of the core process and passed only through child process environments.
 - stdin: one JSON object `{"schema":1,"action":<id>,"input":<with>,"project":<path>,"run":{"id","dir"}}`,
   then stdin closes.
 - stdout: exactly one JSON object `{"ok":true,"outputs":{...}}` or `{"ok":false,"error":{"message":str,"retryable":bool}}`.

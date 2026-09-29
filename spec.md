@@ -101,7 +101,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
       | direct      | \\.\pipe\metatrooper| direct      |              | direct  |
       v             +-----------------------+-------------+--------------+---------+
  +----+--------------------------------------------------+
- | ~/.metatrooper/troop.db (SQLite, WAL)             |<---- hooks, launch.ps1, codex notify
+ | ~/.metatrooper/troop.db (SQLite, WAL)             |<---- hooks, launch.js, codex notify
  | core-owned tables  |  queue tables: event, command,   |      append `event` rows (250 ms budget,
  |                    |  comment                          |      exit 0 always)
  +----+--------------------------------------------------+
@@ -166,20 +166,23 @@ The core never spawns an agent as its own child:
 
 ```
 wt.exe -w troop-<first 8 of session id> new-tab --title "<engine> <project name>" -d "<project path>" ^
-  powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "<core>/launch.ps1" ^
-  -SessionId <id> -Engine <engine> -ArgsB64 <base64 of a JSON array: command, args, prompt>
+  node --no-warnings "<core>/launch.js" --session <id> --engine <engine> --args-b64 <base64 of a JSON array: command, args, prompt>
 ```
 
-The engine's arguments travel as one base64 JSON value, because PowerShell 5.1 passes `--` through
-literally and because `wt` treats `;` as a command separator. Base64 contains neither.
+The engine's arguments travel as one base64 JSON value, because `wt` treats `;` as a command separator and
+base64 contains none. The launcher is node rather than PowerShell because PowerShell 5.1 drops embedded double
+quotes when it passes arguments to native programs (verified 2026-09-29), and prompts contain quotes.
 
-`launch.ps1`:
+`launch.js`:
 
-1. Sets `$env:TROOP_SESSION_ID`.
-2. Starts `node <core>/event.js launch --session <id> --pid $PID --engine <engine> --cwd <cwd>` with
-   `Start-Process -WindowStyle Hidden` and does not wait.
-3. Decodes `-ArgsB64` and runs the engine command in the same console (`& $cmd @rest`) so the CLI owns the
-   terminal directly, then exits with its exit code.
+1. Sets `TROOP_SESSION_ID` in its own environment, which the engine and every hook inherit.
+2. Appends the `launch` event in-process (`pid` = the launcher's own pid), giving up after 250 ms.
+3. Resolves the command without a shell: an `.exe` on PATH runs directly; an npm `.cmd` shim is unwrapped to
+   its target (`claude.cmd` to `claude.exe`, `codex.cmd` to `node codex.js`). Only an unknown shim falls back
+   to a shell.
+4. Spawns the engine with `stdio: 'inherit'` in the same console, ignores Ctrl+C itself (the engine receives
+   it), and exits with the engine's exit code. Verified 2026-09-29: quotes, spaces, semicolons, trailing
+   backslashes and empty arguments arrive unchanged.
 
 The engine inherits the user's normal environment, exactly as when started by hand; Metatrooper adds only
 `TROOP_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
@@ -490,7 +493,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   `troop-<id8>`, each a normal interactive session on the existing logins, with no API key set.
 - M1-03. Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its
   turn, the user can keep typing, and restarting the core rediscovers the live sessions by pid within 10 s.
-- M1-04. With the core never started, every hook and `launch.ps1` exits 0 with no output, and the engine
+- M1-04. With the core never started, every hook and `launch.js` exits 0 with no output, and the engine
   starts no more than 1 s later than without Metatrooper.
 - M1-05. A test types a marker string into a session and asserts it appears in no Metatrooper log or table.
 - M1-06. Speed with 3 live sessions and a running pipeline: window reads p95 under 1 ms; a hook event is on
@@ -652,7 +655,7 @@ No terminal library, WebSocket library or native module is needed.
 | Path | Change |
 |---|---|
 | `projects/metatrooper/contracts/` | the contracts above (written 2026-09-29) |
-| `projects/metatrooper/core/` | service, `event.js`, `launch.ps1`, `codex-notify.js`, runner, plugins, meter, limits, `metatrooper-browser`, CLI |
+| `projects/metatrooper/core/` | service, `event.js`, `launch.js`, `codex-notify.js`, runner, plugins, meter, limits, `metatrooper-browser`, CLI |
 | `projects/metatrooper/workbench/` | Electron main and renderer |
 | `projects/metatrooper/tray/` | Tauri app |
 | `projects/metatrooper/sdk/` | plugin helper library (MIT) |

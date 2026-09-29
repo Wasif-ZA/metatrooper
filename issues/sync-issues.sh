@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# Creates or fixes every child issue. Safe to run again: it edits issues that exist (matched by "#N " title prefix) and creates the rest.
+# Creates or fixes every child issue. Safe to run again: edits open issues whose title starts with "#N ", creates the rest.
 # Titles are single-quoted so backticks are never run as commands.
 set -euo pipefail
 for m in 'M1 core loop' 'M2 design and coding lanes' 'M3 every other lane'; do
   gh api "repos/{owner}/{repo}/milestones" -f title="$m" >/dev/null 2>&1 || true
 done
-existing=$(gh issue list --state all --limit 200 --json number,title --jq '.[] | "(.number)	(.title)"')
+existing=$(gh issue list --state open --limit 200 --json number,title --jq '.[] | "\(.number)\t\(.title)"')
 sync() {
   local num
-  num=$(printf "%s
-" "$existing" | awk -F"	" -v p="#$1 " 'index($2,p)==1{print $1; exit}')
+  num=$(printf '%s\n' "$existing" | awk -F'\t' -v p="#$1 " 'index($2,p)==1{print $1; exit}')
   if [ -n "$num" ]; then
-    gh issue edit "$num" --title "$2" --milestone "$3" --body-file "$4" >/dev/null && echo "fixed  #$num  $2"
+    gh issue edit "$num" --title "$2" --milestone "$3" --body-file "$4" >/dev/null && echo "fixed   #$num $2"
   else
     gh issue create --title "$2" --milestone "$3" --body-file "$4" && echo "created $2"
   fi
