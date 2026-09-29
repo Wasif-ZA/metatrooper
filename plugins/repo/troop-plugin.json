@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "id": "repo",
+  "version": "1.0.0",
+  "name": "Repo",
+  "description": "Test-runner detection, test runs and diffs for the project's git repository.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": ["project:read", "run:write"],
+  "actions": [
+    {
+      "id": "detect-tests",
+      "title": "Detect the test runner",
+      "run": ["bin/repo.js", "detect-tests"],
+      "input_schema": { "type": "object", "properties": { "path": { "type": "string" } } },
+      "output_schema": { "type": "object", "required": ["runner", "command"] },
+      "timeout_seconds": 30
+    },
+    {
+      "id": "run-tests",
+      "title": "Run the tests",
+      "run": ["bin/repo.js", "run-tests"],
+      "input_schema": { "type": "object", "properties": { "path": { "type": "string" }, "command": { "type": "array", "items": { "type": "string" } } } },
+      "output_schema": { "type": "object", "required": ["passed", "exit_code", "output_tail"] },
+      "timeout_seconds": 1800
+    },
+    {
+      "id": "diff",
+      "title": "Diff against a base",
+      "run": ["bin/repo.js", "diff"],
+      "input_schema": { "type": "object", "properties": { "path": { "type": "string" }, "base": { "type": "string" } } },
+      "output_schema": { "type": "object", "required": ["stat", "files", "untracked", "patch_path"] },
+      "timeout_seconds": 120
+    }
+  ]
+}

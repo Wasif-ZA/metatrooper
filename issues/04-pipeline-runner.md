@@ -24,6 +24,12 @@ Pipeline runner: validation with the publish rule, handoff contract, completion 
 - [ ] M1-22. Fan-out 3 on the fixture repo gives 3 worktrees, 3 leased ports starting at 3001 (skipping a port the test occupies), and 3 browser panes; each pane is drivable only by the session found through its own process ancestry, including for Codex sessions.
 - [ ] M1-25c. A `dev_command` variant is shown in its pane only after its port answers; discarding the variant leaves no process from its tree running and releases the port lease.
 
+Status 2026-09-29: built, not yet tested by Codex. Boxes stay unticked until Codex's suite passes. A throwaway
+smoke run on Linux (fake engine, `TROOP_LAUNCHER=spawn`) passed M1-18, M1-18a, M1-19 (stale gate, non-UI
+refusal, code step has no gate method), M1-20, M1-21, the worktree, port and pane parts of M1-22, and
+M1-25c. Pane ownership by process ancestry in M1-22 is child #6. Choices the contracts left open are in
+`contracts/pipelines.md`, "Runner details".
+
 ## Rules that bind every child
 
 - Never commit, push or open PRs from an agent; hand back the command.

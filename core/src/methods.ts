@@ -16,6 +16,9 @@ import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
+import type { Runner } from './pipelines/runner.ts';
+import { syncPipelines, validationContext } from './pipelines/store.ts';
+import { validatePipeline } from './pipelines/validate.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -27,6 +30,13 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
 export interface CoreControl {
   engines: () => EngineSpec[];
   stop: () => void;
+  runner: Runner;
+}
+
+function int(p: Record<string, unknown>, key: string): number {
+  const v = p[key];
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
+  throw new RpcError(E.INVALID_PARAMS, `${key} must be a whole number`);
 }
 
 export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, MethodSpec> {
@@ -234,7 +244,49 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  for (const name of ['run.start', 'run.cancel', 'run.resume', 'pipeline.validate', 'comment.deliver', 'variant.pick', 'variant.combine', 'variant.discard']) {
+  m.set('pipeline.validate', {
+    handler: (p) => {
+      let json: unknown = p.json;
+      if (typeof json === 'string') {
+        try {
+          json = JSON.parse(json);
+        } catch (e) {
+          return { valid: false, errors: [`not valid JSON: ${(e as Error).message}`] };
+        }
+      }
+      const errors = validatePipeline(json, validationContext(db, syncPipelines(db), null));
+      return { valid: errors.length === 0, errors };
+    },
+  });
+
+  m.set('run.start', {
+    handler: (p) => {
+      const trigger = str(p, 'trigger', false) || 'manual';
+      if (!['manual', 'schedule', 'cli'].includes(trigger)) throw new RpcError(E.INVALID_PARAMS, 'trigger must be manual, schedule or cli');
+      const inputs = p.inputs ?? {};
+      if (typeof inputs !== 'object' || Array.isArray(inputs)) throw new RpcError(E.INVALID_PARAMS, 'inputs must be an object');
+      const run_id = ctl.runner.start({
+        pipeline_id: str(p, 'pipeline_id'), project_id: str(p, 'project_id'), inputs: inputs as Record<string, unknown>, trigger: trigger as 'manual' | 'schedule' | 'cli',
+      });
+      return { run_id };
+    },
+  });
+
+  m.set('run.cancel', { handler: (p) => { ctl.runner.cancel(str(p, 'run_id')); return {}; } });
+
+  m.set('run.resume', {
+    handler: (p) => {
+      const raise: Record<string, number> = {};
+      for (const k of ['max_tokens', 'max_usd', 'max_minutes']) if (typeof p[k] === 'number') raise[k] = p[k] as number;
+      ctl.runner.resume(str(p, 'run_id'), raise);
+      return {};
+    },
+  });
+
+  m.set('variant.pick', { handler: (p) => { ctl.runner.pick(str(p, 'run_id'), int(p, 'idx')); return {}; } });
+  m.set('variant.discard', { handler: (p) => { ctl.runner.discard(str(p, 'run_id'), int(p, 'idx')); return {}; } });
+
+  for (const name of ['comment.deliver', 'variant.combine']) {
     m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, `${name} arrives with a later child issue`); } });
   }
 

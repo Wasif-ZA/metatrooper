@@ -75,12 +75,20 @@ export function planCommand(run: string[], pluginDir: string, env: Record<string
 
 export function killTree(child: ChildProcess): void {
   if (!child.pid) return;
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-  } else {
-    try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+  killPid(child.pid);
+  if (process.platform !== 'win32') {
     try { child.kill('SIGKILL'); } catch {}
   }
+}
+
+/** Kills a process and its descendants: `taskkill /T /F` on Windows, the process group elsewhere. */
+export function killPid(pid: number): void {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    return;
+  }
+  try { process.kill(-pid, 'SIGKILL'); } catch {}
+  try { process.kill(pid, 'SIGKILL'); } catch {}
 }
 
 class RunLog {

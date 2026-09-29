@@ -28,7 +28,7 @@ from `core/src/`.
 
 | Command | What it does |
 |---|---|
-| `node core/build.ts` | generates `core/event.js`, `core/launch.js`, `core/codex-notify.js`, `core/mcp-shim.js` and `core/dist/` from the TypeScript in `core/src/`; `--check` exits 1 if any generated file is out of date. Run once before the tests |
+| `node core/build.ts` | generates `core/event.js`, `core/launch.js`, `core/codex-notify.js`, `core/mcp-shim.js`, `core/code-host.js` and `core/dist/` from the TypeScript in `core/src/`; `--check` exits 1 if any generated file is out of date. Run once before the tests |
 | `node core/src/main.ts` | starts the core service in the foreground; exits 0 on SIGINT or the `core.stop` method |
 | `node core/event.js <kind> ...` | the event writer (see `events-and-hooks.md`) |
 | `node core/cli.ts hooks install [--codex]` and `... hooks uninstall [--codex]` | hook installation (see `events-and-hooks.md`); `--yes` skips the confirm |
@@ -65,3 +65,16 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 | `core/src/plugins/importers.ts` | `importClaude(dir)`, `importCodex(file, project?)`, `importAgy(file?, project?)`, `parseToml(text)` | the importer table in `plugins.md`; literal values stay in memory |
 | `core/src/plugins/mcp.ts` | `mcpAttachArgs(db, engine, sessionId): string[]` | engine arguments pointing plugin MCP servers at the shim |
 | `core/src/engines/registry.ts` | `bindRole(db, role, pinned?)` | lowest `cost_rank` engine listing the role, installed and not red |
+
+## Pipeline modules tests may import (child #4)
+
+| Module | Export | Contract |
+|---|---|---|
+| `core/src/pipelines/validate.ts` | `validatePipeline(json, ctx): string[]`, `isGuarded(step, ctx)` | `pipelines.md`, Validation; `ctx` is `{pipeline(id), action(pluginId, actionId), dir}` |
+| `core/src/pipelines/template.ts` | `parseRef`, `resolveString`, `canonicalJson`, `actionHash`, `parseFrontMatter` | the template grammar in `pipeline.schema.json`; the hash in `pipelines.md`, Gates |
+| `core/src/ports.ts` | `leasePort(db, runId, idx)`, `releasePorts(db, runId, idx?)` | `pipelines.md`, Fan-out |
+
+Everything else about runs is observable through the pipe (`run.*`, `gate.resolve`, `variant.*`,
+`pipeline.validate`) and the `run`, `run_step`, `gate`, `variant`, `browser_pane`, `dev_server` and
+`port_lease` tables. A fake engine (`METATROOPER_ENGINES`, `TROOP_LAUNCHER=spawn`) that reads the handoff
+footer from its last argument and writes the output file is enough to drive every step kind.

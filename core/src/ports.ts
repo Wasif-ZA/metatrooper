@@ -18,8 +18,16 @@ function listening(port: number): Promise<boolean> {
   });
 }
 
-/** Leases the lowest port at or above 3001 that has no lease and nothing listening on it. */
-export async function leasePort(db: DatabaseSync, runId: string, idx: number): Promise<number> {
+let queue: Promise<unknown> = Promise.resolve();
+
+/** Leases the lowest port at or above 3001 that has no lease and nothing listening on it; one allocation at a time. */
+export function leasePort(db: DatabaseSync, runId: string, idx: number): Promise<number> {
+  const next = queue.then(() => allocate(db, runId, idx));
+  queue = next.catch(() => {});
+  return next;
+}
+
+async function allocate(db: DatabaseSync, runId: string, idx: number): Promise<number> {
   for (let port = FIRST; port <= LAST; port++) {
     const taken = db.prepare('SELECT 1 FROM port_lease WHERE port = ?').get(port);
     if (taken) continue;
