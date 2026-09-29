@@ -9,7 +9,7 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-03 | TODO |  |
 | M1-04 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:event writer without TROOP_SESSION_ID produces no output or row |
 | M1-05 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:event writer appends one redacted row and never stores a marker |
-| M1-06 | TODO |  |
+| M1-06 | TODO | partial: read p95<1ms and pipe p95<20ms with 3 sessions VERIFIED-LINUX (core/test/perf.test.ts). Still to prove: hook event on screen <100 ms, and with a running pipeline |
 | M1-07 | TODO |  |
 | M1-08a | VERIFIED-LINUX | core/test/core.test.ts:accepted commands re-execute and running commands become -32098 on restart |
 | M1-08b | VERIFIED-LINUX | core/test/core.test.ts:gate.resolve and core.stop require ui.hello on the same connection |
@@ -54,3 +54,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 6. Codex wrote core/test/browser-policy.test.ts (7) and browser-ancestry.test.ts (3); no src changes. core 70 tests: 67 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: #6 electron/xvfb test for panes, cursor overlay (M1-23), evaluate/page-script interception (M1-24), full-page capture (M1-25); write tests/windows script for M1-09.
 - 2026-09-30: iter 7. Wrote tests/windows/ scripts for M1-01/02/09/10 (NEEDS-WINDOWS); marked M1-11 VERIFIED from existing test. No src changes, no new tests (Codex not used). Next: audit M1-12 (codex/agy native_id), M1-03/06/07, then #9/#10/#11/#31/#13 issues; xvfb electron test for M1-23..25.
 - 2026-09-30: iter 8. Audited M1-12: watch.ts already implements codex/agy native_id rules; added core/test/native-id.test.ts (4 tests, tests by Claude, Codex not used). core 74: 71 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-03/06/07 (pid rediscovery, perf p95 tests), then #9/#10/#11/#31/#13; xvfb electron test for M1-23..25.
+- 2026-09-30: iter 9. Added core/test/perf.test.ts (M1-06 reads/pipe p95, tests by Claude, Codex not used). core 77: 74 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: finish M1-06 (hook->row <100 ms, running pipeline), then M1-03/07, then #9/#10/#11/#31/#13.
