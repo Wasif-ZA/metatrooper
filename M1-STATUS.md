@@ -21,8 +21,8 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-13 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:hooks install and uninstall preserve fixture settings and config byte for byte (claude+codex fixtures) |
 | M1-14 | VERIFIED-LINUX | core/test/sessions-and-hooks.test.ts:UserPromptSubmit prints one exact comment envelope and marks only delivered comments |
 | M1-15 | VERIFIED-LINUX | core/test/plugins.test.ts:M1-15 a plugin engine appears in engine and binds to a role... |
-| M1-16 | TODO |  |
-| M1-17 | TODO |  |
+| M1-16 | VERIFIED-LINUX | core/test/plugins.test.ts:M1-16 an action sees only the base variables... + M1-16 a hung action is killed with its child processes at its timeout |
+| M1-17 | VERIFIED-LINUX | core/test/plugins.test.ts:M1-17 and M1-25b an imported Claude plugin... |
 | M1-18 | VERIFIED-LINUX | core/test/runner.test.ts:M1-18 validates publish gates, publish fanout, and pinned publish engine |
 | M1-18a | VERIFIED-LINUX | core/test/runner.test.ts:M1-18a runs a child pipeline with remaining budget... |
 | M1-18b | VERIFIED-LINUX | core/test/core.test.ts:project.open uses canonical path sha1 (case-insensitive part needs Windows) |
@@ -33,8 +33,8 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-23 | TODO |  |
 | M1-24 | TODO |  |
 | M1-25 | TODO |  |
-| M1-25a | TODO |  |
-| M1-25b | TODO |  |
+| M1-25a | NEEDS-WINDOWS | npm half VERIFIED-LINUX (plugins.test.ts:M1-25a ... npm by name); .cmd half: run tests/windows/m1-25a-cmd.ps1 |
+| M1-25b | VERIFIED-LINUX | core/test/plugins.test.ts:M1-17 and M1-25b ... (DPAPI blob part uses METATROOPER_FAKE_DPAPI; real DPAPI needs Windows) |
 | M1-25c | VERIFIED-LINUX | core/test/runner.test.ts:M1-25c shows a dev_command variant only after readiness and discard kills its tree |
 | M1-26 | TODO |  |
 | M1-27 | TODO |  |
@@ -45,8 +45,9 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-32 | TODO |  |
 
 ## Child issues
-#1 core: mostly present (53 core tests, 3 skipped); #3 ?; #2 callrouter not started; #4 runner tested (tests by Codex); #5 workbench exists (4 tests, 1 skipped); #6 browser exists, tests missing; #9/#10/#11/#31/#13 unaudited.
+#1 core: mostly present (53 core tests, 3 skipped); #3 plugins done (13 tests, 1 skipped .cmd); #2 callrouter not started; #4 runner tested (tests by Codex); #5 workbench exists (4 tests, 1 skipped); #6 browser exists, tests missing; #9/#10/#11/#31/#13 unaudited.
 
 ## Log
 - 2026-09-30: iter 3. Created ledger. Fixed core suite: corePipe() and test helper pipePath() now use unix sockets under os.tmpdir() off Windows (Windows pipe names unchanged). core 53 tests: 50 pass, 0 fail, 3 skipped. workbench 4 tests: 3 pass, 1 skipped. Codex not used this iteration. Next: audit #3/#4 against issues/ and write runner tests (try codex for tests).
 - 2026-09-30: iter 4. Codex wrote core/test/runner.test.ts (7 tests, M1-18..22, 25c) and extended fake-engine.js; no src changes. core 62 tests: 59 pass, 0 fail, 3 skipped. workbench (use `npm test`; bare `node --test` hangs by scanning node_modules) 4: 3 pass, 1 skipped. Next: audit #3 plugin system (M1-15..17), then #6 browser tests (M1-22 pane ancestry, M1-23..25b).
+- 2026-09-30: iter 5. Audited #3: plugins.test.ts passes (12 pass, 1 skip). Marked M1-16/17/25b VERIFIED, 25a NEEDS-WINDOWS (added tests/windows/m1-25a-cmd.ps1). core 62: 59 pass, 3 skipped. Tests not new this iteration. Next: #6 browser tests (M1-23..25, M1-22 pane ancestry; use codex).
