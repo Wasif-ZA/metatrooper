@@ -17,6 +17,7 @@ export function isolation() {
 }
 
 export function pipePath(prefix) {
+  if (process.platform !== 'win32') return join(tmpdir(), `${prefix}.sock`);
   return bs + bs + '.' + bs + 'pipe' + bs + prefix;
 }
 
