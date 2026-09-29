@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Metatrooper</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="side">
+    <div class="brand">Metatrooper</div>
+    <div id="core"></div>
+    <section>
+      <div class="side-head"><span>Projects</span><button class="link" data-action="open-folder">Open folder</button></div>
+      <ul id="projects" class="projects"></ul>
+    </section>
+    <section>
+      <div class="side-head"><span>Engines</span><button class="link" data-action="check-engines">Check</button></div>
+      <ul id="engines" class="engines"></ul>
+    </section>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div id="project-title" class="project-title"></div>
+      <nav class="tabs" id="tabs">
+        <button data-action="tab" data-tab="sessions">Sessions</button>
+        <button data-action="tab" data-tab="runs">Runs</button>
+        <button data-action="tab" data-tab="pipelines">Pipelines</button>
+      </nav>
+    </header>
+    <div id="view" class="view"></div>
+  </main>
+
+  <aside class="rail">
+    <section>
+      <h2>Gates <span id="gate-count" class="count"></span></h2>
+      <div id="gates"></div>
+    </section>
+    <section>
+      <h2>Needs you <span id="needs-count" class="count"></span></h2>
+      <div id="needs"></div>
+    </section>
+  </aside>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

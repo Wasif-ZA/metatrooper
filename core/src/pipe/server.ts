@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import net from 'node:net';
 import { encode, createDecoder, LineTooLong } from './framing.ts';
 import { E, RpcError, toRpcError } from './errors.ts';
@@ -7,7 +8,21 @@ interface Conn {
   ui: boolean;
 }
 
-export function startPipeServer(pipePath: string, runner: CommandRunner, uiKey: string): Promise<net.Server> {
+/** On hosts where the pipe is a socket file, removes one left by a core that died, so the new core can listen. */
+function clearDeadSocket(pipePath: string): Promise<void> {
+  if (process.platform === 'win32' || !fs.existsSync(pipePath)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const probe = net.connect(pipePath);
+    probe.once('connect', () => { probe.destroy(); resolve(); });
+    probe.once('error', () => {
+      try { fs.unlinkSync(pipePath); } catch {}
+      resolve();
+    });
+  });
+}
+
+export async function startPipeServer(pipePath: string, runner: CommandRunner, uiKey: string): Promise<net.Server> {
+  await clearDeadSocket(pipePath);
   const server = net.createServer((socket) => {
     const conn: Conn = { ui: false };
     const send = (msg: object) => {

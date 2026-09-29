@@ -133,6 +133,7 @@ Every other interaction is a database read.
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
+| `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #5 for items nothing else resolves, such as a missed schedule) |
 
 ## Browser methods (`\\.\pipe\metatrooper-browser`)
 
