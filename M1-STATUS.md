@@ -29,9 +29,9 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-19 | VERIFIED-LINUX | core/test/runner.test.ts:M1-19 marks changed approvals stale and refuses non-UI or code gate resolves |
 | M1-20 | VERIFIED-LINUX | core/test/runner.test.ts:M1-20 enforces loop max, resumes failed steps... |
 | M1-21 | VERIFIED-LINUX | core/test/runner.test.ts:M1-21 stops new steps at max_tokens... |
-| M1-22 | VERIFIED-LINUX | core/test/runner.test.ts:M1-22 worktrees + port leases (pane ancestry part is child #6, not yet proven) |
+| M1-22 | VERIFIED-LINUX | core/test/runner.test.ts:M1-22 worktrees + port leases; core/test/browser-ancestry.test.ts:M1-22 ancestors * (pure walk only; real Get-CimInstance ancestry + pane isolation via MCP still unproven, needs Windows or electron test) |
 | M1-23 | TODO |  |
-| M1-24 | TODO |  |
+| M1-24 | TODO | policy half VERIFIED-LINUX (core/test/browser-policy.test.ts M1-24 *, 7 tests); page-script/evaluate interception in workbench/src/browser untested (try xvfb-run electron test) |
 | M1-25 | TODO |  |
 | M1-25a | NEEDS-WINDOWS | npm half VERIFIED-LINUX (plugins.test.ts:M1-25a ... npm by name); .cmd half: run tests/windows/m1-25a-cmd.ps1 |
 | M1-25b | VERIFIED-LINUX | core/test/plugins.test.ts:M1-17 and M1-25b ... (DPAPI blob part uses METATROOPER_FAKE_DPAPI; real DPAPI needs Windows) |
@@ -51,3 +51,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 3. Created ledger. Fixed core suite: corePipe() and test helper pipePath() now use unix sockets under os.tmpdir() off Windows (Windows pipe names unchanged). core 53 tests: 50 pass, 0 fail, 3 skipped. workbench 4 tests: 3 pass, 1 skipped. Codex not used this iteration. Next: audit #3/#4 against issues/ and write runner tests (try codex for tests).
 - 2026-09-30: iter 4. Codex wrote core/test/runner.test.ts (7 tests, M1-18..22, 25c) and extended fake-engine.js; no src changes. core 62 tests: 59 pass, 0 fail, 3 skipped. workbench (use `npm test`; bare `node --test` hangs by scanning node_modules) 4: 3 pass, 1 skipped. Next: audit #3 plugin system (M1-15..17), then #6 browser tests (M1-22 pane ancestry, M1-23..25b).
 - 2026-09-30: iter 5. Audited #3: plugins.test.ts passes (12 pass, 1 skip). Marked M1-16/17/25b VERIFIED, 25a NEEDS-WINDOWS (added tests/windows/m1-25a-cmd.ps1). core 62: 59 pass, 3 skipped. Tests not new this iteration. Next: #6 browser tests (M1-23..25, M1-22 pane ancestry; use codex).
+- 2026-09-30: iter 6. Codex wrote core/test/browser-policy.test.ts (7) and browser-ancestry.test.ts (3); no src changes. core 70 tests: 67 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: #6 electron/xvfb test for panes, cursor overlay (M1-23), evaluate/page-script interception (M1-24), full-page capture (M1-25); write tests/windows script for M1-09.
