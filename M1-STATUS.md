@@ -36,12 +36,12 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-25a | NEEDS-WINDOWS | npm half VERIFIED-LINUX (plugins.test.ts:M1-25a ... npm by name); .cmd half: run tests/windows/m1-25a-cmd.ps1 |
 | M1-25b | VERIFIED-LINUX | core/test/plugins.test.ts:M1-17 and M1-25b ... (DPAPI blob part uses METATROOPER_FAKE_DPAPI; real DPAPI needs Windows) |
 | M1-25c | VERIFIED-LINUX | core/test/runner.test.ts:M1-25c shows a dev_command variant only after readiness and discard kills its tree |
-| M1-26 | TODO |  |
+| M1-26 | NEEDS-WASIF | pipeline+bucketing VERIFIED-LINUX with fake engines (core/test/two-engine-review.test.ts: 3 M1-26 tests, four buckets, both verdicts, built-in file validates). Real proof needs logged-in codex and agy: on a repo with one planted bug run `troop run start two-engine-review --project <repo> --json` then `troop run wait <id>`; must finish <5 min. Steps run one after the other, not in parallel (runner has no parallel independent steps); agy engine id assumed `agy` |
 | M1-27 | TODO |  |
 | M1-28 | TODO |  |
 | M1-29 | TODO |  |
 | M1-30 | VERIFIED-LINUX | core/test/core.test.ts:project.open uses canonical path sha1 and refuses work/ACU |
-| M1-31 | TODO | CLI half VERIFIED-LINUX (core/test/cli-run.test.ts:M1-31 troop run start --json ... run wait returns at its first gate, with a gate-only fixture pipeline). Still needs the built-in two-engine-review pipeline (#9) and the troop skill file |
+| M1-31 | TODO | CLI half VERIFIED-LINUX (core/test/cli-run.test.ts:M1-31 troop run start --json ... run wait returns at its first gate, with a gate-only fixture pipeline). Built-in two-engine-review now exists (pipelines/two-engine-review.json); still needs the troop skill file |
 | M1-32 | TODO |  |
 
 ## Child issues
@@ -58,3 +58,4 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 - 2026-09-30: iter 19. Extended core/test/perf.test.ts with hook->row <100 ms check (tests by Claude, Codex not used). core 77: 74 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-03 (pid rediscovery <10 s) and M1-07, then #9/#10/#11/#31/#13 and callrouter #2; M1-06 with running pipeline.
 - 2026-09-30: iter 20. Added core/test/independence.test.ts (M1-03 core half, tests by Claude, Codex not used). core 78: 75 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Next: M1-07 (long-task observer needs electron/xvfb), then #9/#10/#11/#31/#13 audit and callrouter #2; M1-06 with running pipeline.
 - 2026-09-30: iter 21. Added `troop run start|wait|status` to core/cli.ts (#31) and core/test/cli-run.test.ts (tests by Claude, Codex not used). core 77 tests (glob test/*.test.ts): 74 pass, 0 fail, 3 skipped (earlier counts of 78 were off by one). workbench 4: 3 pass, 1 skipped. M1-32: sdk/, pipelines/, tray/ dirs do not exist yet, so not checkable. Next: #9 two-engine-review pipeline under pipelines/ (MIT, with LICENSE) so M1-26/31 can complete; then troop skill file, #10, #11, callrouter #2, M1-07.
+- 2026-09-30: iter 22. Added pipelines/two-engine-review.json + bucket.mjs + pipelines/LICENSE (MIT) and core/test/two-engine-review.test.ts (3 tests, tests by Claude, Codex not used). core 80: 77 pass, 0 fail, 3 skipped. workbench 4: 3 pass, 1 skipped. Review view (workbench, view=review) not built yet. Next: troop skill file (M1-31), then #10 hand-back tray, #11 token meter, callrouter #2, M1-07.

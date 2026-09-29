@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "id": "two-engine-review",
+  "title": "Two-engine review",
+  "lane": "coding",
+  "inputs": {
+    "range": { "type": "text", "label": "Git diff range to review", "required": false, "default": "HEAD" }
+  },
+  "budget": { "max_minutes": 5 },
+  "requires": ["repo"],
+  "steps": [
+    {
+      "id": "codex-review",
+      "title": "Codex review",
+      "role": "review",
+      "kind": "agent",
+      "engine": "codex",
+      "prompt": "Review the changes shown by `git diff {{inputs.range}}` in the current directory. Do not edit files. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
+      "outputs": ["verdict", "findings"],
+      "timeout_minutes": 5
+    },
+    {
+      "id": "gemini-review",
+      "title": "Gemini review",
+      "role": "review",
+      "kind": "agent",
+      "engine": "agy",
+      "prompt": "Review the changes shown by `git diff {{inputs.range}}` in the current directory. Do not edit files. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
+      "outputs": ["verdict", "findings"],
+      "timeout_minutes": 5
+    },
+    {
+      "id": "bucket",
+      "title": "Sort findings into buckets",
+      "kind": "code",
+      "code": "two-engine-review/bucket.mjs",
+      "view": "review"
+    }
+  ]
+}
