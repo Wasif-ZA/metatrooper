@@ -32,6 +32,20 @@ test('M1-06 window reads p95 < 1 ms and pipe commands p95 < 20 ms with 3 live se
       const launched = await pipe.request('session.launch', { project_id: opened.result.project_id, engine_id: 'fake', prompt: join(root, 'core/test/fake-engine.js') });
       assert.ok(launched.result?.session_id, JSON.stringify(launched));
     }
+    // a running pipeline: a code step that keeps the run in 'running' while we measure
+    const pdir = join(project, '.troop', 'pipelines');
+    mkdirSync(pdir, { recursive: true });
+    writeFileSync(join(pdir, 'slow.mjs'), 'export async function run() { await new Promise((r) => setTimeout(r, 15000)); return {}; }\n');
+    writeFileSync(join(pdir, 'perf-pipe.json'), JSON.stringify({ schema: 1, id: 'perf-pipe', title: 'Perf', steps: [{ id: 'slow', kind: 'code', code: 'slow.mjs' }] }));
+    const started = await pipe.request('run.start', { pipeline_id: 'perf-pipe', project_id: opened.result.project_id }, { timeout: 5000 });
+    assert.ok(started.result?.run_id, JSON.stringify(started));
+    const runDb = new DatabaseSync(join(isolated.home, 'troop.db'), { readOnly: true });
+    const t0 = Date.now();
+    while (runDb.prepare('SELECT status FROM run WHERE id = ?').get(started.result.run_id)?.status !== 'running') {
+      assert.ok(Date.now() - t0 < 5000, 'run never started');
+      await new Promise((res) => setTimeout(res, 20));
+    }
+    runDb.close();
     // pipe commands
     const pipeMs: number[] = [];
     for (let i = 0; i < 100; i++) {
@@ -69,6 +83,9 @@ test('M1-06 window reads p95 < 1 ms and pipe commands p95 < 20 ms with 3 live se
     }
     assert.ok(Math.max(...hookMs) < 100, `hook->row max ${Math.max(...hookMs).toFixed(1)} ms`);
     db.close();
+    const runCheck = new DatabaseSync(join(isolated.home, 'troop.db'), { readOnly: true });
+    assert.equal(runCheck.prepare('SELECT status FROM run WHERE id = ?').get(started.result.run_id).status, 'running', 'pipeline should still be running during measurements');
+    runCheck.close();
     assert.ok(p95(readMs) < 1, `read p95 ${p95(readMs).toFixed(3)} ms`);
   } finally { pipe.close(); await teardownCore(core, isolated); }
 });
