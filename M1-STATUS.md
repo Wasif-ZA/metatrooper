@@ -23,19 +23,19 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-15 | VERIFIED-LINUX | core/test/plugins.test.ts:M1-15 a plugin engine appears in engine and binds to a role... |
 | M1-16 | TODO |  |
 | M1-17 | TODO |  |
-| M1-18 | TODO |  |
-| M1-18a | TODO |  |
+| M1-18 | VERIFIED-LINUX | core/test/runner.test.ts:M1-18 validates publish gates, publish fanout, and pinned publish engine |
+| M1-18a | VERIFIED-LINUX | core/test/runner.test.ts:M1-18a runs a child pipeline with remaining budget... |
 | M1-18b | VERIFIED-LINUX | core/test/core.test.ts:project.open uses canonical path sha1 (case-insensitive part needs Windows) |
-| M1-19 | TODO |  |
-| M1-20 | TODO |  |
-| M1-21 | TODO |  |
-| M1-22 | TODO |  |
+| M1-19 | VERIFIED-LINUX | core/test/runner.test.ts:M1-19 marks changed approvals stale and refuses non-UI or code gate resolves |
+| M1-20 | VERIFIED-LINUX | core/test/runner.test.ts:M1-20 enforces loop max, resumes failed steps... |
+| M1-21 | VERIFIED-LINUX | core/test/runner.test.ts:M1-21 stops new steps at max_tokens... |
+| M1-22 | VERIFIED-LINUX | core/test/runner.test.ts:M1-22 worktrees + port leases (pane ancestry part is child #6, not yet proven) |
 | M1-23 | TODO |  |
 | M1-24 | TODO |  |
 | M1-25 | TODO |  |
 | M1-25a | TODO |  |
 | M1-25b | TODO |  |
-| M1-25c | TODO |  |
+| M1-25c | VERIFIED-LINUX | core/test/runner.test.ts:M1-25c shows a dev_command variant only after readiness and discard kills its tree |
 | M1-26 | TODO |  |
 | M1-27 | TODO |  |
 | M1-28 | TODO |  |
@@ -45,7 +45,8 @@ Branch m1-autobuild. Status values: TODO | VERIFIED-LINUX | NEEDS-WINDOWS | NEED
 | M1-32 | TODO |  |
 
 ## Child issues
-#1 core: mostly present (53 core tests, 3 skipped); #3 ?; #2 callrouter not started; #4 runner exists (tests by Claude when added); #5 workbench exists (4 tests, 1 skipped); #6 browser exists, tests missing; #9/#10/#11/#31/#13 unaudited.
+#1 core: mostly present (53 core tests, 3 skipped); #3 ?; #2 callrouter not started; #4 runner tested (tests by Codex); #5 workbench exists (4 tests, 1 skipped); #6 browser exists, tests missing; #9/#10/#11/#31/#13 unaudited.
 
 ## Log
 - 2026-09-30: iter 3. Created ledger. Fixed core suite: corePipe() and test helper pipePath() now use unix sockets under os.tmpdir() off Windows (Windows pipe names unchanged). core 53 tests: 50 pass, 0 fail, 3 skipped. workbench 4 tests: 3 pass, 1 skipped. Codex not used this iteration. Next: audit #3/#4 against issues/ and write runner tests (try codex for tests).
+- 2026-09-30: iter 4. Codex wrote core/test/runner.test.ts (7 tests, M1-18..22, 25c) and extended fake-engine.js; no src changes. core 62 tests: 59 pass, 0 fail, 3 skipped. workbench (use `npm test`; bare `node --test` hangs by scanning node_modules) 4: 3 pass, 1 skipped. Next: audit #3 plugin system (M1-15..17), then #6 browser tests (M1-22 pane ancestry, M1-23..25b).
