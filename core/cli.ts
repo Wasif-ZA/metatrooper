@@ -9,7 +9,7 @@ import { openReaderDb } from './src/store/db.ts';
 process.removeAllListeners('warning');
 process.on('warning', () => {});
 
-const USAGE = `usage: troop <command> [--json]
+const USAGE = `usage: paratroopers <command> [--json]
 
   serve                         run the core service in this terminal
   ping                          check the core is up
@@ -82,7 +82,7 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
     console.log('Hooks removed.');
     return 0;
   }
-  console.error('usage: troop hooks install|uninstall [--codex] [--yes]');
+  console.error('usage: paratroopers hooks install|uninstall [--codex] [--yes]');
   return 2;
 }
 
@@ -166,7 +166,7 @@ async function plugin(a: Args, json: boolean): Promise<number> {
     }, json);
     if (r.result) {
       const missing = (r.result.missing_secrets as string[]) ?? [];
-      emit(json, r.result, `installed ${r.result.plugin_id}${missing.length ? `; still to set: ${missing.join(', ')} (troop plugin secret ${r.result.plugin_id} <NAME>)` : ''}`);
+      emit(json, r.result, `installed ${r.result.plugin_id}${missing.length ? `; still to set: ${missing.join(', ')} (paratroopers plugin secret ${r.result.plugin_id} <NAME>)` : ''}`);
     }
     return r.code;
   }
@@ -189,7 +189,7 @@ async function plugin(a: Args, json: boolean): Promise<number> {
     if (r.result) emit(json, r.result, `set ${name} for ${target}`);
     return r.code;
   }
-  console.error('usage: troop plugin list | install <source> [--yes] | remove <id> [--yes] | secret <id> <NAME>');
+  console.error('usage: paratroopers plugin list | install <source> [--yes] | remove <id> [--yes] | secret <id> <NAME>');
   return 2;
 }
 
@@ -204,7 +204,7 @@ async function rpc(method: string, params: Record<string, unknown>, json: boolea
   });
   if (out.kind === 'offline') {
     if (json) console.log(JSON.stringify({ error: { code: -32099, message: 'core offline' } }));
-    else console.error('core offline: start it with `troop serve`');
+    else console.error('core offline: start it with `paratroopers serve`');
     return { code: 3 };
   }
   if (out.kind === 'queued') {
@@ -280,7 +280,7 @@ async function main(): Promise<number> {
     case 'launch': {
       const engine = a.pos[0];
       if (!engine) {
-        console.error('usage: troop launch <engine> [--project <path>] [--prompt <text>]');
+        console.error('usage: paratroopers launch <engine> [--project <path>] [--prompt <text>]');
         return 2;
       }
       const opened = await rpc('project.open', { path: a.opts.get('--project') ?? process.cwd() }, json);
@@ -310,7 +310,7 @@ async function main(): Promise<number> {
     case 'seen':
     case 'hide': {
       if (!a.pos[0]) {
-        console.error(`usage: troop ${cmd} <session>`);
+        console.error(`usage: paratroopers ${cmd} <session>`);
         return 2;
       }
       const id = resolveSession(a.pos[0]);

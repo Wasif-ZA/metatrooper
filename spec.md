@@ -93,7 +93,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 
 ```
  +--------------------------------+   +-------------------------+   +-------------------+
- | Electron workbench             |   | Tauri tray (milestone 3)|   | troop CLI         |
+ | Electron workbench             |   | Tauri tray (milestone 3)|   | paratroopers CLI  |
  | board | browser | variants |   |   | lights, needs-you, meter|   | (agents use it)   |
  | runner | review | hand-back    |   +-----+-------------+-----+   +----+---------+----+
  +----+-------------+-------------+         |             |              |         |
@@ -340,7 +340,7 @@ Agents run as the user. Any agent with a shell can already do anything the user'
 posting or pushing without the IDE. So Metatrooper does not claim to stop a hostile process running as the
 user. What gates guarantee is narrower and testable: a pipeline never performs a publish or external step
 unless a person approved that exact action in the workbench, tray, or an interactive CLI; a pipeline, a code
-step, a plugin action, or a cooperating agent using the `troop` CLI non-interactively cannot approve one.
+step, a plugin action, or a cooperating agent using the `paratroopers` CLI non-interactively cannot approve one.
 Approval needs a trusted UI connection, proven with a per-start key in `~/.metatrooper/ui.key` that only the
 workbench, tray and interactive CLI read; code steps and plugin actions get no method or helper that reaches
 it. A script that deliberately reads that file is a hostile same-user process and out of scope.
@@ -349,8 +349,8 @@ to their session by process ancestry so well-behaved agents cannot drive each ot
 
 ## Agent-native CLI and skill
 
-`troop session launch|list|wait`, `troop run start|status|wait|resume`, `troop worktree create`,
-`troop browser panes|snapshot|click|type`, all with `--json`. Every command is a pipe method or a database
+`paratroopers session launch|list|wait`, `paratroopers run start|status|wait|resume`, `paratroopers worktree create`,
+`paratroopers browser panes|snapshot|click|type`, all with `--json`. Every command is a pipe method or a database
 read. `run wait` returns when the run reaches `done`, `failed`, or any gate. A skill file teaches agents when
 to use each. Publishing still stops at a gate, and `gate.resolve` from the CLI requires an interactive
 terminal (it refuses when stdin is not a TTY), so an agent cannot approve its own gate.
@@ -441,7 +441,7 @@ Estimates are Claude Code days and were raised after the review said the first o
 | 9 | Two-engine review pipeline and view | 1 | 4, 5 |
 | 10 | Hand-back tray | 0.5 | 1, 5 |
 | 11 | Token meter and prices (reads `usage` from #1 and callrouter "saved") | 1.5 | 1, 2 |
-| 31 | Agent-native `troop` CLI and skill | 1.5 | 1, 4 |
+| 31 | Agent-native `paratroopers` CLI and skill | 1.5 | 1, 4 |
 | 13 | Measurement tooling for the adoption gate | 0.5 | 5 to 11 |
 
 Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, before milestone 2 starts.
@@ -563,7 +563,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   its transcript.
 - M1-29. Callrouter Plan A passes its own criteria 1 to 8 (`projects/callrouter/docs/spec.md:111-128`).
 - M1-30. `project.open` on a path containing `work/ACU` returns -32001.
-- M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop
+- M1-31. `paratroopers run start two-engine-review --json` from inside an agent session starts a run, and `paratroopers
   run wait` returns at its first gate.
 - M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry
   MIT.
@@ -633,7 +633,7 @@ built-in and template validates against `pipeline.schema.json`; every first-part
 ## Rollback
 
 - Code: delete the repo; nothing else imports it.
-- Hooks: `troop hooks uninstall` (byte-identical, M1-13); callrouter's own rollback in its
+- Hooks: `paratroopers hooks uninstall` (byte-identical, M1-13); callrouter's own rollback in its
   `spec.md:145-151`.
 - Codex notify: restored by uninstall; a manual backup is at `~/.codex/config.toml.troop-bak`.
 - Worktrees: delete `~/.metatrooper/worktrees/`, then `git worktree prune` in each project.
