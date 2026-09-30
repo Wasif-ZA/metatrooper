@@ -35,7 +35,9 @@ export function pipePrefix()         {
   return process.env.METATROOPER_PIPE_PREFIX || 'metatrooper';
 }
 
+/** Windows named pipe; on other hosts an absolute unix socket file (the code stays portable). */
 export function corePipe()         {
+  if (process.platform !== 'win32') return path.join(os.tmpdir(), `${pipePrefix()}.sock`);
   return BS + BS + '.' + BS + 'pipe' + BS + pipePrefix();
 }
 
