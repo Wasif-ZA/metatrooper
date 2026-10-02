@@ -21,7 +21,7 @@ GitHub; filing and pushing are Wasif's.
 | Child | Status | Notes |
 |---|---|---|
 | #33 terminal core | CODE DONE, TESTS OWED | 48d3ab1 code, 9f2bc1d docs. Codex tests owed. Issue 27 close is a hand-back |
-| #34 layout | NEEDS-WASIF | render round 1 |
+| #34 layout | IN PROGRESS | rounds done: A, themes (default graphite), row 4 |
 | #35 status | TODO | after 33, 34 |
 | #36 tools | TODO | after 33, 34 |
 | #37 step list | TODO | after 34 |
@@ -78,3 +78,6 @@ Approve gate is already 1, so "each new count is lower" cannot hold for it as wr
   After the settings change: 15 ms and 14 ms. Core 108 pass, workbench 9 pass.
 - 2026-10-02T20:55+10:00: #34 round 1 board ready at ~/.cache/claude-scratch/metatrooper-ui-revision-2026-10-02/renders/round1/board.html
   (5 structures A to E from 13 surveyed tools, research-layouts.md beside it). Waiting on Wasif's pick.
+- 2026-10-02T20:57+10:00: round 1 pick: A (session list, big terminal, side split with tabs). Round 2 varies material (colour and type) on A.
+- 2026-10-02T20:59+10:00: round 2 pick: every material is a user-selectable theme (graphite, paper, terminal, slate, light); graphite is the default. Values from round2/gen.py MATS.
+- 2026-10-02T21:05+10:00: round 3 pick: session row 4 (engine, task, time; branch with +/-; last output line, amber when asking). Render rounds done; #34 code may start. Brief: layout A + 5 themes (default graphite) + row 4.
