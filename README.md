@@ -25,10 +25,7 @@
 <p align="center"><i><code>pytest -v</code>: 261 lines in, 11 out, the failure kept.</i></p>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/bench-dark.svg?raw=true">
-    <img alt="Bar chart: raw shell output is 5.26M tokens; through toolrouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench-light.svg">
-  </picture>
+  <img alt="Bar chart: raw shell output is 5.26M tokens; through toolrouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
 </p>
 
 <br>
@@ -68,17 +65,17 @@ shape.
 <table>
   <tr>
     <td align="center" rowspan="2"><strong>Called<br>by</strong></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/logos/claude-dark.svg?raw=true"><img src="assets/logos/claude-light.svg" width="32" height="32" alt="Claude Code"></picture><br><sub>Claude Code</sub></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/logos/openai-dark.svg?raw=true"><img src="assets/logos/openai-light.svg" width="32" height="32" alt="Codex"></picture><br><sub>Codex</sub></td>
+    <td align="center" valign="top"><img src="assets/logos/claude.svg" width="32" height="32" alt="Claude Code"><br><sub>Claude Code</sub></td>
+    <td align="center" valign="top"><img src="assets/logos/openai.svg" width="32" height="32" alt="Codex"><br><sub>Codex</sub></td>
     <td align="center" rowspan="2"><strong>Talks<br>to</strong></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/logos/googlegemini-dark.svg?raw=true"><img src="assets/logos/googlegemini-light.svg" width="32" height="32" alt="Gemini"></picture><br><sub>Gemini</sub></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/logos/ollama-dark.svg?raw=true"><img src="assets/logos/ollama-light.svg" width="32" height="32" alt="Ollama"></picture><br><sub>Ollama</sub></td>
+    <td align="center" valign="top"><img src="assets/logos/googlegemini.svg" width="32" height="32" alt="Gemini"><br><sub>Gemini</sub></td>
+    <td align="center" valign="top"><img src="assets/logos/ollama.svg" width="32" height="32" alt="Ollama"><br><sub>Ollama</sub></td>
   </tr>
   <tr>
     <td align="center" valign="top"><sub>any agent<br>with a shell</sub></td>
     <td align="center" valign="top"><sub>you, at<br>a terminal</sub></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/logos/googlechrome-dark.svg?raw=true"><img src="assets/logos/googlechrome-light.svg" width="32" height="32" alt="Chrome"></picture><br><sub>Chrome</sub></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/logos/modelcontextprotocol-dark.svg?raw=true"><img src="assets/logos/modelcontextprotocol-light.svg" width="32" height="32" alt="MCP servers"></picture><br><sub>MCP servers</sub></td>
+    <td align="center" valign="top"><img src="assets/logos/googlechrome.svg" width="32" height="32" alt="Chrome"><br><sub>Chrome</sub></td>
+    <td align="center" valign="top"><img src="assets/logos/modelcontextprotocol.svg" width="32" height="32" alt="MCP servers"><br><sub>MCP servers</sub></td>
   </tr>
 </table>
 
@@ -105,10 +102,7 @@ Four things have to work for an agent to stop re-learning its tools: what worked
 went wrong before, how much it reads, and how every answer comes back. toolrouter is built
 around exactly those four.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/parts-dark.png?raw=true">
-  <img src="assets/parts-light.png" alt="The four parts of toolrouter: Recipes (what worked before), Trap hints (the known fix), Shrink (only the lines that carry the answer), One shape (every tool answers the same way).">
-</picture>
+<img src="assets/parts.png" alt="The four parts of toolrouter: Recipes (what worked before), Trap hints (the known fix), Shrink (only the lines that carry the answer), One shape (every tool answers the same way).">
 
 | Part | Built for | What it does |
 | --- | --- | --- |
@@ -378,10 +372,7 @@ line of JSON. `--json`, `--human` or `TOOLROUTER_OUTPUT` force either.
 </p>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Wasif-ZA/toolrouter/blob/main/assets/bench-dark.svg?raw=true">
-    <img alt="Bar chart: raw shell output is 5.26M tokens; through toolrouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench-light.svg">
-  </picture>
+  <img alt="Bar chart: raw shell output is 5.26M tokens; through toolrouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
 </p>
 
 On 5,207 Bash outputs from real Claude Code transcripts:
