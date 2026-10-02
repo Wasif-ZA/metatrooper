@@ -19,6 +19,7 @@ export interface Snapshot {
   panes: Array<{ id: string; url: string | null; session_id: string | null; run_id: string | null; variant: number | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   board: Array<{ id: string; run_id: string; source_url: string; capture_path: string | null; reason: string; pinned: number }>;
+  limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   variants: Array<{ idx: number; status: string; branch: string; pane_id: string | null; dev_port: number; step_id: string | null; engine_id: string | null; session_id: string | null; tokens: number | null; usd: number | null }>;
 }
 
@@ -165,6 +166,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     snapshots,
     board,
     variants,
+    limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
   };
 }
 

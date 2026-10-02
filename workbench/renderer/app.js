@@ -112,6 +112,24 @@ function renderTop() {
   const p = project();
   setHtml('project-title', p ? `${esc(p.name)}<small>${esc(p.path)}</small>` : 'Pick or open a project');
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === ui.tab);
+  setHtml('usage-bar', usageBar(ui.snap.limits || []));
+}
+
+function untilText(iso) {
+  const ms = Date.parse(iso) - Date.now();
+  if (!(ms > 0)) return 'reset passed';
+  const h = Math.floor(ms / 3_600_000), m = Math.floor((ms % 3_600_000) / 60_000);
+  return h >= 24 ? `resets in ${Math.floor(h / 24)}d ${h % 24}h` : `resets in ${h}h ${m}m`;
+}
+
+function usageBar(rows) {
+  const by = new Map();
+  for (const r of rows) by.set(r.provider, [...(by.get(r.provider) || []), r]);
+  return [...by].map(([provider, list]) => {
+    const ok = list.filter((r) => r.status === 'ok' && r.used_pct !== null);
+    if (!ok.length) return `<span class="chip" title="No local source for this provider's limits">${esc(provider)} · usage unavailable</span>`;
+    return ok.map((r) => `<span class="chip ${r.used_pct >= 80 ? 'warn' : ''}" title="read ${esc(r.read_at)}">${esc(provider)} ${esc(r.window)} ${Math.round(r.used_pct)}%${r.resets_at ? ` · ${esc(untilText(r.resets_at))}` : ''}</span>`).join('');
+  }).join('');
 }
 
 function meter(x) {

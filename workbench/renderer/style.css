@@ -174,6 +174,8 @@ td.wrap { white-space: normal; }
 .view:has(.browser) { overflow: hidden; display: flex; flex-direction: column; }
 .chip { font-size: 12px; }
 .chip.on { background: var(--chip-bg); border-color: var(--accent); font-weight: 600; }
+.chip.warn { border-color: var(--bad, #c33); color: var(--bad, #c33); font-weight: 600; }
+.usage-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .url { flex: 1; min-width: 200px; }
 .pane-host { flex: 1; min-height: 240px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
