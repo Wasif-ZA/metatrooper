@@ -6,6 +6,7 @@ import type { EngineSpec } from '../engines/registry.ts';
 import { mcpAttachArgs } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
+import { settings } from '../settings.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -21,8 +22,6 @@ export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', 
 }
 
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
-
-export const PROMPT_WAIT_MS = 60_000;
 
 export function launchSession(
   db: DatabaseSync,
@@ -60,13 +59,13 @@ export function writePrompt(db: DatabaseSync, sessionId: string): { written: boo
   return { written: true };
 }
 
-/** Every tick: a held prompt is typed when its session first reaches idle or waiting_for_you within 60 s. */
+/** Every tick: a held prompt is typed when its session first reaches idle or waiting_for_you within terminal.prompt_wait_ms. */
 export function deliverPrompts(db: DatabaseSync): void {
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
   for (const [id, held] of pendingPrompts) {
     const s = get.get(id) as { state: string } | undefined;
     if (!s || s.state === 'exited') { pendingPrompts.delete(id); continue; }
-    if (Date.now() - held.at > PROMPT_WAIT_MS) continue;
+    if (Date.now() - held.at > settings().terminal.prompt_wait_ms) continue;
     if (s.state === 'idle' || s.state === 'waiting_for_you') writePrompt(db, id);
   }
 }

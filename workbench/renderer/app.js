@@ -535,6 +535,8 @@ function refreshHandback() {
 
 function render() {
   if (!ui.snap) return;
+  const sel = ui.tab === 'sessions' ? ui.snap.sessions.find((x) => x.id === ui.snap.selected) : null;
+  if (typeof termView !== 'undefined') termView.follow(sel ? sel.id : null, sel ? `${sel.engine_id} ${sel.id.slice(-8).toLowerCase()} · ${STATE_WORDS[sel.state] || sel.state}` : '');
   renderSide();
   renderTop();
   let html;
@@ -547,7 +549,7 @@ function render() {
   setHtml('view', html);
   reportPaneBounds();
   renderRail();
-  if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online });
+  if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: typeof termView !== 'undefined' ? termView.state() : null });
 }
 
 async function refreshLog() {

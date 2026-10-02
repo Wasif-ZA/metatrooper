@@ -2,12 +2,10 @@ import fs from 'node:fs';
 import net from 'node:net';
 import { createDecoder } from '../pipe/framing.ts';
 import * as term from './index.ts';
-
-export const CHUNK = 64 * 1024;
-export const SLOW_VIEWER_BYTES = 4 * 1024 * 1024;
+import { settings } from '../settings.ts';
 
 /** Splits on code-point boundaries so no message ends inside a surrogate pair. */
-export function splitChunks(data: string, max = CHUNK): string[] {
+export function splitChunks(data: string, max = Math.max(2, settings().terminal.chunk_bytes)): string[] {
   const out: string[] = [];
   let i = 0;
   while (i < data.length) {
@@ -31,7 +29,7 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
     const send = (msg: object) => {
       if (socket.destroyed) return;
       socket.write(JSON.stringify(msg) + '\n');
-      if (socket.writableLength > SLOW_VIEWER_BYTES) {
+      if (socket.writableLength > settings().terminal.slow_viewer_bytes) {
         socket.write(JSON.stringify({ op: 'error', code: 'slow-viewer' }) + '\n');
         drop();
         socket.end();

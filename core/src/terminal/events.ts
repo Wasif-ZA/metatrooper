@@ -1,13 +1,12 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
 import { setTermHooks } from './index.ts';
+import { settings } from '../settings.ts';
 
-export const SILENT_MS = 30_000;
-
-/** True when the session has had no event from any source but the terminal for SILENT_MS. */
+/** True when the session has had no event from any source but the terminal for terminal.bell_silent_ms. */
 export function silent(db: DatabaseSync, sessionId: string, now = Date.now()): boolean {
   const r = db.prepare("SELECT max(at) AS at FROM event WHERE session_id = ? AND kind NOT LIKE 'term.%'").get(sessionId) as { at: string | null };
-  return !r.at || now - Date.parse(r.at) >= SILENT_MS;
+  return !r.at || now - Date.parse(r.at) >= settings().terminal.bell_silent_ms;
 }
 
 export function wireTermEvents(db: DatabaseSync): void {

@@ -12,6 +12,8 @@ import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
 import { diffLineBody, filesBody } from './comments.ts';
+import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
+import { settings } from '../../core/src/settings.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -21,7 +23,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
-  'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
+  'session.paste-prompt', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -335,6 +337,17 @@ function handlers(): void {
       return null;
     }
   });
+
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
+    if (typeof sessionId !== 'string') return false;
+    attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
+    return true;
+  });
+  on('termSettings', () => settings().terminal);
+  on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
+  on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
+  on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('copyText', (text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);

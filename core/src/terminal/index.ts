@@ -1,12 +1,11 @@
 import { createRequire } from 'node:module';
 import type { IPty } from 'node-pty';
+import { settings } from '../settings.ts';
 
 const require = createRequire(import.meta.url);
 const pty = require('node-pty') as typeof import('node-pty');
 const { Terminal } = require('@xterm/headless') as typeof import('@xterm/headless');
 const { SerializeAddon } = require('@xterm/addon-serialize') as typeof import('@xterm/addon-serialize');
-
-export const SCROLLBACK = 10_000;
 
 export interface Viewer {
   snapshot(data: string): void;
@@ -38,12 +37,12 @@ export function setTermHooks(h: TermHooks): void {
   hooks = h;
 }
 
-export function open(id: string, argv: string[], cwd: string, env: Record<string, string | undefined>, cols = 120, rows = 30): number {
+export function open(id: string, argv: string[], cwd: string, env: Record<string, string | undefined>, cols = settings().terminal.cols, rows = settings().terminal.rows): number {
   if (terms.has(id)) throw new Error(`terminal ${id} already open`);
   const cleanEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) if (v !== undefined) cleanEnv[k] = v;
   const proc = pty.spawn(argv[0], argv.slice(1), { name: 'xterm-256color', cols, rows, cwd, env: cleanEnv, useConpty: true });
-  const head = new Terminal({ cols, rows, scrollback: SCROLLBACK, allowProposedApi: true });
+  const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true });
   const ser = new SerializeAddon();
   head.loadAddon(ser);
   const t: Term = { proc, head, ser, viewers: new Set(), exitCode: null, written: 0, parsed: 0 };

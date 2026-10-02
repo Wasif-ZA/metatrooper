@@ -26,6 +26,16 @@ contextBridge.exposeInMainWorld('troop', {
     ipcRenderer.on('comment-picked', listener);
     return () => ipcRenderer.removeListener('comment-picked', listener);
   },
+  termAttach: (sessionId, cols, rows) => ipcRenderer.invoke('termAttach', sessionId, cols, rows),
+  termSettings: () => ipcRenderer.invoke('termSettings'),
+  termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
+  termResize: (sessionId, cols, rows) => ipcRenderer.invoke('termResize', sessionId, cols, rows),
+  termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),
+  onTerm: (fn) => {
+    const listener = (_e, sessionId, msg) => fn(sessionId, msg);
+    ipcRenderer.on('term', listener);
+    return () => ipcRenderer.removeListener('term', listener);
+  },
   onSnapshot: (fn) => {
     const listener = (_e, s) => fn(s);
     ipcRenderer.on('snapshot', listener);

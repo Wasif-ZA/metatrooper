@@ -5,12 +5,18 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "main": "src/main.ts",
-  "engines": { "node": ">=24.16" },
+  "engines": {
+    "node": ">=24.16"
+  },
   "scripts": {
     "dev": "electron .",
     "test": "node --test \"test/*.test.ts\""
   },
   "devDependencies": {
     "electron": "44.4.5"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0"
   }
 }

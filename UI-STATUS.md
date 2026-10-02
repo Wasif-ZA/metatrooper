@@ -8,19 +8,19 @@ GitHub; filing and pushing are Wasif's.
 |---|---|---|
 | UI-01 workday in the app | TODO | needs #34 to #36 and a real day of use |
 | UI-02 first agent in 30 s | TODO | needs installer and a fresh Windows account |
-| UI-03 survives the window | TODO | #33 core half, #34 window half |
+| UI-03 survives the window | TODO | core half works by hand (smoke 2026-10-02: detach, reattach, snapshot then seq'd output); #34 window half; test owed to Codex |
 | UI-04 fewer clicks | TODO | today's counts go in "Click counts" before any #34 code |
-| UI-05 no wt or herdr left | TODO | #33 clean cut |
+| UI-05 no wt or herdr left | DONE-UNTESTED | 2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
 | UI-06 core kill to Resume | TODO | #35 |
-| UI-07 prompt typed once | TODO | #33 |
+| UI-07 prompt typed once | DONE-UNTESTED | smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
 | UI-08 spec-to-pr step list | TODO | #37 |
 | UI-09 four result panes | TODO | #38 |
-| UI-10 speed | TODO | #33 and #34 |
-| UI-11 tests on the terminal module | TODO | #33; Codex writes the #33 tests |
+| UI-10 speed | PARTIAL | window attach (pipe to xterm.js write callback) 14 to 23 ms in real Electron; core attach, 10,000 rows (733 KB snapshot): median 44 ms of 10 (min 42, max 53), pipe connect to snapshot parsed. xterm.js write half and 6-tile echo need #34 |
+| UI-11 tests on the terminal module | PARTIAL | core 108 pass, 3 skipped (M1-03 superseded by UI-06, 2 opt-in); workbench 9 pass, 4 opt-in skipped; no test spawns wt.exe. New #33 tests owed to Codex (usage limit until 21:31) |
 
 | Child | Status | Notes |
 |---|---|---|
-| #33 terminal core | IN PROGRESS | Task 0 passed |
+| #33 terminal core | CODE DONE, TESTS OWED | 48d3ab1 code, 9f2bc1d docs. Codex tests owed. Issue 27 close is a hand-back |
 | #34 layout | NEEDS-WASIF | render round 1 |
 | #35 status | TODO | after 33, 34 |
 | #36 tools | TODO | after 33, 34 |
@@ -29,7 +29,17 @@ GitHub; filing and pushing are Wasif's.
 
 ## Click counts (today, before #34)
 
-Not counted yet.
+Counted from the m2 code (b256909), home = Sessions tab with a project open. A click is one mouse click or key chord.
+
+| Job | Today | Path |
+|---|---|---|
+| Start agent | 1 | engine button in the Launch toolbar; a Windows Terminal window opens |
+| Approve gate | 1 | Approve in the always-visible Gates rail |
+| See diff | 2 | Hand-back tab, then a file chip |
+| Hand back | 2 | Hand-back tab, then Copy |
+| Open browser | 2 | Browser tab, then New pane (1 if a pane exists) |
+
+Approve gate is already 1, so "each new count is lower" cannot hold for it as written; raised with Wasif.
 
 ## Decisions
 
@@ -39,6 +49,14 @@ Not counted yet.
 - 2026-10-02: `pwsh` (PowerShell 7) is not installed on this laptop. Shell tabs fall back to `powershell.exe` (5.1)
   when `pwsh` is missing.
 
+- 2026-10-02: nothing hardcoded (Wasif). Terminal values live in core/src/settings.ts DEFAULTS and are overridden
+  by `~/.metatrooper/settings.json` under `terminal`: cols, rows, scrollback, font_family, font_size, background,
+  foreground, border, chunk_bytes, slow_viewer_bytes, bell_silent_ms, prompt_wait_ms. A wrong-typed key keeps its
+  default; broken JSON means all defaults. Read on each use with an mtime cache, so edits apply without a restart.
+- 2026-10-02: an interim terminal view (workbench/renderer/terminal.js, xterm.js 6.0.0 + fit 0.11.0, MIT, D7)
+  shows the selected session under the old Sessions tab until #34's layout replaces the page around it. CSP
+  style-src gains 'unsafe-inline' because xterm.js writes its own style elements.
+
 ## Log
 
 - 2026-10-02T20:35+10:00: Task 0 of #33 PASSED on the first path (prebuilt binary). node-pty 1.1.0 ships
@@ -46,3 +64,15 @@ Not counted yet.
   Proof script (scratch, not in repo): spawn `powershell.exe` through ConPTY, `echo hello-$(1+1)` echoed
   `hello-2`, resize to 120x40 read back as 120, `exit 7` gave exit code 7, @xterm/headless serialize() held the
   output. 1.4 s end to end.
+- 2026-10-02T20:40+10:00: #33 code landed (48d3ab1). Terminal module, term pipe, launch through pty, prompt typed
+  on first idle, session.focus to ui_selection, schema v2 migration checked against a v1 database built from the
+  old schema.sql, term.* events. Killing a pty owner hard took the launcher and engine with it (both gone in 7 s),
+  so M1-03 is skipped as superseded by UI-06. node-pty prints "AttachConsole failed" from its console-list helper
+  when a pty is killed; noise only, the kill works.
+- 2026-10-02T20:44+10:00: docs (9f2bc1d): spec.md D19, D32, Rule 1, Launching; terminal pipe contract (attach
+  carries the ui key, a decision made here: typing into an agent is as strong as approving a gate).
+- 2026-10-02T20:50+10:00: #34 round 1 research started (layout references).
+- 2026-10-02T21:05+10:00: real Electron check (scratch wb-check.ts): fake engine printing a line every 100 ms,
+  session.focus, the window shows `line 33` to `line 37`, attach to xterm.js write callback 23 ms. Window killed,
+  10 s later reopened: same session reattached in 17 ms showing `line 134` onward, so the agent kept running.
+  After the settings change: 15 ms and 14 ms. Core 108 pass, workbench 9 pass.
