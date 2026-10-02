@@ -68,7 +68,7 @@
           ]
         },
         "continue": {
-          "description": "Reuse the session of the named earlier agent step. Needs the herdr host; without it the step runs as a new session in a new window and the run shows 'memory not kept'.",
+          "description": "Reuse the session of the named earlier agent step. Not supported yet: the step runs as a new session and the run shows 'memory not kept'.",
           "type": "string"
         },
         "uses": {

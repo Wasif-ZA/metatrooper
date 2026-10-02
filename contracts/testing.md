@@ -16,7 +16,6 @@ from `core/src/`.
 |---|---|---|
 | `METATROOPER_HOME` | `~/.metatrooper` | data folder: `troop.db`, `ui.key`, `logs/`, `secrets/`, `worktrees/` |
 | `METATROOPER_PIPE_PREFIX` | `metatrooper` | pipes become `\\.\pipe\<prefix>` and `\\.\pipe\<prefix>-browser` |
-| `TROOP_LAUNCHER` | `wt` | `spawn`: `session.launch` runs `launch.js` as a hidden detached node process with no Windows Terminal (test mode) |
 | `METATROOPER_CLAUDE_SETTINGS` | `~/.claude/settings.json` | file that `troop hooks install` edits |
 | `METATROOPER_CODEX_CONFIG` | `~/.codex/config.toml` | file that `troop hooks install --codex` edits |
 | `METATROOPER_ENGINES` | built-in registry | path to a JSON array of engine objects that replaces the built-ins (lets tests use fake engines) |
@@ -76,7 +75,7 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 
 Everything else about runs is observable through the pipe (`run.*`, `gate.resolve`, `variant.*`,
 `pipeline.validate`) and the `run`, `run_step`, `gate`, `variant`, `browser_pane`, `dev_server` and
-`port_lease` tables. A fake engine (`METATROOPER_ENGINES`, `TROOP_LAUNCHER=spawn`) that reads the handoff
+`port_lease` tables. A fake engine (`METATROOPER_ENGINES`) that reads the handoff
 footer from its last argument and writes the output file is enough to drive every step kind.
 
 ## Browser modules tests may import (child #6)

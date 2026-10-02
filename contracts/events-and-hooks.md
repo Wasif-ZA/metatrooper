@@ -34,7 +34,10 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.Stop` | claude-hook | `session_id`, `cwd`, `stop_hook_active` |
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
-| `herdr.state` | herdr | `{"pane": str, "state": "blocked" or "working" or "done" or "idle" or "unknown", "agent": str}` |
+| `term.bell` | core | `{}` (terminal bell, used only when the session has been silent 30 s) |
+| `term.output` | core | `{}` (first output after a counted bell) |
+| `term.title` | core | `{"title": str}` (first 200 characters) |
+| `core.prompt-written` | core | `{}` (the held prompt was typed into the pty) |
 | `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
@@ -64,7 +67,6 @@ This is what lets test M1-05 (a marker string typed into a session appears nowhe
 | claude | First hook event carrying `TROOP_SESSION_ID` (inherited from `launch.js`); its `session_id` field is the native id. Exact. |
 | codex | The core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event; the thread id in that file name is the native id. If a `codex.turn` arrives before that match, its `thread-id` is used instead. A `codex.turn` whose `thread-id` differs from the native id (a side thread) changes no state. |
 | agy | The newest folder under `~/.gemini/antigravity-cli/brain/` created within 30 s after the launch event, only if exactly one agy session was launched in that window. Otherwise `native_id` stays NULL and state stays `unknown`. |
-| herdr host | herdr's pane id (`herdr_pane`); native id from herdr's `agent.get` when it reports one. |
 
 ## State mapping
 
@@ -82,7 +84,8 @@ The core processes events in `seq` order and sets `session.state`:
 | `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working` |
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
-| `herdr.state` | blocked to `waiting_for_you`; working, done, idle, unknown map to themselves |
+| `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
+| `term.output` | `waiting_for_you` or `unknown` to `working` |
 | `core.process-gone` (5 s check) | `exited` |
 | `core.stalled` while `starting` | `waiting_for_you` |
 | `core.seen` while `done` | `idle` |

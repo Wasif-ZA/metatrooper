@@ -18,8 +18,8 @@ the pieces talk. Where they differ, the contract wins and this file is the bug.
 ## Context
 
 Metatrooper is a desktop IDE for any coding assistant (Claude Code, Codex, Gemini, or any CLI a plugin
-adds). Each assistant runs in its own native Windows Terminal window, exactly as it does today, and the IDE
-watches from the side. Work flows through pipelines anyone can define, across 12 lanes from coding to video
+adds). Each assistant runs in a terminal inside the app, owned by the core service, with its results opening
+beside it. Work flows through pipelines anyone can define, across 12 lanes from coding to video
 to study. It is built for Wasif first, and for anyone to point at a project of their choosing, as an
 open-source product (AGPL-3.0 core) whose local use is free and whose later cloud services are metered. The
 scope is wide on purpose. It ships in three milestones so nothing is built on a core that has not survived
@@ -59,16 +59,16 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D15 | Plugins | Native `troop-plugin.json` plus importers for Claude Code plugins and Codex/agy MCP and skills |
 | D16 | Pipelines | `pipeline.json` with a form editor, plus optional TypeScript code steps |
 | D17 | Tokens | Live meter, callrouter Plan A as the first plugin, cheapest-capable-engine routing |
-| D19 | Terminals | Native Windows Terminal, owned by `wt.exe`; the IDE only watches. Exception: the optional herdr host (D32) |
+| D19 | Terminals | In-app terminals owned by the core service (node-pty over ConPTY); the window only shows them, and close and reopen reattaches. Revised 2026-10-02 by the UI revision (issues/ui-revision-epic.md D1) |
 | D21 | Browser MCP | Own `metatrooper-browser` MCP, no WebSocket |
 | D24 | Transport | Direct database reads; hooks append events; commands over a named pipe with a queue fallback. No TCP port, token file, WebSocket or SSE |
 | D25, D27 | Pipelines shipped | 17 working built-ins across 12 lanes; the other 17 catalog pipelines as templates |
 | D28 | Business model | Open core: the local IDE is free with no account; only things Wasif hosts and pays for are metered |
 | D29 | Cloud | Seams in this epic; the metered cloud is its own later epic |
 | D30 | Licence | Core AGPL-3.0; SDK, manifest schema, contracts for plugins, and pipeline files MIT |
-| D32 | herdr | Windows Terminal is the default host; herdr is an optional host plugin |
+| D32 | herdr | Dropped 2026-10-02 (UI revision D8): one way to run agents |
 | D33 | Borrowed | Usage limits and reset timers, done vs idle, free SignPath signing, diff annotation, file drag, an agent-native CLI and skill |
-| D35 | Step handoff | Files between steps always; each agent step starts a fresh session with its prompt; `continue: true` reuses a session through herdr when installed, else falls back with a visible note |
+| D35 | Step handoff | Files between steps always; each agent step starts a fresh session with its prompt; `continue: true` falls back to a fresh session with a visible note |
 | D36 | Review fixes | Contracts pack, contradiction cleanup, security hardening, operational fixes: all applied |
 | D37 | Scope | Keep all 31 children, ship in 3 milestones; #32 added 2026-09-29 (D43) |
 | D40 | Phone | Using the terminals and the IDE from a phone (like Claude Code Remote Control) is a v3 epic, after the cloud epic |
@@ -114,23 +114,22 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
  | event processor | state machine | launcher | runner    |
  | plugins | schedules | meter | limits | reads callrouter.db
  +----+--------------------------------------------------+
-      | wt.exe (detached)             | herdr pipe (optional host)
-      v                               v
- +----------------------------+   +----------------------+
- | Windows Terminal windows   |   | herdr server panes   |
- | troop-<id>: one per      |   | (only when the herdr |
- | session, owned by wt.exe   |   |  plugin is chosen)   |
- +----------------------------+   +----------------------+
+      | node-pty (ConPTY), one pty per session; bytes to the window over the terminal pipe
+      v
+ +--------------------------------------------------------+
+ | in-app terminals: headless xterm keeps 10,000 rows per  |
+ | session; the workbench draws them with xterm.js         |
+ +--------------------------------------------------------+
 
  Agents -> metatrooper-browser (stdio MCP) -> \\.\pipe\metatrooper-browser -> workbench browser panes
 ```
 
 ### Rules
 
-1. **The agent's terminal never depends on the IDE.** With the default host, each assistant runs in a
-   Windows Terminal window owned by `wt.exe`. No keystroke or terminal output passes through the IDE.
-   Killing the workbench, tray and core mid-turn leaves every agent working. **Exception, opt-in only:** a
-   session launched on the herdr host lives in herdr's server; it survives the IDE but depends on herdr.
+1. **The agent's terminal never depends on the window.** Each assistant runs in a pty owned by the core
+   service. Closing or crashing the workbench leaves every agent working, and reopening it reattaches with
+   scrollback. Killing the core ends its terminals: every live session becomes `exited` and shows one-click
+   Resume through the engine's own resume flag (revised 2026-10-02, UI revision D1 and D9).
 2. **Logic lives in the core service.** Shells read the database and send commands; they never decide.
 3. **A broken Metatrooper is indistinguishable from an absent one.** Every hook, the launcher step and the
    notify wrapper finish within 250 ms, swallow every error and exit 0. They print nothing, with one named
@@ -163,17 +162,15 @@ wake. Windows read on a read-only connection and open a short-lived read-write c
 
 ## Sessions
 
-### Launching (default host: Windows Terminal)
+### Launching
 
-The core never spawns an agent as its own child:
+The core opens a pty (core/src/terminal/, the only file that imports node-pty) running:
 
 ```
-wt.exe -w troop-<first 8 of session id> new-tab --title "<engine> <project name>" -d "<project path>" ^
-  node --no-warnings "<core>/launch.js" --session <id> --engine <engine> --args-b64 <base64 of a JSON array: command, args, prompt>
+node --no-warnings "<core>/launch.js" --session <id> --engine <engine> --args-b64 <base64 of a JSON array: command, args, prompt>
 ```
 
-The engine's arguments travel as one base64 JSON value, because `wt` treats `;` as a command separator and
-base64 contains none. The launcher is node rather than PowerShell because PowerShell 5.1 drops embedded double
+The engine's arguments travel as one base64 JSON value so no quoting layer can split them. The launcher is node rather than PowerShell because PowerShell 5.1 drops embedded double
 quotes when it passes arguments to native programs (verified 2026-09-29), and prompts contain quotes.
 
 `launch.js`:
@@ -190,15 +187,17 @@ quotes when it passes arguments to native programs (verified 2026-09-29), and pr
 The engine inherits the user's normal environment, exactly as when started by hand; Metatrooper adds only
 `TROOP_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
 
-One Windows Terminal window per session, named `troop-<id8>`. Focus runs `wt -w troop-<id8> focus-tab
--t 0`, which targets that window by its unique name, so tabs opened or closed by hand cannot misdirect it.
-The IDE never kills or closes an agent; the user closes the window.
+One pty per session, in the session's folder. The window attaches over the terminal pipe
+(`pipe-protocol.md`, "Terminal pipe"); `session.focus` writes the `ui_selection` row and the window selects
+that session. An engine with no `prompt_arg` gets its prompt typed into the pty when it first reaches `idle`
+or `waiting_for_you`, once (`core.prompt-written`); "Paste prompt" does the same by hand. The IDE never kills
+an agent; the user exits it.
 
 ### Linking and state
 
 How each engine's own session is linked, and how every event maps to `starting`, `working`,
 `waiting_for_you`, `done`, `idle`, `unknown` or `exited`, is specified in `events-and-hooks.md`. `done` means
-finished and not yet looked at; opening the card or focusing the window moves it to `idle` (from herdr).
+finished and not yet looked at; opening the card or focusing the session moves it to `idle`.
 A card that cannot know the state says "state unknown". The IDE never reads terminal output to guess.
 
 ### Engine registry
@@ -298,7 +297,7 @@ Point-to-comment: press C, click an element, type a note, pick a target session.
 selector, first 2,000 characters of outer HTML, and a crop saved at
 `~/.metatrooper/comments/<session_id>/<comment_id>.png`) goes into `comment` and is delivered by the
 session's route: clipboard always; for Claude, also as context on the next prompt (at least once, never lost;
-a rare duplicate is marked with the comment id); on the herdr host, by `agent.prompt`.
+a rare duplicate is marked with the comment id).
 
 Before/after: capture a pane at 390 and 1280 px, full page, as `before` and `after` snapshots; side by side
 per width; hold Space to swap.
@@ -376,7 +375,6 @@ First-party plugins:
 | `github` | issues, PRs, checks; opening a PR is external | gh | 2 |
 | `deploy` | preview and production deploys; production is external; project id from config | Vercel CLI | 2 |
 | `security` | security review prompt set, dependency listing and upgrade, licence report | npm, pip and uv metadata | 2 |
-| `herdr` | the herdr host (see below) | herdr named-pipe API | 2 |
 | `media` | download, probe, cut, captions, samples, transcription with word timestamps | yt-dlp, ffmpeg, faster-whisper on CPU (API optional) | 3 |
 | `social-scheduler` | one `schedule_post` interface; every post is external | OpusClip MCP (needs OpusClip Pro), Postiz | 3 |
 | `seo` | crawl through a browser pane, Lighthouse, sitemap and meta checks; Search Console optional | Lighthouse CLI | 3 |
@@ -385,15 +383,6 @@ First-party plugins:
 | `data` | load CSV or SQLite, query, render a static HTML dashboard | node:sqlite | 3 |
 | `docs-export` | ingest PDF, DOCX, audio, transcripts; export PDF (Electron `printToPDF`) and DOCX | pdf.js, `media` | 3 |
 | `desktop` | Windows app control: UI tree, click, type, read, window screenshot; 10 s timeout per call; elements selected by AutomationId, then Name plus ControlType | Windows UI Automation through PowerShell | 3 |
-
-### herdr host plugin
-
-An alternative session host (D32). `session.launch` with `host: "herdr"` runs `herdr workspace create` and
-`herdr pane run` instead of `wt`. State comes from herdr's `events.subscribe` over its named pipe
-(`HERDR_SOCKET_PATH`) and is written as `herdr.state` events. Steps with `continue` use `agent.prompt` with
-`wait: {until: "done"}`. herdr is an unsigned Rust binary: the child starts by testing whether Smart App
-Control allows it on laptop-ops; if not, it is built and tested on the main PC. herdr is Apache-2.0; the
-plugin only calls its documented CLI and pipe API.
 
 ### Trooper sandbox host plugin
 
@@ -415,8 +404,8 @@ lines. Engine hooks inside the image point at `/opt/troop/event.js` and `/opt/tr
 credential is ever written into the image.
 
 **Launch.** `session.launch` with `approval: "isolated"` sets `host: "sandbox"`; `isolated` on any other host
-is refused with -32003. The `wt` command is unchanged except `launch.js` gets `--host sandbox`, and the
-launcher, inside the tab, runs:
+is refused with -32003. The pty command is unchanged except `launch.js` gets `--host sandbox`, and the
+launcher, inside the pty, runs:
 
 ```
 docker run --rm -it --name troop-<id8> --network troop-egress --user 1000:1000 --cap-drop ALL
@@ -457,8 +446,8 @@ per event to `/troop/spool/events.ndjson` instead of opening `troop.db`, which n
 The core ingests every 250 ms (see `events-and-hooks.md`, "Spool ingest"), re-redacting every payload on the
 host, and deletes the spool folder once the session is `exited` and fully ingested.
 
-**Rule exceptions (opt-in, sandbox host only).** Rule 1 holds: the terminal is still owned by `wt.exe`, and
-the engine runs in a container that tab owns. "The engine inherits the user's normal environment" does not
+**Rule exceptions (opt-in, sandbox host only).** Rule 1 holds: the terminal is still a core-owned pty, and
+the engine runs in a container that pty owns. "The engine inherits the user's normal environment" does not
 hold: a sandboxed engine sees only its worktree, the repo's `.git`, its spool and its read-only logins.
 
 **Registry shape.** Per engine, data only:
@@ -499,8 +488,8 @@ Prior art, checked 2026-09-29:
 | | Orca (stablyai/orca) | herdr (herdrdev/herdr) | Metatrooper |
 |---|---|---|---|
 | Stars, licence | 80,844, MIT | 41,291, Apache-2.0 | new, AGPL-3.0 core |
-| Where agents run | terminals embedded in the Electron app | herdr's server; viewed in any terminal | Windows Terminal by default; herdr optional |
-| Agent state | yes | blocked, working, done, idle, unknown, 12 agents on Windows | hooks, notify, file activity; herdr's detection with the plugin |
+| Where agents run | terminals embedded in the Electron app | herdr's server; viewed in any terminal | in-app terminals owned by the core service |
+| Agent state | yes | blocked, working, done, idle, unknown, 12 agents on Windows | hooks, notify, file activity; terminal bell when those are silent |
 | Worktrees | compare and merge | create and open | fan-out variants with pick, combine, discard |
 | Click element to prompt | Design Mode | no | point-to-comment with agent cursors |
 | Pipelines, lanes, gates | no | no | 12 lanes, 17 built-ins, publish rule bound to the exact action |
@@ -514,7 +503,7 @@ Estimates are Claude Code days and were raised after the review said the first o
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
-| 1 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, `wt` launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
+| 1 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
 | 3 | Plugin system: manifest validation, install screen and approval, action runner with env stripping and tree kill, pane bridge, Claude and Codex/agy importers | 3.5 | 1 |
 | 2 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json` | 2.5 | 3 (for the plugin part only) |
 | 4 | Pipeline runner: validation with the publish rule, handoff contract, completion signals, gates with `action_hash`, fan-out, worktrees, port allocation, loops, resume, breaker, budgets, code steps, `repo` plugin | 4.5 | 1, 3 |
@@ -537,7 +526,7 @@ Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, befor
 | 14 | `github` and `deploy` plugins; `spec-to-pr`, `e2e-browser-qa`, `website-build`, `design-variants` | 2.5 | 4, 5, 6, 7, 8 |
 | 23 | `docs-and-release-notes` | 1 | 14 |
 | 25 | `security` plugin and `security-review-and-upgrade` | 1.5 | 9, 14 |
-| 27 | herdr host plugin | 2 | 3, 4, 5 |
+| 27 | herdr host plugin (dropped 2026-10-02, UI revision D8) | 0 | none |
 | 29 | Usage limits and account switcher | 2 | 1, 5 |
 | 30 | Diff annotation and file drag | 1 | 10 |
 | 28 | Signed packaging through SignPath Foundation (Electron now; Tauri in milestone 3) | 1.5 | 5 |
@@ -572,9 +561,9 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
 ### Milestone 1
 
 - M1-01. `npm run dev` opens the workbench on laptop-ops with Smart App Control on.
-- M1-02. Launching claude, codex and agy for one project opens three Windows Terminal windows named
+- M1-02 (superseded 2026-10-02 by UI-03 and UI-11). Launching claude, codex and agy for one project opens three Windows Terminal windows named
   `troop-<id8>`, each a normal interactive session on the existing logins, with no API key set.
-- M1-03. Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its
+- M1-03 (superseded 2026-10-02 by UI-06). Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its
   turn, the user can keep typing, and restarting the core rediscovers the live sessions by pid within 10 s.
 - M1-04. With the core never started, every hook and `launch.js` exits 0 with no output, and the engine
   starts no more than 1 s later than without Metatrooper.
@@ -682,7 +671,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
 - M2-02. The inspiration board returns at least 8 references with captures for the fixture brief.
 - M2-03. Variants: Pick shows that worktree's diff in the tray; Combine starts a new worktree with the note
   and crops; Discard removes the worktree.
-- M2-04. With the herdr plugin, a `continue` step reaches the earlier herdr pane via `agent.prompt` and the
+- M2-04 (dropped 2026-10-02 with #27). With the herdr plugin, a `continue` step reaches the earlier herdr pane via `agent.prompt` and the
   run advances on herdr `done`; without it, the same pipeline runs in Windows Terminal and the log shows
   `memory not kept`.
 - M2-05. The usage bar shows Claude and Codex usage against their windows with reset times, or "usage
@@ -703,7 +692,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   the session is `exited` and ingested (M1-05 extended to the sandbox).
 - M2-11. Closing a sandboxed session's window leaves no `troop-<id8>` container within 5 s; killing the core
   mid-turn leaves the agent working, and its spooled events are ingested in order after restart.
-- M2-12. `isolated` on the `wt` host, a launch before `troop sandbox build`, a Claude login expiring within
+- M2-12. `isolated` on the `pty` host, a launch before `troop sandbox build`, a Claude login expiring within
   60 minutes, and an ACU path are each refused with a stated reason, and nothing starts.
 
 ### Milestone 3
@@ -772,8 +761,8 @@ No terminal library, WebSocket library or native module is needed.
 
 - **v2, metered cloud:** gateway, cloud runs, hosted media, sync, accounts, payments (D29).
 - **v3, phone:** see and drive sessions from a phone, like Claude Code Remote Control. It must keep rule 1:
-  the phone reaches an agent through the engine's own remote feature (Claude Code Remote Control, or the
-  herdr host), never by streaming a Windows Terminal session through Metatrooper. Metatrooper's side is
+  the phone reaches an agent through the engine's own remote feature (Claude Code Remote Control), never by
+  streaming an agent's terminal through Metatrooper. Metatrooper's side is
   read-only status, the needs-you queue and gate approvals on the phone, which the cloud epic's relay makes
   possible. Nothing in this epic blocks it: state is already in the database and approvals already need a
   trusted UI connection.

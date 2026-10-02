@@ -41,18 +41,17 @@ Earlier step results you may need are in: <list of earlier output paths referenc
 
 Launch:
 
-- Default (`host: wt`): a new session with the prompt as the CLI's first argument. Claude: `claude "<prompt>"`.
+- Default (`host: pty`): a new session with the prompt as the CLI's first argument. Claude: `claude "<prompt>"`.
   Codex: `codex "<prompt>"`. agy and plugin engines: the engine's `prompt_arg` from its registry entry; an
   engine without one gets the prompt on the clipboard plus a `handoff` gate saying "paste into window
   <name>".
-- `continue: <step>` with the herdr host installed: `agent.prompt` into that step's herdr pane with
-  `wait: {until: "done"}`. Without herdr: a new session in a new window as above, and the run log records
+- `continue: <step>`: a new session as above, and the run log records
   `memory not kept`.
 
 Done when, in this order of preference:
 
 1. The output file exists, parses, and has `status: done`, and
-2. the session reports `done` (Claude Stop hook, Codex notify, herdr `done`), or the output file has not
+2. the session reports `done` (Claude Stop hook, Codex notify, terminal bell when silent), or the output file has not
    changed for 10 s.
 
 `status: failed` in the file, a missing required output key, the session exiting without the file, or

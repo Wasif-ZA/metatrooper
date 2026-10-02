@@ -116,7 +116,8 @@ Every other interaction is a database read.
 | Method | Params | Result |
 |---|---|---|
 | `project.open` | `{path}` | `{project_id}`; error -32001 for ACU paths. `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
-| `session.launch` | `{project_id, engine_id, prompt?, host?: "wt" or "herdr"}` | `{session_id}` |
+| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty"}` | `{session_id, prompt_delivered}` |
+| `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
 | `session.hide` | `{session_id}` | `{}` |
 | `session.focus` | `{session_id}` | `{focused: bool}` |
@@ -135,7 +136,7 @@ Every other interaction is a database read.
 | `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
 | `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
 | `pipeline.validate` | `{json}` | `{valid, errors}` |
-| `comment.deliver` | `{comment_id}` | `{clipboard_at, herdr_at}` (prompt delivery happens in the hook) |
+| `comment.deliver` | `{comment_id}` | `{clipboard_at}` (prompt delivery happens in the hook) |
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
@@ -170,3 +171,27 @@ are in `browser-tools.md`.
 
 `browser.<tool>` for the 12 tools, plus `browser.panes` (lists panes this session may drive) and
 `browser.capture` (`{pane_id, label}`, used by the core for before/after, board captures and comments).
+
+## Terminal pipe
+
+A second pipe, `<prefix>-term` next to the main pipe (`metatrooper-term` by default), carries terminal bytes.
+It is separate because the main pipe has no server-pushed messages. Same ACL as the main pipe.
+
+- NDJSON, UTF-8, one JSON object per line. One session per connection; a tile grid of 6 opens 6 connections.
+- Client to server: `{"op":"attach","session":"<id>","cols":120,"rows":40,"ui_key":"<ui.key>"}` first, then any
+  of `{"op":"input","data":"<string>"}`, `{"op":"resize","cols":N,"rows":N}`, `{"op":"detach"}`.
+- `attach` carries the ui key because input types into an agent, which is as strong as approving a gate. A
+  wrong key gets `{"op":"error","code":"needs-ui"}` and the connection closes.
+- Server to client: `{"op":"snapshot","seq":0,"data":"<serialized terminal>"}` once, then
+  `{"op":"output","seq":N,"data":"<string>"}` with `seq` rising by 1 per message, then `{"op":"exit","code":N}`
+  and close. The snapshot is one message and can be larger than 64 KiB; clients must not cap its line length.
+- No gap and no repeat between snapshot and live output: the viewer is registered before the snapshot is
+  taken, and only output the snapshot does not hold is sent after it.
+- `output` data is split on code-point boundaries, at most 64 KiB per message, written to xterm.js in `seq`
+  order. No reassembly.
+- Slow viewer: more than 4 MiB unsent gets `{"op":"error","code":"slow-viewer"}` and the connection closes. The
+  window reattaches and gets a fresh snapshot. The pty never waits for a viewer.
+- An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
+  ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
+- Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;
+  input from any goes to the pty; the latest `resize` wins.

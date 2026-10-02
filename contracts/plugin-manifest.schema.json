@@ -51,7 +51,7 @@
           },
           "description": "auth is 'ok' when auth_cmd exits with exit_code and, if given, stdout matches stdout_regex. Otherwise 'missing'. No auth_cmd means 'unknown'."
         },
-        "state_source": { "enum": ["hooks", "notify", "file-activity", "herdr", "process"] },
+        "state_source": { "enum": ["hooks", "notify", "file-activity", "process"] },
         "activity_glob": { "type": "string", "description": "Required when state_source is file-activity." },
         "mcp_attach": {
           "type": "object",
