@@ -538,16 +538,55 @@ function stepsOf(runId) {
   const s = ui.snap;
   const run = s.runs.find((r) => r.id === runId);
   if (!run) return null;
-  const steps = s.steps.filter((x) => x.run_id === runId);
-  const order = [];
-  for (const x of steps) if (!order.includes(x.step_id)) order.push(x.step_id);
-  const statusOf = (id) => {
-    const rows = steps.filter((x) => x.step_id === id);
-    return rows.some((x) => x.status === 'running') ? 'running' : rows.some((x) => x.status === 'failed') ? 'failed' : rows.every((x) => x.status === 'done') ? 'done' : rows[0].status;
-  };
-  const list = order.map((id) => ({ id, status: statusOf(id) }));
-  const cur = list.findIndex((x) => x.status !== 'done');
-  return { run, list, at: cur < 0 ? list.length : cur + 1 };
+  const rows = s.steps.filter((x) => x.run_id === runId);
+  const pipe = s.pipelines.find((p) => p.id === run.pipeline_id);
+  const ids = pipe && pipe.step_defs.length ? pipe.step_defs.map((d) => d.id) : [...new Set(rows.map((x) => x.step_id))];
+  const list = ids.map((id) => {
+    const mine = rows.filter((x) => x.step_id === id);
+    const iter = mine.reduce((m, x) => Math.max(m, x.iteration), 0);
+    const cur = mine.filter((x) => x.iteration === iter);
+    const def = pipe ? pipe.step_defs.find((d) => d.id === id) : null;
+    const status = !mine.length ? 'pending' : cur.some((x) => x.status === 'failed') ? 'failed' : cur.some((x) => x.status === 'running') ? 'running'
+      : cur.some((x) => x.status === 'waiting') ? 'waiting' : cur.every((x) => x.status === 'done' || x.status === 'skipped') ? 'done' : cur[0].status;
+    return {
+      id, status, def,
+      items: cur.length > 1 ? { done: cur.filter((x) => x.status === 'done').length, total: cur.length } : null,
+      loop: iter > 0 ? { at: iter + 1, max: def && def.loop_max ? def.loop_max : null } : null,
+      fails: mine.reduce((n, x) => n + (x.fail_count || 0), 0),
+      gates: s.gates.filter((g) => g.run_id === runId && g.step_id === id),
+    };
+  });
+  const at = list.findIndex((x) => x.status !== 'done' && x.status !== 'skipped');
+  return { run, list, at: at < 0 ? list.length : at + 1 };
+}
+
+function stepError(runId, stepId) {
+  const cache = (ui.stepErrors ||= {});
+  const key = `${runId}:${ui.snap.at - (ui.snap.at % 5000)}`;
+  if (!cache[runId] || cache[runId].key !== key) {
+    cache[runId] = { key, log: cache[runId] ? cache[runId].log : [] };
+    void api.runLog(runId).then((log) => { cache[runId].log = log || []; render(); });
+  }
+  for (const line of [...cache[runId].log].reverse()) {
+    try {
+      const e = JSON.parse(line);
+      if (e.event === 'step failed' && e.step === stepId) return e.why || 'failed';
+    } catch {}
+  }
+  return null;
+}
+
+function stepListHtml(steps) {
+  const dot = (st) => (st === 'running' ? 'working' : st === 'waiting' ? 'waiting_for_you' : st);
+  return `<div class="steps"><div class="s cur"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</div>
+    ${steps.list.map((st) => {
+      const meta = [st.items ? `${st.items.done}/${st.items.total}` : '', st.loop ? `loop ${st.loop.at}${st.loop.max ? ` of ${st.loop.max}` : ''}` : '', st.fails ? `${st.fails} fail${st.fails === 1 ? '' : 's'}` : '', st.status].filter(Boolean).join(' · ');
+      const err = st.status === 'failed' ? stepError(steps.run.id, st.id) : null;
+      const gates = st.gates.map((g) => `<div class="step-gate">${esc(g.summary)}
+        ${g.kind === 'handoff' ? `<button class="primary" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Continue</button>`
+          : `<button class="primary" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Approve</button><button class="danger" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Reject</button>`}</div>`).join('');
+      return `<div class="s s-${esc(st.status)}" data-step="${esc(st.id)}"><span class="dot ${esc(dot(st.status))}"></span>${esc(st.id)} <span class="meta">${esc(meta)}</span></div>${gates}${err ? `<div class="step-err">${esc(err)}</div>` : ''}`;
+    }).join('')}</div>`;
 }
 
 function gateHtml(g) {
@@ -576,8 +615,7 @@ function rowHtml(x, sel) {
   if (g && g.branch) lines.push(`<div class="sub">${esc(g.branch)} <span class="add">+${g.added}</span> <span class="del">-${g.deleted}</span></div>`);
   if (x.last_line) lines.push(`<div class="sub${asking ? ' asking' : ''}" title="${esc(x.last_line)}">${esc(x.last_line)}</div>`);
   const steps = sel && x.run_id ? stepsOf(x.run_id) : null;
-  const stepList = steps ? `<div class="steps"><div class="s cur"><span class="dot ${esc(steps.run.status === 'running' ? 'working' : steps.run.status)}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</div>
-    ${steps.list.map((st) => `<div class="s${st.id === x.step_id ? ' cur' : ''}"><span class="dot ${esc(st.status === 'running' ? 'working' : st.status)}"></span>${esc(st.id)} <span class="meta">${esc(st.status)}</span></div>`).join('')}</div>` : '';
+  const stepList = steps ? stepListHtml(steps) : '';
   return `<div class="srow${sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Drop files here to send their paths to this session">
     <div class="top-line"><span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span>${esc(x.engine_id)} <span class="task">${esc(taskOf(x))}</span>
       <span class="when" data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span><button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button></div>

@@ -11,7 +11,7 @@ export interface Snapshot {
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean }>;
   sessions: Array<{ id: string; engine_id: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
-  pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown> }>;
+  pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown>; step_defs: StepDef[] }>;
   runs: Array<{ id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string; ended_at: string | null; depth: number; parent_run: string | null }>;
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
   gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string }>;
@@ -34,18 +34,25 @@ export function light(check: { installed: number; auth: string } | null | undefi
 
 const fileCache = new Map<string, { title: string; inputs: Record<string, unknown> }>();
 
-function pipelineFile(path: string, version: number, id: string): { title: string; inputs: Record<string, unknown> } {
+type StepDef = { id: string; kind: string; gate?: string; fanout?: number; loop_max?: number };
+
+function pipelineFile(path: string, version: number, id: string): { title: string; inputs: Record<string, unknown>; step_defs: StepDef[] } {
   const key = `${path}:${version}`;
   let hit = fileCache.get(key);
   if (!hit) {
     const json = (() => {
       try {
-        return JSON.parse(fs.readFileSync(path, 'utf8')) as { title?: unknown; inputs?: unknown };
+        return JSON.parse(fs.readFileSync(path, 'utf8')) as { title?: unknown; inputs?: unknown; steps?: unknown };
       } catch {
         return {};
       }
     })();
-    hit = { title: typeof json.title === 'string' ? json.title : id, inputs: json.inputs && typeof json.inputs === 'object' ? (json.inputs as Record<string, unknown>) : {} };
+    const steps = Array.isArray(json.steps) ? (json.steps as Array<Record<string, any>>) : [];
+    hit = {
+      title: typeof json.title === 'string' ? json.title : id,
+      inputs: json.inputs && typeof json.inputs === 'object' ? (json.inputs as Record<string, unknown>) : {},
+      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max })),
+    };
     fileCache.set(key, hit);
   }
   return hit;
@@ -108,11 +115,14 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
       ).all(projectId) as Snapshot['runs'])
     : [];
 
-  const steps = runId
+  const steps = projectId
     ? (db.prepare(
-        `SELECT run_id, step_id, iteration, fanout_index, status, engine_id, session_id, fail_count, output_path FROM run_step
-         WHERE run_id = ? OR run_id IN (SELECT id FROM run WHERE parent_run = ?) ORDER BY rowid`,
-      ).all(runId, runId) as Snapshot['steps'])
+        `WITH shown(id) AS (
+           SELECT id FROM run WHERE id = ? OR (project_id = ? AND (status IN ('running', 'paused') OR id IN (SELECT run_id FROM session WHERE project_id = ? AND run_id IS NOT NULL ORDER BY started_at DESC LIMIT 20)))
+         )
+         SELECT run_id, step_id, iteration, fanout_index, status, engine_id, session_id, fail_count, output_path FROM run_step
+         WHERE run_id IN (SELECT id FROM shown) OR run_id IN (SELECT id FROM run WHERE parent_run IN (SELECT id FROM shown)) ORDER BY rowid`,
+      ).all(runId, projectId, projectId) as Snapshot['steps'])
     : [];
 
   const gates = (db.prepare(
