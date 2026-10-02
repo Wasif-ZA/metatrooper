@@ -236,7 +236,8 @@ All 11 block the merge. 1 to 4 are the user checks from D5.
    The session is still `working`, and the reattached terminal's last 200 rows match the headless terminal's.
 4. **Fewer clicks.** A click is one mouse click or one key chord, counted from the app focused on its home
    screen to the result visible. For start agent, approve gate, see diff, hand back and open browser, today's
-   counts are written into #34 before any #34 code; each new count is lower.
+   counts are written into #34 before any #34 code; no new count is higher than today's and at least 3 of the 5
+   are lower (reworded 2026-10-02: start agent and approve gate were already 1 click).
 5. `grep -rn "wt.exe\|TROOP_LAUNCHER\|herdr" core/src workbench/src workbench/renderer` returns nothing.
 6. Killing the core marks every live session `exited`. A claude or codex session with a `native_id` shows
    Resume, which launches with its `resume_args`; agy shows "Start new here".

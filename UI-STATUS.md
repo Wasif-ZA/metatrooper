@@ -9,7 +9,7 @@ GitHub; filing and pushing are Wasif's.
 | UI-01 workday in the app | TODO | needs #34 to #36 and a real day of use |
 | UI-02 first agent in 30 s | TODO | needs installer and a fresh Windows account |
 | UI-03 survives the window | TODO | core half works by hand (smoke 2026-10-02: detach, reattach, snapshot then seq'd output); #34 window half; test owed to Codex |
-| UI-04 fewer clicks | TODO | today's counts go in "Click counts" before any #34 code |
+| UI-04 fewer clicks | TODO | today's counts recorded below. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
 | UI-05 no wt or herdr left | DONE-UNTESTED | 2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
 | UI-06 core kill to Resume | TODO | #35 |
 | UI-07 prompt typed once | DONE-UNTESTED | smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
@@ -39,7 +39,7 @@ Counted from the m2 code (b256909), home = Sessions tab with a project open. A c
 | Hand back | 2 | Hand-back tab, then Copy |
 | Open browser | 2 | Browser tab, then New pane (1 if a pane exists) |
 
-Approve gate is already 1, so "each new count is lower" cannot hold for it as written; raised with Wasif.
+Start agent and approve gate are already 1, so "each lower" could not hold. Wasif chose 2026-10-02: no job worse than today, at least 3 of the 5 better.
 
 ## Decisions
 
