@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" width="420" alt="toolrouter: a line-drawn owl with headphones on a rolling ladder, filing terminal prompt cards into a card catalogue labelled toolrouter">
+  <img src="assets/hero.png" width="420" alt="toolbook: a line-drawn owl with headphones on a rolling ladder, filing terminal prompt cards into a card catalogue labelled toolbook">
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/python-3.11%2B-3776AB" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/required%20dependencies-0-1a7f64" alt="No required dependencies">
   <img src="https://img.shields.io/badge/tested%20on-Windows-0078D4" alt="Tested on Windows">
 </p>
@@ -19,25 +19,25 @@
 <br>
 
 <p align="center">
-  <img src="assets/demo.gif" width="800" alt="Terminal demo: pytest -v prints a wall of output; toolrouter exec prints 11 lines with the failing test and summary; toolrouter search finds the img recipe; toolrouter run json reads a version">
+  <img src="assets/demo.gif" width="800" alt="Terminal demo: pytest -v prints a wall of output; toolbook exec prints 11 lines with the failing test and summary; toolbook search finds the img recipe; toolbook run json reads a version">
 </p>
 
 <p align="center"><i><code>pytest -v</code>: 261 lines in, 11 out, the failure kept.</i></p>
 
 <p align="center">
-  <img alt="Bar chart: raw shell output is 5.26M tokens; through toolrouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
+  <img alt="Bar chart: raw shell output is 5.26M tokens; through toolbook exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
 </p>
 
 <br>
 
-# toolrouter is the tool memory your coding agent is missing.
+# toolbook is the tool memory your coding agent is missing.
 
 Open-source glue between coding agents and the tools they call.
 
-**If your agent is the _cook_, toolrouter is the _recipe book_.**
+**If your agent is the _cook_, toolbook is the _recipe book_.**
 
 Your agent keeps rewriting the same commands, hitting the same traps, and reading 5,000 lines
-to find one error. toolrouter remembers the commands that worked, attaches the fix it knows,
+to find one error. toolbook remembers the commands that worked, attaches the fix it knows,
 and hands back only the lines that matter. It looks like a command wrapper. Under the hood:
 learned recipes, trap hints, output shrinking, engines, a browser and MCP, all answering in one
 shape.
@@ -46,17 +46,17 @@ shape.
 
 |        | Step            | Example                                                                 |
 | ------ | --------------- | ----------------------------------------------------------------------- |
-| **01** | Install it      | _`uv tool install git+https://github.com/Wasif-ZA/toolrouter`_                                           |
+| **01** | Install it      | _`uv tool install toolbook`_                                           |
 | **02** | Tell your agent | _Paste [four lines](#use-with-claude-code-or-codex) into `CLAUDE.md` or `AGENTS.md`._ |
-| **03** | Work as normal  | _Once a week, `toolrouter learn --review` and keep what is worth keeping._ |
+| **03** | Work as normal  | _Once a week, `toolbook learn --review` and keep what is worth keeping._ |
 
 > [!TIP]
 > **🦉 Or hand the whole thing to your agent.** Paste this into Claude Code or Codex:
 >
 > ```text
-> Install toolrouter with `uv tool install git+https://github.com/Wasif-ZA/toolrouter`.
+> Install toolbook with `uv tool install toolbook`.
 > Then add the "Use with Claude Code or Codex" lines from its README to my CLAUDE.md
-> (or AGENTS.md for Codex), and run `toolrouter` to show me the menu.
+> (or AGENTS.md for Codex), and run `toolbook` to show me the menu.
 > ```
 
 <br>
@@ -79,13 +79,13 @@ shape.
   </tr>
 </table>
 
-<em>If it can run a shell command, it can use toolrouter.</em>
+<em>If it can run a shell command, it can use toolbook.</em>
 
 </div>
 
 <br>
 
-## toolrouter is right for you if
+## toolbook is right for you if
 
 - ✅ Your agent writes the **same inline python** or curl command every session
 - ✅ It **reads whole test logs** to find the one line that failed
@@ -99,10 +99,10 @@ shape.
 ## The four parts
 
 Four things have to work for an agent to stop re-learning its tools: what worked before, what
-went wrong before, how much it reads, and how every answer comes back. toolrouter is built
+went wrong before, how much it reads, and how every answer comes back. toolbook is built
 around exactly those four.
 
-<img src="assets/parts.png" alt="The four parts of toolrouter: Recipes (what worked before), Trap hints (the known fix), Shrink (only the lines that carry the answer), One shape (every tool answers the same way).">
+<img src="assets/parts.png" alt="The four parts of toolbook: Recipes (what worked before), Trap hints (the known fix), Shrink (only the lines that carry the answer), One shape (every tool answers the same way).">
 
 | Part | Built for | What it does |
 | --- | --- | --- |
@@ -136,7 +136,7 @@ Real output, captured from the commands shown.
 <tr>
 <td align="center" width="33%" valign="top">
 <h3>🧠 Learns your recipes</h3>
-<code>toolrouter learn</code> reads your Claude Code sessions and finds the commands your agent keeps rewriting. You approve each one.
+<code>toolbook learn</code> reads your Claude Code sessions and finds the commands your agent keeps rewriting. You approve each one.
 </td>
 <td align="center" width="33%" valign="top">
 <h3>🩹 Remembers the traps</h3>
@@ -154,45 +154,45 @@ Shell, recipes, Codex, a browser and MCP servers all come back as the same short
 </td>
 <td align="center" width="33%" valign="top">
 <h3>⏳ Background jobs</h3>
-Start Codex with <code>--background</code>, keep working, then collect it with <code>toolrouter jobs &lt;id&gt; --wait</code> from any folder.
+Start Codex with <code>--background</code>, keep working, then collect it with <code>toolbook jobs &lt;id&gt; --wait</code> from any folder.
 </td>
 <td align="center" width="33%" valign="top">
 <h3>🌐 Its own browser</h3>
-<code>toolrouter browse</code> drives Chrome directly: open, look, click, type, read, screenshot. No Playwright.
+<code>toolbook browse</code> drives Chrome directly: open, look, click, type, read, screenshot. No Playwright.
 </td>
 </tr>
 <tr>
 <td align="center" width="33%" valign="top">
 <h3>🔎 Plain-word search</h3>
-<code>toolrouter search resize image</code> finds the recipe, so the agent stops guessing flags.
+<code>toolbook search resize image</code> finds the recipe, so the agent stops guessing flags.
 </td>
 <td align="center" width="33%" valign="top">
 <h3>↩️ Undo for edits</h3>
-The <code>replace</code> and <code>json-set</code> recipes snapshot a file first. <code>toolrouter undo</code> puts it back.
+The <code>replace</code> and <code>json-set</code> recipes snapshot a file first. <code>toolbook undo</code> puts it back.
 </td>
 <td align="center" width="33%" valign="top">
 <h3>📦 Nothing to install with it</h3>
-Python 3.10+ standard library. Only the <code>img</code> recipe wants Pillow.
+Python 3.11+ standard library. Only the <code>img</code> recipe wants Pillow.
 </td>
 </tr>
 </table>
 
 <br>
 
-## Problems toolrouter solves
+## Problems toolbook solves
 
-| Without toolrouter | With toolrouter |
+| Without toolbook | With toolbook |
 | --- | --- |
-| ❌ Every session your agent writes the same inline python to read one JSON field. | ✅ `toolrouter run json package.json .version`. One line, found by search, the same every time. |
-| ❌ A failing test run dumps 5,000 lines into context to show one assertion. | ✅ `toolrouter exec` returns the failure and the summary. The rest is in a log file if it is needed. |
+| ❌ Every session your agent writes the same inline python to read one JSON field. | ✅ `toolbook run json package.json .version`. One line, found by search, the same every time. |
+| ❌ A failing test run dumps 5,000 lines into context to show one assertion. | ✅ `toolbook exec` returns the failure and the summary. The rest is in a log file if it is needed. |
 | ❌ Your agent hits the same wrong endpoint, flag or shell again, and you correct it again. | ✅ The trap is written down once. The next time, the result carries the fix. |
-| ❌ The agent retries a broken command five times in a row. | ✅ After three failures in an hour, toolrouter tells it to stop and read the log. |
-| ❌ Codex runs in the background and nobody collects the answer. | ✅ `toolrouter jobs <id> --wait` collects it from any folder, in the same shape as everything else. |
+| ❌ The agent retries a broken command five times in a row. | ✅ After three failures in an hour, toolbook tells it to stop and read the log. |
+| ❌ Codex runs in the background and nobody collects the answer. | ✅ `toolbook jobs <id> --wait` collects it from any folder, in the same shape as everything else. |
 | ❌ A wrapper tool quietly rewrites commands and you cannot see what it learned. | ✅ No hook. Every recipe is a file you can read, and `learn --review` asks you first. |
 
 <br>
 
-## Why toolrouter is different
+## Why toolbook is different
 
 |                                   |                                                                                               |
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -201,18 +201,18 @@ Python 3.10+ standard library. Only the <code>img</code> recipe wants Pillow.
 | **Only a person approves.**       | `learn --review` refuses to run inside an agent.                                             |
 | **The answer lines survive.**     | Error lines, tracebacks, exit codes and last lines are kept: 99.84% on 5,207 real outputs.   |
 | **Nothing is thrown away.**       | Every call keeps its full output on disk; the short result names the file.                  |
-| **Reversible edits.**             | Recipe writes take a snapshot first. `toolrouter undo` restores it.                           |
+| **Reversible edits.**             | Recipe writes take a snapshot first. `toolbook undo` restores it.                           |
 | **No hook.**                      | It runs only when called, so it never changes how your agent works behind your back.         |
 
 <br>
 
 ## What's under the hood
 
-toolrouter is one command with eight parts, all in the Python standard library:
+toolbook is one command with eight parts, all in the Python standard library:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                          TOOLROUTER                          │
+│                           TOOLBOOK                           │
 │                                                              │
 │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
 │  │  exec and │  │  recipes  │  │ hints and │  │   learn   │  │
@@ -290,7 +290,7 @@ toolrouter is one command with eight parts, all in the Python standard library:
 
 <br>
 
-## What toolrouter is not
+## What toolbook is not
 
 |                               |                                                                                       |
 | ----------------------------- | ------------------------------------------------------------------------------------- |
@@ -309,25 +309,25 @@ Open source. Runs on your machine. No account.
 ### Install it yourself
 
 ```sh
-uv tool install git+https://github.com/Wasif-ZA/toolrouter
+uv tool install toolbook
 # or
-pip install git+https://github.com/Wasif-ZA/toolrouter
+pip install toolbook
 ```
 
-Run `toolrouter` for the menu.
+Run `toolbook` for the menu.
 
 ## Use with Claude Code or Codex
 
-There is no hook. The agent calls toolrouter because its instructions say to. Paste this into
+There is no hook. The agent calls toolbook because its instructions say to. Paste this into
 `CLAUDE.md` (Claude Code) or `AGENTS.md` (Codex):
 
 ```markdown
 ## Tools
-Run shell commands through toolrouter.
-- Look for a saved recipe first: `toolrouter search <words>`, then `toolrouter run <recipe> ...`.
-- Anything else: `toolrouter exec -- "<command>"`. Read the short result; it names the full log.
-- A command that worked and will be needed again: `toolrouter add <name> -- '<command, {1} for arguments>'`.
-- If toolrouter is missing or errors, run the plain command.
+Run shell commands through toolbook.
+- Look for a saved recipe first: `toolbook search <words>`, then `toolbook run <recipe> ...`.
+- Anything else: `toolbook exec -- "<command>"`. Read the short result; it names the full log.
+- A command that worked and will be needed again: `toolbook add <name> -- '<command, {1} for arguments>'`.
+- If toolbook is missing or errors, run the plain command.
 ```
 
 A person at a terminal gets readable text. An agent (`CLAUDECODE` or `AI_AGENT` set) gets one
@@ -340,26 +340,26 @@ line of JSON. `--json`, `--human` or `TOOLROUTER_OUTPUT` force either.
 
 | Goal | Command |
 |------|---------|
-| Run anything, get a short result | `toolrouter exec -- "pytest -q"` |
-| Read the whole output | `toolrouter exec --no-trunc -- "<command>"` |
-| Find a recipe in plain words | `toolrouter search resize image` |
-| See every recipe | `toolrouter list` |
-| Run a recipe | `toolrouter run json package.json .version` |
-| Keep a command that worked | `toolrouter add count-lines -- 'wc -l < {1}'` |
-| Check every recipe still works | `toolrouter check` |
-| Put back the last edit | `toolrouter undo` |
-| Ask Codex, wait or not | `toolrouter run codex "write tests for X" --background` |
-| Collect a background job | `toolrouter jobs <id> --wait` |
-| Drive a browser | `toolrouter browse open <url>`, then `look`, `click @n`, `type @n "x"`, `read`, `shot`, `close` |
-| Call an MCP server | `toolrouter mcp <server> <tool> '{"a": 1}'` |
-| Find an MCP server | `toolrouter mcp search <words>` |
-| Find recipe candidates | `toolrouter learn`, then `toolrouter learn --review` |
-| See where your tokens go | `toolrouter ingest --since 2026-09-27` |
+| Run anything, get a short result | `toolbook exec -- "pytest -q"` |
+| Read the whole output | `toolbook exec --no-trunc -- "<command>"` |
+| Find a recipe in plain words | `toolbook search resize image` |
+| See every recipe | `toolbook list` |
+| Run a recipe | `toolbook run json package.json .version` |
+| Keep a command that worked | `toolbook add count-lines -- 'wc -l < {1}'` |
+| Check every recipe still works | `toolbook check` |
+| Put back the last edit | `toolbook undo` |
+| Ask Codex, wait or not | `toolbook run codex "write tests for X" --background` |
+| Collect a background job | `toolbook jobs <id> --wait` |
+| Drive a browser | `toolbook browse open <url>`, then `look`, `click @n`, `type @n "x"`, `read`, `shot`, `close` |
+| Call an MCP server | `toolbook mcp <server> <tool> '{"a": 1}'` |
+| Find an MCP server | `toolbook mcp search <words>` |
+| Find recipe candidates | `toolbook learn`, then `toolbook learn --review` |
+| See where your tokens go | `toolbook ingest --since 2026-09-27` |
 
 ### Two modes
 
 - **learn** (default): only recipes you approved. `learn --review` asks yes or no for each one.
-- **auto**: `toolrouter mode auto` adds a catalogue of 49 popular CLI recipes, `--help` lookup
+- **auto**: `toolbook mode auto` adds a catalogue of 49 popular CLI recipes, `--help` lookup
   for anything on your PATH, and live search of the MCP registry. In this mode `learn` keeps
   candidates without asking.
 
@@ -372,7 +372,7 @@ line of JSON. `--json`, `--human` or `TOOLROUTER_OUTPUT` force either.
 </p>
 
 <p align="center">
-  <img alt="Bar chart: raw shell output is 5.26M tokens; through toolrouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
+  <img alt="Bar chart: raw shell output is 5.26M tokens; through toolbook exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
 </p>
 
 On 5,207 Bash outputs from real Claude Code transcripts:
@@ -392,7 +392,7 @@ will differ: `python bench/shrink_bench.py` reruns it on yours.
 
 | | Built around | How the agent uses it | Full output |
 |---|---|---|---|
-| **toolrouter** | Remembering how your agent calls tools: recipes, trap hints, engines | The agent calls it; no hook | Log file in `~/.toolrouter/logs/` |
+| **toolbook** | Remembering how your agent calls tools: recipes, trap hints, engines | The agent calls it; no hook | Log file in `~/.toolrouter/logs/` |
 | [rtk](https://github.com/rtk-ai/rtk) | Compact output for many common commands | A hook rewrites Bash commands | `rtk recall` |
 | [Headroom](https://github.com/headroomlabs-ai/headroom) | Compressing everything sent to the model | Proxy, library or MCP | Cached locally |
 
