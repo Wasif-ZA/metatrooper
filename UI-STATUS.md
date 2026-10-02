@@ -8,7 +8,7 @@ GitHub; filing and pushing are Wasif's.
 |---|---|---|
 | UI-01 workday in the app | TODO | needs #34 to #36 and a real day of use |
 | UI-02 first agent in 30 s | TODO | needs installer and a fresh Windows account |
-| UI-03 survives the window | TODO | core half works by hand (smoke 2026-10-02: detach, reattach, snapshot then seq'd output); #34 window half; test owed to Codex |
+| UI-03 survives the window | DONE-UNTESTED | real Electron (scratch ui03.ts): engine prints a line every 100 ms, window killed at line 151, reopened 10 s later: session still `working`, the reattached terminal's last 200 rows equal the core's headless rows (aligned on the window's last line, 251). Test owed |
 | UI-04 fewer clicks | DONE-UNTESTED | new counts below: 1,1,1,1,1 against today 1,1,2,2,2, so none worse and 3 better. Counted by hand from 01367bb; not screen-recorded. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
 | UI-05 no wt or herdr left | DONE-UNTESTED | 2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
 | UI-06 core kill to Resume | DONE-UNTESTED | scratch c35-check.ts against a real core: SIGKILL core, restart, session exited in under 12 s; Resume passes resume_args with the native id (`--`, `resume-with`, `native-1` seen by the engine), same folder; an engine without resume_args gets Start new here (resumed false). Test owed to Codex |

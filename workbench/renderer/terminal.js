@@ -111,13 +111,13 @@ const termView = (() => {
     if (selected && terms.has(selected)) troop.termInput(selected, text);
   }
 
-  /** Selected session, its attach time and last non-empty rows, for the test probe. */
-  function state() {
+  /** Selected session, its attach time and its last `n` non-empty rows, for the test probe. */
+  function state(n = 5) {
     const t = terms.get(selected);
     if (!t) return null;
     const b = t.term.buffer.active;
     const rows = [];
-    for (let i = b.length - 1; i >= 0 && rows.length < 5; i--) {
+    for (let i = b.length - 1; i >= 0 && rows.length < n; i--) {
       const line = b.getLine(i)?.translateToString(true) ?? '';
       if (line.trim()) rows.unshift(line);
     }
