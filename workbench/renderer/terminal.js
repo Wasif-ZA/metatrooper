@@ -122,5 +122,23 @@ const termView = (() => {
     return { session: selected, attach_ms: t.attachMs, tail: rows, mode, tiles: terms.size };
   }
 
-  return { show, setLook, type, state };
+  /** Sends `input` to a shown session and resolves with the ms until `expect` appears in its parsed output. */
+  function timeEcho(sessionId, input, expect, timeoutMs = 5000) {
+    const t = terms.get(sessionId);
+    if (!t) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const start = performance.now();
+      let seen = '';
+      const sub = t.term.onWriteParsed(() => {
+        const b = t.term.buffer.active;
+        seen = '';
+        for (let i = Math.max(0, b.length - t.term.rows - 5); i < b.length; i++) seen += b.getLine(i)?.translateToString(true) ?? '';
+        if (seen.includes(expect)) { sub.dispose(); clearTimeout(timer); resolve(performance.now() - start); }
+      });
+      const timer = setTimeout(() => { sub.dispose(); resolve(null); }, timeoutMs);
+      troop.termInput(sessionId, input);
+    });
+  }
+
+  return { show, setLook, type, state, timeEcho };
 })();

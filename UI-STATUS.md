@@ -9,13 +9,13 @@ GitHub; filing and pushing are Wasif's.
 | UI-01 workday in the app | TODO | needs #34 to #36 and a real day of use |
 | UI-02 first agent in 30 s | TODO | needs installer and a fresh Windows account |
 | UI-03 survives the window | TODO | core half works by hand (smoke 2026-10-02: detach, reattach, snapshot then seq'd output); #34 window half; test owed to Codex |
-| UI-04 fewer clicks | TODO | today's counts recorded below. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
+| UI-04 fewer clicks | DONE-UNTESTED | new counts below: 1,1,1,1,1 against today 1,1,2,2,2, so none worse and 3 better. Counted by hand from 01367bb; not screen-recorded. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
 | UI-05 no wt or herdr left | DONE-UNTESTED | 2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
 | UI-06 core kill to Resume | TODO | #35 |
 | UI-07 prompt typed once | DONE-UNTESTED | smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
 | UI-08 spec-to-pr step list | TODO | #37 |
 | UI-09 four result panes | TODO | #38 |
-| UI-10 speed | PARTIAL | window attach (pipe to xterm.js write callback) 14 to 23 ms in real Electron; core attach, 10,000 rows (733 KB snapshot): median 44 ms of 10 (min 42, max 53), pipe connect to snapshot parsed. xterm.js write half and 6-tile echo need #34 |
+| UI-10 speed | DONE-UNTESTED | echo with 6 grid tiles each getting 200 lines/s: median 1 ms, p90 2 ms, max 3 ms of 50, from termInput to xterm.js parsing the echo (paint adds at most one frame, about 16 ms); window attach (pipe to xterm.js write callback) 14 to 23 ms in real Electron; core attach, 10,000 rows (733 KB snapshot): median 44 ms of 10 (min 42, max 53), pipe connect to snapshot parsed. xterm.js write half and 6-tile echo need #34 |
 | UI-11 tests on the terminal module | PARTIAL | core 108 pass, 3 skipped (M1-03 superseded by UI-06, 2 opt-in); workbench 9 pass, 4 opt-in skipped; no test spawns wt.exe. New #33 tests owed to Codex (usage limit until 21:31) |
 
 | Child | Status | Notes |
@@ -38,6 +38,10 @@ Counted from the m2 code (b256909), home = Sessions tab with a project open. A c
 | See diff | 2 | Hand-back tab, then a file chip |
 | Hand back | 2 | Hand-back tab, then Copy |
 | Open browser | 2 | Browser tab, then New pane (1 if a pane exists) |
+
+New counts (01367bb): start agent 1 (New claude in the rail; the new terminal is selected), approve gate 1 (rail),
+see diff 1 (Diff in the terminal header; 0 when the Diff tab is already open), hand back 1 (Hand back in the
+header), open browser 1 (Browser tab opens a pane when none exists).
 
 Start agent and approve gate are already 1, so "each lower" could not hold. Wasif chose 2026-10-02: no job worse than today, at least 3 of the 5 better.
 
@@ -81,3 +85,7 @@ Start agent and approve gate are already 1, so "each lower" could not hold. Wasi
 - 2026-10-02T20:57+10:00: round 1 pick: A (session list, big terminal, side split with tabs). Round 2 varies material (colour and type) on A.
 - 2026-10-02T20:59+10:00: round 2 pick: every material is a user-selectable theme (graphite, paper, terminal, slate, light); graphite is the default. Values from round2/gen.py MATS.
 - 2026-10-02T21:05+10:00: round 3 pick: session row 4 (engine, task, time; branch with +/-; last output line, amber when asking). Render rounds done; #34 code may start. Brief: layout A + 5 themes (default graphite) + row 4.
+- 2026-10-02T21:28+10:00: #34 first pass landed (01367bb): layout A, themes, row 4, grid, palette, first screen,
+  Diff tab on the selected agent's changes. Real Electron via CDP: single, grid, palette, paper theme and first
+  screen screenshots checked by eye; new agent is selected on launch; Browser tab opens a pane. Opt-in browser
+  e2e (M1-22, M1-23 to 25) pass with the pane inside the split. Core 108, workbench 9.
