@@ -11,6 +11,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
+import { diffLineBody, filesBody } from './comments.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -19,7 +20,7 @@ const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
-  'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'needs.dismiss',
+  'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
   'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
 
@@ -117,6 +118,20 @@ function watch(): void {
 function trusted(e: IpcMainInvokeEvent): boolean {
   const url = e.senderFrame?.url ?? '';
   return url.startsWith('file:') && fileURLToPath(url.split(/[?#]/)[0]) === INDEX;
+}
+
+async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string }> {
+  const rw = new DatabaseSync(dbFile());
+  try {
+    rw.exec('PRAGMA busy_timeout = 2000');
+    rw.prepare('INSERT INTO comment (id, at, session_id, kind, body, crop_path) VALUES (?, ?, ?, ?, ?, ?)').run(id, new Date().toISOString(), sessionId, kind, body, crop);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  } finally {
+    rw.close();
+  }
+  await call('comment.deliver', { comment_id: id }, { ui: true });
+  return { ok: true, comment_id: id };
 }
 
 function inside(root: string, file: string): boolean {
@@ -247,18 +262,21 @@ function handlers(): void {
       '```',
       `Crop: ${crop.split(String.fromCharCode(92)).join('/')}`,
     ].join('\n');
-    const rw = new DatabaseSync(dbFile());
-    try {
-      rw.exec('PRAGMA busy_timeout = 2000');
-      rw.prepare("INSERT INTO comment (id, at, session_id, kind, body, crop_path) VALUES (?, ?, ?, 'element', ?, ?)")
-        .run(id, new Date().toISOString(), c.session_id, body, crop.split(String.fromCharCode(92)).join('/'));
-    } catch (e) {
-      return { ok: false, error: (e as Error).message };
-    } finally {
-      rw.close();
-    }
-    await call('comment.deliver', { comment_id: id }, { ui: true });
-    return { ok: true, comment_id: id };
+    return saveComment(id, c.session_id, 'element', body, crop.split(String.fromCharCode(92)).join('/'));
+  });
+
+  on('commentDiffLine', async (c: { session_id?: unknown; note?: unknown; file?: unknown; line?: unknown; text?: unknown }) => {
+    if (typeof c?.session_id !== 'string' || typeof c.note !== 'string' || !c.note.trim()) return { ok: false, error: 'pick a session and write a note' };
+    if (typeof c.file !== 'string' || !Number.isInteger(c.line)) return { ok: false, error: 'pick a diff line' };
+    const id = ulid();
+    return saveComment(id, c.session_id, 'diff-line', diffLineBody(id, c.note, c.file, c.line as number, String(c.text ?? '')), null);
+  });
+
+  on('commentFiles', async (c: { session_id?: unknown; paths?: unknown }) => {
+    const paths = Array.isArray(c?.paths) ? c.paths.filter((p): p is string => typeof p === 'string' && path.isAbsolute(p)) : [];
+    if (typeof c?.session_id !== 'string' || !paths.length) return { ok: false, error: 'drop files on a session card' };
+    const id = ulid();
+    return saveComment(id, c.session_id, 'file', filesBody(id, paths), null);
   });
 
   on('snapshotImage', (file: unknown) => {
@@ -281,14 +299,40 @@ function handlers(): void {
     }
   });
 
-  on('handback', (projectId: unknown) => {
+  on('handback', (projectId: unknown, runId: unknown) => {
     const d = db();
     const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
     if (!project) return { error: 'pick a project first' };
+    const picked = d && typeof runId === 'string'
+      ? (d.prepare("SELECT v.idx, v.worktree, v.branch FROM variant v JOIN run r ON r.id = v.run_id WHERE v.run_id = ? AND r.project_id = ? AND v.status = 'picked' ORDER BY v.idx LIMIT 1").get(runId, projectId) as { idx: number; worktree: string; branch: string } | undefined)
+      : undefined;
     try {
+      if (picked) {
+        const base = gitIn(project.path)(['merge-base', 'HEAD', picked.branch]).trim();
+        return { ...handback(gitIn(picked.worktree), { base, cwd: picked.worktree }), variant: picked.idx, branch: picked.branch };
+      }
       return handback(gitIn(project.path));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
+    }
+  });
+
+  on('handbackFile', (projectId: unknown, runId: unknown, file: unknown) => {
+    const d = db();
+    if (!d || typeof projectId !== 'string' || typeof file !== 'string') return null;
+    const project = d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
+    if (!project) return null;
+    const picked = typeof runId === 'string'
+      ? (d.prepare("SELECT v.worktree, v.branch FROM variant v JOIN run r ON r.id = v.run_id WHERE v.run_id = ? AND r.project_id = ? AND v.status = 'picked' ORDER BY v.idx LIMIT 1").get(runId, projectId) as { worktree: string; branch: string } | undefined)
+      : undefined;
+    try {
+      if (picked) {
+        const base = gitIn(project.path)(['merge-base', 'HEAD', picked.branch]).trim();
+        return gitIn(picked.worktree)(['diff', base, '--', file]);
+      }
+      return gitIn(project.path)(['diff', '--cached', '--', file]);
+    } catch {
+      return null;
     }
   });
 

@@ -153,3 +153,26 @@ test('hooks install and uninstall preserve fixture settings and config byte for 
     assert.deepEqual(readFileSync(configPath), config);
   } finally { await h.teardown(); }
 });
+
+test('M2-06 a diff-line comment and a dropped-file comment reach a Claude session on its next prompt', async () => {
+  const { diffLineBody, filesBody } = await import('../../workbench/src/comments.ts');
+  const h = await fakeHarness();
+  try {
+    const sessionId = await launchFake(h);
+    const store = db(h.home);
+    try {
+      const line = diffLineBody('c-line', 'rename this', 'src/app.js', 42, '+  const x = 1;');
+      const files = filesBody('c-files', [String.raw`C:\Users\me\shot.png`, '/tmp/spec.md']);
+      assert.equal(files, '[comment c-files] Files dropped for you:\n- C:/Users/me/shot.png\n- /tmp/spec.md');
+      store.prepare('INSERT INTO comment (id, at, session_id, kind, body) VALUES (?, ?, ?, ?, ?)').run('c-line', new Date().toISOString(), sessionId, 'diff-line', line);
+      store.prepare('INSERT INTO comment (id, at, session_id, kind, body) VALUES (?, ?, ?, ?, ?)').run('c-files', new Date().toISOString(), sessionId, 'file', files);
+      const env = { ...h.env, TROOP_SESSION_ID: sessionId };
+      const out = await runNode(['core/event.js', 'claude.UserPromptSubmit'], env, JSON.stringify({ session_id: 'native-1', cwd: h.home, prompt: 'go' }));
+      assert.equal(out.code, 0);
+      const context = JSON.parse(out.stdout).hookSpecificOutput.additionalContext;
+      assert.ok(context.includes('[comment c-line] rename this\nFile: src/app.js:42\nLine: +  const x = 1;'), context);
+      assert.ok(context.indexOf('c-line') < context.indexOf('c-files'), 'delivered in the order they were made');
+      assert.ok(context.includes(files));
+    } finally { store.close(); }
+  } finally { await h.teardown(); }
+});

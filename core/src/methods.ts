@@ -404,9 +404,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  for (const name of ['variant.combine']) {
-    m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, `${name} arrives with a later child issue`); } });
-  }
+  m.set('variant.combine', {
+    handler: (p) => {
+      const indices = Array.isArray(p.indices) ? p.indices : [];
+      if (!indices.length || indices.some((i) => !Number.isInteger(i) || (i as number) < 0)) {
+        throw new RpcError(E.INVALID_PARAMS, 'indices must be a list of variant indices');
+      }
+      return ctl.runner.combine(str(p, 'run_id'), indices as number[], typeof p.note === 'string' ? p.note : '');
+    },
+  });
 
   return m;
 }

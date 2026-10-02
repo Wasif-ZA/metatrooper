@@ -54,6 +54,7 @@ interface StepRow {
 
 type IndexResult = { ok: true; outputs: Record<string, unknown> } | { ok: false; error: string } | { paused: string };
 type StepOutcome = 'done' | 'failed' | 'paused' | 'stopped';
+export type PaneCapture = (paneId: string, label: string) => Promise<{ w1280_path: string }>;
 
 export interface StartParams {
   pipeline_id: string;
@@ -95,6 +96,7 @@ export class Runner {
   private active = new Set<string>();
   private children = new Map<string, ChildProcess>();
   private boardCapture: BoardCapture | null = null;
+  private paneCapture: PaneCapture | null = null;
 
   constructor(db: DatabaseSync) {
     this.db = db;
@@ -102,6 +104,10 @@ export class Runner {
 
   setBoardCapture(capture: BoardCapture): void {
     this.boardCapture = capture;
+  }
+
+  setPaneCapture(capture: PaneCapture): void {
+    this.paneCapture = capture;
   }
 
   private run(id: string): RunRow | undefined {
@@ -445,7 +451,7 @@ export class Runner {
     return r;
   }
 
-  private async execIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow): Promise<IndexResult> {
+  private async execIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow, raw = false): Promise<IndexResult> {
     row = { ...row };
     const idx = row.fanout_index;
     const fanout = Boolean(step.fanout);
@@ -454,7 +460,7 @@ export class Runner {
       this.markRunning(run, row);
       row = this.rows(run.id, row.step_id, row.iteration).find((r) => r.fanout_index === idx) as StepRow;
       let result: IndexResult;
-      if (step.kind === 'agent') result = await this.agentIndex(run, pipe, step, row, place);
+      if (step.kind === 'agent') result = await this.agentIndex(run, pipe, step, row, place, raw);
       else if (step.kind === 'action') result = await this.actionIndex(run, step, row, fanout);
       else if (step.kind === 'code') result = await this.codeIndex(run, pipe, step, row, fanout);
       else result = await this.pipelineIndex(run, step, row);
@@ -559,7 +565,7 @@ export class Runner {
     return `${body}\n\n${footer}`;
   }
 
-  private async agentIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow, place: { cwd: string; paneId?: string }): Promise<IndexResult> {
+  private async agentIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow, place: { cwd: string; paneId?: string }, raw = false): Promise<IndexResult> {
     const fanout = Boolean(step.fanout);
     const outPath = row.output_path ?? this.outputPath(run, step.id, row.fanout_index, fanout);
     if (step.continue) this.log(run, { event: 'memory not kept', step: step.id, detail: `continue: ${step.continue} needs the herdr host; ran as a new session` });
@@ -567,6 +573,7 @@ export class Runner {
       stepId: step.id,
       row,
       template: step.prompt as string,
+      raw,
       outputs: step.outputs ?? [],
       engine: () => this.bindEngine(step),
       outPath,
@@ -982,6 +989,71 @@ export class Runner {
       if (v.branch) execFileSync('git', ['-C', project.path, 'branch', '-D', v.branch], { stdio: 'pipe', timeout: 30_000, windowsHide: true });
     } catch {}
     this.db.prepare("UPDATE variant SET status = 'discarded' WHERE run_id = ? AND idx = ?").run(runId, idx);
+  }
+
+  /** Starts an agent in a fresh worktree from project HEAD as the next variant, given the note and each selected variant's diff and pane capture. */
+  async combine(runId: string, indices: number[], note: string): Promise<{ step_id: string }> {
+    const run = this.run(runId);
+    if (!run) throw new RpcError(E.NOT_FOUND, 'run not found');
+    const chosen = [...new Set(indices)];
+    const invalid = (msg: string) => new RpcError(E.VALIDATION, msg, { errors: [msg] });
+    if (chosen.length < 2) throw invalid('combine needs at least 2 different variants');
+    if (!note.trim()) throw invalid('combine needs a note');
+    const variants = chosen.map((idx) => {
+      const v = this.db.prepare('SELECT idx, worktree, branch, pane_id, status FROM variant WHERE run_id = ? AND idx = ?').get(runId, idx) as
+        | { idx: number; worktree: string; branch: string; pane_id: string | null; status: string }
+        | undefined;
+      if (!v) throw new RpcError(E.NOT_FOUND, `variant ${idx} not found`);
+      if (v.status === 'discarded') throw invalid(`variant ${idx} was discarded`);
+      return v;
+    });
+    const pipe = this.pipelineOf(run);
+    const src = [...pipe.steps].reverse().find((s) => s.kind === 'agent' && s.fanout && s.worktree);
+    if (!src) throw invalid('this run has no fan-out agent step to combine');
+
+    const prior = (this.db.prepare("SELECT count(DISTINCT step_id) AS n FROM run_step WHERE run_id = ? AND step_id LIKE 'combine-%'").get(runId) as { n: number }).n;
+    const stepId = `combine-${prior + 1}`;
+    const idx = (this.db.prepare('SELECT COALESCE(MAX(idx), -1) + 1 AS n FROM variant WHERE run_id = ?').get(runId) as { n: number }).n;
+    this.db.prepare("INSERT INTO variant (run_id, idx, worktree, branch, dev_port, status) VALUES (?, ?, '', '', 0, 'building')").run(runId, idx);
+    this.db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status) VALUES (?, ?, 0, ?, 'pending')").run(runId, stepId, idx);
+
+    const project = this.project(run.project_id);
+    const dir = path.join(run.run_dir, stepId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'note.md'), note);
+    const git = (cwd: string, args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe', timeout: 60_000, windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+    const head = git(project.path, ['rev-parse', 'HEAD']).trim();
+    for (const v of variants) {
+      try {
+        git(v.worktree, ['add', '-A', '-N']);
+        const base = git(project.path, ['merge-base', head, v.branch]).trim();
+        fs.writeFileSync(path.join(dir, `variant-${v.idx}.diff`), git(v.worktree, ['diff', base]));
+      } catch (e) {
+        this.log(run, { event: 'combine diff failed', variant: v.idx, why: (e as Error).message });
+      }
+      if (!v.pane_id || !this.paneCapture) {
+        this.log(run, { event: 'combine crop skipped', variant: v.idx, why: v.pane_id ? 'browser not available' : 'variant has no pane' });
+        continue;
+      }
+      try {
+        const shot = await this.paneCapture(v.pane_id, stepId);
+        fs.copyFileSync(shot.w1280_path, path.join(dir, `variant-${v.idx}.png`));
+      } catch (e) {
+        this.log(run, { event: 'combine crop failed', variant: v.idx, why: (e as Error).message });
+      }
+    }
+
+    const listed = fs.readdirSync(dir).sort().map((f) => slash(path.join(dir, f)));
+    const prompt = [
+      `Combine variants ${chosen.join(', ')} into one result in this worktree, which starts from the project's HEAD.`,
+      `The user's note:\n\n${note}`,
+      `Each variant's diff against the project and its screenshot are in these files:\n${listed.map((f) => `- ${f}`).join('\n')}`,
+    ].join('\n\n');
+    const step: Step = { ...src, id: stepId, prompt, fanout: 1 };
+    const row = this.rows(runId, stepId)[0];
+    this.log(run, { event: 'combine started', step: stepId, variants: chosen, index: idx });
+    void this.execIndex(run, pipe, step, row, true).catch(() => {});
+    return { step_id: stepId };
   }
 }
 

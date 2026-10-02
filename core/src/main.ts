@@ -62,6 +62,7 @@ async function main(): Promise<void> {
 
   const uiKey = rotateUiKey();
   runner.setBoardCapture((req) => browserCall(uiKey, 'browser.board_capture', req, 60_000));
+  runner.setPaneCapture((pane_id, label) => browserCall(uiKey, 'browser.capture', { pane_id, label }, 60_000) as Promise<{ w1280_path: string }>);
   const commands = new CommandRunner(db, buildMethods(db, { engines: () => activeEngines(db), stop, runner, uiKey }));
   await commands.recover();
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}

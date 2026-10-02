@@ -73,3 +73,28 @@ test('M1-27 no commit/push/rebase execution path in workbench source', () => {
     assert.equal(bad, null, f);
   }
 });
+
+test('M2-03 a picked variant shows its worktree diff against the base, read-only, with a commit -am command in that worktree', () => {
+  const d = mkdtempSync(join(tmpdir(), 'hb-variant-'));
+  const g = (...a: string[]) => execFileSync('git', a, { cwd: d, encoding: 'utf8' });
+  g('init', '-q');
+  g('config', 'user.email', 't@example.com');
+  g('config', 'user.name', 't');
+  writeFileSync(join(d, 'kept.txt'), 'one\n');
+  g('add', '.');
+  g('commit', '-qm', 'base');
+  const base = g('rev-parse', 'HEAD').trim();
+  writeFileSync(join(d, 'committed.txt'), 'c\n');
+  g('add', '.');
+  g('commit', '-qm', 'variant work');
+  writeFileSync(join(d, 'kept.txt'), 'one\ntwo\n');
+  writeFileSync(join(d, 'new.txt'), 'n\n');
+  const calls: string[][] = [];
+  const git = gitIn(d);
+  const h = handback((args) => { calls.push(args); return git(args); }, { base, cwd: d });
+  assert.deepEqual(h.files.map((f) => f.path).sort(), ['committed.txt', 'kept.txt']);
+  assert.deepEqual(h.untracked, ['new.txt']);
+  assert.ok(calls.every((a) => a[0] === 'diff' || a[0] === 'ls-files'), JSON.stringify(calls));
+  assert.ok(calls.filter((a) => a[0] === 'diff').every((a) => a[1] === base && !a.includes('--cached')));
+  assert.ok(h.command.startsWith(`git -C '${d}' commit -am `), h.command);
+});

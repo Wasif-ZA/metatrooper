@@ -10,7 +10,7 @@ export interface Handback {
   command: string;
 }
 
-const READ_ONLY = new Set(['diff', 'ls-files']);
+const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base']);
 
 export function gitIn(cwd: string): Git {
   return (args) => {
@@ -30,15 +30,16 @@ export function draftMessage(files: Handback['files']): string {
   return `Update ${names.join(', ')}${more}`;
 }
 
-export function handback(git: Git): Handback {
-  const stat = git(['diff', '--cached', '--stat']).trimEnd();
-  const raw = git(['diff', '--cached', '--raw', '--no-abbrev', '-z']).split('\0');
+export function handback(git: Git, opts: { base?: string; cwd?: string } = {}): Handback {
+  const range = opts.base ? [opts.base] : ['--cached'];
+  const stat = git(['diff', ...range, '--stat']).trimEnd();
+  const raw = git(['diff', ...range, '--raw', '--no-abbrev', '-z']).split('\0');
   const modes = new Map<string, string>();
   for (let i = 0; i + 1 < raw.length; i += 2) {
     const m = raw[i].match(/^:(\d+) (\d+) /);
     if (m) modes.set(raw[i + 1], m[1] === '160000' || m[2] === '160000' ? 'submodule' : 'x');
   }
-  const numstat = git(['diff', '--cached', '--numstat', '-z']).split('\0').filter(Boolean);
+  const numstat = git(['diff', ...range, '--numstat', '-z']).split('\0').filter(Boolean);
   const files: Handback['files'] = [];
   for (const line of numstat) {
     const m = line.match(/^(\S+)\t(\S+)\t(.*)$/);
@@ -54,5 +55,6 @@ export function handback(git: Git): Handback {
   }
   const untracked = git(['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean);
   const message = draftMessage(files);
-  return { stat, files, untracked, message, command: `git commit -m ${shellQuote(message)}` };
+  const command = opts.cwd ? `git -C ${shellQuote(opts.cwd)} commit -am ${shellQuote(message)}` : `git commit -m ${shellQuote(message)}`;
+  return { stat, files, untracked, message, command };
 }

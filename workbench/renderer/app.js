@@ -122,7 +122,7 @@ function meter(x) {
 
 function sessionCard(x) {
   const run = x.run_id ? ` · step ${esc(x.step_id || '')}` : '';
-  return `<div class="card" data-action="seen" data-id="${esc(x.id)}">
+  return `<div class="card" data-action="seen" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Drop files here to send their paths to this session">
     <div class="row"><span class="engine">${esc(x.engine_id)}</span><span class="state ${esc(x.state)}">${esc(STATE_WORDS[x.state] || x.state)}</span></div>
     <div class="meta">${esc(x.window_name || '')}${run}</div>
     <div class="meta">${x.last_tool ? `last tool ${esc(x.last_tool)} · ` : ''}<span data-ago="${esc(x.state_at)}">${esc(ago(x.state_at))}</span></div>
@@ -193,9 +193,34 @@ function renderRunDetail() {
     <div class="toolbar"><h3 style="margin:0">${esc(run.pipeline_id)}</h3><span class="state ${esc(run.status)}">${esc(run.status)}${run.paused_why ? `: ${esc(run.paused_why)}` : ''}</span>${actions.join('')}</div>
     <table><thead><tr><th>Step</th><th>Loop</th><th>Index</th><th>Status</th><th>Engine</th><th>Fails</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   </div>
+  ${renderVariants()}
   ${renderReview()}
   ${renderBoard()}
   <div class="panel"><h3>Log</h3><div class="log">${esc(ui.log.map(formatLog).join('\n')) || '<span class="empty">empty</span>'}</div></div>`;
+}
+
+function renderVariants() {
+  const vs = ui.snap.variants || [];
+  if (!vs.length) return '';
+  ui.combine = (ui.combine || []).filter((i) => vs.some((v) => v.idx === i && v.status !== 'discarded'));
+  const tiles = vs.map((v) => {
+    const live = v.status !== 'discarded';
+    return `<div class="card ${v.status === 'picked' ? 'on' : ''}">
+      <div class="toolbar"><b>Variant ${v.idx + 1}</b><span class="state ${esc(v.status)}">${esc(v.status)}</span>
+        ${live ? `<label class="meta"><input type="checkbox" data-action="variant-toggle" data-idx="${v.idx}" ${ui.combine.includes(v.idx) ? 'checked' : ''}> combine</label>` : ''}</div>
+      <div class="meta">${esc(v.engine_id || 'engine pending')} · ${esc(meter(v))}</div>
+      <div class="meta">${esc(v.branch || '')}${v.dev_port ? ` · port ${v.dev_port}` : ''}${v.step_id && v.step_id.startsWith('combine-') ? ` · ${esc(v.step_id)}` : ''}</div>
+      <div class="actions">
+        ${v.pane_id && live ? `<button data-action="variant-pane" data-id="${esc(v.pane_id)}">Pane</button>` : ''}
+        ${live && v.status !== 'picked' ? `<button class="primary" data-action="variant-pick" data-idx="${v.idx}">Pick</button>` : ''}
+        ${live ? `<button class="danger" data-action="variant-discard" data-idx="${v.idx}">Discard</button>` : ''}
+      </div></div>`;
+  }).join('');
+  const n = ui.combine.length;
+  return `<div class="panel"><h3>Variants</h3><div class="cards">${tiles}</div>
+    <div class="form"><label>Combine note</label><textarea rows="2" data-key="combine-note" id="combine-note" placeholder="What to take from each"></textarea>
+    <span></span><div><button data-action="variant-combine" ${n < 2 ? 'disabled' : ''}>Combine ${n} selected</button> <span class="meta">${n < 2 ? 'Tick at least 2 variants.' : 'Starts a new variant from the project HEAD with your note, their diffs and screenshots.'}</span></div></div>
+  </div>`;
 }
 
 function finding(f) {
@@ -441,15 +466,18 @@ function renderHandback() {
   if (ui.handback === undefined && ui.projectId) {
     ui.handback = null;
     const id = ui.projectId;
-    void api.handback(id).then((r) => { if (ui.projectId === id) { ui.handback = r; render(); } });
+    void api.handback(id, ui.runId).then((r) => { if (ui.projectId === id) { ui.handback = r; render(); } });
   }
   const h = ui.handback;
-  const bar = '<div class="toolbar"><h3 style="margin:0">Staged changes</h3><button data-action="handback-refresh">Refresh</button></div>';
+  const title = h && h.variant !== undefined ? `Picked variant ${h.variant + 1} (${esc(h.branch)})` : 'Staged changes';
+  const bar = `<div class="toolbar"><h3 style="margin:0">${title}</h3><button data-action="handback-refresh">Refresh</button></div>`;
   if (!h) return `<div class="panel">${bar}<p class="empty">Loading.</p></div>`;
   if (h.error) return `<div class="panel">${bar}<p class="empty">${esc(h.error)}</p></div>`;
   const byName = h.files.filter((f) => f.kind !== 'text').map((f) => `<li>${esc(f.path)} <span class="meta">${esc(f.kind)}</span></li>`).join('');
+  const texts = h.files.filter((f) => f.kind === 'text').map((f) => `<button class="chip ${ui.hbFile === f.path ? 'on' : ''}" data-action="hb-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added} -${f.deleted}</span></button>`).join('');
   return `<div class="panel">${bar}
-    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged.</p>'}
+    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : `<p class="empty">${h.variant !== undefined ? 'No changes in this variant.' : 'Nothing staged.'}</p>`}
+    ${texts ? `<h3>Comment on a line</h3><div class="toolbar">${texts}</div>${renderDiff()}` : ''}
     ${byName ? `<h3>Binary and submodules</h3><ul>${byName}</ul>` : ''}
     ${h.untracked.length ? `<h3>Untracked (never staged here)</h3><ul>${h.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${h.files.length ? `<h3>Command to run</h3><div class="log">${esc(h.command)}</div>
@@ -457,8 +485,29 @@ function renderHandback() {
   </div>`;
 }
 
+function renderDiff() {
+  if (!ui.hbFile) return '<p class="meta">Pick a file to see its diff, then click a line.</p>';
+  if (ui.hbDiff === undefined) return '<p class="empty">Loading diff.</p>';
+  if (ui.hbDiff === null) return '<p class="empty">Could not read the diff for this file.</p>';
+  const lines = diffLines(ui.hbDiff);
+  const rows = lines.map((l, i) => l.kind === 'hunk'
+    ? `<div class="hunk">${esc(l.text)}</div>`
+    : `<div class="${l.kind}${ui.hbLine === i ? ' on' : ''}" data-action="hb-line" data-i="${i}">${esc(String(l.line).padStart(5))} ${esc(l.text)}</div>`).join('');
+  const picked = ui.hbLine !== null && ui.hbLine !== undefined ? lines[ui.hbLine] : null;
+  const sessions = ui.snap.sessions.filter((x) => x.state !== 'exited');
+  const form = picked ? `<div class="form">
+      <label>Line</label><div class="meta">${esc(ui.hbFile)}:${picked.line}${picked.kind === 'del' ? ' (removed line, old numbering)' : ''}</div>
+      <label>Note</label><textarea rows="2" id="hb-note" data-key="hb-note"></textarea>
+      <label>Session</label><select id="hb-session" data-key="hb-session">${sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} · ${esc(x.window_name || x.id.slice(0, 8))}</option>`).join('')}</select>
+      <span></span><div><button class="primary" data-action="hb-send" ${sessions.length ? '' : 'disabled'}>Send</button> ${sessions.length ? '' : '<span class="meta">No live session to send to.</span>'}</div>
+    </div>` : '';
+  return `<div class="diff">${rows}</div>${form}`;
+}
+
 function refreshHandback() {
   ui.handback = undefined;
+  ui.hbFile = null;
+  ui.hbLine = null;
   render();
 }
 
@@ -608,6 +657,63 @@ async function onClick(e) {
     case 'cancel-run':
       await rpc('run.cancel', { run_id: ui.runId });
       return;
+    case 'hb-file': {
+      const file = el.dataset.file;
+      ui.hbFile = file;
+      ui.hbDiff = undefined;
+      ui.hbLine = null;
+      render();
+      const text = await api.handbackFile(ui.projectId, ui.runId, file);
+      if (ui.hbFile === file) { ui.hbDiff = text; render(); }
+      return;
+    }
+    case 'hb-line':
+      ui.hbLine = Number(el.dataset.i);
+      render();
+      return;
+    case 'hb-send': {
+      const l = diffLines(ui.hbDiff || '')[ui.hbLine];
+      const note = (document.getElementById('hb-note') || {}).value || '';
+      const session_id = (document.getElementById('hb-session') || {}).value;
+      if (!l || !note.trim()) { toast('Write a note first.', true); return; }
+      const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
+      if (!r.ok) { toast(r.error, true); return; }
+      toast('Comment sent: on the clipboard, and in the session\'s next prompt for Claude.');
+      ui.hbLine = null;
+      render();
+      return;
+    }
+    case 'variant-toggle': {
+      const idx = Number(el.dataset.idx);
+      ui.combine = el.checked ? [...new Set([...(ui.combine || []), idx])] : (ui.combine || []).filter((i) => i !== idx);
+      render();
+      return;
+    }
+    case 'variant-pane':
+      ui.paneId = id;
+      ui.browserMode = 'live';
+      ui.tab = 'browser';
+      save('tab', ui.tab);
+      render();
+      return;
+    case 'variant-pick': {
+      const r = await rpc('variant.pick', { run_id: ui.runId, idx: Number(el.dataset.idx) });
+      if (!r.error && !r.queued) toast(`Variant ${Number(el.dataset.idx) + 1} picked. Its diff is in Hand-back.`);
+      return;
+    }
+    case 'variant-discard': {
+      const idx = Number(el.dataset.idx);
+      if (!window.confirm(`Discard variant ${idx + 1}? This removes its worktree and branch, stops its dev server and closes its pane.`)) return;
+      await rpc('variant.discard', { run_id: ui.runId, idx });
+      return;
+    }
+    case 'variant-combine': {
+      const note = (document.getElementById('combine-note') || {}).value || '';
+      if (!note.trim()) { toast('Write a note saying what to take from each variant.', true); return; }
+      const r = await rpc('variant.combine', { run_id: ui.runId, indices: ui.combine, note });
+      if (r.result) { ui.combine = []; toast(`Combine started as ${r.result.step_id}.`); }
+      return;
+    }
     case 'resume-run': {
       const raise = document.getElementById('raise-tokens');
       const params = { run_id: ui.runId };
@@ -841,6 +947,21 @@ api.onSnapshot(async (s) => {
 });
 
 document.addEventListener('click', (e) => void onClick(e));
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  const card = e.target.closest && e.target.closest('[data-drop-session]');
+  for (const c of document.querySelectorAll('.card.drop')) if (c !== card) c.classList.remove('drop');
+  if (card) card.classList.add('drop');
+  e.dataTransfer.dropEffect = card ? 'copy' : 'none';
+});
+document.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  for (const c of document.querySelectorAll('.card.drop')) c.classList.remove('drop');
+  const card = e.target.closest && e.target.closest('[data-drop-session]');
+  if (!card || !e.dataTransfer.files.length) return;
+  const r = await api.commentFiles(card.dataset.dropSession, e.dataTransfer.files);
+  toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: on the clipboard, and in the session's next prompt for Claude.` : r.error, !r.ok);
+});
 document.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
   if (ui.tab !== 'browser' || typing || e.ctrlKey || e.metaKey || e.altKey) return;

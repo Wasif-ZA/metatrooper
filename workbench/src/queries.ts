@@ -19,6 +19,7 @@ export interface Snapshot {
   panes: Array<{ id: string; url: string | null; session_id: string | null; run_id: string | null; variant: number | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   board: Array<{ id: string; run_id: string; source_url: string; capture_path: string | null; reason: string; pinned: number }>;
+  variants: Array<{ idx: number; status: string; branch: string; pane_id: string | null; dev_port: number; step_id: string | null; engine_id: string | null; session_id: string | null; tokens: number | null; usd: number | null }>;
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */
@@ -136,6 +137,17 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
       ).all(runId, runId) as Snapshot['board'])
     : [];
 
+  const variants = runId
+    ? (db.prepare(
+        `SELECT v.idx, v.status, v.branch, v.pane_id, v.dev_port, a.step_id, a.engine_id, a.session_id,
+           (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = a.session_id) AS tokens,
+           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = a.session_id) AS usd
+         FROM variant v
+         LEFT JOIN run_step a ON a.rowid = (SELECT rowid FROM run_step WHERE run_id = v.run_id AND fanout_index = v.idx AND session_id IS NOT NULL ORDER BY rowid DESC LIMIT 1)
+         WHERE v.run_id = ? ORDER BY v.idx`,
+      ).all(runId) as Snapshot['variants'])
+    : [];
+
   const needs_you = db.prepare('SELECT id, at, kind, ref, text FROM needs_you WHERE resolved_at IS NULL ORDER BY at DESC LIMIT 100').all() as Snapshot['needs_you'];
 
   return {
@@ -152,6 +164,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     panes,
     snapshots,
     board,
+    variants,
   };
 }
 

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('troop', {
   view: (v) => ipcRenderer.invoke('view', v),
@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('troop', {
   savePipeline: (projectId, text) => ipcRenderer.invoke('savePipeline', projectId, text),
   runLog: (runId) => ipcRenderer.invoke('runLog', runId),
   review: (runId) => ipcRenderer.invoke('review', runId),
-  handback: (projectId) => ipcRenderer.invoke('handback', projectId),
+  handback: (projectId, runId) => ipcRenderer.invoke('handback', projectId, runId),
   copyText: (text) => ipcRenderer.invoke('copyText', text),
   longtasks: (entries) => ipcRenderer.invoke('longtasks', entries),
   probe: (state) => ipcRenderer.invoke('probe', state),
@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('troop', {
   panePick: (paneId) => ipcRenderer.invoke('panePick', paneId),
   panePickCancel: (paneId) => ipcRenderer.invoke('panePickCancel', paneId),
   commentSave: (c) => ipcRenderer.invoke('commentSave', c),
+  commentDiffLine: (c) => ipcRenderer.invoke('commentDiffLine', c),
+  commentFiles: (sessionId, files) => ipcRenderer.invoke('commentFiles', { session_id: sessionId, paths: Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean) }),
+  handbackFile: (projectId, runId, file) => ipcRenderer.invoke('handbackFile', projectId, runId, file),
   snapshotImage: (file) => ipcRenderer.invoke('snapshotImage', file),
   onCommentPicked: (fn) => {
     const listener = (_e, info) => fn(info);

@@ -110,6 +110,15 @@ h3 { font-size: 14px; margin: 0 0 8px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
 .card:hover { border-color: var(--accent); }
+.card.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.card.drop { border-color: var(--accent); border-style: dashed; }
+.diff { font: 12px/1.5 ui-monospace, Consolas, monospace; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+.diff div { padding: 0 8px; white-space: pre; cursor: pointer; }
+.diff div:hover { background: var(--panel); }
+.diff .add { color: var(--ok, #2a7); }
+.diff .del { color: var(--bad, #c33); }
+.diff .hunk { color: var(--muted); cursor: default; }
+.diff .on { outline: 1px solid var(--accent); }
 .card .row { display: flex; align-items: center; gap: 8px; }
 .card .engine { font-weight: 600; }
 .card .meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
