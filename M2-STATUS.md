@@ -10,7 +10,7 @@ Waiting on Wasif: #27 (herdr not installed), #28 (SignPath account), #32 (Docker
 | Criterion | Status | Evidence / notes |
 |---|---|---|
 | M2-01 | TODO | per built-in, lands with #14, #23, #25 |
-| M2-02 | TODO | #7 |
+| M2-02 | VERIFIED-WINDOWS | 2026-10-02T16:43+10:00: workbench/test/board.test.ts (opt-in METATROOPER_BROWSER_E2E=1 and METATROOPER_NETWORK_E2E=1, by Claude): installs plugins/agent-reach, runs inspiration-board on the bakery brief with the real workbench open; at least 8 board_item rows with capture files over 1 KB, 24 s. The plugin needs the real USERPROFILE (mcporter reads its exa config there), so the test isolates only METATROOPER_HOME. Seen: the GitHub half returned nothing for this brief (derived query `calm landing local`), so all references were web. Directions and their gate belong to design-variants (#14). |
 | M2-03 | TODO | #8 in progress: combine built, grid and picked-variant hand-back built; runner tests by Codex pending |
 | M2-04 | TODO | #27, needs herdr |
 | M2-05 | TODO | #29 |
