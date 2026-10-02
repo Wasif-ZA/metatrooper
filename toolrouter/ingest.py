@@ -1,15 +1,20 @@
 import argparse
+import datetime
 import json
+import re
 import math
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
+
+from toolrouter import calls
 
 IMAGE_TOKENS = 1500
 CAPS = (400, 800, 2000, 4000)
 BIG_READ_TOKENS = 10_000  # about 40 KB at four bytes per token
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
 OUT_DIR = Path.home() / ".toolrouter"
+ACU = re.compile(r"work[\\/]+acu", re.I)
 
 
 def result_cost(content):
@@ -25,35 +30,78 @@ def result_cost(content):
     return text, images
 
 
-def blocks(line, since):
+def when(value):
+    """Parse an ISO time as an aware datetime; no offset means UTC. None when it does not parse."""
+    if isinstance(value, datetime.datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=datetime.timezone.utc)
+
+
+def in_window(stamp, since, until):
+    if not since and not until:
+        return True
+    t = when(stamp)
+    if t is None:
+        return False
+    return (not since or t >= when(since)) and (not until or t < when(until))
+
+
+def blocks(line, since, until=None):
     try:
         entry = json.loads(line)
     except json.JSONDecodeError:
         return []
     if not isinstance(entry, dict):
         return []
-    if since and entry.get("timestamp", "") < since:
+    if not in_window(entry.get("timestamp"), since, until):
         return []
     content = (entry.get("message") or {}).get("content")
     return content if isinstance(content, list) else []
 
 
-def scan(root, since=None):
-    """Two passes: map tool_use_id to its call, then attribute each result to it."""
+def touches_acu(line):
+    try:
+        entry = json.loads(line)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(entry, dict):
+        return False
+    if ACU.search(str(entry.get("cwd") or "")):
+        return True
+    content = (entry.get("message") or {}).get("content")
+    return isinstance(content, list) and any(
+        isinstance(b, dict) and b.get("type") == "tool_use" and ACU.search(json.dumps(b.get("input") or {}))
+        for b in content)
+
+
+def scan(root, since=None, until=None):
+    """Two passes: map tool_use_id to its call, then attribute each result to it. Sessions touching ACU are skipped."""
     root = Path(root)
     files = [root] if root.is_file() else sorted(root.rglob("*.jsonl"))
-    calls = {}
+    calls, kept = {}, []
     for f in files:
+        mine = {}
         with f.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                for b in blocks(line, since):
+                if touches_acu(line):
+                    mine = None
+                    break
+                for b in blocks(line, since, until):
                     if b.get("type") == "tool_use" and "id" in b:
-                        calls[b["id"]] = (b.get("name", "?"), b.get("input") or {}, f.parent.name)
+                        mine[b["id"]] = (b.get("name", "?"), b.get("input") or {}, f.parent.name)
+        if mine is not None:
+            calls.update(mine)
+            kept.append(f)
     results = {}
-    for f in files:
+    for f in kept:
         with f.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                for b in blocks(line, since):
+                for b in blocks(line, since, until):
                     tid = b.get("tool_use_id")
                     if b.get("type") == "tool_result" and tid in calls and tid not in results:
                         text, images = result_cost(b.get("content"))
@@ -101,7 +149,20 @@ def summarise(calls, results):
             "exact_repeat_calls": sum(n - 1 for n in repeats.values() if n > 1),
         },
         "read_over_40kb_saves": big_read,
+        "shell_read_tokens": sum(t["tokens"] for k, t in by_tool.items() if k in ("Bash", "PowerShell", "Read")),
     }
+
+
+def saved_tokens(rows, since=None, until=None):
+    """Tokens toolrouter kept out of context: (bytes - shown_bytes) // 4 per printed, non-ACU call in the window."""
+    total = 0
+    for r in rows:
+        if "shown_bytes" not in r or ACU.search(str(r.get("project") or "")):
+            continue
+        if when(r.get("time")) is None or not in_window(r.get("time"), since, until):
+            continue
+        total += max(0, (r.get("bytes", 0) - r["shown_bytes"]) // 4)
+    return total
 
 
 def report(s, n_files):
@@ -127,11 +188,16 @@ def main(argv=None, how="human"):
     ing = sub.add_parser("ingest", help="measure where tool-result tokens go")
     ing.add_argument("--root", default=str(DEFAULT_ROOT))
     ing.add_argument("--since", help="ISO timestamp, e.g. 2026-09-27T00:00")
+    ing.add_argument("--until", help="ISO timestamp, exclusive; no offset means UTC")
     ing.add_argument("--no-save", action="store_true")
     args = ap.parse_args(argv)
+    for flag in ("since", "until"):
+        if getattr(args, flag) and when(getattr(args, flag)) is None:
+            ap.error(f"--{flag} is not an ISO timestamp: {getattr(args, flag)}")
 
-    n_files, calls, results = scan(args.root, args.since)
-    s = summarise(calls, results)
+    n_files, calls_, results = scan(args.root, args.since, args.until)
+    s = summarise(calls_, results)
+    s["saved_tokens"] = saved_tokens(calls.read(), args.since, args.until)
     out = None
     if not args.no_save:
         OUT_DIR.mkdir(exist_ok=True)
@@ -139,7 +205,8 @@ def main(argv=None, how="human"):
         out.write_text(json.dumps({"since": args.since, "transcripts": n_files, **s}, indent=1),
                        encoding="utf-8")
     if how == "json":
-        print(json.dumps({"ok": True, "exit": 0, "out": {"transcripts": n_files,
+        print(json.dumps({"ok": True, "exit": 0, "shell_read_tokens": s["shell_read_tokens"],
+                          "saved_tokens": s["saved_tokens"], "out": {"transcripts": n_files,
                           "saved": out.as_posix() if out else None, **s}}))
         return
     report(s, n_files)
