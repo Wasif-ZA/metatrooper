@@ -33,7 +33,7 @@ test('M2-05 Codex windows come from the last rate_limits in the newest session f
   const t = setup();
   rollout(t.home, '2026/09/30', 'rollout-old.jsonl', [limits(99, 99)]);
   rollout(t.home, '2026/10/02', 'rollout-new.jsonl', [limits(10, 5), { type: 'event_msg', payload: { type: 'agent_message' } }, limits(42.5, 18)]);
-  readLimits(t.db, t.home);
+  readLimits(t.db, t.home, t.home);
   assert.deepEqual(t.rows(), [
     { provider: 'claude', account: 'default', window: '5h', used_pct: null, resets_at: null, status: 'unavailable' },
     { provider: 'codex', account: 'pro', window: '5h', used_pct: 42.5, resets_at: nowIso(new Date(1790000000 * 1000)), status: 'ok' },
@@ -43,9 +43,22 @@ test('M2-05 Codex windows come from the last rate_limits in the newest session f
 
 test('M2-05 with no Codex session files the Codex row says unavailable, never a number', () => {
   const t = setup();
-  readLimits(t.db, t.home);
+  readLimits(t.db, t.home, t.home);
   const codex = t.rows().filter((r) => r.provider === 'codex');
   assert.deepEqual(codex, [{ provider: 'codex', account: 'default', window: '5h', used_pct: null, resets_at: null, status: 'unavailable' }]);
+});
+
+test('M2-05 Claude windows come from the statusline wrapper file; a file without rate_limits stays unavailable', () => {
+  const t = setup();
+  fs.writeFileSync(path.join(t.home, 'claude-limits.json'), JSON.stringify({ at: '2026-10-02T06:47:25.864Z', rate_limits: { five_hour: { used_percentage: 18, resets_at: 1790928600 }, seven_day: { used_percentage: 39, resets_at: 1791090000 } } }));
+  readLimits(t.db, t.home, t.home);
+  assert.deepEqual(t.rows().filter((r) => r.provider === 'claude'), [
+    { provider: 'claude', account: 'default', window: '5h', used_pct: 18, resets_at: nowIso(new Date(1790928600 * 1000)), status: 'ok' },
+    { provider: 'claude', account: 'default', window: 'weekly', used_pct: 39, resets_at: nowIso(new Date(1791090000 * 1000)), status: 'ok' },
+  ]);
+  fs.writeFileSync(path.join(t.home, 'claude-limits.json'), JSON.stringify({ at: 'x', rate_limits: null }));
+  readLimits(t.db, t.home, t.home);
+  assert.deepEqual(t.rows().filter((r) => r.provider === 'claude').map((r) => [r.window, r.used_pct, r.status]), [['5h', null, 'unavailable']]);
 });
 
 test('window names follow the minutes', () => {

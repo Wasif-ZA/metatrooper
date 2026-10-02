@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso } from './time.ts';
+import { homeDir } from './paths.ts';
 
 const TAIL_BYTES = 512 * 1024;
 
@@ -56,14 +57,31 @@ export function lastCodexLimits(home = os.homedir()): { at: string; plan: string
   return null;
 }
 
-/** Writes limit_reading rows: Codex from its session files, Claude as unavailable (no local source). */
-export function readLimits(db: DatabaseSync, home = os.homedir()): void {
+const CLAUDE_WINDOWS: Record<string, string> = { five_hour: '5h', seven_day: 'weekly' };
+
+/** The rate_limits Claude Code last passed to the statusline wrapper (core/statusline.js), or null. */
+export function lastClaudeLimits(troopHome: string): { at: string; windows: Array<{ window: string; used: number; resets_at: number | null }> } | null {
+  let saved: any;
+  try { saved = JSON.parse(fs.readFileSync(path.join(troopHome, 'claude-limits.json'), 'utf8')); } catch { return null; }
+  const rl = saved?.rate_limits;
+  if (!rl || typeof rl !== 'object') return null;
+  const windows = Object.entries(rl)
+    .filter(([, w]: [string, any]) => typeof w?.used_percentage === 'number')
+    .map(([k, w]: [string, any]) => ({ window: CLAUDE_WINDOWS[k] ?? k, used: w.used_percentage, resets_at: typeof w.resets_at === 'number' ? w.resets_at : null }));
+  return windows.length ? { at: String(saved.at ?? ''), windows } : null;
+}
+
+/** Writes limit_reading rows: Codex from its session files, Claude from the statusline wrapper's file; unavailable when there is none. */
+export function readLimits(db: DatabaseSync, home = os.homedir(), troopHome = homeDir()): void {
   const now = nowIso();
   const put = db.prepare(
     `INSERT INTO limit_reading (provider, account, window, used_pct, resets_at, read_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(provider, account, window) DO UPDATE SET used_pct = excluded.used_pct, resets_at = excluded.resets_at, read_at = excluded.read_at, status = excluded.status`,
   );
-  put.run('claude', 'default', '5h', null, null, now, 'unavailable');
+  db.prepare("DELETE FROM limit_reading WHERE provider = 'claude'").run();
+  const claude = lastClaudeLimits(troopHome);
+  if (!claude) put.run('claude', 'default', '5h', null, null, now, 'unavailable');
+  else for (const w of claude.windows) put.run('claude', 'default', w.window, w.used, w.resets_at === null ? null : nowIso(new Date(w.resets_at * 1000)), claude.at || now, 'ok');
   let codex: ReturnType<typeof lastCodexLimits> = null;
   try { codex = lastCodexLimits(home); } catch {}
   db.prepare("DELETE FROM limit_reading WHERE provider = 'codex'").run();
