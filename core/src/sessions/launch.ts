@@ -7,6 +7,7 @@ import { mcpAttachArgs } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
+import { ensureEngineSetup } from '../hooks/install.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -26,9 +27,11 @@ const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 export function launchSession(
   db: DatabaseSync,
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[] },
-): { session_id: string; prompt_delivered: boolean; approval: string } {
+): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
   const approval = opts.approval ?? 'ask';
+  let setup: string[] | null = null;
+  try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
   const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
@@ -43,7 +46,7 @@ export function launchSession(
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
   }
   if (!plan.promptDelivered && opts.prompt) pendingPrompts.set(id, { prompt: opts.prompt, at: Date.now() });
-  return { session_id: id, prompt_delivered: plan.promptDelivered, approval };
+  return { session_id: id, prompt_delivered: plan.promptDelivered, approval, ...(setup && setup.length ? { setup } : {}) };
 }
 
 /** Types a held prompt into the session's terminal once; later calls report it was already written. */

@@ -13,6 +13,9 @@ const ui = {
   split: load('split') !== '0',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
   localSel: null,
+  shells: [],
+  shellKinds: [],
+  shellSel: null,
   look: null,
   runId: null,
   pipelineId: null,
@@ -521,7 +524,12 @@ function liveSessions() {
   return ui.snap.sessions.filter((x) => x.state !== 'exited');
 }
 
+function shellRows() {
+  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true }));
+}
+
 function selectedSession() {
+  if (ui.shellSel) { const sh = shellRows().find((x) => x.id === ui.shellSel); if (sh) return sh; }
   const s = ui.snap.sessions;
   return s.find((x) => x.id === ui.snap.selected) || s.find((x) => x.id === ui.localSel) || liveSessions()[0] || null;
 }
@@ -588,11 +596,19 @@ function renderRail(sel) {
   setHtml('gates', s.gates.length || needs.length ? `<div class="head">Needs you</div>${s.gates.map(gateHtml).join('')}${needs.map((n) => `<div class="gate need">
       <div class="meta">${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></div><div>${esc(n.text)}</div>
       <div class="actions"><button data-action="dismiss" data-id="${esc(n.id)}">Dismiss</button></div></div>`).join('')}` : '');
-  setHtml('sessions', s.sessions.length ? `<div class="head">Agents</div>${s.sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}` : '');
-  setHtml('launch', project() ? `<span class="label">New</span>${s.engines.map((e) => `<button data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="Start ${esc(e.id)} in this project">${esc(e.id)}</button>`).join('')}` : '');
+  const shells = shellRows();
+  setHtml('sessions', (s.sessions.length ? `<div class="head">Agents</div>${s.sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}` : '')
+    + (shells.length ? `<div class="head">Shells</div>${shells.map((x) => `<div class="srow${sel && sel.id === x.id ? ' on' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
+        <div class="top-line"><span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span>${esc(x.engine_id)} <span class="task">${esc(x.task)}</span>
+        <button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell">x</button></div></div>`).join('')}` : ''));
+  setHtml('launch', project() ? `<span class="label">New</span>${s.engines.map((e) => `<button data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="Start ${esc(e.id)} in this project">${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '');
 }
 
 function renderTermHead(sel) {
+  if (sel && sel.shell && ui.mode !== 'grid') {
+    setHtml('term-head', `<span class="dot idle"></span><b>${esc(sel.engine_id)}</b><span class="what">${esc(sel.task)}</span><span class="grow"></span><button data-action="mode" title="Ctrl+G">Grid</button>`);
+    return;
+  }
   if (!sel || ui.mode === 'grid') {
     setHtml('term-head', ui.mode === 'grid' ? `<b>All agents</b><span class="what">${liveSessions().length} live</span><span class="grow"></span><button data-action="mode" title="Ctrl+G">One terminal</button>` : '');
     return;
@@ -607,7 +623,7 @@ function renderTermHead(sel) {
 
 function renderStart() {
   const el = document.getElementById('start');
-  const show = !project() || !ui.snap.sessions.length;
+  const show = !project() || (!ui.snap.sessions.length && !shellRows().length);
   el.hidden = !show;
   document.getElementById('centre').hidden = show;
   if (!show) return;
@@ -686,6 +702,8 @@ function paletteItems() {
   if (project()) for (const e of s.engines) if (e.light !== 'red') items.push({ group: 'Start', label: `New ${e.id} agent`, run: async () => { const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: e.id }); if (r.result) await pick(r.result.session_id); } });
   const sel = selectedSession();
   if (sel) items.push({ group: 'Actions', label: 'Paste the held prompt into this terminal', run: async () => { const r = await rpc('session.paste-prompt', { session_id: sel.id }); if (r.result && !r.result.written) toast(r.result.reason); } });
+  for (const k of ui.shellKinds) if (project()) items.push({ group: 'Start', label: `New ${k.label} tab`, run: () => openShell(k.kind) });
+  for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
   items.push({ group: 'Actions', label: ui.mode === 'grid' ? 'Show one terminal' : 'Show all agents as a grid', meta: 'Ctrl+G', run: () => setMode(ui.mode === 'grid' ? 'single' : 'grid') });
   items.push({ group: 'Actions', label: 'Open a browser pane', run: async () => { const r = await rpc('pane.open', { project_id: ui.projectId }); if (r.result) { ui.paneId = r.result.pane_id; openTab('browser'); } } });
   items.push({ group: 'Actions', label: 'Open a project folder', run: openFolder });
@@ -746,7 +764,21 @@ function setMode(mode) {
   render();
 }
 
+function selectShell(id) {
+  ui.shellSel = id;
+  ui.mode = 'single';
+  render(true);
+}
+
+async function openShell(kind) {
+  const r = await rpc('shell.open', { project_id: ui.projectId, kind });
+  if (!r.result) return;
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId });
+  selectShell(r.result.shell_id);
+}
+
 async function pick(id) {
+  ui.shellSel = null;
   ui.localSel = id;
   ui.mode = 'single';
   save('mode', 'single');
@@ -761,9 +793,9 @@ function render(focus = false) {
   renderRail(sel);
   renderTermHead(sel);
   renderStart();
-  const shown = ui.snap.sessions.filter((x) => ui.mode === 'grid' ? x.state !== 'exited' : true)
-    .map((x) => ({ id: x.id, engine_id: x.engine_id, state: x.state, task: taskOf(x), unseen: unseen(x), words: STATE_WORDS[x.state] || x.state }));
-  termView.show({ mode: ui.mode, selected: sel ? sel.id : null, sessions: project() ? shown : [], onPick: (id) => void pick(id), focus });
+  const shown = [...ui.snap.sessions, ...shellRows()].filter((x) => ui.mode === 'grid' ? x.state !== 'exited' : true)
+    .map((x) => ({ id: x.id, engine_id: x.engine_id, state: x.state, task: x.shell ? x.task : taskOf(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : STATE_WORDS[x.state] || x.state }));
+  termView.show({ mode: ui.mode, selected: sel ? sel.id : null, sessions: project() ? shown : [], onPick: (id) => (id.startsWith('sh_') ? selectShell(id) : void pick(id)), onExit: (id) => { const sh = ui.shells.find((x) => x.id === id); if (sh) { sh.exited = true; render(); } }, focus });
   renderTabs();
   let html;
   if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
@@ -931,9 +963,22 @@ async function onClick(e) {
       return;
     case 'launch': {
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
+      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for Metatrooper: ${r.result.setup.join(', ')}`);
       if (r.result) await pick(r.result.session_id);
       return;
     }
+    case 'shell-open':
+      await openShell(el.dataset.kind);
+      return;
+    case 'pick-shell':
+      selectShell(id);
+      return;
+    case 'shell-close':
+      await rpc('shell.close', { shell_id: id }, true);
+      ui.shells = ui.shells.filter((x) => x.id !== id);
+      if (ui.shellSel === id) ui.shellSel = null;
+      render();
+      return;
     case 'focus':
       await pick(id);
       return;
@@ -1306,12 +1351,19 @@ document.addEventListener('contextmenu', (e) => {
 document.addEventListener('dragover', (e) => {
   e.preventDefault();
   const card = e.target.closest && e.target.closest('[data-drop-session]');
+  const onTerm = e.target.closest && e.target.closest('#centre .tile');
   for (const c of document.querySelectorAll('.srow.drop')) if (c !== card) c.classList.remove('drop');
   if (card) card.classList.add('drop');
-  e.dataTransfer.dropEffect = card ? 'copy' : 'none';
+  e.dataTransfer.dropEffect = card || onTerm ? 'copy' : 'none';
 });
 document.addEventListener('drop', async (e) => {
   e.preventDefault();
+  const onTerm = e.target.closest && e.target.closest('#centre .tile');
+  if (onTerm && e.dataTransfer.files.length) {
+    const paths = api.filePaths(e.dataTransfer.files).map((p) => (/[\s"]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p));
+    termView.type(paths.join(' ') + ' ');
+    return;
+  }
   for (const c of document.querySelectorAll('.srow.drop')) c.classList.remove('drop');
   const card = e.target.closest && e.target.closest('[data-drop-session]');
   if (!card || !e.dataTransfer.files.length) return;
@@ -1355,4 +1407,5 @@ document.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT') o
 observeLongTasks();
 setInterval(tickAges, 5000);
 void api.uiSettings().then((look) => { applyLook(look); render(); });
+void rpc('shell.list', {}, true).then((r) => { if (r.result) { ui.shellKinds = r.result.shells; render(); } });
 setView();

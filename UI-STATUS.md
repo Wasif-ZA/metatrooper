@@ -23,7 +23,7 @@ GitHub; filing and pushing are Wasif's.
 | #33 terminal core | CODE DONE, TESTS OWED | 48d3ab1 code, 9f2bc1d docs. Codex tests owed. Issue 27 close is a hand-back |
 | #34 layout | CODE DONE | 01367bb; rounds done: A, themes (default graphite), row 4 |
 | #35 status | CODE DONE, TESTS OWED | inbox, done/failed rows, read/unread, toast, Clear status, Resume; checked by script and in the real window |
-| #36 tools | TODO | after 33, 34 |
+| #36 tools | CODE DONE, TESTS OWED | engine setup on first launch, shell tabs from settings, pipelines in Ctrl+K, drop files on a terminal |
 | #37 step list | TODO | after 34 |
 | #38 panes | TODO | after 37 |
 
@@ -60,6 +60,16 @@ Start agent and approve gate are already 1, so "each lower" could not hold. Wasi
 - 2026-10-02: an interim terminal view (workbench/renderer/terminal.js, xterm.js 6.0.0 + fit 0.11.0, MIT, D7)
   shows the selected session under the old Sessions tab until #34's layout replaces the page around it. CSP
   style-src gains 'unsafe-inline' because xterm.js writes its own style elements.
+
+- 2026-10-02: Ctrl+K one-click actions run pipelines, not raw plugin actions, so external actions keep their
+  approval gates (the pipeline runner is the only path that enforces them). A plugin action becomes one-click by
+  being a pipeline step.
+- 2026-10-02: shell tabs come from settings.terminal.shells (command plus fallback); here pwsh is missing, so
+  PowerShell is powershell.exe 5.1, plus Git Bash. Shell tabs are not session rows and live in the window's memory.
+- 2026-10-02: first launch of an engine from the app installs its hooks (state_source hooks) or notify wrapper
+  (notify) and its settings once, recorded in hooks-install.json `setup`; the launch result names the files and
+  the window toasts them. Drag-and-drop of files onto a terminal types quoted paths without Enter; not driven by a
+  test (Electron cannot synthesise a file drop from CDP without a real file list).
 
 ## Log
 

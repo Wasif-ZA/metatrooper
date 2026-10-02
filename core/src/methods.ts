@@ -9,6 +9,8 @@ import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { launchSession, writePrompt } from './sessions/launch.ts';
+import * as term from './terminal/index.ts';
+import { availableShells } from './terminal/shells.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
@@ -172,6 +174,30 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
       return { ...r, resumed };
+    },
+  });
+
+  m.set('shell.list', { handler: () => ({ shells: availableShells() }) });
+
+  m.set('shell.open', {
+    handler: (p) => {
+      const kind = str(p, 'kind');
+      const shell = availableShells().find((x) => x.kind === kind);
+      if (!shell) throw new RpcError(E.ENGINE_UNAVAILABLE, `${kind} is not available on this machine`);
+      const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
+      if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      const id = `sh_${ulid()}`;
+      term.open(id, shell.argv, project.path, process.env);
+      return { shell_id: id, label: shell.label, cwd: project.path };
+    },
+  });
+
+  m.set('shell.close', {
+    handler: (p) => {
+      const id = str(p, 'shell_id');
+      if (!id.startsWith('sh_')) throw new RpcError(E.INVALID_PARAMS, 'not a shell tab');
+      term.kill(id);
+      return {};
     },
   });
 

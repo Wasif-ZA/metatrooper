@@ -14,6 +14,7 @@ interface State {
   claude?: { file: string; original: string | null; installed: string; absentEvents: string[] };
   codex?: { file: string; original: string; installed: string; previous: string[] | null };
   settings?: Record<string, { file: string; previous: Record<string, unknown> }>;
+  setup?: Record<string, string>;
 }
 
 function eventScript(): string {
@@ -217,4 +218,20 @@ export function uninstallEngineSettings(): Plan[] {
   delete state.settings;
   writeState(state);
   return plans;
+}
+
+/** First launch of an engine from the app: installs its hooks or notify wrapper and its settings once; null when already done. */
+export function ensureEngineSetup(engine: EngineSpec, at: string): string[] | null {
+  if (readState().setup?.[engine.id]) return null;
+  const files: string[] = [];
+  if (engine.state_source === 'hooks') files.push(installClaude().file);
+  if (engine.state_source === 'notify') {
+    const p = installCodex();
+    if (p) files.push(p.file);
+  }
+  for (const p of installEngineSettings([engine])) files.push(p.file);
+  const state = readState();
+  state.setup = { ...(state.setup ?? {}), [engine.id]: at };
+  writeState(state);
+  return files;
 }

@@ -7,6 +7,7 @@ const termView = (() => {
   let mode = 'single';
   let selected = null;
   let onPick = () => {};
+  let onExit = () => {};
 
   function xtermTheme() {
     const t = look.theme;
@@ -61,7 +62,7 @@ const termView = (() => {
     if (!t) return;
     if (m.op === 'snapshot') { t.term.reset(); t.term.write(m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); }); }
     else if (m.op === 'output') t.term.write(m.data);
-    else if (m.op === 'exit') t.term.write(`\r\n[exited with code ${m.code}]\r\n`);
+    else if (m.op === 'exit') { t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
     else if (m.op === 'error' && m.code === 'slow-viewer') attach(t);
     else if (m.op === 'error' && m.code === 'no-session') t.term.write('\r\n[this session is not running]\r\n');
   });
@@ -80,6 +81,7 @@ const termView = (() => {
     mode = next.mode;
     selected = next.selected;
     onPick = next.onPick || onPick;
+    onExit = next.onExit || onExit;
     const want = mode === 'grid' ? next.sessions : next.sessions.filter((x) => x.id === selected);
     const keep = new Set(want.map((x) => x.id));
     for (const id of [...terms.keys()]) if (!keep.has(id)) drop(id);

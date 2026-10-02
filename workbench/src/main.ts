@@ -24,7 +24,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
-  'session.paste-prompt', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
+  'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
 
 let win: BrowserWindow | null = null;

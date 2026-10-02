@@ -18,6 +18,10 @@ export const DEFAULTS = {
     last_line_every_ms: 1000,
     last_line_chars: 200,
     git_every_ms: 10_000,
+    shells: {
+      powershell: { label: 'PowerShell', command: ['pwsh.exe', '-NoLogo'], fallback: ['powershell.exe', '-NoLogo'] },
+      bash: { label: 'Git Bash', command: ['C:/Program Files/Git/bin/bash.exe', '--login', '-i'], fallback: [] as string[] },
+    } as Record<string, { label: string; command: string[]; fallback: string[] }>,
   },
   ui: {
     theme: 'graphite',
@@ -87,12 +91,15 @@ function merge(base: Record<string, unknown>, over: unknown): Record<string, unk
   const o = over && typeof over === 'object' && !Array.isArray(over) ? (over as Record<string, unknown>) : {};
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(base)) {
-    if (v && typeof v === 'object') out[k] = merge(v as Record<string, unknown>, o[k]);
+    if (Array.isArray(v)) out[k] = Array.isArray(o[k]) ? o[k] : v;
+    else if (v && typeof v === 'object') out[k] = merge(v as Record<string, unknown>, o[k]);
     else out[k] = typeof o[k] === typeof v ? o[k] : v;
   }
   for (const [k, v] of Object.entries(o)) {
-    if (!(k in base) && v && typeof v === 'object' && !Array.isArray(v)) out[k] = merge({}, v);
-    else if (!(k in base) && (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')) out[k] = v;
+    if (k in base) continue;
+    if (Array.isArray(v)) out[k] = v;
+    else if (v && typeof v === 'object') out[k] = merge({}, v);
+    else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') out[k] = v;
   }
   return out;
 }
