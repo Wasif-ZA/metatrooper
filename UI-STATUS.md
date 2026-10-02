@@ -11,7 +11,7 @@ GitHub; filing and pushing are Wasif's.
 | UI-03 survives the window | TODO | core half works by hand (smoke 2026-10-02: detach, reattach, snapshot then seq'd output); #34 window half; test owed to Codex |
 | UI-04 fewer clicks | DONE-UNTESTED | new counts below: 1,1,1,1,1 against today 1,1,2,2,2, so none worse and 3 better. Counted by hand from 01367bb; not screen-recorded. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
 | UI-05 no wt or herdr left | DONE-UNTESTED | 2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
-| UI-06 core kill to Resume | TODO | #35 |
+| UI-06 core kill to Resume | DONE-UNTESTED | scratch c35-check.ts against a real core: SIGKILL core, restart, session exited in under 12 s; Resume passes resume_args with the native id (`--`, `resume-with`, `native-1` seen by the engine), same folder; an engine without resume_args gets Start new here (resumed false). Test owed to Codex |
 | UI-07 prompt typed once | DONE-UNTESTED | smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
 | UI-08 spec-to-pr step list | TODO | #37 |
 | UI-09 four result panes | TODO | #38 |
@@ -21,8 +21,8 @@ GitHub; filing and pushing are Wasif's.
 | Child | Status | Notes |
 |---|---|---|
 | #33 terminal core | CODE DONE, TESTS OWED | 48d3ab1 code, 9f2bc1d docs. Codex tests owed. Issue 27 close is a hand-back |
-| #34 layout | IN PROGRESS | rounds done: A, themes (default graphite), row 4 |
-| #35 status | TODO | after 33, 34 |
+| #34 layout | CODE DONE | 01367bb; rounds done: A, themes (default graphite), row 4 |
+| #35 status | CODE DONE, TESTS OWED | inbox, done/failed rows, read/unread, toast, Clear status, Resume; checked by script and in the real window |
 | #36 tools | TODO | after 33, 34 |
 | #37 step list | TODO | after 34 |
 | #38 panes | TODO | after 37 |
