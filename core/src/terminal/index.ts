@@ -97,6 +97,11 @@ export function bracketedPaste(id: string): boolean {
   return !!t && t.head.modes.bracketedPasteMode;
 }
 
+/** Writes text as one paste: wrapped in bracketed-paste markers when the program turned that mode on. */
+export function paste(id: string, text: string): boolean {
+  return write(id, bracketedPaste(id) ? `\x1b[200~${text}\x1b[201~` : text);
+}
+
 export function resize(id: string, cols: number, rows: number): void {
   const t = terms.get(id);
   if (!t || t.exitCode !== null) return;

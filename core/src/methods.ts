@@ -476,11 +476,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('comment.deliver', {
     handler: (p) => {
-      const c = db.prepare('SELECT id, body FROM comment WHERE id = ?').get(str(p, 'comment_id')) as { id: string; body: string } | undefined;
+      const c = db.prepare('SELECT c.id, c.body, c.session_id, s.engine_id FROM comment c JOIN session s ON s.id = c.session_id WHERE c.id = ?').get(str(p, 'comment_id')) as
+        | { id: string; body: string; session_id: string; engine_id: string }
+        | undefined;
       if (!c) throw new RpcError(E.NOT_FOUND, 'comment not found');
       const at = writeClipboard(c.body) ? nowIso() : null;
       if (at) db.prepare('UPDATE comment SET clipboard_at = ? WHERE id = ?').run(at, c.id);
-      return { clipboard_at: at };
+      // engines with hooks get the comment from the UserPromptSubmit hook instead
+      const typed = getEngine(db, c.engine_id)?.state_source !== 'hooks' && term.paste(c.session_id, c.body);
+      return { clipboard_at: at, typed: Boolean(typed) };
     },
   });
 

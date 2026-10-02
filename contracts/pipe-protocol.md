@@ -139,7 +139,7 @@ Every other interaction is a database read.
 | `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
 | `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
 | `pipeline.validate` | `{json}` | `{valid, errors}` |
-| `comment.deliver` | `{comment_id}` | `{clipboard_at}` (prompt delivery happens in the hook) |
+| `comment.deliver` | `{comment_id}` | `{clipboard_at, typed}`: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it |
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |

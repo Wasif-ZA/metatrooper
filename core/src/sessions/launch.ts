@@ -55,8 +55,7 @@ export function writePrompt(db: DatabaseSync, sessionId: string): { written: boo
   if (done) return { written: false, reason: 'already written' };
   const held = pendingPrompts.get(sessionId);
   if (!held) return { written: false, reason: 'no prompt held' };
-  const text = term.bracketedPaste(sessionId) ? `\x1b[200~${held.prompt}\x1b[201~` : held.prompt;
-  if (!term.write(sessionId, text + '\r')) return { written: false, reason: 'terminal closed' };
+  if (!term.paste(sessionId, held.prompt) || !term.write(sessionId, '\r')) return { written: false, reason: 'terminal closed' };
   pendingPrompts.delete(sessionId);
   appendEvent('core.prompt-written', sessionId, {}, db);
   return { written: true };
