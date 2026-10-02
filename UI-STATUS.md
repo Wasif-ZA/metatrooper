@@ -76,3 +76,5 @@ Approve gate is already 1, so "each new count is lower" cannot hold for it as wr
   session.focus, the window shows `line 33` to `line 37`, attach to xterm.js write callback 23 ms. Window killed,
   10 s later reopened: same session reattached in 17 ms showing `line 134` onward, so the agent kept running.
   After the settings change: 15 ms and 14 ms. Core 108 pass, workbench 9 pass.
+- 2026-10-02T20:55+10:00: #34 round 1 board ready at ~/.cache/claude-scratch/metatrooper-ui-revision-2026-10-02/renders/round1/board.html
+  (5 structures A to E from 13 surveyed tools, research-layouts.md beside it). Waiting on Wasif's pick.
