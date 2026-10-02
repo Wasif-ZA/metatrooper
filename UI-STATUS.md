@@ -10,13 +10,13 @@ GitHub; filing and pushing are Wasif's.
 | UI-02 first agent in 30 s | TODO | needs installer and a fresh Windows account |
 | UI-03 survives the window | DONE-UNTESTED | real Electron (scratch ui03.ts): engine prints a line every 100 ms, window killed at line 151, reopened 10 s later: session still `working`, the reattached terminal's last 200 rows equal the core's headless rows (aligned on the window's last line, 251). Test owed |
 | UI-04 fewer clicks | DONE-UNTESTED | new counts below: 1,1,1,1,1 against today 1,1,2,2,2, so none worse and 3 better. Counted by hand from 01367bb; not screen-recorded. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
-| UI-05 no wt or herdr left | DONE-UNTESTED | 2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
-| UI-06 core kill to Resume | DONE-UNTESTED | scratch c35-check.ts against a real core: SIGKILL core, restart, session exited in under 12 s; Resume passes resume_args with the native id (`--`, `resume-with`, `native-1` seen by the engine), same folder; an engine without resume_args gets Start new here (resumed false). Test owed to Codex |
-| UI-07 prompt typed once | DONE-UNTESTED | smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
+| UI-05 no wt or herdr left | VERIFIED-WINDOWS | Codex tests pass 2026-10-02;  2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
+| UI-06 core kill to Resume | VERIFIED-WINDOWS | Codex tests pass 2026-10-02;  scratch c35-check.ts against a real core: SIGKILL core, restart, session exited in under 12 s; Resume passes resume_args with the native id (`--`, `resume-with`, `native-1` seen by the engine), same folder; an engine without resume_args gets Start new here (resumed false). Test owed to Codex |
+| UI-07 prompt typed once | VERIFIED-WINDOWS | Codex tests pass 2026-10-02;  smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
 | UI-08 spec-to-pr step list | DONE-UNTESTED | real Electron with a real spec-to-pr run on its fixture (scratch steps-check.ts): list shows step 5 of 6 with each step's status, the approve-pr gate inline with Approve and Reject; a run whose build wrote failed shows `build 1 fail · failed` and its error under it with no click. Test owed |
 | UI-09 four result panes | DONE-UNTESTED | real Electron, a 4-step pipeline on tests/fixtures/result-panes with the fake engine (scratch panes-check.ts): Review set, Document (score, parts, markdown, sources), Rows and Findings tabs each render their fixture; Approve on clip-1 wrote `approved` into items.json. Test owed |
 | UI-10 speed | DONE-UNTESTED | echo with 6 grid tiles each getting 200 lines/s: median 1 ms, p90 2 ms, max 3 ms of 50, from termInput to xterm.js parsing the echo (paint adds at most one frame, about 16 ms); window attach (pipe to xterm.js write callback) 14 to 23 ms in real Electron; core attach, 10,000 rows (733 KB snapshot): median 44 ms of 10 (min 42, max 53), pipe connect to snapshot parsed. xterm.js write half and 6-tile echo need #34 |
-| UI-11 tests on the terminal module | PARTIAL | core 108 pass, 3 skipped (M1-03 superseded by UI-06, 2 opt-in); workbench 9 pass, 4 opt-in skipped; no test spawns wt.exe. New #33 tests owed to Codex (usage limit until 21:31) |
+| UI-11 tests on the terminal module | VERIFIED-WINDOWS | 2026-10-02: core 126 pass, 3 skipped, including Codex's 18 cases in core/test/terminal.test.ts, inbox-resume.test.ts, migration.test.ts; workbench 9 pass. Earlier note: | core 108 pass, 3 skipped (M1-03 superseded by UI-06, 2 opt-in); workbench 9 pass, 4 opt-in skipped; no test spawns wt.exe. New #33 tests owed to Codex (usage limit until 21:31) |
 
 | Child | Status | Notes |
 |---|---|---|
@@ -99,3 +99,9 @@ Start agent and approve gate are already 1, so "each lower" could not hold. Wasi
   Diff tab on the selected agent's changes. Real Electron via CDP: single, grid, palette, paper theme and first
   screen screenshots checked by eye; new agent is selected on launch; Browser tab opens a pane. Opt-in browser
   e2e (M1-22, M1-23 to 25) pass with the pane inside the split. Core 108, workbench 9.
+- 2026-10-02T22:05+10:00: Codex wrote the #33/#35 tests (18 cases, 3 files) in a separate worktree; it stopped on a
+  model-capacity error before its final run. I ran them: 125 of 126 passed. Case 6 found a real bug: after
+  slow-viewer the pipe called end(), the next output write hit the ended socket, the write error destroyed it and
+  the queued slow-viewer frame was lost; and the snapshot itself counted toward the limit, so a big snapshot could
+  trip slow-viewer on every reattach. Fixed in core/src/terminal/pipe.ts (no writes after end; the limit counts
+  bytes beyond the snapshot). 126 of 126 now. Codex did not run its break-the-line checks.

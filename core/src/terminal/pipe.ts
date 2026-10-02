@@ -26,10 +26,11 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
     let session: string | null = null;
     let viewer: term.Viewer | null = null;
     let seq = 0;
+    let snapshotBytes = 0;
     const send = (msg: object) => {
-      if (socket.destroyed) return;
+      if (socket.destroyed || socket.writableEnded) return;
       socket.write(JSON.stringify(msg) + '\n');
-      if (socket.writableLength > settings().terminal.slow_viewer_bytes) {
+      if (socket.writableLength > snapshotBytes + settings().terminal.slow_viewer_bytes) {
         socket.write(JSON.stringify({ op: 'error', code: 'slow-viewer' }) + '\n');
         drop();
         socket.end();
@@ -51,7 +52,7 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
         }
         const id = typeof m.session === 'string' ? m.session : '';
         const v: term.Viewer = {
-          snapshot: (data) => send({ op: 'snapshot', seq: seq++, data }),
+          snapshot: (data) => { snapshotBytes = Buffer.byteLength(JSON.stringify(data)); send({ op: 'snapshot', seq: seq++, data }); },
           output: (data) => { for (const part of splitChunks(data)) send({ op: 'output', seq: seq++, data: part }); },
           exit: (code) => { send({ op: 'exit', code }); viewer = null; socket.end(); },
         };
