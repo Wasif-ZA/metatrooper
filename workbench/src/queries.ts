@@ -10,7 +10,7 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[] }>;
-  sessions: Array<{ id: string; engine_id: string; state: string; state_at: string; last_tool: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
+  sessions: Array<{ id: string; engine_id: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
   pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown> }>;
   runs: Array<{ id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string; ended_at: string | null; depth: number; parent_run: string | null }>;
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
@@ -21,6 +21,7 @@ export interface Snapshot {
   board: Array<{ id: string; run_id: string; source_url: string; capture_path: string | null; reason: string; pinned: number }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
+  git: Record<string, { branch: string | null; added: number; deleted: number }>;
   variants: Array<{ idx: number; status: string; branch: string; pane_id: string | null; dev_port: number; step_id: string | null; engine_id: string | null; session_id: string | null; tokens: number | null; usd: number | null }>;
 }
 
@@ -92,7 +93,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
 
   const sessions = projectId
     ? (db.prepare(
-        `SELECT s.id, s.engine_id, s.state, s.state_at, s.last_tool, s.run_id, s.step_id, s.started_at,
+        `SELECT s.id, s.engine_id, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.run_id, s.step_id, s.started_at,
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY s.started_at DESC LIMIT 50`,
@@ -167,6 +168,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     snapshots,
     board,
     variants,
+    git: {},
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,
     limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
   };

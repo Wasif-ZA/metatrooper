@@ -28,6 +28,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const setPid = db.prepare('UPDATE session SET pid = ? WHERE id = ?');
   const setNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL');
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
+  const setTitle = db.prepare('UPDATE session SET title = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   db.exec('BEGIN IMMEDIATE');
@@ -42,6 +43,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (ev.kind === 'codex.turn' && typeof payload['thread-id'] === 'string') setNative.run(payload['thread-id'], ev.session_id);
         if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
         if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
+        if (ev.kind === 'term.title' && typeof payload.title === 'string') setTitle.run(payload.title, ev.session_id);
         const thread = payload['thread-id'];
         const otherThread = ev.kind === 'codex.turn' && s.native_id !== null && typeof thread === 'string' && thread !== s.native_id;
         const next = ev.kind === 'launch' || otherThread ? null : nextState(s.state, { kind: ev.kind, payload });

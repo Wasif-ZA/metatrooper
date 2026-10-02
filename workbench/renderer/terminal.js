@@ -1,82 +1,126 @@
-// The attached session's terminal: xterm.js fed from the core's terminal pipe through the main process.
+// Live terminals: one xterm.js instance per shown session, fed from the core's terminal pipe through the main process.
 const termView = (() => {
   const troop = window.troop;
-  const host = document.getElementById('term-host');
-  const screen = document.getElementById('term-screen');
-  const title = document.getElementById('term-title');
-  let current = null;
-  let term = null;
-  let fit = null;
-  let attachAt = 0;
-  let attachMs = null;
-  let look = null;
-  troop.termSettings().then((s) => { look = s; apply(); });
+  const centre = document.getElementById('centre');
+  const terms = new Map();
+  let look = { terminal: { scrollback: 10000, font_size: 13 }, theme: {} };
+  let mode = 'single';
+  let selected = null;
+  let onPick = () => {};
 
-  function apply() {
-    if (!look) return;
-    host.style.setProperty('--term-bg', look.background);
-    host.style.setProperty('--term-border', look.border);
-    if (!term) return;
-    term.options.fontFamily = look.font_family;
-    term.options.fontSize = look.font_size;
-    term.options.scrollback = look.scrollback;
-    term.options.theme = { background: look.background, foreground: look.foreground };
+  function xtermTheme() {
+    const t = look.theme;
+    return { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: `${t.accent}55` };
   }
 
-  function open() {
-    term = new window.Terminal({ cursorBlink: true, allowProposedApi: true });
-    apply();
-    fit = new window.FitAddon.FitAddon();
+  function create(sessionId) {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    el.innerHTML = '<div class="tile-head"><span class="dot"></span><b class="tile-engine"></b><span class="tile-task"></span><span class="tile-state"></span></div><div class="tile-body"></div>';
+    el.querySelector('.tile-head').addEventListener('click', () => onPick(sessionId));
+    const body = el.querySelector('.tile-body');
+    const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme() });
+    const fit = new window.FitAddon.FitAddon();
     term.loadAddon(fit);
-    term.open(screen);
-    term.onData((data) => { if (current) troop.termInput(current, data); });
-    new ResizeObserver(() => {
-      if (!current || host.hidden) return;
-      try { fit.fit(); } catch { return; }
-      troop.termResize(current, term.cols, term.rows);
-    }).observe(screen);
+    term.open(body);
+    const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
+    term.onData((data) => troop.termInput(sessionId, data));
+    new ResizeObserver(() => resize(t)).observe(body);
+    terms.set(sessionId, t);
+    attach(t);
+    return t;
+  }
+
+  function resize(t) {
+    if (!t.el.isConnected || !t.el.offsetWidth) return;
+    try { t.fit.fit(); } catch { return; }
+    if (t.term.cols === t.cols && t.term.rows === t.rows) return;
+    t.cols = t.term.cols;
+    t.rows = t.term.rows;
+    troop.termResize(t.id, t.cols, t.rows);
+  }
+
+  function attach(t) {
+    try { t.fit.fit(); } catch {}
+    t.attachAt = performance.now();
+    t.attachMs = null;
+    void troop.termAttach(t.id, t.term.cols, t.term.rows);
+  }
+
+  function drop(sessionId) {
+    const t = terms.get(sessionId);
+    if (!t) return;
+    void troop.termDetach(sessionId);
+    t.term.dispose();
+    t.el.remove();
+    terms.delete(sessionId);
   }
 
   troop.onTerm((sessionId, m) => {
-    if (sessionId !== current || !term) return;
-    if (m.op === 'snapshot') { term.reset(); term.write(m.data, () => { attachMs = Math.round(performance.now() - attachAt); }); }
-    else if (m.op === 'output') term.write(m.data);
-    else if (m.op === 'exit') term.write(`\r\n[exited with code ${m.code}]\r\n`);
-    else if (m.op === 'error' && m.code === 'slow-viewer') attach(sessionId);
-    else if (m.op === 'error' && m.code === 'no-session') term.write('\r\n[this session is not running]\r\n');
+    const t = terms.get(sessionId);
+    if (!t) return;
+    if (m.op === 'snapshot') { t.term.reset(); t.term.write(m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); }); }
+    else if (m.op === 'output') t.term.write(m.data);
+    else if (m.op === 'exit') t.term.write(`\r\n[exited with code ${m.code}]\r\n`);
+    else if (m.op === 'error' && m.code === 'slow-viewer') attach(t);
+    else if (m.op === 'error' && m.code === 'no-session') t.term.write('\r\n[this session is not running]\r\n');
   });
 
-  function attach(sessionId) {
-    if (!term) open();
-    try { fit.fit(); } catch {}
-    attachAt = performance.now();
-    attachMs = null;
-    void troop.termAttach(sessionId, term.cols, term.rows);
+  function label(t, x) {
+    t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
+    t.el.querySelector('.tile-engine').textContent = x.engine_id;
+    t.el.querySelector('.tile-task').textContent = x.task;
+    t.el.querySelector('.tile-state').textContent = x.words;
+    t.el.classList.toggle('asking', x.state === 'waiting_for_you');
+    t.el.classList.toggle('on', x.id === selected);
   }
 
-  /** Shows the given session's terminal, or hides the view when null. */
-  function follow(sessionId, label) {
-    if (sessionId === current) { if (label) title.textContent = label; return; }
-    if (current) void troop.termDetach(current);
-    current = sessionId;
-    host.hidden = !sessionId;
-    if (!sessionId) return;
-    title.textContent = label || sessionId;
-    attach(sessionId);
-    term.focus();
+  /** Single mode shows the selected session; grid mode shows every given session as a tile; the rest are detached. */
+  function show(next) {
+    mode = next.mode;
+    selected = next.selected;
+    onPick = next.onPick || onPick;
+    const want = mode === 'grid' ? next.sessions : next.sessions.filter((x) => x.id === selected);
+    const keep = new Set(want.map((x) => x.id));
+    for (const id of [...terms.keys()]) if (!keep.has(id)) drop(id);
+    centre.classList.toggle('grid', mode === 'grid');
+    centre.dataset.count = String(want.length);
+    for (const x of want) {
+      const t = terms.get(x.id) || create(x.id);
+      label(t, x);
+      if (t.el.parentNode !== centre) centre.append(t.el);
+    }
+    for (const t of terms.values()) resize(t);
+    if (next.focus) terms.get(selected)?.term.focus();
   }
 
-  /** Session, attach time and the last non-empty rows, for the test probe. */
+  function setLook(next) {
+    look = next;
+    for (const t of terms.values()) {
+      t.term.options.fontFamily = look.theme.font_mono;
+      t.term.options.fontSize = look.terminal.font_size;
+      t.term.options.scrollback = look.terminal.scrollback;
+      t.term.options.theme = xtermTheme();
+    }
+  }
+
+  /** Types text into the selected session without Enter, for drag and drop. */
+  function type(text) {
+    if (selected && terms.has(selected)) troop.termInput(selected, text);
+  }
+
+  /** Selected session, its attach time and last non-empty rows, for the test probe. */
   function state() {
-    if (!term || !current) return null;
-    const b = term.buffer.active;
+    const t = terms.get(selected);
+    if (!t) return null;
+    const b = t.term.buffer.active;
     const rows = [];
     for (let i = b.length - 1; i >= 0 && rows.length < 5; i--) {
       const line = b.getLine(i)?.translateToString(true) ?? '';
       if (line.trim()) rows.unshift(line);
     }
-    return { session: current, attach_ms: attachMs, tail: rows };
+    return { session: selected, attach_ms: t.attachMs, tail: rows, mode, tiles: terms.size };
   }
 
-  return { follow, state };
+  return { show, setLook, type, state };
 })();

@@ -13,7 +13,8 @@ import { dataVersion, snapshot, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
 import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
-import { settings } from '../../core/src/settings.ts';
+import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
+import { refreshRowGit, rowGit } from './rowgit.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -46,7 +47,7 @@ function db(): DatabaseSync | null {
 }
 
 function emptySnapshot(): Snapshot {
-  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], pipelines: [], runs: [], steps: [], gates: [], needs_you: [], panes: [], snapshots: [] };
+  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], pipelines: [], runs: [], steps: [], gates: [], needs_you: [], panes: [], snapshots: [], board: [], limits: [], variants: [], selected: null, git: {} };
 }
 
 let lastGood: Snapshot | null = null;
@@ -55,7 +56,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = snapshot(d, view.projectId, view.runId);
+    lastGood = { ...snapshot(d, view.projectId, view.runId), git: rowGit() };
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
@@ -338,13 +339,47 @@ function handlers(): void {
     }
   });
 
+  const cwdOf = (sessionId: unknown) => {
+    const d = db();
+    const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined) : undefined;
+    return row?.cwd ?? null;
+  };
+  on('sessionDiff', (sessionId: unknown) => {
+    const cwd = cwdOf(sessionId);
+    if (!cwd) return { error: 'this session has no folder recorded' };
+    try {
+      const files = gitIn(cwd)(['diff', 'HEAD', '--numstat']).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
+        const [a, r, ...name] = l.split(String.fromCharCode(9));
+        return { path: name.join(String.fromCharCode(9)), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
+      });
+      const untracked = gitIn(cwd)(['ls-files', '--others', '--exclude-standard']).split(String.fromCharCode(10)).filter(Boolean);
+      return { files, untracked };
+    } catch (e) {
+      return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
+    }
+  });
+  on('sessionDiffFile', (sessionId: unknown, file: unknown) => {
+    const cwd = cwdOf(sessionId);
+    if (!cwd || typeof file !== 'string') return null;
+    try { return gitIn(cwd)(['diff', 'HEAD', '--', file]); } catch { return null; }
+  });
+
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
   on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
     if (typeof sessionId !== 'string') return false;
     attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
     return true;
   });
-  on('termSettings', () => settings().terminal);
+  on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })) }));
+  on('setTheme', (name: unknown) => {
+    if (typeof name !== 'string' || !settings().ui.themes[name]) return false;
+    let raw: Record<string, any> = {};
+    try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
+    raw.ui = { ...(raw.ui && typeof raw.ui === 'object' ? raw.ui : {}), theme: name };
+    fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
+    fs.writeFileSync(settingsFile(), JSON.stringify(raw, null, 2));
+    return activeTheme();
+  });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
@@ -383,7 +418,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 560,
     title: 'Metatrooper',
-    backgroundColor: '#111316',
+    backgroundColor: activeTheme().bg,
     show: false,
     webPreferences: {
       preload: path.join(here, 'preload.cjs'),
@@ -426,6 +461,14 @@ if (!app.requestSingleInstanceLock()) {
     handlers();
     createWindow();
     watch();
+    const gitTick = async () => {
+      try {
+        const live = (lastGood?.sessions ?? []).filter((x) => x.state !== 'exited').map((x) => ({ id: x.id, cwd: x.cwd }));
+        if (await refreshRowGit(live)) push();
+      } catch {}
+      setTimeout(gitTick, settings().terminal.git_every_ms);
+    };
+    void gitTick();
     void startBrowserServer(browserPipe(), {
       db,
       uiKey: () => {

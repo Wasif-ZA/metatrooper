@@ -27,7 +27,10 @@ contextBridge.exposeInMainWorld('troop', {
     return () => ipcRenderer.removeListener('comment-picked', listener);
   },
   termAttach: (sessionId, cols, rows) => ipcRenderer.invoke('termAttach', sessionId, cols, rows),
-  termSettings: () => ipcRenderer.invoke('termSettings'),
+  sessionDiff: (sessionId) => ipcRenderer.invoke('sessionDiff', sessionId),
+  sessionDiffFile: (sessionId, file) => ipcRenderer.invoke('sessionDiffFile', sessionId, file),
+  uiSettings: () => ipcRenderer.invoke('uiSettings'),
+  setTheme: (name) => ipcRenderer.invoke('setTheme', name),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
   termResize: (sessionId, cols, rows) => ipcRenderer.invoke('termResize', sessionId, cols, rows),
   termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),

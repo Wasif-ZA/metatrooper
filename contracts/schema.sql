@@ -54,6 +54,9 @@ CREATE TABLE session (
   state         TEXT NOT NULL CHECK (state IN ('starting','working','waiting_for_you','done','idle','unknown','exited')),
   state_at      TEXT NOT NULL,
   last_tool     TEXT,
+  cwd           TEXT,                          -- folder the pty started in
+  title         TEXT,                          -- last terminal title the engine set (term.title)
+  last_line     TEXT,                          -- last non-empty terminal row, first 200 characters, at most once a second
   hidden        INTEGER NOT NULL DEFAULT 0,
   started_at    TEXT NOT NULL,
   ended_at      TEXT

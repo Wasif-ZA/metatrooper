@@ -8,54 +8,40 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <aside class="side">
-    <div class="brand">Metatrooper</div>
-    <div id="core"></div>
-    <section>
-      <div class="side-head"><span>Projects</span><button class="link" data-action="open-folder">Open folder</button></div>
-      <ul id="projects" class="projects"></ul>
-    </section>
-    <section>
-      <div class="side-head"><span>Engines</span><button class="link" data-action="check-engines">Check</button></div>
-      <ul id="engines" class="engines"></ul>
-    </section>
+  <aside class="rail">
+    <div class="rail-top">
+      <select id="project-pick" data-action="project-pick" title="Project"></select>
+      <button class="link" data-action="open-folder" title="Open a project folder">Open</button>
+      <span id="core"></span>
+    </div>
+    <div id="gates"></div>
+    <div id="sessions" class="sessions"></div>
+    <div id="launch" class="launch"></div>
   </aside>
 
-  <main class="main">
-    <header class="top">
-      <div id="project-title" class="project-title"></div>
-      <div id="usage-bar" class="usage-bar"></div>
-      <nav class="tabs" id="tabs">
-        <button data-action="tab" data-tab="sessions">Sessions</button>
-        <button data-action="tab" data-tab="runs">Runs</button>
-        <button data-action="tab" data-tab="browser">Browser</button>
-        <button data-action="tab" data-tab="pipelines">Pipelines</button>
-        <button data-action="tab" data-tab="handback">Hand-back</button>
-      </nav>
-    </header>
-    <div id="view" class="view"></div>
-    <section id="term-host" class="term-host" hidden>
-      <div class="term-bar"><span id="term-title"></span></div>
-      <div id="term-screen" class="term-screen"></div>
-    </section>
+  <main class="work">
+    <header id="term-head" class="term-head"></header>
+    <div id="centre" class="centre"></div>
+    <div id="start" class="start" hidden></div>
   </main>
 
-  <aside class="rail">
-    <section>
-      <h2>Gates <span id="gate-count" class="count"></span></h2>
-      <div id="gates"></div>
-    </section>
-    <section>
-      <h2>Needs you <span id="needs-count" class="count"></span></h2>
-      <div id="needs"></div>
-    </section>
-  </aside>
+  <section class="side-split" id="split">
+    <nav class="tabs" id="tabs"></nav>
+    <div id="view" class="view"></div>
+  </section>
+
+  <footer id="strip" class="strip"></footer>
+
+  <div id="palette" class="palette" hidden>
+    <input id="palette-input" placeholder="Switch agent, run an action, open a tab, change theme" autocomplete="off" spellcheck="false">
+    <div id="palette-list" class="palette-list"></div>
+  </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
   <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
   <script src="diff.js"></script>
-  <script src="app.js"></script>
   <script src="terminal.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
