@@ -554,6 +554,13 @@ function gateHtml(g) {
     </div></div>`;
 }
 
+function resumeButton(x) {
+  const e = ui.snap.engines.find((y) => y.id === x.engine_id);
+  return e && e.resumable && x.native_id
+    ? `<button data-action="resume" data-id="${esc(x.id)}" title="Start ${esc(x.engine_id)} again with this conversation">Resume</button>`
+    : `<button data-action="resume" data-id="${esc(x.id)}" title="Start ${esc(x.engine_id)} in the same folder">Start new here</button>`;
+}
+
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const asking = x.state === 'waiting_for_you';
@@ -566,7 +573,7 @@ function rowHtml(x, sel) {
   return `<div class="srow${sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Drop files here to send their paths to this session">
     <div class="top-line"><span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span>${esc(x.engine_id)} <span class="task">${esc(taskOf(x))}</span>
       <span class="when" data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span><button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button></div>
-    ${lines.join('')}</div>${stepList}`;
+    ${lines.join('')}${x.state === 'exited' ? `<div class="sub">${resumeButton(x)}</div>` : ''}</div>${stepList}`;
 }
 
 function renderRail(sel) {
@@ -577,7 +584,7 @@ function renderRail(sel) {
   setHtml('project-pick', s.projects.length
     ? s.projects.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.projectId ? 'selected' : ''} title="${esc(p.path)}">${esc(p.name)}</option>`).join('')
     : '<option value="">No project</option>');
-  const needs = s.needs_you.filter((n) => n.kind !== 'gate' && n.kind !== 'handoff');
+  const needs = s.needs_you.filter((n) => !['gate', 'handoff', 'done', 'failed'].includes(n.kind));
   setHtml('gates', s.gates.length || needs.length ? `<div class="head">Needs you</div>${s.gates.map(gateHtml).join('')}${needs.map((n) => `<div class="gate need">
       <div class="meta">${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></div><div>${esc(n.text)}</div>
       <div class="actions"><button data-action="dismiss" data-id="${esc(n.id)}">Dismiss</button></div></div>`).join('')}` : '');
@@ -592,6 +599,7 @@ function renderTermHead(sel) {
   }
   setHtml('term-head', `<span class="dot ${esc(sel.state)}${unseen(sel) ? ' unseen' : ''}"></span><b>${esc(sel.engine_id)}</b>
     <span class="what">${esc(taskOf(sel))} · ${esc(STATE_WORDS[sel.state] || sel.state)}</span><span class="grow"></span>
+    ${sel.state === 'exited' ? resumeButton(sel) : ''}
     <button data-action="mode" title="Ctrl+G">Grid</button>
     <button data-action="tab" data-tab="diff" title="Show what this agent changed">Diff</button>
     <button data-action="tab" data-tab="handback" title="The command to commit these changes">Hand back</button>`);
@@ -647,14 +655,27 @@ function renderDiffTab(sel) {
 
 function renderStrip(sel) {
   const s = ui.snap;
-  const needs = s.gates.length + s.needs_you.filter((n) => n.kind !== 'gate' && n.kind !== 'handoff').length + s.sessions.filter((x) => x.state === 'waiting_for_you').length;
+  const needs = s.needs_you.filter((n) => !n.read_at).length + s.sessions.filter((x) => x.state === 'waiting_for_you').length;
   const steps = sel && sel.run_id ? stepsOf(sel.run_id) : null;
   const working = s.sessions.filter((x) => x.state === 'working').length;
-  setHtml('strip', `${needs ? `<span class="needs" data-action="jump-needs"><span class="dot waiting_for_you"></span> ${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span>nothing waiting</span>'}
+  setHtml('strip', `${needs ? `<span class="needs" data-action="inbox"><span class="dot waiting_for_you"></span> ${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">nothing waiting</span>'}
     ${steps ? `<span>${esc(steps.run.pipeline_id)} <b>step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</b></span>` : ''}
     <span>${working} working</span><span class="grow"></span>
     <span class="usage-bar">${usageBar(s.limits || [])}</span>
     <button class="link" data-action="palette" title="Command palette">Ctrl+K</button>`);
+}
+
+function renderInbox() {
+  const el = document.getElementById('inbox');
+  if (el.hidden) return;
+  const s = ui.snap;
+  const waiting = s.sessions.filter((x) => x.state === 'waiting_for_you');
+  const rows = s.needs_you.map((n) => `<div class="item${n.read_at ? ' read' : ''}" data-action="inbox-open" data-id="${esc(n.id)}">
+      <span class="dot ${n.kind === 'done' ? 'done unseen' : n.kind === 'failed' ? 'failed' : 'waiting_for_you'}"></span>
+      <span class="grow">${esc(n.text)}<span class="meta"> · ${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></span></span>
+      <button class="link" data-action="${n.read_at ? 'inbox-unread' : 'inbox-read'}" data-id="${esc(n.id)}">${n.read_at ? 'Mark unread' : 'Mark read'}</button></div>`).join('');
+  const asks = waiting.map((x) => `<div class="item" data-action="pick" data-id="${esc(x.id)}"><span class="dot waiting_for_you"></span><span class="grow">${esc(x.engine_id)} ${esc(taskOf(x))} is asking you<span class="meta"> · ${esc(x.last_line || '')}</span></span></div>`).join('');
+  setHtml('inbox-list', asks + rows || '<p class="empty" style="padding:6px 14px">Nothing here.</p>');
 }
 
 function paletteItems() {
@@ -754,6 +775,7 @@ function render(focus = false) {
   setHtml('view', html);
   reportPaneBounds();
   renderStrip(sel);
+  renderInbox();
   if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: termView.state(), layout: { tab: ui.tab, split: ui.split, mode: ui.mode, rows: document.querySelectorAll('.srow').length, start: !document.getElementById('start').hidden } });
 }
 
@@ -839,11 +861,39 @@ async function onClick(e) {
     case 'palette':
       openPalette();
       return;
-    case 'jump-needs': {
-      const g = document.getElementById('gates');
-      if (g) g.scrollIntoView({ block: 'start' });
+    case 'inbox': {
+      const box = document.getElementById('inbox');
+      box.hidden = !box.hidden;
+      renderInbox();
       return;
     }
+    case 'inbox-read':
+      await rpc('needs_you.mark-read', { id });
+      return;
+    case 'inbox-unread':
+      await rpc('needs_you.mark-unread', { id });
+      return;
+    case 'inbox-open': {
+      const n = ui.snap.needs_you.find((y) => y.id === id);
+      document.getElementById('inbox').hidden = true;
+      if (!n) return;
+      if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
+      else { await rpc('needs_you.mark-read', { id }, true); document.getElementById('gates').scrollIntoView({ block: 'start' }); }
+      return;
+    }
+    case 'resume': {
+      const r = await rpc('session.resume', { session_id: id });
+      if (r.result) await pick(r.result.session_id);
+      return;
+    }
+    case 'clear-status':
+      document.getElementById('menu').hidden = true;
+      await rpc('session.clear-status', { session_id: id });
+      return;
+    case 'menu-hide':
+      document.getElementById('menu').hidden = true;
+      await rpc('session.hide', { session_id: id });
+      return;
     case 'start-engine':
       ui.startEngine = el.dataset.engine;
       render();
@@ -1238,7 +1288,20 @@ document.addEventListener('click', (e) => {
   const item = e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
   if (!document.getElementById('palette').hidden && !e.target.closest('#palette')) closePalette();
+  if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
+  if (!document.getElementById('inbox').hidden && !e.target.closest('#inbox') && !e.target.closest('[data-action="inbox"]')) document.getElementById('inbox').hidden = true;
   void onClick(e);
+});
+document.addEventListener('contextmenu', (e) => {
+  const row = e.target.closest && e.target.closest('.srow');
+  const menu = document.getElementById('menu');
+  if (!row) { menu.hidden = true; return; }
+  e.preventDefault();
+  const id = row.dataset.id;
+  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div><div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>`;
+  menu.style.left = `${e.clientX}px`;
+  menu.style.top = `${e.clientY}px`;
+  menu.hidden = false;
 });
 document.addEventListener('dragover', (e) => {
   e.preventDefault();

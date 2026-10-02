@@ -25,11 +25,11 @@ const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[] },
 ): { session_id: string; prompt_delivered: boolean; approval: string } {
   const id = ulid();
   const approval = opts.approval ?? 'ask';
-  const plan = planArgs(opts.engine, opts.prompt, approval, mcpAttachArgs(db, opts.engine, id));
+  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(

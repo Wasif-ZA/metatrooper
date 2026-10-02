@@ -40,6 +40,7 @@
           "description": "How to pass the first prompt. 'positional' appends it as the last argument; a string like '--prompt' passes it after that flag; omit if the CLI takes no prompt argument.",
           "type": "string"
         },
+        "resume_args": { "type": "array", "items": { "type": "string" }, "description": "Arguments that resume an earlier session; {native_id} is replaced by its id. Omit if the CLI cannot resume." },
         "version_cmd": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "auth_cmd": { "type": "array", "items": { "type": "string" } },
         "auth_ok": {

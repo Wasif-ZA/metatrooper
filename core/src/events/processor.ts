@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { nowIso } from '../time.ts';
+import { nowIso, ulid } from '../time.ts';
 import { nextState } from './state.ts';
 import { noteTranscript } from '../meter.ts';
 
@@ -31,6 +31,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const setTitle = db.prepare('UPDATE session SET title = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
+  const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
+  const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const ev of rows) {
@@ -50,6 +52,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
           if (next === 'exited') setEnded.run(nowIso(), ev.session_id);
+          if (next === 'done') note('done', ev.session_id, s.engine_id, 'finished');
+          if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
       }
       done.run(ev.seq);

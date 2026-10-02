@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell, type IpcMainInvokeEvent } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
 import { ulid } from '../../core/src/time.ts';
@@ -24,7 +24,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
-  'session.paste-prompt', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
+  'session.paste-prompt', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -73,11 +73,33 @@ function syncPanes(): void {
   } catch {}
 }
 
+let toasted: Set<string> | null = null;
+
+/** One Windows toast per new needs-you row; clicking it shows the window and selects the session it is about. */
+function toastNew(s: Snapshot): void {
+  const ids = new Set(s.needs_you.map((n) => n.id));
+  if (!toasted) { toasted = ids; return; }
+  for (const n of s.needs_you) {
+    if (toasted.has(n.id) || n.read_at) continue;
+    toasted.add(n.id);
+    if (!Notification.isSupported()) continue;
+    const note = new Notification({ title: n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'Metatrooper needs you', body: n.text, silent: false });
+    note.on('click', () => {
+      if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+      const target = n.kind === 'done' || n.kind === 'failed' ? n.ref : null;
+      if (target) void call('session.focus', { session_id: target }, { ui: true }).then(schedulePush);
+    });
+    note.show();
+  }
+  for (const id of [...toasted]) if (!ids.has(id)) toasted.delete(id);
+}
+
 function push(): void {
   if (!win || win.isDestroyed()) return;
   syncPanes();
   const s = read();
   lastOnline = s.core.online;
+  toastNew(s);
   win.webContents.send('snapshot', s);
 }
 

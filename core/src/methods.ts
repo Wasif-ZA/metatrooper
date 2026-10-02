@@ -131,8 +131,47 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const id = str(p, 'session_id');
       markSeen(id);
+      db.prepare("UPDATE needs_you SET read_at = ? WHERE ref = ? AND kind IN ('done', 'failed') AND read_at IS NULL").run(nowIso(), id);
       db.prepare("INSERT INTO ui_selection (window_id, session_id, at) VALUES ('main', ?, ?) ON CONFLICT (window_id) DO UPDATE SET session_id = excluded.session_id, at = excluded.at").run(id, nowIso());
       return { focused: true };
+    },
+  });
+
+  m.set('session.clear-status', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      const s = db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined;
+      if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (s.state === 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session has exited');
+      appendEvent('core.status-cleared', id, {}, db);
+      db.prepare("UPDATE session SET state = 'idle', state_at = ? WHERE id = ?").run(nowIso(), id);
+      db.prepare('UPDATE needs_you SET read_at = ? WHERE ref = ? AND read_at IS NULL AND resolved_at IS NULL').run(nowIso(), id);
+      return {};
+    },
+  });
+
+  for (const [name, value] of [['needs_you.mark-read', 'now'], ['needs_you.mark-unread', null]] as const) {
+    m.set(name, {
+      handler: (p) => {
+        const r = db.prepare('UPDATE needs_you SET read_at = ? WHERE id = ?').run(value ? nowIso() : null, str(p, 'id'));
+        if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'item not found');
+        return {};
+      },
+    });
+  }
+
+  m.set('session.resume', {
+    handler: (p) => {
+      const old = db.prepare('SELECT s.engine_id, s.native_id, s.cwd, s.state, p.id AS project_id, p.path, p.name FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?')
+        .get(str(p, 'session_id')) as { engine_id: string; native_id: string | null; cwd: string | null; state: string; project_id: string; path: string; name: string } | undefined;
+      if (!old) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (old.state !== 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session is still running');
+      const engine = getEngine(db, old.engine_id);
+      if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
+      const resumed = Boolean(engine.resume_args && old.native_id);
+      const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
+      const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
+      return { ...r, resumed };
     },
   });
 

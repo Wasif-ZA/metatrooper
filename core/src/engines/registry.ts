@@ -8,6 +8,7 @@ export interface EngineSpec {
   command: string;
   args?: string[];
   prompt_arg?: string;
+  resume_args?: string[];
   version_cmd: string[];
   auth_cmd?: string[];
   auth_ok?: { exit_code?: number; stdout_regex?: string };
@@ -36,14 +37,14 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 
 export const BUILT_IN: EngineSpec[] = [
   {
-    id: 'claude', command: 'claude', prompt_arg: 'positional', version_cmd: ['claude', '--version'],
+    id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], version_cmd: ['claude', '--version'],
     approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'] },
     state_source: 'hooks', mcp_attach: { kind: 'claude-mcp-config-flag' },
     roles: ['research', 'plan', 'worker', 'review', 'verify', 'visual-check'], cost_rank: 3, usage_source: 'claude-transcript',
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
   },
   {
-    id: 'codex', command: 'codex', prompt_arg: 'positional', version_cmd: ['codex', '--version'],
+    id: 'codex', command: 'codex', prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
     approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'] },
     auth_cmd: ['codex', 'login', 'status'], auth_ok: { exit_code: 0 },
     state_source: 'notify', mcp_attach: { kind: 'codex-config', path: '~/.codex/config.toml' },

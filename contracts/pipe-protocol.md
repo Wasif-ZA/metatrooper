@@ -118,6 +118,9 @@ Every other interaction is a database read.
 | `project.open` | `{path}` | `{project_id}`; error -32001 for ACU paths. `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
 | `session.launch` | `{project_id, engine_id, prompt?, host?: "pty"}` | `{session_id, prompt_delivered}` |
 | `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once |
+| `session.clear-status` | `{session_id}` | `{}`: sets `idle`, appends `core.status-cleared`, marks its inbox rows read |
+| `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` |
+| `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
 | `session.hide` | `{session_id}` | `{}` |
 | `session.focus` | `{session_id}` | `{focused: bool}` |

@@ -222,3 +222,14 @@ td.wrap { white-space: normal; }
 .palette-list .item.on { background: var(--panel-2); }
 .palette-list .item .meta { margin-left: auto; }
 .palette-list .group { padding: 8px 14px 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.inbox { position: fixed; left: 8px; bottom: 34px; width: min(480px, 90vw); max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 40px rgb(0 0 0 / 0.4); z-index: 20; padding: 4px 0; }
+.inbox[hidden], .menu[hidden] { display: none; }
+.inbox .head { padding: 8px 14px 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.inbox .item { display: flex; gap: 8px; align-items: center; padding: 6px 14px; cursor: pointer; }
+.inbox .item:hover { background: var(--panel-2); }
+.inbox .item.read { opacity: 0.6; }
+.inbox .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu { position: fixed; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px rgb(0 0 0 / 0.4); z-index: 30; padding: 4px 0; min-width: 150px; }
+.menu .item { padding: 6px 14px; cursor: pointer; }
+.menu .item:hover { background: var(--panel-2); }
+.strip .link { cursor: pointer; }

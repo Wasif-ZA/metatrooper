@@ -9,13 +9,13 @@ export interface Snapshot {
   at: number;
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
-  engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[] }>;
-  sessions: Array<{ id: string; engine_id: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
+  engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean }>;
+  sessions: Array<{ id: string; engine_id: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
   pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown> }>;
   runs: Array<{ id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string; ended_at: string | null; depth: number; parent_run: string | null }>;
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
   gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string }>;
-  needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string }>;
+  needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; run_id: string | null; variant: number | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   board: Array<{ id: string; run_id: string; source_url: string; capture_path: string | null; reason: string; pinned: number }>;
@@ -80,6 +80,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     checked_at: (r.checked_at as string | null) ?? null,
     plugin_id: (r.plugin_id as string | null) ?? null,
     roles: parse<{ roles?: string[] }>(r.spec_json as string, {}).roles ?? [],
+    resumable: Boolean(parse<{ resume_args?: string[] }>(r.spec_json as string, {}).resume_args?.length),
   }));
 
   const pipelines = (db.prepare('SELECT id, source, path, version, valid, errors FROM pipeline ORDER BY id').all() as Array<Record<string, unknown>>).map((r) => ({
@@ -93,7 +94,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
 
   const sessions = projectId
     ? (db.prepare(
-        `SELECT s.id, s.engine_id, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.run_id, s.step_id, s.started_at,
+        `SELECT s.id, s.engine_id, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at,
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY s.started_at DESC LIMIT 50`,
@@ -151,7 +152,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
       ).all(runId) as Snapshot['variants'])
     : [];
 
-  const needs_you = db.prepare('SELECT id, at, kind, ref, text FROM needs_you WHERE resolved_at IS NULL ORDER BY at DESC LIMIT 100').all() as Snapshot['needs_you'];
+  const needs_you = db.prepare('SELECT id, at, kind, ref, text, read_at FROM needs_you WHERE resolved_at IS NULL ORDER BY at DESC LIMIT 100').all() as Snapshot['needs_you'];
 
   return {
     at: now,

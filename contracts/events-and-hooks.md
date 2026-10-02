@@ -38,6 +38,7 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `term.output` | core | `{}` (first output after a counted bell) |
 | `term.title` | core | `{"title": str}` (first 200 characters) |
 | `core.prompt-written` | core | `{}` (the held prompt was typed into the pty) |
+| `core.status-cleared` | core | `{}` (Clear status from the session menu) |
 | `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
