@@ -11,7 +11,7 @@ export interface EngineSpec {
   version_cmd: string[];
   auth_cmd?: string[];
   auth_ok?: { exit_code?: number; stdout_regex?: string };
-  state_source: 'hooks' | 'notify' | 'file-activity' | 'herdr' | 'process';
+  state_source: 'hooks' | 'notify' | 'file-activity' | 'process';
   activity_glob?: string;
   activity_waiting?: { file?: string; last_line_regex: string };
   trust?: TrustSpec;

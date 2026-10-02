@@ -51,7 +51,7 @@ test('snapshot scopes sessions and runs to the project, keeps plugin engines onl
     d.prepare("INSERT INTO engine (id, plugin_id, spec_json, cost_rank) VALUES ('plug-eng', 'pl', '{}', 1)").run();
     d.prepare("INSERT INTO engine_check (engine_id, checked_at, installed, version, auth) VALUES ('claude', ?, 1, '2.1.284', 'ok')").run(now);
     for (const [id, p, hidden] of [['s1', 'p1', 0], ['s2', 'p2', 0], ['s3', 'p1', 1]] as const) {
-      d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES (?, ?, 'claude', 'wt', 'working', ?, ?, ?)").run(id, p, now, now, hidden);
+      d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES (?, ?, 'claude', 'pty', 'working', ?, ?, ?)").run(id, p, now, now, hidden);
     }
     const file = join(f.dir, 'flow.json');
     writeFileSync(file, JSON.stringify({ schema: 1, id: 'flow', title: 'The flow', inputs: { to: { type: 'text' } }, steps: [] }));

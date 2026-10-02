@@ -33,7 +33,7 @@ test(`M1-07 the renderer has no main-thread task over 50 ms across a ${seconds} 
   writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }]));
   const longLog = join(iso.home, 'longtask.jsonl');
   const probeFile = join(iso.home, 'probe.jsonl');
-  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn', METATROOPER_LONGTASK_LOG: longLog, METATROOPER_WORKBENCH_PROBE: probeFile };
+  const env = { ...iso.env, METATROOPER_ENGINES: registry, METATROOPER_LONGTASK_LOG: longLog, METATROOPER_WORKBENCH_PROBE: probeFile };
   let core = await startCore({ ...iso, env });
   const wb = startWorkbench(env);
   try {

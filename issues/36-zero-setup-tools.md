@@ -1,0 +1,23 @@
+# Zero-setup tools: MCP, toolrouter, hooks, skills at launch; one-click actions; shell tabs; drag onto terminal
+
+Child #36 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 2 Claude Code days.
+
+Depends on: #33, #34.
+
+## Source of truth
+
+- issues/ui-revision-epic.md, sections: Zero setup, actions, shells, drag.
+- If this issue and the contracts disagree, the contracts win.
+
+## Acceptance criteria
+
+- [ ] Engine settings applied at first launch with no separate step.
+- [ ] Plugin actions listed in the Ctrl+K palette.
+- [ ] PowerShell and Git Bash shell tabs.
+- [ ] Drag a file onto a terminal sends its text as input without Enter.
+
+## Rules that bind every child
+
+- Never push or open PRs from an agent; hand back the command.
+- Codex writes the tests for #33.
+- No em dashes; comments say what the code does, not why.

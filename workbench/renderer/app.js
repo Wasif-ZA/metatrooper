@@ -145,7 +145,7 @@ function sessionCard(x) {
   const run = x.run_id ? ` · step ${esc(x.step_id || '')}` : '';
   return `<div class="card" data-action="seen" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Drop files here to send their paths to this session">
     <div class="row"><span class="engine">${esc(x.engine_id)}</span><span class="state ${esc(x.state)}">${esc(STATE_WORDS[x.state] || x.state)}</span></div>
-    <div class="meta">${esc(x.window_name || '')}${run}</div>
+    <div class="meta">${esc(x.id.slice(-8).toLowerCase())}${run}</div>
     <div class="meta">${x.last_tool ? `last tool ${esc(x.last_tool)} · ` : ''}<span data-ago="${esc(x.state_at)}">${esc(ago(x.state_at))}</span></div>
     <div class="meta">${meter(x)}</div>
     <div class="actions">
@@ -327,7 +327,7 @@ function renderBrowser() {
       <button data-action="pane-mode">${ui.browserMode === 'compare' ? 'Live' : 'Compare'}</button>
       <select data-action="pane-owner" data-key="pane-owner" title="The one session allowed to drive this pane">
         <option value="">Driven by: you only</option>
-        ${s.sessions.map((x) => `<option value="${esc(x.id)}" ${x.id === pane.session_id ? 'selected' : ''}>Driven by: ${esc(x.engine_id)} ${esc(x.window_name || '')}</option>`).join('')}
+        ${s.sessions.map((x) => `<option value="${esc(x.id)}" ${x.id === pane.session_id ? 'selected' : ''}>Driven by: ${esc(x.engine_id)} ${esc(x.id.slice(-8).toLowerCase())}</option>`).join('')}
       </select>
       <button class="danger" data-action="pane-close">Close</button>
     </div>` : '';
@@ -345,7 +345,7 @@ function renderCommentForm() {
     <h3>Comment on ${esc(c.selector || 'element')}</h3>
     <img class="crop" src="data:image/png;base64,${esc(c.crop)}" alt="The element you picked">
     <div class="form">
-      <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} ${esc(x.window_name || '')} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
+      <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} ${esc(x.id.slice(-8).toLowerCase())} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
       <label>Note</label><textarea id="comment-note" data-key="comment-note" rows="4" placeholder="What should change here?"></textarea>
       <span></span><div class="toolbar"><button class="primary" data-action="comment-send" ${s.sessions.length ? '' : 'disabled'}>Send</button><button data-action="comment-cancel">Cancel</button></div>
     </div>
@@ -520,7 +520,7 @@ function renderDiff() {
   const form = picked ? `<div class="form">
       <label>Line</label><div class="meta">${esc(ui.hbFile)}:${picked.line}${picked.kind === 'del' ? ' (removed line, old numbering)' : ''}</div>
       <label>Note</label><textarea rows="2" id="hb-note" data-key="hb-note"></textarea>
-      <label>Session</label><select id="hb-session" data-key="hb-session">${sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} · ${esc(x.window_name || x.id.slice(0, 8))}</option>`).join('')}</select>
+      <label>Session</label><select id="hb-session" data-key="hb-session">${sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} · ${esc(x.id.slice(-8).toLowerCase())}</option>`).join('')}</select>
       <span></span><div><button class="primary" data-action="hb-send" ${sessions.length ? '' : 'disabled'}>Send</button> ${sessions.length ? '' : '<span class="meta">No live session to send to.</span>'}</div>
     </div>` : '';
   return `<div class="diff">${rows}</div>${form}`;

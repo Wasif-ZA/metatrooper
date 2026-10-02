@@ -97,7 +97,7 @@ export async function startCore(isolated) {
       const connection = await client(isolated.prefix);
       try {
         const response = await connection.request('core.ping');
-        return response.result?.ok === true && response.result?.schema_version === 1;
+        return response.result?.ok === true && response.result?.schema_version === 2;
       } finally { connection.close(); }
     }, 5000);
   } catch (error) { child.kill(); throw error; }

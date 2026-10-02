@@ -8,7 +8,7 @@ import { canonicalPath, containsAcu, isAcuPath, projectId, resolveProjectPath } 
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
-import { focusSession, launchSession } from './sessions/launch.ts';
+import { launchSession, writePrompt } from './sessions/launch.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
@@ -49,8 +49,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('core.ping', {
     handler: () => {
-      const v = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined;
-      return { ok: true, pid: process.pid, schema_version: Number(v?.value ?? 1) };
+      const v = db.prepare('PRAGMA user_version').get() as { user_version: number };
+      return { ok: true, pid: process.pid, schema_version: v.user_version };
     },
   });
 
@@ -84,8 +84,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         | { id: string; path: string; name: string }
         | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
-      const host = str(p, 'host', false) || 'wt';
-      if (host !== 'wt') throw new RpcError(E.ENGINE_UNAVAILABLE, `host ${host} is not installed`);
+      const host = str(p, 'host', false) || 'pty';
+      if (host !== 'pty') throw new RpcError(E.ENGINE_UNAVAILABLE, `host ${host} is not installed`);
       const engine = getEngine(db, str(p, 'engine_id'));
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
       const check = db
@@ -130,14 +130,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('session.focus', {
     handler: (p) => {
       const id = str(p, 'session_id');
-      const s = db.prepare('SELECT window_name, state FROM session WHERE id = ?').get(id) as
-        | { window_name: string | null; state: string }
-        | undefined;
-      if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
       markSeen(id);
-      // wt -w <name> opens a new empty window when <name> no longer exists
-      if (s.state === 'exited') return { focused: false };
-      return { focused: s.window_name ? focusSession(s.window_name) : false };
+      db.prepare("INSERT INTO ui_selection (window_id, session_id, at) VALUES ('main', ?, ?) ON CONFLICT (window_id) DO UPDATE SET session_id = excluded.session_id, at = excluded.at").run(id, nowIso());
+      return { focused: true };
+    },
+  });
+
+  m.set('session.paste-prompt', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      return writePrompt(db, id);
     },
   });
 
@@ -400,7 +403,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!c) throw new RpcError(E.NOT_FOUND, 'comment not found');
       const at = writeClipboard(c.body) ? nowIso() : null;
       if (at) db.prepare('UPDATE comment SET clipboard_at = ? WHERE id = ?').run(at, c.id);
-      return { clipboard_at: at, herdr_at: null };
+      return { clipboard_at: at };
     },
   });
 

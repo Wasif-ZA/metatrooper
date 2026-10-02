@@ -33,7 +33,7 @@ function fixture(t) {
       db.prepare("INSERT INTO engine (id, plugin_id, spec_json, cost_rank, provider) VALUES ('claude', NULL, '{}', 1, 'local-cli')").run();
       db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('project', ?, 'fixture', ?, ?)")
         .run(path.join(home, 'project'), SINCE.toISOString(), SINCE.toISOString());
-      const insert = db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, state, state_at, started_at) VALUES (?, 'project', 'claude', 'wt', ?, 'done', ?, ?)");
+      const insert = db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, state, state_at, started_at) VALUES (?, 'project', 'claude', 'pty', ?, 'done', ?, ?)");
       nativeIds.forEach((nativeId, index) => insert.run(`session-${index}`, nativeId, INSIDE, INSIDE));
       return db;
     }

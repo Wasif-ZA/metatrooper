@@ -42,7 +42,7 @@ test('M1-11 the workbench shows waiting_for_you and done within 2 s of the hook,
   const registry = join(iso.home, 'engines.json');
   writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }]));
   const probeFile = join(iso.home, 'probe.jsonl');
-  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn', METATROOPER_WORKBENCH_PROBE: probeFile };
+  const env = { ...iso.env, METATROOPER_ENGINES: registry, METATROOPER_WORKBENCH_PROBE: probeFile };
   let core = await startCore({ ...iso, env });
   const wb = startWorkbench(env);
   try {

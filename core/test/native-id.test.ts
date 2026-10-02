@@ -19,7 +19,7 @@ async function setup() {
   syncEngines(db, BUILT_IN);
   db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(path.join(home, 'proj'));
   const addSession = (id: string, engine: string, startedMs: number) =>
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', ?, 'wt', 'working', 'x', ?)").run(id, engine, new Date(startedMs).toISOString());
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', ?, 'pty', 'working', 'x', ?)").run(id, engine, new Date(startedMs).toISOString());
   const native = (id: string) => (db.prepare('SELECT native_id FROM session WHERE id = ?').get(id) as { native_id: string | null }).native_id;
   const done = () => {
     db.close();

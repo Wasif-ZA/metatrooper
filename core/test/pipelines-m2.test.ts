@@ -37,7 +37,7 @@ async function setup(pipelineId: string) {
   git(project, 'remote', 'add', 'origin', origin);
   git(project, 'push', '-q', 'origin', 'main');
 
-  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn', PATH: `${bin}${delimiter}${process.env.PATH}` };
+  const env = { ...iso.env, METATROOPER_ENGINES: registry, PATH: `${bin}${delimiter}${process.env.PATH}` };
   const core = await startCore({ ...iso, env });
   const db = new DatabaseSync(join(iso.home, 'troop.db'));
   db.exec('PRAGMA busy_timeout = 5000');

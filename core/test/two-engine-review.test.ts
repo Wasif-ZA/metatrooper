@@ -47,7 +47,7 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
     state_source: 'hooks', roles: ['worker', 'review', 'verify'], cost_rank: 1, usage_source: 'none', provider: 'local-cli',
     version_cmd: [process.execPath, '--version'],
   }))));
-  const env = { ...isolated.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   const core = await startCore({ ...isolated, env });
   try {
     const project = join(isolated.home, 'planted');

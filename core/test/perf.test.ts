@@ -21,7 +21,7 @@ test('M1-06 window reads p95 < 1 ms and pipe commands p95 < 20 ms with 3 live se
     roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli',
     version_cmd: [process.execPath, '--version']
   }]));
-  const env = { ...isolated.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   const core = await startCore({ ...isolated, env });
   const pipe = await client(isolated.prefix);
   try {

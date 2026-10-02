@@ -8,7 +8,7 @@
 -- Ownership: the core is the only writer of every table except the three queue tables
 -- (`event`: hooks, launcher, notify wrapper; `command`: windows and CLI; `comment`: workbench).
 
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 
 CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
@@ -46,10 +46,8 @@ CREATE TABLE session (
   id            TEXT PRIMARY KEY,
   project_id    TEXT NOT NULL REFERENCES project(id),
   engine_id     TEXT NOT NULL REFERENCES engine(id),
-  host          TEXT NOT NULL CHECK (host IN ('wt','herdr')),
-  window_name   TEXT,                          -- wt: 'troop-<first 8 of id>'; herdr: NULL
-  herdr_pane    TEXT,                          -- herdr: 'w1:p2'; wt: NULL
-  pid           INTEGER,                       -- launcher pid from launch.js (wt) or pane shell pid (herdr)
+  host          TEXT NOT NULL CHECK (host IN ('pty')),  -- a terminal owned by the core
+  pid           INTEGER,                       -- launcher pid from launch.js
   native_id     TEXT,                          -- claude session_id, codex thread-id, agy conversation id
   run_id        TEXT REFERENCES run(id),
   step_id       TEXT,
@@ -67,7 +65,7 @@ CREATE INDEX session_native_idx  ON session (native_id);
 CREATE TABLE event (
   seq         INTEGER PRIMARY KEY AUTOINCREMENT,
   at          TEXT NOT NULL,
-  source      TEXT NOT NULL CHECK (source IN ('claude-hook','launch','codex-notify','herdr','core')),
+  source      TEXT NOT NULL CHECK (source IN ('claude-hook','launch','codex-notify','core')),
   session_id  TEXT,                            -- TROOP_SESSION_ID when present
   kind        TEXT NOT NULL,                   -- see events.md
   payload     TEXT NOT NULL,                   -- JSON, shape per kind in events.md
@@ -97,8 +95,7 @@ CREATE TABLE comment (
   body         TEXT NOT NULL,                  -- the formatted block delivered to the agent; starts with [comment <id>]
   crop_path    TEXT,
   clipboard_at TEXT,                           -- copied to the clipboard
-  prompt_at    TEXT,                           -- printed by the UserPromptSubmit hook (Claude)
-  herdr_at     TEXT                            -- sent with herdr agent.prompt
+  prompt_at    TEXT                            -- printed by the UserPromptSubmit hook (Claude)
 );
 CREATE INDEX comment_prompt_idx ON comment (session_id, prompt_at);
 
@@ -106,12 +103,20 @@ CREATE INDEX comment_prompt_idx ON comment (session_id, prompt_at);
 CREATE TABLE needs_you (
   id           TEXT PRIMARY KEY,
   at           TEXT NOT NULL,
-  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','other')),
-  ref          TEXT,                           -- gate id, command id, schedule id, run id, or plugin id
+  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','other')),
+  ref          TEXT,                           -- gate id, command id, schedule id, run id, plugin id, or session id
   text         TEXT NOT NULL,
-  resolved_at  TEXT
+  resolved_at  TEXT,
+  read_at      TEXT                            -- seen in the notification inbox; NULL counts in the status strip
 );
 CREATE INDEX needs_you_open_idx ON needs_you (resolved_at, at);
+
+-- The session each window shows; session.focus writes it and the window follows it. One window: 'main'.
+CREATE TABLE ui_selection (
+  window_id    TEXT PRIMARY KEY,
+  session_id   TEXT REFERENCES session(id),
+  at           TEXT NOT NULL
+);
 
 CREATE TABLE pipeline (
   id          TEXT PRIMARY KEY,                -- pipeline.json "id"

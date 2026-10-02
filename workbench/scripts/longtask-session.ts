@@ -24,7 +24,7 @@ const iso = isolation();
 const registry = join(iso.home, 'engines.json');
 writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }]));
 const log = join(iso.home, 'longtasks.jsonl');
-const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn', METATROOPER_LONGTASK_LOG: log };
+const env = { ...iso.env, METATROOPER_ENGINES: registry, METATROOPER_LONGTASK_LOG: log };
 let core = await startCore({ ...iso, env });
 const wb = startWorkbench(env);
 const sessions: string[] = [];

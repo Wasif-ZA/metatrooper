@@ -1,6 +1,10 @@
 import { connect as netConnect, type Server } from 'node:net';
 import { openCoreDb } from './store/db.ts';
-import { corePipe } from './paths.ts';
+import { corePipe, termPipe } from './paths.ts';
+import { startTermServer } from './terminal/pipe.ts';
+import { wireTermEvents } from './terminal/events.ts';
+import * as term from './terminal/index.ts';
+import { deliverPrompts } from './sessions/launch.ts';
 import { nowIso } from './time.ts';
 import { rotateUiKey } from './uikey.ts';
 import { CommandRunner } from './pipe/commands.ts';
@@ -49,12 +53,15 @@ async function main(): Promise<void> {
 
   const timers: NodeJS.Timeout[] = [];
   let server: Server | null = null;
+  let termServer: Server | null = null;
   let stopping = false;
   const stop = () => {
     if (stopping) return;
     stopping = true;
     for (const t of timers) clearInterval(t);
     server?.close();
+    termServer?.close();
+    term.killAll();
     try { runner.shutdown(); } catch {}
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
     db.close();
@@ -70,7 +77,9 @@ async function main(): Promise<void> {
   processEvents(db);
   runner.recover();
 
+  wireTermEvents(db);
   server = await startPipeServer(corePipe(), commands, uiKey);
+  termServer = await startTermServer(termPipe(), uiKey);
 
   const every = (ms: number, fn: () => unknown) => {
     const t = setInterval(() => {
@@ -85,6 +94,7 @@ async function main(): Promise<void> {
   every(50, () => processEvents(db));
   every(250, () => commands.drainQueued());
   every(500, () => runner.tick());
+  every(500, () => deliverPrompts(db));
   every(1000, () => checkActivity(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
   every(2000, () => readMeters(db));

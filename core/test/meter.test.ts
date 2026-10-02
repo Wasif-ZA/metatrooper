@@ -17,7 +17,7 @@ test('M1-28 session tokens equal the sum over unique message.id, last streamed r
   try {
     syncEngines(db, BUILT_IN);
     db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p', 'claude', 'wt', 'working', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p', 'claude', 'pty', 'working', 'x', 'x')").run();
     const file = path.join(home, 't.jsonl');
     const rec = (id: string, i: number, o: number, model = 'claude-sonnet-5-5') =>
       JSON.stringify({ type: 'assistant', timestamp: '2026-09-30T10:00:00.000+10:00', message: { id, model, usage: { input_tokens: i, output_tokens: o, cache_read_input_tokens: 10, cache_creation_input_tokens: 0 } } }) + '\n';
@@ -55,7 +55,7 @@ test('M1-28 the core loop reads a Claude transcript named by a hook event, and t
   try {
     syncEngines(db, BUILT_IN);
     db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s2', 'p', 'claude', 'wt', 'working', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s2', 'p', 'claude', 'pty', 'working', 'x', 'x')").run();
     const file = path.join(home, 't2.jsonl');
     const rec = (id: string, i: number, o: number, model: string) =>
       JSON.stringify({ message: { id, model, usage: { input_tokens: i, output_tokens: o } } }) + '\n';
@@ -91,7 +91,7 @@ test('Codex usage is one row per turn id: the growth in total_token_usage, repea
   try {
     syncEngines(db, BUILT_IN);
     db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('c1', 'p', 'codex', 'wt', 'working', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('c1', 'p', 'codex', 'pty', 'working', 'x', 'x')").run();
     const file = path.join(home, 'rollout.jsonl');
     const line = (type: string, payload: object) => JSON.stringify({ timestamp: '2026-09-30T13:00:00Z', type, payload }) + '\n';
     const count = (i: number, c: number, o: number) => line('event_msg', { type: 'token_count', info: { total_token_usage: { input_tokens: i, cached_input_tokens: c, cache_write_input_tokens: 0, output_tokens: o } } });
@@ -127,8 +127,8 @@ test('usage rows carry the session run_id and step_id so run budgets count them;
     db.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x', 1, 1)").run();
     db.prepare(`INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at)
       VALUES ('r1', 'pl', 'p', '{}', ?, 'running', 'manual', 1000, 10, 60, '2026-09-30T00:00:00Z')`).run(home);
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, run_id, step_id, state, state_at, started_at) VALUES ('s4', 'p', 'claude', 'wt', 'r1', 'build', 'working', 'x', 'x')").run();
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('c4', 'p', 'codex', 'wt', 'working', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, run_id, step_id, state, state_at, started_at) VALUES ('s4', 'p', 'claude', 'pty', 'r1', 'build', 'working', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('c4', 'p', 'codex', 'pty', 'working', 'x', 'x')").run();
     const t = path.join(home, 't4.jsonl');
     const rec = (id: string, i: number) => JSON.stringify({ message: { id, model: 'claude-sonnet-5-5', usage: { input_tokens: i, output_tokens: 0 } } }) + '\n';
     fs.writeFileSync(t, rec('b1', 40));

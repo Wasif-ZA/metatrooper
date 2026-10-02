@@ -24,7 +24,7 @@ test('M1-22 three panes from three sessions: each session drives only its own pa
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
   writeFileSync(registry, JSON.stringify(['fake-a', 'fake-b', 'fake-c'].map((id) => ({ id, command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }))));
-  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
+  const env = { ...iso.env, METATROOPER_ENGINES: registry };
   const sites = await Promise.all(['site-0', 'site-1', 'site-2'].map(listen));
 
   const core = await startCore({ ...iso, env });

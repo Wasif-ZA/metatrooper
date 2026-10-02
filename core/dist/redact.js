@@ -81,8 +81,8 @@ export function buildPayload(kind        , raw        )      {
         input_length: lengthOf(r['input-messages']),
         reply_length: lengthOf(r['last-assistant-message']),
       };
-    case 'herdr.state':
-      return pick(r, ['pane', 'state', 'agent']);
+    case 'term.title':
+      return pick(r, ['title']);
     case 'core.activity':
       return pick(r, ['state']);
     case 'core.process-gone':

@@ -59,7 +59,7 @@ test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and e
   const registry = join(iso.home, 'engines.json');
   writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }]));
   const probeFile = join(iso.home, 'probe.log');
-  const env = { ...iso.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn', METATROOPER_WORKBENCH_PROBE: probeFile };
+  const env = { ...iso.env, METATROOPER_ENGINES: registry, METATROOPER_WORKBENCH_PROBE: probeFile };
 
   const hits = { unowned: 0, owned: 0 };
   const unowned = await listen((_req, res) => { hits.unowned++; res.end('secret'); });

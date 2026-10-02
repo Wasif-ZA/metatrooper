@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { coreDir } from '../paths.ts';
@@ -6,6 +5,7 @@ import { nowIso, ulid } from '../time.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { mcpAttachArgs } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
+import * as term from '../terminal/index.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -20,9 +20,9 @@ export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', 
   return { argv, promptDelivered: false };
 }
 
-export function windowName(sessionId: string): string {
-  return `troop-${sessionId.slice(-8).toLowerCase()}`;
-}
+const pendingPrompts = new Map<string, { prompt: string; at: number }>();
+
+export const PROMPT_WAIT_MS = 60_000;
 
 export function launchSession(
   db: DatabaseSync,
@@ -33,40 +33,44 @@ export function launchSession(
   const plan = planArgs(opts.engine, opts.prompt, approval, mcpAttachArgs(db, opts.engine, id));
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
-  const win = windowName(id);
   db.prepare(
-    `INSERT INTO session (id, project_id, engine_id, host, window_name, run_id, step_id, state, state_at, started_at)
-     VALUES (?, ?, ?, 'wt', ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, win, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
+    `INSERT INTO session (id, project_id, engine_id, host, run_id, step_id, state, state_at, started_at)
+     VALUES (?, ?, ?, 'pty', ?, ?, 'starting', ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
   const cwd = opts.cwd ?? opts.projectPath;
-  const nodeArgs = ['--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64];
-  const failed = () => {
+  try {
+    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, process.env);
+  } catch {
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
-  };
-  if ((process.env.TROOP_LAUNCHER || 'wt') === 'spawn') {
-    const child = spawn(process.execPath, nodeArgs, { cwd, detached: true, stdio: 'ignore', windowsHide: true });
-    child.on('error', failed);
-    child.unref();
-  } else {
-    const title = `${opts.engine.id} ${opts.projectName}`;
-    const child = spawn('wt.exe', ['-w', win, 'new-tab', '--title', title, '--suppressApplicationTitle', '-d', cwd, process.execPath, ...nodeArgs], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false,
-    });
-    child.on('error', failed);
-    child.unref();
   }
+  if (!plan.promptDelivered && opts.prompt) pendingPrompts.set(id, { prompt: opts.prompt, at: Date.now() });
   return { session_id: id, prompt_delivered: plan.promptDelivered, approval };
 }
 
-export function focusSession(windowName: string): boolean {
-  try {
-    const child = spawn('wt.exe', ['-w', windowName, 'focus-tab', '-t', '0'], { detached: true, stdio: 'ignore' });
-    child.on('error', () => {});
-    child.unref();
-    return true;
-  } catch {
-    return false;
+/** Types a held prompt into the session's terminal once; later calls report it was already written. */
+export function writePrompt(db: DatabaseSync, sessionId: string): { written: boolean; reason?: string } {
+  const done = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind = 'core.prompt-written' LIMIT 1").get(sessionId);
+  if (done) return { written: false, reason: 'already written' };
+  const held = pendingPrompts.get(sessionId);
+  if (!held) return { written: false, reason: 'no prompt held' };
+  const text = term.bracketedPaste(sessionId) ? `\x1b[200~${held.prompt}\x1b[201~` : held.prompt;
+  if (!term.write(sessionId, text + '\r')) return { written: false, reason: 'terminal closed' };
+  pendingPrompts.delete(sessionId);
+  appendEvent('core.prompt-written', sessionId, {}, db);
+  return { written: true };
+}
+
+/** Every tick: a held prompt is typed when its session first reaches idle or waiting_for_you within 60 s. */
+export function deliverPrompts(db: DatabaseSync): void {
+  const get = db.prepare('SELECT state FROM session WHERE id = ?');
+  for (const [id, held] of pendingPrompts) {
+    const s = get.get(id) as { state: string } | undefined;
+    if (!s || s.state === 'exited') { pendingPrompts.delete(id); continue; }
+    if (Date.now() - held.at > PROMPT_WAIT_MS) continue;
+    if (s.state === 'idle' || s.state === 'waiting_for_you') writePrompt(db, id);
   }
+}
+
+export function promptHeld(sessionId: string): boolean {
+  return pendingPrompts.has(sessionId);
 }

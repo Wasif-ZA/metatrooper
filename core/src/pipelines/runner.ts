@@ -8,7 +8,6 @@ import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
 import { launchSession } from '../sessions/launch.ts';
 import { leasePort, releasePorts } from '../ports.ts';
-import { writeClipboard } from '../clipboard.ts';
 import { getSecret } from '../secrets.ts';
 import { BASE_ENV, killTree, runAction } from '../plugins/actions.ts';
 import { loadPlugin } from '../plugins/store.ts';
@@ -569,7 +568,7 @@ export class Runner {
   private async agentIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow, place: { cwd: string; paneId?: string }, raw = false): Promise<IndexResult> {
     const fanout = Boolean(step.fanout);
     const outPath = row.output_path ?? this.outputPath(run, step.id, row.fanout_index, fanout);
-    if (step.continue) this.log(run, { event: 'memory not kept', step: step.id, detail: `continue: ${step.continue} needs the herdr host; ran as a new session` });
+    if (step.continue) this.log(run, { event: 'memory not kept', step: step.id, detail: `continue: ${step.continue} is not supported; ran as a new session` });
     return this.runAgent(run, pipe, {
       stepId: step.id,
       row,
@@ -591,7 +590,6 @@ export class Runner {
     a: { stepId: string; row: StepRow; template: string; raw?: boolean; outputs: string[]; engine: () => EngineSpec | null; outPath: string; cwd: string; paneId?: string; timeoutMinutes: number; index: number },
   ): Promise<IndexResult> {
     let sessionId = a.row.session_id;
-    let handoffGate: string | null = null;
     const where = [run.id, a.row.step_id, a.row.iteration, a.row.fanout_index] as const;
     if (!sessionId) {
       const engine = a.engine();
@@ -605,23 +603,9 @@ export class Runner {
       sessionId = launched.session_id;
       this.markRunning(run, a.row, { engine_id: engine.id, session_id: sessionId, output_path: a.outPath });
       if (a.paneId) this.db.prepare('UPDATE browser_pane SET session_id = ? WHERE id = ?').run(sessionId, a.paneId);
-      if (!launched.prompt_delivered) {
-        const copied = writeClipboard(prompt);
-        const win = (this.db.prepare('SELECT window_name FROM session WHERE id = ?').get(sessionId) as { window_name: string }).window_name;
-        handoffGate = ulid();
-        const summary = `${copied ? 'The prompt is on the clipboard' : 'Copy the prompt from the run log'}: paste into window ${win}`;
-        this.db.prepare("INSERT INTO gate (id, run_id, step_id, kind, summary, status) VALUES (?, ?, ?, 'handoff', ?, 'waiting')").run(handoffGate, run.id, a.stepId, summary);
-        this.needsYou('handoff', handoffGate, summary);
-        if (!copied) this.log(run, { event: 'handoff prompt', step: a.stepId, prompt });
-      }
     }
     const started = Date.parse(a.row.started_at ?? nowIso());
     const deadline = started + a.timeoutMinutes * 60_000;
-    const settleHandoff = () => {
-      if (!handoffGate) return;
-      this.db.prepare("UPDATE gate SET status = 'approved', decided_at = ?, note = 'output arrived' WHERE id = ? AND status = 'waiting'").run(nowIso(), handoffGate);
-      this.db.prepare('UPDATE needs_you SET resolved_at = ? WHERE ref = ? AND resolved_at IS NULL').run(nowIso(), handoffGate);
-    };
     for (;;) {
       const status = this.run(run.id)?.status;
       if (status === 'cancelled' || status === 'failed') return { paused: status };
@@ -633,26 +617,21 @@ export class Runner {
         fm = parseFrontMatter(fs.readFileSync(a.outPath, 'utf8'));
       }
       if (fm?.status === 'failed') {
-        settleHandoff();
         return { ok: false, error: `${a.stepId} wrote status: failed; session left open` };
       }
       if (fm?.status === 'done') {
         const missing = a.outputs.filter((k) => !(k in fm));
         if (missing.length) {
-          settleHandoff();
           return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}; session left open` };
         }
         if (session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited' || Date.now() - mtime >= STABLE_MS) {
-          settleHandoff();
           const { status: _s, ...outputs } = fm;
           return { ok: true, outputs };
         }
       } else if (session?.state === 'exited') {
-        settleHandoff();
         return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
       }
       if (Date.now() > deadline) {
-        settleHandoff();
         return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes; session left open` };
       }
       await sleep(POLL_MS);

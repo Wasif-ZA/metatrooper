@@ -35,7 +35,7 @@ async function fakeHarness() {
     roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli',
     version_cmd: [process.execPath, '--version']
   }]));
-  const env = { ...isolated.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   const core = await startCore({ ...isolated, env });
   return { ...isolated, core, env,
     async teardown() {

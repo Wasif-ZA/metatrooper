@@ -58,3 +58,9 @@ export function codexConfigFile()         {
 export function hooksStateFile()         {
   return path.join(homeDir(), 'hooks-install.json');
 }
+
+/** Windows named pipe for terminal bytes; on other hosts an absolute socket file. */
+export function termPipe()         {
+  if (process.platform !== 'win32') return path.join(os.tmpdir(), `${pipePrefix()}-term.sock`);
+  return BS + BS + '.' + BS + 'pipe' + BS + pipePrefix() + '-term';
+}

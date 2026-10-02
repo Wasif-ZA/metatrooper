@@ -24,8 +24,8 @@ test('core initializes the contracted schema in WAL mode', async () => {
       const actual = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name).sort();
       assert.deepEqual(actual, expected);
       assert.ok(actual.includes('needs_you'));
-      assert.deepEqual(db.prepare('PRAGMA table_info(needs_you)').all().map(row => row.name), ['id', 'at', 'kind', 'ref', 'text', 'resolved_at']);
-      assert.equal(db.prepare('PRAGMA user_version').get().user_version, 1);
+      assert.deepEqual(db.prepare('PRAGMA table_info(needs_you)').all().map(row => row.name), ['id', 'at', 'kind', 'ref', 'text', 'resolved_at', 'read_at']);
+      assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
       assert.equal(db.prepare('PRAGMA journal_mode').get().journal_mode.toLowerCase(), 'wal');
     } finally { db.close(); }
   } finally { await h.teardown(); }
@@ -275,7 +275,7 @@ test('offline CLI rejects focus and engine checks, queues project.open, and repl
       db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)')
         .run('codex', '{}', 1, 'local-cli');
       db.prepare('INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(sessionId, 'seed-project', 'codex', 'wt', 'idle', at, at);
+        .run(sessionId, 'seed-project', 'codex', 'pty', 'idle', at, at);
 
       for (const args of [['focus', sessionId.slice(0, 8), '--json'], ['engines', '--check', '--json']]) {
         const result = await runNode(['core/cli.ts', ...args], isolated.env);

@@ -7,7 +7,6 @@ export function sourceOf(kind: string): string {
   if (kind.startsWith('claude.')) return 'claude-hook';
   if (kind === 'launch') return 'launch';
   if (kind === 'codex.turn') return 'codex-notify';
-  if (kind.startsWith('herdr.')) return 'herdr';
   return 'core';
 }
 

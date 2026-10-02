@@ -64,7 +64,6 @@ test('buildPayload drops unknown fields for every specified event kind', () => {
     ['claude.Stop', { session_id: 'native', cwd: '/p', stop_hook_active: false }, ['session_id', 'cwd', 'stop_hook_active']],
     ['claude.SessionEnd', { session_id: 'native', cwd: '/p', reason: 'logout' }, ['session_id', 'cwd', 'reason']],
     ['codex.turn', { type: 'agent-turn-complete', 'thread-id': 't', 'turn-id': 'u', cwd: '/p', input_length: 2, reply_length: 3 }, ['type', 'thread-id', 'turn-id', 'cwd', 'input_length', 'reply_length']],
-    ['herdr.state', { pane: 'w1:p2', state: 'blocked', agent: 'a' }, ['pane', 'state', 'agent']],
     ['core.activity', { state: 'working' }, ['state']],
     ['core.process-gone', { pid: 42 }, ['pid']],
     ['core.seen', {}, []]
@@ -90,8 +89,6 @@ test('nextState follows every event row in the state mapping', () => {
     ['codex.turn', {}, 'done'],
     ['core.activity', { state: 'working' }, 'working'],
     ['core.process-gone', { pid: 42 }, 'exited'],
-    ['herdr.state', { state: 'blocked' }, 'waiting_for_you'],
-    ...['working', 'done', 'idle', 'unknown'].map(state => ['herdr.state', { state }, state])
   ];
   for (const [kind, payload, expected] of cases) assert.equal(nextState('idle', { kind, payload }), expected, kind);
   assert.equal(nextState('working', { kind: 'claude.Notification', payload: { class: 'other' } }), null);
@@ -217,7 +214,7 @@ test('codex.turn from another thread does not mark the session done', async () =
     const db = openCoreDb();
     syncEngines(db, BUILT_IN);
     db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', 'c:/p', 'p', 'x', 'x')").run();
-    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, native_id) VALUES ('s', 'p', 'codex', 'wt', 'working', 'x', 'x', 'main')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, native_id) VALUES ('s', 'p', 'codex', 'pty', 'working', 'x', 'x', 'main')").run();
     const state = () => (db.prepare("SELECT state FROM session WHERE id = 's'").get() as { state: string }).state;
     appendEvent('codex.turn', 's', { 'thread-id': 'side' }, db);
     processEvents(db);

@@ -32,12 +32,10 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
       return current === 'starting' ? 'waiting_for_you' : null;
     case 'core.seen':
       return current === 'done' ? 'idle' : null;
-    case 'herdr.state': {
-      const s = p.state;
-      if (s === 'blocked') return 'waiting_for_you';
-      if (s === 'working' || s === 'done' || s === 'idle' || s === 'unknown') return s;
-      return null;
-    }
+    case 'term.bell':
+      return current === 'working' || current === 'unknown' || current === 'starting' ? 'waiting_for_you' : null;
+    case 'term.output':
+      return current === 'waiting_for_you' || current === 'unknown' ? 'working' : null;
     default:
       if (WORKING_KINDS.has(event.kind)) return 'working';
       return null;

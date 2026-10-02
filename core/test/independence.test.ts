@@ -11,7 +11,7 @@ function alive(pid: number) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-test('M1-03 a live session survives a core kill and restart is rediscovered by pid within 10 s', async () => {
+test('M1-03 a live session survives a core kill and restart is rediscovered by pid within 10 s', { skip: 'superseded by UI-06: terminals are owned by the core and end with it' }, async () => {
   const isolated = isolation();
   const registry = join(isolated.home, 'engines.json');
   writeFileSync(registry, JSON.stringify([{
@@ -21,7 +21,7 @@ test('M1-03 a live session survives a core kill and restart is rediscovered by p
   }]));
   const sleeper = join(isolated.home, 'long-turn.js');
   writeFileSync(sleeper, 'setTimeout(() => {}, 60000);');
-  const env = { ...isolated.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   let core = await startCore({ ...isolated, env });
   let pid = 0;
   try {

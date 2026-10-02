@@ -449,7 +449,7 @@ async function main(): Promise<number> {
     case 'sessions': {
       const rows = withDb((db) =>
         db.prepare(
-          `SELECT s.id, s.engine_id AS engine, s.state, s.state_at, s.window_name AS window, p.name AS project
+          `SELECT s.id, s.engine_id AS engine, s.state, s.state_at, p.name AS project
            FROM session s JOIN project p ON p.id = s.project_id
            WHERE (? = 1 OR s.hidden = 0) ORDER BY s.started_at DESC`,
         ).all(a.flags.has('--all') ? 1 : 0) as Array<Record<string, unknown>>,
