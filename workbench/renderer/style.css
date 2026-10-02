@@ -236,3 +236,9 @@ td.wrap { white-space: normal; }
 .steps .s-failed { color: var(--red); }
 .step-gate { margin: 2px 0 4px 15px; padding: 6px 8px; border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent); border-radius: 6px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .step-err { margin: 0 0 4px 15px; padding: 4px 8px; border-left: 2px solid var(--red); color: var(--red); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
+.step-edit { padding: 0; overflow: hidden; }
+.step-edit .head { display: flex; align-items: center; gap: 7px; padding: 6px 8px; margin: 0; cursor: pointer; }
+.step-edit .head:hover { background: var(--panel-2); }
+.step-edit.open .head { border-bottom: 1px solid var(--line); }
+.step-edit .form { padding: 8px; }
+.step-edit .grip { color: var(--muted); cursor: grab; font-family: var(--font-mono); letter-spacing: -2px; }

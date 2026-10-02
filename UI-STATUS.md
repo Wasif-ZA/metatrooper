@@ -24,7 +24,7 @@ GitHub; filing and pushing are Wasif's.
 | #34 layout | CODE DONE | 01367bb; rounds done: A, themes (default graphite), row 4 |
 | #35 status | CODE DONE, TESTS OWED | inbox, done/failed rows, read/unread, toast, Clear status, Resume; checked by script and in the real window |
 | #36 tools | CODE DONE, TESTS OWED | engine setup on first launch, shell tabs from settings, pipelines in Ctrl+K, drop files on a terminal |
-| #37 step list | TODO | after 34 |
+| #37 step list | CODE DONE, TESTS OWED | step list (e74a9d8) and editor restyle: collapsed rows, one open form, drag to reorder, JSON view and validation kept |
 | #38 panes | TODO | after 37 |
 
 ## Click counts (today, before #34)

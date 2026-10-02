@@ -405,13 +405,16 @@ function renderEditor() {
         field('Summary', `<input ${f('gate_summary')} value="${esc(st.gate_summary || '')}">`);
     }
     if (st.kind !== 'gate') body += field('Fan-out', `<input type="number" min="0" max="8" ${f('fanout')} value="${esc(st.fanout || '')}" placeholder="1">`);
-    return `<div class="step-edit ${errs.length ? 'bad' : ''}">
-      <div class="head"><span class="grow">${i + 1}. ${esc(st.title || st.id)}</span>
-        <button data-action="gate-before" data-step="${i}" title="Add an approve gate before this step">+ gate</button>
-        <button data-action="step-up" data-step="${i}" ${i === 0 ? 'disabled' : ''}>Up</button>
-        <button data-action="step-down" data-step="${i}" ${i === p.steps.length - 1 ? 'disabled' : ''}>Down</button>
-        <button class="danger" data-action="step-remove" data-step="${i}">Remove</button></div>
-      <div class="form">${body}</div>
+    const open = ed.open === i || errs.length > 0;
+    const kindDot = st.kind === 'gate' ? 'waiting_for_you' : st.kind === 'agent' ? 'working' : 'idle';
+    return `<div class="step-edit ${errs.length ? 'bad' : ''} ${open ? 'open' : ''}" draggable="true" data-drag-step="${i}">
+      <div class="head" data-action="step-toggle" data-step="${i}"><span class="grip" title="Drag to reorder">::</span><span class="dot ${kindDot}"></span>
+        <span class="grow">${i + 1}. ${esc(st.title || st.id)} <span class="meta">${esc(st.kind)}${st.role ? ` · ${esc(st.role)}` : ''}${st.gate ? ` · ${esc(st.gate)}` : ''}${errs.length ? ` · ${errs.length} problem${errs.length === 1 ? '' : 's'}` : ''}</span></span>
+        ${open ? `<button data-action="gate-before" data-step="${i}" title="Add an approve gate before this step">+ gate</button>
+        <button data-action="step-up" data-step="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">Up</button>
+        <button data-action="step-down" data-step="${i}" ${i === p.steps.length - 1 ? 'disabled' : ''} title="Move down">Down</button>
+        <button class="danger" data-action="step-remove" data-step="${i}">Remove</button>` : ''}</div>
+      ${open ? `<div class="form">${body}</div>` : ''}
       ${errs.length ? `<ul class="errors">${errs.map((e) => `<li>${esc(e.replace(/^\/steps\/\d+( \([^)]*\))?:?\s*/, ''))}</li>`).join('')}</ul>` : ''}
     </div>`;
   }).join('');
@@ -1231,8 +1234,15 @@ async function onClick(e) {
       await rpc('pipeline.validate', { json: ui.editor.raw ? JSON.parse(ui.editor.rawText) : ui.editor.json }, true);
       return;
     }
+    case 'step-toggle': {
+      const i = Number(el.dataset.step);
+      ui.editor.open = ui.editor.open === i ? null : i;
+      render();
+      return;
+    }
     case 'step-add':
       ui.editor.json.steps.push({ id: `step-${ui.editor.json.steps.length + 1}`, kind: 'agent', role: 'worker', prompt: '', outputs: ['summary'] });
+      ui.editor.open = ui.editor.json.steps.length - 1;
       editorChanged();
       return;
     case 'step-remove':
@@ -1386,8 +1396,16 @@ document.addEventListener('contextmenu', (e) => {
   menu.style.top = `${e.clientY}px`;
   menu.hidden = false;
 });
+document.addEventListener('dragstart', (e) => {
+  const row = e.target.closest && e.target.closest('[data-drag-step]');
+  if (!row || !ui.editor) return;
+  ui.dragStep = Number(row.dataset.dragStep);
+  e.dataTransfer.effectAllowed = 'move';
+});
+document.addEventListener('dragend', () => { ui.dragStep = null; });
 document.addEventListener('dragover', (e) => {
   e.preventDefault();
+  if (ui.dragStep !== null && ui.dragStep !== undefined) { e.dataTransfer.dropEffect = 'move'; return; }
   const card = e.target.closest && e.target.closest('[data-drop-session]');
   const onTerm = e.target.closest && e.target.closest('#centre .tile');
   for (const c of document.querySelectorAll('.srow.drop')) if (c !== card) c.classList.remove('drop');
@@ -1396,6 +1414,19 @@ document.addEventListener('dragover', (e) => {
 });
 document.addEventListener('drop', async (e) => {
   e.preventDefault();
+  if (ui.dragStep !== null && ui.dragStep !== undefined && ui.editor) {
+    const to = e.target.closest && e.target.closest('[data-drag-step]');
+    const from = ui.dragStep;
+    ui.dragStep = null;
+    if (!to) return;
+    const j = Number(to.dataset.dragStep);
+    if (j === from) return;
+    const [moved] = ui.editor.json.steps.splice(from, 1);
+    ui.editor.json.steps.splice(j, 0, moved);
+    ui.editor.open = j;
+    editorChanged();
+    return;
+  }
   const onTerm = e.target.closest && e.target.closest('#centre .tile');
   if (onTerm && e.dataTransfer.files.length) {
     const paths = api.filePaths(e.dataTransfer.files).map((p) => (/[\s"]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p));
