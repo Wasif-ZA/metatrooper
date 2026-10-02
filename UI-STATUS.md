@@ -10,7 +10,7 @@ GitHub; filing and pushing are Wasif's.
 | UI-02 first agent in 30 s | TODO | needs installer and a fresh Windows account |
 | UI-03 survives the window | DONE-UNTESTED | real Electron (scratch ui03.ts): engine prints a line every 100 ms, window killed at line 151, reopened 10 s later: session still `working`, the reattached terminal's last 200 rows equal the core's headless rows (aligned on the window's last line, 251). Test owed |
 | UI-04 fewer clicks | DONE-UNTESTED | new counts below: 1,1,1,1,1 against today 1,1,2,2,2, so none worse and 3 better. Counted by hand from 01367bb; not screen-recorded. Check reworded 2026-10-02 (Wasif): no job worse than today, at least 3 of 5 better |
-| UI-05 no wt or herdr left | VERIFIED-WINDOWS | Codex tests pass 2026-10-02;  2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
+| UI-05 no wt or herdr left | VERIFIED-WINDOWS | grep re-run 2026-10-02T22:10+10:00 returns nothing;  2026-10-02T20:40+10:00: the grep returns nothing (exit 1). Migration uses an allow-list so it needs no herdr literal |
 | UI-06 core kill to Resume | VERIFIED-WINDOWS | Codex tests pass 2026-10-02;  scratch c35-check.ts against a real core: SIGKILL core, restart, session exited in under 12 s; Resume passes resume_args with the native id (`--`, `resume-with`, `native-1` seen by the engine), same folder; an engine without resume_args gets Start new here (resumed false). Test owed to Codex |
 | UI-07 prompt typed once | VERIFIED-WINDOWS | Codex tests pass 2026-10-02;  smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
 | UI-08 spec-to-pr step list | DONE-UNTESTED | real Electron with a real spec-to-pr run on its fixture (scratch steps-check.ts): list shows step 5 of 6 with each step's status, the approve-pr gate inline with Approve and Reject; a run whose build wrote failed shows `build 1 fail · failed` and its error under it with no click. Test owed |
@@ -81,7 +81,7 @@ Start agent and approve gate are already 1, so "each lower" could not hold. Wasi
 - 2026-10-02T20:40+10:00: #33 code landed (48d3ab1). Terminal module, term pipe, launch through pty, prompt typed
   on first idle, session.focus to ui_selection, schema v2 migration checked against a v1 database built from the
   old schema.sql, term.* events. Killing a pty owner hard took the launcher and engine with it (both gone in 7 s),
-  so M1-03 is skipped as superseded by UI-06. node-pty prints "AttachConsole failed" from its console-list helper
+  so M1-03 was skipped as superseded by UI-06, then deleted once Codex's case 9 covered UI-06. node-pty prints "AttachConsole failed" from its console-list helper
   when a pty is killed; noise only, the kill works.
 - 2026-10-02T20:44+10:00: docs (9f2bc1d): spec.md D19, D32, Rule 1, Launching; terminal pipe contract (attach
   carries the ui key, a decision made here: typing into an agent is as strong as approving a gate).

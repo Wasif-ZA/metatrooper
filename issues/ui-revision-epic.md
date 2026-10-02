@@ -14,6 +14,22 @@ closing. The screen becomes one big terminal with a session list, tools already 
 beside the terminal. This is a revision of milestone 1, not a milestone 2 item: the core service stays, how
 agents run and the screen change.
 
+## Built 2026-10-02 (branch ui-revision)
+
+All six children are built and committed locally; the ledger with evidence per criterion is UI-STATUS.md. Where
+the build differs from the spec below, the build wins and UI-STATUS.md "Decisions" says why:
+
+- Terminal pipe `attach` carries the ui key (typing into an agent is as strong as approving a gate).
+- Every terminal and UI value is in `~/.metatrooper/settings.json` (core/src/settings.ts defaults): sizes,
+  scrollback, timeouts, slow-viewer limit, shell programs, and five themes from the render rounds (default
+  graphite). No colour is hardcoded in the CSS.
+- Ctrl+K one-click actions are pipelines, not raw plugin actions.
+- Session rows (render round 3, row 4) need `session.cwd`, `title` and `last_line`; the Diff tab's Last turn uses
+  `session.turn_base` (git stash create at turn start).
+- Comments to engines without hooks are also typed into their terminal without Enter.
+- Shell tabs come from settings; on this laptop pwsh is missing, so PowerShell is 5.1.
+- UI-04 reworded by Wasif: no job worse than today, at least 3 of 5 better.
+
 ## Current state (verified 2026-10-02T19:40+10:00 on branch m2)
 
 | Area | Today | File |
@@ -115,7 +131,7 @@ closed as dropped.
 
 - Same ACL as the main pipe (pipe-protocol.md "Access"). NDJSON, UTF-8, one JSON object per line.
 - **One session per connection.** A tile grid of 6 opens 6 connections.
-- Client to server: `{"op":"attach","session":"<id>","cols":120,"rows":40}` first, then any of
+- Client to server: `{"op":"attach","session":"<id>","cols":120,"rows":40,"ui_key":"<ui.key>"}` first (a wrong key gets `needs-ui` and the connection closes), then any of
   `{"op":"input","data":"<string>"}`, `{"op":"resize","cols":N,"rows":N}`, `{"op":"detach"}`.
 - Server to client: `{"op":"snapshot","seq":0,"data":"<serialize() output>"}` once, then
   `{"op":"output","seq":N,"data":"<string>"}` with `seq` rising by 1 per message, then `{"op":"exit","code":N}`
@@ -176,8 +192,8 @@ closed as dropped.
 - At an engine's first launch the core applies `installEngineSettings` (hooks/install.ts:174) with no separate
   step; the first-run screen (D13) shows it as one line. Browser and plugin MCPs already attach at launch through
   `mcpAttachArgs` (plugins/mcp.ts:72). toolrouter attaches the same way when installed as a plugin.
-- One-click actions are the installed plugin actions, listed in the Ctrl+K palette and run by the existing
-  action runner.
+- One-click actions are the project's valid pipelines, listed in the Ctrl+K palette and started with `run.start`, so
+  external actions keep their approval gates. A plugin action becomes one-click by being a pipeline step.
 - Shell tabs (PowerShell 7, plus Git Bash when `C:\Program Files\Git\bin\bash.exe` exists) use the terminal
   module but are not `session` rows: no engine, memory only, gone when the core stops.
 - Drag onto a terminal builds its text with workbench/src/comments.ts (M2-06) and sends it as `input` without
