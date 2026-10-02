@@ -85,6 +85,14 @@ async function main() {
   const spec = directive();
   if (Number.isFinite(spec.delay_ms) && spec.delay_ms > 0) await sleep(spec.delay_ms);
   mkdirSync(dirname(out), { recursive: true });
+  for (const [rel, text] of Object.entries(spec.files ?? {})) {
+    mkdirSync(dirname(join(process.cwd(), rel)), { recursive: true });
+    writeFileSync(join(process.cwd(), rel), String(text));
+  }
+  if (spec.commit) {
+    spawnSync('git', ['add', '-A'], { windowsHide: true });
+    spawnSync('git', ['commit', '-qm', String(spec.commit)], { windowsHide: true });
+  }
   const attempt = incrementAttempt(out);
   const status = attempt <= Number(spec.fail_until ?? 0) ? 'failed' : String(spec.status ?? 'done');
   const values = { ...(spec.outputs ?? {}) };

@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "id": "github",
+  "version": "0.1.0",
+  "name": "GitHub",
+  "description": "Pull requests and checks through the gh CLI, on your own gh login. Opening a pull request is external.",
+  "platforms": ["windows"],
+  "permissions": ["network", "project:read"],
+  "actions": [
+    {
+      "id": "create-pr",
+      "title": "Push a branch and open a pull request",
+      "run": ["bin/github.js", "create-pr"],
+      "external": true,
+      "destination_field": "repo",
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo", "branch", "base", "title", "body", "path"],
+        "properties": {
+          "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+          "branch": { "type": "string", "minLength": 1 },
+          "base": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "body": { "type": "string" },
+          "path": { "type": "string", "minLength": 1 }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string" } } }
+    },
+    {
+      "id": "checks",
+      "title": "Read a pull request's checks",
+      "run": ["bin/github.js", "checks"],
+      "timeout_seconds": 60,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo", "pr"],
+        "properties": { "repo": { "type": "string" }, "pr": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["state", "checks"], "properties": { "state": { "type": "string" }, "checks": { "type": "array" } } }
+    }
+  ]
+}

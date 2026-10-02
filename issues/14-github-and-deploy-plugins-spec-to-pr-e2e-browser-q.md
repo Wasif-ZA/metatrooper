@@ -14,6 +14,58 @@ Depends on: child #4, child #5, child #6, child #7, child #8.
 - Contracts: see spec.md for the plugin and pipeline this child adds.
 - If this issue and the contracts disagree, the contracts win.
 
+## Design (2026-10-02)
+
+Each pipeline starts from its sketch in `ide-layer-research/pipeline-catalog.md` (#1, #2, #7, #14), cut to the
+steps the runner already supports. Plugin actions are node scripts reading the action request on stdin, like
+`plugins/agent-reach`.
+
+### `github` plugin (`plugins/github`, built on `gh`)
+
+| Action | External | Input | Output |
+|---|---|---|---|
+| `create-pr` | yes | `branch`, `base`, `title`, `body`, `cwd` | `url` (runs `git push -u origin <branch>`, then `gh pr create`) |
+| `checks` | no | `pr` | `state`, `checks` (`gh pr checks --json`) |
+
+### `deploy` plugin (`plugins/deploy`, built on the Vercel CLI)
+
+| Action | External | Input | Output |
+|---|---|---|---|
+| `preview` | no | `cwd` | `url` (`vercel deploy --yes`) |
+| `production` | yes | `cwd` | `url` (`vercel deploy --prod --yes`) |
+
+The project id comes from `.vercel/project.json` in the worktree. Without it, both actions fail with
+"link the project first: run `vercel link` in <cwd>"; they never run an interactive link.
+
+### Pipelines (`pipelines/`, MIT)
+
+- `spec-to-pr`: spec (plan, writes spec.md) -> approve-spec (gate) -> build (worker, worktree) -> verify
+  (`repo/run-tests`) -> approve-pr (gate) -> open-pr (`github/create-pr`, publish).
+- `e2e-browser-qa`: flows (plan) -> qa (visual-check, worktree, `dev_command`, browser pane; writes findings)
+  -> fix (worker, same worktree) -> reverify (`repo/run-tests`) -> report (code step, no publish).
+- `website-build`: design (plan, DESIGN.md) -> build (worker, worktree, `dev_command`, browser) -> critique and
+  fix loop (max 3) -> preview (`deploy/preview`) -> approve (gate) -> production (`deploy/production`,
+  publish).
+- `design-variants`: board (`agent-reach/inspiration-board`) -> directions (plan) -> approve-directions (gate)
+  -> variants (worker, fan-out 3, worktree, `dev_command`, browser, view `variants-grid`) -> pick (handoff gate:
+  pick a tile, then Continue) -> polish (worker on the picked variant).
+
+Cut from the catalog sketches, add when a real run shows the need: spec-to-pr's clarify step, task split and
+4-way task fan-out with a review per task (one build agent does it all); website-build's Lighthouse step;
+design-variants' image-model variants (variants are built as HTML in worktrees) and multiple feedback rounds.
+
+Runner support added for this child: a step with `worktree: true` gets `worktree` and `branch` added to its
+outputs by the runner, so later steps can name them (`{{steps.build.outputs.worktree}}`); validation accepts
+those two keys without the step declaring them.
+
+### Fixtures and the M2-01 check
+
+`tests/fixtures/<pipeline id>/`: a small git repo with a static page served by `node serve.js --port <port>`
+and one test. Tests run fake engines (`core/test/fake-engine.js` directives), a fake `gh` and a fake `vercel` on
+PATH, and a local bare repo as `origin`. Each test asserts the run pauses at the gate whose `guards_step` is the
+publish step, with an `action_hash`, before that step has run; then approves it and asserts the publish action
+ran once against the fakes. Pipelines with no publish step assert they run to `done`.
+
 ## Acceptance criteria
 
 - [ ] M2-01. Each milestone-2 built-in runs end to end on its fixture and stops at every gate before a publish step.

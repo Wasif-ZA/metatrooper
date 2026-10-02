@@ -110,7 +110,8 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
             else if (j >= i) errors.push(`${at(i, s)}/${field}: {{${expr}}} refers forward to a later step`);
             else {
               const declared = p.steps[j].outputs;
-              if (ref.field === 'outputs' && declared && p.steps[j].kind === 'agent' && !declared.includes(ref.key as string)) {
+              const runnerOwned = p.steps[j].worktree === true && (ref.key === 'worktree' || ref.key === 'branch');
+              if (ref.field === 'outputs' && declared && p.steps[j].kind === 'agent' && !runnerOwned && !declared.includes(ref.key as string)) {
                 errors.push(`${at(i, s)}/${field}: step ${ref.step} does not declare output ${ref.key}`);
               }
             }

@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "id": "spec-to-pr",
+  "title": "Spec to PR",
+  "lane": "coding",
+  "requires": ["repo", "github"],
+  "inputs": {
+    "idea": { "type": "text", "label": "What to build", "required": true },
+    "repo": { "type": "text", "label": "GitHub repository (owner/name)", "required": true },
+    "base_branch": { "type": "text", "label": "Base branch", "required": false, "default": "main" }
+  },
+  "budget": { "max_minutes": 120 },
+  "steps": [
+    {
+      "id": "spec",
+      "title": "Write the spec",
+      "role": "plan",
+      "kind": "agent",
+      "prompt": "Read this repository. Write spec.md in {{run.dir}} for: {{inputs.idea}}. Sections: goal, non-goals, user-visible behaviour, acceptance checks. Do not edit the repository. Give the work a short pull request title.",
+      "outputs": ["title"]
+    },
+    {
+      "id": "approve-spec",
+      "title": "Approve the spec",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/spec.md. Approve to build it, reject to stop."
+    },
+    {
+      "id": "build",
+      "title": "Build it on a new branch",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "prompt": "Build what {{run.dir}}/spec.md describes in this worktree. Write a failing test first, then the code, then run the tests. Commit your work on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "verify",
+      "title": "Run the tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "approve-pr",
+      "title": "Approve opening the pull request",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Open a pull request on {{inputs.repo}} from {{steps.build.outputs.branch}} into {{inputs.base_branch}}. Tests passed: {{steps.verify.outputs.passed}}."
+    },
+    {
+      "id": "open-pr",
+      "title": "Push and open the pull request",
+      "role": "publish",
+      "kind": "action",
+      "uses": "plugin:github/create-pr",
+      "with": {
+        "repo": "{{inputs.repo}}",
+        "branch": "{{steps.build.outputs.branch}}",
+        "base": "{{inputs.base_branch}}",
+        "title": "{{steps.spec.outputs.title}}",
+        "body": "{{steps.build.outputs.summary}}\n\nTests passed: {{steps.verify.outputs.passed}}",
+        "path": "{{steps.build.outputs.worktree}}"
+      }
+    }
+  ]
+}

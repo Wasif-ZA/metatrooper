@@ -42,7 +42,8 @@ export function detect(dir) {
 }
 
 function runTests(dir, command) {
-  const argv = win ? [process.env.COMSPEC || 'cmd.exe', '/d', '/s', '/c', `"${command.map((a) => `"${a}"`).join(' ')}"`] : command;
+  const q = (a) => (/[\s"&|<>^()]/.test(a) ? `"${a}"` : a);
+  const argv = win ? [process.env.COMSPEC || 'cmd.exe', '/d', '/s', '/c', `"${command.map(q).join(' ')}"`] : command;
   const r = spawnSync(argv[0], argv.slice(1), {
     cwd: dir, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: win, maxBuffer: 64 * 1024 * 1024,
   });

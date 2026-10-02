@@ -464,6 +464,7 @@ export class Runner {
       else if (step.kind === 'action') result = await this.actionIndex(run, step, row, fanout);
       else if (step.kind === 'code') result = await this.codeIndex(run, pipe, step, row, fanout);
       else result = await this.pipelineIndex(run, step, row);
+      if ('ok' in result && result.ok && step.worktree && place.branch) result = { ok: true, outputs: { ...result.outputs, worktree: place.cwd, branch: place.branch } };
       if ('ok' in result && result.ok && step.dev_command && place.port) {
         const ready = await this.serveIndex(run, step, idx, place);
         if (!ready.ok) result = { ok: false, error: `dev server on port ${place.port} gave no response in 90 s:\n${ready.tail}` };
