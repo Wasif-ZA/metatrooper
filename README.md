@@ -49,7 +49,7 @@ shape.
 
 |        | Step            | Example                                                                 |
 | ------ | --------------- | ----------------------------------------------------------------------- |
-| **01** | Install it      | _`uv tool install git+https://github.com/Wasif-ZA/callrouter`_                                           |
+| **01** | Install it      | _`uv tool install git+https://github.com/Wasif-ZA/toolrouter`_                                           |
 | **02** | Tell your agent | _Paste [four lines](#use-with-claude-code-or-codex) into `CLAUDE.md` or `AGENTS.md`._ |
 | **03** | Work as normal  | _Once a week, `toolrouter learn --review` and keep what is worth keeping._ |
 
@@ -57,7 +57,7 @@ shape.
 > **🦉 Or hand the whole thing to your agent.** Paste this into Claude Code or Codex:
 >
 > ```text
-> Install toolrouter with `uv tool install git+https://github.com/Wasif-ZA/callrouter`.
+> Install toolrouter with `uv tool install git+https://github.com/Wasif-ZA/toolrouter`.
 > Then add the "Use with Claude Code or Codex" lines from its README to my CLAUDE.md
 > (or AGENTS.md for Codex), and run `toolrouter` to show me the menu.
 > ```
@@ -315,9 +315,9 @@ Open source. Runs on your machine. No account.
 ### Install it yourself
 
 ```sh
-uv tool install git+https://github.com/Wasif-ZA/callrouter
+uv tool install git+https://github.com/Wasif-ZA/toolrouter
 # or
-pip install git+https://github.com/Wasif-ZA/callrouter
+pip install git+https://github.com/Wasif-ZA/toolrouter
 ```
 
 Run `toolrouter` for the menu.
