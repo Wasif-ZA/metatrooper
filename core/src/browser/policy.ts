@@ -53,6 +53,12 @@ async function defaultLookup(host: string): Promise<string[]> {
   return found.map((a) => a.address);
 }
 
+/** Re-decides a response by the address the browser actually connected to, so a host that re-resolves (DNS rebinding) is caught. */
+export async function connectedVerdict(url: string, ip: string, ctx: PolicyContext): Promise<Verdict> {
+  const v = await checkUrl(url, { ...ctx, lookup: async () => [ip.replace(/^\[|\]$/g, '')] });
+  return v.allow ? v : { allow: false, reason: `connected to ${ip} after the check (DNS rebinding): ${v.reason}` };
+}
+
 /** Decides one request or navigation by browser-tools.md, safety rule 2, resolving the host first. */
 export async function checkUrl(raw: string, ctx: PolicyContext): Promise<Verdict> {
   let url: URL;

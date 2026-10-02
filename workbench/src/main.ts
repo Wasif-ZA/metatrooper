@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
 import { ulid } from '../../core/src/time.ts';
@@ -10,6 +10,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, type Snapshot } from './queries.ts';
+import { gitIn, handback } from './handback.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -267,6 +268,33 @@ function handlers(): void {
     } catch {
       return null;
     }
+  });
+
+  on('review', (runId: unknown) => {
+    const d = db();
+    const row = d && typeof runId === 'string' ? (d.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as { run_dir: string } | undefined) : undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(fs.readFileSync(path.join(row.run_dir, 'review-buckets.json'), 'utf8'));
+    } catch {
+      return null;
+    }
+  });
+
+  on('handback', (projectId: unknown) => {
+    const d = db();
+    const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
+    if (!project) return { error: 'pick a project first' };
+    try {
+      return handback(gitIn(project.path));
+    } catch (e) {
+      return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
+    }
+  });
+
+  on('copyText', (text: unknown) => {
+    if (typeof text === 'string') clipboard.writeText(text);
+    return true;
   });
 
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));

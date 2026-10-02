@@ -1,7 +1,7 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, harness, isolation, root, runNode, startCore, stopCore, teardownCore, until, uiHello } from './helpers.ts';
@@ -59,10 +59,20 @@ test('project.open uses canonical path sha1 and refuses work/ACU', async () => {
       const slashAndDriveCase = project.replaceAll(String.fromCharCode(92), '/').replace(/^./, project[0].toLowerCase());
       const third = await pipe.request('project.open', { path: slashAndDriveCase });
       assert.equal(third.result.project_id, first.result.project_id);
+      if (process.platform === 'win32') {
+        const fourth = await pipe.request('project.open', { path: slashAndDriveCase.toLowerCase() + '/' });
+        assert.equal(fourth.result.project_id, first.result.project_id);
+      }
       const acu = join(h.home, 'work', 'ACU', 'repo');
       mkdirSync(acu, { recursive: true });
       const refused = await pipe.request('project.open', { path: acu });
       assert.equal(refused.error?.code, -32001);
+      const sneaky = join(h.home, 'innocent');
+      symlinkSync(acu, sneaky, 'junction');
+      for (const p of [acu.toLowerCase().split('/').join('\\'), acu.split(/[\\/]/).join('//'), sneaky, join(h.home, 'work'), h.home]) {
+        const r = await pipe.request('project.open', { path: p });
+        assert.equal(r.error?.code, -32001, p);
+      }
     } finally { pipe.close(); }
   } finally { await h.teardown(); }
 });
@@ -298,3 +308,26 @@ test('offline CLI rejects focus and engine checks, queues project.open, and repl
 
 test.skip('M1-10 needs a second standard Windows account to test pipe access', () => {});
 test.skip('M1-02 and M1-03 need real Windows Terminal sessions and signed-in engines', () => {});
+
+test('M1-08 queued commands run in the order they were queued, across a DST change and same-ms ties, within 2 s of restart', async () => {
+  const isolated = isolation();
+  let core = await startCore(isolated);
+  try {
+    await stopCore(core, isolated);
+    const db = database(isolated.home);
+    const stamps = ['2027-04-04T02:59:00.000+11:00', '2027-04-04T02:00:00.000+10:00', '2027-04-04T02:00:00.000+10:00'];
+    const names = ['first', 'second', 'third'];
+    names.forEach((name, i) => {
+      mkdirSync(join(isolated.home, name));
+      db.prepare("INSERT INTO command (id, at, origin, method, params, status) VALUES (?, ?, 'cli', 'project.open', ?, 'queued')")
+        .run(`z-${names.length - i}`, stamps[i], JSON.stringify({ path: join(isolated.home, name) }));
+    });
+    db.close();
+    core = await startCore(isolated);
+    const check = database(isolated.home);
+    try {
+      await until(() => check.prepare("SELECT count(*) AS n FROM command WHERE status = 'ok'").get().n === names.length, 2000);
+      assert.deepEqual(check.prepare('SELECT name FROM project ORDER BY rowid').all().map((r) => r.name), names);
+    } finally { check.close(); }
+  } finally { await stopCore(core, isolated); rmSync(isolated.home, { recursive: true, force: true }); }
+});

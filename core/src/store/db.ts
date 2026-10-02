@@ -27,6 +27,7 @@ export function openCoreDb(): DatabaseSync {
   } else if (v !== 1) {
     throw new Error(`troop.db schema version ${v} is not supported`);
   }
+  db.exec('CREATE INDEX IF NOT EXISTS usage_session_idx ON usage (session_id)');
   return db;
 }
 

@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso } from '../time.ts';
 import { nextState } from './state.ts';
+import { noteTranscript } from '../meter.ts';
 
 interface EventRow {
   seq: number;
@@ -39,6 +40,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (ev.kind === 'launch' && typeof payload.pid === 'number') setPid.run(payload.pid, ev.session_id);
         if (ev.kind.startsWith('claude.') && typeof payload.session_id === 'string') setNative.run(payload.session_id, ev.session_id);
         if (ev.kind === 'codex.turn' && typeof payload['thread-id'] === 'string') setNative.run(payload['thread-id'], ev.session_id);
+        if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
         if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
         const thread = payload['thread-id'];
         const otherThread = ev.kind === 'codex.turn' && s.native_id !== null && typeof thread === 'string' && thread !== s.native_id;

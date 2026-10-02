@@ -49,7 +49,9 @@ filesystem and network sandboxing (AppContainer) is out of scope for this epic a
 - Started with `child_process.spawn(argv[0], argv.slice(1), {cwd, env, windowsHide: true})`. No shell.
 - `env` is built from scratch: `PATH`, `PATHEXT`, `COMSPEC`, `SYSTEMROOT`, `WINDIR`, `TEMP`, `TMP`,
   `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TROOP_RUN_DIR`, `TROOP_PROJECT_DIR`, `TROOP_PLUGIN_DIR`,
-  plus each approved `secrets:<NAME>` value. Nothing else from the parent environment is passed.
+  plus each approved `secrets:<NAME>` value. Nothing else from the parent environment is passed, except
+  on Windows, where libuv copies `HOMEDRIVE`, `HOMEPATH`, `LOGONSERVER`, `SYSTEMDRIVE`, `USERDOMAIN` and
+  `USERNAME` from the parent into every child (`required_vars` in libuv `src/win/process.c`).
 - Secret values: entered once by the user on the install screen (or migrated by an importer, below) and stored
   encrypted with Windows DPAPI for the current user at `~/.metatrooper/secrets/<plugin>/<NAME>.dpapi`,
   recorded in `plugin_secret`. No plain-text secret is ever written by Metatrooper.

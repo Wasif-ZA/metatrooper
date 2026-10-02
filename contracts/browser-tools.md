@@ -53,7 +53,10 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
    list. Enforced with `Fetch.enable` interception on every request, not only top-level navigation, so a
    page script cannot reach a blocked host either. On each `Fetch.requestPaused`, the workbench resolves the
    host with node's `dns.lookup(host, {all: true})` and blocks the request if any returned address is in a
-   blocked range, so a public name that resolves to a private address (DNS rebinding) is blocked too.
+   blocked range, so a public name that resolves to a private address is blocked too. The browser resolves the
+   host again when it connects, so on each `Network.responseReceived` the workbench re-checks the URL against
+   `response.remoteIPAddress` (`connectedVerdict`); a mismatch (DNS rebinding) loads `about:blank` in the pane and
+   logs the block. Headers, and possibly the first body bytes, can arrive before that abort.
 3. `evaluate` runs in an isolated world (`Page.createIsolatedWorld`) and is subject to the same request
    interception. Its result is capped at 20 KB.
 4. Browser panes use a separate Electron session partition per project (`persist:troop-<project_id>`), so

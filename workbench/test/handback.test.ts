@@ -36,7 +36,7 @@ test('M1-27 tray lists staged stat, binary by name, untracked separately', () =>
   assert.match(g('status', '--porcelain'), /\?\? new\.txt/);
 });
 
-test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', () => {
+test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', { skip: process.platform === 'win32' && 'the git stub is a sh script' }, () => {
   const { d } = repo();
   const bin = mkdtempSync(join(tmpdir(), 'hb-bin-'));
   const log = join(bin, 'log');

@@ -49,7 +49,7 @@ export function launchSession(
     child.unref();
   } else {
     const title = `${opts.engine.id} ${opts.projectName}`;
-    const child = spawn('wt.exe', ['-w', win, 'new-tab', '--title', title, '-d', cwd, process.execPath, ...nodeArgs], {
+    const child = spawn('wt.exe', ['-w', win, 'new-tab', '--title', title, '--suppressApplicationTitle', '-d', cwd, process.execPath, ...nodeArgs], {
       detached: true,
       stdio: 'ignore',
       windowsHide: false,

@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
 import { getEngine } from '../engines/registry.ts';
+import { noteCodexSession } from '../meter.ts';
 
 export function pidAlive(pid: number): boolean {
   try {
@@ -198,6 +199,7 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       if (!file) continue;
       const m = measure(file);
       a = { file, size: m.size, mtime: m.mtime, lastChange: 0, working: false };
+      if (s.engine_id === 'codex') noteCodexSession(s.id, file);
       activity.set(s.id, a);
       continue;
     }

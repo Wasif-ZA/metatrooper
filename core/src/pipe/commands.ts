@@ -146,7 +146,7 @@ export class CommandRunner {
   private async runPending(includeAccepted: boolean): Promise<void> {
     const statuses = includeAccepted ? "('accepted','queued')" : "('queued')";
     const pending = this.db
-      .prepare(`SELECT id, method, params, origin, status FROM command WHERE status IN ${statuses} ORDER BY CASE status WHEN 'accepted' THEN 0 ELSE 1 END, at`)
+      .prepare(`SELECT id, method, params, origin, status FROM command WHERE status IN ${statuses} ORDER BY CASE status WHEN 'accepted' THEN 0 ELSE 1 END, rowid`)
       .all() as Array<{ id: string; method: string; params: string; origin: string; status: string }>;
     for (const row of pending) {
       const spec = this.methods.get(row.method);

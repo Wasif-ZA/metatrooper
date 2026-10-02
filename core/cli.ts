@@ -9,6 +9,8 @@ import { loadEngines } from './src/engines/registry.ts';
 import { call, type CallOutcome } from './src/pipe/client.ts';
 import { openReaderDb } from './src/store/db.ts';
 import { isAcuPath, projectId, resolveProjectPath } from './src/project.ts';
+import { formatGate, measureGate, parseGateDate } from './src/gate.ts';
+import { homedir } from 'node:os';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -32,6 +34,8 @@ const USAGE = `usage: troop <command> [--json]
                                 block until the run pauses (gate, budget, loop-max, breaker, handoff) or ends
   run status <run>              show a run's state and open gates
   stop                          stop the core
+  gate [--since <date>] [--until <date>]
+                                adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
   hooks install|uninstall [--codex] [--yes]
   plugin list                   installed plugins, their source and original file
   plugin install <source> [--yes]
@@ -326,6 +330,34 @@ function waitingGates(id: string): Array<Record<string, unknown>> {
   return withDb((db) => db.prepare("SELECT id, step_id, kind, action_hash, summary FROM gate WHERE run_id = ? AND status = 'waiting'").all(id) as Array<Record<string, unknown>>) ?? [];
 }
 
+function gateCmd(argv: string[]): number {
+  const fail = (why: string) => { console.error(`troop gate: ${why}`); return 1; };
+  const seen = new Set<string>();
+  const dates: Record<string, Date> = {};
+  let json = false;
+  for (let i = 0; i < argv.length; i++) {
+    const f = argv[i];
+    if (seen.has(f)) return fail(`${f} given twice`);
+    seen.add(f);
+    if (f === '--json') { json = true; continue; }
+    if (f !== '--since' && f !== '--until') return fail(`unknown flag ${f}`);
+    const v = argv[++i];
+    if (v === undefined) return fail(`${f} needs a date`);
+    const d = parseGateDate(v);
+    if (!d) return fail(`${f} is not a date (YYYY-MM-DD or YYYY-MM-DDTHH:MM)`);
+    dates[f] = d;
+  }
+  const until = dates['--until'] ?? new Date();
+  const since = dates['--since'] ?? new Date(until.getTime() - 14 * 86_400_000);
+  if (since >= until) return fail('--since must be before --until');
+  const db = openReaderDb();
+  try {
+    const report = measureGate({ since, until, home: homedir(), db, toolrouter: ['toolrouter'] });
+    console.log(json ? JSON.stringify(report) : formatGate(report));
+  } finally { db?.close(); }
+  return 0;
+}
+
 async function runCmd(a: Args, json: boolean): Promise<number> {
   const [sub, target] = a.pos;
   if (sub === 'start' && target) {
@@ -462,6 +494,9 @@ async function main(): Promise<number> {
 
     case 'run':
       return runCmd(a, json);
+
+    case 'gate':
+      return gateCmd(rest);
 
     case 'stop': {
       const r = await rpc('core.stop', {}, json);

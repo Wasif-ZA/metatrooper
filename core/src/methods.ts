@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import type { MethodSpec } from './pipe/commands.ts';
-import { canonicalPath, isAcuPath, projectId, resolveProjectPath } from './project.ts';
+import { canonicalPath, containsAcu, isAcuPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
@@ -67,6 +67,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         throw new RpcError(E.NOT_FOUND, `folder not found: ${input}`);
       }
       if (isAcuPath(canonical)) throw new RpcError(E.ACU_REFUSED, 'ACU projects are not opened in Metatrooper');
+      if (containsAcu(canonical)) throw new RpcError(E.ACU_REFUSED, 'this folder contains work/ACU, so it is not opened in Metatrooper');
       const id = projectId(canonical);
       const now = nowIso();
       db.prepare(

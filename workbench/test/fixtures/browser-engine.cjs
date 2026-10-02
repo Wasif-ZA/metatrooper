@@ -8,7 +8,8 @@ const home = process.env.METATROOPER_HOME;
 const log = (m) => { try { fs.appendFileSync(path.join(home || os.tmpdir(), 'browser-engine.log'), m + '\n'); } catch {} };
 log(`start home=${home} prefix=${process.env.METATROOPER_PIPE_PREFIX} sid=${process.env.TROOP_SESSION_ID}`);
 const jobFile = path.join(home, 'browser-job.json');
-const sock = path.join(os.tmpdir(), `${process.env.METATROOPER_PIPE_PREFIX}-browser.sock`);
+const name = `${process.env.METATROOPER_PIPE_PREFIX}-browser`;
+const sock = process.platform === 'win32' ? path.win32.join('//./pipe/', name) : path.join(os.tmpdir(), name + '.sock');
 const deadline = Date.now() + 60_000;
 const attach = () => {
   const c = net.connect(sock);

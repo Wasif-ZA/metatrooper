@@ -225,6 +225,8 @@ test('M1-16 an action sees only the base variables, the TROOP_ paths and approve
     assert.deepEqual({ schema: got.schema, action: got.action, input: got.input, run: got.run }, { schema: 1, action: 'env', input: { a: 1 }, run: { id: 'r1', dir: runDir } });
     const env = JSON.parse(readFileSync(join(runDir, 'env.json'), 'utf8'));
     const allowed = new Set([...BASE_ENV, 'TROOP_RUN_DIR', 'TROOP_PROJECT_DIR', 'TROOP_PLUGIN_DIR', 'API_TOKEN']);
+    // libuv's required_vars (src/win/process.c) are copied from the parent on every Windows spawn.
+    if (process.platform === 'win32') for (const k of ['HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'SYSTEMDRIVE', 'USERDOMAIN', 'USERNAME']) allowed.add(k);
     const unexpected = Object.keys(env).filter((k) => !allowed.has(k.toUpperCase()) && !(process.platform === 'win32' && k.startsWith('=')));
     assert.deepEqual(unexpected, []);
     assert.equal(env.API_TOKEN, 'sekrit');

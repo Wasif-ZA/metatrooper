@@ -644,8 +644,12 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
 - M1-27. The hand-back tray has no commit path (grep plus a test that stubs `git`).
 - M1-28. The meter's per-session tokens for a Claude session equal the sum over unique `message.id` values in
   its transcript.
-- M1-29. Callrouter Plan A passes its own criteria 1 to 8 (`projects/callrouter/docs/spec.md:111-128`).
-- M1-30. `project.open` on a path containing `work/ACU` returns -32001.
+- M1-29. toolrouter (renamed from callrouter 2026-09-30, CLI only, no hooks) records `shown_bytes` per call,
+  `toolrouter ingest --since --until --json` reports `shell_read_tokens` and `saved_tokens` with ACU excluded
+  (#13, section 5), and the repo ships a `troop-plugin.json` whose `ingest` action validates with
+  `validateManifest`. Superseded 2026-09-30: callrouter Plan A criteria 1 to 8.
+- M1-30. `project.open` on a path containing `work/ACU`, or on a folder with `work/ACU` (or, for a folder named
+  `work`, `ACU`) directly below it, returns -32001. Added 2026-10-02: opening the parent would let an engine read ACU.
 - M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop
   run wait` returns at its first gate.
 - M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry
@@ -668,7 +672,8 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding ACU
   sessions (same rule as the baseline). #13 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
   are measured the same way.
-- A-05. Callrouter reports at least 20% saved across shell and Read tokens in the window.
+- A-05. toolrouter saves at least 20% of shell and Read result tokens in the window:
+  `saved_tokens / (shell_read_tokens + saved_tokens)`, from `toolrouter ingest` (#13, section 5).
 
 ### Milestone 2
 

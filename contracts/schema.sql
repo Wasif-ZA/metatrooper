@@ -266,6 +266,7 @@ CREATE TABLE usage (
   source       TEXT NOT NULL CHECK (source IN ('transcript','codex-session','callrouter','gateway','unknown')),
   dedupe_key   TEXT NOT NULL UNIQUE            -- claude: message.id; codex: turn id; else '<session>:<step>:<n>'
 );
+CREATE INDEX usage_session_idx ON usage (session_id);
 
 CREATE TABLE limit_reading (
   provider     TEXT NOT NULL,                  -- 'claude', 'codex', ...

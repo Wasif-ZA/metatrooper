@@ -2,13 +2,25 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, root, startCore, teardownCore, until } from './helpers.ts';
 
 before(buildGenerated);
 
 const builtin = join(root, 'pipelines', 'two-engine-review.json');
-const { bucketFindings } = await import(join(root, 'pipelines', 'two-engine-review', 'bucket.mjs'));
+const { bucketFindings } = await import(pathToFileURL(join(root, 'pipelines', 'two-engine-review', 'bucket.mjs')).href);
+
+/** Listening TCP sockets owned by rootPid or any descendant, as 'pid:port' lines (Windows only). */
+async function listenersUnder(rootPid: number): Promise<string> {
+  const ps = `$all = Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId; $set = @{ ${rootPid} = 1 }
+do { $n = $set.Count; foreach ($p in $all) { if ($set.ContainsKey([int]$p.ParentProcessId)) { $set[[int]$p.ProcessId] = 1 } } } while ($set.Count -ne $n)
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $set.ContainsKey([int]$_.OwningProcess) } | ForEach-Object { "$($_.OwningProcess):$($_.LocalPort)" }`;
+  const { stdout } = await promisify(execFile)('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8' });
+  return stdout.trim();
+}
 
 const f = (file: string, a: number, b: number) => ({ file, line_start: a, line_end: b, severity: 'high', title: 't', body: 'b' });
 
@@ -30,11 +42,11 @@ test('M1-26 buckets match on file and 3-line widened overlap and pick no winner'
 test('M1-26 two-engine-review returns both verdicts and four buckets for a planted bug (fake engines)', async () => {
   const isolated = isolation();
   const registry = join(isolated.home, 'engines.json');
-  writeFileSync(registry, JSON.stringify([{
-    id: 'fake', command: process.execPath, args: [join(root, 'core/test/fake-engine.js')], prompt_arg: 'positional',
+  writeFileSync(registry, JSON.stringify(['fake-a', 'fake-b'].map((id) => ({
+    id, command: process.execPath, args: [join(root, 'core/test/fake-engine.js')], prompt_arg: 'positional',
     state_source: 'hooks', roles: ['worker', 'review', 'verify'], cost_rank: 1, usage_source: 'none', provider: 'local-cli',
     version_cmd: [process.execPath, '--version'],
-  }]));
+  }))));
   const env = { ...isolated.env, METATROOPER_ENGINES: registry, TROOP_LAUNCHER: 'spawn' };
   const core = await startCore({ ...isolated, env });
   try {
@@ -46,8 +58,8 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
     const def = JSON.parse(readFileSync(builtin, 'utf8'));
     const bug = f('src/app.js', 40, 42);
     const directive = (verdict: string, findings: unknown[]) => `FAKE ${JSON.stringify({ outputs: { verdict, findings: JSON.stringify(findings) } })}\n`;
-    def.steps[0].engine = 'fake'; def.steps[0].prompt = directive('reject', [bug, f('src/x.js', 1, 1)]) + def.steps[0].prompt;
-    def.steps[1].engine = 'fake'; def.steps[1].prompt = directive('reject', [f('src/app.js', 43, 44), f('src/y.js', 9, 9)]) + def.steps[1].prompt;
+    def.steps[0].engine = 'fake-b'; def.steps[0].prompt = directive('reject', [bug, f('src/x.js', 1, 1)]) + def.steps[0].prompt;
+    def.steps[1].engine = 'fake-a'; def.steps[1].prompt = directive('reject', [f('src/app.js', 43, 44), f('src/y.js', 9, 9)]) + def.steps[1].prompt;
     def.requires = [];
     writeFileSync(join(pipelines, 'two-engine-review.json'), JSON.stringify(def));
     const pipe = await client(isolated.prefix);
@@ -59,17 +71,28 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
       runId = started.result.run_id;
     } finally { pipe.close(); }
     const store = new DatabaseSync(join(isolated.home, 'troop.db'));
+    let finished = false;
+    const samples: string[] = [];
+    const sampler = process.platform === 'win32' ? (async () => { do samples.push(await listenersUnder(core.pid!)); while (!finished); })() : Promise.resolve();
     try {
       const status = await until(() => {
         const r = store.prepare('SELECT status FROM run WHERE id = ?').get(runId) as { status: string };
         return ['done', 'failed'].includes(r.status) ? r.status : null;
       }, 60000);
+      finished = true;
+      await sampler;
       assert.equal(status, 'done');
+      if (process.platform === 'win32') assert.deepEqual(samples.filter(Boolean), [], 'M1-09 the core and its children own no listening port during the run');
+      const ran = (step: string) => store.prepare(
+        'SELECT r.engine_id AS step_engine, s.engine_id AS session_engine FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ?',
+      ).get(runId, step) as { step_engine: string; session_engine: string };
+      assert.deepEqual({ ...ran(def.steps[0].id) }, { step_engine: 'fake-b', session_engine: 'fake-b' });
+      assert.deepEqual({ ...ran(def.steps[1].id) }, { step_engine: 'fake-a', session_engine: 'fake-a' });
       const row = store.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'bucket'").get(runId) as { outputs: string };
       assert.deepEqual(JSON.parse(row.outputs), {
         codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, buckets_path: 'review-buckets.json',
       });
-    } finally { store.close(); }
+    } finally { finished = true; store.close(); }
   } finally { await teardownCore(core, isolated); }
 });
 

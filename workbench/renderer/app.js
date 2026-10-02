@@ -114,12 +114,19 @@ function renderTop() {
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === ui.tab);
 }
 
+function meter(x) {
+  if (x.tokens === null || x.tokens === undefined) return 'tokens unknown';
+  const usd = x.usd === null || x.usd === undefined ? 'price unknown' : `$${x.usd.toFixed(2)}`;
+  return `${x.tokens.toLocaleString()} tokens · ${usd}`;
+}
+
 function sessionCard(x) {
   const run = x.run_id ? ` · step ${esc(x.step_id || '')}` : '';
   return `<div class="card" data-action="seen" data-id="${esc(x.id)}">
     <div class="row"><span class="engine">${esc(x.engine_id)}</span><span class="state ${esc(x.state)}">${esc(STATE_WORDS[x.state] || x.state)}</span></div>
     <div class="meta">${esc(x.window_name || '')}${run}</div>
     <div class="meta">${x.last_tool ? `last tool ${esc(x.last_tool)} · ` : ''}<span data-ago="${esc(x.state_at)}">${esc(ago(x.state_at))}</span></div>
+    <div class="meta">${meter(x)}</div>
     <div class="actions">
       <button data-action="focus" data-id="${esc(x.id)}">Focus</button>
       <button data-action="hide" data-id="${esc(x.id)}">Hide</button>
@@ -186,8 +193,27 @@ function renderRunDetail() {
     <div class="toolbar"><h3 style="margin:0">${esc(run.pipeline_id)}</h3><span class="state ${esc(run.status)}">${esc(run.status)}${run.paused_why ? `: ${esc(run.paused_why)}` : ''}</span>${actions.join('')}</div>
     <table><thead><tr><th>Step</th><th>Loop</th><th>Index</th><th>Status</th><th>Engine</th><th>Fails</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   </div>
+  ${renderReview()}
   ${renderBoard()}
   <div class="panel"><h3>Log</h3><div class="log">${esc(ui.log.map(formatLog).join('\n')) || '<span class="empty">empty</span>'}</div></div>`;
+}
+
+function finding(f) {
+  if (!f) return '<td></td>';
+  return `<td><b>${esc(f.severity || '')}</b> ${esc(f.file || '')}:${esc(f.line_start ?? '')}-${esc(f.line_end ?? '')}<div>${esc(f.title || '')}</div><div class="meta">${esc(f.body || '')}</div></td>`;
+}
+
+function renderReview() {
+  const r = ui.review;
+  if (!r) return '';
+  const names = { both: 'Both found', codex_only: 'Only Codex', gemini_only: 'Only Gemini', disagree: 'Disagree (one approves)' };
+  const sections = Object.entries(names).map(([k, title]) => {
+    const rows = (r[k] || []).map((x) => `<tr>${finding(x.codex)}${finding(x.gemini)}</tr>`).join('');
+    return `<h3>${esc(title)} <span class="count">${(r[k] || []).length}</span></h3>
+      ${rows ? `<table><thead><tr><th>Codex</th><th>Gemini</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">None.</p>'}`;
+  }).join('');
+  return `<div class="panel"><h3>Review</h3>
+    <div class="meta">Codex: ${esc(r.codex_verdict ?? 'unknown')} · Gemini: ${esc(r.gemini_verdict ?? 'unknown')}</div>${sections}</div>`;
 }
 
 function renderBoard() {
@@ -411,6 +437,31 @@ function renderRail() {
       <div class="actions"><button data-action="dismiss" data-id="${esc(n.id)}">Dismiss</button></div></div>`).join('') : '<p class="empty">All clear.</p>');
 }
 
+function renderHandback() {
+  if (ui.handback === undefined && ui.projectId) {
+    ui.handback = null;
+    const id = ui.projectId;
+    void api.handback(id).then((r) => { if (ui.projectId === id) { ui.handback = r; render(); } });
+  }
+  const h = ui.handback;
+  const bar = '<div class="toolbar"><h3 style="margin:0">Staged changes</h3><button data-action="handback-refresh">Refresh</button></div>';
+  if (!h) return `<div class="panel">${bar}<p class="empty">Loading.</p></div>`;
+  if (h.error) return `<div class="panel">${bar}<p class="empty">${esc(h.error)}</p></div>`;
+  const byName = h.files.filter((f) => f.kind !== 'text').map((f) => `<li>${esc(f.path)} <span class="meta">${esc(f.kind)}</span></li>`).join('');
+  return `<div class="panel">${bar}
+    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged.</p>'}
+    ${byName ? `<h3>Binary and submodules</h3><ul>${byName}</ul>` : ''}
+    ${h.untracked.length ? `<h3>Untracked (never staged here)</h3><ul>${h.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    ${h.files.length ? `<h3>Command to run</h3><div class="log">${esc(h.command)}</div>
+    <div class="actions"><button class="primary" data-action="handback-copy">Copy</button></div>` : ''}
+  </div>`;
+}
+
+function refreshHandback() {
+  ui.handback = undefined;
+  render();
+}
+
 function render() {
   if (!ui.snap) return;
   renderSide();
@@ -420,6 +471,7 @@ function render() {
   else if (ui.tab === 'runs') html = renderRuns();
   else if (ui.tab === 'pipelines') html = renderPipelines();
   else if (ui.tab === 'browser') html = renderBrowser();
+  else if (ui.tab === 'handback') html = renderHandback();
   else html = renderSessions();
   setHtml('view', html);
   reportPaneBounds();
@@ -430,9 +482,14 @@ function render() {
 async function refreshLog() {
   if (!ui.runId) {
     ui.log = [];
+    ui.review = null;
     return;
   }
-  ui.log = await api.runLog(ui.runId);
+  const id = ui.runId;
+  const [log, review] = await Promise.all([api.runLog(id), api.review(id)]);
+  if (ui.runId !== id) return;
+  ui.log = log;
+  ui.review = review;
 }
 
 function setView() {
@@ -481,6 +538,7 @@ async function onClick(e) {
       const r = await rpc('project.open', { path: dir });
       if (r.result) {
         ui.projectId = r.result.project_id;
+        ui.handback = undefined;
         save('projectId', ui.projectId);
         setView();
       }
@@ -490,13 +548,24 @@ async function onClick(e) {
       ui.projectId = id;
       ui.runId = null;
       ui.editor = null;
+      ui.handback = undefined;
       save('projectId', id);
       setView();
       return;
     case 'tab':
       ui.tab = el.dataset.tab;
       save('tab', ui.tab);
-      render();
+      if (ui.tab === 'handback') refreshHandback();
+      else render();
+      return;
+    case 'handback-refresh':
+      refreshHandback();
+      return;
+    case 'handback-copy':
+      if (ui.handback && ui.handback.command) {
+        await api.copyText(ui.handback.command);
+        toast('Copied. Run it yourself.');
+      }
       return;
     case 'check-engines':
       await rpc('engines.check', {});

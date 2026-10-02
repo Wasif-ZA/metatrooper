@@ -9,10 +9,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, sleep, startCore, teardownCore, until, uiHello } from '../../core/test/helpers.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
-const electron = join(workbench, 'node_modules', 'electron', 'dist', 'electron');
+const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
 const xvfb = spawnSync('which', ['xvfb-run']).status === 0;
 // Opt-in (needs Electron + xvfb; slow): set METATROOPER_BROWSER_E2E=1.
-const runnable = process.env.METATROOPER_BROWSER_E2E === '1' && process.platform === 'linux' && existsSync(electron) && xvfb;
+const runnable = process.env.METATROOPER_BROWSER_E2E === '1' && existsSync(electron) && (process.platform === 'win32' || (process.platform === 'linux' && xvfb));
 
 function listen(handler: Parameters<typeof createServer>[1]): Promise<{ server: Server; port: number }> {
   return new Promise((res) => {
@@ -53,7 +53,7 @@ function decodePng(png: Buffer): { width: number; height: number; pixel: (x: num
 
 const isRed = ([r, g, b]: number[]) => r > 200 && g < 60 && b < 60;
 
-test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate, and captures a 5,000 px page with one sticky header', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 on a Linux box with a working Electron+xvfb', timeout: 150_000 }, async () => {
+test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate, and captures a 5,000 px page with one sticky header', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 (Windows, or Linux with xvfb)', timeout: 150_000 }, async () => {
   await buildGenerated();
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
@@ -93,7 +93,10 @@ test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and e
     await until(() => (db.prepare('SELECT pid FROM session WHERE id = ?').get(sessionId) as { pid: number | null }).pid, 15_000);
     db.close();
 
-    wb = spawn('xvfb-run', ['-a', '-s', '-screen 0 1400x900x24', electron, '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', workbench], { env, stdio: ['ignore', 'ignore', openSync(join(iso.home, 'workbench.err'), 'w')], detached: true });
+    const wbArgs: [string, string[]] = process.platform === 'win32'
+      ? [electron, [workbench]]
+      : ['xvfb-run', ['-a', '-s', '-screen 0 1400x900x24', electron, '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', workbench]];
+    wb = spawn(wbArgs[0], wbArgs[1], { env, stdio: ['ignore', 'ignore', openSync(join(iso.home, 'workbench.err'), 'w')], detached: process.platform !== 'win32' });
 
     const targets = [
       'file:///etc/passwd',
@@ -147,7 +150,7 @@ test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and e
     for (let y = 0; y < img.height; y++) if (isRed(img.pixel(10, y))) redRows++;
     assert.ok(redRows >= 78 && redRows <= 82, `header appears once (${redRows} red rows)`);
   } finally {
-    if (wb?.pid) try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    if (wb?.pid) try { if (process.platform === 'win32') spawnSync('taskkill', ['/T', '/F', '/PID', String(wb.pid)]); else process.kill(-wb.pid, 'SIGKILL'); } catch {}
     unowned.server.close();
     owned.server.close();
     await sleep(300);

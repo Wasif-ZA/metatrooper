@@ -5,7 +5,7 @@ import { session as electronSession, WebContentsView, type BrowserWindow, type D
 import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
-import { checkUrl, type PolicyContext } from '../../../core/src/browser/policy.ts';
+import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
@@ -217,6 +217,16 @@ export class PaneManager {
     if (method === 'Network.responseReceived') {
       const r = pane.network.get(params.requestId);
       if (r) r.status = params.response.status;
+      const ip = params.response.remoteIPAddress;
+      if (ip) {
+        const verdict = await connectedVerdict(params.response.url, ip, this.policy(pane.row.project_id));
+        if (!verdict.allow) {
+          const reason = verdict.reason;
+          this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });
+          pane.console.push({ at: Date.now(), level: 'blocked', text: `Metatrooper blocked ${params.response.url}: ${reason}` });
+          await pane.view.webContents.loadURL('about:blank').catch(() => {});
+        }
+      }
       return;
     }
     if (method === 'Network.loadingFinished') {

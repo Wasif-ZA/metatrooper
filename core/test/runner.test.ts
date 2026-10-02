@@ -1,6 +1,6 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:net';
+import { connect, createServer } from 'node:net';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -370,9 +370,25 @@ test('M1-21 stops new steps at max_tokens with overshoot bounded by max_parallel
   } finally { await h.teardown(); }
 });
 
+function answers(port: number): Promise<boolean> {
+  return new Promise(resolve => {
+    const sock = connect({ host: '127.0.0.1', port });
+    const done = (v: boolean) => { sock.destroy(); resolve(v); };
+    sock.setTimeout(200, () => done(false));
+    sock.once('connect', () => done(true));
+    sock.once('error', () => done(false));
+  });
+}
+
 test('M1-22 creates fanout worktrees, leases ports from 3001 around an occupied port, and opens one pane per variant', async () => {
   const occupied = createServer();
-  await new Promise<void>((resolve, reject) => occupied.once('error', reject).listen(3001, '127.0.0.1', () => resolve()));
+  let held = 3001;
+  for (;; held++) {
+    const ok = await new Promise<boolean>(resolve => occupied.once('error', () => resolve(false)).listen(held, '127.0.0.1', () => resolve(true)));
+    if (ok) break;
+  }
+  const expected: number[] = [];
+  for (let port = held + 1; expected.length < 3; port++) if (!(await answers(port))) expected.push(port);
   const h = await fakeHarness();
   try {
     const { project, projectId } = await openProject(h, 'm1-22');
@@ -395,7 +411,7 @@ test('M1-22 creates fanout worktrees, leases ports from 3001 around an occupied 
         Array<{ idx: number; worktree: string; branch: string; dev_port: number; pane_id: string; status: string }>;
       assert.equal(variants.length, 3);
       assert.deepEqual(variants.map(v => v.idx), [0, 1, 2]);
-      assert.deepEqual(variants.map(v => v.dev_port), [3002, 3003, 3004]);
+      assert.deepEqual(variants.map(v => v.dev_port), expected);
       assert.equal(new Set(variants.map(v => v.worktree)).size, 3);
       for (const variant of variants) {
         assert.ok(existsSync(join(variant.worktree, '.git')), variant.worktree);
@@ -404,12 +420,12 @@ test('M1-22 creates fanout worktrees, leases ports from 3001 around an occupied 
       }
       const leases = (store.prepare('SELECT idx, port FROM port_lease WHERE run_id = ? ORDER BY idx').all(runId) as Array<{ idx: number; port: number }>)
         .map(row => ({ idx: row.idx, port: row.port }));
-      assert.deepEqual(leases, [{ idx: 0, port: 3002 }, { idx: 1, port: 3003 }, { idx: 2, port: 3004 }]);
+      assert.deepEqual(leases, expected.map((port, idx) => ({ idx, port })));
       const panes = store.prepare('SELECT variant, session_id, url, dev_port, open FROM browser_pane WHERE run_id = ? ORDER BY variant').all(runId) as
         Array<{ variant: number; session_id: string | null; url: string; dev_port: number; open: number }>;
       assert.equal(panes.length, 3);
       assert.deepEqual(panes.map(p => p.variant), [0, 1, 2]);
-      assert.deepEqual(panes.map(p => p.dev_port), [3002, 3003, 3004]);
+      assert.deepEqual(panes.map(p => p.dev_port), expected);
       assert.ok(panes.every(p => p.session_id && p.url === `http://127.0.0.1:${p.dev_port}/` && p.open === 1));
     } finally { store.close(); }
   } finally {

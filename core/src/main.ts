@@ -11,6 +11,7 @@ import { checkAll } from './engines/health.ts';
 import { processEvents } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { tickSchedules } from './schedules.ts';
+import { readMeters } from './meter.ts';
 import { Runner } from './pipelines/runner.ts';
 import { browserCall } from './browser/client.ts';
 import { syncBuiltinPlugins, syncPipelines } from './pipelines/store.ts';
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
   every(500, () => runner.tick());
   every(1000, () => checkActivity(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
+  every(2000, () => readMeters(db));
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));

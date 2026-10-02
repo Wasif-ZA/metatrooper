@@ -76,3 +76,22 @@ test('M1-12 two agy launches in one window leave native_id NULL (state stays unk
     assert.equal(t.native('a2'), null);
   } finally { t.done(); }
 });
+
+test('M1-12 an agy session whose transcript ends on an unanswered tool call goes blocked after 20 s quiet', async () => {
+  const t = await setup();
+  try {
+    const logs = path.join(t.home, '.gemini', 'antigravity-cli', 'brain', 'conv-one', '.system_generated', 'logs');
+    fs.mkdirSync(logs, { recursive: true });
+    const transcript = path.join(logs, 'transcript.jsonl');
+    fs.writeFileSync(transcript, '{"type":"USER_INPUT"}\n');
+    t.addSession('agy-blocked', 'agy', Date.now() - 1000);
+    const start = Date.now();
+    t.checkActivity(t.db, start);
+    fs.appendFileSync(transcript, '{"type":"PLANNER_RESPONSE","status":"DONE","tool_calls":[{"name":"run_command","args":{}}]}\n');
+    t.checkActivity(t.db, start + 1000);
+    t.checkActivity(t.db, start + 1000 + 20_000);
+    const states = (t.db.prepare("SELECT payload FROM event WHERE session_id = 'agy-blocked' AND kind = 'core.activity' ORDER BY rowid").all() as Array<{ payload: string }>)
+      .map((r) => JSON.parse(r.payload).state);
+    assert.deepEqual(states, ['working', 'blocked']);
+  } finally { t.done(); }
+});

@@ -77,7 +77,7 @@ export function syncEngines(db: DatabaseSync, engines: EngineSpec[]): void {
 }
 
 const ACTIVE = `SELECT e.id, e.spec_json FROM engine e LEFT JOIN plugin p ON p.id = e.plugin_id
-  WHERE e.plugin_id IS NULL OR p.enabled = 1`;
+  WHERE (e.plugin_id IS NULL OR p.enabled = 1)`;
 
 export function getEngine(db: DatabaseSync, id: string): EngineSpec | null {
   const row = db.prepare(`${ACTIVE} AND e.id = ?`).get(id) as { spec_json: string } | undefined;

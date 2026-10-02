@@ -47,7 +47,7 @@ async function logError(err: unknown): Promise<void> {
 
 async function deliverComments(db: DatabaseSync, sessionId: string): Promise<void> {
   const rows = db
-    .prepare('SELECT id, body FROM comment WHERE session_id = ? AND prompt_at IS NULL ORDER BY at')
+    .prepare('SELECT id, body FROM comment WHERE session_id = ? AND prompt_at IS NULL ORDER BY rowid')
     .all(sessionId) as Array<{ id: string; body: string }>;
   if (rows.length === 0) return;
   const context = 'Comments from the Metatrooper browser:\n\n' + rows.map((r) => r.body).join('\n\n');
