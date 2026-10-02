@@ -128,7 +128,10 @@ function usageBar(rows) {
   return [...by].map(([provider, list]) => {
     const ok = list.filter((r) => r.status === 'ok' && r.used_pct !== null);
     if (!ok.length) return `<span class="chip" title="No local source for this provider's limits">${esc(provider)} · usage unavailable</span>`;
-    return ok.map((r) => `<span class="chip ${r.used_pct >= 80 ? 'warn' : ''}" title="read ${esc(r.read_at)}">${esc(provider)} ${esc(r.window)} ${Math.round(r.used_pct)}%${r.resets_at ? ` · ${esc(untilText(r.resets_at))}` : ''}</span>`).join('');
+    const hot = ok.some((r) => r.used_pct >= 80);
+    const parts = ok.map((r) => `${Math.round(r.used_pct)}% ${esc(r.window === 'weekly' ? 'wk' : r.window)}${r.used_pct >= 80 && r.resets_at ? ` (${esc(untilText(r.resets_at).replace("resets in ", ""))} left)` : ''}`);
+    const title = ok.map((r) => `${r.window}: ${Math.round(r.used_pct)}%${r.resets_at ? `, ${untilText(r.resets_at)}` : ''}`).join('\n') + `\nread ${ok[0].read_at}`;
+    return `<span class="chip ${hot ? 'warn' : ''}" title="${esc(title)}">${esc(provider)} ${parts.join(' · ')}</span>`;
   }).join('');
 }
 
@@ -223,11 +226,12 @@ function renderVariants() {
   ui.combine = (ui.combine || []).filter((i) => vs.some((v) => v.idx === i && v.status !== 'discarded'));
   const tiles = vs.map((v) => {
     const live = v.status !== 'discarded';
-    return `<div class="card ${v.status === 'picked' ? 'on' : ''}">
+    const where = [v.branch, v.dev_port ? `port ${v.dev_port}` : '', v.step_id && v.step_id.startsWith('combine-') ? v.step_id : ''].filter(Boolean).map(esc).join(' · ');
+    return `<div class="card ${v.status === 'picked' ? 'on' : ''} ${live ? '' : 'gone'}">
       <div class="toolbar"><b>Variant ${v.idx + 1}</b><span class="state ${esc(v.status)}">${esc(v.status)}</span>
         ${live ? `<label class="meta"><input type="checkbox" data-action="variant-toggle" data-idx="${v.idx}" ${ui.combine.includes(v.idx) ? 'checked' : ''}> combine</label>` : ''}</div>
       <div class="meta">${esc(v.engine_id || 'engine pending')} · ${esc(meter(v))}</div>
-      <div class="meta">${esc(v.branch || '')}${v.dev_port ? ` · port ${v.dev_port}` : ''}${v.step_id && v.step_id.startsWith('combine-') ? ` · ${esc(v.step_id)}` : ''}</div>
+      ${where ? `<div class="meta">${where}</div>` : ''}
       <div class="actions">
         ${v.pane_id && live ? `<button data-action="variant-pane" data-id="${esc(v.pane_id)}">Pane</button>` : ''}
         ${live && v.status !== 'picked' ? `<button class="primary" data-action="variant-pick" data-idx="${v.idx}">Pick</button>` : ''}

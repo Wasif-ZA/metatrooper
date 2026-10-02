@@ -175,7 +175,13 @@ td.wrap { white-space: normal; }
 .chip { font-size: 12px; }
 .chip.on { background: var(--chip-bg); border-color: var(--accent); font-weight: 600; }
 .chip.warn { border-color: var(--bad, #c33); color: var(--bad, #c33); font-weight: 600; }
-.usage-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.usage-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.usage-bar .chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.usage-bar .chip.warn { color: var(--bad, #c33); border-color: var(--bad, #c33); }
+.tabs { flex-shrink: 0; }
+.tabs button { white-space: nowrap; }
+.project-title { flex: 0 1 auto; min-width: 120px; }
+.card.gone { opacity: 0.55; }
 .url { flex: 1; min-width: 200px; }
 .pane-host { flex: 1; min-height: 240px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
