@@ -15,6 +15,7 @@ import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
+import { paneData } from '../../core/src/pipelines/panes.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -24,7 +25,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
-  'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
+  'session.paste-prompt', 'run.item-set', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -359,6 +360,12 @@ function handlers(): void {
     } catch {
       return null;
     }
+  });
+
+  on('stepPane', (runId: unknown, stepId: unknown) => {
+    const d = db();
+    if (!d || typeof runId !== 'string' || typeof stepId !== 'string') return { error: 'no step' };
+    return paneData(d, runId, stepId);
   });
 
   const cwdOf = (sessionId: unknown) => {

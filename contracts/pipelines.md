@@ -193,3 +193,17 @@ Choices the sections above leave open, as built:
   "interrupted by core restart"; agent steps with a session and sub-pipeline steps are picked up again.
 - `code-host.js` gets `--experimental-default-type=module` only when the running node still accepts it.
 - `variant.combine` arrives with child #8.
+
+## Result panes
+
+A step with `view` of `items`, `document`, `table` or `findings` gets a tab in the side split once it has
+started. The pane reads the step output of the same name (`document` also reads `sources` and `score`): a path
+resolved inside the run folder, then the project folder, or the data inline in the output. Shapes:
+
+- `items`: `[{"id","title","preview"?,"score"?,"reason"?,"status":"pending|approved|dropped|published|failed","error"?,"url"?}]`
+- `document`: markdown, plus `sources` `[{"title","url"}]` and `score` `{"score":0-100,"threshold":N,"parts":{"<name>":N}}`
+- `table`: `{"columns":["<step>"],"rows":[{"id","cells":{"<step>":{"status":"done|running|failed","value"?,"error"?}}}]}`
+- `findings`: `[{"severity":"critical|high|medium|low","title","file"?,"line"?,"detail","fixed_by"?}]`
+
+Approve, Back to pending and Drop on an `items` card call `run.item-set {run_id, step_id, id, status}`, which
+rewrites that item's `status` in the file. Inline items are read only. Fixtures: tests/fixtures/result-panes/.

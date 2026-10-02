@@ -34,7 +34,7 @@ export function light(check: { installed: number; auth: string } | null | undefi
 
 const fileCache = new Map<string, { title: string; inputs: Record<string, unknown> }>();
 
-type StepDef = { id: string; kind: string; gate?: string; fanout?: number; loop_max?: number };
+type StepDef = { id: string; kind: string; gate?: string; fanout?: number; loop_max?: number; view?: string };
 
 function pipelineFile(path: string, version: number, id: string): { title: string; inputs: Record<string, unknown>; step_defs: StepDef[] } {
   const key = `${path}:${version}`;
@@ -51,7 +51,7 @@ function pipelineFile(path: string, version: number, id: string): { title: strin
     hit = {
       title: typeof json.title === 'string' ? json.title : id,
       inputs: json.inputs && typeof json.inputs === 'object' ? (json.inputs as Record<string, unknown>) : {},
-      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max })),
+      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max, view: s.view })),
     };
     fileCache.set(key, hit);
   }

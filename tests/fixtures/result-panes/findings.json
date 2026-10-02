@@ -1,0 +1,5 @@
+[
+  { "severity": "critical", "title": "Secret in client bundle", "file": "src/config.ts", "line": 12, "detail": "The Stripe key is imported by a browser module." },
+  { "severity": "high", "title": "Unvalidated redirect", "file": "src/routes/login.ts", "line": 40, "detail": "next= is used as is.", "fixed_by": "build-2" },
+  { "severity": "low", "title": "Missing lang attribute", "file": "index.html", "detail": "html has no lang." }
+]

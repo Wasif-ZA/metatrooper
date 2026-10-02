@@ -89,7 +89,7 @@
           "description": "Keys the step must write into its output file's front matter. Missing keys fail the step.",
           "type": "array", "items": { "type": "string" }
         },
-        "view": { "enum": ["none", "variants-grid", "board", "handback", "review", "diff"], "default": "none" },
+        "view": { "enum": ["none", "variants-grid", "board", "handback", "review", "diff", "items", "document", "table", "findings"], "default": "none", "description": "items, document, table and findings open a result pane that reads the step output of the same name (document also reads sources and score): a path inside the run or project folder, or the data inline." },
         "loop": {
           "type": "object",
           "additionalProperties": false,

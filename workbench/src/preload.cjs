@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('troop', {
   sessionDiff: (sessionId) => ipcRenderer.invoke('sessionDiff', sessionId),
   sessionDiffFile: (sessionId, file) => ipcRenderer.invoke('sessionDiffFile', sessionId, file),
   filePaths: (files) => Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean),
+  stepPane: (runId, stepId) => ipcRenderer.invoke('stepPane', runId, stepId),
   uiSettings: () => ipcRenderer.invoke('uiSettings'),
   setTheme: (name) => ipcRenderer.invoke('setTheme', name),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),

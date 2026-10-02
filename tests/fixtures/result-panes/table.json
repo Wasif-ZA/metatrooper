@@ -1,0 +1,8 @@
+{
+  "columns": ["fetch", "extract", "check"],
+  "rows": [
+    { "id": "row-1", "cells": { "fetch": { "status": "done", "value": "200" }, "extract": { "status": "done", "value": "12 fields" }, "check": { "status": "done", "value": "ok" } } },
+    { "id": "row-2", "cells": { "fetch": { "status": "done", "value": "200" }, "extract": { "status": "running" } } },
+    { "id": "row-3", "cells": { "fetch": { "status": "failed", "error": "timeout after 30 s" } } }
+  ]
+}

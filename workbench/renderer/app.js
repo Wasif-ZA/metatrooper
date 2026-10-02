@@ -10,6 +10,7 @@ const ui = {
   snap: null,
   projectId: load('projectId'),
   tab: ['diff', 'handback', 'browser', 'runs', 'pipelines'].includes(load('tab')) ? load('tab') : 'diff',
+  paneCache: {},
   split: load('split') !== '0',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
   localSel: null,
@@ -489,6 +490,7 @@ function refreshHandback() {
 
 
 const TABS = [['diff', 'Diff'], ['handback', 'Hand-back'], ['browser', 'Browser'], ['runs', 'Runs'], ['pipelines', 'Pipelines']];
+const PANE_LABELS = { items: 'Review set', document: 'Document', table: 'Rows', findings: 'Findings' };
 const THEME_VARS = { bg: '--bg', panel: '--panel', panel2: '--panel-2', line: '--line', text: '--text', muted: '--muted', accent: '--accent', on_accent: '--on-accent', ok: '--green', warn: '--amber', bad: '--red', grey: '--grey', unseen: '--unseen', term_bg: '--term-bg', term_fg: '--term-fg', add_bg: '--add-bg', add_fg: '--add-fg', del_bg: '--del-bg', del_fg: '--del-fg', font_ui: '--font-ui', font_mono: '--font-mono' };
 
 function applyLook(look) {
@@ -678,10 +680,30 @@ function renderStart() {
   </ol>`);
 }
 
+function paneTabs(sel) {
+  if (!sel || !sel.run_id) return [];
+  const run = ui.snap.runs.find((r) => r.id === sel.run_id);
+  const pipe = run && ui.snap.pipelines.find((p) => p.id === run.pipeline_id);
+  if (!pipe) return [];
+  const started = new Set(ui.snap.steps.filter((x) => x.run_id === run.id).map((x) => x.step_id));
+  return pipe.step_defs.filter((d) => PANE_LABELS[d.view] && started.has(d.id)).map((d) => ({ tab: `pane:${run.id}:${d.id}`, label: `${PANE_LABELS[d.view]} · ${d.id}`, run: run.id, step: d.id }));
+}
+
+function loadPane(run, step) {
+  const key = `${run}:${step}`;
+  const cache = (ui.paneCache ||= {});
+  const c = cache[key];
+  if (c && Date.now() - c.at < (ui.look ? ui.look.terminal.git_every_ms / 5 : 2000)) return c.data;
+  cache[key] = { at: Date.now(), data: c ? c.data : null };
+  void api.stepPane(run, step).then((data) => { cache[key].data = data; cache[key].at = Date.now(); render(); });
+  return cache[key].data;
+}
+
 function renderTabs() {
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
-  setHtml('tabs', TABS.map(([id, label]) => `<button class="${ui.tab === id ? 'on' : ''}" data-action="tab" data-tab="${id}">${label}${id === 'diff' && n ? `<span class="n">${n}</span>` : ''}</button>`).join('')
+  const extra = paneTabs(selectedSession()).map((p) => `<button class="${ui.tab === p.tab ? 'on' : ''}" data-action="tab" data-tab="${esc(p.tab)}">${esc(p.label)}</button>`).join('');
+  setHtml('tabs', TABS.map(([id, label]) => `<button class="${ui.tab === id ? 'on' : ''}" data-action="tab" data-tab="${id}">${label}${id === 'diff' && n ? `<span class="n">${n}</span>` : ''}</button>`).join('') + extra
     + '<button data-action="split-close" title="Close the side panel">x</button>');
 }
 
@@ -844,6 +866,10 @@ function render(focus = false) {
   else if (ui.tab === 'pipelines') html = renderPipelines();
   else if (ui.tab === 'browser') html = renderBrowser();
   else if (ui.tab === 'handback') html = renderHandback();
+  else if (ui.tab.startsWith('pane:')) {
+    const p = paneTabs(sel).find((x) => x.tab === ui.tab);
+    html = p ? panes.render(loadPane(p.run, p.step), p) : '<p class="empty">This result pane belongs to another session. Pick its session to see it.</p>';
+  }
   else html = renderDiffTab(sel);
   setHtml('view', html);
   reportPaneBounds();
@@ -1063,6 +1089,11 @@ async function onClick(e) {
       render();
       const text = await api.handbackFile(ui.projectId, ui.runId, file);
       if (ui.hbFile === file) { ui.hbDiff = text; render(); }
+      return;
+    }
+    case 'item-set': {
+      const r = await rpc('run.item-set', { run_id: el.dataset.run, step_id: el.dataset.step, id, status: el.dataset.status });
+      if (!r.error) { delete (ui.paneCache || {})[`${el.dataset.run}:${el.dataset.step}`]; render(); }
       return;
     }
     case 'sd-file':

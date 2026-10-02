@@ -25,6 +25,7 @@ import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { setBoardFlag } from './board.ts';
+import { setItemStatus } from './pipelines/panes.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -368,6 +369,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('run.cancel', { handler: (p) => { ctl.runner.cancel(str(p, 'run_id')); return {}; } });
+
+  m.set('run.item-set', {
+    handler: (p) => {
+      try {
+        setItemStatus(db, str(p, 'run_id'), str(p, 'step_id'), str(p, 'id'), str(p, 'status'));
+      } catch (e) {
+        throw new RpcError(E.INVALID_PARAMS, (e as Error).message);
+      }
+      return {};
+    },
+  });
 
   m.set('run.resume', {
     handler: (p) => {

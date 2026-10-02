@@ -14,7 +14,7 @@ GitHub; filing and pushing are Wasif's.
 | UI-06 core kill to Resume | DONE-UNTESTED | scratch c35-check.ts against a real core: SIGKILL core, restart, session exited in under 12 s; Resume passes resume_args with the native id (`--`, `resume-with`, `native-1` seen by the engine), same folder; an engine without resume_args gets Start new here (resumed false). Test owed to Codex |
 | UI-07 prompt typed once | DONE-UNTESTED | smoke: no-prompt_arg engine, paste-prompt written then `already written`, one core.prompt-written, zero handoff gates; test owed to Codex |
 | UI-08 spec-to-pr step list | DONE-UNTESTED | real Electron with a real spec-to-pr run on its fixture (scratch steps-check.ts): list shows step 5 of 6 with each step's status, the approve-pr gate inline with Approve and Reject; a run whose build wrote failed shows `build 1 fail · failed` and its error under it with no click. Test owed |
-| UI-09 four result panes | TODO | #38 |
+| UI-09 four result panes | DONE-UNTESTED | real Electron, a 4-step pipeline on tests/fixtures/result-panes with the fake engine (scratch panes-check.ts): Review set, Document (score, parts, markdown, sources), Rows and Findings tabs each render their fixture; Approve on clip-1 wrote `approved` into items.json. Test owed |
 | UI-10 speed | DONE-UNTESTED | echo with 6 grid tiles each getting 200 lines/s: median 1 ms, p90 2 ms, max 3 ms of 50, from termInput to xterm.js parsing the echo (paint adds at most one frame, about 16 ms); window attach (pipe to xterm.js write callback) 14 to 23 ms in real Electron; core attach, 10,000 rows (733 KB snapshot): median 44 ms of 10 (min 42, max 53), pipe connect to snapshot parsed. xterm.js write half and 6-tile echo need #34 |
 | UI-11 tests on the terminal module | PARTIAL | core 108 pass, 3 skipped (M1-03 superseded by UI-06, 2 opt-in); workbench 9 pass, 4 opt-in skipped; no test spawns wt.exe. New #33 tests owed to Codex (usage limit until 21:31) |
 
@@ -25,7 +25,7 @@ GitHub; filing and pushing are Wasif's.
 | #35 status | CODE DONE, TESTS OWED | inbox, done/failed rows, read/unread, toast, Clear status, Resume; checked by script and in the real window |
 | #36 tools | CODE DONE, TESTS OWED | engine setup on first launch, shell tabs from settings, pipelines in Ctrl+K, drop files on a terminal |
 | #37 step list | CODE DONE, TESTS OWED | step list (e74a9d8) and editor restyle: collapsed rows, one open form, drag to reorder, JSON view and validation kept |
-| #38 panes | TODO | after 37 |
+| #38 panes | CODE DONE, TESTS OWED | four panes, run.item-set, fixtures. Not built: D15's Diff toggle between last turn and whole branch (the Diff tab shows uncommitted changes against HEAD); the visual half of the widened Diff is the Browser tab's Before/After compare |
 
 ## Click counts (today, before #34)
 

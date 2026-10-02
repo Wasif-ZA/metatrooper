@@ -1,0 +1,5 @@
+[
+  { "id": "clip-1", "title": "Opening hook, 0:00 to 0:28", "preview": "Why most bakeries lose the morning rush", "score": 82, "reason": "Strong question in the first 3 seconds", "status": "pending" },
+  { "id": "clip-2", "title": "Croissant lamination, 4:10 to 5:02", "preview": "Fold, rest, fold again", "score": 74, "reason": "Clear process shot", "status": "pending" },
+  { "id": "clip-3", "title": "Price talk, 9:40 to 10:05", "score": 41, "reason": "Audio clips at 9:52", "status": "failed", "error": "audio peaks above 0 dB" }
+]
