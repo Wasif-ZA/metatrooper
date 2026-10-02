@@ -5,24 +5,24 @@ from pathlib import Path
 
 import pytest
 
-from callrouter import cli, jobs
-from callrouter.recipes import engines
+from toolrouter import cli, jobs
+from toolrouter.recipes import engines
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "callrouter-home"
+    home = tmp_path / "toolrouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("CALLROUTER_HOME", str(home))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "CALLROUTER_CODEX_COMPANION",
-        "CALLROUTER_VAULT",
-        "CALLROUTER_SHELL",
+        "TOOLROUTER_CODEX_COMPANION",
+        "TOOLROUTER_VAULT",
+        "TOOLROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -44,7 +44,7 @@ def write_fake_vault(tmp_path, monkeypatch, *, local_body=None, agy_body=None):
     (scripts / "agy-run.sh").write_text(
         agy_body or "printf '%s\\n' 'synthetic gemini answer'\n", encoding="utf-8"
     )
-    monkeypatch.setenv("CALLROUTER_VAULT", str(tmp_path / "fake-vault"))
+    monkeypatch.setenv("TOOLROUTER_VAULT", str(tmp_path / "fake-vault"))
     return scripts
 
 
@@ -54,7 +54,7 @@ def write_fake_codex(tmp_path, monkeypatch):
         "console.log(JSON.stringify({answer: 'synthetic codex answer'}));\n",
         encoding="utf-8",
     )
-    monkeypatch.setenv("CALLROUTER_CODEX_COMPANION", str(script))
+    monkeypatch.setenv("TOOLROUTER_CODEX_COMPANION", str(script))
     return script
 
 
@@ -270,7 +270,7 @@ def test_collected_job_has_the_same_result_fields_as_foreground(
 
 
 def test_killed_runner_without_a_result_is_lost(tmp_path, monkeypatch):
-    job_folder = Path(os.environ["CALLROUTER_HOME"]) / "jobs"
+    job_folder = Path(os.environ["TOOLROUTER_HOME"]) / "jobs"
     job_folder.mkdir(parents=True)
     jid = "synthetic-killed"
     (job_folder / f"{jid}.json").write_text(
@@ -295,7 +295,7 @@ def test_killed_runner_without_a_result_is_lost(tmp_path, monkeypatch):
 def test_result_written_just_after_process_exit_is_done_not_lost(
     tmp_path, monkeypatch
 ):
-    job_folder = Path(os.environ["CALLROUTER_HOME"]) / "jobs"
+    job_folder = Path(os.environ["TOOLROUTER_HOME"]) / "jobs"
     job_folder.mkdir(parents=True)
     jid = "synthetic-race"
     (job_folder / f"{jid}.json").write_text(

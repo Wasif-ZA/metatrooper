@@ -5,16 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from callrouter import hints
+from toolrouter import hints
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("CALLROUTER_HOME", str(tmp_path / "callrouter-home"))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path / "toolrouter-home"))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -74,7 +74,7 @@ def test_each_seed_before_hint_matches_but_not_a_near_miss(
         (
             "bash: jq: command not found",
             "jq was found and completed",
-            "callrouter run json",
+            "toolrouter run json",
         ),
         (
             "Python was not found; run without arguments to install",
@@ -103,7 +103,7 @@ def test_failure_hint_does_not_fire_on_successful_call():
 
 
 def test_user_hint_overrides_seed_with_the_same_id(monkeypatch):
-    home = Path(os.environ["CALLROUTER_HOME"])
+    home = Path(os.environ["TOOLROUTER_HOME"])
     home.mkdir(parents=True)
     (home / "hints.json").write_text(
         json.dumps(

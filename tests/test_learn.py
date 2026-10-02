@@ -4,19 +4,19 @@ from pathlib import Path
 
 import pytest
 
-from callrouter import cli, learn
+from toolrouter import cli, learn
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "callrouter-home"
+    home = tmp_path / "toolrouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("CALLROUTER_HOME", str(home))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -110,7 +110,7 @@ def test_recipe_candidates_require_five_uses_and_eighty_percent_success(
     assert result["out"]["recipe_candidates"] == 1
     candidates = json.loads(
         (
-            Path(os.environ["CALLROUTER_HOME"])
+            Path(os.environ["TOOLROUTER_HOME"])
             / "candidates"
             / "candidates.json"
         ).read_text(encoding="utf-8")
@@ -137,7 +137,7 @@ def test_fail_then_fix_pair_creates_a_hint_candidate(tmp_path, monkeypatch, caps
     assert result["out"]["hint_candidates"] == 1
     candidates = json.loads(
         (
-            Path(os.environ["CALLROUTER_HOME"])
+            Path(os.environ["TOOLROUTER_HOME"])
             / "candidates"
             / "candidates.json"
         ).read_text(encoding="utf-8")
@@ -150,7 +150,7 @@ def test_fail_then_fix_pair_creates_a_hint_candidate(tmp_path, monkeypatch, caps
     assert hint["hint"]["match"] == "ValueError"
 
 
-def test_learn_writes_candidates_only_under_callrouter_home(
+def test_learn_writes_candidates_only_under_toolrouter_home(
     tmp_path, monkeypatch, capsys
 ):
     transcripts = tmp_path / "synthetic-transcripts"
@@ -160,7 +160,7 @@ def test_learn_writes_candidates_only_under_callrouter_home(
 
     exit_code, _, _ = invoke(capsys, "learn", "--root", transcripts)
 
-    home = Path(os.environ["CALLROUTER_HOME"])
+    home = Path(os.environ["TOOLROUTER_HOME"])
     candidate_file = home / "candidates" / "candidates.json"
     assert exit_code == 0
     assert candidate_file.is_file()
@@ -213,7 +213,7 @@ def test_review_yes_creates_a_recipe_with_mocked_input(
     reviewed = learn.review(ask=lambda _prompt: "y", show=lambda _line: None)
 
     recipe_path = (
-        Path(os.environ["CALLROUTER_HOME"])
+        Path(os.environ["TOOLROUTER_HOME"])
         / "recipes"
         / "widget-convert.json"
     )
@@ -235,7 +235,7 @@ def test_review_no_records_rejection_and_the_next_learn_skips_it(
     second = learn.learn(transcripts)
 
     rejected_path = (
-        Path(os.environ["CALLROUTER_HOME"])
+        Path(os.environ["TOOLROUTER_HOME"])
         / "candidates"
         / "rejected.json"
     )

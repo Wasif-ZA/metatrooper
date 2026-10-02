@@ -1,14 +1,18 @@
 [project]
-name = "callrouter"
+name = "toolrouter"
 version = "0.1.0"
 requires-python = ">=3.10"
 
 [project.scripts]
-callrouter = "callrouter.cli:entry"
+toolrouter = "toolrouter.cli:entry"
 
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["callrouter", "callrouter.recipes", "callrouter.browse"]
+packages = ["toolrouter", "toolrouter.recipes", "toolrouter.browse"]
+
+[tool.setuptools.package-data]
+toolrouter = ["mcp_catalog.json"]
+"toolrouter.recipes" = ["catalog.json"]

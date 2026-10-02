@@ -3,18 +3,18 @@ from pathlib import Path
 
 import pytest
 
-from callrouter import cli
+from toolrouter import cli
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("CALLROUTER_HOME", str(tmp_path))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path))
     monkeypatch.setenv("AI_AGENT", "1")
     for name in (
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "CALLROUTER_SHELL",
+        "TOOLROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)

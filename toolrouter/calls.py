@@ -8,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from callrouter.log import home
+from toolrouter.log import home
 
 LOCK_WAIT = 5.0
 LOCK_STALE = 10.0
@@ -57,7 +57,10 @@ def _lock(path):
     start = time.monotonic()
     while True:
         try:
-            return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            token = os.urandom(8).hex().encode()
+            os.write(fd, token)
+            return fd, token
         except (FileExistsError, PermissionError):  # Windows: PermissionError while a delete is pending
             try:
                 if time.time() - path.stat().st_mtime > LOCK_STALE:
@@ -75,13 +78,17 @@ def append(record):
     base.mkdir(parents=True, exist_ok=True)
     lock = base / "calls.jsonl.lock"
     line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8")
-    fd = _lock(lock)
+    fd, token = _lock(lock)
     try:
         with open(base / "calls.jsonl", "ab") as f:
             f.write(line)
     finally:
         os.close(fd)
-        lock.unlink(missing_ok=True)
+        try:
+            if lock.read_bytes() == token:
+                lock.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def record(lane, cmd, exit_code, secs, nbytes, log_path, recipe=None):

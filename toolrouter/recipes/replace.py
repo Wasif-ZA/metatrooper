@@ -2,7 +2,7 @@ import argparse
 import re
 from pathlib import Path
 
-from callrouter import snapshot
+from toolrouter import snapshot
 
 RECIPE = {
     "name": "replace",
@@ -15,7 +15,7 @@ RECIPE = {
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="callrouter run replace")
+    ap = argparse.ArgumentParser(prog="toolrouter run replace")
     ap.add_argument("file")
     ap.add_argument("old", nargs="?")
     ap.add_argument("new", nargs="?")
@@ -26,6 +26,8 @@ def run(args):
     a = ap.parse_args(args)
     old = Path(a.old_file).read_text(encoding="utf-8") if a.old_file else a.old
     new = Path(a.new_file).read_text(encoding="utf-8") if a.new_file else a.new
+    if a.count < 0:
+        return {"exit": 2, "out": "--count must be 0 (all) or more"}
     if old is None or new is None:
         return {"exit": 2, "out": "need old and new, as arguments or --old-file/--new-file"}
     path = Path(a.file)
@@ -43,4 +45,4 @@ def run(args):
     sid = snapshot.take([path])
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(result)
-    return {"exit": 0, "out": f"{n} replacements in {a.file} (undo: callrouter undo {sid})"}
+    return {"exit": 0, "out": f"{n} replacements in {a.file} (undo: toolrouter undo {sid})"}

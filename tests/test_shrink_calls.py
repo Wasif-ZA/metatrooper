@@ -5,19 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from callrouter import calls
-from callrouter.shrink import shrink
+from toolrouter import calls
+from toolrouter.shrink import json_shape, shrink
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("CALLROUTER_HOME", str(tmp_path / "callrouter-home"))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path / "toolrouter-home"))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "CALLROUTER_SHELL",
+        "TOOLROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -42,14 +42,14 @@ def test_shape_removes_quoted_strings_numbers_and_paths(command, forbidden):
 
 
 def test_run_call_log_contains_shape_not_raw_command(capsys):
-    from callrouter import cli
+    from toolrouter import cli
 
     command = r'printf "%s" 731946 "ultravioletgiraffe" "C:\zebraarchive.csv"'
 
     exit_code = cli.main(["--json", "exec", "--", command])
 
     json.loads(capsys.readouterr().out)
-    call_log = Path(os.environ["CALLROUTER_HOME"]) / "calls.jsonl"
+    call_log = Path(os.environ["TOOLROUTER_HOME"]) / "calls.jsonl"
     lines = call_log.read_text(encoding="utf-8").splitlines()
     assert exit_code == 0
     assert len(lines) == 1
@@ -103,9 +103,25 @@ def test_long_json_is_replaced_by_shape_with_list_lengths():
     assert result["tail"] == []
 
 
+@pytest.mark.parametrize(
+    ("keys", "expected"),
+    [
+        (["a", "b", "c"], "{a,b,c}"),
+        ([f"key{index}" for index in range(15)], "{" + ",".join(f"key{index}" for index in range(12)) + ",+3}"),
+    ],
+    ids=["all-keys", "first-twelve-plus-remainder"],
+)
+def test_json_shape_names_object_keys_at_depth_two(keys, expected):
+    value = {"outer": {"inner": {key: key for key in keys}}}
+
+    shaped = json_shape(value)
+
+    assert shaped["outer"]["inner"] == expected
+
+
 def _append_records(home, worker, start):
-    os.environ["CALLROUTER_HOME"] = home
-    for name in ("AI_AGENT", "CLAUDECODE", "CALLROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID"):
+    os.environ["TOOLROUTER_HOME"] = home
+    for name in ("AI_AGENT", "CLAUDECODE", "TOOLROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID"):
         os.environ.pop(name, None)
     if not start.wait(10):
         raise RuntimeError("append workers did not receive the start signal")
@@ -116,7 +132,7 @@ def _append_records(home, worker, start):
 def test_two_processes_append_2000_valid_json_lines(tmp_path):
     context = multiprocessing.get_context("spawn")
     start = context.Event()
-    home = str(tmp_path / "callrouter-home")
+    home = str(tmp_path / "toolrouter-home")
     processes = [
         context.Process(target=_append_records, args=(home, worker, start))
         for worker in ("left", "right")

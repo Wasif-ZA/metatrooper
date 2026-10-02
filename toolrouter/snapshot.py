@@ -4,7 +4,7 @@ import os
 import shutil
 from pathlib import Path
 
-from callrouter.log import home
+from toolrouter.log import home
 
 
 def root():
@@ -13,7 +13,7 @@ def root():
 
 def take(paths):
     """Copy each existing file into a new snapshot folder. Return the snapshot id."""
-    sid = f"{datetime.datetime.now():%Y%m%dT%H%M%S}-{os.getpid()}"
+    sid = f"{datetime.datetime.now():%Y%m%dT%H%M%S%f}-{os.getpid()}"
     folder = root() / sid
     folder.mkdir(parents=True, exist_ok=True)
     manifest = {}

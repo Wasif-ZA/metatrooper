@@ -51,7 +51,7 @@ def load(file):
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="callrouter run json")
+    ap = argparse.ArgumentParser(prog="toolrouter run json")
     ap.add_argument("file", help="JSON file, or - for stdin")
     ap.add_argument("path", nargs="?", default=".")
     ap.add_argument("--keys", action="store_true", help="print only the keys or the list length")

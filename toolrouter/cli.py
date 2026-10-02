@@ -13,13 +13,13 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from callrouter import calls, hints, log, shrink, snapshot
-from callrouter import recipes as store
-from callrouter.result import Result, mode, render
+from toolrouter import calls, hints, log, shrink, snapshot
+from toolrouter import recipes as store
+from toolrouter.result import Result, mode, render
 
 VERBS = {
     "run": "run <recipe> [args]      run a recipe: json, replace, find, img, codex, gemini, local...",
-    "exec": "exec -- <command>       run a shell command, print a short result, keep the full log",
+    "exec": "exec [--no-trunc] -- <command>  run a shell command, print a short result, keep the full log",
     "search": "search <words>          find a recipe by plain words",
     "list": "list                    every recipe, one line each",
     "add": "add <name> -- <cmd>     keep a command that worked as a recipe; {1} {2} mark arguments",
@@ -27,20 +27,23 @@ VERBS = {
     "undo": "undo [snapshot]         put back the files the last write changed",
     "jobs": "jobs [id] [--wait]      list background jobs, or wait for one and show its result",
     "browse": "browse open <url> | look | click @n | type @n <text> | read | shot | close",
-    "mcp": "mcp <server> <tool> [json]  call a tool on an MCP server in servers.json",
+    "mcp": "mcp [server] [tool] [json]  list MCP servers, a server's tools, or call one",
     "tools": "tools [name]            CLI tools used here, and each MCP tool in one line",
+    "mode": "mode [learn|auto]       learn: approved recipes only; auto: catalogue, PATH CLIs, MCP registry",
     "learn": "learn [--review]        find recipe and hint candidates in the transcripts",
     "ingest": "ingest [--since T]      where tool-result tokens go, from the transcripts",
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
 STALE_DAYS = 60
+HELP_LINES = 60
+EXE_EXT = {".exe", ".cmd", ".bat"} if os.name == "nt" else {""}
 
 
 def shell():
     """Return the bash to run commands with. On Windows, skip WSL's System32 bash."""
-    if os.environ.get("CALLROUTER_SHELL"):
-        return os.environ["CALLROUTER_SHELL"]
+    if os.environ.get("TOOLROUTER_SHELL"):
+        return os.environ["TOOLROUTER_SHELL"]
     found = shutil.which("bash")
     if os.name == "nt":
         if found and "system32" not in found.lower():
@@ -66,12 +69,13 @@ def run_shell(cmd):
 
 
 def run_python(recipe, args):
-    """Return (exit, compact text, raw bytes for the log, secs)."""
+    """Return (exit, compact text, raw bytes for the log, secs, whether compact hides nothing)."""
     start = time.monotonic()
     buf = io.StringIO()
     with redirect_stdout(buf), redirect_stderr(buf):
         try:
-            res = store.module(recipe).run(args)
+            mod = store.module(recipe)
+            res = mod.run(args, recipe["name"]) if hasattr(mod, "RECIPES") else mod.run(args)
         except SystemExit as e:
             code = e.code if isinstance(e.code, int) else (0 if e.code is None else 2)
             res = {"exit": code, "out": buf.getvalue()}
@@ -79,13 +83,16 @@ def run_python(recipe, args):
             res = {"exit": 1, "out": f"recipe {recipe['name']} crashed: {type(e).__name__}: {e}"}
     out = res.get("out", "")
     text = out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
-    full = res.get("full") or text
-    return res.get("exit", 0), out, full.encode("utf-8"), round(time.monotonic() - start, 1)
+    full = res.get("full")
+    full = text if full is None else full
+    return res.get("exit", 0), out, full.encode("utf-8"), round(time.monotonic() - start, 1), bool(res.get("whole"))
 
 
 def fill(body, args):
     """Put quoted args into {1}..{9}. With no placeholders, args are appended."""
     used = [int(n) for n in re.findall(r"\{(\d)\}", body)]
+    if 0 in used:
+        raise ValueError("placeholders start at {1}; {0} is not allowed")
     if not used:
         return " ".join([body, *map(shlex.quote, args)]).strip()
     if max(used) > len(args):
@@ -93,8 +100,8 @@ def fill(body, args):
     return re.sub(r"\{(\d)\}", lambda m: shlex.quote(args[int(m.group(1)) - 1]), body)
 
 
-def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None):
-    text = raw.decode("utf-8", errors="replace")
+def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None, whole=False):
+    text = shrink.clean(raw.decode("utf-8", errors="replace"))
     shown = shrink.clip(label)
     try:
         path = log.write(log_label or calls.shape(label), raw)
@@ -105,50 +112,62 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
                bytes=len(raw), log=path.as_posix(), cmd=shown, recipe=recipe)
     if compact is not None:
         flat = compact if isinstance(compact, str) else json.dumps(compact, ensure_ascii=False)
-        r.out = compact if len(flat) <= OUT_LIMIT else flat[:OUT_LIMIT] + "\n... (cut, full output in the log)"
+        if len(flat) <= OUT_LIMIT:
+            r.out = compact
+        elif isinstance(compact, str):
+            r.out = flat[:OUT_LIMIT] + "\n... (cut, full output in the log)"
+        else:
+            r.out = shrink.json_shape(compact)
+            r.note = "too big to print whole: this is its shape. Narrow it with a path, or read the log"
+        r.whole = len(flat) <= OUT_LIMIT and (whole or flat.strip() == text.strip())
     else:
         try:
             for k, v in shrink.shrink(text).items():
                 setattr(r, k, v)
+            r.whole = r.out == text
         except Exception as e:
             r.out, r.errors, r.tail = text, [], []
             r.note = f"shrinker failed ({type(e).__name__}); output shown whole"
-    rec = calls.record(lane, label, r.exit, secs, r.bytes, path, recipe=recipe)
-    try:
-        calls.append(rec)
-    except Exception as e:
-        r.note = (r.note + "; " if r.note else "") + f"call log not written ({type(e).__name__})"
+    r.rec = calls.record(lane, label, r.exit, secs, r.bytes, path, recipe=recipe)
     try:
         r.hint = hints.match(label, text, failed=exit_code != 0)
         if exit_code != 0:
-            r.breaker = hints.breaker(calls.read(), rec)
+            r.breaker = hints.breaker(calls.read() + [r.rec], r.rec)
     except Exception:
         pass
     return r
 
 
 def exec_lane(args):
+    cut = args.index("--") if "--" in args else len(args)
+    whole = "--no-trunc" in args[:cut]
+    args = [a for i, a in enumerate(args) if not (i < cut and a == "--no-trunc")]
     cmd = command_text(args)
     if not cmd.strip():
-        return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: callrouter exec -- "pytest -q"')
+        return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: toolrouter exec -- "pytest -q"')
     try:
         code, raw, secs = run_shell(cmd)
     except OSError as e:
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
-                      note=f"could not start a shell ({e}). Set CALLROUTER_SHELL to a bash path")
-    return finish("exec", cmd, raw, code, secs)
+                      note=f"could not start a shell ({e}). Set TOOLROUTER_SHELL to a bash path")
+    if whole:
+        return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")))
+    r = finish("exec", cmd, raw, code, secs)
+    if not r.whole and not r.note:
+        r.note = "shrunk. To read it whole: exec --no-trunc -- <command>"
+    return r
 
 
 def no_recipe(name, recipes):
     near = difflib.get_close_matches(name, list(recipes), n=1)
-    tip = f"Did you mean: callrouter run {store.signature(recipes[near[0]])}" if near else \
-        f"Try: callrouter search {name}"
+    tip = f"Did you mean: toolrouter run {store.signature(recipes[near[0]])}" if near else \
+        f"Try: toolrouter search {name}"
     return Result(ok=False, lane="run", exit=2, note=f'no recipe "{name}". {tip}')
 
 
 def run_lane(args):
     if not args:
-        return Result(ok=False, lane="run", exit=2, note="which recipe? Try: callrouter search <words>")
+        return Result(ok=False, lane="run", exit=2, note="which recipe? Try: toolrouter search <words>")
     name, rest = args[0], args[1:]
     yes = "--yes" in rest
     background = "--background" in rest
@@ -161,19 +180,19 @@ def run_lane(args):
         return Result(ok=False, lane="run", exit=2, recipe=name,
                       note=f"{name} is destructive. Run again with --yes to go ahead")
     if background:
-        from callrouter import jobs
+        from toolrouter import jobs
         jid = jobs.start(["run", name, *rest, *(["--yes"] if yes else [])], label=name)
         return Result(ok=True, lane="jobs", recipe=name,
-                      out={"job": jid, "collect": f"callrouter jobs {jid} --wait"})
-    label = " ".join([name, *rest])
+                      out={"job": jid, "collect": f"toolrouter jobs {jid} --wait"})
+    label = shlex.join([name, *rest])
     kind = r.get("kind")
     if kind == "engine":
         return run_engine(r, rest)
     if kind == "flow":
         return run_flow(r, rest)
     if kind == "python":
-        code, text, raw, secs = run_python(r, rest)
-        return finish("run", label, raw, code, secs, recipe=name, compact=text, log_label=name)
+        code, text, raw, secs, whole = run_python(r, rest)
+        return finish("run", label, raw, code, secs, recipe=name, compact=text, log_label=name, whole=whole)
     if kind == "shell":
         try:
             cmd = fill(r["body"], rest)
@@ -185,7 +204,7 @@ def run_lane(args):
 
 
 def run_engine(r, args):
-    from callrouter.recipes import engines
+    from toolrouter.recipes import engines
     name = r["name"]
     try:
         cmd = engines.argv(r, args, shell())
@@ -214,7 +233,7 @@ def run_engine(r, args):
 
 
 def jobs_lane(args):
-    from callrouter import jobs
+    from toolrouter import jobs
     try:
         if not args:
             rows = [{k: j.get(k) for k in ("id", "label", "status", "started", "cwd")} for j in jobs.all_jobs()]
@@ -225,7 +244,7 @@ def jobs_lane(args):
         values = {args.index("--timeout") + 1} if "--timeout" in args else set()
         ids = [a for i, a in enumerate(args) if not a.startswith("--") and i not in values]
         if not ids:
-            raise ValueError("which job? List them: callrouter jobs")
+            raise ValueError("which job? List them: toolrouter jobs")
         jid = ids[0]
         s = jobs.wait(jid, timeout) if "--wait" in args else jobs.status(jid)
     except (FileNotFoundError, ValueError, IndexError) as e:
@@ -249,18 +268,48 @@ def search_lane(args):
 
     found = [(n, c) for n, _, c in ranked if not words or hits(recipes[n])]
     found.sort(key=lambda x: -hits(recipes[x[0]]))
-    if not found:
+    extra = []
+    if words and store.mode() == "auto":
+        from toolrouter import mcp
+        extra += [f"toolrouter mcp {ln}" for ln in mcp.catalog_lines(words, remote=False)[:5]]
+        extra += [f"toolrouter tools {b}    installed CLI, shows its --help" for b in path_bins()
+                  if any(w in b for w in words)][:5]
+    if not found and not extra:
         return Result(ok=False, lane="search", exit=1,
-                      note=f'no recipe matches "{" ".join(args)}". Save one: callrouter add <name> -- "<command>"')
+                      note=f'no recipe matches "{" ".join(args)}". Save one: toolrouter add <name> -- "<command>"')
     lines = []
     for n, c in found[:5]:
         r = recipes[n]
         used = f"  ({c} call{'s' if c != 1 else ''} here)" if c else ""
-        lines.append(f"callrouter run {store.signature(r)}\n    {r.get('summary', '')}{used}")
+        lines.append(f"toolrouter run {store.signature(r)}\n    {r.get('summary', '')}{used}")
         ex = r.get("example", {}).get("args")
         if ex:
-            lines.append(f"    e.g. callrouter run {n} {shlex.join(ex)}")
-    return Result(ok=True, lane="search", out="\n".join(lines))
+            lines.append(f"    e.g. toolrouter run {n} {shlex.join(ex)}")
+    return Result(ok=True, lane="search", out="\n".join(lines + extra))
+
+
+def path_bins():
+    out = set()
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        try:
+            for f in Path(d).iterdir():
+                if f.suffix.lower() in EXE_EXT and (os.name == "nt" or os.access(f, os.X_OK)):
+                    out.add(f.stem.lower())
+        except OSError:
+            continue
+    return sorted(out)
+
+
+def mode_lane(args):
+    if args:
+        try:
+            store.set_mode(args[0])
+        except ValueError as e:
+            return Result(ok=False, lane="mode", exit=2, note=str(e))
+    m = store.mode()
+    what = "seed recipes and the ones you approved" if m == "learn" else \
+        "the catalogue, every CLI on PATH, and the public MCP registry as well"
+    return Result(ok=True, lane="mode", out=f"{m}: {what}")
 
 
 def add_flow(args):
@@ -278,13 +327,13 @@ def add_flow(args):
         i += 1
     if not name or not steps:
         return Result(ok=False, lane="add", exit=2,
-                      note='usage: callrouter add <name> --step "<command>" --step "<command>" ...')
+                      note='usage: toolrouter add <name> --step "<command>" --step "<command>" ...')
     try:
         r = store.save(name, steps, summary=opts["summary"], kind="flow", purity=opts["purity"])
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
     return Result(ok=True, lane="add", recipe=name,
-                  out=f"saved a flow of {len(steps)} steps. Run it: callrouter run {store.signature(r)}")
+                  out=f"saved a flow of {len(steps)} steps. Run it: toolrouter run {store.signature(r)}")
 
 
 def run_flow(r, args):
@@ -308,6 +357,7 @@ def run_flow(r, args):
             code = 2
             break
         sr = LANES[verb](argv[1:])
+        log_call(sr.rec)
         entry = {"step": shlex.join(argv), "ok": sr.ok, "exit": sr.exit}
         for k in ("out", "errors", "tail", "note", "hint", "log"):
             v = getattr(sr, k)
@@ -326,7 +376,7 @@ def add_lane(args):
     if "--step" in args:
         return add_flow(args)
     if "--" not in args:
-        return Result(ok=False, lane="add", exit=2, note='usage: callrouter add <name> [--summary S] -- "<command>"')
+        return Result(ok=False, lane="add", exit=2, note='usage: toolrouter add <name> [--summary S] -- "<command>"')
     cut = args.index("--")
     head, cmd = args[:cut], command_text(args[cut:])
     opts = {"summary": None, "purity": "read"}
@@ -340,12 +390,12 @@ def add_lane(args):
         name = name or head[i]
         i += 1
     if not name or not cmd.strip():
-        return Result(ok=False, lane="add", exit=2, note='usage: callrouter add <name> [--summary S] -- "<command>"')
+        return Result(ok=False, lane="add", exit=2, note='usage: toolrouter add <name> [--summary S] -- "<command>"')
     try:
         r = store.save(name, cmd, summary=opts["summary"], purity=opts["purity"])
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
-    return Result(ok=True, lane="add", recipe=name, out=f"saved. Run it: callrouter run {store.signature(r)}")
+    return Result(ok=True, lane="add", recipe=name, out=f"saved. Run it: toolrouter run {store.signature(r)}")
 
 
 def list_lane(args):
@@ -357,7 +407,7 @@ def list_lane(args):
 def execute_quiet(r, args):
     """Run a recipe with no log and no call record. Return (exit, output text)."""
     if r.get("kind") == "python":
-        code, out, _, _ = run_python(r, args)
+        code, out, *_ = run_python(r, args)
         return code, out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
     code, raw, _ = run_shell(fill(r["body"], args))
     return code, raw.decode("utf-8", errors="replace")
@@ -367,20 +417,31 @@ def check(args):
     recipes = store.load()
     rows = calls.read()
     lines, failed = [], 0
-    real_home, real_cwd = os.environ.get("CALLROUTER_HOME"), os.getcwd()
+    real_home, real_cwd = os.environ.get("TOOLROUTER_HOME"), os.getcwd()
     with tempfile.TemporaryDirectory() as tmp:
-        os.environ["CALLROUTER_HOME"] = str(Path(tmp) / "home")
+        os.environ["TOOLROUTER_HOME"] = str(Path(tmp) / "home")
         try:
             for name in sorted(recipes):
                 r = recipes[name]
                 ex = r.get("example")
+                if r.get("needs") and not shutil.which(r["needs"]):
+                    lines.append(f"skip  {name}: {r['needs']} is not installed")
+                    continue
                 if not ex:
                     why = {"engine": "engine, calls an outside model",
                            "flow": "flow, its steps are checked as recipes"}.get(r.get("kind"), "no example")
                     lines.append(f"skip  {name}: {why}")
                     continue
+                if r.get("purity") == "destructive":
+                    lines.append(f"skip  {name}: destructive, not run by check")
+                    continue
                 work = Path(tmp) / name
                 work.mkdir()
+                bad = [fn for fn in ex.get("setup", {}) if not (work / fn).resolve().is_relative_to(work.resolve())]
+                if bad:
+                    failed += 1
+                    lines.append(f"FAIL  {name}: setup file {bad[0]!r} is outside the example folder")
+                    continue
                 for fn, content in ex.get("setup", {}).items():
                     (work / fn).write_text(content, encoding="utf-8")
                 os.chdir(work)
@@ -399,12 +460,12 @@ def check(args):
                                  f"output {'has' if want_out in text else 'lacks'} {want_out!r}")
         finally:
             if real_home is None:
-                os.environ.pop("CALLROUTER_HOME", None)
+                os.environ.pop("TOOLROUTER_HOME", None)
             else:
-                os.environ["CALLROUTER_HOME"] = real_home
+                os.environ["TOOLROUTER_HOME"] = real_home
     cutoff = (datetime.datetime.now().astimezone() - datetime.timedelta(days=STALE_DAYS)).isoformat()
     for name, r in sorted(recipes.items()):
-        if r.get("source") == "seed":
+        if r.get("source") in ("seed", "catalog"):
             continue
         last = max((row["time"] for row in rows if row.get("recipe") == name), default=None)
         if last is None or last < cutoff:
@@ -417,13 +478,13 @@ BROWSE_VERBS = {"open": 1, "look": 0, "click": 1, "type": 2, "read": 0, "shot": 
 
 
 def browse_lane(args):
-    from callrouter.browse import daemon
-    from callrouter.browse.page import host_blocked
+    from toolrouter.browse import daemon
+    from toolrouter.browse.page import host_blocked
     show = "--show" in args
     args = [a for a in args if a != "--show"]
     if not args or args[0] not in BROWSE_VERBS:
         return Result(ok=False, lane="browse", exit=2,
-                      note="usage: callrouter browse open <url> | look | click @n | type @n <text> | read | "
+                      note="usage: toolrouter browse open <url> | look | click @n | type @n <text> | read | "
                            "shot [--full] | back | tabs | close")
     verb, rest = args[0], args[1:]
     if len(rest) < BROWSE_VERBS[verb]:
@@ -442,7 +503,7 @@ def browse_lane(args):
         return Result(ok=False, lane="browse", exit=1, secs=secs, note=reply.get("error"))
     res = reply["result"]
     if verb == "shot":
-        from callrouter.hook import shrink_image
+        from toolrouter.hook import shrink_image
         small = shrink_image(Path(res["shot"]), cache=log.home() / "img")
         res["shrunk"] = Path(small).as_posix() if small else res["shot"]
     raw = json.dumps(res, ensure_ascii=False, indent=1).encode("utf-8")
@@ -453,9 +514,19 @@ def browse_lane(args):
 
 
 def mcp_lane(args):
-    from callrouter import mcp
-    if len(args) < 2:
-        return Result(ok=False, lane="mcp", exit=2, note="usage: callrouter mcp <server> <tool> ['<json args>']")
+    from toolrouter import mcp
+    if args[:1] == ["search"]:
+        return Result(ok=True, lane="mcp", out=mcp.catalog_lines(args[1:]))
+    if not args:
+        return Result(ok=True, lane="mcp", out=mcp.catalog_lines(),
+                      note="toolrouter mcp <server> lists its tools; toolrouter mcp <server> <tool> '<json>' calls one")
+    if len(args) == 1:
+        try:
+            return Result(ok=True, lane="mcp", out=[mcp.one_line(t) for t in mcp.list_tools(args[0])])
+        except KeyError as e:
+            return Result(ok=False, lane="mcp", exit=1, note=e.args[0])
+        except (OSError, RuntimeError, TimeoutError, ConnectionError) as e:
+            return Result(ok=False, lane="mcp", exit=1, note=str(e))
     server, tool = args[0], args[1]
     try:
         params = json.loads(args[2]) if len(args) > 2 else {}
@@ -478,7 +549,7 @@ def mcp_lane(args):
 
 
 def tools_lane(args):
-    from callrouter import mcp
+    from toolrouter import mcp
     here = calls.project()
     rows = calls.read()
     if args:
@@ -490,8 +561,18 @@ def tools_lane(args):
                         return Result(ok=True, lane="tools", out={"server": server, **t})
             except Exception:
                 continue
+        exe = shutil.which(name)
+        if exe and store.mode() == "auto":
+            try:
+                p = subprocess.run([exe, "--help"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                return Result(ok=False, lane="tools", exit=1, note=f"{name} --help failed: {e}")
+            lines = p.stdout.decode("utf-8", errors="replace").splitlines()
+            more = f"\n...{len(lines) - HELP_LINES} more lines: toolrouter exec -- \"{name} --help\"" \
+                if len(lines) > HELP_LINES else ""
+            return Result(ok=True, lane="tools", out="\n".join(lines[:HELP_LINES]) + more)
         return Result(ok=True, lane="tools", out=f"{name} is not an MCP tool here. For a CLI try: "
-                                                 f"callrouter exec -- \"{name} --help\"")
+                                                 f"toolrouter exec -- \"{name} --help\"")
     out = {}
     bins = {}
     for r in rows:
@@ -513,7 +594,7 @@ def tools_lane(args):
 
 
 def learn_lane(args):
-    from callrouter import learn
+    from toolrouter import learn
     try:
         if "--review" in args:
             return Result(ok=True, lane="learn", out=learn.review())
@@ -534,8 +615,8 @@ def undo(args):
 
 
 def menu():
-    lines = ["callrouter: the agent's tool memory", ""]
-    lines += [f"  callrouter {v}" for v in VERBS.values()]
+    lines = ["toolrouter: the agent's tool memory", ""]
+    lines += [f"  toolrouter {v}" for v in VERBS.values()]
     try:
         recipes = store.load()
         top = store.rank(recipes, calls.read(), calls.project())[:5]
@@ -548,32 +629,49 @@ def menu():
 
 def unknown(verb):
     near = difflib.get_close_matches(verb, list(VERBS), n=1)
-    tip = f"Did you mean: callrouter {VERBS[near[0]].split('  ')[0]}" if near else "Run callrouter for the menu."
+    tip = f"Did you mean: toolrouter {VERBS[near[0]].split('  ')[0]}" if near else "Run toolrouter for the menu."
     return Result(ok=False, lane="menu", exit=2, note=f'no verb "{verb}". {tip}')
 
 
 LANES = {"run": run_lane, "exec": exec_lane, "search": search_lane, "list": list_lane, "add": add_lane,
          "check": check, "undo": undo, "jobs": jobs_lane, "learn": learn_lane, "browse": browse_lane,
-         "mcp": mcp_lane, "tools": tools_lane}
+         "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane}
+
+
+def log_call(rec):
+    if not rec:
+        return
+    try:
+        calls.append(rec)
+    except Exception as e:
+        print(f"toolrouter: call log not written ({type(e).__name__})", file=sys.stderr)
 
 
 def main(argv=None):
     how_, argv = mode(list(sys.argv[1:] if argv is None else argv))
     verb, rest = (argv[0], argv[1:]) if argv else (None, [])
     if verb == "ingest":
-        from callrouter import ingest
+        from toolrouter import ingest
         return ingest.main(["ingest", *rest], how=how_) or 0
     if verb is None or verb in ("help", "-h", "--help"):
         r = menu()
+    elif verb == "learn" and "--review" in rest and how_ == "json":
+        r = Result(ok=False, lane="learn", exit=2, note="learn --review is for a person. It refuses to run in JSON or agent mode")
     elif verb in LANES:
-        r = LANES[verb](rest)
+        try:
+            r = LANES[verb](rest)
+        except Exception as e:
+            r = Result(ok=False, lane=verb, exit=1, note=f"{verb} crashed: {type(e).__name__}: {e}")
     else:
         r = unknown(verb)
     out = render(r, how_)
+    if r.rec:
+        log_call({**r.rec, "shown_bytes": len(out.encode("utf-8"))})
     try:
-        print(out)
-    except UnicodeEncodeError:
-        sys.stdout.buffer.write((out + "\n").encode("utf-8", errors="replace"))
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+    print(out)
     return r.exit
 
 

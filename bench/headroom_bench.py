@@ -1,7 +1,7 @@
 """Benchmark Headroom's compressor against dumb truncation on real recorded tool output.
 
 Answers one question: does Headroom save enough tokens on this workload, without
-eating the answer, to make building CallRouter unnecessary?
+eating the answer, to make building ToolRouter unnecessary?
 
 Corpus is real Bash tool_results pulled from local Claude Code transcripts. Nothing
 leaves the machine: headroom.compress() is a library call with no network path.
@@ -124,7 +124,7 @@ def survived(needle: str, text: str) -> bool:
 
 
 def truncate(text: str, budget_tokens: int) -> str:
-    """The baseline CallRouter would ship: keep the head and the tail, drop the middle."""
+    """The baseline ToolRouter would ship: keep the head and the tail, drop the middle."""
     if tok(text) <= budget_tokens:
         return text
     budget = budget_tokens * 4
@@ -206,7 +206,7 @@ def main():
     ap.add_argument("--min-tokens", type=int, default=250,
                     help="Headroom's own floor is 250")
     ap.add_argument("--cap", type=int, default=400,
-                    help="fixed cap for the CallRouter arm")
+                    help="fixed cap for the ToolRouter arm")
     ap.add_argument("--json", type=str, default="")
     args = ap.parse_args()
 
@@ -251,7 +251,7 @@ def main():
         # Arm 2: truncation sized to whatever Headroom produced. Equal-budget
         # quality check. When Headroom no-ops this arm no-ops too, by construction.
         tr_text = truncate(orig, max(hr_tok, 1))
-        # Arm 3: the fixed cap CallRouter would actually ship. This is the arm that
+        # Arm 3: the fixed cap ToolRouter would actually ship. This is the arm that
         # decides the project, because it saves regardless of what any router thinks.
         cap_text = truncate(orig, args.cap)
         smart_text = smart_cap(orig, args.cap)

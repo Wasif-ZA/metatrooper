@@ -1,0 +1,567 @@
+[
+ {
+  "name": "filesystem",
+  "summary": "Official reference server: read, write, search and list files inside the directories passed as args. No key.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@modelcontextprotocol/server-filesystem",
+   "."
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "list_allowed_directories"
+ },
+ {
+  "name": "memory",
+  "summary": "Official reference server: knowledge-graph memory (entities, relations, observations) kept in a local JSONL file. No key.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@modelcontextprotocol/server-memory"
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "read_graph",
+  "optional_env": [
+   "MEMORY_FILE_PATH"
+  ]
+ },
+ {
+  "name": "fetch",
+  "summary": "Official reference server (Python): fetches a URL and returns it as markdown, chunked by max_length/start_index. No key.",
+  "command": "uvx",
+  "args": [
+   "mcp-server-fetch"
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "fetch",
+  "example_args": {
+   "url": "https://example.com",
+   "max_length": 2000
+  }
+ },
+ {
+  "name": "git",
+  "summary": "Official reference server (Python): git status, diff, log, show, branch, commit, add on a local repo.",
+  "command": "uvx",
+  "args": [
+   "mcp-server-git",
+   "--repository",
+   "."
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "git_status",
+  "example_args": {
+   "repo_path": "."
+  }
+ },
+ {
+  "name": "sequential-thinking",
+  "summary": "Official reference server: a structured step-by-step thinking scratchpad tool. No key, no side effects.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@modelcontextprotocol/server-sequential-thinking"
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "sequential_thinking",
+  "example_args": {
+   "thought": "Check the input first",
+   "thoughtNumber": 1,
+   "totalThoughts": 1,
+   "nextThoughtNeeded": false
+  },
+  "optional_env": [
+   "DISABLE_THOUGHT_LOGGING"
+  ]
+ },
+ {
+  "name": "time",
+  "summary": "Official reference server (Python): current time in any IANA timezone and timezone conversion. No key.",
+  "command": "uvx",
+  "args": [
+   "mcp-server-time",
+   "--local-timezone=Australia/Sydney"
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "get_current_time",
+  "example_args": {
+   "timezone": "Australia/Sydney"
+  }
+ },
+ {
+  "name": "everything",
+  "summary": "Official test server exercising every MCP feature (tools, resources, prompts, sampling, elicitation). Use it to test the toolrouter MCP client. No key.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@modelcontextprotocol/server-everything",
+   "stdio"
+  ],
+  "env": [],
+  "repo": "modelcontextprotocol/servers",
+  "stars": 90943,
+  "licence": "NOASSERTION (repo mixes MIT and Apache-2.0)",
+  "example_tool": "echo",
+  "example_args": {
+   "message": "hello"
+  }
+ },
+ {
+  "name": "github",
+  "summary": "GitHub's official server (replaces the ARCHIVED @modelcontextprotocol/server-github, npm marked deprecated). Repos, issues, PRs, code search. Stdio via Docker image or the prebuilt github-mcp-server binary with arg stdio.",
+  "command": "docker",
+  "args": [
+   "run",
+   "-i",
+   "--rm",
+   "-e",
+   "GITHUB_PERSONAL_ACCESS_TOKEN",
+   "ghcr.io/github/github-mcp-server"
+  ],
+  "env": [
+   "GITHUB_PERSONAL_ACCESS_TOKEN"
+  ],
+  "repo": "github/github-mcp-server",
+  "stars": 33321,
+  "licence": "MIT",
+  "example_tool": "get_me",
+  "optional_env": [
+   "GITHUB_TOOLSETS",
+   "GITHUB_READ_ONLY"
+  ]
+ },
+ {
+  "name": "playwright",
+  "summary": "Microsoft's browser automation server driven by accessibility snapshots, not screenshots. Most-downloaded MCP package. No key.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@playwright/mcp@latest",
+   "--headless"
+  ],
+  "env": [],
+  "repo": "microsoft/playwright-mcp",
+  "stars": 37751,
+  "licence": "Apache-2.0",
+  "example_tool": "browser_navigate",
+  "example_args": {
+   "url": "about:blank"
+  }
+ },
+ {
+  "name": "chrome-devtools",
+  "summary": "Google's Chrome DevTools server: navigation, screenshots, console, network, performance traces, Lighthouse. Maintained replacement for the ARCHIVED @modelcontextprotocol/server-puppeteer (npm deprecated). No key.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "chrome-devtools-mcp@latest",
+   "--headless",
+   "--no-usage-statistics"
+  ],
+  "env": [],
+  "repo": "ChromeDevTools/chrome-devtools-mcp",
+  "stars": 52864,
+  "licence": "Apache-2.0",
+  "example_tool": "list_pages"
+ },
+ {
+  "name": "context7",
+  "summary": "Upstash Context7: up-to-date library docs and code examples. Works without a key at lower rate limits; README now leads with the remote URL but the npm stdio package is current.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@upstash/context7-mcp"
+  ],
+  "env": [],
+  "repo": "upstash/context7",
+  "stars": 62593,
+  "licence": "MIT",
+  "example_tool": "resolve-library-id",
+  "example_args": {
+   "query": "react useEffect cleanup",
+   "libraryName": "react"
+  },
+  "optional_env": [
+   "CONTEXT7_API_KEY"
+  ]
+ },
+ {
+  "name": "brave-search",
+  "summary": "Brave's official search server (replaces the ARCHIVED @modelcontextprotocol/server-brave-search, npm deprecated). Web, news, image, local search. Pass --transport stdio explicitly.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@brave/brave-search-mcp-server",
+   "--transport",
+   "stdio"
+  ],
+  "env": [
+   "BRAVE_API_KEY"
+  ],
+  "repo": "brave/brave-search-mcp-server",
+  "stars": 1480,
+  "licence": "MIT",
+  "example_tool": "brave_web_search",
+  "example_args": {
+   "query": "model context protocol",
+   "count": 3
+  }
+ },
+ {
+  "name": "postgres",
+  "summary": "Postgres MCP Pro (crystaldba), the maintained replacement for the ARCHIVED @modelcontextprotocol/server-postgres (npm deprecated). Schema listing, read-only SQL in restricted mode, index and health advice.",
+  "command": "uvx",
+  "args": [
+   "postgres-mcp",
+   "--access-mode=restricted"
+  ],
+  "env": [
+   "DATABASE_URI"
+  ],
+  "repo": "crystaldba/postgres-mcp",
+  "stars": 3361,
+  "licence": "MIT",
+  "example_tool": "list_schemas",
+  "optional_env": [
+   "OPENAI_API_KEY"
+  ]
+ },
+ {
+  "name": "slack",
+  "summary": "korotovsky slack-mcp-server, the most-used Slack server since the reference @modelcontextprotocol/server-slack was ARCHIVED (npm deprecated). Channels, history, search, DMs; stealth (xoxc/xoxd) or OAuth (xoxp/xoxb) auth.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "slack-mcp-server@latest",
+   "--transport",
+   "stdio"
+  ],
+  "env": [
+   "SLACK_MCP_XOXP_TOKEN"
+  ],
+  "repo": "korotovsky/slack-mcp-server",
+  "stars": 1852,
+  "licence": "MIT",
+  "example_tool": "channels_list",
+  "example_args": {
+   "channel_types": "public_channel",
+   "limit": 10
+  },
+  "optional_env": [
+   "SLACK_MCP_ADD_MESSAGE_TOOL"
+  ]
+ },
+ {
+  "name": "notion",
+  "summary": "Notion's official local server, tools generated from the Notion REST API with an API- prefix. Notion now recommends its remote server; this stdio one is still published.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@notionhq/notion-mcp-server"
+  ],
+  "env": [
+   "NOTION_TOKEN"
+  ],
+  "repo": "makenotion/notion-mcp-server",
+  "stars": 4655,
+  "licence": "MIT",
+  "example_tool": "API-get-self"
+ },
+ {
+  "name": "sentry",
+  "summary": "Sentry's official server; stdio mode for user tokens and self-hosted Sentry. Issues, events, projects, releases; AI search tools need an LLM key.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@sentry/mcp-server@latest"
+  ],
+  "env": [
+   "SENTRY_ACCESS_TOKEN"
+  ],
+  "repo": "getsentry/sentry-mcp",
+  "stars": 888,
+  "licence": "NOASSERTION",
+  "example_tool": "whoami",
+  "optional_env": [
+   "EMBEDDED_AGENT_PROVIDER",
+   "OPENAI_API_KEY"
+  ]
+ },
+ {
+  "name": "supabase",
+  "summary": "Supabase's official server. Remote URL is the documented default; the npm package still runs stdio with a personal access token. Use --read-only and --project-ref.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@supabase/mcp-server-supabase@latest",
+   "--read-only",
+   "--project-ref=<project-ref>"
+  ],
+  "env": [
+   "SUPABASE_ACCESS_TOKEN"
+  ],
+  "repo": "supabase/mcp",
+  "stars": 2927,
+  "licence": "Apache-2.0",
+  "example_tool": "list_tables",
+  "example_args": {
+   "schemas": [
+    "public"
+   ]
+  }
+ },
+ {
+  "name": "docker",
+  "summary": "ckreiling mcp-server-docker: manage containers, images, networks, volumes through the local Docker socket. No key. Docker's own option is the MCP Gateway (command docker, args mcp gateway run) which needs Docker Desktop's MCP Toolkit and proxies catalog servers rather than Docker itself.",
+  "command": "uvx",
+  "args": [
+   "mcp-server-docker"
+  ],
+  "env": [],
+  "repo": "ckreiling/mcp-server-docker",
+  "stars": 746,
+  "licence": "GPL-3.0",
+  "example_tool": "list_containers",
+  "optional_env": [
+   "DOCKER_HOST"
+  ]
+ },
+ {
+  "name": "kubernetes",
+  "summary": "containers/kubernetes-mcp-server (Red Hat, native Go, no kubectl needed). Pods, namespaces, events, logs, Helm via kubeconfig. Alternative: Flux159 mcp-server-kubernetes (npx -y mcp-server-kubernetes, tool kubectl_get, env ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS; 1,594 stars, MIT, 10,264 dl/week).",
+  "command": "npx",
+  "args": [
+   "-y",
+   "kubernetes-mcp-server@0.0.67",
+   "--read-only"
+  ],
+  "env": [],
+  "repo": "containers/kubernetes-mcp-server",
+  "stars": 2141,
+  "licence": "Apache-2.0",
+  "example_tool": "namespaces_list",
+  "optional_env": [
+   "KUBECONFIG"
+  ]
+ },
+ {
+  "name": "aws-api",
+  "summary": "AWS Labs API server: runs validated AWS CLI commands and suggests commands. Uses local AWS credentials. On Windows the README uses command uv with args tool run --from awslabs.aws-api-mcp-server@latest awslabs.aws-api-mcp-server.exe.",
+  "command": "uvx",
+  "args": [
+   "--from",
+   "awslabs.aws-api-mcp-server@latest",
+   "awslabs.aws-api-mcp-server.exe"
+  ],
+  "env": [
+   "AWS_REGION"
+  ],
+  "repo": "awslabs/mcp",
+  "stars": 9747,
+  "licence": "Apache-2.0",
+  "example_tool": "call_aws",
+  "example_args": {
+   "cli_command": "aws sts get-caller-identity"
+  },
+  "optional_env": [
+   "AWS_API_MCP_PROFILE_NAME",
+   "READ_OPERATIONS_ONLY"
+  ]
+ },
+ {
+  "name": "aws-documentation",
+  "summary": "AWS Labs documentation server: search and read AWS docs as markdown. No key or AWS account needed. Windows form: command uv, args tool run --from awslabs.aws-documentation-mcp-server@latest awslabs.aws-documentation-mcp-server.exe.",
+  "command": "uvx",
+  "args": [
+   "--from",
+   "awslabs.aws-documentation-mcp-server@latest",
+   "awslabs.aws-documentation-mcp-server.exe"
+  ],
+  "env": [],
+  "repo": "awslabs/mcp",
+  "stars": 9747,
+  "licence": "Apache-2.0",
+  "example_tool": "search_documentation",
+  "example_args": {
+   "search_phrase": "S3 bucket naming rules",
+   "limit": 3
+  },
+  "optional_env": [
+   "FASTMCP_LOG_LEVEL",
+   "AWS_DOCUMENTATION_PARTITION"
+  ]
+ },
+ {
+  "name": "cloudflare-docs",
+  "summary": "Cloudflare ships only remote servers now (the old @cloudflare/mcp-server-cloudflare stdio package is stale). The public docs server needs no auth and runs over stdio through the mcp-remote bridge. Account servers (bindings, builds, observability) need browser OAuth, which is a hand-back.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "mcp-remote",
+   "https://docs.mcp.cloudflare.com/mcp"
+  ],
+  "env": [],
+  "repo": "cloudflare/mcp-server-cloudflare",
+  "stars": 4345,
+  "licence": "Apache-2.0",
+  "example_tool": "search_cloudflare_documentation",
+  "example_args": {
+   "query": "Workers KV limits"
+  }
+ },
+ {
+  "name": "figma",
+  "summary": "GLips Framelink Figma-Context-MCP: pulls simplified Figma file/node layout data for code generation. The most-starred Figma server; Figma's own Dev Mode server is desktop-app/remote only.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "figma-developer-mcp",
+   "--stdio"
+  ],
+  "env": [
+   "FIGMA_API_KEY"
+  ],
+  "repo": "GLips/Figma-Context-MCP",
+  "stars": 15944,
+  "licence": "MIT",
+  "example_tool": "get_figma_data",
+  "example_args": {
+   "fileKey": "<figma-file-key>"
+  }
+ },
+ {
+  "name": "linear",
+  "summary": "Linear's official server is remote only (mcp.linear.app, OAuth). Stdio works through mcp-remote, but the first run opens a browser for OAuth, which is a hand-back. Community stdio servers (jerhadf/linear-mcp-server, 347 stars, last push 2025-05-01) are deprecated in favour of it.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "mcp-remote",
+   "https://mcp.linear.app/mcp"
+  ],
+  "env": [],
+  "repo": "punkpeye/mcp-remote",
+  "stars": 1613,
+  "licence": "MIT",
+  "example_tool": "list_teams"
+ },
+ {
+  "name": "stripe",
+  "summary": "Stripe's npm package @stripe/mcp (bin 'mcp'). Since 0.3.x it is a thin local stdio proxy that forwards every call to the hosted https://mcp.stripe.com, so it needs network on every call. The key comes from STRIPE_SECRET_KEY or --api-key=KEY; the old --tools flag is removed and only prints a warning. Use a restricted test-mode key, and confirm tool names with tools/list.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "@stripe/mcp"
+  ],
+  "env": [
+   "STRIPE_SECRET_KEY"
+  ],
+  "repo": "stripe/ai",
+  "stars": 1852,
+  "licence": "MIT",
+  "example_tool": "retrieve_balance"
+ },
+ {
+  "name": "firecrawl",
+  "summary": "Firecrawl's official server: scrape, crawl, map, search, extract to markdown. Strong usage numbers.",
+  "command": "npx",
+  "args": [
+   "-y",
+   "firecrawl-mcp"
+  ],
+  "env": [
+   "FIRECRAWL_API_KEY"
+  ],
+  "repo": "firecrawl/firecrawl-mcp-server",
+  "stars": 7538,
+  "licence": "MIT",
+  "example_tool": "firecrawl_scrape",
+  "example_args": {
+   "url": "https://example.com",
+   "formats": [
+    "markdown"
+   ]
+  },
+  "optional_env": [
+   "FIRECRAWL_API_URL"
+  ]
+ },
+ {
+  "name": "exa",
+  "summary": "Exa's official search server. README leads with the remote URL; the npm package still ships a stdio bin (dist/stdio.cjs).",
+  "command": "npx",
+  "args": [
+   "-y",
+   "exa-mcp-server"
+  ],
+  "env": [
+   "EXA_API_KEY"
+  ],
+  "repo": "exa-labs/exa-mcp-server",
+  "stars": 5069,
+  "licence": "MIT",
+  "example_tool": "web_search_exa",
+  "example_args": {
+   "query": "model context protocol registry",
+   "numResults": 3
+  }
+ },
+ {
+  "name": "serena",
+  "summary": "Oraios Serena: LSP-backed semantic code tools (find symbol, references, symbol-level edits). The serena-agent PyPI package is the registry entry; README warns against marketplace install commands.",
+  "command": "uvx",
+  "args": [
+   "-p",
+   "3.13",
+   "--from",
+   "serena-agent",
+   "serena",
+   "start-mcp-server",
+   "--context",
+   "claude-code",
+   "--project-from-cwd"
+  ],
+  "env": [],
+  "repo": "oraios/serena",
+  "stars": 29941,
+  "licence": "NOASSERTION (MIT per repo LICENSE text)",
+  "example_tool": "list_dir",
+  "example_args": {
+   "relative_path": ".",
+   "recursive": false
+  }
+ },
+ {
+  "name": "markitdown",
+  "summary": "Microsoft MarkItDown MCP: one tool that converts http(s), file: or data: URIs (PDF, DOCX, XLSX, PPTX, HTML, images) to markdown. No key.",
+  "command": "uvx",
+  "args": [
+   "markitdown-mcp"
+  ],
+  "env": [],
+  "repo": "microsoft/markitdown",
+  "stars": 187926,
+  "licence": "MIT",
+  "example_tool": "convert_to_markdown",
+  "example_args": {
+   "uri": "data:text/plain;base64,aGVsbG8="
+  }
+ }
+]

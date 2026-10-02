@@ -2,7 +2,7 @@ import datetime
 import json
 import re
 
-from callrouter.log import home
+from toolrouter.log import home
 
 BREAKER_RUN = 3
 BREAKER_WINDOW = datetime.timedelta(hours=1)
@@ -11,10 +11,10 @@ BREAKER_WINDOW = datetime.timedelta(hours=1)
 SEED = [
     {"id": "agy-add-dir", "when": "before", "match": r"(^|[;&|]\s*)agy\b(?!.*--add-dir)",
      "hint": "agy cannot read files outside its folder and returns nothing. Add --add-dir <folder>, "
-             "or use: callrouter run gemini --add-dir <folder> \"<question>\""},
+             "or use: toolrouter run gemini --add-dir <folder> \"<question>\""},
     {"id": "ollama-v1", "when": "before", "match": r"11434/v1/chat/completions",
      "hint": "Ollama's /v1/chat/completions returns empty content for qwen3 and gemma4. Use /api/generate "
-             "with \"think\": false and an explicit num_ctx, or: callrouter run local \"<prompt>\""},
+             "with \"think\": false and an explicit num_ctx, or: toolrouter run local \"<prompt>\""},
     {"id": "taskkill-node", "when": "before", "match": r"taskkill\b.*(/|//)IM\s+node(\.exe)?\b",
      "hint": "This kills every node process on the machine, including other sessions' servers. "
              "Kill the one pid instead"},
@@ -24,12 +24,19 @@ SEED = [
      "hint": "Git Bash on Windows reads the clock as UTC here. Use: bash meta/scripts/now-iso.sh"},
     {"id": "foreground-sleep", "when": "before", "match": r"(^|[;&|]\s*)sleep\s+\d{2,}",
      "hint": "Long foreground sleeps are blocked by the harness. Wait on a condition, or run the job "
-             "with --background and collect it with callrouter jobs <id> --wait"},
+             "with --background and collect it with toolrouter jobs <id> --wait. Waiting on a dev "
+             "server: toolrouter run up <port> --wait 60"},
+    {"id": "curl-jina", "when": "before", "match": r"curl\b.*r\.jina\.ai/",
+     "hint": "Shorter: toolrouter run page <url>"},
+    {"id": "gh-api-repo", "when": "before", "match": r"gh\s+api\s+/?repos/[\w.-]+/[\w.-]+/?(\s|$)",
+     "hint": "For stars, licence and last push: toolrouter run repo <owner/name>"},
+    {"id": "playwright-browser", "when": "fail", "match": r"Executable doesn't exist at .*ms-playwright",
+     "hint": "Playwright's browser build is missing for this version. playwright install chromium downloads it"},
     {"id": "cp1252", "when": "fail", "match": r"UnicodeDecodeError|UnicodeEncodeError|'charmap' codec",
      "hint": "Python on Windows reads and writes files as cp1252 by default. Pass encoding=\"utf-8\" to "
              "open, read_text and write_text"},
     {"id": "no-jq", "when": "fail", "match": r"jq: (command )?not found|command not found: jq",
-     "hint": "There is no jq here. Use: callrouter run json <file> <path>"},
+     "hint": "There is no jq here. Use: toolrouter run json <file> <path>"},
     {"id": "store-python", "when": "fail", "match": r"Python was not found; run without arguments to install",
      "hint": "Bare python is the Microsoft Store stub. Use the full interpreter path"},
     {"id": "module-missing", "when": "fail", "match": r"ModuleNotFoundError: No module named '([\w.]+)'",

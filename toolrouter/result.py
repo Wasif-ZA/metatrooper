@@ -24,6 +24,8 @@ class Result:
     fallback: str | None = None
     marker: dict | None = None
     note: str | None = None
+    whole: bool = False
+    rec: dict | None = None
 
     def __post_init__(self):
         if self.fallback and not (self.marker and {"requested", "ran", "why"} <= set(self.marker)):
@@ -41,7 +43,7 @@ def mode(argv):
             head = [a for a in head if a != flag]
     if chosen:
         return chosen, head + rest
-    env = os.environ.get("CALLROUTER_OUTPUT", "").lower()
+    env = os.environ.get("TOOLROUTER_OUTPUT", "").lower()
     if env in ("json", "human"):
         return env, head + rest
     if os.environ.get("AI_AGENT") or os.environ.get("CLAUDECODE"):
@@ -56,12 +58,26 @@ def short_home(p):
     return "~" + p[len(home):] if p.startswith(home) else p
 
 
+def human_out(out):
+    if isinstance(out, str):
+        return out.rstrip("\n")
+    if not out:
+        return json.dumps(out)
+    if isinstance(out, list) and all(isinstance(x, str) for x in out):
+        return "\n".join("  " + x for x in out)
+    if isinstance(out, dict) and all(isinstance(v, list) and all(isinstance(x, str) for x in v) for v in out.values()):
+        return "\n".join(f"  {k}:\n" + "\n".join("    " + x for x in v) for k, v in out.items())
+    return json.dumps(out, indent=1, ensure_ascii=False)
+
+
 def render(r, how):
     if how == "json":
         d = {"ok": r.ok, "exit": r.exit, "out": r.out}
         shrunk = bool(r.errors or r.tail) or (r.out is None and r.log)
         extra = ("errors", "more_errors", "tail", "lines") if shrunk else ()
-        for k in (*extra, "log", "hint", "breaker", "note", "fallback", "marker"):
+        keys = (*extra, "hint", "breaker", "note", "fallback", "marker") if r.whole else \
+            (*extra, "log", "hint", "breaker", "note", "fallback", "marker")
+        for k in keys:
             v = getattr(r, k)
             if v not in (None, [], 0, ""):
                 d[k] = v
@@ -79,8 +95,8 @@ def render(r, how):
     parts = [head]
     if r.marker:
         parts.append(f"  ran {r.marker['ran']} instead of {r.marker['requested']}: {r.marker['why']}")
-    if r.out:
-        parts.append(r.out.rstrip("\n") if isinstance(r.out, str) else json.dumps(r.out, indent=1, ensure_ascii=False))
+    if r.out or r.out in ({}, []):
+        parts.append(human_out(r.out))
     if r.errors:
         parts.append("  errors:")
         parts += [f"    {e}" for e in r.errors]

@@ -10,7 +10,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from callrouter.log import home
+from toolrouter.log import child_env, home
 
 IDLE_SECONDS = 30 * 60
 START_TIMEOUT = 20
@@ -29,8 +29,8 @@ def blocked_hosts():
 
 
 def serve(show=False):
-    from callrouter.browse.cdp import Chrome
-    from callrouter.browse.page import Page, host_blocked
+    from toolrouter.browse.cdp import Chrome
+    from toolrouter.browse.page import Page, host_blocked
 
     profile = home() / "chrome-profile"
     profile.mkdir(parents=True, exist_ok=True)
@@ -61,6 +61,7 @@ def serve(show=False):
             return page.changed()
         if verb == "type":
             page.type(args[0], args[1])
+            guard(page.url())
             return page.changed()
         if verb == "read":
             return {"url": page.url(), "text": page.read()}
@@ -68,7 +69,7 @@ def serve(show=False):
             png = page.shot(full=bool(args and args[0] == "--full"))
             folder = home() / "logs" / datetime.date.today().isoformat()
             folder.mkdir(parents=True, exist_ok=True)
-            path = folder / f"{datetime.datetime.now():%H%M%S}-shot.png"
+            path = folder / f"{datetime.datetime.now():%H%M%S%f}-shot.png"
             path.write_bytes(png)
             return {"shot": path.as_posix()}
         if verb == "back":
@@ -140,12 +141,13 @@ def ensure(show=False):
         except (OSError, ValueError, urllib.error.URLError):
             pass
         state_path().unlink(missing_ok=True)
-    kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+          "env": child_env()}
     if os.name == "nt":
         kw["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kw["start_new_session"] = True
-    subprocess.Popen([sys.executable, "-m", "callrouter.browse.daemon", *(["--show"] if show else [])], **kw)
+    subprocess.Popen([sys.executable, "-m", "toolrouter.browse.daemon", *(["--show"] if show else [])], **kw)
     start = time.monotonic()
     while time.monotonic() - start < START_TIMEOUT:
         if state_path().is_file():

@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from callrouter import cli
-from callrouter.browse import daemon
-from callrouter.browse.page import Page, host_blocked
+from toolrouter import cli
+from toolrouter.browse import daemon
+from toolrouter.browse.page import Page, host_blocked
 
 
 CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
@@ -17,16 +17,16 @@ CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "callrouter-home"
+    home = tmp_path / "toolrouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("CALLROUTER_HOME", str(home))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "CALLROUTER_CHROME",
+        "TOOLROUTER_CHROME",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -57,7 +57,7 @@ def test_host_blocked_matches_hosts_and_subdomains_but_not_lookalikes(url, expec
 def test_browse_refuses_blocked_host_before_starting_chrome(
     monkeypatch, capsys
 ):
-    home = Path(os.environ["CALLROUTER_HOME"])
+    home = Path(os.environ["TOOLROUTER_HOME"])
     home.mkdir(parents=True)
     (home / "blocked-hosts.txt").write_text("blocked.example\n", encoding="utf-8")
 

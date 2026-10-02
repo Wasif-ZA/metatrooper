@@ -71,7 +71,7 @@ development laptop, verified by `127.0.0.1:11434` returning no response.
 | LeanRouter | Points at output compression, the one thing explicitly not being built |
 | MetaRouter | Blends into a crowded naming pattern and says nothing about the scoring |
 
-`callrouter` and `call-router` were both free on PyPI as of 2026-09-27.
+`toolrouter` and `call-router` were both free on PyPI as of 2026-09-27.
 
 ## Deferred to v2, not cut
 
@@ -112,11 +112,30 @@ the tool itself, and it is independent of whichever plan is chosen.
 |-----|--------|---------|
 | Hooks of any kind, including the Read hook | Wasif wants Claude Code's own flow untouched. Hooks are rejected, not deferred | never |
 | A skill | A skill listing costs tokens in every session. A command costs nothing until it is run | v2-jev |
-| Bash output cap (`BASH_MAX_OUTPUT_LENGTH`) | He does not want caps; they change how Claude Code behaves. Shrinking happens inside callrouter, with the full output kept in a log | never |
+| Bash output cap (`BASH_MAX_OUTPUT_LENGTH`) | He does not want caps; they change how Claude Code behaves. Shrinking happens inside toolrouter, with the full output kept in a log | never |
 | Wrapping gstack browse | He wants his own browser tooling, not a dependency on someone else's. Replaced by an own CDP driver over Chrome's pipe | never |
-| Playwright | Same reason, and Apache 2.0 fails the MIT gate if callrouter is ever sold | v2-jev |
+| Playwright | Same reason, and Apache 2.0 fails the MIT gate if toolrouter is ever sold | v2-jev |
 | Computer use in v1 | Moved to v2. The goal is recorded in `spec.md`: an agent cursor of its own that does not take over his mouse | v2 |
 | Blocking breaker | A command-only tool must never refuse a call the agent chose. The breaker now warns only | v2-jev |
 | SQLite store | JSON lines are enough for an append-only call log with no queries yet | v2-jev |
 
 Still cut from before: the result cache (ceiling 0.12%).
+
+## Decided 2026-09-30, after the Codex and Gemini review
+
+| Item | Decision | Revisit |
+|------|----------|---------|
+| Logging lookup lanes | Only lanes that run something log. `list`, `search` and the rest would fill the call log with noise `learn` has to ignore | never |
+| Redirects to a blocked host in `page` and `screenshot` | Not caught. `page` is fetched by r.jina.ai on its side and `screenshot` by the Playwright CLI, so toolrouter never sees the redirect. `up` and `browse` do catch it. Use `browse` for anything that might redirect somewhere sensitive | when `screenshot` moves onto the own CDP driver |
+
+## Decided 2026-10-02, catalogue and modes
+
+| Item | Decision | Revisit |
+|------|----------|---------|
+| Generic catalogue of popular CLIs and MCP servers | Built, reversing the 2026-09-28 "tailored only" line at Wasif's request. It ships as data (`recipes/catalog.json`, `mcp_catalog.json`) and is off unless `mode auto` is set, so `learn` mode behaves exactly as before | after a week of `ingest` shows which catalogue recipes get used |
+| Auto-wrapping every binary on PATH (cut above) | Partly reversed. In `auto` mode `search` lists matching PATH binaries and `tools <bin>` prints its `--help`. Nothing is wrapped or run without being asked | never |
+| Public MCP registry | `auto` mode searches registry.modelcontextprotocol.io and launches stdio servers by their registry name. Registry search has no popularity order, so the curated catalogue is listed first | when the registry adds ranking |
+| Catalogue servers that need a key | Config only. The error names the missing variable; values are never stored | never |
+| toolrouter as the default tool | Made default by instruction only: the vault CLAUDE.md and `~/.codex/AGENTS.md`. Hooks stay rejected (row above, 2026-09-28) because Wasif wants Claude Code's own flow untouched | never |
+| Commands agents typed instead of using toolrouter | Caught after the fact, not live. `learn` mines the transcripts (also from `nightly.cmd`); in `auto` mode a shape used 5+ times at 80%+ success is saved as a `learned` recipe, in `learn` mode it waits for `learn --review`. Shapes matching ACU words (acu, redcap, hwbreport, partner, participant, survey) are never auto-saved | after the first week of nightly runs |
+| sqlite and desktop-commander servers | Dropped by the verifier: sqlite is archived with no replacement, desktop-commander duplicates the shell and file tools | never |

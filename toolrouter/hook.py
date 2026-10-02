@@ -8,7 +8,7 @@ MAX_EDGE = 784  # half of Claude's 1568 px long-edge cap, so a quarter of the to
 LINE_LIMIT = 300
 MIN_BYTES_FOR_LIMIT = 12_000  # about 300 lines of typical source
 SKIP_EXTS = {".pdf", ".ipynb"}
-CACHE = Path.home() / ".cache" / "callrouter" / "img"
+CACHE = Path.home() / ".cache" / "toolrouter" / "img"
 
 
 def shrink_image(path, cache=None):

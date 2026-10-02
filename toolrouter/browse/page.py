@@ -15,7 +15,7 @@ def value(node, key):
 
 
 def host_blocked(url, blocked):
-    host = (urlparse(url).hostname or "").rstrip(".").lower()
+    host = (urlparse(url if "://" in url else "//" + url).hostname or "").rstrip(".").lower()
     return any(host == b or host.endswith("." + b) for b in blocked) if host else False
 
 

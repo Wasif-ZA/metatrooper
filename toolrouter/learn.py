@@ -5,8 +5,8 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from callrouter import calls
-from callrouter.log import home
+from toolrouter import calls
+from toolrouter.log import home
 
 TRANSCRIPTS = Path.home() / ".claude" / "projects"
 MIN_USES = 5
@@ -16,7 +16,8 @@ FIX_WINDOW = 3
 MAX_PLACEHOLDERS = 9
 PLUMBING = {"ls", "cat", "echo", "cd", "grep", "sed", "head", "tail", "wc", "pwd", "mkdir", "rm", "cp",
             "mv", "touch", "printf", "true", "false", "test", "[", "sleep", "find", "awk", "sort", "uniq",
-            "tr", "cut", "xargs", "tee", "which", "export", "set", "for", "while", "if", "callrouter"}
+            "tr", "cut", "xargs", "tee", "which", "export", "set", "for", "while", "if", "toolrouter"}
+SENSITIVE = re.compile(r"acu|redcap|hwbreport|partner|participant|survey", re.I)
 INLINE_PY = re.compile(r"python\S*\s+(-c\b|-\s*<<|<<)")
 PY_GROUPS = [
     ("image", r"Image\.open|\.thumbnail\(|\.resize\(|\.crop\(|ImageChops|ImageDraw|getpixel", "img"),
@@ -191,6 +192,13 @@ def learn(root=TRANSCRIPTS, taken=None):
     recs = [c for c in recipe_candidates(shapes, taken) if c["id"] not in skip]
     recs += [c for c in run_log_candidates(calls.read(), taken) if c["id"] not in skip]
     hints_ = [c for c in hint_candidates(fixes) if c["id"] not in skip]
+    added = []
+    from toolrouter import recipes as store
+    if store.mode() == "auto":
+        for c in [c for c in recs if not SENSITIVE.search(c["body"])]:
+            store.save(c["name"], c["body"], source="learned")
+            added.append(c["name"])
+        recs = [c for c in recs if c["name"] not in added]
     cand_dir().mkdir(parents=True, exist_ok=True)
     (cand_dir() / "candidates.json").write_text(json.dumps(recs + hints_, indent=1, ensure_ascii=False),
                                                 encoding="utf-8")
@@ -200,9 +208,10 @@ def learn(root=TRANSCRIPTS, taken=None):
         "shell_calls": n_cmds,
         "inline_python_groups": [{"group": g, "scripts": n, "recipe": covered.get(g)}
                                  for g, n in groups.most_common()],
+        "added": added,
         "recipe_candidates": len(recs),
         "hint_candidates": len(hints_),
-        "review": "a person runs: callrouter learn --review",
+        "review": "a person runs: toolrouter learn --review",
     }
 
 
@@ -213,7 +222,7 @@ def agent_env():
 
 def review(ask=input, show=print):
     """Walk the candidates with a person. Approved ones become recipes or hints."""
-    from callrouter import recipes as store
+    from toolrouter import recipes as store
     if agent_env():
         raise PermissionError("learn --review is for a person. It refuses to run while AI_AGENT or "
                               "CLAUDECODE is set, because candidates come from raw transcripts")

@@ -41,7 +41,7 @@ def read_text(path):
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="callrouter run find")
+    ap = argparse.ArgumentParser(prog="toolrouter run find")
     ap.add_argument("pattern", help="Python regex")
     ap.add_argument("folder", nargs="?", default=".")
     ap.add_argument("--glob", help="only file names matching this, e.g. '*.py'")
@@ -55,7 +55,7 @@ def run(args):
     root = Path(a.folder)
     if not root.is_dir():
         return {"exit": 1, "out": f"no such folder: {a.folder}"}
-    results, full = [], []
+    results, full, clipped = [], [], False
     for p in files(root, a.glob):
         text = read_text(p)
         if text is None:
@@ -64,12 +64,15 @@ def run(args):
         if not hits:
             continue
         rel = p.relative_to(root).as_posix()
-        results.append({"file": rel, "count": len(hits),
-                        "lines": [f"{i}: {ln.strip()[:CLIP]}" for i, ln in hits[:a.lines]]})
+        shown = [f"{i}: {ln.strip()[:CLIP]}" for i, ln in hits[:a.lines]]
+        clipped = clipped or any(len(ln.strip()) > CLIP for _, ln in hits[:a.lines])
+        if len(hits) > a.lines:
+            shown.append(f"+{len(hits) - a.lines} more")
+        results.append((rel, len(hits), shown))
         full += [f"{rel}:{i}: {ln}" for i, ln in hits]
-    results.sort(key=lambda r: (-r["count"], r["file"]))
-    out = {"files": len(results), "matches": sum(r["count"] for r in results),
-           "results": results[:MAX_FILES_SHOWN]}
+    results.sort(key=lambda r: (-r[1], r[0]))
+    out = {"matches": sum(r[1] for r in results), "files": {rel: shown for rel, _, shown in results[:MAX_FILES_SHOWN]}}
     if len(results) > MAX_FILES_SHOWN:
         out["more_files"] = len(results) - MAX_FILES_SHOWN
-    return {"exit": 0 if results else 1, "out": out, "full": "\n".join(full)}
+    whole = len(results) <= MAX_FILES_SHOWN and not clipped and all(n <= a.lines for _, n, _ in results)
+    return {"exit": 0 if results else 1, "out": out, "full": "\n".join(full), "whole": whole}

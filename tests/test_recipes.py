@@ -5,21 +5,21 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from callrouter import cli
+from toolrouter import cli
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "callrouter-home"
+    home = tmp_path / "toolrouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("CALLROUTER_HOME", str(home))
+    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "CALLROUTER_OUTPUT",
+        "TOOLROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "CALLROUTER_SHELL",
+        "TOOLROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -125,7 +125,7 @@ def test_replace_snapshot_undo_without_id_restores_original_bytes(capsys):
     undo_exit, undo = invoke(capsys, "undo")
 
     assert changed_exit == 0
-    assert "undo: callrouter undo " in changed["out"]
+    assert "undo: toolrouter undo " in changed["out"]
     assert undo_exit == 0
     assert str(target.resolve()) in undo["out"]
     assert target.read_bytes() == original
@@ -137,7 +137,7 @@ def test_json_set_snapshot_id_from_output_restores_original_bytes(capsys):
     target.write_bytes(original)
 
     changed_exit, changed = invoke(capsys, "run", "json-set", target, ".café", "2")
-    match = re.search(r"callrouter undo ([^)]+)", changed["out"])
+    match = re.search(r"toolrouter undo ([^)]+)", changed["out"])
     assert match is not None
     target.write_bytes(b"deliberately changed after snapshot")
     undo_exit, undo = invoke(capsys, "undo", match.group(1))
@@ -272,7 +272,7 @@ def test_img_info_reports_actual_dimensions(capsys):
     assert result["out"]["height"] == 23
 
 
-def test_img_shrink_uses_784_long_edge_and_callrouter_home(tmp_path, capsys):
+def test_img_shrink_uses_784_long_edge_and_toolrouter_home(tmp_path, capsys):
     image = Path("large.png")
     Image.new("RGB", (2000, 1000), "purple").save(image)
 
@@ -281,7 +281,7 @@ def test_img_shrink_uses_784_long_edge_and_callrouter_home(tmp_path, capsys):
 
     assert exit_code == 0
     assert result["out"]["shrunk"] is True
-    assert output.is_relative_to(tmp_path / "callrouter-home")
+    assert output.is_relative_to(tmp_path / "toolrouter-home")
     with Image.open(output) as shrunk:
         assert shrunk.size == (784, 392)
 
@@ -352,12 +352,14 @@ def test_find_counts_files_and_matches_while_skipping_dirs_and_binary(capsys):
     exit_code, result = invoke(capsys, "run", "find", "needle", ".")
 
     assert exit_code == 0
-    assert result["out"]["files"] == 2
-    assert result["out"]["matches"] == 3
-    assert {row["file"]: row["count"] for row in result["out"]["results"]} == {
-        "a.txt": 2,
-        "b.py": 1,
+    assert result["out"] == {
+        "matches": 3,
+        "files": {
+            "a.txt": ["1: needle one", "3: needle two"],
+            "b.py": ["1: needle three"],
+        },
     }
+    assert "log" not in result
 
 
 def test_find_glob_and_ignore_case(capsys):
@@ -370,9 +372,11 @@ def test_find_glob_and_ignore_case(capsys):
     )
 
     assert exit_code == 0
-    assert result["out"]["files"] == 1
-    assert result["out"]["matches"] == 2
-    assert result["out"]["results"][0]["file"] == "one.py"
+    assert result["out"] == {
+        "matches": 2,
+        "files": {"one.py": ["1: Needle", "2: NEEDLE"]},
+    }
+    assert "log" not in result
 
 
 def test_find_no_matches_exits_one(capsys):
@@ -381,7 +385,58 @@ def test_find_no_matches_exits_one(capsys):
     exit_code, result = invoke(capsys, "run", "find", "needle", ".")
 
     assert exit_code == 1
-    assert result["out"] == {"files": 0, "matches": 0, "results": []}
+    assert result["out"] == {"matches": 0, "files": {}}
+    assert "log" not in result
+
+
+def test_find_sorts_files_by_match_count_then_name(capsys):
+    Path("z.txt").write_text("needle\n", encoding="utf-8")
+    Path("b.txt").write_text("needle\nneedle\n", encoding="utf-8")
+    Path("a.txt").write_text("needle\n", encoding="utf-8")
+
+    exit_code, result = invoke(capsys, "run", "find", "needle", ".")
+
+    assert exit_code == 0
+    assert list(result["out"]["files"]) == ["b.txt", "a.txt", "z.txt"]
+    assert result["out"]["matches"] == 4
+
+
+def test_find_adds_more_as_last_line_and_names_log_when_lines_are_hidden(capsys):
+    Path("many.txt").write_text("needle one\nneedle two\nneedle three\n", encoding="utf-8")
+
+    exit_code, result = invoke(
+        capsys, "run", "find", "needle", ".", "--lines", "2"
+    )
+
+    assert exit_code == 0
+    assert result["out"] == {
+        "matches": 3,
+        "files": {"many.txt": ["1: needle one", "2: needle two", "+1 more"]},
+    }
+    assert Path(result["log"]).is_file()
+
+
+def test_find_names_log_when_a_matching_line_is_clipped(capsys):
+    Path("wide.txt").write_text("needle " + ("x" * 250) + "\n", encoding="utf-8")
+
+    exit_code, result = invoke(capsys, "run", "find", "needle", ".")
+
+    assert exit_code == 0
+    assert result["out"]["files"]["wide.txt"] == ["1: " + "needle " + ("x" * 193)]
+    assert Path(result["log"]).is_file()
+
+
+def test_find_reports_more_files_after_first_thirty(capsys):
+    for index in range(32):
+        Path(f"file-{index:02d}.txt").write_text("needle\n", encoding="utf-8")
+
+    exit_code, result = invoke(capsys, "run", "find", "needle", ".")
+
+    assert exit_code == 0
+    assert result["out"]["matches"] == 32
+    assert len(result["out"]["files"]) == 30
+    assert result["out"]["more_files"] == 2
+    assert Path(result["log"]).is_file()
 
 
 def test_find_bad_regex_exits_two(capsys):

@@ -1,26 +1,55 @@
 import importlib
 import json
 import math
+import os
 import re
 from pathlib import Path
 
-from callrouter import calls
-from callrouter.log import home
+from toolrouter import calls
+from toolrouter.log import home
 
-SEEDS = ["replace", "json_get", "json_set", "img", "find", "engines"]
+CATALOG = Path(__file__).with_name("catalog.json")
+SEEDS = ["replace", "json_get", "json_set", "img", "find", "engines", "web"]
 NAME = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 MIN_CALLS = 5
 PURITY = {"read", "write", "external", "destructive"}
+MODES = ("learn", "auto")
 
 
 def user_dir():
     return home() / "recipes"
 
 
+def mode():
+    """learn: seeds and approved recipes only. auto: also the catalogue, PATH CLIs and the MCP registry."""
+    env = os.environ.get("TOOLROUTER_MODE")
+    if env in MODES:
+        return env
+    try:
+        return json.loads((home() / "config.json").read_text(encoding="utf-8")).get("mode", "learn")
+    except (OSError, ValueError):
+        return "learn"
+
+
+def set_mode(m):
+    if m not in MODES:
+        raise ValueError(f"mode is learn or auto, not {m!r}")
+    path = home() / "config.json"
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cfg = {}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({**cfg, "mode": m}, indent=1), encoding="utf-8")
+
+
 def seed_recipes():
     out = {}
+    if mode() == "auto" and CATALOG.is_file():
+        for r in json.loads(CATALOG.read_text(encoding="utf-8")):
+            out[r["name"]] = {**r, "kind": "shell", "source": "catalog"}
     for mod in SEEDS:
-        m = importlib.import_module(f"callrouter.recipes.{mod}")
+        m = importlib.import_module(f"toolrouter.recipes.{mod}")
         for r in getattr(m, "RECIPES", None) or [m.RECIPE]:
             kind = "engine" if "engine" in r else "python"
             out[r["name"]] = {**r, "kind": kind, "body": m.__name__, "source": "seed"}
@@ -59,6 +88,8 @@ def save(name, body, summary=None, kind="shell", purity="read", source="saved", 
         path.replace(arch / f"{name}@{n}.json")
     text = "\n".join(body) if isinstance(body, list) else body
     placeholders = sorted(set(re.findall(r"\{(\d)\}", text)))
+    if "0" in placeholders:
+        raise ValueError("placeholders start at {1}; {0} is not allowed")
     recipe = {"name": name, "summary": summary or calls.shape(text), "args": [f"arg{p}" for p in placeholders],
               "kind": kind, "body": body, "purity": purity, "source": source}
     if example:

@@ -9,7 +9,7 @@ IMAGE_TOKENS = 1500
 CAPS = (400, 800, 2000, 4000)
 BIG_READ_TOKENS = 10_000  # about 40 KB at four bytes per token
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
-OUT_DIR = Path.home() / ".callrouter"
+OUT_DIR = Path.home() / ".toolrouter"
 
 
 def result_cost(content):
@@ -122,7 +122,7 @@ def report(s, n_files):
 
 
 def main(argv=None, how="human"):
-    ap = argparse.ArgumentParser(prog="callrouter")
+    ap = argparse.ArgumentParser(prog="toolrouter")
     sub = ap.add_subparsers(dest="cmd", required=True)
     ing = sub.add_parser("ingest", help="measure where tool-result tokens go")
     ing.add_argument("--root", default=str(DEFAULT_ROOT))
@@ -139,8 +139,8 @@ def main(argv=None, how="human"):
         out.write_text(json.dumps({"since": args.since, "transcripts": n_files, **s}, indent=1),
                        encoding="utf-8")
     if how == "json":
-        print(json.dumps({"ok": True, "lane": "ingest", "transcripts": n_files,
-                          "saved": out.as_posix() if out else None, **s}))
+        print(json.dumps({"ok": True, "exit": 0, "out": {"transcripts": n_files,
+                          "saved": out.as_posix() if out else None, **s}}))
         return
     report(s, n_files)
     if out:

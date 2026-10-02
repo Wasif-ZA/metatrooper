@@ -10,9 +10,17 @@ JSON_ITEMS = 3
 JSON_DEPTH = 2
 JSON_STR = 80
 
+ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]")
+
 ERROR_LINE = re.compile(
     r"(?i)(traceback|command not found|no such file|(?:^|\s)fatal:|(?:^|\s)error[: ]|"
     r"exception|failed|exit code [1-9])")
+
+
+def clean(text):
+    """Drop colour codes and keep only the last redraw of each progress-bar line."""
+    text = ANSI.sub("", text).replace("\r\n", "\n")
+    return "\n".join(ln.rstrip("\r").rsplit("\r", 1)[-1] for ln in text.split("\n"))
 
 
 def clip(line):
@@ -32,7 +40,8 @@ def errors(lines):
 def json_shape(v, depth=0):
     if isinstance(v, dict):
         if depth >= JSON_DEPTH:
-            return f"{{{len(v)} keys}}"
+            names = list(v)[:12]
+            return "{" + ",".join(map(str, names)) + (f",+{len(v) - 12}" if len(v) > 12 else "") + "}"
         items = list(v.items())
         shaped = {k: json_shape(x, depth + 1) for k, x in items[:JSON_KEYS]}
         if len(items) > JSON_KEYS:
