@@ -10,7 +10,7 @@ export interface Handback {
   command: string;
 }
 
-const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base']);
+const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse']);
 
 export function gitIn(cwd: string): Git {
   return (args) => {

@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { execFileSync } from 'node:child_process';
 import { nowIso, ulid } from '../time.ts';
 import { nextState } from './state.ts';
 import { noteTranscript } from '../meter.ts';
@@ -33,6 +34,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
+  const turnStarts: string[] = [];
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const ev of rows) {
@@ -53,6 +55,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           setState.run(next, nowIso(), ev.session_id);
           if (next === 'exited') setEnded.run(nowIso(), ev.session_id);
           if (next === 'done') note('done', ev.session_id, s.engine_id, 'finished');
+          if (next === 'working') turnStarts.push(ev.session_id);
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
       }
@@ -63,5 +66,17 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     db.exec('ROLLBACK');
     throw e;
   }
+  for (const id of new Set(turnStarts)) markTurnBase(db, id);
   return rows.length;
+}
+
+/** Records what the session's folder looked like when a turn started, so the Diff tab can show only that turn. */
+export function markTurnBase(db: DatabaseSync, sessionId: string): void {
+  const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;
+  if (!row?.cwd) return;
+  const git = (args: string[]) => execFileSync('git', args, { cwd: row.cwd!, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: 5000 }).trim();
+  try {
+    const base = git(['stash', 'create']) || git(['rev-parse', 'HEAD']);
+    db.prepare('UPDATE session SET turn_base = ? WHERE id = ?').run(base, sessionId);
+  } catch {}
 }

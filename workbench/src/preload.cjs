@@ -27,8 +27,8 @@ contextBridge.exposeInMainWorld('troop', {
     return () => ipcRenderer.removeListener('comment-picked', listener);
   },
   termAttach: (sessionId, cols, rows) => ipcRenderer.invoke('termAttach', sessionId, cols, rows),
-  sessionDiff: (sessionId) => ipcRenderer.invoke('sessionDiff', sessionId),
-  sessionDiffFile: (sessionId, file) => ipcRenderer.invoke('sessionDiffFile', sessionId, file),
+  sessionDiff: (sessionId, scope) => ipcRenderer.invoke('sessionDiff', sessionId, scope),
+  sessionDiffFile: (sessionId, file, scope) => ipcRenderer.invoke('sessionDiffFile', sessionId, file, scope),
   filePaths: (files) => Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean),
   stepPane: (runId, stepId) => ipcRenderer.invoke('stepPane', runId, stepId),
   uiSettings: () => ipcRenderer.invoke('uiSettings'),

@@ -373,11 +373,26 @@ function handlers(): void {
     const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined) : undefined;
     return row?.cwd ?? null;
   };
-  on('sessionDiff', (sessionId: unknown) => {
+  /** The commit the Diff tab compares against: the turn's start, HEAD, or where the branch left the default branch. */
+  const diffBase = (sessionId: unknown, scope: unknown, cwd: string): string => {
+    const g = gitIn(cwd);
+    if (scope === 'turn') {
+      const d = db();
+      const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT turn_base FROM session WHERE id = ?').get(sessionId) as { turn_base: string | null } | undefined) : undefined;
+      if (row?.turn_base) return row.turn_base;
+    }
+    if (scope === 'branch') {
+      for (const ref of ['origin/HEAD', 'origin/main', 'main', 'origin/master', 'master']) {
+        try { return g(['merge-base', 'HEAD', ref]).trim(); } catch {}
+      }
+    }
+    return 'HEAD';
+  };
+  on('sessionDiff', (sessionId: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
-      const files = gitIn(cwd)(['diff', 'HEAD', '--numstat']).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
+      const files = gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--numstat']).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
         const [a, r, ...name] = l.split(String.fromCharCode(9));
         return { path: name.join(String.fromCharCode(9)), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
       });
@@ -387,10 +402,10 @@ function handlers(): void {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
-  on('sessionDiffFile', (sessionId: unknown, file: unknown) => {
+  on('sessionDiffFile', (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd || typeof file !== 'string') return null;
-    try { return gitIn(cwd)(['diff', 'HEAD', '--', file]); } catch { return null; }
+    try { return gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
   });
 
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);

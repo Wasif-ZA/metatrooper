@@ -25,7 +25,7 @@ GitHub; filing and pushing are Wasif's.
 | #35 status | CODE DONE, TESTS OWED | inbox, done/failed rows, read/unread, toast, Clear status, Resume; checked by script and in the real window |
 | #36 tools | CODE DONE, TESTS OWED | engine setup on first launch, shell tabs from settings, pipelines in Ctrl+K, drop files on a terminal |
 | #37 step list | CODE DONE, TESTS OWED | step list (e74a9d8) and editor restyle: collapsed rows, one open form, drag to reorder, JSON view and validation kept |
-| #38 panes | CODE DONE, TESTS OWED | four panes, run.item-set, fixtures. Not built: D15's Diff toggle between last turn and whole branch (the Diff tab shows uncommitted changes against HEAD); the visual half of the widened Diff is the Browser tab's Before/After compare |
+| #38 panes | CODE DONE, TESTS OWED | four panes, run.item-set, fixtures. D15 Diff toggle built: Last turn (git stash create at each turn start, stored as session.turn_base; your stash list is untouched), Uncommitted, Whole branch (merge-base with origin/HEAD, main or master); checked by scratch turn-check.ts. The visual half of the widened Diff is the Browser tab's Before/After compare |
 
 ## Click counts (today, before #34)
 

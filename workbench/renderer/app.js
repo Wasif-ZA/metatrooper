@@ -11,6 +11,7 @@ const ui = {
   projectId: load('projectId'),
   tab: ['diff', 'handback', 'browser', 'runs', 'pipelines'].includes(load('tab')) ? load('tab') : 'diff',
   paneCache: {},
+  diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
   split: load('split') !== '0',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
   localSel: null,
@@ -708,28 +709,31 @@ function renderTabs() {
 }
 
 function loadSessionDiff(sel) {
-  if (!sel || (ui.sdiff && ui.sdiff.session === sel.id && ui.sdiff.at > Date.now() - (ui.look ? ui.look.terminal.git_every_ms : 10000))) return;
-  ui.sdiff = { session: sel.id, at: Date.now(), data: ui.sdiff && ui.sdiff.session === sel.id ? ui.sdiff.data : null };
-  void api.sessionDiff(sel.id).then((data) => { if (ui.sdiff && ui.sdiff.session === sel.id) { ui.sdiff.data = data; render(); } });
+  const key = `${sel ? sel.id : ''}:${ui.diffScope}`;
+  if (!sel || (ui.sdiff && ui.sdiff.key === key && ui.sdiff.at > Date.now() - (ui.look ? ui.look.terminal.git_every_ms : 10000))) return;
+  ui.sdiff = { key, session: sel.id, at: Date.now(), data: ui.sdiff && ui.sdiff.key === key ? ui.sdiff.data : null };
+  void api.sessionDiff(sel.id, ui.diffScope).then((data) => { if (ui.sdiff && ui.sdiff.key === key) { ui.sdiff.data = data; render(); } });
 }
 
 function renderDiffTab(sel) {
   if (!sel) return '<p class="empty">Pick an agent to see what it changed.</p>';
   loadSessionDiff(sel);
   const d = ui.sdiff && ui.sdiff.data;
-  if (!d) return '<p class="empty">Loading.</p>';
-  if (d.error) return `<p class="empty">${esc(d.error)}</p>`;
-  if (!d.files.length && !d.untracked.length) return '<p class="empty">No uncommitted changes in this agent\'s folder.</p>';
+  const scopes = [['turn', 'Last turn'], ['uncommitted', 'Uncommitted'], ['branch', 'Whole branch']];
+  const bar = `<div class="toolbar">${scopes.map(([id, label]) => `<button class="chip ${ui.diffScope === id ? 'on' : ''}" data-action="diff-scope" data-scope="${id}">${label}</button>`).join('')}</div>`;
+  if (!d) return `${bar}<p class="empty">Loading.</p>`;
+  if (d.error) return `${bar}<p class="empty">${esc(d.error)}</p>`;
+  if (!d.files.length && !d.untracked.length) return `${bar}<p class="empty">No changes ${ui.diffScope === 'turn' ? 'in the last turn' : ui.diffScope === 'branch' ? 'on this branch' : 'since the last commit'}.</p>`;
   if (!ui.sdFile || !d.files.some((f) => f.path === ui.sdFile)) ui.sdFile = d.files[0] ? d.files[0].path : null;
-  const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}`;
+  const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}:${ui.diffScope}`;
   if (ui.sdFile && ui.sdKey !== want) {
     ui.sdKey = want;
     const file = ui.sdFile;
-    void api.sessionDiffFile(sel.id, file).then((text) => { if (ui.sdFile === file) { ui.hbFile = file; ui.hbDiff = text; render(); } });
+    void api.sessionDiffFile(sel.id, file, ui.diffScope).then((text) => { if (ui.sdFile === file) { ui.hbFile = file; ui.hbDiff = text; render(); } });
   }
   const chips = d.files.map((f) => `<button class="chip ${ui.sdFile === f.path ? 'on' : ''}" data-action="sd-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added ?? '?'} -${f.deleted ?? '?'}</span></button>`).join('');
   ui.hbFile = ui.sdFile;
-  return `<div class="toolbar">${chips}</div>${ui.sdFile ? renderDiff() : ''}${d.untracked.length ? `<h3>New files not yet added</h3><ul>${d.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}`;
+  return `${bar}<div class="toolbar">${chips}</div>${ui.sdFile ? renderDiff() : ''}${d.untracked.length ? `<h3>New files not yet added</h3><ul>${d.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}`;
 }
 
 function renderStrip(sel) {
@@ -1096,6 +1100,12 @@ async function onClick(e) {
       if (!r.error) { delete (ui.paneCache || {})[`${el.dataset.run}:${el.dataset.step}`]; render(); }
       return;
     }
+    case 'diff-scope':
+      ui.diffScope = el.dataset.scope;
+      save('diffScope', ui.diffScope);
+      ui.sdFile = null;
+      render();
+      return;
     case 'sd-file':
       ui.sdFile = el.dataset.file;
       ui.hbDiff = undefined;

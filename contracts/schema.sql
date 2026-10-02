@@ -57,6 +57,7 @@ CREATE TABLE session (
   cwd           TEXT,                          -- folder the pty started in
   title         TEXT,                          -- last terminal title the engine set (term.title)
   last_line     TEXT,                          -- last non-empty terminal row, first 200 characters, at most once a second
+  turn_base     TEXT,                          -- git stash-create commit (or HEAD) of cwd when the current turn started
   hidden        INTEGER NOT NULL DEFAULT 0,
   started_at    TEXT NOT NULL,
   ended_at      TEXT
