@@ -30,11 +30,11 @@
 
 <br>
 
-# metarouter is the tool memory your coding agent is missing.
+# metarouter routes every tool call your agent makes through what already worked.
 
 Open-source glue between coding agents and the tools they call.
 
-**If your agent is the _cook_, metarouter is the _recipe book_.**
+**If your agent is the _driver_, metarouter is the _GPS_: it knows the route, and it knows the potholes.**
 
 Your agent keeps rewriting the same commands, hitting the same traps, and reading 5,000 lines
 to find one error. metarouter remembers the commands that worked, attaches the fix it knows,
