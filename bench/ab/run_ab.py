@@ -76,6 +76,18 @@ def extract_last_token_usage(stdout_text):
     return last_tokens
 
 
+def last_error(stdout_text):
+    error = None
+    for line in stdout_text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("type") == "turn.failed":
+            error = (event.get("error") or {}).get("message")
+    return error
+
+
 def get_total_tokens(tokens):
     if not tokens:
         return None
@@ -254,6 +266,9 @@ def run_evaluation(task_names, tasks_dir, arms, out_path):
                     "seconds": round(elapsed, 2),
                     "exit": exit_code,
                 }
+                error = last_error(stdout_text)
+                if error:
+                    row["error"] = error
                 results.append(row)
 
                 with open(out_file, "a", encoding="utf-8") as f:
