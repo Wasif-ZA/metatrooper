@@ -1,6 +1,6 @@
 {
   "name": "pytest",
-  "match_command": "pytest",
+  "match_command": "(?:^|[;&|]\\s*)(?:\\S*python\\S*\\s+-m\\s+|uv run\\s+|\\S*[/\\\\])?pytest\\b",
   "strip_lines_matching": [
     "\\[\\s*\\d+%\\]"
   ],

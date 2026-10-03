@@ -29,7 +29,11 @@ def invoke(capsys, *args):
     exit_code = cli.main(["--json", *(str(arg) for arg in args)])
     captured = capsys.readouterr()
     assert captured.err == ""
-    return exit_code, json.loads(captured.out)
+    try:
+        result = json.loads(captured.out)
+    except json.JSONDecodeError:
+        result = {"out": captured.out.rstrip("\n"), "whole": True}
+    return exit_code, result
 
 
 def test_replace_literal_count_limits_changes_and_reports_count(tmp_path, capsys):
@@ -349,7 +353,7 @@ def test_find_counts_files_and_matches_while_skipping_dirs_and_binary(capsys):
         path.mkdir()
         (path / "hidden.txt").write_text("needle\n", encoding="utf-8")
 
-    exit_code, result = invoke(capsys, "run", "find", "needle", ".")
+    exit_code, result = invoke(capsys, "run", "find", "needle", ".", "--lines", "3")
 
     assert exit_code == 0
     assert result["out"] == {
@@ -362,13 +366,22 @@ def test_find_counts_files_and_matches_while_skipping_dirs_and_binary(capsys):
     assert "log" not in result
 
 
+def test_find_defaults_to_one_matching_line_per_file(capsys):
+    Path("many.txt").write_text("needle one\nneedle two\nneedle three\n", encoding="utf-8")
+
+    exit_code, result = invoke(capsys, "run", "find", "needle", ".")
+
+    assert exit_code == 0
+    assert result["out"]["files"]["many.txt"] == ["1: needle one", "+2 more"]
+
+
 def test_find_glob_and_ignore_case(capsys):
     Path("one.py").write_text("Needle\nNEEDLE\n", encoding="utf-8")
     Path("two.txt").write_text("needle\n", encoding="utf-8")
     Path("three.py").write_text("nothing\n", encoding="utf-8")
 
     exit_code, result = invoke(
-        capsys, "run", "find", "needle", ".", "--glob", "*.py", "-i"
+        capsys, "run", "find", "needle", ".", "--glob", "*.py", "-i", "--lines", "3"
     )
 
     assert exit_code == 0

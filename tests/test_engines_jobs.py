@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 import os
 import threading
@@ -32,7 +33,7 @@ def invoke(capsys, *args):
     exit_code = cli.main(["--json", *(str(arg) for arg in args)])
     captured = capsys.readouterr()
     assert captured.err == ""
-    return exit_code, json.loads(captured.out)
+    return exit_code, agent_result(captured.out)
 
 
 def write_fake_vault(tmp_path, monkeypatch, *, local_body=None, agy_body=None):

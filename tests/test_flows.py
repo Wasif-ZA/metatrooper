@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def invoke(capsys, *args):
     exit_code = cli.main(["--json", *(str(arg) for arg in args)])
     captured = capsys.readouterr()
     assert captured.err == ""
-    return exit_code, json.loads(captured.out)
+    return exit_code, agent_result(captured.out)
 
 
 def force_check_temp_under(tmp_path, monkeypatch):

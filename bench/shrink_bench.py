@@ -17,9 +17,10 @@ from headroom_bench import load_corpus, needles, survived, tok  # noqa: E402
 from metarouter.shrink import clean, shrink  # noqa: E402
 
 
-def seen_by_agent(text):
-    s = shrink(clean(text))
-    return "\n".join([s["out"] or "", *s["errors"], *s["tail"]])
+def seen_by_agent(text, failed):
+    s = shrink(clean(text), failed=failed)
+    out = s["out"] if isinstance(s["out"], str) or s["out"] is None else json.dumps(s["out"], ensure_ascii=False)
+    return "\n".join([out or "", *s["errors"], *s["tail"]])
 
 
 def main():
@@ -33,7 +34,7 @@ def main():
     by_kind = {}
     for r in corpus:
         orig = r["output"]
-        shown = seen_by_agent(orig)
+        shown = seen_by_agent(orig, r["failed"])
         orig_tok += tok(orig)
         out_tok += tok(shown)
         for kind, n in needles(orig):

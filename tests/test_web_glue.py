@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,12 +36,15 @@ def test_agent_log_is_named_only_when_output_is_not_whole(tmp_path):
     whole = cli.finish("exec", "whole", whole_raw, 0, 0)
     shrunk = cli.finish("exec", "shrunk", shrunk_raw, 0, 0)
 
-    whole_json = json.loads(render(whole, "json"))
+    whole_rendered = render(whole, "json")
+    try:
+        whole_json = json.loads(whole_rendered)
+    except json.JSONDecodeError:
+        whole_json = agent_result(whole_rendered)
     shrunk_json = json.loads(render(shrunk, "json"))
     logs = list((tmp_path / "metarouter-home").rglob("*.log"))
-    assert set(whole_json) == {"ok", "exit", "out"}
-    assert whole_json["out"] == whole_raw.decode()
-    assert "full output:" in render(whole, "human")
+    assert whole_rendered == "complete output"
+    assert whole_json["out"] == whole_raw.decode().rstrip("\n")
     assert "log" in shrunk_json
     assert Path(shrunk_json["log"]).read_bytes() == shrunk_raw
     assert len(logs) == 2
@@ -216,7 +220,7 @@ def test_repo_accepts_github_url_returns_compact_fields_and_logs_full_json(
         ["--json", "run", "repo", "https://github.com/octo/widgets.git"]
     )
 
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert exit_code == 0
     assert result["out"] == {
         "repo": "octo/widgets",

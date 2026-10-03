@@ -35,6 +35,9 @@ VERBS = {
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
+COMPACT_LIMIT = 4000
+SEARCH_HITS = 3
+LIST_ROWS = 10
 STALE_DAYS = 60
 HELP_LINES = 60
 EXE_EXT = {".exe", ".cmd", ".bat"} if os.name == "nt" else {""}
@@ -117,21 +120,32 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
     try:
         path = log.write(log_label or calls.shape(label), raw)
     except OSError as e:
-        return Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, out=compact or text,
-                      cmd=shown, recipe=recipe, note=f"log not written ({e}); output shown whole")
+        r = Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, cmd=shown, recipe=recipe,
+                   lines=len(text.splitlines()), bytes=len(raw), note=f"log not written ({e}); rerun with exec --no-trunc for all of it")
+        if compact is not None:
+            flat = compact if isinstance(compact, str) else json.dumps(compact, ensure_ascii=False)
+            r.out = compact if len(flat) <= OUT_LIMIT else shrink.budget(flat)
+            return r
+        try:
+            for k, v in shrink.shrink(text, failed=exit_code != 0).items():
+                setattr(r, k, v)
+        except Exception:
+            r.out = shrink.budget(text)
+        return r
     r = Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, lines=len(text.splitlines()),
                bytes=len(raw), log=path.as_posix(), cmd=shown, recipe=recipe)
     filter_match = filters.match(label) if exit_code == 0 and (lane == "exec" or is_shell) else None
     if compact is not None:
         flat = compact if isinstance(compact, str) else json.dumps(compact, ensure_ascii=False)
-        if len(flat) <= OUT_LIMIT:
+        limit = OUT_LIMIT if whole else COMPACT_LIMIT
+        if len(flat) <= limit:
             r.out = compact
         elif isinstance(compact, str):
-            r.out = flat[:OUT_LIMIT] + "\n... (cut, full output in the log)"
+            r.out = shrink.budget(flat, limit - shrink.TAIL_CHARS, shrink.TAIL_CHARS)
         else:
             r.out = shrink.json_shape(compact)
             r.note = "too big to print whole: this is its shape. Narrow it with a path, or read the log"
-        r.whole = len(flat) <= OUT_LIMIT and (whole or flat.strip() == text.strip())
+        r.whole = len(flat) <= limit and (whole or flat.strip() == text.strip())
     elif want is not None:
         try:
             for k, v in shrink.shrink(text, failed=exit_code != 0).items():
@@ -139,18 +153,17 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
             matched = shrink.want(text, want)
             if matched is not None:
                 r.out = matched
+                r.errors = [e for e in r.errors if e not in matched]
+                r.tail = [t for t in r.tail if t not in matched]
             else:
                 r.out = f"no part of the output matched: {want} ({r.lines} lines; full output in the log)"
             r.whole = False
         except Exception as e:
-            r.out, r.errors, r.tail = text, [], []
-            r.note = f"shrinker failed ({type(e).__name__}); output shown whole"
+            r.out, r.errors, r.tail = shrink.budget(text), [], []
+            r.note = f"shrinker failed ({type(e).__name__}); head and tail shown"
     elif filter_match is not None:
-        filtered = filters.apply(filter_match, text)
-        if len(filtered) <= OUT_LIMIT:
-            r.out = filtered
-        else:
-            r.out = filtered[:OUT_LIMIT] + "\n... (cut, full output in the log)"
+        filtered = "\n".join(shrink.clip(ln) for ln in filters.apply(filter_match, text).splitlines())
+        r.out = shrink.budget(filtered, COMPACT_LIMIT - shrink.TAIL_CHARS, shrink.TAIL_CHARS)
         r.note = f"filtered by {filter_match['name']}; full output in the log"
         r.whole = False
     else:
@@ -159,8 +172,8 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
                 setattr(r, k, v)
             r.whole = r.out == text
         except Exception as e:
-            r.out, r.errors, r.tail = text, [], []
-            r.note = f"shrinker failed ({type(e).__name__}); output shown whole"
+            r.out, r.errors, r.tail = shrink.budget(text), [], []
+            r.note = f"shrinker failed ({type(e).__name__}); head and tail shown"
     r.rec = calls.record(lane, label, r.exit, secs, r.bytes, path, recipe=recipe)
     try:
         r.hint = hints.match(label, text, failed=exit_code != 0)
@@ -187,10 +200,11 @@ def exec_lane(args):
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
                       note=f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash path")
     if whole:
-        return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")))
+        return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
+                      whole=True)
     r = finish("exec", cmd, raw, code, secs, want=want)
     if not r.whole and not r.note:
-        r.note = "shrunk. To read it whole: exec --no-trunc -- <command>"
+        r.note = "shrunk; --no-trunc for all"
     return r
 
 
@@ -345,14 +359,18 @@ def search_lane(args):
         return Result(ok=False, lane="search", exit=1,
                       note=f'no recipe matches "{" ".join(args)}". Save one: metarouter add <name> -- "<command>"')
     lines = []
-    for n, c in found[:5]:
+    for i, (n, c) in enumerate(found[:SEARCH_HITS]):
         r = recipes[n]
         used = f"  ({c} call{'s' if c != 1 else ''} here)" if c else ""
-        lines.append(f"metarouter run {store.signature(r)}\n    {r.get('summary', '')}{used}")
+        lines.append(f"metarouter run {store.signature(r)}  {r.get('summary', '')}{used}")
         ex = r.get("example", {}).get("args")
-        if ex:
+        if ex and i == 0:
             lines.append(f"    e.g. metarouter run {n} {shlex.join(ex)}")
-    return Result(ok=True, lane="search", out="\n".join(lines + extra))
+    more = max(0, len(found) - SEARCH_HITS) + max(0, len(extra) - SEARCH_HITS)
+    out = lines + extra[:SEARCH_HITS]
+    if more > 0:
+        out.append(f"+{more} more: add words to narrow")
+    return Result(ok=True, lane="search", out="\n".join(out))
 
 
 def path_bins():
@@ -463,6 +481,21 @@ def add_lane(args):
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
     return Result(ok=True, lane="add", recipe=name, out=f"saved. Run it: metarouter run {store.signature(r)}")
+
+
+def compact_schema(tool):
+    def strip(v):
+        if isinstance(v, dict):
+            return {k: strip(x) for k, x in v.items()
+                    if k not in ("title", "$schema", "additionalProperties") or isinstance(x, dict)}
+        if isinstance(v, list):
+            return [strip(x) for x in v]
+        return v
+    return strip(tool)
+
+
+def capped(rows, more_cmd, n=LIST_ROWS):
+    return rows if len(rows) <= n else rows[:n] + [f"+{len(rows) - n} more: {more_cmd}"]
 
 
 def list_lane(args):
@@ -662,7 +695,7 @@ def tools_lane(args):
             try:
                 for t in mcp.list_tools(server):
                     if t["name"] == name or f"{server}.{t['name']}" == name:
-                        return Result(ok=True, lane="tools", out={"server": server, **t})
+                        return Result(ok=True, lane="tools", out={"server": server, **compact_schema(t)})
             except Exception:
                 continue
         exe = shutil.which(name)
@@ -692,7 +725,8 @@ def tools_lane(args):
                       sorted(bins.items(), key=lambda x: (-x[1][0], -x[1][1]))[:30]]
     for server in sorted(mcp.servers()):
         try:
-            out[f"mcp:{server}"] = [mcp.one_line(t) for t in mcp.list_tools(server)]
+            out[f"mcp:{server}"] = capped([mcp.one_line(t) for t in mcp.list_tools(server)],
+                                          f"metarouter mcp {server}")
         except Exception as e:
             out[f"mcp:{server}"] = f"unavailable: {type(e).__name__}: {e}"
     if not out:
@@ -775,7 +809,7 @@ def main(argv=None):
     if r.rec:
         log_call({**r.rec, "shown_bytes": len(out.encode("utf-8"))})
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="\n")
     except (AttributeError, ValueError):
         pass
     print(out)

@@ -119,6 +119,18 @@ def test_tools_one_liner_marks_optional_arguments_with_question_mark(
     ]
 
 
+def test_tools_no_args_caps_each_server_at_ten_rows(tmp_path, monkeypatch, capsys):
+    script = write_fake_mcp_server(tmp_path)
+    write_servers(monkeypatch, script, {f"server-{i:02d}": "normal" for i in range(12)})
+
+    exit_code, result = invoke(capsys, "tools")
+
+    assert exit_code == 0
+    assert set(result["out"]) == {f"mcp:server-{i:02d}" for i in range(12)}
+    for rows in result["out"].values():
+        assert len(rows) == 2
+
+
 def test_tools_call_returns_json_text_content_as_an_object(
     tmp_path, monkeypatch, capsys
 ):
@@ -139,6 +151,22 @@ def test_tools_call_returns_json_text_content_as_an_object(
         "source": "fake-server",
     }
     assert isinstance(result["out"], dict)
+
+
+def test_tool_schema_removes_schema_metadata_but_preserves_property_named_title(tmp_path, monkeypatch, capsys):
+    script = write_fake_mcp_server(tmp_path)
+    content = script.read_text(encoding="utf-8")
+    content = content.replace('"required": {"type": "string"},', '"required": {"type": "string"},\n                "title": {"type": "string", "title": "Property title"},')
+    content = content.replace('"type": "object",\n            "properties":', '"type": "object", "title": "Schema title", "$schema": "schema-url", "additionalProperties": False,\n            "properties":', 1)
+    script.write_text(content, encoding="utf-8")
+    write_servers(monkeypatch, script, {"fake": "normal"})
+
+    exit_code, result = invoke(capsys, "tools", "echo")
+
+    assert exit_code == 0
+    schema = result["out"]["inputSchema"]
+    assert "title" in schema["properties"]
+    assert "title" not in schema and "$schema" not in schema and "additionalProperties" not in schema
 
 
 def test_mcp_is_error_result_exits_one(tmp_path, monkeypatch, capsys):

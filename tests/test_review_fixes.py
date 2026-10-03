@@ -21,6 +21,7 @@ import metarouter.calls
 from metarouter import calls, cli, ingest, jobs, log, snapshot
 import metarouter.log
 from metarouter.recipes import find, web
+from metarouter import filters
 import metarouter.snapshot
 from metarouter.result import Result, render
 
@@ -97,6 +98,21 @@ def test_find_line_length_whole_flag(tmp_path):
 
     res201 = find.run(["needle", str(d201)])
     assert res201["whole"] is False
+
+
+@pytest.mark.parametrize("command", [
+    "pytest -q", "python -m pytest tests", "cd x && pytest", "uv run pytest",
+    ".venv/bin/pytest -q",
+])
+def test_pytest_filter_matches_test_commands(command):
+    assert filters.match(command)["name"] == "pytest"
+
+
+@pytest.mark.parametrize("command", [
+    "grep pytest", "cat pytest.ini",
+])
+def test_pytest_filter_rejects_incidental_pytest_text(command):
+    assert filters.match(command) is None
 
 
 def test_web_repo_null_pushed_at(monkeypatch):

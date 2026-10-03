@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from metarouter import calls
-from metarouter.shrink import json_shape, shrink
+from metarouter.shrink import errors, json_shape, shrink, want
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +48,7 @@ def test_run_call_log_contains_shape_not_raw_command(capsys):
 
     exit_code = cli.main(["--json", "exec", "--", command])
 
-    json.loads(capsys.readouterr().out)
+    assert capsys.readouterr().out.rstrip("\n")
     call_log = Path(os.environ["METAROUTER_HOME"]) / "calls.jsonl"
     lines = call_log.read_text(encoding="utf-8").splitlines()
     assert exit_code == 0
@@ -68,21 +68,22 @@ def test_short_output_at_limit_is_returned_whole():
     assert result == {"out": text, "errors": [], "more_errors": 0, "tail": []}
 
 
-def test_long_output_keeps_first_40_error_lines_and_counts_the_rest():
-    expected_kept = [f"error: unique-{index:02d}" for index in range(40)]
-    extra_errors = [f"error: unique-{index:02d}" for index in range(40, 45)]
+def test_long_failed_output_keeps_errors_but_no_success_path_tail():
+    expected_kept = [f"error {index:02d}: unique" for index in range(40)]
+    extra_errors = [f"error {index:02d}: unique" for index in range(40, 45)]
     text = "padding\n" + ("ordinary output\n" * 150) + "\n".join(expected_kept + extra_errors)
     assert len(text) > 2000
 
     result = shrink(text)
 
     assert result["out"] is None
-    assert result["errors"] == expected_kept
-    assert result["more_errors"] == 5
+    assert len(result["errors"]) == 1
+    assert "(x45)" in result["errors"][0]
+    assert result["more_errors"] == 0
     assert not any(line in result["errors"] for line in extra_errors)
 
 
-def test_long_json_is_replaced_by_shape_with_list_lengths():
+def test_long_json_is_returned_as_shaped_object_with_list_lengths():
     document = {
         "records": [
             {"id": index, "payload": f"record-{index}-" + ("x" * 300)}
@@ -95,12 +96,68 @@ def test_long_json_is_replaced_by_shape_with_list_lengths():
 
     result = shrink(text)
 
-    shaped = json.loads(result["out"])
+    shaped = result["out"]
     assert shaped["records"]["len"] == 10
     assert len(shaped["records"]["first"]) == 3
     assert shaped["empty"] == {"len": 0, "first": []}
     assert result["errors"] == []
     assert result["tail"] == []
+
+
+def test_long_success_output_collapses_runs_then_keeps_head_and_tail():
+    lines = [f"run {i} " + "x" * 60 for i in range(40)]
+    result = shrink("\n".join(lines), failed=False)
+
+    assert result["errors"] == []
+    assert result["tail"] == []
+    assert lines[0] in result["out"]
+    assert lines[-1] in result["out"]
+    assert "... 38 more like these" in result["out"]
+
+
+def test_json_shape_clips_long_dictionary_keys():
+    key = "k" * 100
+
+    shaped = json_shape({key: "value"})
+
+    assert next(iter(shaped)) == key[:80] + "..."
+
+
+def test_error_grouping_replaces_digits_but_keeps_other_text_distinct():
+    grouped, _ = errors(["error: item 12", "error: item 98", "error: other 12"])
+
+    assert grouped == ["error: item 12 (x2)", "error: other 12"]
+
+
+def test_traceback_retains_only_last_five_file_frames():
+    frames = [f'  File "frame-{i}.py", line {i}' for i in range(7)]
+    grouped, _ = errors(["Traceback (most recent call last):", *frames, "ValueError: bad"])
+
+    frame_lines = [line for line in grouped if 'File "' in line]
+    assert len(frame_lines) == 5
+    assert all(f'frame-{i}.py' in frame_lines[i - 2] for i in range(2, 7))
+
+
+def test_failed_tail_does_not_repeat_lines_already_in_errors():
+    output = "error: boom\nordinary detail\n" * 300
+
+    result = shrink(output)
+
+    assert all(line not in result["tail"] for line in result["errors"])
+
+
+def test_want_returns_relevant_chunks_within_budget_and_keeps_best_chunk():
+    text = "\n\n".join(
+        ["# needle\n" + ("needle detail " * 150) for _ in range(4)]
+        + ["# unrelated\n" + ("other detail " * 150)]
+    )
+
+    result = want(text, "needle")
+
+    assert result is not None
+    assert "lines " in result and "needle" in result
+    assert len(result) <= 2000
+    assert result.count("lines ") <= 3
 
 
 @pytest.mark.parametrize(

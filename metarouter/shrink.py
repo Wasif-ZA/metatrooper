@@ -4,15 +4,21 @@ import re
 SHORT = 2000
 CLIP = 300
 TAIL = 3
-HEAD = 40
-OK_TAIL = 10
+HEAD_CHARS = 1200
+TAIL_CHARS = 400
 MAX_ERRORS = 40
+FRAMES = 5
+WANT_CHARS = 1600
 JSON_KEYS = 30
 JSON_ITEMS = 3
 JSON_DEPTH = 2
 JSON_STR = 80
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]")
+
+SHAPE = re.compile(r"'[^']*'|\"[^\"]*\"|\S*[/\\]\S*|\d+")
+
+DIGITS = re.compile(r"\d+")
 
 ERROR_LINE = re.compile(
     r"(?i)(traceback|command not found|no such file|(?:^|\s)fatal:|(?:^|\s)error[: ]|"
@@ -29,14 +35,76 @@ def clip(line):
     return line if len(line) <= CLIP else line[:CLIP] + "..."
 
 
-def errors(lines):
-    counts = {}
+def shape(line):
+    return SHAPE.sub("_", line.strip())
+
+
+def collapse(lines):
+    """Shorten each run of lines that differ only in paths, quotes or numbers to its first line, a count and its last line."""
+    out, run = [], []
+
+    def flush():
+        if len(run) > 3:
+            out.extend([run[0], f"  ... {len(run) - 2} more like these", run[-1]])
+        else:
+            out.extend(run)
+
     for ln in lines:
+        if run and shape(ln) and shape(ln) == shape(run[0]):
+            run.append(ln)
+            continue
+        flush()
+        run = [ln]
+    flush()
+    return out
+
+
+def errors(lines):
+    counts, first = {}, {}
+    frames = []
+    in_trace = False
+    for ln in lines:
+        if ln.startswith("Traceback"):
+            in_trace, frames = True, []
+        elif in_trace and ln.lstrip().startswith('File "'):
+            frames.append(clip(ln.rstrip()))
+            continue
+        elif in_trace and ln[:1] not in (" ", "\t"):
+            in_trace = False
+            for f in frames[-FRAMES:]:
+                first.setdefault(f, f)
+                counts[f] = counts.get(f, 0) + 1
         if ERROR_LINE.search(ln):
-            key = clip(ln.rstrip())
+            key = DIGITS.sub("_", ln.strip())
+            first.setdefault(key, clip(ln.rstrip()))
             counts[key] = counts.get(key, 0) + 1
-    out = [k if n == 1 else f"{k} (x{n})" for k, n in counts.items()]
+    out = [first[k] if n == 1 else f"{first[k]} (x{n})" for k, n in counts.items()]
     return out[:MAX_ERRORS], max(0, len(out) - MAX_ERRORS)
+
+
+def budget(text, head=HEAD_CHARS, tail=TAIL_CHARS):
+    """Keep about `head` chars from the start and `tail` chars from the end, cut on line boundaries."""
+    if len(text) <= head + tail:
+        return text
+    lines = text.splitlines()
+    if len(lines) == 1:
+        return f"{text[:head]}\n... cut, full output in the log ...\n{text[-tail:]}"
+    h, used = [], 0
+    for ln in lines:
+        c = clip(ln)
+        if used + len(c) > head:
+            break
+        h.append(c)
+        used += len(c) + 1
+    t, used = [], 0
+    for ln in reversed(lines[len(h):]):
+        c = clip(ln)
+        if used + len(c) > tail:
+            break
+        t.insert(0, c)
+        used += len(c) + 1
+    hidden = len(lines) - len(h) - len(t)
+    return "\n".join(h + ([f"... {hidden} lines not shown, full output in the log ..."] if hidden else []) + t)
 
 
 def json_shape(v, depth=0):
@@ -45,7 +113,7 @@ def json_shape(v, depth=0):
             names = list(v)[:12]
             return "{" + ",".join(map(str, names)) + (f",+{len(v) - 12}" if len(v) > 12 else "") + "}"
         items = list(v.items())
-        shaped = {k: json_shape(x, depth + 1) for k, x in items[:JSON_KEYS]}
+        shaped = {clip_key(k): json_shape(x, depth + 1) for k, x in items[:JSON_KEYS]}
         if len(items) > JSON_KEYS:
             shaped["..."] = f"{len(items) - JSON_KEYS} more keys"
         return shaped
@@ -58,11 +126,13 @@ def json_shape(v, depth=0):
     return v
 
 
+def clip_key(k):
+    k = str(k)
+    return k if len(k) <= JSON_STR else k[:JSON_STR] + "..."
+
+
 def head_tail(lines):
-    kept = [clip(ln) for ln in lines[:HEAD]]
-    hidden = len(lines) - HEAD - OK_TAIL
-    return "\n".join(kept + [f"... {hidden} lines not shown, full output in the log ..."] +
-                     [clip(ln) for ln in lines[-OK_TAIL:]])
+    return budget("\n".join(collapse(lines)))
 
 
 def shrink(text, failed=True):
@@ -74,16 +144,14 @@ def shrink(text, failed=True):
     if stripped[:1] in "[{":
         try:
             shaped = json_shape(json.loads(stripped))
-            return {"out": json.dumps(shaped, ensure_ascii=False), "errors": [], "more_errors": 0,
-                    "tail": []}
+            return {"out": shaped, "errors": [], "more_errors": 0, "tail": []}
         except ValueError:
             pass
-    if not failed and len(lines) > HEAD + OK_TAIL:
-        return {"out": head_tail(lines), "errors": [], "more_errors": 0, "tail": []}
     if not failed:
-        return {"out": "\n".join(clip(ln) for ln in lines), "errors": [], "more_errors": 0, "tail": []}
+        return {"out": head_tail(lines), "errors": [], "more_errors": 0, "tail": []}
     errs, more = errors(lines)
-    tail = [clip(ln) for ln in lines if ln.strip()][-TAIL:]
+    shown = set(errs)
+    tail = [c for c in (clip(ln) for ln in lines if ln.strip()) if c not in shown][-TAIL:]
     return {"out": None, "errors": errs, "more_errors": more, "tail": tail}
 
 
@@ -147,9 +215,15 @@ def want(text, words):
     if not scored:
         return None
     scored.sort(key=lambda x: -x[0])
-    top = sorted(scored[:3], key=lambda x: x[1])
+    picked, used = [], 0
+    for s, i, c in scored[:3]:
+        size = sum(len(clip(ln)) + 1 for ln in c["lines"])
+        if picked and used + size > WANT_CHARS:
+            break
+        picked.append((i, c))
+        used += size
     out_lines = []
-    for _, _, c in top:
+    for _, c in sorted(picked, key=lambda x: x[0]):
         out_lines.append(f"lines {c['start']}-{c['end']}:")
         out_lines.extend(clip(ln) for ln in c["lines"])
-    return "\n".join(out_lines)
+    return budget("\n".join(out_lines), WANT_CHARS - TAIL_CHARS, TAIL_CHARS)

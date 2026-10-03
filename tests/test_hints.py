@@ -151,8 +151,7 @@ def test_breaker_warns_only_after_three_consecutive_failures_within_an_hour():
 
     assert hints.breaker(rows[:2], rows[1]) is None
     warning = hints.breaker(rows, rows[-1])
-    assert "failed 3 times in a row" in warning
-    assert "synthetic.log" in warning
+    assert warning == "synthetic-engine failed 3 times in a row since 12:00; read the log before retrying"
 
     spread_out = [
         failure_record(start),
@@ -175,4 +174,5 @@ def test_breaker_resets_after_a_success_between_failures():
     assert hints.breaker(rows, rows[-1]) is None
 
     rows.append(failure_record(start + timedelta(minutes=5)))
-    assert "failed 3 times in a row" in hints.breaker(rows, rows[-1])
+    message = hints.breaker(rows, rows[-1])
+    assert message == "synthetic-engine failed 3 times in a row since 12:03; read the log before retrying"

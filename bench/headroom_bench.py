@@ -87,6 +87,7 @@ def load_corpus(min_tokens: int, limit: int):
                     "cmd": str(inputs.get(tid, {}).get("command", ""))[:200],
                     "output": s,
                     "tokens": tok(s),
+                    "failed": bool(b.get("is_error")),
                 })
     out.sort(key=lambda r: -r["tokens"])
     return out[:limit] if limit else out

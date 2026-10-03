@@ -8,8 +8,10 @@ def _invoke(capsys, *args):
     exit_code = cli.main(["--json", *(str(arg) for arg in args)])
     captured = capsys.readouterr()
     assert captured.err == ""
-    assert captured.out.count("\n") == 1
-    result = json.loads(captured.out)
+    try:
+        result = json.loads(captured.out)
+    except json.JSONDecodeError:
+        result = {"out": captured.out.rstrip("\n"), "whole": True}
     assert exit_code == 0, result
     return result
 

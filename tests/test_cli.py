@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 
 from metarouter import cli, shrink
 from metarouter.result import Result
+from metarouter.result import render
 
 
 @pytest.fixture(autouse=True)
@@ -43,10 +45,13 @@ def test_agent_environment_prints_exactly_one_json_line(
 
     captured = capsys.readouterr()
     assert captured.err == ""
-    assert captured.out.count("\n") == 1
-    result = json.loads(captured.out)
-    assert isinstance(result, dict)
-    assert result["exit"] == exit_code
+    if argv == ["exec", "--", "printf agent-run"]:
+        assert captured.out == "agent-run\n"
+    else:
+        assert captured.out.count("\n") == 1
+        result = json.loads(captured.out)
+        assert isinstance(result, dict)
+        assert result.get("exit", 0) == exit_code
 
 
 @pytest.mark.parametrize(
@@ -136,33 +141,34 @@ def test_subprocess_stdout_is_utf8_regardless_of_pythonioencoding(
 
     decoded = completed.stdout.decode("utf-8")
     assert completed.returncode == 0, completed.stderr.decode(errors="replace")
-    assert decoded.count("\n") == 1
     assert decoded.endswith("\n")
-    assert json.loads(decoded)["out"] == "I’ve café"
+    assert decoded == "I’ve café\n"
 
 
-def test_exec_no_trunc_returns_exactly_8000_cleaned_characters_whole(monkeypatch, capsys):
+def test_exec_no_trunc_returns_plain_text_when_whole_and_unadorned(monkeypatch, capsys):
     raw = b"\x1b[31m" + (b"x" * 8000) + b"\x1b[0m"
+    monkeypatch.setattr(cli, "run_shell", lambda _command: (0, raw, 0.0))
+
+    exit_code = cli.main(["--json", "exec", "--no-trunc", "--", "synthetic"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert output == "x" * 8000 + "\n"
+    assert "\x1b" not in output
+
+
+def test_exec_no_trunc_over_limit_returns_compact_head_and_tail(monkeypatch, capsys):
+    raw = ("head\n" + ("middle\n" * 5000) + "tail").encode()
     monkeypatch.setattr(cli, "run_shell", lambda _command: (0, raw, 0.0))
 
     exit_code = cli.main(["--json", "exec", "--no-trunc", "--", "synthetic"])
 
     result = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert result["out"] == "x" * 8000
-    assert "\x1b" not in result["out"]
-    assert "log" not in result
-
-
-def test_exec_no_trunc_cuts_after_8000_characters_and_names_log(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "run_shell", lambda _command: (0, b"y" * 8001, 0.0))
-
-    exit_code = cli.main(["--json", "exec", "--no-trunc", "--", "synthetic"])
-
-    result = json.loads(capsys.readouterr().out)
-    assert exit_code == 0
-    assert result["out"] == ("y" * 8000) + "\n... (cut, full output in the log)"
-    assert Path(result["log"]).read_bytes() == b"y" * 8001
+    assert len(result["out"]) < len(raw.decode())
+    assert result["out"].startswith("head") and result["out"].endswith("tail")
+    assert "lines not shown, full output in the log" in result["out"]
+    assert Path(result["log"]).read_bytes() == raw
 
 
 def test_exec_no_trunc_after_separator_is_part_of_command(monkeypatch, capsys):
@@ -178,10 +184,10 @@ def test_exec_no_trunc_after_separator_is_part_of_command(monkeypatch, capsys):
         ["--json", "exec", "--", "printf", "%s", "--no-trunc"]
     )
 
-    result = json.loads(capsys.readouterr().out)
+    output = capsys.readouterr().out
     assert exit_code == 0
     assert seen == ["printf %s --no-trunc"]
-    assert result["out"] == "command received its flag"
+    assert output == "command received its flag\n"
 
 
 def test_successful_shrunk_exec_note_names_no_trunc(monkeypatch, capsys):
@@ -193,8 +199,8 @@ def test_successful_shrunk_exec_note_names_no_trunc(monkeypatch, capsys):
 
     result = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert "lines not shown" in result["out"]
-    assert "--no-trunc" in result["note"]
+    assert "more like these" in result["out"]
+    assert result["note"] == "shrunk; --no-trunc for all"
     assert "log" in result
 
 
@@ -203,10 +209,34 @@ def test_short_exec_has_no_shrinking_note(monkeypatch, capsys):
 
     exit_code = cli.main(["--json", "exec", "--", "synthetic"])
 
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert exit_code == 0
     assert result["out"] == "short output"
-    assert "note" not in result
+
+
+def test_render_omits_zero_exit_key_for_successful_structured_result():
+    output = render(Result(ok=True, lane="exec", exit=0, out={"answer": 42}), "json")
+
+    assert json.loads(output) == {"ok": True, "out": {"answer": 42}}
+
+
+def test_render_keeps_exit_key_for_failure():
+    output = render(Result(ok=False, lane="exec", exit=2, out="failed"), "json")
+
+    assert json.loads(output)["exit"] == 2
+
+
+def test_whole_plain_text_result_renders_without_json():
+    output = render(Result(ok=True, lane="exec", exit=0, out="plain output", whole=True), "json")
+
+    assert output == "plain output"
+
+
+@pytest.mark.parametrize("field", ["hint", "breaker", "note", "marker"])
+def test_adorned_whole_result_stays_json(field):
+    output = render(Result(ok=True, lane="exec", exit=0, out="plain output", whole=True, **{field: "extra"}), "json")
+
+    assert json.loads(output)["out"] == "plain output"
 
 
 def test_successful_shrunk_json_exec_note_names_no_trunc(monkeypatch, capsys):
@@ -218,7 +248,7 @@ def test_successful_shrunk_json_exec_note_names_no_trunc(monkeypatch, capsys):
 
     result = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert "--no-trunc" in result["note"]
+    assert result["note"] == "shrunk; --no-trunc for all"
     assert "log" in result
 
 
@@ -266,7 +296,9 @@ def test_oversized_string_recipe_answer_is_cut_with_marker(monkeypatch, capsys):
 
     result = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert result["out"] == ("z" * 8000) + "\n... (cut, full output in the log)"
+    assert result["out"].startswith("z" * 100)
+    assert "cut, full output in the log" in result["out"]
+    assert len(result["out"]) < 8001
     assert Path(result["log"]).is_file()
 
 
@@ -295,11 +327,9 @@ def test_log_preserves_raw_non_ascii_and_binaryish_bytes(tmp_path, capsys):
     exit_code = cli.main(["--json", "exec", "--", command])
 
     captured = capsys.readouterr()
-    result = json.loads(captured.out)
     logs = list((tmp_path / "metarouter-home").rglob("*.log"))
     assert exit_code == 0
-    assert captured.out.count("\n") == 1
-    assert "log" not in result
+    assert "café" in captured.out
     assert len(logs) == 1
     log_path = logs[0]
     assert log_path.name.endswith(".log")
@@ -308,7 +338,7 @@ def test_log_preserves_raw_non_ascii_and_binaryish_bytes(tmp_path, capsys):
     assert log_path.read_bytes() == expected
 
 
-def test_shrinker_failure_prints_raw_output_and_preserves_exit_code(monkeypatch, capsys):
+def test_shrinker_failure_returns_budgeted_output_and_preserves_exit_code(monkeypatch, capsys):
     def crash(_text, **_kw):
         raise RuntimeError("synthetic shrink failure")
 
@@ -319,16 +349,17 @@ def test_shrinker_failure_prints_raw_output_and_preserves_exit_code(monkeypatch,
     captured = capsys.readouterr()
     assert exit_code == 3
     assert "visible raw output" in captured.out
-    assert "shrinker failed (RuntimeError); output shown whole" in captured.out
+    assert "shrinker failed (RuntimeError)" in captured.out
+    assert "head and tail shown" in captured.out
 
 
 @pytest.mark.parametrize("command_exit", [0, 1, 3, 42])
 def test_main_returns_underlying_command_exit_code(command_exit, capsys):
     returned = cli.main(["--json", "exec", "--", f"exit {command_exit}"])
 
-    result = json.loads(capsys.readouterr().out)
     assert returned == command_exit
-    assert result["exit"] == command_exit
+    if command_exit:
+        assert json.loads(capsys.readouterr().out)["exit"] == command_exit
 
 
 @pytest.mark.parametrize(
@@ -365,7 +396,7 @@ def test_all_run_files_stay_under_metarouter_home(tmp_path, monkeypatch, capsys)
 
     exit_code = cli.main(["--json", "exec", "--", "printf isolated"])
 
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     written_files = [path for path in tmp_path.rglob("*") if path.is_file()]
     logs = list(metarouter_home.rglob("*.log"))
     assert exit_code == 0

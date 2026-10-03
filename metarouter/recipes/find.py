@@ -46,7 +46,7 @@ def run(args):
     ap.add_argument("folder", nargs="?", default=".")
     ap.add_argument("--glob", help="only file names matching this, e.g. '*.py'")
     ap.add_argument("-i", action="store_true", help="ignore case")
-    ap.add_argument("--lines", type=int, default=3, help="matching lines shown per file")
+    ap.add_argument("--lines", type=int, default=1, help="matching lines shown per file")
     a = ap.parse_args(args)
     try:
         rx = re.compile(a.pattern, re.I if a.i else 0)

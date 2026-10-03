@@ -102,5 +102,4 @@ def breaker(rows, record):
     if last - first > BREAKER_WINDOW:
         return None
     name = key.split(":", 1)[1]
-    return (f"{name} has failed {BREAKER_RUN} times in a row since {first:%H:%M}. "
-            f"Last log: {mine[-1].get('log')}. Check the hint or the log before retrying")
+    return f"{name} failed {BREAKER_RUN} times in a row since {first:%H:%M}; read the log before retrying"

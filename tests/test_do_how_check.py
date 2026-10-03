@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def invoke(capsys, *args):
     exit_code = cli.main(["--json", *(str(arg) for arg in args)])
     captured = capsys.readouterr()
     assert captured.err == ""
-    return exit_code, json.loads(captured.out)
+    return exit_code, agent_result(captured.out)
 
 
 def write_recipe(home, name, **overrides):
@@ -92,7 +93,7 @@ def test_saved_shell_placeholders_quote_arguments_safely(capsys):
 
     assert save_exit == 0
     assert do_exit == 0
-    assert result["out"] == f"first value\n{malicious}\n"
+    assert result["out"].rstrip("\n") == f"first value\n{malicious}"
     assert not Path("injected.txt").exists()
 
 
@@ -277,9 +278,11 @@ def test_how_recipe_under_five_calls_takes_median_score(
     assert exit_code == 0
     positions = {
         name: result["out"].index(f"metarouter run {name}")
-        for name in ("high", "middle", "newcomer", "low")
+        for name in ("high", "middle", "newcomer")
     }
-    assert positions["high"] < positions["middle"] < positions["newcomer"] < positions["low"]
+    assert positions["high"] < positions["middle"] < positions["newcomer"]
+    assert "metarouter run low" not in result["out"]
+    assert result["out"].endswith("+1 more: add words to narrow")
 
 
 def test_how_word_matching_nothing_exits_one(capsys):
@@ -321,7 +324,7 @@ def test_agent_mode_each_recipe_verb_prints_exactly_one_json_line(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out.count("\n") == 1
-    parsed = json.loads(captured.out)
+    parsed = agent_result(captured.out)
     assert isinstance(parsed, dict)
     assert parsed["exit"] == exit_code
 
@@ -374,5 +377,5 @@ def test_exec_echo_hi_with_ai_agent_prints_exact_keys(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert captured.err == ""
     assert exit_code == 0
-    parsed = json.loads(captured.out)
+    parsed = agent_result(captured.out)
     assert set(parsed.keys()) == {"ok", "exit", "out"}

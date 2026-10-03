@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 import re
 
@@ -113,7 +114,7 @@ def test_successful_long_output_keeps_head_and_tail_not_error_words():
     lines = [f"line {i} test_failed_case passed" for i in range(200)]
     out = shrink.shrink("\n".join(lines), failed=False)
     assert out["errors"] == [] and out["out"].startswith("line 0 ")
-    assert "line 199 " in out["out"] and "150 lines not shown" in out["out"]
+    assert "line 199 " in out["out"] and "more like these" in out["out"]
     assert shrink.shrink("\n".join(lines), failed=True)["out"] is None
 
 
@@ -121,7 +122,7 @@ def test_json_reads_into_json_text_and_paths_without_a_dot(tmp_path, capsys):
     f = tmp_path / "r.json"
     f.write_text(json.dumps({"result": json.dumps({"usage": {"n": 7}})}), encoding="utf-8")
     assert cli.main(["--json", "run", "json", str(f), "result.usage.n"]) == 0
-    assert json.loads(capsys.readouterr().out)["out"] == "7"
+    assert agent_result(capsys.readouterr().out)["out"] == "7"
 
 
 def test_whole_recipe_output_is_not_shrunk(tmp_path, monkeypatch, capsys):
@@ -129,7 +130,7 @@ def test_whole_recipe_output_is_not_shrunk(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "big.txt").write_text("\n".join(f"row {i} failed" for i in range(300)), encoding="utf-8")
     assert cli.main(["--json", "run", "lines", "big.txt", "1", "300"]) == 0
-    out = json.loads(capsys.readouterr().out)
+    out = agent_result(capsys.readouterr().out)
     assert "errors" not in out and "row 299 failed" in out["out"]
 
 
@@ -238,7 +239,7 @@ def test_exec_want_finds_matching_chunk(monkeypatch, capsys):
     exit_code = cli.main(["--json", "exec", "--want", "connection refused", "--", "x"])
 
     assert exit_code == 0
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert "connection refused" in result["out"]
     assert "lines " in result["out"]
 
@@ -253,7 +254,7 @@ def test_exec_want_no_match_returns_message(monkeypatch, capsys):
     exit_code = cli.main(["--json", "exec", "--want", "something absent", "--", "x"])
 
     assert exit_code == 0
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert result["out"] == "no part of the output matched: something absent (1000 lines; full output in the log)"
 
 
@@ -277,7 +278,7 @@ def test_exec_no_trunc_wins_over_want(monkeypatch, capsys):
     exit_code = cli.main(["--json", "exec", "--no-trunc", "--want", "row 10", "--", "x"])
 
     assert exit_code == 0
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert "lines " not in result["out"]
     assert result["out"].rstrip("\n") == "\n".join(lines)
 
@@ -290,9 +291,9 @@ def test_exec_want_failed_command_fills_errors_and_tail(monkeypatch, capsys):
     exit_code = cli.main(["--json", "exec", "--want", "syntax", "--", "x"])
 
     assert exit_code == 1
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert "lines 1-40:" in result["out"]
-    assert len(result["errors"]) > 0
+    assert "error: syntax error" in result["out"]
     assert len(result["tail"]) > 0
 
 
@@ -308,7 +309,7 @@ def test_filtered_exec_shows_filtered_text_and_note(monkeypatch, capsys):
     exit_code = cli.main(["--json", "exec", "--", "pip install requests"])
 
     assert exit_code == 0
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert result["out"] == "WARNING: Target directory already exists\nSuccessfully installed requests-2.31.0"
     assert result["note"] == "filtered by pip-install; full output in the log"
 
@@ -321,7 +322,7 @@ def test_failing_command_with_matching_filter_is_not_filtered(monkeypatch, capsy
     exit_code = cli.main(["--json", "exec", "--", "pip install broken"])
 
     assert exit_code == 1
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert "filtered by" not in (result.get("note") or "")
     assert len(result.get("errors", [])) > 0
     assert len(result.get("tail", [])) > 0
@@ -334,8 +335,8 @@ def test_unmatched_command_is_unchanged(monkeypatch, capsys):
     exit_code = cli.main(["--json", "exec", "--", "echo hello world"])
 
     assert exit_code == 0
-    result = json.loads(capsys.readouterr().out)
-    assert result["out"] == "unmatched tool output\nhello world\n"
+    result = agent_result(capsys.readouterr().out)
+    assert result["out"].rstrip("\n") == "unmatched tool output\nhello world"
     assert "filtered by" not in (result.get("note") or "")
 
 
@@ -343,7 +344,7 @@ def test_check_reports_every_filter_test_as_pass():
     from metarouter import filters
 
     all_filters = filters.load()
-    assert len(all_filters) == 6
+    assert len(all_filters) == 7
 
     res = cli.check([])
     assert res.ok is True
@@ -373,7 +374,7 @@ def test_filtered_shell_recipe_shows_filtered_text_and_note(monkeypatch, capsys)
     exit_code = cli.main(["--json", "run", "pytest-quick"])
 
     assert exit_code == 0
-    result = json.loads(capsys.readouterr().out)
+    result = agent_result(capsys.readouterr().out)
     assert "warnings summary" in result["out"]
     assert "5 passed" in result["out"]
     assert result["note"] == "filtered by pytest; full output in the log"
@@ -614,7 +615,7 @@ def test_recipe_choices(capsys):
     (rdir / "pick.json").write_text(json.dumps(pick_json), encoding="utf-8")
 
     assert cli.main(["--json", "run", "pick"]) == 2
-    res_pick = json.loads(capsys.readouterr().out)
+    res_pick = agent_result(capsys.readouterr().out)
     assert res_pick["out"] == {"choices for {1}": ["a", "b"]}
 
     pickfail_json = {
@@ -630,11 +631,11 @@ def test_recipe_choices(capsys):
     (rdir / "pickfail.json").write_text(json.dumps(pickfail_json), encoding="utf-8")
 
     assert cli.main(["--json", "run", "pickfail", "zzz"]) == 3
-    res_fail = json.loads(capsys.readouterr().out)
+    res_fail = agent_result(capsys.readouterr().out)
     assert "valid values for {1}: a, b" in res_fail["note"]
 
     assert cli.main(["--json", "run", "pick", "argval"]) == 0
-    res_ok = json.loads(capsys.readouterr().out)
+    res_ok = agent_result(capsys.readouterr().out)
     assert res_ok["ok"] is True
     assert "argval" in res_ok["out"]
 
@@ -666,7 +667,7 @@ def test_recipe_choices_command_fails_or_empty(capsys):
     }
     (rdir / "pickempty.json").write_text(json.dumps(pick_empty), encoding="utf-8")
     assert cli.main(["--json", "run", "pickempty"]) == 2
-    res = json.loads(capsys.readouterr().out)
+    res = agent_result(capsys.readouterr().out)
     assert res.get("out") is None
     assert "this recipe needs 1 arguments" in res.get("note", "")
 
@@ -682,7 +683,7 @@ def test_recipe_choices_command_fails_or_empty(capsys):
     }
     (rdir / "pickfailcmd.json").write_text(json.dumps(pick_failcmd), encoding="utf-8")
     assert cli.main(["--json", "run", "pickfailcmd"]) == 2
-    res = json.loads(capsys.readouterr().out)
+    res = agent_result(capsys.readouterr().out)
     assert res.get("out") is None
     assert "this recipe needs 1 arguments" in res.get("note", "")
 
