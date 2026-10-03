@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" width="420" alt="metatrooper: a line-drawn character watching over several coding agents, each working in its own terminal">
+  <img src="assets/hero.png" width="640" alt="metatrooper: dithered dots on near-black gathering into four terminal clusters">
 </p>
 
 <p align="center">
@@ -15,6 +15,16 @@
   <img src="https://img.shields.io/badge/core-AGPL--3.0-1a7f64" alt="Core AGPL-3.0">
   <img src="https://img.shields.io/badge/tested%20on-Windows-0078D4" alt="Tested on Windows">
   <img src="https://img.shields.io/badge/status-pre--release-c47f00" alt="Pre-release">
+</p>
+
+<br>
+
+<p align="center">
+  <a href="assets/product.png"><img src="assets/product.png" width="900" alt="The metatrooper window: three agents in a grid, one waiting for you, and the diff of the last turn on the right"></a>
+</p>
+
+<p align="center">
+  <img src="assets/chart.png" width="800" alt="58% of prompts went in while another agent was running; /clear 38, visual corrections 36, /resume 12, pasted screenshots 12, over 346 sessions">
 </p>
 
 <br>
@@ -89,6 +99,8 @@ Four things have to work for one person to run several agents without becoming t
 keeps running, you know which one needs you, you can see what it made, and the steps between agents
 run themselves.
 
+<img src="assets/parts.png" alt="The four parts: Terminals (agents keep running), Status (who needs you), Panes (see what it made), Pipelines (steps run themselves).">
+
 | Part | Built for | What it does |
 | --- | --- | --- |
 | **Terminals**: agents keep running | Every agent | Each agent runs in a terminal the core owns. Close the window and it keeps working; reopen it and the scrollback is there |
@@ -142,6 +154,23 @@ Native <code>troop-plugin.json</code>, plus importers for Claude Code plugins an
 <h3>⌨️ Ctrl+K for everything</h3>
 Launch agents, run pipelines, open shells. Five themes; settings live in one JSON file.
 </td>
+</tr>
+</table>
+
+<br>
+
+## See it work
+
+Real screens from one session on a small demo project.
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="assets/shot-terminal.png" alt="Claude explains the two pager bugs it fixed, then adds a doc comment to slug() on the next turn"><br><sub><b>An agent fixes a bug and says what it changed</b></sub></td>
+<td width="50%" valign="top"><img src="assets/shot-diff.png" alt="The diff of the last turn"><br><sub><b>The diff of the last turn, beside the agent</b></sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="assets/shot-gate.png" alt="A gate card asking you to approve the spec"><br><sub><b>A gate waits for you: approve or reject</b></sub></td>
+<td width="50%" valign="top"><img src="assets/shot-run.png" alt="The spec-to-pr run, paused at the approve-spec gate"><br><sub><b>The run, paused at the gate, step by step</b></sub></td>
 </tr>
 </table>
 
@@ -244,6 +273,8 @@ Add `--json` to any command for one line of JSON.
 ## Pipelines
 
 Five ship in `pipelines/`:
+
+<img src="assets/pipe.png" alt="spec-to-pr: spec, approve spec (gate), build, verify, approve PR (gate), open PR">
 
 | Pipeline | Steps |
 |---|---|
