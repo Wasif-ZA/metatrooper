@@ -287,6 +287,11 @@ smaller shell output.
 
 ## Roadmap
 
+- ⬜ The new window, designed and approved 2026-10-04, not built yet: a wall of live terminals with the
+  agent list hidden until Ctrl+B and one floating search. The pane that needs you breathes orange and
+  glides to the big slot; quiet agents fold to one-line bars; gates stamp APPROVED in place. Default look
+  is the dither style of this README; Warp charcoal ships as a theme
+- ⬜ Each pipeline gets its own screen, starting with Spec to PR
 - ⬜ A signed installer, so the first agent starts within 30 seconds of install
 - ⬜ A tray companion: status lights, needs-you count, token meter
 - ⬜ A container sandbox for agents, with read-only logins and an egress allow-list
