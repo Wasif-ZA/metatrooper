@@ -16,4 +16,14 @@ def agent_result(text):
     if isinstance(value, dict) and "ok" in value:
         value.setdefault("exit", 0)
         return value
-    return {"ok": True, "exit": 0, "out": text[:-1] if text.endswith("\n") else text}
+    text = text[:-1] if text.endswith("\n") else text
+    lines = text.split("\n")
+    result = {"ok": True, "exit": 0}
+    if lines[0].startswith("[exit ") and lines[0].endswith("]"):
+        result.update(ok=False, exit=int(lines[0][6:-1]))
+        lines = lines[1:]
+    while lines and lines[-1].split(": ", 1)[0] in ("hint", "breaker", "note"):
+        key, value = lines.pop().split(": ", 1)
+        result[key] = value
+    result["out"] = "\n".join(lines)
+    return result

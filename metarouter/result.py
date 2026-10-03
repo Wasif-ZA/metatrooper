@@ -72,8 +72,11 @@ def human_out(out):
 
 def render(r, how):
     if how == "json":
-        if r.ok and r.whole and isinstance(r.out, str) and not (r.hint or r.breaker or r.note or r.marker):
-            return r.out[:-1] if r.out.endswith("\n") else r.out
+        if r.whole and isinstance(r.out, str) and not r.marker:
+            lines = [] if r.ok else [f"[exit {r.exit}]"]
+            lines.append(r.out[:-1] if r.out.endswith("\n") else r.out)
+            lines += [f"{k}: {v}" for k, v in (("hint", r.hint), ("breaker", r.breaker), ("note", r.note)) if v]
+            return "\n".join(lines)
         d = {"ok": r.ok, "out": r.out} if r.ok and not r.exit else {"ok": r.ok, "exit": r.exit, "out": r.out}
         shrunk = bool(r.errors or r.tail) or (r.out is None and r.log)
         extra = ("errors", "more_errors", "tail", "lines") if shrunk else ()

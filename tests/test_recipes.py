@@ -1,3 +1,4 @@
+from conftest import agent_result
 import json
 import re
 from pathlib import Path
@@ -30,7 +31,7 @@ def invoke(capsys, *args):
     captured = capsys.readouterr()
     assert captured.err == ""
     try:
-        result = json.loads(captured.out)
+        result = agent_result(captured.out)
     except json.JSONDecodeError:
         result = {"out": captured.out.rstrip("\n"), "whole": True}
     return exit_code, result

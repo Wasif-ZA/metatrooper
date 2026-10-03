@@ -232,11 +232,11 @@ def test_whole_plain_text_result_renders_without_json():
     assert output == "plain output"
 
 
-@pytest.mark.parametrize("field", ["hint", "breaker", "note", "marker"])
-def test_adorned_whole_result_stays_json(field):
+@pytest.mark.parametrize("field", ["hint", "breaker", "note"])
+def test_adorned_whole_result_is_plain_text_with_trailer(field):
     output = render(Result(ok=True, lane="exec", exit=0, out="plain output", whole=True, **{field: "extra"}), "json")
 
-    assert json.loads(output)["out"] == "plain output"
+    assert output == f"plain output\n{field}: extra"
 
 
 def test_successful_shrunk_json_exec_note_names_no_trunc(monkeypatch, capsys):
@@ -359,7 +359,7 @@ def test_main_returns_underlying_command_exit_code(command_exit, capsys):
 
     assert returned == command_exit
     if command_exit:
-        assert json.loads(capsys.readouterr().out)["exit"] == command_exit
+        assert agent_result(capsys.readouterr().out)["exit"] == command_exit
 
 
 @pytest.mark.parametrize(

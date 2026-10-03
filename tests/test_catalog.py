@@ -298,7 +298,7 @@ def test_exec_want_failed_command_fills_errors_and_tail(monkeypatch, capsys):
 
 
 def test_filtered_exec_shows_filtered_text_and_note(monkeypatch, capsys):
-    raw = (
+    raw = b"Requirement already satisfied: pkg\n" * 70 + (
         b"Collecting requests\n"
         b"  Downloading requests-2.31.0-py3-none-any.whl (62 kB)\n"
         b"WARNING: Target directory already exists\n"
@@ -361,7 +361,7 @@ def test_check_reports_every_filter_test_as_pass():
 
 def test_filtered_shell_recipe_shows_filtered_text_and_note(monkeypatch, capsys):
     store.set_mode("auto")
-    raw = (
+    raw = b"tests/test_cli.py ....                                                   [ 50%]\n" * 40 + (
         b"tests/test_cli.py ....                                                   [ 80%]\n"
         b"tests/test_cli.py .                                                      [100%]\n"
         b"============================== warnings summary ===============================\n"

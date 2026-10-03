@@ -9,6 +9,7 @@ TAIL_CHARS = 400
 MAX_ERRORS = 40
 FRAMES = 5
 WANT_CHARS = 1600
+SHAPE_LITERAL = 12
 JSON_KEYS = 30
 JSON_ITEMS = 3
 JSON_DEPTH = 2
@@ -36,7 +37,8 @@ def clip(line):
 
 
 def shape(line):
-    return SHAPE.sub("_", line.strip())
+    s = SHAPE.sub("_", line.strip())
+    return s if len(s.replace("_", "")) >= SHAPE_LITERAL else None
 
 
 def collapse(lines):

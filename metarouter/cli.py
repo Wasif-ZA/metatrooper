@@ -135,6 +135,8 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
     r = Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, lines=len(text.splitlines()),
                bytes=len(raw), log=path.as_posix(), cmd=shown, recipe=recipe)
     filter_match = filters.match(label) if exit_code == 0 and (lane == "exec" or is_shell) else None
+    if len(text) <= shrink.SHORT:
+        filter_match = None
     if compact is not None:
         flat = compact if isinstance(compact, str) else json.dumps(compact, ensure_ascii=False)
         limit = OUT_LIMIT if whole else COMPACT_LIMIT

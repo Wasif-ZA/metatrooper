@@ -1,3 +1,4 @@
+from conftest import agent_result
 import datetime
 import json
 import os
@@ -332,7 +333,7 @@ def test_ingest_json_output_keys(tmp_path, capsys):
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out.count("\n") == 1
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert data["ok"] is True
     assert data["exit"] == 0
     assert isinstance(data["out"], dict)
@@ -351,7 +352,7 @@ def test_learn_review_in_json_mode_returns_exit_2(monkeypatch, capsys):
     assert exit_code == 2
     assert captured.err == ""
     assert captured.out.count("\n") == 1
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert data["ok"] is False
     assert data["exit"] == 2
     assert "learn --review is for a person" in data.get("note", "")
@@ -369,7 +370,7 @@ def test_malformed_servers_json_prints_json_without_traceback(capsys):
     assert captured.out.count("\n") == 1
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert data["ok"] is False
 
 
@@ -386,7 +387,7 @@ def test_crashing_lane_prints_json_without_traceback(monkeypatch, capsys):
     assert captured.out.count("\n") == 1
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert data["ok"] is False
     assert data["exit"] == 1
     assert "simulated lane crash" in data.get("note", "")
@@ -414,7 +415,7 @@ def test_replace_negative_count_exits_2_and_leaves_file_unchanged(capsys):
     exit_code = cli.main(["--json", "run", "replace", str(target), "hello", "hi", "--count", "-1"])
 
     captured = capsys.readouterr()
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert exit_code == 2
     assert data["exit"] == 2
     assert target.read_text(encoding="utf-8") == original
@@ -429,7 +430,7 @@ def test_json_set_numeric_index_on_dict_exits_1_and_leaves_file_unchanged(capsys
     exit_code = cli.main(["--json", "run", "json-set", str(target), ".obj[0]", "val"])
 
     captured = capsys.readouterr()
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert exit_code == 1
     assert data["exit"] == 1
     assert target.read_text(encoding="utf-8") == original
@@ -450,7 +451,7 @@ def test_zero_placeholder_is_refused(capsys):
     exit_code = cli.main(["--json", "add", "bad", "--", "printf %s {0}"])
 
     captured = capsys.readouterr()
-    data = json.loads(captured.out)
+    data = agent_result(captured.out)
     assert exit_code == 2
     assert data["ok"] is False
     assert "{1}" in data.get("note", "")
