@@ -374,6 +374,7 @@ export class Runner {
       },
       run: { id: run.id, dir: run.run_dir },
       project: { path: project.path },
+      picked: () => (this.db.prepare("SELECT worktree, branch FROM variant WHERE run_id = ? AND status = 'picked'").get(run.id) as { worktree: string; branch: string } | undefined) ?? null,
       index,
       port,
     };
@@ -458,13 +459,18 @@ export class Runner {
       const place = await this.placeIndex(run, step, idx);
       this.markRunning(run, row);
       row = this.rows(run.id, row.step_id, row.iteration).find((r) => r.fanout_index === idx) as StepRow;
+      const early = step.serve === 'before' && Boolean(step.dev_command && place.port);
+      if (early) {
+        const ready = await this.serveIndex(run, step, idx, place);
+        if (!ready.ok) return this.finishRow(run, row, { ok: false, error: `dev server on port ${place.port} gave no response in 90 s:\n${ready.tail}` });
+      }
       let result: IndexResult;
       if (step.kind === 'agent') result = await this.agentIndex(run, pipe, step, row, place, raw);
       else if (step.kind === 'action') result = await this.actionIndex(run, step, row, fanout);
       else if (step.kind === 'code') result = await this.codeIndex(run, pipe, step, row, fanout);
       else result = await this.pipelineIndex(run, step, row);
       if ('ok' in result && result.ok && step.worktree && place.branch) result = { ok: true, outputs: { ...result.outputs, worktree: place.cwd, branch: place.branch } };
-      if ('ok' in result && result.ok && step.dev_command && place.port) {
+      if ('ok' in result && result.ok && step.dev_command && place.port && !early) {
         const ready = await this.serveIndex(run, step, idx, place);
         if (!ready.ok) result = { ok: false, error: `dev server on port ${place.port} gave no response in 90 s:\n${ready.tail}` };
       }
@@ -492,6 +498,8 @@ export class Runner {
         }
       }
       cwd = slash(dir);
+    } else if (step.cwd) {
+      cwd = slash(resolveString(step.cwd, this.scope(run, idx)));
     }
     let port: number | undefined;
     if (step.dev_command) {
@@ -944,10 +952,23 @@ export class Runner {
   }
 
 
+  /** Refuses Continue on a handoff gate step after a fan-out worktree step while no variant is picked. */
+  checkContinue(runId: string, stepId: string): void {
+    const run = this.run(runId);
+    if (!run) return;
+    const steps = this.pipelineOf(run).steps;
+    const i = steps.findIndex((s) => s.id === stepId);
+    const s = steps[i];
+    if (!s || s.kind !== 'gate' || s.gate !== 'handoff' || !steps.slice(0, i).some((t) => t.fanout && t.worktree)) return;
+    if (this.db.prepare("SELECT 1 FROM variant WHERE run_id = ? AND status = 'picked'").get(runId)) return;
+    throw new RpcError(E.VALIDATION, 'pick a tile first', { errors: ['no variant is picked'] });
+  }
+
   pick(runId: string, idx: number): void {
     const v = this.db.prepare('SELECT status FROM variant WHERE run_id = ? AND idx = ?').get(runId, idx) as { status: string } | undefined;
     if (!v) throw new RpcError(E.NOT_FOUND, 'variant not found');
     if (v.status === 'discarded') throw new RpcError(E.VALIDATION, 'variant was discarded', { errors: ['variant was discarded'] });
+    this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND status = 'picked'").run(runId);
     this.db.prepare("UPDATE variant SET status = 'picked' WHERE run_id = ? AND idx = ?").run(runId, idx);
   }
 

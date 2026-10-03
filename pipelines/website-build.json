@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "id": "website-build",
+  "title": "Website build",
+  "lane": "design",
+  "requires": ["repo", "deploy"],
+  "inputs": {
+    "brief": { "type": "text", "label": "What the site is for", "required": true }
+  },
+  "budget": { "max_minutes": 180 },
+  "steps": [
+    {
+      "id": "design",
+      "title": "Write the design",
+      "role": "plan",
+      "kind": "agent",
+      "prompt": "Brief: {{inputs.brief}}\n\nRead this repository. Write {{run.dir}}/DESIGN.md: pages and sections, layout, type, colour, and the content each section carries. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "build",
+      "title": "Build the site",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "browser": true,
+      "dev_command": "npm run dev -- --port {{port}}",
+      "serve": "before",
+      "prompt": "Build the site described in {{run.dir}}/DESIGN.md in this worktree. Keep `npm run dev -- --port <n>` serving it. Check it in your browser pane as you go. Commit your work on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "critique",
+      "title": "Critique and fix",
+      "role": "visual-check",
+      "kind": "agent",
+      "cwd": "{{steps.build.outputs.worktree}}",
+      "browser": true,
+      "prompt": "The site from {{run.dir}}/DESIGN.md is running in your browser pane. Look at it at 1280 and 390 px wide: layout, spacing, contrast, broken images, console errors, and anything that differs from DESIGN.md. Fix what you find in this worktree and commit. Set the output key verdict to pass when you found nothing to fix, otherwise fixed.",
+      "outputs": ["verdict"],
+      "loop": { "steps": ["critique"], "until": "steps.critique.outputs.verdict == \"pass\"", "max": 3 }
+    },
+    {
+      "id": "preview",
+      "title": "Deploy a preview",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:deploy/preview",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "approve",
+      "title": "Approve going live",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Preview: {{steps.preview.outputs.url}}. Approve to deploy {{steps.build.outputs.branch}} to production."
+    },
+    {
+      "id": "production",
+      "title": "Deploy to production",
+      "role": "publish",
+      "kind": "action",
+      "uses": "plugin:deploy/production",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    }
+  ]
+}

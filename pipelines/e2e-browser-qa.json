@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "id": "e2e-browser-qa",
+  "title": "Browser QA",
+  "lane": "coding",
+  "requires": ["repo"],
+  "inputs": {
+    "focus": { "type": "text", "label": "What to check (optional)", "required": false, "default": "the main user flows" }
+  },
+  "budget": { "max_minutes": 90 },
+  "steps": [
+    {
+      "id": "flows",
+      "title": "List the flows to check",
+      "role": "plan",
+      "kind": "agent",
+      "prompt": "Read this repository. List 3 to 6 user flows a person would do in this app, focusing on: {{inputs.focus}}. For each: start page, steps, what should happen. Write them to {{run.dir}}/flows.md. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "qa",
+      "title": "Walk the flows in the browser",
+      "role": "visual-check",
+      "kind": "agent",
+      "worktree": true,
+      "browser": true,
+      "dev_command": "npm run dev -- --port {{port}}",
+      "serve": "before",
+      "view": "findings",
+      "prompt": "The app is running in your browser pane (the browser tool `panes` gives its dev_port). Walk every flow in {{run.dir}}/flows.md with the browser tools: navigate, snapshot, click, type, and read the console and network after each flow. Record each place the app does not do what the flow says, plus console errors and failed requests. Do not edit any file.\n\nWrite the findings to {{run.dir}}/findings.json as a JSON array: [{\"severity\":\"critical|high|medium|low\",\"title\",\"file\"?,\"line\"?,\"detail\"}] (an empty array when nothing is wrong), and set the output key findings to findings.json.",
+      "outputs": ["findings"]
+    },
+    {
+      "id": "fix",
+      "title": "Fix what QA found",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.qa.outputs.worktree}}",
+      "prompt": "Fix each finding in {{run.dir}}/findings.json in this worktree. For each one, add a test that fails before the fix where the repository has tests. Then run the tests. Add \"fixed_by\": \"fix\" to each finding you fixed and write the file back. Commit on the current branch ({{steps.qa.outputs.branch}}). Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "reverify",
+      "title": "Run the tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.qa.outputs.worktree}}" }
+    },
+    {
+      "id": "report",
+      "title": "Write the QA report",
+      "kind": "code",
+      "code": "e2e-browser-qa/report.mjs",
+      "view": "document"
+    }
+  ]
+}

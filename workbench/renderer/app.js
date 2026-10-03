@@ -1269,10 +1269,18 @@ async function onClick(e) {
       return;
     }
     case 'save-pipeline': {
-      const r = await api.savePipeline(ui.projectId, ui.editor.raw ? ui.editor.rawText : JSON.stringify(ui.editor.json));
+      let json;
+      try {
+        json = ui.editor.raw ? JSON.parse(ui.editor.rawText) : ui.editor.json;
+      } catch (err) {
+        return toast(`Fix the JSON first: ${err.message}`, true);
+      }
+      const v = await rpc('pipeline.validate', { json }, true);
+      if (!v.result) return toast('Not saved: the core could not validate it.', true);
+      if (!v.result.valid) return toast(`Not saved:\n${v.result.errors.join('\n')}`, true);
+      const r = await api.savePipeline(ui.projectId, JSON.stringify(json));
       if (!r.ok) return toast(r.error, true);
       toast(`Saved ${r.path}`);
-      await rpc('pipeline.validate', { json: ui.editor.raw ? JSON.parse(ui.editor.rawText) : ui.editor.json }, true);
       return;
     }
     case 'step-toggle': {

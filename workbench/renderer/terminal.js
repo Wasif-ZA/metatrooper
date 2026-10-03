@@ -60,7 +60,7 @@ const termView = (() => {
   troop.onTerm((sessionId, m) => {
     const t = terms.get(sessionId);
     if (!t) return;
-    if (m.op === 'snapshot') { t.term.reset(); t.term.write(m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); }); }
+    if (m.op === 'snapshot') { t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); }); }
     else if (m.op === 'output') t.term.write(m.data);
     else if (m.op === 'exit') { t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
     else if (m.op === 'error' && m.code === 'slow-viewer') attach(t);

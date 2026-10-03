@@ -44,7 +44,7 @@
   },
   "$defs": {
     "template": {
-      "description": "Text with {{ }} references. Allowed references: inputs.<name>, steps.<id>.outputs.<key>, steps.<id>.output_path, steps.<id>.outputs.<key>[<i>] where i is a number or the literal i (the fan-out index), run.dir, run.id, project.path. No other expressions. An unknown reference fails validation.",
+      "description": "Text with {{ }} references. Allowed references: inputs.<name>, steps.<id>.outputs.<key>, steps.<id>.output_path, steps.<id>.outputs.<key>[<i>] where i is a number or the literal i (the fan-out index), run.dir, run.id, project.path, index (the fan-out index, fan-out steps only), variants.picked.worktree, variants.picked.branch (the variant picked at an earlier handoff gate). No other expressions. An unknown reference fails validation.",
       "type": "string"
     },
     "step": {
@@ -83,8 +83,10 @@
         "destination": { "$ref": "#/$defs/template", "description": "Where an agent publish step sends things (repo, account, recipient). Required for kind=agent with role=publish or external=true; part of the gate action_hash." },
         "fanout": { "type": "integer", "minimum": 2, "maximum": 8 },
         "worktree": { "type": "boolean", "default": false },
+        "cwd": { "$ref": "#/$defs/template", "description": "Folder the step runs in when it has no worktree, e.g. {{variants.picked.worktree}}. Defaults to the project folder." },
         "browser": { "type": "boolean", "default": false, "description": "Give this step a browser pane it owns (one per fan-out index)." },
         "dev_command": { "type": "string", "description": "Command started in the worktree to serve the app, e.g. 'npm run dev -- --port {{port}}'. {{port}} is allocated by the runner." },
+        "serve": { "enum": ["before", "after"], "default": "after", "description": "When dev_command starts: after the agent finishes (variants to look at), or before it runs and ready first (an agent that checks the page while it works)." },
         "outputs": {
           "description": "Keys the step must write into its output file's front matter. Missing keys fail the step.",
           "type": "array", "items": { "type": "string" }

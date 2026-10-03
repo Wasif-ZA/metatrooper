@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "deploy",
+  "version": "0.1.0",
+  "name": "Deploy",
+  "description": "Preview and production deploys through the Vercel CLI, on your own vercel login. The folder must be linked first with `vercel link`. A production deploy is external.",
+  "platforms": ["windows"],
+  "permissions": ["network", "project:read"],
+  "actions": [
+    {
+      "id": "preview",
+      "title": "Deploy a preview",
+      "run": ["bin/deploy.js", "preview"],
+      "timeout_seconds": 600,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": { "path": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string" } } }
+    },
+    {
+      "id": "production",
+      "title": "Deploy to production",
+      "run": ["bin/deploy.js", "production"],
+      "external": true,
+      "destination_field": "path",
+      "timeout_seconds": 600,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": { "path": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string" } } }
+    }
+  ]
+}

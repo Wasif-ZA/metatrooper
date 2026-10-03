@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "id": "design-variants",
+  "title": "Design variants",
+  "lane": "design",
+  "requires": ["agent-reach"],
+  "inputs": {
+    "brief": { "type": "text", "label": "Design brief", "required": true }
+  },
+  "budget": { "max_minutes": 90, "max_parallel": 3 },
+  "steps": [
+    {
+      "id": "board",
+      "title": "Find references",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/inspiration-board",
+      "with": { "brief": "{{inputs.brief}}" },
+      "view": "board"
+    },
+    {
+      "id": "directions",
+      "title": "Write three directions",
+      "role": "plan",
+      "kind": "agent",
+      "prompt": "Brief: {{inputs.brief}}\n\nReferences found for it: {{steps.board.outputs.references}}\n\nWrite three clearly different design directions for this brief, each grounded in named references. Write them to {{run.dir}}/direction-0.md, {{run.dir}}/direction-1.md and {{run.dir}}/direction-2.md: layout, type, colour, and which references it borrows from. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-directions",
+      "title": "Approve the directions",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/direction-0.md to direction-2.md. Approve to build all three, reject to stop."
+    },
+    {
+      "id": "variants",
+      "title": "Build each direction",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 3,
+      "worktree": true,
+      "browser": true,
+      "dev_command": "npm run dev -- --port {{port}}",
+      "view": "variants-grid",
+      "prompt": "Build the page described in {{run.dir}}/direction-{{index}}.md in this worktree, for this brief: {{inputs.brief}}\n\nKeep `npm run dev -- --port <n>` serving it. Commit your work on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "pick",
+      "title": "Pick a variant",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Pick one tile in the variants grid (or Combine two), then Continue."
+    },
+    {
+      "id": "polish",
+      "title": "Polish the picked variant",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{variants.picked.worktree}}",
+      "prompt": "This worktree holds the picked design for: {{inputs.brief}}\n\nPolish it: fix spacing, contrast and alignment, make it work at 390 px wide, and keep the direction. Commit on the current branch ({{variants.picked.branch}}). Do not push.",
+      "outputs": ["summary"]
+    }
+  ]
+}

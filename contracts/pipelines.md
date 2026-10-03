@@ -86,6 +86,12 @@ Its stdout JSON becomes the step outputs and is written to `<step_id>.json`.
   creates a new gate with the new summary, and pauses again. So an approval covers exactly one action with
   exactly those arguments.
 - `gate: handoff` pauses until the user presses Continue. It never authorises a publish.
+- After a fan-out worktree step, Pick on a tile marks that variant `picked` (one per run; picking another sets
+  the old one back to `ready`). Later steps read it as `{{variants.picked.worktree}}` and
+  `{{variants.picked.branch}}`, and `cwd: "{{variants.picked.worktree}}"` runs a step inside it. Validation
+  requires a handoff gate between the fan-out step and the reference. `gate.resolve` refuses Continue on a
+  handoff gate step that follows a fan-out worktree step while nothing is picked (VALIDATION, "pick a tile
+  first"); the gate stays waiting.
 - An `auto-external` gate is created by the runner in front of any external step whose pipeline file forgot a
   gate but whose plugin declares it external; validation already rejects such files, so this only catches
   plugins updated after the pipeline was saved.
@@ -105,7 +111,11 @@ Its stdout JSON becomes the step outputs and is written to `<step_id>.json`.
 
 ## Dev servers
 
-For a step with `dev_command` and a leased port, the runner:
+For a step with `dev_command` and a leased port, the runner does the following after the agent finishes, or
+before it starts when the step sets `serve: "before"` (a step whose agent checks the page while it works; a
+server that never answers then fails the step without starting the agent). A later step that sets `browser`
+and no `dev_command` on the same index reuses that pane and server, which stay up until the run ends or the
+variant is discarded:
 
 1. Spawns `dev_command` (with `{{port}}` resolved) in the worktree through `cmd.exe /d /s /c`, with the user's
    normal environment (it is the user's own project command, not a plugin), hidden window, and records the pid

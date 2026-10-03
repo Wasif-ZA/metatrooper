@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,7 +14,8 @@ export const bs = String.fromCharCode(92);
 export function isolation() {
   const home = mkdtempSync(join(tmpdir(), 'metatrooper-test-'));
   const prefix = `troop-test-${randomUUID().replaceAll('-', '')}`;
-  return { home, prefix, env: { ...process.env, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };
+  const recorder = pathToFileURL(join(root, 'core/test/server-pid-recorder.mjs')).href;
+  return { home, prefix, env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${recorder}`, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };
 }
 
 export function pipePath(prefix) {
@@ -117,6 +119,14 @@ export async function stopCore(child, isolated) {
 
 export async function teardownCore(child, isolated) {
   await stopCore(child, isolated);
+  const listenerDir = join(isolated.home, 'listener-pids');
+  const listeners = existsSync(listenerDir) ? readdirSync(listenerDir).map(Number) : [];
+  for (const pid of listeners) {
+    try { process.kill(pid); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  }
+  await until(() => listeners.every(pid => {
+    try { process.kill(pid, 0); return false; } catch (error) { if (error.code === 'ESRCH') return true; throw error; }
+  }), 5000);
   const pids = new Set();
   let sessionIds = [];
   let db;

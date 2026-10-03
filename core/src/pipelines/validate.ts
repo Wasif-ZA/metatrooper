@@ -22,8 +22,10 @@ export interface Step {
   destination?: string;
   fanout?: number;
   worktree?: boolean;
+  cwd?: string;
   browser?: boolean;
   dev_command?: string;
+  serve?: 'before' | 'after';
   outputs?: string[];
   view?: string;
   loop?: { steps: string[]; until: string; max: number };
@@ -92,7 +94,8 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
   const inputs = new Set(Object.keys(p.inputs ?? {}));
 
   p.steps.forEach((s, i) => {
-    const fields: Array<[string, unknown]> = [['prompt', s.prompt], ['gate_summary', s.gate_summary], ['destination', s.destination], ['with', s.with], ['dev_command', s.dev_command]];
+    const fields: Array<[string, unknown]> = [['prompt', s.prompt], ['gate_summary', s.gate_summary], ['destination', s.destination], ['with', s.with], ['dev_command', s.dev_command], ['cwd', s.cwd]];
+    if (s.cwd !== undefined && s.worktree) errors.push(`${at(i, s)}/cwd: a step with worktree cannot also set cwd`);
     for (const [field, value] of fields) {
       for (const text of templateStrings(value)) {
         for (const expr of refsIn(text)) {
@@ -103,6 +106,12 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
           }
           if (ref.root === 'port' && field !== 'dev_command') errors.push(`${at(i, s)}/${field}: {{port}} is only allowed in dev_command`);
           if (ref.root === 'inputs' && !inputs.has(ref.name as string)) errors.push(`${at(i, s)}/${field}: {{${expr}}} names no input`);
+          if (ref.root === 'variants') {
+            const src = p.steps.findIndex((t, j) => j < i && t.fanout && t.worktree);
+            const gated = src >= 0 && p.steps.some((t, j) => j > src && j < i && t.kind === 'gate' && t.gate === 'handoff');
+            if (!gated) errors.push(`${at(i, s)}/${field}: {{${expr}}} needs an earlier fan-out worktree step and a handoff gate after it`);
+          }
+          if (ref.root === 'index' && !s.fanout) errors.push(`${at(i, s)}/${field}: {{index}} needs a fan-out step`);
           if (ref.index === 'i' && !s.fanout) errors.push(`${at(i, s)}/${field}: {{${expr}}} uses [i] but the step has no fanout`);
           if (ref.root === 'steps') {
             const j = index.get(ref.step as string);

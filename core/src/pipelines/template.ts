@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 export interface Ref {
   raw: string;
-  root: 'inputs' | 'steps' | 'run' | 'project' | 'port';
+  root: 'inputs' | 'steps' | 'run' | 'project' | 'port' | 'variants' | 'index';
   name?: string;
   step?: string;
   field?: 'outputs' | 'output_path';
@@ -23,6 +23,9 @@ export function parseRef(expr: string): Ref | null {
   if (expr === 'run.dir' || expr === 'run.id') return { raw: expr, root: 'run', name: expr.slice(4) };
   if (expr === 'project.path') return { raw: expr, root: 'project', name: 'path' };
   if (expr === 'port') return { raw: expr, root: 'port' };
+  if (expr === 'index') return { raw: expr, root: 'index' };
+  m = /^variants\.picked\.(worktree|branch)$/.exec(expr);
+  if (m) return { raw: expr, root: 'variants', key: m[1] };
   return null;
 }
 
@@ -43,6 +46,7 @@ export interface Scope {
   steps: (id: string) => { outputs: unknown[]; outputPaths: string[]; fanout: boolean } | null;
   run: { id: string; dir: string };
   project: { path: string };
+  picked?: () => { worktree: string; branch: string } | null;
   index?: number;
   port?: number;
 }
@@ -63,6 +67,14 @@ function lookup(ref: Ref, scope: Scope): unknown {
     case 'port':
       if (scope.port === undefined) throw new Error('{{port}} is only available to dev_command');
       return scope.port;
+    case 'index':
+      if (scope.index === undefined) throw new Error('{{index}} is only available in a fan-out step');
+      return scope.index;
+    case 'variants': {
+      const v = scope.picked?.();
+      if (!v) throw new Error('no variant is picked; pick a tile, then Continue');
+      return ref.key === 'branch' ? v.branch : v.worktree;
+    }
     case 'steps': {
       const s = scope.steps(ref.step as string);
       if (!s) throw new Error(`step ${ref.step} has no result yet`);

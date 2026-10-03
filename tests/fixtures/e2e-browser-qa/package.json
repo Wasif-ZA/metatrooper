@@ -1,0 +1,9 @@
+{
+  "name": "e2e-browser-qa-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node serve.js",
+    "test": "node test.js"
+  }
+}

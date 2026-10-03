@@ -352,7 +352,7 @@ function gateCmd(argv: string[]): number {
   if (since >= until) return fail('--since must be before --until');
   const db = openReaderDb();
   try {
-    const report = measureGate({ since, until, home: homedir(), db, toolrouter: ['toolrouter'] });
+    const report = measureGate({ since, until, home: homedir(), db, toolrouter: ['metarouter'] });
     console.log(json ? JSON.stringify(report) : formatGate(report));
   } finally { db?.close(); }
   return 0;
