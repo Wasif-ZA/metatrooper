@@ -112,9 +112,9 @@ the tool itself, and it is independent of whichever plan is chosen.
 |-----|--------|---------|
 | Hooks of any kind, including the Read hook | Wasif wants Claude Code's own flow untouched. Hooks are rejected, not deferred | never |
 | A skill | A skill listing costs tokens in every session. A command costs nothing until it is run | v2-jev |
-| Bash output cap (`BASH_MAX_OUTPUT_LENGTH`) | He does not want caps; they change how Claude Code behaves. Shrinking happens inside toolrouter, with the full output kept in a log | never |
+| Bash output cap (`BASH_MAX_OUTPUT_LENGTH`) | He does not want caps; they change how Claude Code behaves. Shrinking happens inside metarouter, with the full output kept in a log | never |
 | Wrapping gstack browse | He wants his own browser tooling, not a dependency on someone else's. Replaced by an own CDP driver over Chrome's pipe | never |
-| Playwright | Same reason, and Apache 2.0 fails the MIT gate if toolrouter is ever sold | v2-jev |
+| Playwright | Same reason, and Apache 2.0 fails the MIT gate if metarouter is ever sold | v2-jev |
 | Computer use in v1 | Moved to v2. The goal is recorded in `spec.md`: an agent cursor of its own that does not take over his mouse | v2 |
 | Blocking breaker | A command-only tool must never refuse a call the agent chose. The breaker now warns only | v2-jev |
 | SQLite store | JSON lines are enough for an append-only call log with no queries yet | v2-jev |
@@ -126,7 +126,7 @@ Still cut from before: the result cache (ceiling 0.12%).
 | Item | Decision | Revisit |
 |------|----------|---------|
 | Logging lookup lanes | Only lanes that run something log. `list`, `search` and the rest would fill the call log with noise `learn` has to ignore | never |
-| Redirects to a blocked host in `page` and `screenshot` | Not caught. `page` is fetched by r.jina.ai on its side and `screenshot` by the Playwright CLI, so toolrouter never sees the redirect. `up` and `browse` do catch it. Use `browse` for anything that might redirect somewhere sensitive | when `screenshot` moves onto the own CDP driver |
+| Redirects to a blocked host in `page` and `screenshot` | Not caught. `page` is fetched by r.jina.ai on its side and `screenshot` by the Playwright CLI, so metarouter never sees the redirect. `up` and `browse` do catch it. Use `browse` for anything that might redirect somewhere sensitive | when `screenshot` moves onto the own CDP driver |
 
 ## Decided 2026-10-02, catalogue and modes
 
@@ -136,8 +136,8 @@ Still cut from before: the result cache (ceiling 0.12%).
 | Auto-wrapping every binary on PATH (cut above) | Partly reversed. In `auto` mode `search` lists matching PATH binaries and `tools <bin>` prints its `--help`. Nothing is wrapped or run without being asked | never |
 | Public MCP registry | `auto` mode searches registry.modelcontextprotocol.io and launches stdio servers by their registry name. Registry search has no popularity order, so the curated catalogue is listed first | when the registry adds ranking |
 | Catalogue servers that need a key | Config only. The error names the missing variable; values are never stored | never |
-| toolrouter as the default tool | Made default by instruction only: the vault CLAUDE.md and `~/.codex/AGENTS.md`. Hooks stay rejected (row above, 2026-09-28) because Wasif wants Claude Code's own flow untouched | never |
-| Commands agents typed instead of using toolrouter | Caught after the fact, not live. `learn` mines the transcripts (also from `nightly.cmd`); in `auto` mode a shape used 5+ times at 80%+ success is saved as a `learned` recipe, in `learn` mode it waits for `learn --review`. Shapes matching ACU words (acu, redcap, hwbreport, partner, participant, survey) are never auto-saved | after the first week of nightly runs |
+| metarouter as the default tool | Made default by instruction only: the vault CLAUDE.md and `~/.codex/AGENTS.md`. Hooks stay rejected (row above, 2026-09-28) because Wasif wants Claude Code's own flow untouched | never |
+| Commands agents typed instead of using metarouter | Caught after the fact, not live. `learn` mines the transcripts (also from `nightly.cmd`); in `auto` mode a shape used 5+ times at 80%+ success is saved as a `learned` recipe, in `learn` mode it waits for `learn --review`. Shapes matching ACU words (acu, redcap, hwbreport, partner, participant, survey) are never auto-saved | after the first week of nightly runs |
 | sqlite and desktop-commander servers | Dropped by the verifier: sqlite is archived with no replacement, desktop-commander duplicates the shell and file tools | never |
 
 ## Decided 2026-10-02, the twelve research ideas
@@ -147,11 +147,17 @@ a gh research pass over rtk, context-mode, tldr, mcporter, SWE-agent, navi, Voya
 
 | Item | Decision | Revisit |
 |------|----------|---------|
-| Per-command filters (`toolrouter/filters/*.json`) | Built. This reverses the spec line "chosen by what the output looks like, not by which tool made it", for matched commands only and only when they exit 0. Six filters for the commands the call log shows most (npm install, pip install, pytest, git push/pull, gh run view, uv sync), each with tests that `check` runs. Written fresh, nothing copied from rtk | when a filter hides something an agent needed |
+| Per-command filters (`metarouter/filters/*.json`) | Built. This reverses the spec line "chosen by what the output looks like, not by which tool made it", for matched commands only and only when they exit 0. Six filters for the commands the call log shows most (npm install, pip install, pytest, git push/pull, gh run view, uv sync), each with tests that `check` runs. Written fresh, nothing copied from rtk | when a filter hides something an agent needed |
 | `exec --want` | Built. Mechanism borrowed from context-mode (Elastic License 2.0), no code copied. In-memory chunk scoring of one output; no index, no cache | never |
-| tldr pages | `tools <bin>` shows the tldr page; learned recipes take their summary from the best-matching tldr example. Pages are CC-BY 4.0: fetched on demand, cached under `~/.toolrouter/tldr/` with the credit line kept in the cached file | never |
+| tldr pages | `tools <bin>` shows the tldr page; learned recipes take their summary from the best-matching tldr example. Pages are CC-BY 4.0: fetched on demand, cached under `~/.metarouter/tldr/` with the credit line kept in the cached file | never |
 | Auto-saved learned recipes | Tightened. Saved only with an example from one real use that exits 0 in an empty temporary folder (where `check` runs it), and only when the body is on a read-only allowlist (git status/log/diff/show..., --version calls, npm ls/view, pip list/show, docker ps). A denylist was rejected: `git checkout -- .`, `git stash` and `npm run` would pass as reads. Everything else waits for `learn --review` | after a week of nightly runs |
 | Learned flows | `learn` proposes command pairs that run back to back 5+ times; never auto-saved | never |
-| MCP keep-alive helper | Built, with the same 30-minute idle stop as `browse` and `toolrouter mcp stop`. Off in tests (`tests/conftest.py`), because each test run otherwise left four helpers running | never |
+| MCP keep-alive helper | Built, with the same 30-minute idle stop as `browse` and `metarouter mcp stop`. Off in tests (`tests/conftest.py`), because each test run otherwise left four helpers running | never |
 | MCP over HTTP | Built for registry servers that are remote-only. Header values with a `{variable}` read it from the environment; optional ones are left out | never |
 | Python floor | Raised to 3.11 for `tomllib` (lint-gated `replace`, `mcp import`) | never |
+
+## Decided 2026-10-03, the name
+
+| Decision | Reason |
+|-----|--------|
+| Renamed to `metarouter` (toolrouter, then toolbook for one day) | `toolrouter` is taken on PyPI and npm by ToolRouter Inc. Wasif did not take to toolbook. `metarouter` is free on PyPI and npm, the largest GitHub repo with the name has 12 stars, and it joins metatrooper in one meta* family. This reverses the MetaRouter cut above, which was made when the tool still ranked tools |

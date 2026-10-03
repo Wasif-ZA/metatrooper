@@ -5,19 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from toolrouter import calls
-from toolrouter.shrink import json_shape, shrink
+from metarouter import calls
+from metarouter.shrink import json_shape, shrink
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path / "toolrouter-home"))
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "metarouter-home"))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -42,14 +42,14 @@ def test_shape_removes_quoted_strings_numbers_and_paths(command, forbidden):
 
 
 def test_run_call_log_contains_shape_not_raw_command(capsys):
-    from toolrouter import cli
+    from metarouter import cli
 
     command = r'printf "%s" 731946 "ultravioletgiraffe" "C:\zebraarchive.csv"'
 
     exit_code = cli.main(["--json", "exec", "--", command])
 
     json.loads(capsys.readouterr().out)
-    call_log = Path(os.environ["TOOLROUTER_HOME"]) / "calls.jsonl"
+    call_log = Path(os.environ["METAROUTER_HOME"]) / "calls.jsonl"
     lines = call_log.read_text(encoding="utf-8").splitlines()
     assert exit_code == 0
     assert len(lines) == 1
@@ -120,8 +120,8 @@ def test_json_shape_names_object_keys_at_depth_two(keys, expected):
 
 
 def _append_records(home, worker, start):
-    os.environ["TOOLROUTER_HOME"] = home
-    for name in ("AI_AGENT", "CLAUDECODE", "TOOLROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID"):
+    os.environ["METAROUTER_HOME"] = home
+    for name in ("AI_AGENT", "CLAUDECODE", "METAROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID"):
         os.environ.pop(name, None)
     if not start.wait(10):
         raise RuntimeError("append workers did not receive the start signal")
@@ -132,7 +132,7 @@ def _append_records(home, worker, start):
 def test_two_processes_append_2000_valid_json_lines(tmp_path):
     context = multiprocessing.get_context("spawn")
     start = context.Event()
-    home = str(tmp_path / "toolrouter-home")
+    home = str(tmp_path / "metarouter-home")
     processes = [
         context.Process(target=_append_records, args=(home, worker, start))
         for worker in ("left", "right")

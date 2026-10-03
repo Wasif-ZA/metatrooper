@@ -6,23 +6,23 @@ from types import SimpleNamespace
 
 import pytest
 
-from toolrouter import cli, hints, shrink
-from toolrouter.recipes import web
-from toolrouter.result import render
+from metarouter import cli, hints, shrink
+from metarouter.recipes import web
+from metarouter.result import render
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -37,7 +37,7 @@ def test_agent_log_is_named_only_when_output_is_not_whole(tmp_path):
 
     whole_json = json.loads(render(whole, "json"))
     shrunk_json = json.loads(render(shrunk, "json"))
-    logs = list((tmp_path / "toolrouter-home").rglob("*.log"))
+    logs = list((tmp_path / "metarouter-home").rglob("*.log"))
     assert set(whole_json) == {"ok", "exit", "out"}
     assert whole_json["out"] == whole_raw.decode()
     assert "full output:" in render(whole, "human")
@@ -233,7 +233,7 @@ def test_repo_accepts_github_url_returns_compact_fields_and_logs_full_json(
         "capture_output": True,
     }
     assert Path(result["log"]).read_bytes() == raw
-    assert Path(result["log"]).is_relative_to(tmp_path / "toolrouter-home")
+    assert Path(result["log"]).is_relative_to(tmp_path / "metarouter-home")
 
 
 def test_screenshot_builds_playwright_cli_argv(tmp_path, monkeypatch):
@@ -253,7 +253,7 @@ def test_screenshot_builds_playwright_cli_argv(tmp_path, monkeypatch):
         web.shutil, "which", lambda name: "C:/tools/playwright.exe" if name == "playwright" else None
     )
     monkeypatch.setattr(web, "subprocess", FakeSubprocess)
-    from toolrouter import hook
+    from metarouter import hook
 
     monkeypatch.setattr(hook, "shrink_image", lambda path, cache: None)
     args = SimpleNamespace(
@@ -304,7 +304,7 @@ def test_screenshot_reports_missing_playwright(monkeypatch):
 
 @pytest.mark.parametrize("recipe", ["page", "up", "screenshot"])
 def test_web_recipes_refuse_blocked_hosts(recipe, tmp_path, monkeypatch):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     home.mkdir(parents=True, exist_ok=True)
     (home / "blocked-hosts.txt").write_text("example.com\n", encoding="utf-8")
 
@@ -324,8 +324,8 @@ def test_web_recipes_refuse_blocked_hosts(recipe, tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("command", "expected"),
     [
-        ("curl https://r.jina.ai/https://example.com", "toolrouter run page <url>"),
-        ("gh api repos/octo/widgets", "toolrouter run repo <owner/name>"),
+        ("curl https://r.jina.ai/https://example.com", "metarouter run page <url>"),
+        ("gh api repos/octo/widgets", "metarouter run repo <owner/name>"),
     ],
 )
 def test_web_before_run_hints_fire(command, expected):

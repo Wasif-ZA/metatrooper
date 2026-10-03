@@ -4,21 +4,21 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from toolrouter import calls, cli
+from metarouter import calls, cli
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -80,7 +80,7 @@ def test_do_unknown_recipe_suggests_close_name(capsys):
 
     assert exit_code == 2
     assert 'no recipe "replce"' in result["note"]
-    assert "Did you mean: toolrouter run replace" in result["note"]
+    assert "Did you mean: metarouter run replace" in result["note"]
 
 
 def test_saved_shell_placeholders_quote_arguments_safely(capsys):
@@ -126,7 +126,7 @@ def test_python_recipe_exception_returns_one_without_escaping(
         "def run(args):\n    raise RuntimeError('synthetic boom')\n", encoding="utf-8"
     )
     monkeypatch.syspath_prepend(str(tmp_path))
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     write_recipe(
         home,
         "crasher",
@@ -157,7 +157,7 @@ def test_save_archives_each_previous_version(tmp_path, capsys):
         exit_code, _ = invoke(capsys, "add", "versioned", "--", body)
         assert exit_code == 0
 
-    folder = tmp_path / "toolrouter-home" / "recipes"
+    folder = tmp_path / "metarouter-home" / "recipes"
     first = json.loads((folder / "archive" / "versioned@1.json").read_text(encoding="utf-8"))
     second = json.loads((folder / "archive" / "versioned@2.json").read_text(encoding="utf-8"))
     current = json.loads((folder / "versioned.json").read_text(encoding="utf-8"))
@@ -197,7 +197,7 @@ def test_check_reports_failing_saved_example_and_exits_one(
 ):
     force_check_temp_under(tmp_path, monkeypatch)
     write_recipe(
-        tmp_path / "toolrouter-home",
+        tmp_path / "metarouter-home",
         "broken-example",
         body="printf actual",
         example={"setup": {}, "args": [], "expect_exit": 0, "expect_out": "wanted"},
@@ -214,7 +214,7 @@ def test_check_writes_no_call_log_and_creates_no_cwd_files(
     tmp_path, monkeypatch, capsys
 ):
     force_check_temp_under(tmp_path, monkeypatch)
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     write_recipe(
         home,
         "checked",
@@ -237,7 +237,7 @@ def test_check_writes_no_call_log_and_creates_no_cwd_files(
 def test_how_ranks_using_current_project_calls_before_other_projects(
     tmp_path, monkeypatch, capsys
 ):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     write_recipe(home, "alpha-tool", summary="projectword synthetic")
     write_recipe(home, "beta-tool", summary="projectword synthetic")
     rows = []
@@ -251,8 +251,8 @@ def test_how_ranks_using_current_project_calls_before_other_projects(
     exit_code, result = invoke(capsys, "search", "projectword")
 
     assert exit_code == 0
-    assert result["out"].index("toolrouter run beta-tool") < result["out"].index(
-        "toolrouter run alpha-tool"
+    assert result["out"].index("metarouter run beta-tool") < result["out"].index(
+        "metarouter run alpha-tool"
     )
     assert result["out"].count("(5 calls here)") == 2
 
@@ -260,7 +260,7 @@ def test_how_ranks_using_current_project_calls_before_other_projects(
 def test_how_recipe_under_five_calls_takes_median_score(
     tmp_path, monkeypatch, capsys
 ):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     for name in ("high", "middle", "newcomer", "low"):
         write_recipe(home, name, summary="medianword synthetic")
     rows = []
@@ -276,7 +276,7 @@ def test_how_recipe_under_five_calls_takes_median_score(
 
     assert exit_code == 0
     positions = {
-        name: result["out"].index(f"toolrouter run {name}")
+        name: result["out"].index(f"metarouter run {name}")
         for name in ("high", "middle", "newcomer", "low")
     }
     assert positions["high"] < positions["middle"] < positions["newcomer"] < positions["low"]
@@ -296,7 +296,7 @@ def test_how_word_matching_nothing_exits_one(capsys):
 def test_agent_mode_each_recipe_verb_prints_exactly_one_json_line(
     verb, tmp_path, monkeypatch, capsys
 ):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     force_check_temp_under(tmp_path, monkeypatch)
     Path("data.json").write_text('{"a": [1, 2]}', encoding="utf-8")
     Path("text.txt").write_text("needle old\n", encoding="utf-8")

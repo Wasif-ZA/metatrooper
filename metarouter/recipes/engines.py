@@ -25,22 +25,22 @@ def version_key(p):
 
 
 def codex_companion():
-    if os.environ.get("TOOLROUTER_CODEX_COMPANION"):
-        return os.environ["TOOLROUTER_CODEX_COMPANION"]
+    if os.environ.get("METAROUTER_CODEX_COMPANION"):
+        return os.environ["METAROUTER_CODEX_COMPANION"]
     found = sorted((Path.home() / ".claude" / "plugins" / "cache" / "openai-codex" / "codex")
                    .glob("*/scripts/codex-companion.mjs"), key=version_key)
     if not found:
         raise FileNotFoundError("codex-companion.mjs not found. Install the Codex plugin or set "
-                                "TOOLROUTER_CODEX_COMPANION")
+                                "METAROUTER_CODEX_COMPANION")
     return str(found[-1])
 
 
 def vault_script(name):
-    # ponytail: vault path defaults to ~/teehee; set TOOLROUTER_VAULT on any other machine
-    vault = Path(os.environ.get("TOOLROUTER_VAULT") or Path.home() / "teehee")
+    # ponytail: vault path defaults to ~/teehee; set METAROUTER_VAULT on any other machine
+    vault = Path(os.environ.get("METAROUTER_VAULT") or Path.home() / "teehee")
     path = vault / "meta" / "scripts" / name
     if not path.is_file():
-        raise FileNotFoundError(f"{path} not found. Set TOOLROUTER_VAULT to the vault folder")
+        raise FileNotFoundError(f"{path} not found. Set METAROUTER_VAULT to the vault folder")
     return str(path)
 
 
@@ -78,7 +78,7 @@ def argv(recipe, args, shell):
         args = [*args, Path(files[-1]).read_text(encoding="utf-8")]
     if engine == "codex":
         if not has_prompt(args):
-            raise ValueError('codex needs a prompt: toolrouter run codex "<task>"')
+            raise ValueError('codex needs a prompt: metarouter run codex "<task>"')
         return ["node", codex_companion(), "task", *args]
     if engine == "codex-review":
         return ["node", codex_companion(), "review", "--wait", *args]
@@ -92,7 +92,7 @@ def argv(recipe, args, shell):
             passed += [flag, vals[-1]] if vals else []
         prompt = " ".join(rest)
         if not prompt:
-            raise ValueError('gemini needs a prompt: toolrouter run gemini "<question>"')
+            raise ValueError('gemini needs a prompt: metarouter run gemini "<question>"')
         if FILE_WORD.search(prompt) and not dirs and not workdirs:
             raise ValueError("this question names a file but has no --add-dir or --dir. agy cannot read "
                              "files outside its folder and comes back empty. Add --dir <folder>")
@@ -112,6 +112,6 @@ def argv(recipe, args, shell):
         models, rest = take(args, "--model")
         prompt = " ".join(rest)
         if not prompt:
-            raise ValueError('local needs a prompt: toolrouter run local "<prompt>"')
+            raise ValueError('local needs a prompt: metarouter run local "<prompt>"')
         return [shell, vault_script("local.sh"), "ask", (models or [LOCAL_MODEL])[-1], prompt]
     raise ValueError(f"unknown engine {engine}")

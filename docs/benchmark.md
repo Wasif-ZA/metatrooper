@@ -1,4 +1,4 @@
-# Step 0 result: does Headroom make ToolRouter unnecessary?
+# Step 0 result: does Headroom make metarouter unnecessary?
 
 **No. Build C7.**
 
@@ -103,7 +103,7 @@ on this workload, so Plan A's C7 has a measured justification. The rest of the p
 unaffected: this says nothing about the registry, ranking, templates or catalog, all of
 which remain governed by the ceilings in `measurement.md`.
 
-## 2026-09-28: toolrouter's own shrinker
+## 2026-09-28: metarouter's own shrinker
 
 `bench/shrink_bench.py` runs the phase 1 text and JSON shrinker over the same kind of corpus,
 with the same needle rules and matching rule as `headroom_bench.py`. The corpus has grown
@@ -111,7 +111,7 @@ since the Headroom run: every Bash output of 250 tokens or more, 4,577 of them.
 
 | Arm | Tokens in | Tokens out | Reduction | Needle survival |
 |-----|----------:|-----------:|----------:|----------------:|
-| toolrouter shrink | 4,756,954 | 832,426 | 82.5% | 99.93% (4,288 of 4,291) |
+| metarouter shrink | 4,756,954 | 832,426 | 82.5% | 99.93% (4,288 of 4,291) |
 
 The first run scored 98.21%. Every miss was an `error:` or `fatal:` line with text before it,
 because the smart cap pattern only matched those at the start of a line. Allowing them after

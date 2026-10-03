@@ -7,13 +7,13 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from toolrouter import calls
+from metarouter import calls
 
 IMAGE_TOKENS = 1500
 CAPS = (400, 800, 2000, 4000)
 BIG_READ_TOKENS = 10_000  # about 40 KB at four bytes per token
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
-OUT_DIR = Path.home() / ".toolrouter"
+OUT_DIR = Path.home() / ".metarouter"
 ACU = re.compile(r"work[\\/]+acu", re.I)
 
 
@@ -154,7 +154,7 @@ def summarise(calls, results):
 
 
 def saved_tokens(rows, since=None, until=None):
-    """Tokens toolrouter kept out of context: (bytes - shown_bytes) // 4 per printed, non-ACU call in the window."""
+    """Tokens metarouter kept out of context: (bytes - shown_bytes) // 4 per printed, non-ACU call in the window."""
     total = 0
     for r in rows:
         if "shown_bytes" not in r or ACU.search(str(r.get("project") or "")):
@@ -183,7 +183,7 @@ def report(s, n_files):
 
 
 def main(argv=None, how="human"):
-    ap = argparse.ArgumentParser(prog="toolrouter")
+    ap = argparse.ArgumentParser(prog="metarouter")
     sub = ap.add_subparsers(dest="cmd", required=True)
     ing = sub.add_parser("ingest", help="measure where tool-result tokens go")
     ing.add_argument("--root", default=str(DEFAULT_ROOT))

@@ -43,7 +43,7 @@ def mode(argv):
             head = [a for a in head if a != flag]
     if chosen:
         return chosen, head + rest
-    env = os.environ.get("TOOLROUTER_OUTPUT", "").lower()
+    env = os.environ.get("METAROUTER_OUTPUT", "").lower()
     if env in ("json", "human"):
         return env, head + rest
     if os.environ.get("AI_AGENT") or os.environ.get("CLAUDECODE"):

@@ -5,7 +5,7 @@ Measured 2026-09-27T21:40+10:00 from 102 Claude Code session transcripts,
 
 This document is the evidence base for every decision in `spec.md` and every cut in
 `decisions.md`. It is also the most reusable thing in this repo: the numbers are not
-specific to ToolRouter and nobody appears to have published equivalents.
+specific to metarouter and nobody appears to have published equivalents.
 
 ## Method
 
@@ -210,7 +210,7 @@ context size matters far more than any cap on one tool result.
 and removed the next day. The 1M window (`opus[1m]`) is back. Each compaction is an extra
 call that re-reads the whole context, and every file is read again after the summary. The
 model below counts neither. The cap also changes how Claude Code sessions run, which is out
-of scope: toolrouter only uses levers that leave the flow as it is. The table stays as the
+of scope: metarouter only uses levers that leave the flow as it is. The table stays as the
 modelled history.
 
 Modelled on the same transcripts: each session's context grows turn by turn as it did,
@@ -251,5 +251,5 @@ with the cap, they sum to 1,777,256,867. (4,243,704,940 - 1,777,256,867) / 4,243
 
 The analysis scripts were written against the transcript format directly with no
 dependencies beyond the Python standard library. They are not committed here yet; the
-first plan item is to port them into `toolrouter/ingest.py`, where they become the backfill
+first plan item is to port them into `metarouter/ingest.py`, where they become the backfill
 path and stop being throwaway.

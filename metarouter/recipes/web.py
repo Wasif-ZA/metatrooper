@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from toolrouter.log import home
+from metarouter.log import home
 
 RECIPES = [
     {"name": "page", "summary": "read a public web page as plain text (markdown) through r.jina.ai",
@@ -25,7 +25,7 @@ RECIPES = [
      "args": ["url", "file", "--width", "--height", "--full", "--dark", "--device", "--wait-for"],
      "purity": "read"},
 ]
-UA = {"User-Agent": "toolrouter"}
+UA = {"User-Agent": "metarouter"}
 TITLE = re.compile(rb"<title[^>]*>(.*?)</title>", re.I | re.S)
 JINA_NOISE = re.compile(r"^(Warning|Published Time|Markdown Content):")
 LOCAL = re.compile(r"^(localhost|127\.|0\.0\.0\.0|\[::1\])")
@@ -38,15 +38,15 @@ def url_of(s):
 
 
 def blocked(url):
-    from toolrouter.browse.daemon import blocked_hosts
-    from toolrouter.browse.page import host_blocked
+    from metarouter.browse.daemon import blocked_hosts
+    from metarouter.browse.page import host_blocked
     return host_blocked(url, blocked_hosts())
 
 
 def page(a):
     url = url_of(a.url)
     if LOCAL.match(url.split("://", 1)[1]):
-        return {"exit": 2, "out": f"r.jina.ai cannot reach {url}. Use: toolrouter browse open {url}"}
+        return {"exit": 2, "out": f"r.jina.ai cannot reach {url}. Use: metarouter browse open {url}"}
     m = re.match(r"^https://github\.com/([^/]+)/([^/]+)/?$", url)
     if m:
         owner, repo = m.group(1), m.group(2)
@@ -140,7 +140,7 @@ def screenshot(a):
         return {"exit": p.returncode or 1, "full": log, "out": "\n".join(err) or "no screenshot written"}
     res = {"file": out.as_posix()}
     try:
-        from toolrouter.hook import shrink_image
+        from metarouter.hook import shrink_image
         small = shrink_image(out, cache=home() / "img")
         if small:
             res["read"] = Path(small).as_posix()
@@ -150,7 +150,7 @@ def screenshot(a):
 
 
 def run(args, name):
-    ap = argparse.ArgumentParser(prog=f"toolrouter run {name}")
+    ap = argparse.ArgumentParser(prog=f"metarouter run {name}")
     ap.add_argument("url")
     if name == "up":
         ap.add_argument("--wait", type=float, default=0, help="seconds to keep trying")

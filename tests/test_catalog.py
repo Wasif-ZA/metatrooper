@@ -3,16 +3,16 @@ import re
 
 import pytest
 
-from toolrouter import calls, cli, log, mcp, registry
-from toolrouter import recipes as store
-from toolrouter.result import human_out
+from metarouter import calls, cli, log, mcp, registry
+from metarouter import recipes as store
+from metarouter.result import human_out
 
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
-    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path / "home"))
-    monkeypatch.delenv("TOOLROUTER_MODE", raising=False)
-    monkeypatch.setenv("TOOLROUTER_MCP_KEEP", "0")
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("METAROUTER_MODE", raising=False)
+    monkeypatch.setenv("METAROUTER_MCP_KEEP", "0")
 
 
 def test_catalogue_only_loads_in_auto_mode():
@@ -88,7 +88,7 @@ def fake_transcripts(root, commands, times=6):
 
 
 def test_learn_adds_bypassed_commands_only_in_auto_mode(tmp_path):
-    from toolrouter import learn
+    from metarouter import learn
     root = tmp_path / "transcripts"
     fake_transcripts(root, ["git --version", "rclone sync acu-reports remote:",
                             "Get-CimInstance Win32_Process", "node build.js 2>&1",
@@ -103,13 +103,13 @@ def test_learn_adds_bypassed_commands_only_in_auto_mode(tmp_path):
 
 
 def test_learned_names_say_what_the_command_does():
-    from toolrouter import learn
+    from metarouter import learn
     assert learn.name_of("curl -s --max-time {1} {2} | head -c {3}") == "curl-max-time-head"
     assert learn.name_of("npm --prefix website run build 2>&1 | tail -{1}") == "npm-website-run-build"
 
 
 def test_successful_long_output_keeps_head_and_tail_not_error_words():
-    from toolrouter import shrink
+    from metarouter import shrink
     lines = [f"line {i} test_failed_case passed" for i in range(200)]
     out = shrink.shrink("\n".join(lines), failed=False)
     assert out["errors"] == [] and out["out"].startswith("line 0 ")
@@ -140,8 +140,8 @@ def test_mode_verb(capsys):
 
 
 def test_hints_gh_search_recipe_and_json_field():
-    from toolrouter import hints
-    assert hints.match("gh search repos mcp --limit 5") == "Shorter: toolrouter run gh-search-repos <query> (auto mode)"
+    from metarouter import hints
+    assert hints.match("gh search repos mcp --limit 5") == "Shorter: metarouter run gh-search-repos <query> (auto mode)"
     assert (
         hints.match("x", 'Unknown JSON field: "licenseInfo"', failed=True)
         == "gh lists the valid --json fields in this error, under 'Available fields'. Pick from that list"
@@ -152,7 +152,7 @@ def test_page_github_readme(monkeypatch):
     import subprocess
     import types
     import urllib.error
-    from toolrouter.recipes import web
+    from metarouter.recipes import web
 
     calls = []
 
@@ -160,7 +160,7 @@ def test_page_github_readme(monkeypatch):
         calls.append((args, kwargs))
         return subprocess.CompletedProcess(args=args[0] if args else [], returncode=0, stdout=b"# Title\nreadme body")
 
-    monkeypatch.setattr("toolrouter.recipes.web.subprocess.run", fake_run)
+    monkeypatch.setattr("metarouter.recipes.web.subprocess.run", fake_run)
     res = web.page(types.SimpleNamespace(url="github.com/a/b"))
     assert res["exit"] == 0
     assert "readme body" in res["out"]
@@ -171,14 +171,14 @@ def test_page_github_readme(monkeypatch):
     def fake_urlopen(*args, **kwargs):
         raise urllib.error.URLError("offline")
 
-    monkeypatch.setattr("toolrouter.recipes.web.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("metarouter.recipes.web.urllib.request.urlopen", fake_urlopen)
     res_issues = web.page(types.SimpleNamespace(url="github.com/a/b/issues/3"))
     assert res_issues["exit"] == 1
     assert len(calls) == 0
 
 
 def test_replace_undoes_edit_that_breaks_python(tmp_path):
-    from toolrouter.recipes import replace
+    from metarouter.recipes import replace
 
     path = tmp_path / "example.py"
     original = "value = 1\n"
@@ -192,7 +192,7 @@ def test_replace_undoes_edit_that_breaks_python(tmp_path):
 
 
 def test_replace_allows_valid_python_edit(tmp_path):
-    from toolrouter.recipes import replace
+    from metarouter.recipes import replace
 
     path = tmp_path / "example.py"
     path.write_text("value = 1\n", encoding="utf-8")
@@ -204,7 +204,7 @@ def test_replace_allows_valid_python_edit(tmp_path):
 
 
 def test_replace_does_not_block_already_invalid_json(tmp_path):
-    from toolrouter.recipes import replace
+    from metarouter.recipes import replace
 
     path = tmp_path / "example.json"
     path.write_text('{"value": }\n', encoding="utf-8")
@@ -216,7 +216,7 @@ def test_replace_does_not_block_already_invalid_json(tmp_path):
 
 
 def test_replace_does_not_parse_text_files(tmp_path):
-    from toolrouter.recipes import replace
+    from metarouter.recipes import replace
 
     path = tmp_path / "example.txt"
     path.write_text("value = 1\n", encoding="utf-8")
@@ -258,7 +258,7 @@ def test_exec_want_no_match_returns_message(monkeypatch, capsys):
 
 
 def test_shrink_want_unit_test():
-    from toolrouter import shrink
+    from metarouter import shrink
 
     text = "section:\nline 1\nline 2\n\nother:\nline 3\nline 4\n"
     res = shrink.want(text, "line 1")
@@ -340,7 +340,7 @@ def test_unmatched_command_is_unchanged(monkeypatch, capsys):
 
 
 def test_check_reports_every_filter_test_as_pass():
-    from toolrouter import filters
+    from metarouter import filters
 
     all_filters = filters.load()
     assert len(all_filters) == 6
@@ -382,7 +382,7 @@ def test_filtered_shell_recipe_shows_filtered_text_and_note(monkeypatch, capsys)
 def test_tldr_page_cache_examples_and_summary(monkeypatch):
     import io
     import urllib.error
-    from toolrouter import log, tldr
+    from metarouter import log, tldr
 
     fake_page = (
         "# git\n"
@@ -403,7 +403,7 @@ def test_tldr_page_cache_examples_and_summary(monkeypatch):
             return io.BytesIO(fake_page.encode("utf-8"))
         raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
 
-    monkeypatch.setattr("toolrouter.tldr.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("metarouter.tldr.urllib.request.urlopen", fake_urlopen)
 
     text = tldr.page("git")
     assert text is not None
@@ -442,7 +442,7 @@ def test_tldr_page_cache_examples_and_summary(monkeypatch):
 
 def test_tools_lane_uses_tldr_page_in_auto_mode(monkeypatch):
     import shutil
-    from toolrouter import tldr
+    from metarouter import tldr
     store.set_mode("auto")
     monkeypatch.setattr(shutil, "which", lambda name: f"/bin/{name}" if name == "git" else None)
     monkeypatch.setattr(tldr, "page", lambda name: "# git tldr page" if name == "git" else None)
@@ -453,7 +453,7 @@ def test_tools_lane_uses_tldr_page_in_auto_mode(monkeypatch):
 
 
 def test_learn_auto_save_with_tldr_summary(tmp_path, monkeypatch):
-    from toolrouter import learn, tldr
+    from metarouter import learn, tldr
     store.set_mode("auto")
     root = tmp_path / "transcripts"
     fake_transcripts(root, ["git --version"])
@@ -526,7 +526,7 @@ def test_mcp_fake_list_and_search_tool(tmp_path):
     store.set_mode("auto")
     search_res = cli.search_lane(["echo"])
     assert search_res.ok is True
-    assert "toolrouter mcp fake echo" in search_res.out
+    assert "metarouter mcp fake echo" in search_res.out
 
 
 def test_mcp_fake_call_args(tmp_path):
@@ -688,7 +688,7 @@ def test_recipe_choices_command_fails_or_empty(capsys):
 
 
 def test_learn_check_gated_auto_save(tmp_path):
-    from toolrouter import learn
+    from metarouter import learn
     store.set_mode("auto")
     root = tmp_path / "transcripts"
     fake_transcripts(root, [
@@ -713,7 +713,7 @@ def test_learn_check_gated_auto_save(tmp_path):
 
 
 def test_learn_flow_candidates(tmp_path):
-    from toolrouter import learn
+    from metarouter import learn
     root = tmp_path / "transcripts"
     fake_transcripts(root, ["git status --short", "git diff --stat", "node /x/agy-run.sh"])
     res = learn.learn(root)
@@ -889,7 +889,7 @@ def test_registry_launch_remotes_streamable_http():
 
 def test_mcp_daemon_keep_alive(tmp_path, monkeypatch):
     make_fake_mcp_server(tmp_path)
-    monkeypatch.setenv("TOOLROUTER_MCP_KEEP", "1")
+    monkeypatch.setenv("METAROUTER_MCP_KEEP", "1")
     try:
         res1 = mcp.call_tool("fake", "echo", {"pid": True})
         res2 = mcp.call_tool("fake", "echo", {"pid": True})

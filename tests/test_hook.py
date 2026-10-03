@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from PIL import Image
 import pytest
-from toolrouter import hook
+from metarouter import hook
 
 
 @pytest.fixture(autouse=True)

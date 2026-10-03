@@ -11,12 +11,12 @@ CHROME_PATHS = [
 
 
 def find_chrome():
-    if os.environ.get("TOOLROUTER_CHROME"):
-        return os.environ["TOOLROUTER_CHROME"]
+    if os.environ.get("METAROUTER_CHROME"):
+        return os.environ["METAROUTER_CHROME"]
     for p in CHROME_PATHS:
         if Path(p).exists():
             return p
-    raise FileNotFoundError("Chrome not found. Set TOOLROUTER_CHROME to its path")
+    raise FileNotFoundError("Chrome not found. Set METAROUTER_CHROME to its path")
 
 
 class Chrome:

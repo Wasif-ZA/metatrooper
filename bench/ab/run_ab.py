@@ -22,7 +22,7 @@ def build_prompt(task_dir, arm):
     task_content = task_path.read_text(encoding="utf-8").strip()
     if arm == "plain":
         return task_content
-    if arm == "toolrouter":
+    if arm == "metarouter":
         instructions = load_agents_instructions()
         if instructions:
             return f"{instructions}\n\n{task_content}"
@@ -34,7 +34,7 @@ def arm_env(arm):
     if arm != "plain":
         return None
     real = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    home = Path(tempfile.gettempdir()) / "toolrouter-ab-plain-codex-home"
+    home = Path(tempfile.gettempdir()) / "metarouter-ab-plain-codex-home"
     home.mkdir(exist_ok=True)
     for name in ("auth.json", "config.toml"):
         if (real / name).is_file():
@@ -269,9 +269,9 @@ def run_evaluation(task_names, tasks_dir, arms, out_path):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="A/B evaluation harness for toolrouter")
+    parser = argparse.ArgumentParser(description="A/B evaluation harness for metarouter")
     parser.add_argument("--tasks", default=None, help="Comma-separated list of tasks")
-    parser.add_argument("--arms", default="plain,toolrouter", help="Comma-separated list of arms")
+    parser.add_argument("--arms", default="plain,metarouter", help="Comma-separated list of arms")
     parser.add_argument("--dry-run", action="store_true", help="Print prompts and folders without running codex")
     parser.add_argument("--self-test", action="store_true", help="Test checks on unsolved setups")
     parser.add_argument("--out", default=None, help="Output JSONL file path")

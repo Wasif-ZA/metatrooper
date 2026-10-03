@@ -7,19 +7,19 @@ from types import SimpleNamespace
 
 import pytest
 
-from toolrouter import cli, shrink
-from toolrouter.result import Result
+from metarouter import cli, shrink
+from metarouter.result import Result
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path / "toolrouter-home"))
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "metarouter-home"))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -70,8 +70,8 @@ def test_without_agent_environment_or_flag_output_is_not_json(argv, capsys):
 @pytest.mark.parametrize(
     ("flag", "environment", "expect_json"),
     [
-        ("--human", {"AI_AGENT": "1", "TOOLROUTER_OUTPUT": "json"}, False),
-        ("--json", {"TOOLROUTER_OUTPUT": "human"}, True),
+        ("--human", {"AI_AGENT": "1", "METAROUTER_OUTPUT": "json"}, False),
+        ("--json", {"METAROUTER_OUTPUT": "human"}, True),
     ],
 )
 def test_output_flag_overrides_environment(flag, environment, expect_json, monkeypatch, capsys):
@@ -96,7 +96,7 @@ def test_output_flag_after_bare_separator_belongs_to_command(tmp_path, capsys):
     assert "--json" in captured.out
     with pytest.raises(json.JSONDecodeError):
         json.loads(captured.out)
-    logs = list((tmp_path / "toolrouter-home").rglob("*.log"))
+    logs = list((tmp_path / "metarouter-home").rglob("*.log"))
     assert len(logs) == 1
     assert logs[0].read_bytes() == b"--json\n"
 
@@ -111,7 +111,7 @@ def test_subprocess_stdout_is_utf8_regardless_of_pythonioencoding(
 ):
     repo_root = Path(__file__).resolve().parents[1]
     environment = os.environ.copy()
-    environment["TOOLROUTER_HOME"] = str(tmp_path / "subprocess-home")
+    environment["METAROUTER_HOME"] = str(tmp_path / "subprocess-home")
     environment["PYTHONPATH"] = str(repo_root)
     if pythonioencoding is None:
         environment.pop("PYTHONIOENCODING", None)
@@ -122,7 +122,7 @@ def test_subprocess_stdout_is_utf8_regardless_of_pythonioencoding(
         [
             sys.executable,
             "-c",
-            "from toolrouter.cli import entry; entry()",
+            "from metarouter.cli import entry; entry()",
             "--json",
             "exec",
             "--",
@@ -296,14 +296,14 @@ def test_log_preserves_raw_non_ascii_and_binaryish_bytes(tmp_path, capsys):
 
     captured = capsys.readouterr()
     result = json.loads(captured.out)
-    logs = list((tmp_path / "toolrouter-home").rglob("*.log"))
+    logs = list((tmp_path / "metarouter-home").rglob("*.log"))
     assert exit_code == 0
     assert captured.out.count("\n") == 1
     assert "log" not in result
     assert len(logs) == 1
     log_path = logs[0]
     assert log_path.name.endswith(".log")
-    assert log_path.is_relative_to(tmp_path / "toolrouter-home")
+    assert log_path.is_relative_to(tmp_path / "metarouter-home")
     assert b"\r\n" not in expected
     assert log_path.read_bytes() == expected
 
@@ -355,8 +355,8 @@ def test_result_accepts_fallback_with_complete_marker():
     assert result.marker == marker
 
 
-def test_all_run_files_stay_under_toolrouter_home(tmp_path, monkeypatch, capsys):
-    toolrouter_home = tmp_path / "toolrouter-home"
+def test_all_run_files_stay_under_metarouter_home(tmp_path, monkeypatch, capsys):
+    metarouter_home = tmp_path / "metarouter-home"
     working_directory = tmp_path / "working"
     outside_directory = tmp_path / "outside"
     working_directory.mkdir()
@@ -367,14 +367,14 @@ def test_all_run_files_stay_under_toolrouter_home(tmp_path, monkeypatch, capsys)
 
     result = json.loads(capsys.readouterr().out)
     written_files = [path for path in tmp_path.rglob("*") if path.is_file()]
-    logs = list(toolrouter_home.rglob("*.log"))
+    logs = list(metarouter_home.rglob("*.log"))
     assert exit_code == 0
     assert "log" not in result
     assert written_files
     assert len(logs) == 1
     assert not list(outside_directory.rglob("*"))
-    assert all(path.is_relative_to(toolrouter_home) for path in written_files)
-    assert logs[0].is_relative_to(toolrouter_home)
+    assert all(path.is_relative_to(metarouter_home) for path in written_files)
+    assert logs[0].is_relative_to(metarouter_home)
 
 
 def test_unknown_verb_suggests_close_known_verb(capsys):
@@ -383,4 +383,4 @@ def test_unknown_verb_suggests_close_known_verb(capsys):
     result = json.loads(capsys.readouterr().out)
     assert exit_code == 2
     assert 'no verb "rum"' in result["note"]
-    assert "Did you mean: toolrouter run" in result["note"]
+    assert "Did you mean: metarouter run" in result["note"]

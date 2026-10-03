@@ -7,8 +7,8 @@ import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from toolrouter import calls, tldr
-from toolrouter.log import home
+from metarouter import calls, tldr
+from metarouter.log import home
 
 TRANSCRIPTS = Path.home() / ".claude" / "projects"
 MIN_USES = 5
@@ -18,7 +18,7 @@ FIX_WINDOW = 3
 MAX_PLACEHOLDERS = 9
 PLUMBING = {"ls", "cat", "echo", "cd", "grep", "sed", "head", "tail", "wc", "pwd", "mkdir", "rm", "cp",
             "mv", "touch", "printf", "true", "false", "test", "[", "sleep", "find", "awk", "sort", "uniq",
-            "tr", "cut", "xargs", "tee", "which", "export", "set", "for", "while", "if", "toolrouter"}
+            "tr", "cut", "xargs", "tee", "which", "export", "set", "for", "while", "if", "metarouter"}
 READ_ONLY = re.compile(r"^(git (status|log|diff|show|branch|rev-parse|ls-files|blame|describe|--version)\b|"
                        r"(node|npm|pip|uv|python|docker|kubectl|tectonic|ffprobe) (--version|-v)\b|"
                        r"npm (ls|view|outdated)\b|pip (list|show)\b|docker (ps|images)\b|kubectl get\b)")
@@ -309,9 +309,9 @@ def learn(root=TRANSCRIPTS, taken=None):
     hints_ = [c for c in hint_candidates(fixes) if c["id"] not in skip]
     added = []
     queued_unsafe = 0
-    from toolrouter import recipes as store
+    from metarouter import recipes as store
     if store.mode() == "auto":
-        from toolrouter import cli
+        from metarouter import cli
         for c in recs:
             purity = purity_guess(c["body"])
             ex = example_for(c["body"], c.get("sample"))
@@ -340,7 +340,7 @@ def learn(root=TRANSCRIPTS, taken=None):
         "recipe_candidates": len(recs),
         "flow_candidates": len(flows),
         "hint_candidates": len(hints_),
-        "review": "a person runs: toolrouter learn --review",
+        "review": "a person runs: metarouter learn --review",
     }
 
 
@@ -351,7 +351,7 @@ def agent_env():
 
 def review(ask=input, show=print):
     """Walk the candidates with a person. Approved ones become recipes or hints."""
-    from toolrouter import recipes as store
+    from metarouter import recipes as store
     if agent_env():
         raise PermissionError("learn --review is for a person. It refuses to run while AI_AGENT or "
                               "CLAUDECODE is set, because candidates come from raw transcripts")

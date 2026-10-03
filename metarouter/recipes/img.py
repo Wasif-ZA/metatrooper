@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from toolrouter.log import home
+from metarouter.log import home
 
 RECIPE = {
     "name": "img",
@@ -20,7 +20,7 @@ def info(path):
 
 
 def shrink(path):
-    from toolrouter.hook import MAX_EDGE, shrink_image
+    from metarouter.hook import MAX_EDGE, shrink_image
     small = shrink_image(path, cache=home() / "img")
     if small is None:
         return {"file": str(path), "shrunk": False, "why": f"already {MAX_EDGE} px or smaller on the long edge"}
@@ -43,7 +43,7 @@ def diff(a, b, threshold):
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="toolrouter run img")
+    ap = argparse.ArgumentParser(prog="metarouter run img")
     ap.add_argument("action", choices=["info", "shrink", "diff"])
     ap.add_argument("file")
     ap.add_argument("file2", nargs="?")

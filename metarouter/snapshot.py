@@ -4,7 +4,7 @@ import os
 import shutil
 from pathlib import Path
 
-from toolrouter.log import home
+from metarouter.log import home
 
 
 def root():

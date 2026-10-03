@@ -8,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from toolrouter.log import home
+from metarouter.log import home
 
 LOCK_WAIT = 5.0
 LOCK_STALE = 10.0

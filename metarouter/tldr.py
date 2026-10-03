@@ -2,7 +2,7 @@ import re
 import urllib.error
 import urllib.request
 
-from toolrouter import log
+from metarouter import log
 
 BASE = "https://raw.githubusercontent.com/tldr-pages/tldr/main/pages"
 CREDIT = "Source: tldr-pages (https://github.com/tldr-pages/tldr), CC-BY 4.0"
@@ -18,7 +18,7 @@ def page(binary):
     if cache.is_file():
         return cache.read_text(encoding="utf-8")
     for platform in ("common", "windows", "linux"):
-        req = urllib.request.Request(f"{BASE}/{platform}/{name}.md", headers={"User-Agent": "toolrouter"})
+        req = urllib.request.Request(f"{BASE}/{platform}/{name}.md", headers={"User-Agent": "metarouter"})
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 text = resp.read().decode("utf-8").replace("\r\n", "\n").rstrip("\n") + "\n" + CREDIT + "\n"

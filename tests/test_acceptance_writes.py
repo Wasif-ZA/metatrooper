@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from toolrouter import cli, hook
+from metarouter import cli, hook
 
 
 def _invoke(capsys, *args):
@@ -19,7 +19,7 @@ def _paths_under(root):
 
 
 def _assert_writes_are_confined(
-    lane, sandbox_root, baseline_paths, project, expected_project_paths, toolrouter_home, legacy_cache
+    lane, sandbox_root, baseline_paths, project, expected_project_paths, metarouter_home, legacy_cache
 ):
     project_paths = {path.relative_to(project) for path in project.rglob("*")}
     assert project_paths == expected_project_paths, (
@@ -30,17 +30,17 @@ def _assert_writes_are_confined(
     if legacy_cache.exists():
         legacy_paths = [legacy_cache.resolve(), *_paths_under(legacy_cache)]
         raise AssertionError(
-            f"{lane} wrote to Path.home()/.cache/toolrouter: "
+            f"{lane} wrote to Path.home()/.cache/metarouter: "
             f"{sorted(map(str, legacy_paths))}"
         )
 
     new_paths = _paths_under(sandbox_root) - baseline_paths
-    escaped = sorted(str(path) for path in new_paths if not path.is_relative_to(toolrouter_home))
-    assert not escaped, f"{lane} wrote outside TOOLROUTER_HOME: {escaped}"
+    escaped = sorted(str(path) for path in new_paths if not path.is_relative_to(metarouter_home))
+    assert not escaped, f"{lane} wrote outside METAROUTER_HOME: {escaped}"
 
 
-def test_representative_cli_lanes_write_only_under_toolrouter_home(tmp_path, monkeypatch, capsys):
-    toolrouter_home = tmp_path / "toolrouter-home"
+def test_representative_cli_lanes_write_only_under_metarouter_home(tmp_path, monkeypatch, capsys):
+    metarouter_home = tmp_path / "metarouter-home"
     project = tmp_path / "project"
     project.mkdir()
     text_file = project / "notes.txt"
@@ -48,15 +48,15 @@ def test_representative_cli_lanes_write_only_under_toolrouter_home(tmp_path, mon
     text_file.write_text("alpha needle omega\n", encoding="utf-8")
     json_file.write_text('{"item": {"value": 1}}\n', encoding="utf-8")
 
-    legacy_cache = tmp_path / "os-home" / ".cache" / "toolrouter"
+    legacy_cache = tmp_path / "os-home" / ".cache" / "metarouter"
     monkeypatch.setattr(hook, "CACHE", legacy_cache / "img")
-    monkeypatch.setenv("TOOLROUTER_HOME", str(toolrouter_home))
+    monkeypatch.setenv("METAROUTER_HOME", str(metarouter_home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(project)
@@ -72,7 +72,7 @@ def test_representative_cli_lanes_write_only_under_toolrouter_home(tmp_path, mon
             baseline_paths,
             project,
             expected_project_paths,
-            toolrouter_home,
+            metarouter_home,
             legacy_cache,
         )
         return result
@@ -93,8 +93,8 @@ def test_representative_cli_lanes_write_only_under_toolrouter_home(tmp_path, mon
     invoke_and_check("list", "list")
     invoke_and_check("check", "check")
 
-    home_files = [path for path in toolrouter_home.rglob("*") if path.is_file()]
+    home_files = [path for path in metarouter_home.rglob("*") if path.is_file()]
     assert home_files
-    assert list(toolrouter_home.rglob("*.log"))
-    assert (toolrouter_home / "calls.jsonl").is_file()
-    assert list((toolrouter_home / "snapshots").glob("*/manifest.json"))
+    assert list(metarouter_home.rglob("*.log"))
+    assert (metarouter_home / "calls.jsonl").is_file()
+    assert list((metarouter_home / "snapshots").glob("*/manifest.json"))

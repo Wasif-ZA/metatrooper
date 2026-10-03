@@ -13,9 +13,9 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from toolrouter import calls, filters, hints, log, shrink, snapshot, tldr
-from toolrouter import recipes as store
-from toolrouter.result import Result, mode, render
+from metarouter import calls, filters, hints, log, shrink, snapshot, tldr
+from metarouter import recipes as store
+from metarouter.result import Result, mode, render
 
 VERBS = {
     "run": "run <recipe> [args]      run a recipe: json, replace, find, img, codex, gemini, local...",
@@ -42,8 +42,8 @@ EXE_EXT = {".exe", ".cmd", ".bat"} if os.name == "nt" else {""}
 
 def shell():
     """Return the bash to run commands with. On Windows, skip WSL's System32 bash."""
-    if os.environ.get("TOOLROUTER_SHELL"):
-        return os.environ["TOOLROUTER_SHELL"]
+    if os.environ.get("METAROUTER_SHELL"):
+        return os.environ["METAROUTER_SHELL"]
     found = shutil.which("bash")
     if os.name == "nt":
         if found and "system32" not in found.lower():
@@ -180,12 +180,12 @@ def exec_lane(args):
     args = [a for a in head if a not in drop] + tail
     cmd = command_text(args)
     if not cmd.strip():
-        return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: toolrouter exec -- "pytest -q"')
+        return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: metarouter exec -- "pytest -q"')
     try:
         code, raw, secs = run_shell(cmd)
     except OSError as e:
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
-                      note=f"could not start a shell ({e}). Set TOOLROUTER_SHELL to a bash path")
+                      note=f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash path")
     if whole:
         return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")))
     r = finish("exec", cmd, raw, code, secs, want=want)
@@ -196,14 +196,14 @@ def exec_lane(args):
 
 def no_recipe(name, recipes):
     near = difflib.get_close_matches(name, list(recipes), n=1)
-    tip = f"Did you mean: toolrouter run {store.signature(recipes[near[0]])}" if near else \
-        f"Try: toolrouter search {name}"
+    tip = f"Did you mean: metarouter run {store.signature(recipes[near[0]])}" if near else \
+        f"Try: metarouter search {name}"
     return Result(ok=False, lane="run", exit=2, note=f'no recipe "{name}". {tip}')
 
 
 def run_lane(args):
     if not args:
-        return Result(ok=False, lane="run", exit=2, note="which recipe? Try: toolrouter search <words>")
+        return Result(ok=False, lane="run", exit=2, note="which recipe? Try: metarouter search <words>")
     name, rest = args[0], args[1:]
     yes = "--yes" in rest
     background = "--background" in rest
@@ -216,10 +216,10 @@ def run_lane(args):
         return Result(ok=False, lane="run", exit=2, recipe=name,
                       note=f"{name} is destructive. Run again with --yes to go ahead")
     if background:
-        from toolrouter import jobs
+        from metarouter import jobs
         jid = jobs.start(["run", name, *rest, *(["--yes"] if yes else [])], label=name)
         return Result(ok=True, lane="jobs", recipe=name,
-                      out={"job": jid, "collect": f"toolrouter jobs {jid} --wait"})
+                      out={"job": jid, "collect": f"metarouter jobs {jid} --wait"})
     label = shlex.join([name, *rest])
     kind = r.get("kind")
     if kind == "engine":
@@ -262,7 +262,7 @@ def run_lane(args):
 
 
 def run_engine(r, args):
-    from toolrouter.recipes import engines
+    from metarouter.recipes import engines
     name = r["name"]
     try:
         cmd = engines.argv(r, args, shell())
@@ -291,7 +291,7 @@ def run_engine(r, args):
 
 
 def jobs_lane(args):
-    from toolrouter import jobs
+    from metarouter import jobs
     try:
         if not args:
             rows = [{k: j.get(k) for k in ("id", "label", "status", "started", "cwd")} for j in jobs.all_jobs()]
@@ -302,7 +302,7 @@ def jobs_lane(args):
         values = {args.index("--timeout") + 1} if "--timeout" in args else set()
         ids = [a for i, a in enumerate(args) if not a.startswith("--") and i not in values]
         if not ids:
-            raise ValueError("which job? List them: toolrouter jobs")
+            raise ValueError("which job? List them: metarouter jobs")
         jid = ids[0]
         s = jobs.wait(jid, timeout) if "--wait" in args else jobs.status(jid)
     except (FileNotFoundError, ValueError, IndexError) as e:
@@ -328,8 +328,8 @@ def search_lane(args):
     found.sort(key=lambda x: -hits(recipes[x[0]]))
     extra = []
     if words and store.mode() == "auto":
-        from toolrouter import mcp
-        extra += [f"toolrouter mcp {ln}" for ln in mcp.catalog_lines(words, remote=False)[:5]]
+        from metarouter import mcp
+        extra += [f"metarouter mcp {ln}" for ln in mcp.catalog_lines(words, remote=False)[:5]]
         cached_lines = []
         for sname, sdata in sorted(mcp.cached_tools().items()):
             for t in sdata.get("tools", []):
@@ -337,21 +337,21 @@ def search_lane(args):
                 tdesc = t.get("description") or ""
                 if any(w in tname.lower() or w in tdesc.lower() for w in words):
                     first = tdesc.strip().split("\n")[0].split(". ")[0][:100]
-                    cached_lines.append(f"toolrouter mcp {sname} {tname}    {first}".rstrip())
+                    cached_lines.append(f"metarouter mcp {sname} {tname}    {first}".rstrip())
         extra += cached_lines[:5]
-        extra += [f"toolrouter tools {b}    installed CLI, shows its --help" for b in path_bins()
+        extra += [f"metarouter tools {b}    installed CLI, shows its --help" for b in path_bins()
                   if any(w in b for w in words)][:5]
     if not found and not extra:
         return Result(ok=False, lane="search", exit=1,
-                      note=f'no recipe matches "{" ".join(args)}". Save one: toolrouter add <name> -- "<command>"')
+                      note=f'no recipe matches "{" ".join(args)}". Save one: metarouter add <name> -- "<command>"')
     lines = []
     for n, c in found[:5]:
         r = recipes[n]
         used = f"  ({c} call{'s' if c != 1 else ''} here)" if c else ""
-        lines.append(f"toolrouter run {store.signature(r)}\n    {r.get('summary', '')}{used}")
+        lines.append(f"metarouter run {store.signature(r)}\n    {r.get('summary', '')}{used}")
         ex = r.get("example", {}).get("args")
         if ex:
-            lines.append(f"    e.g. toolrouter run {n} {shlex.join(ex)}")
+            lines.append(f"    e.g. metarouter run {n} {shlex.join(ex)}")
     return Result(ok=True, lane="search", out="\n".join(lines + extra))
 
 
@@ -394,13 +394,13 @@ def add_flow(args):
         i += 1
     if not name or not steps:
         return Result(ok=False, lane="add", exit=2,
-                      note='usage: toolrouter add <name> --step "<command>" --step "<command>" ...')
+                      note='usage: metarouter add <name> --step "<command>" --step "<command>" ...')
     try:
         r = store.save(name, steps, summary=opts["summary"], kind="flow", purity=opts["purity"])
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
     return Result(ok=True, lane="add", recipe=name,
-                  out=f"saved a flow of {len(steps)} steps. Run it: toolrouter run {store.signature(r)}")
+                  out=f"saved a flow of {len(steps)} steps. Run it: metarouter run {store.signature(r)}")
 
 
 def run_flow(r, args):
@@ -443,7 +443,7 @@ def add_lane(args):
     if "--step" in args:
         return add_flow(args)
     if "--" not in args:
-        return Result(ok=False, lane="add", exit=2, note='usage: toolrouter add <name> [--summary S] -- "<command>"')
+        return Result(ok=False, lane="add", exit=2, note='usage: metarouter add <name> [--summary S] -- "<command>"')
     cut = args.index("--")
     head, cmd = args[:cut], command_text(args[cut:])
     opts = {"summary": None, "purity": "read"}
@@ -457,12 +457,12 @@ def add_lane(args):
         name = name or head[i]
         i += 1
     if not name or not cmd.strip():
-        return Result(ok=False, lane="add", exit=2, note='usage: toolrouter add <name> [--summary S] -- "<command>"')
+        return Result(ok=False, lane="add", exit=2, note='usage: metarouter add <name> [--summary S] -- "<command>"')
     try:
         r = store.save(name, cmd, summary=opts["summary"], purity=opts["purity"])
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
-    return Result(ok=True, lane="add", recipe=name, out=f"saved. Run it: toolrouter run {store.signature(r)}")
+    return Result(ok=True, lane="add", recipe=name, out=f"saved. Run it: metarouter run {store.signature(r)}")
 
 
 def list_lane(args):
@@ -484,9 +484,9 @@ def check(args):
     recipes = store.load()
     rows = calls.read()
     lines, failed = [], 0
-    real_home, real_cwd = os.environ.get("TOOLROUTER_HOME"), os.getcwd()
+    real_home, real_cwd = os.environ.get("METAROUTER_HOME"), os.getcwd()
     with tempfile.TemporaryDirectory() as tmp:
-        os.environ["TOOLROUTER_HOME"] = str(Path(tmp) / "home")
+        os.environ["METAROUTER_HOME"] = str(Path(tmp) / "home")
         try:
             for name in sorted(recipes):
                 r = recipes[name]
@@ -527,9 +527,9 @@ def check(args):
                                  f"output {'has' if want_out in text else 'lacks'} {want_out!r}")
         finally:
             if real_home is None:
-                os.environ.pop("TOOLROUTER_HOME", None)
+                os.environ.pop("METAROUTER_HOME", None)
             else:
-                os.environ["TOOLROUTER_HOME"] = real_home
+                os.environ["METAROUTER_HOME"] = real_home
     for flt in filters.load():
         name = flt.get("name", "")
         for t in flt.get("tests", []):
@@ -561,13 +561,13 @@ BROWSE_VERBS = {"open": 1, "look": 0, "click": 1, "type": 2, "read": 0, "shot": 
 
 
 def browse_lane(args):
-    from toolrouter.browse import daemon
-    from toolrouter.browse.page import host_blocked
+    from metarouter.browse import daemon
+    from metarouter.browse.page import host_blocked
     show = "--show" in args
     args = [a for a in args if a != "--show"]
     if not args or args[0] not in BROWSE_VERBS:
         return Result(ok=False, lane="browse", exit=2,
-                      note="usage: toolrouter browse open <url> | look | click @n | type @n <text> | read | "
+                      note="usage: metarouter browse open <url> | look | click @n | type @n <text> | read | "
                            "shot [--full] | back | tabs | close")
     verb, rest = args[0], args[1:]
     if len(rest) < BROWSE_VERBS[verb]:
@@ -586,7 +586,7 @@ def browse_lane(args):
         return Result(ok=False, lane="browse", exit=1, secs=secs, note=reply.get("error"))
     res = reply["result"]
     if verb == "shot":
-        from toolrouter.hook import shrink_image
+        from metarouter.hook import shrink_image
         small = shrink_image(Path(res["shot"]), cache=log.home() / "img")
         res["shrunk"] = Path(small).as_posix() if small else res["shot"]
     raw = json.dumps(res, ensure_ascii=False, indent=1).encode("utf-8")
@@ -604,9 +604,9 @@ def parse_mcp_arg(v):
 
 
 def mcp_lane(args):
-    from toolrouter import mcp
+    from metarouter import mcp
     if args[:1] == ["stop"]:
-        from toolrouter import mcp_daemon
+        from metarouter import mcp_daemon
         return Result(ok=True, lane="mcp", out=mcp_daemon.stop())
     if args[:1] == ["search"]:
         return Result(ok=True, lane="mcp", out=mcp.catalog_lines(args[1:]))
@@ -614,7 +614,7 @@ def mcp_lane(args):
         return Result(ok=True, lane="mcp", out=mcp.import_servers())
     if not args:
         return Result(ok=True, lane="mcp", out=mcp.catalog_lines(),
-                      note="toolrouter mcp <server> lists its tools; toolrouter mcp <server> <tool> '<json>' calls one")
+                      note="metarouter mcp <server> lists its tools; metarouter mcp <server> <tool> '<json>' calls one")
     if len(args) == 1:
         try:
             return Result(ok=True, lane="mcp", out=[mcp.one_line(t) for t in mcp.list_tools(args[0])])
@@ -653,7 +653,7 @@ def mcp_lane(args):
 
 
 def tools_lane(args):
-    from toolrouter import mcp
+    from metarouter import mcp
     here = calls.project()
     rows = calls.read()
     if args:
@@ -675,11 +675,11 @@ def tools_lane(args):
             except (OSError, subprocess.TimeoutExpired) as e:
                 return Result(ok=False, lane="tools", exit=1, note=f"{name} --help failed: {e}")
             lines = p.stdout.decode("utf-8", errors="replace").splitlines()
-            more = f"\n...{len(lines) - HELP_LINES} more lines: toolrouter exec -- \"{name} --help\"" \
+            more = f"\n...{len(lines) - HELP_LINES} more lines: metarouter exec -- \"{name} --help\"" \
                 if len(lines) > HELP_LINES else ""
             return Result(ok=True, lane="tools", out="\n".join(lines[:HELP_LINES]) + more)
         return Result(ok=True, lane="tools", out=f"{name} is not an MCP tool here. For a CLI try: "
-                                                 f"toolrouter exec -- \"{name} --help\"")
+                                                 f"metarouter exec -- \"{name} --help\"")
     out = {}
     bins = {}
     for r in rows:
@@ -701,7 +701,7 @@ def tools_lane(args):
 
 
 def learn_lane(args):
-    from toolrouter import learn
+    from metarouter import learn
     try:
         if "--review" in args:
             return Result(ok=True, lane="learn", out=learn.review())
@@ -722,8 +722,8 @@ def undo(args):
 
 
 def menu():
-    lines = ["toolrouter: the agent's tool memory", ""]
-    lines += [f"  toolrouter {v}" for v in VERBS.values()]
+    lines = ["metarouter: the agent's tool memory", ""]
+    lines += [f"  metarouter {v}" for v in VERBS.values()]
     try:
         recipes = store.load()
         top = store.rank(recipes, calls.read(), calls.project())[:5]
@@ -736,7 +736,7 @@ def menu():
 
 def unknown(verb):
     near = difflib.get_close_matches(verb, list(VERBS), n=1)
-    tip = f"Did you mean: toolrouter {VERBS[near[0]].split('  ')[0]}" if near else "Run toolrouter for the menu."
+    tip = f"Did you mean: metarouter {VERBS[near[0]].split('  ')[0]}" if near else "Run metarouter for the menu."
     return Result(ok=False, lane="menu", exit=2, note=f'no verb "{verb}". {tip}')
 
 
@@ -751,14 +751,14 @@ def log_call(rec):
     try:
         calls.append(rec)
     except Exception as e:
-        print(f"toolrouter: call log not written ({type(e).__name__})", file=sys.stderr)
+        print(f"metarouter: call log not written ({type(e).__name__})", file=sys.stderr)
 
 
 def main(argv=None):
     how_, argv = mode(list(sys.argv[1:] if argv is None else argv))
     verb, rest = (argv[0], argv[1:]) if argv else (None, [])
     if verb == "ingest":
-        from toolrouter import ingest
+        from metarouter import ingest
         return ingest.main(["ingest", *rest], how=how_) or 0
     if verb is None or verb in ("help", "-h", "--help"):
         r = menu()

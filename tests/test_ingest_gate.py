@@ -2,14 +2,14 @@ import json
 
 import pytest
 
-from toolrouter import calls, cli, ingest
+from metarouter import calls, cli, ingest
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    monkeypatch.setenv("TOOLROUTER_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("AI_AGENT", "1")
-    for name in ("CLAUDECODE", "TOOLROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID", "TOOLROUTER_SHELL"):
+    for name in ("CLAUDECODE", "METAROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID", "METAROUTER_SHELL"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
 

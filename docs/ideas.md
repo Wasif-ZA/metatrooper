@@ -1,6 +1,6 @@
 # Idea ledger
 
-Every idea raised while specifying ToolRouter, and where each one landed. Captured
+Every idea raised while specifying metarouter, and where each one landed. Captured
 2026-09-27, finalised 2026-09-28T10:28+10:00.
 
 Numbering is stable. Reference an idea by its number.
@@ -16,7 +16,7 @@ Numbering is stable. Reference an idea by its number.
 | 5 | Read: inject `limit` when the target file is over 40 KB | C7 | Dropped with hooks |
 | 6 | Bash: rewrite a bare `cat` on a large file to a capped range read | C7 | Covered by `run`'s shrinker |
 | 7 | Backfill the leaderboard from existing transcripts | C1 | `learn` |
-| 8 | Pre-call gateway: the agent asks ToolRouter before making any tool call | C3 | `search`, voluntary |
+| 8 | Pre-call gateway: the agent asks metarouter before making any tool call | C3 | `search`, voluntary |
 | 9 | Per-project cache of tool call results, scoped by project not global | C4, ceiling 0.12% | Still cut |
 | 10 | Purity classes deciding which calls are safe to cache at all | C4 | Recipe `purity` metadata; caching still cut |
 | 11 | Real invalidation keys: mtime plus size for files, HEAD SHA for git | C4 | Still cut |
@@ -26,7 +26,7 @@ Numbering is stable. Reference an idea by its number.
 | 15 | Rolling window of recent tool calls per project | C1 | Call log `project` field, per-project ranking |
 | 16 | Jev picks the tool: typed probabilistic decision, confidence scored | v2 epic | v2 |
 | 17 | Works across Claude Code, Codex CLI and Gemini via `agy` | C11, and it reshaped the architecture | Free: a command works in every host |
-| 18 | Multi-agent: several agents sharing one ToolRouter | C1, WAL plus `agent_id` | Call log `agent` field and append lock |
+| 18 | Multi-agent: several agents sharing one metarouter | C1, WAL plus `agent_id` | Call log `agent` field and append lock |
 | 19 | A local AI engine plays a role | C5, offline extraction only | v2, offline and shape-only |
 | 20 | Negative Affordance Injection: warn or refuse on known-bad parameters | C8 | Pre-run hint check, warn only |
 | 21 | Cascading Failure Circuit Breaker: stop retrying after N failures | C8 | Warn-only breaker |
@@ -50,16 +50,16 @@ and all nine were kept. Idea 29 came from review of the first spec list.
 | D2 | v1 shape | Router, not output shaper | Overruled the shaper recommendation because Headroom already ships compression |
 | D3 | Differentiator | Rank across CLIs and MCP, and execute the calls | Ranking needs execution to observe outcomes, so they are one loop |
 | D4 | Interception | PreToolUse hook on all tool calls | Fills the leaderboard from call one rather than waiting for the model to opt in |
-| D5 | Name | ToolRouter | `toolrouter` and `call-router` both free on PyPI. `toolrouter` was taken |
+| D5 | Name | ToolRouter | `toolrouter` and `call-router` both free on PyPI. `toolrouter` was taken. Renamed metarouter 2026-10-03 |
 | D6 | Structure | Epic plus children, not one issue | 176 hours with no checkpoints stalls at 60% |
 | D7 | Language | Python plus FastMCP | The surrounding codebase is Python, and the code must be defensible by hand |
-| D8 | Home | `projects/toolrouter/` | Matches existing practice for nested project clones |
+| D8 | Home | `projects/metarouter/` | Matches existing practice for nested project clones |
 | D9 | Plan | Plan A on 2026-09-27, then replaced 2026-09-28 | See `spec.md` |
 | D10 | Direction, 2026-09-28 | Command-only tool memory | No hooks, skill or caps; the agent should stop re-deriving working calls. Replaces D2, D4 and D7 |
 
 ## Framing worth keeping
 
-**Idea 12 reframes the project.** ToolRouter learns the CLAUDE.md nobody wrote. A
+**Idea 12 reframes the project.** metarouter learns the CLAUDE.md nobody wrote. A
 hand-written rule like "get the time with `now-iso.sh`, never `date`" is exactly a
 template, except extracted from what actually ran rather than typed out by hand, and
 scoped per project.
@@ -70,7 +70,7 @@ before every tool call. Released in limited early access 2026-09-15. Tool select
 exactly the shape it was built for: unstructured state in, typed decision out.
 
 **Idea 29 is the competitive answer.** Without a shipped catalog the leaderboard starts
-empty, so on a fresh install ToolRouter knows nothing and helps nobody. It would be
+empty, so on a fresh install metarouter knows nothing and helps nobody. It would be
 useful to exactly one person, the one whose transcripts trained it.
 
 **Idea 17 inverted the architecture.** All three target hosts expose MCP

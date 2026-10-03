@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "id": "toolrouter",
+  "id": "metarouter",
   "version": "0.1.0",
-  "name": "toolrouter",
+  "name": "metarouter",
   "actions": [
     {
       "id": "ingest",
-      "run": ["toolrouter", "ingest", "--no-save", "--json"],
+      "run": ["metarouter", "ingest", "--no-save", "--json"],
       "output_schema": {
         "type": "object",
         "required": ["shell_read_tokens", "saved_tokens"],

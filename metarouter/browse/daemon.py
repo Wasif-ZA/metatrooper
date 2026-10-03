@@ -10,7 +10,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from toolrouter.log import child_env, home
+from metarouter.log import child_env, home
 
 IDLE_SECONDS = 30 * 60
 START_TIMEOUT = 20
@@ -29,8 +29,8 @@ def blocked_hosts():
 
 
 def serve(show=False):
-    from toolrouter.browse.cdp import Chrome
-    from toolrouter.browse.page import Page, host_blocked
+    from metarouter.browse.cdp import Chrome
+    from metarouter.browse.page import Page, host_blocked
 
     profile = home() / "chrome-profile"
     profile.mkdir(parents=True, exist_ok=True)
@@ -147,7 +147,7 @@ def ensure(show=False):
         kw["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kw["start_new_session"] = True
-    subprocess.Popen([sys.executable, "-m", "toolrouter.browse.daemon", *(["--show"] if show else [])], **kw)
+    subprocess.Popen([sys.executable, "-m", "metarouter.browse.daemon", *(["--show"] if show else [])], **kw)
     start = time.monotonic()
     while time.monotonic() - start < START_TIMEOUT:
         if state_path().is_file():

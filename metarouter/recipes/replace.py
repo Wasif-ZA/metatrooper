@@ -5,7 +5,7 @@ import re
 import tomllib
 from pathlib import Path
 
-from toolrouter import snapshot
+from metarouter import snapshot
 
 RECIPE = {
     "name": "replace",
@@ -51,7 +51,7 @@ def _original_context(text, line):
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="toolrouter run replace")
+    ap = argparse.ArgumentParser(prog="metarouter run replace")
     ap.add_argument("file")
     ap.add_argument("old", nargs="?")
     ap.add_argument("new", nargs="?")
@@ -91,4 +91,4 @@ def run(args):
                f"{type(new_error).__name__} at line {line}: {new_error}\n"
                f"original lines around line {line}:\n{context}")
         return {"exit": 1, "out": out}
-    return {"exit": 0, "out": f"{n} replacements in {a.file} (undo: toolrouter undo {sid})"}
+    return {"exit": 0, "out": f"{n} replacements in {a.file} (undo: metarouter undo {sid})"}

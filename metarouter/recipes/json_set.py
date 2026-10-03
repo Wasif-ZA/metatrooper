@@ -3,8 +3,8 @@ import json
 import re
 from pathlib import Path
 
-from toolrouter import snapshot
-from toolrouter.recipes.json_get import parse_path, walk
+from metarouter import snapshot
+from metarouter.recipes.json_get import parse_path, walk
 
 RECIPE = {
     "name": "json-set",
@@ -22,7 +22,7 @@ def indent_of(text):
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="toolrouter run json-set")
+    ap = argparse.ArgumentParser(prog="metarouter run json-set")
     ap.add_argument("file")
     ap.add_argument("path")
     ap.add_argument("value", help="parsed as JSON when valid, else stored as a string")
@@ -57,4 +57,4 @@ def run(args):
     ind = indent_of(text)
     out = json.dumps(data, ensure_ascii=False, indent=ind if ind is not None else None)
     path.write_text(out + ("\n" if text.endswith("\n") else ""), encoding="utf-8")
-    return {"exit": 0, "out": f"set {a.path} in {a.file} (undo: toolrouter undo {sid})"}
+    return {"exit": 0, "out": f"set {a.path} in {a.file} (undo: metarouter undo {sid})"}

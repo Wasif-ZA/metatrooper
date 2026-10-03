@@ -1,4 +1,4 @@
-# ToolRouter architecture
+# metarouter architecture
 
 Design for the command-only tool memory in `spec.md`, drafted 2026-09-28. Python, standard
 library only. Pillow is the one exception, already installed, used by the image recipe.
@@ -6,7 +6,7 @@ library only. Pillow is the one exception, already installed, used by the image 
 ## One flow for every lane
 
 ```
-toolrouter <lane> <args>
+metarouter <lane> <args>
       |
    cli.py         parse args, decide human or agent output
       |
@@ -14,7 +14,7 @@ toolrouter <lane> <args>
       |
    execute        subprocess, python recipe, browser daemon, or MCP server
       |
-   log.py         write the full raw output to ~/.toolrouter/logs/<date>/
+   log.py         write the full raw output to ~/.metarouter/logs/<date>/
       |
    shrink.py      text | json | image | page
       |
@@ -35,7 +35,7 @@ is what makes the output contract the same everywhere. A lane only decides how t
 ## Module layout
 
 ```
-toolrouter/
+metarouter/
   cli.py            entry point, verb dispatch, output mode
   result.py         Result type, marker rule, human and JSON printing
   log.py            raw output logs
@@ -67,23 +67,23 @@ toolrouter/
 
 | Path | What |
 |------|------|
-| `~/.toolrouter/recipes/` | Approved recipes, one JSON file each; `archive/` for superseded ones |
-| `~/.toolrouter/candidates/` | Mined by `learn`, waiting for human review |
-| `~/.toolrouter/hints.json` | Error pattern to fix |
-| `~/.toolrouter/calls.jsonl` | Call log, shapes only |
-| `~/.toolrouter/logs/<date>/` | Full raw output of every call |
-| `~/.toolrouter/snapshots/<id>/` | File copies taken before a write |
-| `~/.toolrouter/browser.json` | Browser daemon port and token |
-| `~/.toolrouter/chrome-profile/` | The browser's own profile |
-| `~/.toolrouter/blocked-hosts.txt` | Hosts `browse` refuses |
-| `~/.toolrouter/servers.json` | MCP servers, phase 6 |
+| `~/.metarouter/recipes/` | Approved recipes, one JSON file each; `archive/` for superseded ones |
+| `~/.metarouter/candidates/` | Mined by `learn`, waiting for human review |
+| `~/.metarouter/hints.json` | Error pattern to fix |
+| `~/.metarouter/calls.jsonl` | Call log, shapes only |
+| `~/.metarouter/logs/<date>/` | Full raw output of every call |
+| `~/.metarouter/snapshots/<id>/` | File copies taken before a write |
+| `~/.metarouter/browser.json` | Browser daemon port and token |
+| `~/.metarouter/chrome-profile/` | The browser's own profile |
+| `~/.metarouter/blocked-hosts.txt` | Hosts `browse` refuses |
+| `~/.metarouter/servers.json` | MCP servers, phase 6 |
 
 Nothing is written inside the vault or the project folder.
 
 ## Browser daemon
 
 ```
-toolrouter browse open <url>
+metarouter browse open <url>
       |
    browser.json exists and daemon answers?  -- no -->  start daemon.py in the background
       |                                                   it starts chrome --headless=new
@@ -131,7 +131,7 @@ foundation would have stranded two thirds of the target surface.
 ### Module layout
 
 ```
-toolrouter/
+metarouter/
   core/                 host-agnostic, the only place with decisions
     engine.py             the pipeline below, returns one Decision
     shapes.py             call normalisation -> shape_key
@@ -229,7 +229,7 @@ To modify a call, print to stdout:
 ```
 
 Exit 0 with no output means no decision and normal flow. That is the required behaviour for
-every tool ToolRouter does not act on.
+every tool metarouter does not act on.
 
 PostToolUse **cannot** rewrite a tool result. It can only add context. This is why shaping
 happens by rewriting the command before it runs rather than trimming the output after.
@@ -275,7 +275,7 @@ FROM tool t LEFT JOIN call c ON c.tool_id = t.id
 GROUP BY t.id;
 ```
 
-Database lives at `~/.toolrouter/toolrouter.db`, never inside the vault. WAL mode because
+Database lives at `~/.metarouter/metarouter.db`, never inside the vault. WAL mode because
 several agents, including subagents, share one instance.
 
 ### Ranking formula, Plan B only
@@ -327,5 +327,5 @@ The engine must never block a call it did not mean to block. Any unhandled excep
 anywhere in the pipeline is caught at the adapter boundary, logged, and converted to
 `action: "pass"` with exit 0 and no stdout.
 
-ToolRouter being broken has to be indistinguishable from ToolRouter being absent. That is
+metarouter being broken has to be indistinguishable from metarouter being absent. That is
 acceptance criterion 6, not an aspiration.

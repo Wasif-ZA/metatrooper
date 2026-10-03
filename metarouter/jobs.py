@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
-from toolrouter.log import child_env, home
+from metarouter.log import child_env, home
 
 STILL_ACTIVE = 259
 
@@ -38,12 +38,12 @@ def alive(pid):
 
 
 def start(argv, label):
-    """Run `toolrouter <argv>` detached in this folder. Return the job id."""
+    """Run `metarouter <argv>` detached in this folder. Return the job id."""
     jid = f"{datetime.datetime.now():%m%d-%H%M%S}-{uuid.uuid4().hex[:12]}"
     folder().mkdir(parents=True, exist_ok=True)
     meta = {"id": jid, "label": label, "cwd": os.getcwd(),
             "started": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}
-    cmd = [sys.executable, "-m", "toolrouter.jobs", "_run", jid, *argv]
+    cmd = [sys.executable, "-m", "metarouter.jobs", "_run", jid, *argv]
     kw = {"cwd": meta["cwd"], "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
           "stderr": subprocess.DEVNULL, "env": child_env()}
     if os.name == "nt":
@@ -57,11 +57,11 @@ def start(argv, label):
 
 def _run(jid, argv):
     """Job runner: run the call in JSON mode and store its result."""
-    from toolrouter import cli
+    from metarouter import cli
     import contextlib
     import io
     buf = io.StringIO()
-    os.environ["TOOLROUTER_OUTPUT"] = "json"
+    os.environ["METAROUTER_OUTPUT"] = "json"
     try:
         with contextlib.redirect_stdout(buf):
             cli.main(argv)
@@ -77,7 +77,7 @@ def _run(jid, argv):
 def status(jid):
     meta_path = folder() / f"{jid}.json"
     if not meta_path.is_file():
-        raise FileNotFoundError(f'no job "{jid}". List them: toolrouter jobs')
+        raise FileNotFoundError(f'no job "{jid}". List them: metarouter jobs')
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     res = folder() / f"{jid}.result.json"
     running = not res.is_file() and alive(meta["pid"])

@@ -1,11 +1,11 @@
-# ToolRouter spec
+# metarouter spec
 
 **Drafted 2026-09-28.** Replaces the 2026-09-27 Plan A. The old decision is summarised under
 History at the bottom; the full text is in git.
 
 ## What it is
 
-One command, `toolrouter`, that an agent or a person runs. It is the agent's tool memory, and
+One command, `metarouter`, that an agent or a person runs. It is the agent's tool memory, and
 the glue between coding agents: Codex, Gemini, the local models and every repeated script
 all go through it and come back as the same clean JSON.
 
@@ -39,20 +39,20 @@ call every session.
 
 | Command | What it does |
 |---------|--------------|
-| `toolrouter` | Prints a menu of about 10 lines: the verbs and the most-used recipes |
-| `toolrouter exec -- <cmd>` | Runs any shell command, logs it, prints the shrunk result |
-| `toolrouter run <recipe> [args]` | Runs a saved recipe |
-| `toolrouter search <words>` | Finds recipes by plain words, ranked, with arguments and an example |
-| `toolrouter list` | Every recipe, one line each |
-| `toolrouter add <name> -- <cmd>` | Saves a command that just worked as a recipe |
-| `toolrouter learn` | Mines the Claude Code transcripts for recipe and hint candidates |
-| `toolrouter learn --review` | Human-only: approve or reject candidates |
-| `toolrouter check` | Re-runs every recipe's example and reports pass or fail |
-| `toolrouter undo [snapshot]` | Puts back the files the last write recipe changed |
-| `toolrouter browse <verb>` | Drives a browser (phase 6) |
-| `toolrouter jobs [id] [--wait]` | Lists and waits on background engine jobs (phase 3) |
-| `toolrouter tools`, `toolrouter mcp` | Lists and calls CLI and MCP tools (phase 7) |
-| `toolrouter ingest` | The existing token measurement, unchanged |
+| `metarouter` | Prints a menu of about 10 lines: the verbs and the most-used recipes |
+| `metarouter exec -- <cmd>` | Runs any shell command, logs it, prints the shrunk result |
+| `metarouter run <recipe> [args]` | Runs a saved recipe |
+| `metarouter search <words>` | Finds recipes by plain words, ranked, with arguments and an example |
+| `metarouter list` | Every recipe, one line each |
+| `metarouter add <name> -- <cmd>` | Saves a command that just worked as a recipe |
+| `metarouter learn` | Mines the Claude Code transcripts for recipe and hint candidates |
+| `metarouter learn --review` | Human-only: approve or reject candidates |
+| `metarouter check` | Re-runs every recipe's example and reports pass or fail |
+| `metarouter undo [snapshot]` | Puts back the files the last write recipe changed |
+| `metarouter browse <verb>` | Drives a browser (phase 6) |
+| `metarouter jobs [id] [--wait]` | Lists and waits on background engine jobs (phase 3) |
+| `metarouter tools`, `metarouter mcp` | Lists and calls CLI and MCP tools (phase 7) |
+| `metarouter ingest` | The existing token measurement, unchanged |
 
 The verbs are copied from tools that do the same job, checked with `gh` on 2026-09-28: `run` a
 named task and `exec` a raw command as in mise (34k stars), `search` as in just (36k), atuin
@@ -60,7 +60,7 @@ named task and `exec` a raw command as in mise (34k stars), `search` as in just 
 draft used `do`, `how` and `save`, which no comparable tool uses.
 
 Recipe arguments are positional, in the order a person would say them:
-`toolrouter run replace <file> <old> <new>`.
+`metarouter run replace <file> <old> <new>`.
 
 ## Output contract
 
@@ -69,7 +69,7 @@ Every command follows the same contract, whoever runs it.
 **Who is asking.** Checked in this order, first match wins:
 
 1. `--json` or `--human` flag.
-2. `TOOLROUTER_OUTPUT=json` or `human` in the environment.
+2. `METAROUTER_OUTPUT=json` or `human` in the environment.
 3. `AI_AGENT` or `CLAUDECODE` set: JSON. Claude Code sets both (probed 2026-09-28).
 4. Otherwise: human text.
 
@@ -79,7 +79,7 @@ a person is typing, so it would hand JSON to a human.
 **Agent form.** Exactly one compact JSON line, with only what the agent needs:
 
 ```json
-{"ok":true,"exit":0,"out":"1.4.2","log":"C:/Users/User/.toolrouter/logs/2026-09-28/0957-812-json.log"}
+{"ok":true,"exit":0,"out":"1.4.2","log":"C:/Users/User/.metarouter/logs/2026-09-28/0957-812-json.log"}
 ```
 
 - Always: `ok`, `exit`, `out`.
@@ -92,9 +92,9 @@ a person is typing, so it would hand JSON to a human.
 - Never: `lane`, `cmd`, `recipe`, `secs`, `bytes`. The agent typed the command, so echoing it
   back costs tokens and says nothing. The call log still records all of them.
 
-Measured 2026-09-28 in two real sessions (50 toolrouter calls): the old envelope carried about
+Measured 2026-09-28 in two real sessions (50 metarouter calls): the old envelope carried about
 55 tokens on every result, and on short outputs that was more than the output itself. In one
-session the toolrouter results cost 3,219 tokens against 2,718 tokens of raw output. The lean
+session the metarouter results cost 3,219 tokens against 2,718 tokens of raw output. The lean
 envelope is about 25 tokens, most of it the log path.
 
 **Human form.** The same facts as readable text: a tick or cross, the recipe, the short
@@ -106,11 +106,11 @@ result, and the log path.
 - Output is UTF-8 whatever the console. Found 2026-09-28: redirected, Python on Windows wrote
   cp1252, so an agent reading through a pipe saw `I�ve` for `I’ve`.
 - Errors name the exact next command, for example
-  `no recipe "jsn". Did you mean: toolrouter run json <file> <path>`.
+  `no recipe "jsn". Did you mean: metarouter run json <file> <path>`.
 - The full raw output is written to the log before anything is shrunk. The log is byte for
   byte what the command printed.
-- If a shrinker crashes, toolrouter prints the raw output and the real exit code. A broken
-  toolrouter must behave like a plain shell, never like a silent one.
+- If a shrinker crashes, metarouter prints the raw output and the real exit code. A broken
+  metarouter must behave like a plain shell, never like a silent one.
 
 ## Shrinking
 
@@ -148,8 +148,8 @@ needle survival from 98.8% to 99.0%.
 
 ## Recipes
 
-The five seed recipes are built into the package (`toolrouter/recipes/`), so they update with
-it. Saved and learned recipes are one JSON file each in `~/.toolrouter/recipes/<name>.json`,
+The five seed recipes are built into the package (`metarouter/recipes/`), so they update with
+it. Saved and learned recipes are one JSON file each in `~/.metarouter/recipes/<name>.json`,
 and a file wins over a seed of the same name.
 
 ```json
@@ -158,7 +158,7 @@ and a file wins over a seed of the same name.
   "summary": "find and replace text in a file, literal or regex",
   "args": ["file", "old", "new", "--regex", "--from-file"],
   "kind": "python",
-  "body": "toolrouter.recipes.replace",
+  "body": "metarouter.recipes.replace",
   "purity": "write",
   "example": {"args": ["demo.txt", "cat", "dog"], "expect_exit": 0},
   "source": "seed"
@@ -174,12 +174,12 @@ and a file wins over a seed of the same name.
   shrinker. When the answer is an object or a list it sits in `out` as real JSON, not as a
   string. A shell recipe's output goes through the shrinker like `run`.
 - An example carries `setup` (files to create), `args`, `expect_exit` and `expect_out`. `check`
-  runs each one in a temporary folder with a temporary toolrouter home, so checks never touch
+  runs each one in a temporary folder with a temporary metarouter home, so checks never touch
   real files or the call log.
 - Success rate, token size and speed are not stored in the recipe. They are computed from the
   call log, so they never go stale.
 - Saving a recipe under a name that already exists moves the old one to
-  `~/.toolrouter/recipes/archive/<name>@<n>.json`. `check` flags recipes unused for 60 days.
+  `~/.metarouter/recipes/archive/<name>@<n>.json`. `check` flags recipes unused for 60 days.
 
 ### The five seed recipes
 
@@ -198,7 +198,7 @@ Passing arguments on the command line avoids the heredoc escaping trap entirely.
 ### CLI glue recipes
 
 Added 2026-09-28 from the binaries counted in the transcripts (`gh api` 264 calls, `curl` 348,
-`sleep` 141 with a 14% fail rate). All in `toolrouter/recipes/web.py`, standard library plus the
+`sleep` 141 with a 14% fail rate). All in `metarouter/recipes/web.py`, standard library plus the
 CLIs already installed. `page`, `up` and `screenshot` refuse hosts in `blocked-hosts.txt`.
 
 | Recipe | Replaces | Returns |
@@ -231,7 +231,7 @@ current project; a recipe with no calls here falls back to its score across all 
 
 ## Call log
 
-`~/.toolrouter/calls.jsonl`, one line per call: time, project, agent, lane, recipe or command
+`~/.metarouter/calls.jsonl`, one line per call: time, project, agent, lane, recipe or command
 shape, exit code, seconds, output bytes, log path.
 
 - `project` is the git root, else a hash of the working folder (idea 15).
@@ -243,7 +243,7 @@ a query engine yet.
 
 ## Failure hints and the breaker
 
-**Hints.** `~/.toolrouter/hints.json` holds pairs of an error pattern and a fix. When a call
+**Hints.** `~/.metarouter/hints.json` holds pairs of an error pattern and a fix. When a call
 fails, the output is matched against them and the fix goes into `hint`.
 
 Seeded by hand from the tool traps in `meta/gotchas.md`, rewritten as short rules. Examples:
@@ -257,15 +257,15 @@ the warning in `hint`. The call still runs. It never blocks.
 
 **Breaker.** When the same recipe or binary has failed 3 times in a row within an hour, the
 result carries a `breaker` note with the last error. It warns; it never blocks. Refusing a
-call the agent chose is the one thing toolrouter must not do.
+call the agent chose is the one thing metarouter must not do.
 
 **Marked substitution, binding.** If a recipe falls back to a different tool (for example
 `browse read` falling back to a plain fetch), the result must carry a `marker` naming the
 tool asked for, the tool that ran, and why. The result builder refuses a fallback with no
 marker, so a silent substitution cannot be built.
 
-Built 2026-09-28 (`toolrouter/hints.py`): ten seed hints, six checked before the run and
-four on a failed call's output. `~/.toolrouter/hints.json` adds hints and overrides a seed by
+Built 2026-09-28 (`metarouter/hints.py`): ten seed hints, six checked before the run and
+four on a failed call's output. `~/.metarouter/hints.json` adds hints and overrides a seed by
 `id`. The breaker key is the recipe name, or the first word of the command shape for `run`.
 
 ## `learn`
@@ -277,7 +277,7 @@ Reads `~/.claude/projects/**/*.jsonl`, the same files `ingest` reads.
 3. For a failed-then-fixed pair, the difference between the two calls becomes a hint
    candidate.
 4. Strips every specific: paths, quoted strings and numbers become `{placeholders}`.
-5. Writes candidates to `~/.toolrouter/candidates/`.
+5. Writes candidates to `~/.metarouter/candidates/`.
 
 Also promotes from the call log: a command shape that succeeds 3 or more times through `run`
 becomes a candidate.
@@ -287,7 +287,7 @@ to start when `AI_AGENT` or `CLAUDECODE` is set. The agent never reads a candida
 approved, because a candidate is mined from transcripts that can hold real ACU paths or
 values. `learn` itself prints counts and group names only.
 
-Built 2026-09-28 (`toolrouter/learn.py`). Thresholds: a shape becomes a recipe candidate at 5
+Built 2026-09-28 (`metarouter/learn.py`). Thresholds: a shape becomes a recipe candidate at 5
 uses with 80% success (3 uses for shapes from the call log). File plumbing (`ls`, `cat`, `grep`
 and the like) and inline Python never become shell recipes. A hint candidate needs a failed
 call whose output names an error kind, followed within 3 calls by a different shape of the same
@@ -296,7 +296,7 @@ offered again. First run on 506 transcripts: 42 recipe and 41 hint candidates, 1
 
 ## Agent glue, phase 3
 
-toolrouter is the layer between a coding agent and every other engine it calls: Codex,
+metarouter is the layer between a coding agent and every other engine it calls: Codex,
 Gemini through `agy`, the local models, and the plain scripting around them. Whatever
 runs underneath, the caller gets the same clean result.
 
@@ -330,44 +330,44 @@ command: `ok`, `exit`, `out`, `errors`, `tail`, `log`. Engine output that is alr
 transcript of the engine run is in the log.
 
 **Jobs.** Engine calls run long. `--background` starts one and returns a job id;
-`toolrouter jobs` lists every job from every engine; `toolrouter jobs <id> --wait` blocks
+`metarouter jobs` lists every job from every engine; `metarouter jobs <id> --wait` blocks
 until it ends and returns its result. The default is to wait. A job started in the
-background is still owned by toolrouter, so its result is never orphaned. `jobs` records the
+background is still owned by metarouter, so its result is never orphaned. `jobs` records the
 folder each job started from, because `codex-companion.mjs` keeps its job list per project
 folder: asking from another folder reports no such job while it is still running (hit
 2026-09-28).
 
 **Boundaries.** An external engine is an external send whatever wraps it: the ACU rule
-applies to `codex` and `gemini` exactly as it does without toolrouter. toolrouter only
+applies to `codex` and `gemini` exactly as it does without metarouter. metarouter only
 carries the calls. The two-engine audit rule is unchanged: Codex and Gemini stay two
-separate calls, and toolrouter never merges their verdicts.
+separate calls, and metarouter never merges their verdicts.
 
 **Inside the engines' own work.** The forwarder agents (`gemini`, `codex:codex-rescue`, the local
 ones) stay as they are. What changes is the engine at the far end: while Codex or Gemini does a
-job, it uses toolrouter as its tool, reads the JSON, evaluates, and finishes the job.
+job, it uses metarouter as its tool, reads the JSON, evaluates, and finishes the job.
 
 ```
 Claude -> gemini / codex forwarder (unchanged) -> Gemini / Codex
                                                    | during the job:
-                                                   |   toolrouter --json exec -- "pytest -q"
-                                                   |   toolrouter --json run find <regex> <folder>
+                                                   |   metarouter --json exec -- "pytest -q"
+                                                   |   metarouter --json run find <regex> <folder>
                                                    v
                                     evaluates, finishes, returns to Claude
 ```
 
 - **Codex** reads `~/.codex/AGENTS.md` on every run. It tells Codex to use `exec`, `run json`,
   `run find`, `run replace`, `search` and `list`, and to fall back to plain commands when
-  toolrouter is missing.
+  metarouter is missing.
 - **Gemini: blocked, not wired.** Decided 2026-09-28: read-only verbs only. Tried and reverted the
   same day. `agy` checks `command(<prefix>)` allow rules, and an exact rule such as
-  `command(toolrouter --json list)` passes that check. The command then still needs
-  `escalate_admin`, because `agy` runs commands in a sandbox and toolrouter writes to
-  `~/.toolrouter` outside the project folder. Granting that is a sandbox escape, well beyond
+  `command(metarouter --json list)` passes that check. The command then still needs
+  `escalate_admin`, because `agy` runs commands in a sandbox and metarouter writes to
+  `~/.metarouter` outside the project folder. Granting that is a sandbox escape, well beyond
   read-only. A denied command also fails the whole `agy` run, so the preamble change in
   `agy-run.sh` broke a work-lane job and was reverted with the allow rules. Gemini keeps its
   read-only file tools.
-- An earlier version routed the forwarders themselves through toolrouter, and a separate
-  toolrouter agent existed briefly. Both were undone on 2026-09-28.
+- An earlier version routed the forwarders themselves through metarouter, and a separate
+  metarouter agent existed briefly. Both were undone on 2026-09-28.
 
 ## Browser, phase 6
 
@@ -376,9 +376,9 @@ Claude -> gemini / codex forwarder (unchanged) -> Gemini / Codex
 on this laptop. No websocket library, no Playwright, no gstack.
 
 **Why it needs a small background process.** Chrome's pipe belongs to the process that
-started it, and each `toolrouter` call exits. So the first `browse` call starts a daemon that
+started it, and each `metarouter` call exits. So the first `browse` call starts a daemon that
 owns Chrome and listens on `127.0.0.1` with a random port and a token, both in
-`~/.toolrouter/browser.json`. Later calls talk to it. It stops after 30 idle minutes.
+`~/.metarouter/browser.json`. Later calls talk to it. It stops after 30 idle minutes.
 
 | Verb | What it does |
 |------|--------------|
@@ -399,12 +399,12 @@ owns Chrome and listens on `127.0.0.1` with a random port and a token, both in
 
 **Safety:**
 
-- Own profile at `~/.toolrouter/chrome-profile`, never the everyday Chrome profile.
-- `browse` refuses any host in `~/.toolrouter/blocked-hosts.txt`. Wasif fills that file with the
+- Own profile at `~/.metarouter/chrome-profile`, never the everyday Chrome profile.
+- `browse` refuses any host in `~/.metarouter/blocked-hosts.txt`. Wasif fills that file with the
   REDCap and ACU reporting hosts during phase 6, before the first `open`, so a page holding real ACU data cannot be pulled into an
   agent's context by this tool.
 
-Built 2026-09-28 (`toolrouter/browse/`). The blocked-hosts list is checked before `open` in the
+Built 2026-09-28 (`metarouter/browse/`). The blocked-hosts list is checked before `open` in the
 CLI, and again inside the daemon after every navigation, so a click that lands on a blocked
 host closes the page. A blocked host also blocks its subdomains.
 
@@ -412,7 +412,7 @@ host closes the page. A blocked host also blocks its subdomains.
 
 - `mcp <server> <tool> '<json args>'` calls an MCP tool over stdio with plain JSON-RPC:
   initialize, then `tools/call`. Standard library only.
-- Servers are listed in `~/.toolrouter/servers.json`, in the same `{"mcpServers": {name: {command,
+- Servers are listed in `~/.metarouter/servers.json`, in the same `{"mcpServers": {name: {command,
   args, env}}}` shape Claude Code uses, so an entry can be moved across as is. Not in Claude Code's config, so their
   tool definitions never enter the context.
 - `tools` prints one line per tool: the CLI binaries seen in the transcripts, and each MCP
@@ -424,8 +424,8 @@ Antigravity, which do not defer tool definitions.
 
 ## Modes and the catalogue
 
-`toolrouter mode [learn|auto]`, stored in `~/.toolrouter/config.json`, overridden by
-`TOOLROUTER_MODE`. Default `learn`.
+`metarouter mode [learn|auto]`, stored in `~/.metarouter/config.json`, overridden by
+`METAROUTER_MODE`. Default `learn`.
 
 - `learn`: seed recipes, recipes saved with `add`, and recipes approved through `learn --review`.
   MCP servers from `servers.json` only.
@@ -453,12 +453,12 @@ dropped 3.
 Decided 2026-09-28: the first v2 piece, ahead of computer use. Idea 26 (macro synthesis) and
 old child C6.
 
-A flow is a recipe with `kind: flow` whose body is a list of steps. Each step is one toolrouter
-command line without the `toolrouter` word, and may use `{1}`..`{9}` for the flow's arguments.
+A flow is a recipe with `kind: flow` whose body is a list of steps. Each step is one metarouter
+command line without the `metarouter` word, and may use `{1}`..`{9}` for the flow's arguments.
 
 ```
-toolrouter add read-page --step "browse open {1}" --step "browse read" --summary "open a page and read it"
-toolrouter run read-page https://example.com
+metarouter add read-page --step "browse open {1}" --step "browse read" --summary "open a page and read it"
+metarouter run read-page https://example.com
 ```
 
 - Steps run in order through the same lanes as a typed command, so each keeps its own log,
@@ -503,8 +503,8 @@ the person decides before running it.
 | C6 Macro synthesis | Multi-step recipes, v2 |
 | C7 Rewrite rules | Shrinkers after the run. Nothing is rewritten before it runs |
 | C8 Failure intelligence | Hints, warn-only breaker, marked substitution |
-| C9 Replay sandbox | `toolrouter check` re-runs each recipe's example |
-| C10 Snapshot, no git | `replace` and `json-set` copy files to `~/.toolrouter/snapshots/<id>/` first. Never git |
+| C9 Replay sandbox | `metarouter check` re-runs each recipe's example |
+| C10 Snapshot, no git | `replace` and `json-set` copy files to `~/.metarouter/snapshots/<id>/` first. Never git |
 | C11 Cross-host adapters | Free. A command works in every host |
 | C12 to C14 Catalog | Seed is the five recipes plus gotcha hints; community catalog is v2 |
 
@@ -517,7 +517,7 @@ Each phase is usable on its own.
 
 | Phase | What | Needs |
 |------:|------|-------|
-| 1 | Output contract, call log, `run` (from `run.py`), the menu, logs under `~/.toolrouter/logs/` | nothing |
+| 1 | Output contract, call log, `run` (from `run.py`), the menu, logs under `~/.metarouter/logs/` | nothing |
 | 2 | Recipe format, five seed recipes, `run`, `search`, `add`, `check`, snapshots | 1 |
 | 3 | Agent glue: codex, gemini and local as engine recipes, one result shape, `jobs` | 2 |
 | 4 | Hints seeded from gotchas, breaker, marker | 1 |
@@ -538,7 +538,7 @@ Each phase is usable on its own.
    always names it.
 3. With a shrinker forced to raise, the command still prints the raw output and returns the
    real exit code.
-4. `toolrouter`'s exit code equals the underlying command's exit code.
+4. `metarouter`'s exit code equals the underlying command's exit code.
 5. The five seed recipes correspond to the five largest groups `learn` reports on the corpus
    at build time.
 6. `replace` and `json-set` snapshot before writing; restoring the snapshot gives back the
@@ -548,9 +548,9 @@ Each phase is usable on its own.
 8. A result that names a fallback tool without a marker cannot be constructed.
 9. `browse` refuses every host in `blocked-hosts.txt` and never opens the everyday Chrome
    profile.
-10. Nothing toolrouter writes lives in the vault or in a project folder; everything is under
-    `~/.toolrouter/`.
-11. `toolrouter check` runs every recipe's example and reports each one as pass or fail.
+10. Nothing metarouter writes lives in the vault or in a project folder; everything is under
+    `~/.metarouter/`.
+11. `metarouter check` runs every recipe's example and reports each one as pass or fail.
 12. The call log holds shapes only: no quoted string or number from a command appears in it.
 13. Needle survival: on the recorded shell corpus used by `bench/headroom_bench.py`, the text
     shrinker keeps at least 99% of needles (tracebacks, `error:` and `fatal:` lines, exit
@@ -560,7 +560,7 @@ Each phase is usable on its own.
 15. A command matching a pre-run hint pattern returns that hint and still runs.
 16. With calls logged in two projects, `search` ranks by the current project's calls first.
 17. An engine recipe returns the same result fields as `run`, and a background job's result
-    can always be fetched with `toolrouter jobs <id> --wait`, even after the caller exited.
+    can always be fetched with `metarouter jobs <id> --wait`, even after the caller exited.
 
 ## Testing
 
@@ -572,15 +572,15 @@ Run with `uv run --no-project --with pytest --with pillow python -m pytest -q`.
 
 ## Rollback
 
-1. `pip uninstall toolrouter`.
-2. `rm -rf ~/.toolrouter/`. The call log and summaries are derived; recipes the person
+1. `pip uninstall metarouter`.
+2. `rm -rf ~/.metarouter/`. The call log and summaries are derived; recipes the person
    approved are the only thing lost, so back up `recipes/` first if they matter.
 
 No Claude Code setting is touched, so there is nothing to restore there.
 
 ## History
 
-- **2026-09-27, Plan A.** Built `toolrouter ingest`. Shipped a Bash output cap
+- **2026-09-27, Plan A.** Built `metarouter ingest`. Shipped a Bash output cap
   (`BASH_MAX_OUTPUT_LENGTH=2000`) and a Read hook (`hook.py`: shrink screenshots, add
   `limit: 300` to big text reads). Headroom was benchmarked first (`benchmark.md`): 4.2%
   saved against 62.4% for a 400 token cap, so it was not the answer. A 100k auto-compact cap was tried and removed on

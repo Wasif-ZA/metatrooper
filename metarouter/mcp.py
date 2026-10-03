@@ -11,8 +11,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from toolrouter import recipes as store
-from toolrouter.log import home
+from metarouter import recipes as store
+from metarouter.log import home
 
 PROTOCOL = "2025-06-18"
 TIMEOUT = 60
@@ -49,14 +49,14 @@ def catalog_lines(words=(), remote=True):
     rows += [(n, s) for n, s in sorted(catalog().items()) if n not in mine]
     out = [line(n, s) for n, s in rows if all(w in f"{n} {s.get('summary', '')}".lower() for w in words)]
     if words and remote and store.mode() == "auto":
-        from toolrouter import registry
+        from metarouter import registry
         seen = {n for n, _ in rows}
         try:
             out += [line(s["name"], s) for s in registry.search(" ".join(words)) if s["name"] not in seen]
         except OSError as e:
             out.append(f"(registry unreachable: {e})")
     if store.mode() != "auto":
-        out.append("(learn mode: servers.json only. toolrouter mode auto adds the catalogue and the public registry)")
+        out.append("(learn mode: servers.json only. metarouter mode auto adds the catalogue and the public registry)")
     return out
 
 
@@ -73,7 +73,7 @@ class Session:
         self.next_id = 0
         try:
             self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {},
-                                        "clientInfo": {"name": "toolrouter", "version": "0.1"}})
+                                        "clientInfo": {"name": "metarouter", "version": "0.1"}})
             self.notify("notifications/initialized")
         except Exception:
             self.close()
@@ -136,7 +136,7 @@ class HttpSession:
             self.headers[k] = re.sub(r"\$\{([A-Za-z0-9_]+)\}", lambda m: os.environ.get(m.group(1), ""), str(v))
         try:
             self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {},
-                                        "clientInfo": {"name": "toolrouter", "version": "0.1"}})
+                                        "clientInfo": {"name": "metarouter", "version": "0.1"}})
             self.notify("notifications/initialized")
         except Exception:
             self.close()
@@ -235,13 +235,13 @@ def server_spec(name):
         spec = all_[name]
         in_mine = True
     elif store.mode() == "auto" and "/" in name:
-        from toolrouter import registry
+        from metarouter import registry
         spec = registry.spec(name)
         in_mine = False
     else:
         known = ", ".join(sorted(all_)) or "none yet"
         raise KeyError(f'no MCP server "{name}" in {home() / "servers.json"} or the catalogue. Known: {known}. '
-                       f'Find one: toolrouter mcp search <words>')
+                       f'Find one: metarouter mcp search <words>')
     if not in_mine or isinstance(spec.get("env"), list):
         missing = [v for v in spec.get("env", []) if not os.environ.get(v)]
         if missing:
@@ -268,14 +268,14 @@ def cached_tools():
 
 def list_tools(name):
     spec = server_spec(name)
-    if "url" in spec or os.environ.get("TOOLROUTER_MCP_KEEP") == "0":
+    if "url" in spec or os.environ.get("METAROUTER_MCP_KEEP") == "0":
         s = open_session(name)
         try:
             tools = s.request("tools/list").get("tools", [])
         finally:
             s.close()
     else:
-        from toolrouter import mcp_daemon
+        from metarouter import mcp_daemon
         try:
             tools = mcp_daemon.call(name, "tools/list").get("tools", [])
         except (ConnectionError, TimeoutError, OSError):
@@ -299,13 +299,13 @@ def list_tools(name):
 def call_tool(name, tool, args):
     spec = server_spec(name)
     params = {"name": tool, "arguments": args}
-    if "url" in spec or os.environ.get("TOOLROUTER_MCP_KEEP") == "0":
+    if "url" in spec or os.environ.get("METAROUTER_MCP_KEEP") == "0":
         s = open_session(name)
         try:
             return s.request("tools/call", params)
         finally:
             s.close()
-    from toolrouter import mcp_daemon
+    from metarouter import mcp_daemon
     try:
         return mcp_daemon.call(name, "tools/call", params)
     except (ConnectionError, TimeoutError, OSError):

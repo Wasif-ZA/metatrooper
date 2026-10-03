@@ -1,4 +1,4 @@
-"""Needle survival and size for toolrouter's shrinker on the recorded Bash corpus.
+"""Needle survival and size for metarouter's shrinker on the recorded Bash corpus.
 
 Uses the corpus loader, needle rules and matching rule from headroom_bench.py. Prints
 aggregates only, never command or output text.
@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from headroom_bench import load_corpus, needles, survived, tok  # noqa: E402
-from toolrouter.shrink import clean, shrink  # noqa: E402
+from metarouter.shrink import clean, shrink  # noqa: E402
 
 
 def seen_by_agent(text):

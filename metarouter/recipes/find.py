@@ -41,7 +41,7 @@ def read_text(path):
 
 
 def run(args):
-    ap = argparse.ArgumentParser(prog="toolrouter run find")
+    ap = argparse.ArgumentParser(prog="metarouter run find")
     ap.add_argument("pattern", help="Python regex")
     ap.add_argument("folder", nargs="?", default=".")
     ap.add_argument("--glob", help="only file names matching this, e.g. '*.py'")

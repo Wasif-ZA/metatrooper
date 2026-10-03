@@ -5,21 +5,21 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from toolrouter import cli
+from metarouter import cli
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -125,7 +125,7 @@ def test_replace_snapshot_undo_without_id_restores_original_bytes(capsys):
     undo_exit, undo = invoke(capsys, "undo")
 
     assert changed_exit == 0
-    assert "undo: toolrouter undo " in changed["out"]
+    assert "undo: metarouter undo " in changed["out"]
     assert undo_exit == 0
     assert str(target.resolve()) in undo["out"]
     assert target.read_bytes() == original
@@ -137,7 +137,7 @@ def test_json_set_snapshot_id_from_output_restores_original_bytes(capsys):
     target.write_bytes(original)
 
     changed_exit, changed = invoke(capsys, "run", "json-set", target, ".café", "2")
-    match = re.search(r"toolrouter undo ([^)]+)", changed["out"])
+    match = re.search(r"metarouter undo ([^)]+)", changed["out"])
     assert match is not None
     target.write_bytes(b"deliberately changed after snapshot")
     undo_exit, undo = invoke(capsys, "undo", match.group(1))
@@ -272,7 +272,7 @@ def test_img_info_reports_actual_dimensions(capsys):
     assert result["out"]["height"] == 23
 
 
-def test_img_shrink_uses_784_long_edge_and_toolrouter_home(tmp_path, capsys):
+def test_img_shrink_uses_784_long_edge_and_metarouter_home(tmp_path, capsys):
     image = Path("large.png")
     Image.new("RGB", (2000, 1000), "purple").save(image)
 
@@ -281,7 +281,7 @@ def test_img_shrink_uses_784_long_edge_and_toolrouter_home(tmp_path, capsys):
 
     assert exit_code == 0
     assert result["out"]["shrunk"] is True
-    assert output.is_relative_to(tmp_path / "toolrouter-home")
+    assert output.is_relative_to(tmp_path / "metarouter-home")
     with Image.open(output) as shrunk:
         assert shrunk.size == (784, 392)
 

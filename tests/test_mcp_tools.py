@@ -6,19 +6,19 @@ from pathlib import Path
 
 import pytest
 
-from toolrouter import cli
+from metarouter import cli
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -93,7 +93,7 @@ for line in sys.stdin:
 
 
 def write_servers(monkeypatch, script, entries):
-    home = Path(os.environ["TOOLROUTER_HOME"])
+    home = Path(os.environ["METAROUTER_HOME"])
     home.mkdir(parents=True, exist_ok=True)
     config = {
         "mcpServers": {

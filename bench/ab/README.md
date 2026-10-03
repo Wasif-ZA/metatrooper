@@ -1,11 +1,11 @@
-# Toolrouter A/B Evaluation Benchmark
+# metarouter A/B Evaluation Benchmark
 
-This benchmark evaluates coding agents with and without `toolrouter` on standard coding and navigation tasks.
+This benchmark evaluates coding agents with and without `metarouter` on standard coding and navigation tasks.
 
 ## Arms
 
 - **plain**: The agent is provided only with the task description (`task.md`).
-- **toolrouter**: The agent is provided with `toolrouter` usage instructions prepended to the task description.
+- **metarouter**: The agent is provided with `metarouter` usage instructions prepended to the task description.
 
 ## What It Measures
 
@@ -41,7 +41,7 @@ python bench/ab/run_ab.py
 
 Run a subset of tasks or arms:
 ```bash
-python bench/ab/run_ab.py --tasks find-config,fix-json --arms plain,toolrouter
+python bench/ab/run_ab.py --tasks find-config,fix-json --arms plain,metarouter
 ```
 
 Output results to a custom file:

@@ -13,30 +13,30 @@ import urllib.request
 
 import pytest
 
-import toolrouter.browse.cdp as cdp
-from toolrouter.browse import daemon
-import toolrouter.browse.page as page_mod
-from toolrouter.browse.page import host_blocked
-import toolrouter.calls
-from toolrouter import calls, cli, ingest, jobs, log, snapshot
-import toolrouter.log
-from toolrouter.recipes import find, web
-import toolrouter.snapshot
-from toolrouter.result import Result, render
+import metarouter.browse.cdp as cdp
+from metarouter.browse import daemon
+import metarouter.browse.page as page_mod
+from metarouter.browse.page import host_blocked
+import metarouter.calls
+from metarouter import calls, cli, ingest, jobs, log, snapshot
+import metarouter.log
+from metarouter.recipes import find, web
+import metarouter.snapshot
+from metarouter.result import Result, render
 
 
 @pytest.fixture(autouse=True)
 def isolated_environment(tmp_path, monkeypatch):
-    home = tmp_path / "toolrouter-home"
+    home = tmp_path / "metarouter-home"
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("TOOLROUTER_HOME", str(home))
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
     for name in (
         "AI_AGENT",
         "CLAUDECODE",
-        "TOOLROUTER_OUTPUT",
+        "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
-        "TOOLROUTER_SHELL",
+        "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(work)
@@ -60,7 +60,7 @@ def test_log_write_same_second_different_microseconds(monkeypatch):
         def now(cls, tz=None):
             return times.pop(0)
 
-    monkeypatch.setattr(toolrouter.log.datetime, "datetime", MockDatetime)
+    monkeypatch.setattr(metarouter.log.datetime, "datetime", MockDatetime)
 
     p1 = log.write("audit", b"first")
     p2 = log.write("audit", b"second")
@@ -140,7 +140,7 @@ def test_snapshot_take_twice_same_second(monkeypatch, tmp_path):
         def now(cls, tz=None):
             return times.pop(0)
 
-    monkeypatch.setattr(toolrouter.snapshot.datetime, "datetime", MockDatetime)
+    monkeypatch.setattr(metarouter.snapshot.datetime, "datetime", MockDatetime)
 
     target.write_bytes(b"version 1")
     sid1 = snapshot.take([target])
@@ -159,7 +159,7 @@ def test_snapshot_take_twice_same_second(monkeypatch, tmp_path):
 
 
 def test_refuse_blocked_redirect_raises_urlerror():
-    home = Path(os.environ["TOOLROUTER_HOME"])
+    home = Path(os.environ["METAROUTER_HOME"])
     home.mkdir(parents=True, exist_ok=True)
     (home / "blocked-hosts.txt").write_text("blocked.example\n", encoding="utf-8")
 
@@ -170,7 +170,7 @@ def test_refuse_blocked_redirect_raises_urlerror():
 
 
 def test_browse_daemon_type_rechecks_blocked_guard(monkeypatch):
-    home = Path(os.environ["TOOLROUTER_HOME"])
+    home = Path(os.environ["METAROUTER_HOME"])
     home.mkdir(parents=True, exist_ok=True)
     (home / "blocked-hosts.txt").write_text("blocked.example\n", encoding="utf-8")
 
@@ -238,7 +238,7 @@ def test_run_lane_call_log_shape_does_not_contain_argument_content():
     exit_code = cli.main(["--json", "run", "replace", "notes.txt", "participant Alice", "redacted"])
 
     assert exit_code == 0
-    calls_file = Path(os.environ["TOOLROUTER_HOME"]) / "calls.jsonl"
+    calls_file = Path(os.environ["METAROUTER_HOME"]) / "calls.jsonl"
     assert calls_file.is_file()
     lines = [json.loads(line) for line in calls_file.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(lines) == 1
@@ -246,23 +246,23 @@ def test_run_lane_call_log_shape_does_not_contain_argument_content():
 
 
 def test_calls_append_does_not_unlink_replaced_lock(monkeypatch):
-    orig_close = toolrouter.calls.os.close
+    orig_close = metarouter.calls.os.close
 
     def fake_close(fd):
         orig_close(fd)
-        lock_file = toolrouter.calls.home() / "calls.jsonl.lock"
+        lock_file = metarouter.calls.home() / "calls.jsonl.lock"
         lock_file.write_bytes(b"another-token")
 
-    monkeypatch.setattr(toolrouter.calls.os, "close", fake_close)
+    monkeypatch.setattr(metarouter.calls.os, "close", fake_close)
     calls.append({"lane": "test", "time": "2026-09-30T00:00:00"})
 
-    lock_file = toolrouter.calls.home() / "calls.jsonl.lock"
+    lock_file = metarouter.calls.home() / "calls.jsonl.lock"
     assert lock_file.is_file()
     assert lock_file.read_bytes() == b"another-token"
 
 
 def test_check_escaped_setup_key_and_destructive_recipe():
-    home = Path(os.environ["TOOLROUTER_HOME"])
+    home = Path(os.environ["METAROUTER_HOME"])
     recipes_dir = home / "recipes"
     recipes_dir.mkdir(parents=True, exist_ok=True)
 
@@ -342,7 +342,7 @@ def test_learn_review_in_json_mode_returns_exit_2(monkeypatch, capsys):
 
 
 def test_malformed_servers_json_prints_json_without_traceback(capsys):
-    home = Path(os.environ["TOOLROUTER_HOME"])
+    home = Path(os.environ["METAROUTER_HOME"])
     home.mkdir(parents=True, exist_ok=True)
     (home / "servers.json").write_text("{not valid json", encoding="utf-8")
 

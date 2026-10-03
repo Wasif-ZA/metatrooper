@@ -9,7 +9,7 @@ RUNNERS = {"npm": "npx", "pypi": "uvx", "oci": "docker"}
 
 def fetch(words, limit=30):
     q = urllib.parse.urlencode({"search": words, "version": "latest", "limit": limit})
-    req = urllib.request.Request(f"{API}?{q}", headers={"User-Agent": "toolrouter"})
+    req = urllib.request.Request(f"{API}?{q}", headers={"User-Agent": "metarouter"})
     with urllib.request.urlopen(req, timeout=20) as resp:
         return [s["server"] for s in json.loads(resp.read()).get("servers", [])]
 
@@ -75,5 +75,5 @@ def spec(name):
             found = launch(s)
             if found:
                 return found
-            raise KeyError(f"{name} is remote-only in the registry; toolrouter speaks stdio")
-    raise KeyError(f'no MCP server "{name}" in the public registry. Try: toolrouter mcp search <words>')
+            raise KeyError(f"{name} is remote-only in the registry; metarouter speaks stdio")
+    raise KeyError(f'no MCP server "{name}" in the public registry. Try: metarouter mcp search <words>')

@@ -5,11 +5,11 @@ from pathlib import Path
 
 
 def home():
-    return Path(os.environ.get("TOOLROUTER_HOME") or Path.home() / ".toolrouter")
+    return Path(os.environ.get("METAROUTER_HOME") or Path.home() / ".metarouter")
 
 
 def child_env():
-    """Environment for a detached `python -m toolrouter...` child, able to import this copy of the package."""
+    """Environment for a detached `python -m metarouter...` child, able to import this copy of the package."""
     pkg = str(Path(__file__).resolve().parents[1])
     return {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [pkg, os.environ.get("PYTHONPATH")]))}
 

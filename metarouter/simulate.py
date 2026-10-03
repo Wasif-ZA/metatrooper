@@ -3,7 +3,7 @@ import base64
 import io
 from pathlib import Path
 
-from toolrouter.ingest import DEFAULT_ROOT, blocks
+from metarouter.ingest import DEFAULT_ROOT, blocks
 
 MAX_EDGE = 1568  # Claude's long-edge cap before tokenising an image
 PREVIEW_CHARS = 2000  # inline preview Claude Code keeps when Bash output spills
@@ -91,7 +91,7 @@ def simulate(rows, shell_chars, edge, line_limit, reread):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="toolrouter-simulate")
+    ap = argparse.ArgumentParser(prog="metarouter-simulate")
     ap.add_argument("--root", default=str(DEFAULT_ROOT))
     ap.add_argument("--since")
     ap.add_argument("--shell-chars", type=int, nargs="+", default=[2000])

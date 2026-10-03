@@ -5,8 +5,8 @@ import os
 import re
 from pathlib import Path
 
-from toolrouter import calls
-from toolrouter.log import home
+from metarouter import calls
+from metarouter.log import home
 
 CATALOG = Path(__file__).with_name("catalog.json")
 SEEDS = ["replace", "json_get", "json_set", "img", "find", "engines", "web"]
@@ -22,7 +22,7 @@ def user_dir():
 
 def mode():
     """learn: seeds and approved recipes only. auto: also the catalogue, PATH CLIs and the MCP registry."""
-    env = os.environ.get("TOOLROUTER_MODE")
+    env = os.environ.get("METAROUTER_MODE")
     if env in MODES:
         return env
     try:
@@ -49,7 +49,7 @@ def seed_recipes():
         for r in json.loads(CATALOG.read_text(encoding="utf-8")):
             out[r["name"]] = {**r, "kind": "shell", "source": "catalog"}
     for mod in SEEDS:
-        m = importlib.import_module(f"toolrouter.recipes.{mod}")
+        m = importlib.import_module(f"metarouter.recipes.{mod}")
         for r in getattr(m, "RECIPES", None) or [m.RECIPE]:
             kind = "engine" if "engine" in r else "python"
             out[r["name"]] = {**r, "kind": kind, "body": m.__name__, "source": "seed"}

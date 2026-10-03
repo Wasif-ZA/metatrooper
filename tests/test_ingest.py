@@ -1,7 +1,7 @@
 import json
 import pytest
 from pathlib import Path
-from toolrouter.ingest import result_cost, scan, summarise, main
+from metarouter.ingest import result_cost, scan, summarise, main
 
 
 def test_result_cost():

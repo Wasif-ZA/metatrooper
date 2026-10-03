@@ -108,7 +108,7 @@
  },
  {
   "name": "everything",
-  "summary": "Official test server exercising every MCP feature (tools, resources, prompts, sampling, elicitation). Use it to test the toolrouter MCP client. No key.",
+  "summary": "Official test server exercising every MCP feature (tools, resources, prompts, sampling, elicitation). Use it to test the metarouter MCP client. No key.",
   "command": "npx",
   "args": [
    "-y",

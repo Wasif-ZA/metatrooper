@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 
-from toolrouter.log import child_env, home
+from metarouter.log import child_env, home
 
 IDLE_SECONDS = 30 * 60
 START_TIMEOUT = 10
@@ -16,7 +16,7 @@ def state_path():
 
 
 def serve():
-    from toolrouter import mcp
+    from metarouter import mcp
 
     sessions = {}
     last = [time.monotonic()]
@@ -118,7 +118,7 @@ def ensure():
         kw["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     else:
         kw["start_new_session"] = True
-    subprocess.Popen([sys.executable, "-m", "toolrouter.mcp_daemon"], **kw)
+    subprocess.Popen([sys.executable, "-m", "metarouter.mcp_daemon"], **kw)
     start = time.monotonic()
     while time.monotonic() - start < START_TIMEOUT:
         if state_path().is_file():
