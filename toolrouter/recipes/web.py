@@ -47,6 +47,18 @@ def page(a):
     url = url_of(a.url)
     if LOCAL.match(url.split("://", 1)[1]):
         return {"exit": 2, "out": f"r.jina.ai cannot reach {url}. Use: toolrouter browse open {url}"}
+    m = re.match(r"^https://github\.com/([^/]+)/([^/]+)/?$", url)
+    if m:
+        owner, repo = m.group(1), m.group(2)
+        gh = shutil.which("gh") or "gh"
+        try:
+            p = subprocess.run([gh, "api", f"repos/{owner}/{repo}/readme", "-H", "Accept: application/vnd.github.raw"],
+                               capture_output=True, timeout=60)
+            if p.returncode == 0:
+                text = (p.stdout or b"").decode("utf-8", errors="replace")
+                return {"exit": 0, "full": text, "out": text.strip()}
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     req = urllib.request.Request("https://r.jina.ai/" + url, headers={**UA, "X-Return-Format": "markdown"})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:

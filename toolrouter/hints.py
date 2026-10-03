@@ -41,6 +41,10 @@ SEED = [
      "hint": "Bare python is the Microsoft Store stub. Use the full interpreter path"},
     {"id": "module-missing", "when": "fail", "match": r"ModuleNotFoundError: No module named '([\w.]+)'",
      "hint": "That module is not installed for this interpreter. Check which python ran, then pip install it there"},
+    {"id": "gh-search-recipe", "when": "before", "match": r"(^|[;&|]\s*)gh\s+search\s+repos\b",
+     "hint": "Shorter: toolrouter run gh-search-repos <query> (auto mode)"},
+    {"id": "gh-json-field", "when": "fail", "match": r"Unknown JSON field",
+     "hint": "gh lists the valid --json fields in this error, under 'Available fields'. Pick from that list"},
 ]
 
 

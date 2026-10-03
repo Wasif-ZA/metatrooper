@@ -139,3 +139,19 @@ Still cut from before: the result cache (ceiling 0.12%).
 | toolrouter as the default tool | Made default by instruction only: the vault CLAUDE.md and `~/.codex/AGENTS.md`. Hooks stay rejected (row above, 2026-09-28) because Wasif wants Claude Code's own flow untouched | never |
 | Commands agents typed instead of using toolrouter | Caught after the fact, not live. `learn` mines the transcripts (also from `nightly.cmd`); in `auto` mode a shape used 5+ times at 80%+ success is saved as a `learned` recipe, in `learn` mode it waits for `learn --review`. Shapes matching ACU words (acu, redcap, hwbreport, partner, participant, survey) are never auto-saved | after the first week of nightly runs |
 | sqlite and desktop-commander servers | Dropped by the verifier: sqlite is archived with no replacement, desktop-commander duplicates the shell and file tools | never |
+
+## Decided 2026-10-02, the twelve research ideas
+
+Built by Gemini (agy work lane) and Codex, one job at a time, after a Gemini spec gate. Source:
+a gh research pass over rtk, context-mode, tldr, mcporter, SWE-agent, navi, Voyager and others.
+
+| Item | Decision | Revisit |
+|------|----------|---------|
+| Per-command filters (`toolrouter/filters/*.json`) | Built. This reverses the spec line "chosen by what the output looks like, not by which tool made it", for matched commands only and only when they exit 0. Six filters for the commands the call log shows most (npm install, pip install, pytest, git push/pull, gh run view, uv sync), each with tests that `check` runs. Written fresh, nothing copied from rtk | when a filter hides something an agent needed |
+| `exec --want` | Built. Mechanism borrowed from context-mode (Elastic License 2.0), no code copied. In-memory chunk scoring of one output; no index, no cache | never |
+| tldr pages | `tools <bin>` shows the tldr page; learned recipes take their summary from the best-matching tldr example. Pages are CC-BY 4.0: fetched on demand, cached under `~/.toolrouter/tldr/` with the credit line kept in the cached file | never |
+| Auto-saved learned recipes | Tightened. Saved only with an example from one real use that exits 0 in an empty temporary folder (where `check` runs it), and only when the body is on a read-only allowlist (git status/log/diff/show..., --version calls, npm ls/view, pip list/show, docker ps). A denylist was rejected: `git checkout -- .`, `git stash` and `npm run` would pass as reads. Everything else waits for `learn --review` | after a week of nightly runs |
+| Learned flows | `learn` proposes command pairs that run back to back 5+ times; never auto-saved | never |
+| MCP keep-alive helper | Built, with the same 30-minute idle stop as `browse` and `toolrouter mcp stop`. Off in tests (`tests/conftest.py`), because each test run otherwise left four helpers running | never |
+| MCP over HTTP | Built for registry servers that are remote-only. Header values with a `{variable}` read it from the environment; optional ones are left out | never |
+| Python floor | Raised to 3.11 for `tomllib` (lint-gated `replace`, `mcp import`) | never |

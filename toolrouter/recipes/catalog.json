@@ -7,7 +7,8 @@
   "args": [
    "[path...]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "git-diff",
@@ -17,7 +18,8 @@
   "args": [
    "[rev] [-- path]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "git-log",
@@ -27,7 +29,8 @@
   "args": [
    "[rev-range] [-- path]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "pytest-quick",
@@ -69,7 +72,8 @@
    "setup": {
     "notes.txt": "one\ntwo\nthree\nfour\n"
    }
-  }
+  },
+  "whole": true
  },
  {
   "name": "outline",
@@ -89,7 +93,8 @@
    "setup": {
     "m.py": "import os\nclass Job:\n    def run(self):\n        return 1\n"
    }
-  }
+  },
+  "whole": true
  },
  {
   "name": "git-staged",
@@ -99,7 +104,8 @@
   "args": [
    "[-- path]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "git-show",
@@ -109,7 +115,11 @@
   "args": [
    "[commit]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true,
+  "choices": {
+   "1": "git log -n 10 --format='%h  %s'"
+  }
  },
  {
   "name": "files",
@@ -119,7 +129,8 @@
   "args": [
    "regex"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "gh-pr",
@@ -129,7 +140,11 @@
   "args": [
    "[number|branch]"
   ],
-  "purity": "external"
+  "purity": "external",
+  "whole": true,
+  "choices": {
+   "1": "gh pr list --limit 20 --json number,title --jq '.[] | \"\\(.number)  \\(.title)\"'"
+  }
  },
  {
   "name": "gh-checks",
@@ -159,7 +174,8 @@
   "args": [
    "number"
   ],
-  "purity": "external"
+  "purity": "external",
+  "whole": true
  },
  {
   "name": "git-changed",
@@ -195,7 +211,8 @@
    "setup": {
     "package.json": "{\"name\":\"x\",\"version\":\"1.0.0\",\"scripts\":{\"test\":\"node t.js\"}}"
    }
-  }
+  },
+  "whole": true
  },
  {
   "name": "npm-run",
@@ -285,7 +302,8 @@
    "setup": {
     "test_ok.py": "def test_ok():\n    assert True\n"
    }
-  }
+  },
+  "whole": true
  },
  {
   "name": "pytest-lf",
@@ -315,7 +333,8 @@
   "args": [
    "number"
   ],
-  "purity": "external"
+  "purity": "external",
+  "whole": true
  },
  {
   "name": "gh-issues",
@@ -380,7 +399,8 @@
    "start",
    "end"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "git-file-log",
@@ -390,7 +410,8 @@
   "args": [
    "path"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "git-branches",
@@ -418,7 +439,8 @@
   "args": [
    "[path...]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "loc-top",
@@ -446,7 +468,8 @@
   "args": [
    "file"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  },
  {
   "name": "video-sheet",
@@ -515,7 +538,8 @@
   "args": [
    "package"
   ],
-  "purity": "external"
+  "purity": "external",
+  "whole": true
  },
  {
   "name": "gh-search-repos",
@@ -556,6 +580,7 @@
   "args": [
    "archive"
   ],
-  "purity": "read"
+  "purity": "read",
+  "whole": true
  }
 ]

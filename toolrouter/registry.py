@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.parse
 import urllib.request
 
@@ -40,6 +41,20 @@ def launch(server):
         pkg_args = flat(p.get("packageArguments"))
         env = [e["name"] for e in p.get("environmentVariables") or [] if e.get("isRequired")]
         return {"command": cmd, "args": [*run_args, pinned, *pkg_args], "env": env}
+    for r in server.get("remotes") or []:
+        if r.get("type") != "streamable-http" or not r.get("url"):
+            continue
+        headers, env = {}, []
+        for h in r.get("headers") or []:
+            value = h.get("value") or ""
+            if "{" in value and not h.get("isRequired"):
+                continue
+            for var in re.findall(r"\{([^{}]+)\}", value):
+                env.append(var)
+                value = value.replace("{" + var + "}", "${" + var + "}")
+            if value:
+                headers[h["name"]] = value
+        return {"url": r["url"], "headers": headers, "env": env}
     return None
 
 

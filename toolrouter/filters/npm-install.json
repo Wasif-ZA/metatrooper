@@ -1,0 +1,35 @@
+{
+  "name": "npm-install",
+  "match_command": "npm (install|i|ci)\\b",
+  "strip_lines_matching": [
+    "npm WARN deprecated",
+    "npm notice",
+    "\\b(?:reify|idealTree|timing)\\b",
+    "^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]"
+  ],
+  "keep_lines_matching": [
+    "(?:added|removed|changed)\\s+\\d+\\s+packages?",
+    "\\bvulnerabilit"
+  ],
+  "match_output": [
+    {
+      "pattern": "up to date",
+      "replace": "npm: up to date"
+    }
+  ],
+  "max_lines": null,
+  "tail_lines": null,
+  "on_empty": null,
+  "tests": [
+    {
+      "command": "npm install express",
+      "input": "npm WARN deprecated inflight@1.0.6: This module is not supported, and leaks memory.\nnpm WARN deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported\n\nadded 15 packages, and audited 16 packages in 2s\n\n3 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities",
+      "expected": "added 15 packages, and audited 16 packages in 2s\nfound 0 vulnerabilities"
+    },
+    {
+      "command": "npm ci",
+      "input": "up to date, audited 85 packages in 450ms\n\nfound 0 vulnerabilities",
+      "expected": "npm: up to date"
+    }
+  ]
+}

@@ -193,7 +193,7 @@ def test_successful_shrunk_exec_note_names_no_trunc(monkeypatch, capsys):
 
     result = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert result["out"] is None
+    assert "lines not shown" in result["out"]
     assert "--no-trunc" in result["note"]
     assert "log" in result
 
@@ -309,7 +309,7 @@ def test_log_preserves_raw_non_ascii_and_binaryish_bytes(tmp_path, capsys):
 
 
 def test_shrinker_failure_prints_raw_output_and_preserves_exit_code(monkeypatch, capsys):
-    def crash(_text):
+    def crash(_text, **_kw):
         raise RuntimeError("synthetic shrink failure")
 
     monkeypatch.setattr(shrink, "shrink", crash)

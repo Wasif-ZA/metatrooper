@@ -14,6 +14,7 @@ LOCK_WAIT = 5.0
 LOCK_STALE = 10.0
 QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
 NUMBER = re.compile(r"\b\d+(?:\.\d+)?\b")
+REDIRECT = re.compile(r"^\d*>>?(&\d+)?$|^\d*<$")
 PATHLIKE = re.compile(r"[/\\]|^\w[\w-]*\.\w{1,5}$|^[A-Za-z]:")
 
 
@@ -30,7 +31,7 @@ def shape(cmd):
             t = re.split(r"[/\\]", t)[-1]
         elif PATHLIKE.search(t):
             t = "P"
-        out.append(NUMBER.sub("N", t))
+        out.append(t if REDIRECT.match(t) else NUMBER.sub("N", t))
     return " ".join(out)
 
 

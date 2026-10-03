@@ -4,6 +4,8 @@ import re
 SHORT = 2000
 CLIP = 300
 TAIL = 3
+HEAD = 40
+OK_TAIL = 10
 MAX_ERRORS = 40
 JSON_KEYS = 30
 JSON_ITEMS = 3
@@ -56,7 +58,14 @@ def json_shape(v, depth=0):
     return v
 
 
-def shrink(text):
+def head_tail(lines):
+    kept = [clip(ln) for ln in lines[:HEAD]]
+    hidden = len(lines) - HEAD - OK_TAIL
+    return "\n".join(kept + [f"... {hidden} lines not shown, full output in the log ..."] +
+                     [clip(ln) for ln in lines[-OK_TAIL:]])
+
+
+def shrink(text, failed=True):
     """Return the fields a result carries for this output: out, errors, more_errors, tail."""
     lines = text.splitlines()
     if len(text) <= SHORT:
@@ -69,6 +78,78 @@ def shrink(text):
                     "tail": []}
         except ValueError:
             pass
+    if not failed and len(lines) > HEAD + OK_TAIL:
+        return {"out": head_tail(lines), "errors": [], "more_errors": 0, "tail": []}
+    if not failed:
+        return {"out": "\n".join(clip(ln) for ln in lines), "errors": [], "more_errors": 0, "tail": []}
     errs, more = errors(lines)
     tail = [clip(ln) for ln in lines if ln.strip()][-TAIL:]
     return {"out": None, "errors": errs, "more_errors": more, "tail": tail}
+
+
+def is_heading(line):
+    if not line.strip():
+        return False
+    if line.startswith("#"):
+        return True
+    stripped = line.rstrip()
+    if stripped.endswith(":") and len(stripped) < 60:
+        return True
+    s = line.strip()
+    return bool(s) and set(s) <= {"=", "-", "*"}
+
+
+def chunks_of(text):
+    lines = clean(text).splitlines()
+    chunks = []
+    cur_lines = []
+    cur_start = None
+    for i, line in enumerate(lines, 1):
+        if not line.strip():
+            if cur_lines:
+                chunks.append({"start": cur_start, "end": i - 1, "lines": cur_lines})
+                cur_lines = []
+                cur_start = None
+        else:
+            if is_heading(line) and cur_lines:
+                chunks.append({"start": cur_start, "end": i - 1, "lines": cur_lines})
+                cur_lines = []
+                cur_start = None
+            if not cur_lines:
+                cur_start = i
+            cur_lines.append(line)
+            if len(cur_lines) == 40:
+                chunks.append({"start": cur_start, "end": i, "lines": cur_lines})
+                cur_lines = []
+                cur_start = None
+    if cur_lines:
+        chunks.append({"start": cur_start, "end": cur_start + len(cur_lines) - 1, "lines": cur_lines})
+    return chunks
+
+
+def want(text, words):
+    want_words = words.lower().split()
+    if not want_words:
+        return None
+    chunks = chunks_of(text)
+    if not chunks:
+        return None
+    chunk_texts = ["\n".join(c["lines"]).lower() for c in chunks]
+    scores = [0.0] * len(chunks)
+    for w in want_words:
+        counts = [ct.count(w) for ct in chunk_texts]
+        chunks_with_w = sum(1 for cnt in counts if cnt > 0)
+        if chunks_with_w > 0:
+            for idx, cnt in enumerate(counts):
+                if cnt > 0:
+                    scores[idx] += cnt / chunks_with_w
+    scored = [(scores[i], i, chunks[i]) for i in range(len(chunks)) if scores[i] > 0]
+    if not scored:
+        return None
+    scored.sort(key=lambda x: -x[0])
+    top = sorted(scored[:3], key=lambda x: x[1])
+    out_lines = []
+    for _, _, c in top:
+        out_lines.append(f"lines {c['start']}-{c['end']}:")
+        out_lines.extend(clip(ln) for ln in c["lines"])
+    return "\n".join(out_lines)

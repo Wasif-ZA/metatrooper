@@ -19,6 +19,8 @@ def parse_path(path):
     """'.a.b[0]["x.y"]' -> ['a', 'b', 0, 'x.y']. '.' or '' is the root."""
     if path in ("", "."):
         return []
+    if path[0] not in ".[":
+        path = "." + path
     steps, pos = [], 0
     for m in STEP.finditer(path):
         if m.start() != pos:
@@ -31,9 +33,14 @@ def parse_path(path):
     return steps
 
 
-def walk(data, steps):
+def walk(data, steps, into_strings=False):
     here = ""
     for s in steps:
+        if into_strings and isinstance(data, str) and data.lstrip()[:1] in ("{", "["):
+            try:
+                data = json.loads(data)
+            except ValueError:
+                pass
         try:
             data = data[s]
         except (KeyError, IndexError, TypeError):
@@ -57,7 +64,7 @@ def run(args):
     ap.add_argument("--keys", action="store_true", help="print only the keys or the list length")
     a = ap.parse_args(args)
     try:
-        value = walk(load(a.file), parse_path(a.path))
+        value = walk(load(a.file), parse_path(a.path), into_strings=True)
     except (OSError, ValueError, LookupError) as e:
         return {"exit": 1, "out": str(e)}
     if a.keys:

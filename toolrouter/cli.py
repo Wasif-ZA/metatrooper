@@ -13,7 +13,7 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from toolrouter import calls, hints, log, shrink, snapshot
+from toolrouter import calls, filters, hints, log, shrink, snapshot, tldr
 from toolrouter import recipes as store
 from toolrouter.result import Result, mode, render
 
@@ -68,6 +68,16 @@ def run_shell(cmd):
     return proc.returncode, proc.stdout or b"", round(time.monotonic() - start, 1)
 
 
+def recipe_choices(cmd):
+    try:
+        code, raw, _ = run_shell(cmd)
+        if code == 0:
+            return [ln.strip() for ln in raw.decode("utf-8", errors="replace").splitlines() if ln.strip()]
+    except OSError:
+        pass
+    return []
+
+
 def run_python(recipe, args):
     """Return (exit, compact text, raw bytes for the log, secs, whether compact hides nothing)."""
     start = time.monotonic()
@@ -100,7 +110,8 @@ def fill(body, args):
     return re.sub(r"\{(\d)\}", lambda m: shlex.quote(args[int(m.group(1)) - 1]), body)
 
 
-def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None, whole=False):
+def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None, whole=False, want=None,
+           is_shell=False):
     text = shrink.clean(raw.decode("utf-8", errors="replace"))
     shown = shrink.clip(label)
     try:
@@ -110,6 +121,7 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
                       cmd=shown, recipe=recipe, note=f"log not written ({e}); output shown whole")
     r = Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, lines=len(text.splitlines()),
                bytes=len(raw), log=path.as_posix(), cmd=shown, recipe=recipe)
+    filter_match = filters.match(label) if exit_code == 0 and (lane == "exec" or is_shell) else None
     if compact is not None:
         flat = compact if isinstance(compact, str) else json.dumps(compact, ensure_ascii=False)
         if len(flat) <= OUT_LIMIT:
@@ -120,9 +132,30 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
             r.out = shrink.json_shape(compact)
             r.note = "too big to print whole: this is its shape. Narrow it with a path, or read the log"
         r.whole = len(flat) <= OUT_LIMIT and (whole or flat.strip() == text.strip())
+    elif want is not None:
+        try:
+            for k, v in shrink.shrink(text, failed=exit_code != 0).items():
+                setattr(r, k, v)
+            matched = shrink.want(text, want)
+            if matched is not None:
+                r.out = matched
+            else:
+                r.out = f"no part of the output matched: {want} ({r.lines} lines; full output in the log)"
+            r.whole = False
+        except Exception as e:
+            r.out, r.errors, r.tail = text, [], []
+            r.note = f"shrinker failed ({type(e).__name__}); output shown whole"
+    elif filter_match is not None:
+        filtered = filters.apply(filter_match, text)
+        if len(filtered) <= OUT_LIMIT:
+            r.out = filtered
+        else:
+            r.out = filtered[:OUT_LIMIT] + "\n... (cut, full output in the log)"
+        r.note = f"filtered by {filter_match['name']}; full output in the log"
+        r.whole = False
     else:
         try:
-            for k, v in shrink.shrink(text).items():
+            for k, v in shrink.shrink(text, failed=exit_code != 0).items():
                 setattr(r, k, v)
             r.whole = r.out == text
         except Exception as e:
@@ -140,8 +173,11 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
 
 def exec_lane(args):
     cut = args.index("--") if "--" in args else len(args)
-    whole = "--no-trunc" in args[:cut]
-    args = [a for i, a in enumerate(args) if not (i < cut and a == "--no-trunc")]
+    head, tail = args[:cut], args[cut:]
+    whole = "--no-trunc" in head
+    want = head[head.index("--want") + 1] if "--want" in head[:-1] else None
+    drop = {"--no-trunc", "--want", want}
+    args = [a for a in head if a not in drop] + tail
     cmd = command_text(args)
     if not cmd.strip():
         return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: toolrouter exec -- "pytest -q"')
@@ -152,7 +188,7 @@ def exec_lane(args):
                       note=f"could not start a shell ({e}). Set TOOLROUTER_SHELL to a bash path")
     if whole:
         return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")))
-    r = finish("exec", cmd, raw, code, secs)
+    r = finish("exec", cmd, raw, code, secs, want=want)
     if not r.whole and not r.note:
         r.note = "shrunk. To read it whole: exec --no-trunc -- <command>"
     return r
@@ -197,9 +233,31 @@ def run_lane(args):
         try:
             cmd = fill(r["body"], rest)
             code, raw, secs = run_shell(cmd)
-        except (ValueError, OSError) as e:
+        except ValueError as e:
+            if "needs" in str(e):
+                choices = r.get("choices") if isinstance(r.get("choices"), dict) else {}
+                missing = len(rest) + 1
+                if str(missing) in choices:
+                    lines = recipe_choices(choices[str(missing)])[:20]
+                    if lines:
+                        return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e),
+                                      out={f"choices for {{{missing}}}": lines})
             return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e))
-        return finish("run", cmd, raw, code, secs, recipe=name, log_label=name)
+        except OSError as e:
+            return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e))
+        whole = bool(r.get("whole")) and code == 0
+        res = finish("run", cmd, raw, code, secs, recipe=name, log_label=name, whole=whole,
+                     compact=shrink.clean(raw.decode("utf-8", errors="replace")) if whole else None,
+                     is_shell=True)
+        if not res.ok:
+            choices = r.get("choices") if isinstance(r.get("choices"), dict) else {}
+            if "1" in choices:
+                lines = recipe_choices(choices["1"])
+                if lines:
+                    val_str = ", ".join(lines[:10])
+                    note_line = f"valid values for {{1}}: {val_str}"
+                    res.note = f"{res.note.rstrip()}\n{note_line}" if res.note else note_line
+        return res
     return Result(ok=False, lane="run", exit=2, recipe=name, note=f'recipe kind "{kind}" is not built yet')
 
 
@@ -272,6 +330,15 @@ def search_lane(args):
     if words and store.mode() == "auto":
         from toolrouter import mcp
         extra += [f"toolrouter mcp {ln}" for ln in mcp.catalog_lines(words, remote=False)[:5]]
+        cached_lines = []
+        for sname, sdata in sorted(mcp.cached_tools().items()):
+            for t in sdata.get("tools", []):
+                tname = t.get("name", "")
+                tdesc = t.get("description") or ""
+                if any(w in tname.lower() or w in tdesc.lower() for w in words):
+                    first = tdesc.strip().split("\n")[0].split(". ")[0][:100]
+                    cached_lines.append(f"toolrouter mcp {sname} {tname}    {first}".rstrip())
+        extra += cached_lines[:5]
         extra += [f"toolrouter tools {b}    installed CLI, shows its --help" for b in path_bins()
                   if any(w in b for w in words)][:5]
     if not found and not extra:
@@ -463,6 +530,22 @@ def check(args):
                 os.environ.pop("TOOLROUTER_HOME", None)
             else:
                 os.environ["TOOLROUTER_HOME"] = real_home
+    for flt in filters.load():
+        name = flt.get("name", "")
+        for t in flt.get("tests", []):
+            cmd = t.get("command", "")
+            inp = t.get("input", "")
+            want = t.get("expected", "")
+            matched = filters.match(cmd)
+            if matched and matched.get("name") == name:
+                got = filters.apply(matched, inp)
+            else:
+                got = f"command did not match filter {name}"
+            if got == want:
+                lines.append(f"pass  filter:{name}")
+            else:
+                failed += 1
+                lines.append(f"FAIL  filter:{name}: got {got}")
     cutoff = (datetime.datetime.now().astimezone() - datetime.timedelta(days=STALE_DAYS)).isoformat()
     for name, r in sorted(recipes.items()):
         if r.get("source") in ("seed", "catalog"):
@@ -513,10 +596,22 @@ def browse_lane(args):
     return finish("browse", f"browse {verb}", raw, 0, secs, compact=compact, log_label=f"browse-{verb}")
 
 
+def parse_mcp_arg(v):
+    try:
+        return json.loads(v)
+    except ValueError:
+        return v
+
+
 def mcp_lane(args):
     from toolrouter import mcp
+    if args[:1] == ["stop"]:
+        from toolrouter import mcp_daemon
+        return Result(ok=True, lane="mcp", out=mcp_daemon.stop())
     if args[:1] == ["search"]:
         return Result(ok=True, lane="mcp", out=mcp.catalog_lines(args[1:]))
+    if args[:1] == ["import"]:
+        return Result(ok=True, lane="mcp", out=mcp.import_servers())
     if not args:
         return Result(ok=True, lane="mcp", out=mcp.catalog_lines(),
                       note="toolrouter mcp <server> lists its tools; toolrouter mcp <server> <tool> '<json>' calls one")
@@ -528,12 +623,21 @@ def mcp_lane(args):
         except (OSError, RuntimeError, TimeoutError, ConnectionError) as e:
             return Result(ok=False, lane="mcp", exit=1, note=str(e))
     server, tool = args[0], args[1]
-    try:
-        params = json.loads(args[2]) if len(args) > 2 else {}
-        if not isinstance(params, dict):
-            raise ValueError("arguments must be a JSON object")
-    except ValueError as e:
-        return Result(ok=False, lane="mcp", exit=2, note=f"bad JSON arguments: {e}")
+    extra = args[2:]
+    if len(extra) == 1 and extra[0].startswith("{"):
+        try:
+            params = json.loads(extra[0])
+            if not isinstance(params, dict):
+                raise ValueError("arguments must be a JSON object")
+        except ValueError as e:
+            return Result(ok=False, lane="mcp", exit=2, note=f"bad JSON arguments: {e}")
+    else:
+        params = {}
+        for a in extra:
+            if "=" not in a:
+                return Result(ok=False, lane="mcp", exit=2, note="arguments are key=value or one JSON object")
+            k, v = a.split("=", 1)
+            params[k] = parse_mcp_arg(v)
     start = time.monotonic()
     try:
         res = mcp.call_tool(server, tool, params)
@@ -563,6 +667,9 @@ def tools_lane(args):
                 continue
         exe = shutil.which(name)
         if exe and store.mode() == "auto":
+            text = tldr.page(name)
+            if text is not None:
+                return Result(ok=True, lane="tools", out=text)
             try:
                 p = subprocess.run([exe, "--help"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
             except (OSError, subprocess.TimeoutExpired) as e:
