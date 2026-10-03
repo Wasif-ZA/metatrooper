@@ -102,7 +102,8 @@
             "max": { "type": "integer", "minimum": 1, "maximum": 20 }
           }
         },
-        "timeout_minutes": { "type": "integer", "minimum": 1, "default": 30 }
+        "timeout_minutes": { "type": "integer", "minimum": 1, "default": 30 },
+        "approval": { "enum": ["ask", "edits", "contained"], "default": "ask" }
       },
       "allOf": [
         { "if": { "properties": { "kind": { "const": "agent" } }, "required": ["kind"] }, "then": { "required": ["prompt"] } },

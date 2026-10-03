@@ -47,6 +47,12 @@ Launch:
   <name>".
 - `continue: <step>`: a new session as above, and the run log records
   `memory not kept`.
+- The step's working folder is marked trusted for that engine (its registry `trust` entry) before launch, so
+  no engine stops on a trust screen.
+- `approval` (`ask`, the default, `edits` or `contained`) picks the engine's `approval_profiles` entry. An
+  unattended step needs `edits` or `contained`: in `ask` mode an engine such as agy stops to ask before any
+  command or file write. two-engine-review gives its reviewers the diff as a file from a code step, so they
+  need no shell, and runs them with `edits` so they can write their result file.
 
 Done when, in this order of preference:
 

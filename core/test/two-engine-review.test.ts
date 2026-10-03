@@ -52,14 +52,18 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
   try {
     const project = join(isolated.home, 'planted');
     mkdirSync(project, { recursive: true });
+    await promisify(execFile)('git', ['init', '-q', project]);
+    await promisify(execFile)('git', ['-C', project, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'base']);
     const pipelines = join(project, '.troop', 'pipelines');
     mkdirSync(pipelines, { recursive: true });
     cpSync(join(root, 'pipelines', 'two-engine-review'), join(pipelines, 'two-engine-review'), { recursive: true });
     const def = JSON.parse(readFileSync(builtin, 'utf8'));
+    const codexStep = def.steps.find((s: { id: string }) => s.id === 'codex-review');
+    const geminiStep = def.steps.find((s: { id: string }) => s.id === 'gemini-review');
     const bug = f('src/app.js', 40, 42);
     const directive = (verdict: string, findings: unknown[]) => `FAKE ${JSON.stringify({ outputs: { verdict, findings: JSON.stringify(findings) } })}\n`;
-    def.steps[0].engine = 'fake-b'; def.steps[0].prompt = directive('reject', [bug, f('src/x.js', 1, 1)]) + def.steps[0].prompt;
-    def.steps[1].engine = 'fake-a'; def.steps[1].prompt = directive('reject', [f('src/app.js', 43, 44), f('src/y.js', 9, 9)]) + def.steps[1].prompt;
+    codexStep.engine = 'fake-b'; codexStep.prompt = directive('reject', [bug, f('src/x.js', 1, 1)]) + codexStep.prompt;
+    geminiStep.engine = 'fake-a'; geminiStep.prompt = directive('reject', [f('src/app.js', 43, 44), f('src/y.js', 9, 9)]) + geminiStep.prompt;
     def.requires = [];
     writeFileSync(join(pipelines, 'two-engine-review.json'), JSON.stringify(def));
     const pipe = await client(isolated.prefix);
@@ -86,8 +90,8 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
       const ran = (step: string) => store.prepare(
         'SELECT r.engine_id AS step_engine, s.engine_id AS session_engine FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ?',
       ).get(runId, step) as { step_engine: string; session_engine: string };
-      assert.deepEqual({ ...ran(def.steps[0].id) }, { step_engine: 'fake-b', session_engine: 'fake-b' });
-      assert.deepEqual({ ...ran(def.steps[1].id) }, { step_engine: 'fake-a', session_engine: 'fake-a' });
+      assert.deepEqual({ ...ran(codexStep.id) }, { step_engine: 'fake-b', session_engine: 'fake-b' });
+      assert.deepEqual({ ...ran(geminiStep.id) }, { step_engine: 'fake-a', session_engine: 'fake-a' });
       const row = store.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'bucket'").get(runId) as { outputs: string };
       assert.deepEqual(JSON.parse(row.outputs), {
         codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, buckets_path: 'review-buckets.json',

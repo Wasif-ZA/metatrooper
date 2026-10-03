@@ -30,6 +30,7 @@ export interface Step {
   view?: string;
   loop?: { steps: string[]; until: string; max: number };
   timeout_minutes?: number;
+  approval?: 'ask' | 'edits' | 'contained';
 }
 
 export interface Pipeline {

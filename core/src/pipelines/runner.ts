@@ -7,6 +7,7 @@ import { nowIso, ulid } from '../time.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
 import { launchSession } from '../sessions/launch.ts';
+import { trustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
 import { BASE_ENV, killTree, runAction } from '../plugins/actions.ts';
@@ -589,13 +590,14 @@ export class Runner {
       paneId: place.paneId,
       timeoutMinutes: step.timeout_minutes ?? 30,
       index: row.fanout_index,
+      approval: step.approval,
     });
   }
 
   private async runAgent(
     run: RunRow,
     pipe: Pipeline,
-    a: { stepId: string; row: StepRow; template: string; raw?: boolean; outputs: string[]; engine: () => EngineSpec | null; outPath: string; cwd: string; paneId?: string; timeoutMinutes: number; index: number },
+    a: { stepId: string; row: StepRow; template: string; raw?: boolean; outputs: string[]; engine: () => EngineSpec | null; outPath: string; cwd: string; paneId?: string; timeoutMinutes: number; index: number; approval?: string },
   ): Promise<IndexResult> {
     let sessionId = a.row.session_id;
     const where = [run.id, a.row.step_id, a.row.iteration, a.row.fanout_index] as const;
@@ -605,8 +607,9 @@ export class Runner {
       if (fs.existsSync(a.outPath)) fs.renameSync(a.outPath, a.outPath.replace(/\.md$/, `.iter${a.row.iteration}-${Date.now()}.md`));
       const prompt = this.promptFor(run, a.index, a.outPath, a.template, a.outputs, a.raw);
       const project = this.project(run.project_id);
+      trustFolder(fs.realpathSync.native(a.cwd), [engine]);
       const launched = launchSession(this.db, {
-        projectId: project.id, projectPath: project.path, projectName: project.name, engine, prompt, cwd: a.cwd, runId: run.id, stepId: a.stepId,
+        projectId: project.id, projectPath: project.path, projectName: project.name, engine, prompt, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval: a.approval,
       });
       sessionId = launched.session_id;
       this.markRunning(run, a.row, { engine_id: engine.id, session_id: sessionId, output_path: a.outPath });

@@ -23,6 +23,13 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
   const wb = process.platform === 'linux' && !process.env.DISPLAY
     ? spawn('xvfb-run', ['-a', electron, '--no-sandbox', ...args], { env: h.env, stdio: 'ignore', detached: true })
     : spawn(electron, args, { env: h.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
+  const stopWindow = async () => {
+    if (!wb.pid) return;
+    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' });
+    else try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    if (wb.exitCode === null) wb.kill();
+    await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
+  };
   closeSync(output);
   let ws: WebSocket | undefined;
   try {
@@ -61,11 +68,11 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
       ws?.send(JSON.stringify({ id: ++seq, method: 'Browser.close' }));
       await sleep(300);
       ws?.close();
-      if (wb.pid) { if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' }); else try { process.kill(-wb.pid, 'SIGKILL'); } catch {} }
+      await stopWindow();
       await sleep(300);
     } };
   } catch (e) {
-    ws?.close(); if (wb.pid) { if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' }); else try { process.kill(-wb.pid, 'SIGKILL'); } catch {} } throw e;
+    ws?.close(); await stopWindow(); throw e;
   }
 }
 
@@ -255,4 +262,73 @@ test('D15 Diff scope toggles show last turn, uncommitted and whole branch file s
       assert.deepEqual(await w.evaluate('[...document.querySelectorAll("[data-action=sd-file]")].map(e=>e.dataset.file).sort()'), expected);
     }
   } finally { await w?.close(); await h.close(); }
+});
+
+test('UI-10 six live grid terminals echo input under 50 ms at median and p90', options, async (t) => {
+  const fake = `process.stdin.resume(); let n=0; setInterval(()=>process.stdout.write('load-'+(++n)+'\\r\\n'),5); process.stdin.on('data',d=>process.stdout.write('ECHO:'+d.toString()));`;
+  const h = await revisionHarness(undefined, fake); let w;
+  try {
+    const ids=[];
+    for(let i=0;i<6;i++) ids.push((await h.launch('fake')).session_id);
+    w=await windowFor(h);
+    await w.key('g','KeyG',2); await w.wait('ui.mode === "grid"');
+    await w.wait('document.querySelectorAll(".tile").length === 6');
+    await w.wait('document.querySelector(".tile .xterm-screen")');
+    await w.wait('[...document.querySelectorAll(".tile")].every(e=>e.querySelector(".xterm-rows")?.innerText.includes("load-"))');
+    const durations:number[]=[];
+    for(let i=0;i<30;i++){
+      const value=`sample-${i}`;
+      await w.evaluate('document.querySelector(".tile .xterm-helper-textarea").focus()');
+      const baselineTail=await w.evaluate('termView.state(200).tail.join("\\n")');
+      const elapsed=await w.evaluate(`termView.timeEcho(${JSON.stringify(ids[0])},${JSON.stringify(value+'\r')},${JSON.stringify('ECHO:'+value)})`);
+      assert.notEqual(elapsed,null,`xterm parsed ${value}`);
+      assert.ok(baselineTail.length>0);
+      durations.push(elapsed);
+    }
+    durations.sort((a,b)=>a-b);
+    const median=durations[Math.floor(durations.length/2)], p90=durations[Math.ceil(durations.length*.9)-1];
+    t.diagnostic(`echo samples=${durations.length}, median=${median.toFixed(1)} ms, p90=${p90.toFixed(1)} ms`);
+    assert.ok(median<50,`echo median ${median.toFixed(1)} ms`); assert.ok(p90<50,`echo p90 ${p90.toFixed(1)} ms`);
+  } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
+});
+
+test('UI-10 a 10,000-row terminal snapshot is parsed in the window under 500 ms', options, async (t) => {
+  const fake = `process.stdin.resume(); process.stdout.write(Array.from({length:10000},(_,i)=>'scrollback-row-'+String(i).padStart(5,'0')).join('\\r\\n')+'\\r\\n'); setInterval(()=>{},1000);`;
+  const h=await revisionHarness(undefined,fake);let w;
+  try {
+    const {session_id}=await h.launch('fake');
+    w=await windowFor(h);await select(h,w,session_id);
+    await w.wait('termView.state()?.attach_ms !== null',10000);
+    const result=await w.evaluate('({elapsed:termView.state()?.attach_ms,tail:termView.state(200)?.tail})');
+    t.diagnostic(`10,000-row window attach: ${result.elapsed} ms`);
+    assert.ok(result.tail.includes('scrollback-row-09999'),'xterm parsed the final scrollback row');
+    assert.ok(result.elapsed<500,`window attach took ${result.elapsed} ms`);
+  } catch(error){console.error(error);throw error} finally {await w?.close();await h.close()}
+});
+
+test('UI-04 home jobs meet click baselines and improve at least three', options, async (t) => {
+  const h=await revisionHarness(undefined, `process.stdout.write('click fixture ready\\r\\n'); setTimeout(()=>process.exit(0),100);`); let w;
+  try {
+    const {session_id}=await h.launch();
+    const event=await runNode(['core/event.js','claude.UserPromptSubmit'],{...h.env,TROOP_SESSION_ID:session_id},'{}');assert.equal(event.code,0,event.stderr);
+    await until(()=>h.db.prepare('SELECT turn_base FROM session WHERE id=?').get(session_id)?.turn_base,10000);
+    writeFileSync(join(h.project,'seed.txt'),'click fixture change\n');
+    git(h.project,'add','seed.txt');
+    const pane=(await h.pipe.request('pane.open',{project_id:h.projectId})).result.pane_id;
+    w=await windowFor(h); await select(h,w,session_id);
+    const counts:{job:string;count:number;baseline:number}[]=[];
+    const perform=async(job:string,baseline:number,action:(click:(selector:string)=>Promise<void>)=>Promise<void>,check:()=>Promise<any>)=>{let count=0;const click=async(selector:string)=>{count++;await w!.click(selector)};await action(click);assert.ok(await check(),`${job} completed`);counts.push({job,count,baseline});};
+    await perform('start agent',1,async click=>{await click('[data-action="launch"][data-engine="fake"]')},async()=>!!await until(()=>h.db.prepare('SELECT id FROM session WHERE id != ?').get(session_id),5000));
+    const pipe=h.pipeline;
+    const def={schema:1,id:'ui04-clicks',title:'Click gate',steps:[{id:'hold',kind:'gate',gate:'approve',gate_summary:'Approve fixture'}]};
+    const run=await pipe(def); const gate=await until(()=>h.db.prepare('SELECT * FROM gate WHERE run_id=? AND status=\'waiting\'').get(run),30000);
+    await perform('approve gate',1,async click=>{await w!.wait(`document.querySelector(${JSON.stringify(`[data-action="gate"][data-id="${gate.id}"][data-decision="approve"]`)})`);await click(`[data-action="gate"][data-id="${gate.id}"][data-decision="approve"]`)},async()=>await until(()=>h.db.prepare('SELECT status FROM gate WHERE id=?').get(gate.id)?.status==='approved',5000));
+    await perform('see diff',2,async()=>{await w!.wait('document.querySelector("#view")?.innerText.includes("seed.txt")')},async()=>await w!.evaluate('document.querySelector("#view")?.innerText.includes("seed.txt")'));
+    await perform('hand back',2,async click=>{await click('[data-action="tab"][data-tab="handback"]');await w!.wait('document.querySelector("[data-action=handback-copy]")')},async()=>await w!.evaluate('document.querySelector("[data-action=handback-copy]") !== null'));
+    await perform('open browser',2,async click=>{await click('[data-action="tab"][data-tab="browser"]');await w!.wait('document.querySelector(".browser")')},async()=>await w!.evaluate(`ui.snap.panes.some(p=>p.id===${JSON.stringify(pane)}) && document.querySelector(".browser")`));
+    for(const x of counts) assert.ok(x.count<=x.baseline,`${x.job}: ${x.count} > ${x.baseline}`);
+    assert.ok(counts.filter(x=>x.count<x.baseline).length>=3,JSON.stringify(counts));
+    t.diagnostic(`click counts: ${counts.map(x=>`${x.job}=${x.count}/${x.baseline}`).join(', ')}`);
+    await h.pipe.request('pane.close',{pane_id:pane});
+  } catch (error) { console.error(error); throw error; } finally {try{await w?.close();await sleep(1500)}catch(error){console.error('window cleanup failed',error);throw error}try{await h.close()}catch(error){console.error('harness cleanup failed',error);throw error}}
 });

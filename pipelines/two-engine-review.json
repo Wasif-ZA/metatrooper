@@ -4,20 +4,43 @@
   "title": "Two-engine review",
   "lane": "coding",
   "inputs": {
-    "range": { "type": "text", "label": "Git diff range to review", "required": false, "default": "HEAD" }
+    "range": {
+      "type": "text",
+      "label": "Git diff range to review",
+      "required": false,
+      "default": "HEAD"
+    }
   },
-  "budget": { "max_minutes": 5 },
-  "requires": ["repo"],
+  "budget": {
+    "max_minutes": 5
+  },
+  "requires": [
+    "repo"
+  ],
   "steps": [
+    {
+      "id": "diff",
+      "title": "Collect the diff",
+      "kind": "code",
+      "code": "two-engine-review/diff.mjs",
+      "outputs": [
+        "diff_file",
+        "lines"
+      ]
+    },
     {
       "id": "codex-review",
       "title": "Codex review",
       "role": "review",
       "kind": "agent",
       "engine": "codex",
-      "prompt": "Review the changes shown by `git diff {{inputs.range}}` in the current directory. Do not edit files. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
-      "outputs": ["verdict", "findings"],
-      "timeout_minutes": 5
+      "prompt": "Review the diff saved in {{steps.diff.outputs.diff_file}} (the changes from `git diff {{inputs.range}}` in the current directory). Read that file and the source files it touches; do not run commands and do not edit any file except your result file. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
+      "outputs": [
+        "verdict",
+        "findings"
+      ],
+      "timeout_minutes": 5,
+      "approval": "edits"
     },
     {
       "id": "gemini-review",
@@ -25,9 +48,13 @@
       "role": "review",
       "kind": "agent",
       "engine": "agy",
-      "prompt": "Review the changes shown by `git diff {{inputs.range}}` in the current directory. Do not edit files. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
-      "outputs": ["verdict", "findings"],
-      "timeout_minutes": 5
+      "prompt": "Review the diff saved in {{steps.diff.outputs.diff_file}} (the changes from `git diff {{inputs.range}}` in the current directory). Read that file and the source files it touches; do not run commands and do not edit any file except your result file. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
+      "outputs": [
+        "verdict",
+        "findings"
+      ],
+      "timeout_minutes": 5,
+      "approval": "edits"
     },
     {
       "id": "bucket",

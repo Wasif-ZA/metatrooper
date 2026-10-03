@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 const WIDEN = 3;
 
 function asFindings(value) {
@@ -32,9 +35,35 @@ export function bucketFindings(codex, gemini) {
   return buckets;
 }
 
+/** The first JSON array of objects with a `file` key anywhere in the text, or null. */
+export function findingsInText(text) {
+  for (let i = text.indexOf('['); i >= 0; i = text.indexOf('[', i + 1)) {
+    let depth = 0;
+    for (let j = i; j < text.length; j++) {
+      if (text[j] === '[') depth++;
+      else if (text[j] === ']' && --depth === 0) {
+        try {
+          const list = JSON.parse(text.slice(i, j + 1));
+          if (Array.isArray(list) && list.every((f) => f && typeof f === 'object' && 'file' in f)) return list;
+        } catch {}
+        break;
+      }
+    }
+  }
+  return null;
+}
+
+function withFindings(ctx, stepId) {
+  const outputs = ctx.steps[stepId] ?? {};
+  if (asFindings(outputs.findings).length) return outputs;
+  let text = '';
+  try { text = fs.readFileSync(path.join(ctx.runDir, `${stepId}.md`), 'utf8'); } catch {}
+  return { ...outputs, findings: findingsInText(text) ?? [] };
+}
+
 export async function run(ctx) {
-  const codex = ctx.steps['codex-review'] ?? {};
-  const gemini = ctx.steps['gemini-review'] ?? {};
+  const codex = withFindings(ctx, 'codex-review');
+  const gemini = withFindings(ctx, 'gemini-review');
   const buckets = bucketFindings(codex, gemini);
   await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...buckets }, null, 2));
   return {
