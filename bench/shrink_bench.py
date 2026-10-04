@@ -32,6 +32,7 @@ def main():
     corpus = load_corpus(args.min_tokens, args.limit)
     orig_tok = out_tok = total = kept = 0
     by_kind = {}
+    by_kind_failed = {}
     for r in corpus:
         orig = r["output"]
         shown = seen_by_agent(orig, r["failed"])
@@ -44,6 +45,10 @@ def main():
             k = by_kind.setdefault(kind, [0, 0])
             k[0] += ok
             k[1] += 1
+            if r["failed"]:
+                f = by_kind_failed.setdefault(kind, [0, 0])
+                f[0] += ok
+                f[1] += 1
     print(json.dumps({
         "outputs": len(corpus),
         "tokens_in": orig_tok,
@@ -52,6 +57,7 @@ def main():
         "needles": total,
         "survival_pct": round(100 * kept / total, 2) if total else 100.0,
         "by_kind": {k: f"{a}/{b}" for k, (a, b) in by_kind.items()},
+        "by_kind_failed": {k: f"{a}/{b}" for k, (a, b) in by_kind_failed.items()},
     }, indent=1))
 
 

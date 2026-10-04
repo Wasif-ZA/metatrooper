@@ -25,7 +25,7 @@
 <p align="center"><i><code>pytest -v</code>: 261 lines in, 11 out, the failure kept.</i></p>
 
 <p align="center">
-  <img alt="Bar chart: raw shell output is 5.26M tokens; through metarouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
+  <img alt="Bar chart: raw shell output is 6.31M tokens; through metarouter exec it is 2.23M tokens, 64.6% less. On failed commands, 366 of 368 errors, tracebacks, exit codes and last lines are kept." src="assets/bench.svg">
 </p>
 
 <br>
@@ -46,7 +46,7 @@ shape.
 
 |        | Step            | Example                                                                 |
 | ------ | --------------- | ----------------------------------------------------------------------- |
-| **01** | Install it      | _`uv tool install metarouter`_                                           |
+| **01** | Install it      | _`uv tool install git+https://github.com/Wasif-ZA/metarouter`_           |
 | **02** | Tell your agent | _Paste [four lines](#use-with-claude-code-or-codex) into `CLAUDE.md` or `AGENTS.md`._ |
 | **03** | Work as normal  | _Once a week, `metarouter learn --review` and keep what is worth keeping._ |
 
@@ -54,7 +54,7 @@ shape.
 > **🦉 Or hand the whole thing to your agent.** Paste this into Claude Code or Codex:
 >
 > ```text
-> Install metarouter with `uv tool install metarouter`.
+> Install metarouter with `uv tool install git+https://github.com/Wasif-ZA/metarouter`.
 > Then add the "Use with Claude Code or Codex" lines from its README to my CLAUDE.md
 > (or AGENTS.md for Codex), and run `metarouter` to show me the menu.
 > ```
@@ -108,8 +108,8 @@ around exactly those four.
 | --- | --- | --- |
 | **Recipes**: what worked before | The agent, every call | Saved commands with placeholders, found by plain-word search, learned from your sessions |
 | **Trap hints**: the known fix | The agent, on a bad call | The fix attached to the result, and a stop after three failures in a row |
-| **Shrink**: errors and last lines | Your token budget | 81.8% fewer tokens, the answer lines kept, the full log on disk |
-| **One shape**: same answer everywhere | Agents and scripts | One line of JSON for an agent, readable text for a person |
+| **Shrink**: only the lines that matter | Your token budget | 64.6% fewer tokens, the failure kept, the full log on disk |
+| **One shape**: same answer everywhere | Agents and scripts | Plain text when the output is short, compact JSON when it was cut, readable text for a person |
 
 <br>
 
@@ -144,7 +144,7 @@ When a command hits a trap it knows, the result carries the fix. Three failures 
 </td>
 <td align="center" width="33%" valign="top">
 <h3>📉 Shrinks the output</h3>
-81.8% fewer tokens on 5,207 real shell outputs, keeping 99.84% of error lines, tracebacks and last lines.
+64.6% fewer tokens on 6,069 real shell outputs. On failed commands, 366 of 368 error lines, tracebacks and exit codes kept.
 </td>
 </tr>
 <tr>
@@ -199,7 +199,7 @@ Python 3.11+ standard library. Only the <code>img</code> recipe wants Pillow.
 | **Learned from your sessions.**   | Recipes come from your own Claude Code transcripts, not a generic catalogue.                  |
 | **Shapes, not values.**           | A learned recipe keeps the command with `{1}` placeholders, never the values you ran it with. |
 | **Only a person approves.**       | `learn --review` refuses to run inside an agent.                                             |
-| **The answer lines survive.**     | Error lines, tracebacks, exit codes and last lines are kept: 99.84% on 5,207 real outputs.   |
+| **The answer lines survive.**     | On a failed command, error lines, tracebacks and exit codes are kept: 366 of 368 on real outputs. |
 | **Nothing is thrown away.**       | Every call keeps its full output on disk; the short result names the file.                  |
 | **Reversible edits.**             | Recipe writes take a snapshot first. `metarouter undo` restores it.                           |
 | **No hook.**                      | It runs only when called, so it never changes how your agent works behind your back.         |
@@ -239,12 +239,12 @@ metarouter is one command with eight parts, all in the Python standard library:
 <tr>
 <td width="50%" valign="top">
 
-**exec and shrink**: Runs the command through bash, keeps the full output in <code>~/.metarouter/logs/</code>, and hands back the error lines, tracebacks, exit code and last lines.
+**exec and shrink**: Runs the command through bash and keeps the full output in <code>~/.metarouter/logs/</code>. A failure comes back as its error lines, tracebacks, exit code and last lines. A long success is cut to its start and end, with repeated lines collapsed. Seven per-command filters (pytest, npm, pip, uv, git push/pull, gh run view, curl) trim known noise, and <code>--want</code> picks the parts that match your words.
 
 </td>
 <td width="50%" valign="top">
 
-**Recipes**: Named commands with <code>{1}</code> placeholders. Seeds for json, replace, find, img, page, repo and the engines, plus your own from <code>add</code> and <code>learn</code>.
+**Recipes**: Named commands with <code>{1}</code> placeholders. Seeds for json, json-set, replace, find, img, page, screenshot, up, repo and the engines, plus your own from <code>add</code> and <code>learn</code>.
 
 </td>
 </tr>
@@ -275,7 +275,7 @@ metarouter is one command with eight parts, all in the Python standard library:
 <tr>
 <td width="50%" valign="top">
 
-**mcp**: Lists your MCP servers and their tools in one line each, calls a tool with JSON, and searches the public MCP registry in auto mode.
+**mcp**: Lists your MCP servers and their tools in one line each and calls a tool with JSON. Local and HTTP servers both work. A helper keeps servers running between calls and stops after 30 idle minutes. In auto mode it also searches the public MCP registry.
 
 </td>
 <td width="50%" valign="top">
@@ -308,10 +308,12 @@ Open source. Runs on your machine. No account.
 
 ### Install it yourself
 
+Not on PyPI yet. Install from GitHub:
+
 ```sh
-uv tool install metarouter
+uv tool install git+https://github.com/Wasif-ZA/metarouter
 # or
-pip install metarouter
+pip install git+https://github.com/Wasif-ZA/metarouter
 ```
 
 Run `metarouter` for the menu.
@@ -330,18 +332,20 @@ Run shell commands through metarouter.
 - If metarouter is missing or errors, run the plain command.
 ```
 
-A person at a terminal gets readable text. An agent (`CLAUDECODE` or `AI_AGENT` set) gets one
-line of JSON. `--json`, `--human` or `METAROUTER_OUTPUT` force either.
+A person at a terminal gets readable text. An agent (`CLAUDECODE` or `AI_AGENT` set) gets short
+output as plain text, with `[exit N]` on top when it failed, and compact JSON when the output was
+cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 
 ## Commands
 
 <details>
-<summary>Open: 15 commands, one per goal, and the two modes</summary>
+<summary>Open: 20 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|
 | Run anything, get a short result | `metarouter exec -- "pytest -q"` |
 | Read the whole output | `metarouter exec --no-trunc -- "<command>"` |
+| Keep only the parts about a topic | `metarouter exec --want "timeout" -- "cat app.log"` |
 | Find a recipe in plain words | `metarouter search resize image` |
 | See every recipe | `metarouter list` |
 | Run a recipe | `metarouter run json package.json .version` |
@@ -350,9 +354,13 @@ line of JSON. `--json`, `--human` or `METAROUTER_OUTPUT` force either.
 | Put back the last edit | `metarouter undo` |
 | Ask Codex, wait or not | `metarouter run codex "write tests for X" --background` |
 | Collect a background job | `metarouter jobs <id> --wait` |
-| Drive a browser | `metarouter browse open <url>`, then `look`, `click @n`, `type @n "x"`, `read`, `shot`, `close` |
+| Drive a browser | `metarouter browse open <url>`, then `look`, `click @n`, `type @n "x"`, `read`, `shot`, `back`, `tabs`, `close` |
 | Call an MCP server | `metarouter mcp <server> <tool> '{"a": 1}'` |
 | Find an MCP server | `metarouter mcp search <words>` |
+| Copy MCP servers in from your agent's config | `metarouter mcp import` |
+| Stop the MCP helper | `metarouter mcp stop` |
+| See a CLI's help or an MCP tool in one line | `metarouter tools <name>` |
+| Switch mode | `metarouter mode auto` |
 | Find recipe candidates | `metarouter learn`, then `metarouter learn --review` |
 | See where your tokens go | `metarouter ingest --since 2026-09-27` |
 
@@ -372,18 +380,25 @@ line of JSON. `--json`, `--human` or `METAROUTER_OUTPUT` force either.
 </p>
 
 <p align="center">
-  <img alt="Bar chart: raw shell output is 5.26M tokens; through metarouter exec it is 956k tokens, 81.8% less, with 99.84% of error lines kept." src="assets/bench.svg">
+  <img alt="Bar chart: raw shell output is 6.31M tokens; through metarouter exec it is 2.23M tokens, 64.6% less. On failed commands, 366 of 368 errors, tracebacks, exit codes and last lines are kept." src="assets/bench.svg">
 </p>
 
-On 5,207 Bash outputs from real Claude Code transcripts:
+On 6,069 Bash outputs from real Claude Code transcripts, 6.31M tokens went in and 2.23M came
+out (64.6% less).
 
-| Kept line | Survived |
+A failed command keeps what explains the failure:
+
+| Kept line, failed commands | Survived |
 |-----------|---------:|
-| Last line of output | 4,354 / 4,357 |
-| Error lines | 331 / 335 |
-| Tracebacks | 133 / 133 |
-| Command not found, no such file | 108 / 108 |
-| Exit codes | 127 / 128 |
+| Exit codes | 146 / 146 |
+| Tracebacks | 59 / 59 |
+| Command not found, no such file | 48 / 48 |
+| Error lines | 15 / 15 |
+| Last line of output | 98 / 100 |
+
+A command that succeeded is cut to about its first 1,200 and last 400 characters, after repeated
+lines are collapsed. Words like "error" in the middle of a successful output (a grep hit, a test
+name) can be cut. Use `--want <words>` or `--no-trunc` when you need them.
 
 Tokens are estimated as characters / 4. The corpus is one person's sessions, so your number
 will differ: `python bench/shrink_bench.py` reruns it on yours.
