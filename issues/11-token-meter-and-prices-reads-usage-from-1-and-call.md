@@ -1,6 +1,6 @@
 # Token meter and prices (reads `usage` from #1 and callrouter "saved")
 
-Child #11 of the Metatrooper epic. Milestone 1. Effort: about 1.5 Claude Code days.
+Child #11 of the MetaTrooper epic. Milestone 1. Effort: about 1.5 Claude Code days.
 
 Depends on: child #1, child #2.
 

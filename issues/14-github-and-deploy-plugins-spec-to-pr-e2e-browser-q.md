@@ -1,6 +1,6 @@
 # `github` and `deploy` plugins; `spec-to-pr`, `e2e-browser-qa`, `website-build`, `design-variants`
 
-Child #14 of the Metatrooper epic. Milestone 2. Effort: about 2.5 Claude Code days.
+Child #14 of the MetaTrooper epic. Milestone 2. Effort: about 2.5 Claude Code days.
 
 Depends on: child #4, child #5, child #6, child #7, child #8.
 

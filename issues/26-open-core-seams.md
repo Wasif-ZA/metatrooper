@@ -1,6 +1,6 @@
 # Open-core seams
 
-Child #26 of the Metatrooper epic. Milestone 3. Effort: about 1 Claude Code days.
+Child #26 of the MetaTrooper epic. Milestone 3. Effort: about 1 Claude Code days.
 
 Depends on: child #1, child #4.
 

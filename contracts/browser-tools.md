@@ -2,7 +2,7 @@
 
 Version 1. A stdio MCP server started per agent session through the engine's `mcp_attach`. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
-"browser not available: the Metatrooper workbench is closed". It never hangs.
+"browser not available: the MetaTrooper workbench is closed". It never hangs.
 
 Its session is found by process ancestry and bound with `browser.hello` (see `pipe-protocol.md`), so it
 needs no per-session configuration. Every tool takes `pane_id` (string). Call `panes` first. When the session owns exactly one pane, `pane_id` may

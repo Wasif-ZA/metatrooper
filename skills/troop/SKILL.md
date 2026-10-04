@@ -1,11 +1,11 @@
 ---
 name: troop
-description: Start and follow Metatrooper pipeline runs from inside an agent session with the troop CLI.
+description: Start and follow MetaTrooper pipeline runs from inside an agent session with the troop CLI.
 ---
 
 # troop
 
-Use the `troop` CLI to run Metatrooper pipelines. Always pass `--json` and read the JSON output.
+Use the `troop` CLI to run MetaTrooper pipelines. Always pass `--json` and read the JSON output.
 
 ## Run a pipeline
 

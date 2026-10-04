@@ -1,6 +1,6 @@
 # Usage limits and account switcher
 
-Child #29 of the Metatrooper epic. Milestone 2. Effort: about 2 Claude Code days.
+Child #29 of the MetaTrooper epic. Milestone 2. Effort: about 2 Claude Code days.
 
 Depends on: child #1, child #5.
 

@@ -1,6 +1,6 @@
 # Signed packaging through SignPath Foundation (Electron now; Tauri in milestone 3)
 
-Child #28 of the Metatrooper epic. Milestone 2. Effort: about 1.5 Claude Code days.
+Child #28 of the MetaTrooper epic. Milestone 2. Effort: about 1.5 Claude Code days.
 
 Depends on: child #5.
 

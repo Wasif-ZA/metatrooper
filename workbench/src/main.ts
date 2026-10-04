@@ -84,7 +84,7 @@ function toastNew(s: Snapshot): void {
     if (toasted.has(n.id) || n.read_at) continue;
     toasted.add(n.id);
     if (!Notification.isSupported()) continue;
-    const note = new Notification({ title: n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'Metatrooper needs you', body: n.text, silent: false });
+    const note = new Notification({ title: n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you', body: n.text, silent: false });
     note.on('click', () => {
       if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
       const target = n.kind === 'done' || n.kind === 'failed' ? n.ref : null;
@@ -461,7 +461,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 560,
-    title: 'Metatrooper',
+    title: 'MetaTrooper',
     backgroundColor: activeTheme().bg,
     show: false,
     webPreferences: {

@@ -1,6 +1,6 @@
 # Two-engine review pipeline and view
 
-Child #9 of the Metatrooper epic. Milestone 1. Effort: about 1 Claude Code days.
+Child #9 of the MetaTrooper epic. Milestone 1. Effort: about 1 Claude Code days.
 
 Depends on: child #4, child #5.
 

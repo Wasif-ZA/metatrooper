@@ -1,4 +1,4 @@
--- Metatrooper store. File: ~/.metatrooper/troop.db
+-- MetaTrooper store. File: ~/.metatrooper/troop.db
 -- Opened by every writer with:
 --   PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 200; PRAGMA foreign_keys = ON;
 -- Windows keep one read-only connection (mode=ro) for all reads, and open a short-lived read-write

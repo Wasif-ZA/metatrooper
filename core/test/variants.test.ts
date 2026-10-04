@@ -107,7 +107,7 @@ setTimeout(() => server.close(), 1500);
 `);
   execFileSync('git', ['init'], { cwd: project, stdio: 'ignore' });
   execFileSync('git', ['add', 'README.md', TRACKED_FILE, 'server.mjs'], { cwd: project, stdio: 'ignore' });
-  execFileSync('git', ['-c', 'user.name=Metatrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'variants fixture'], {
+  execFileSync('git', ['-c', 'user.name=MetaTrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'variants fixture'], {
     cwd: project,
     stdio: 'ignore',
   });

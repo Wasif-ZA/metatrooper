@@ -50,7 +50,7 @@ async function deliverComments(db: DatabaseSync, sessionId: string): Promise<voi
     .prepare('SELECT id, body FROM comment WHERE session_id = ? AND prompt_at IS NULL ORDER BY rowid')
     .all(sessionId) as Array<{ id: string; body: string }>;
   if (rows.length === 0) return;
-  const context = 'Comments from the Metatrooper browser:\n\n' + rows.map((r) => r.body).join('\n\n');
+  const context = 'Comments from the MetaTrooper browser:\n\n' + rows.map((r) => r.body).join('\n\n');
   const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } }) + '\n';
   await new Promise<void>((resolve) => process.stdout.write(line, () => resolve()));
   const { nowIso } = await import('../time.ts');

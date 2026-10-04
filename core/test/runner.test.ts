@@ -96,7 +96,7 @@ function initGitProject(project: string) {
   writeFileSync(join(project, 'README.md'), 'fixture\n');
   execFileSync('git', ['init'], { cwd: project, stdio: 'ignore' });
   execFileSync('git', ['add', 'README.md'], { cwd: project, stdio: 'ignore' });
-  execFileSync('git', ['-c', 'user.name=Metatrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'initial'], { cwd: project, stdio: 'ignore' });
+  execFileSync('git', ['-c', 'user.name=MetaTrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'initial'], { cwd: project, stdio: 'ignore' });
 }
 
 function serverScript(delayMs = 0) {
@@ -395,7 +395,7 @@ test('M1-22 creates fanout worktrees, leases ports from 3001 around an occupied 
     initGitProject(project);
     writeFileSync(join(project, 'server.mjs'), serverScript(0));
     execFileSync('git', ['add', 'server.mjs'], { cwd: project, stdio: 'ignore' });
-    execFileSync('git', ['-c', 'user.name=Metatrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'server'], { cwd: project, stdio: 'ignore' });
+    execFileSync('git', ['-c', 'user.name=MetaTrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'server'], { cwd: project, stdio: 'ignore' });
     writePipeline(project, {
       schema: 1, id: 'm1-22-fanout', title: 'Fanout',
       steps: [
@@ -441,7 +441,7 @@ test('M1-25c shows a dev_command variant only after readiness and discard kills 
     initGitProject(project);
     writeFileSync(join(project, 'slow-server.mjs'), serverScript(900));
     execFileSync('git', ['add', 'slow-server.mjs'], { cwd: project, stdio: 'ignore' });
-    execFileSync('git', ['-c', 'user.name=Metatrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'slow server'], { cwd: project, stdio: 'ignore' });
+    execFileSync('git', ['-c', 'user.name=MetaTrooper Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'slow server'], { cwd: project, stdio: 'ignore' });
     writePipeline(project, {
       schema: 1, id: 'm1-25c-dev', title: 'Dev command',
       steps: [

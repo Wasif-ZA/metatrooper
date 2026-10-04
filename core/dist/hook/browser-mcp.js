@@ -6,7 +6,7 @@ import { createDecoder, encode } from '../pipe/framing.js';
 import { ancestors, parentTable } from '../browser/ancestry.js';
 
 const CALL_TIMEOUT_MS = 30_000;
-const UNAVAILABLE = 'browser not available: the Metatrooper workbench is closed';
+const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
 const pane = { pane_id: { type: 'string', description: 'From panes; may be omitted when this session owns exactly one pane.' } };
 const TOOLS                                                                                     = [
@@ -25,7 +25,7 @@ const TOOLS                                                                     
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
 ];
 
-/** The Metatrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
+/** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
 function findSession()                {
   const db = openReaderDb();
   if (!db) return null;

@@ -143,7 +143,7 @@ const PERMISSION_WORDS: Record<string, string> = {
   'project:read': 'Read files in the project folder (declared only: Windows does not block other reads)',
   'project:write': 'Change files in the project folder (declared only: Windows does not block other writes)',
   'run:write': 'Write files in the run folder',
-  network: 'Connect to the internet (declared only: Metatrooper does not block network access)',
+  network: 'Connect to the internet (declared only: MetaTrooper does not block network access)',
   browser: 'Drive browser panes it opens through the core',
   clipboard: 'Write to the clipboard',
 };
@@ -168,7 +168,7 @@ export function installScreen(m: Manifest, previous: string[] | null): InstallSc
   const warnings = [
     'Plugins run as you. Windows does not sandbox their files or network in this version; only secrets, browser and clipboard are enforced.',
   ];
-  if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and Metatrooper does not block it.');
+  if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and MetaTrooper does not block it.');
   if (previous && (m.permissions ?? []).some((p) => !before.has(p))) warnings.push('This version asks for permissions the installed version did not have.');
   return {
     plugin: { id: m.id, name: m.name, version: m.version, description: m.description ?? '' },

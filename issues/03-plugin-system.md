@@ -1,6 +1,6 @@
 # Plugin system
 
-Child #3 of the Metatrooper epic. Milestone 1. Effort: about 3.5 Claude Code days.
+Child #3 of the MetaTrooper epic. Milestone 1. Effort: about 3.5 Claude Code days.
 
 Depends on: child #1.
 
@@ -18,9 +18,9 @@ Plugin system: manifest validation, install screen and approval, action runner w
 
 - [x] M1-15. A plugin folder with a valid manifest adds an engine that appears in `engine` and can be bound to a role with no core code change; an invalid manifest is rejected with its schema errors.
 - [x] M1-16. An action's environment contains only the base variables and approved secrets (checked by a fixture action that prints its environment to a file); a hung action is killed with its child processes at its timeout.
-- [x] M1-17. An imported Claude Code plugin with one MCP server and one env key asks for `secrets:<KEY>`, and the value is not written to any Metatrooper file.
+- [x] M1-17. An imported Claude Code plugin with one MCP server and one env key asks for `secrets:<KEY>`, and the value is not written to any MetaTrooper file.
 - [ ] M1-25a. An action spawned with the stripped environment can still run `npm` and a `.cmd` script by name.
-- [x] M1-25b. An imported MCP server whose config held a literal env value still starts after import through the MCP shim, and the value appears in no Metatrooper file or engine config in plain text (only in its `.dpapi` blob). With the variable missing, the session starts, that server reports the missing name, and a needs-you item appears.
+- [x] M1-25b. An imported MCP server whose config held a literal env value still starts after import through the MCP shim, and the value appears in no MetaTrooper file or engine config in plain text (only in its `.dpapi` blob). With the variable missing, the session starts, that server reports the missing name, and a needs-you item appears.
 
 Status 2026-09-29: ticked boxes pass in `core/test/plugins.test.ts` on Linux, with `METATROOPER_FAKE_DPAPI=1`
 standing in for DPAPI and a process-group kill standing in for `taskkill`. M1-25a's `npm` half passes; its `.cmd`

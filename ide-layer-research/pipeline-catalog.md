@@ -1326,7 +1326,7 @@ Scored on three things, 1 to 5 each: popularity, how often it breaks today (more
 
 The five built-ins:
 
-1. **Spec to PR.** The biggest audience (superpowers 292k stars, spec-kit 139k). Metatrooper fixes the top complaint directly: one fresh context per task stops context rot. Spec gates can be skipped for small changes, which fixes the second complaint.
+1. **Spec to PR.** The biggest audience (superpowers 292k stars, spec-kit 139k). MetaTrooper fixes the top complaint directly: one fresh context per task stops context rot. Spec gates can be skipped for small changes, which fixes the second complaint.
 2. **Website / landing page build.** The frontend half of the user's work. It breaks on "AI slop", and only a screenshot loop catches that. The IDE's visual-check role (screenshot, measure overflow, critique, fix, repeat) is the feature no terminal agent gives by default.
 3. **Raw footage to edited video.** The client video work. It breaks because the model cannot hear or see the cut. The fix is a visual-check step that samples frames and waveform at every cut boundary, plus a gate on the edit plan before any render. video-use and HyperFrames already prove the shape.
 4. **Long video to clips to scheduled posts.** The upsell for video clients, and the one pipeline with a clean vendor API (OpusClip MCP). It breaks on clip choice, so the gate sits after candidate moments and before any render or post. Posting is EXTERNAL and always gated.

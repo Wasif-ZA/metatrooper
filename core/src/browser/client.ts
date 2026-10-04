@@ -21,7 +21,7 @@ export function browserCall(uiKey: string, method: string, params: Record<string
       if (w) { waiting.delete(r.id as string); w(raw as never); }
     });
     socket.on('data', (c) => { try { decode(c); } catch {} });
-    socket.once('error', () => { clearTimeout(timer); reject(new RpcError(E.NOT_FOUND, 'browser not available: the Metatrooper workbench is closed')); });
+    socket.once('error', () => { clearTimeout(timer); reject(new RpcError(E.NOT_FOUND, 'browser not available: the MetaTrooper workbench is closed')); });
     socket.once('connect', async () => {
       try {
         const hello = await request('browser.hello', { ui_key: uiKey });

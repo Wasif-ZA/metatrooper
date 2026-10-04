@@ -1,4 +1,4 @@
-# Metatrooper: pipeline IDE, epic
+# MetaTrooper: pipeline IDE, epic
 
 Drafted 2026-09-29 through `/gstack-spec`; rewritten 2026-09-29T15:30+10:00 after a Codex (3/10) and Gemini
 (2/10) executability review. Status: draft, waiting for Wasif's confirmation and a re-score.
@@ -17,7 +17,7 @@ the pieces talk. Where they differ, the contract wins and this file is the bug.
 
 ## Context
 
-Metatrooper is a desktop IDE for any coding assistant (Claude Code, Codex, Gemini, or any CLI a plugin
+MetaTrooper is a desktop IDE for any coding assistant (Claude Code, Codex, Gemini, or any CLI a plugin
 adds). Each assistant runs in a terminal inside the app, owned by the core service, with its results opening
 beside it. Work flows through pipelines anyone can define, across 12 lanes from coding to video
 to study. It is built for Wasif first, and for anyone to point at a project of their choosing, as an
@@ -72,7 +72,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D36 | Review fixes | Contracts pack, contradiction cleanup, security hardening, operational fixes: all applied |
 | D37 | Scope | Keep all 31 children, ship in 3 milestones; #32 added 2026-09-29 (D43) |
 | D40 | Phone | Using the terminals and the IDE from a phone (like Claude Code Remote Control) is a v3 epic, after the cloud epic |
-| D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a Metatrooper worktree, `ask` elsewhere (2026-09-29) |
+| D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a MetaTrooper worktree, `ask` elsewhere (2026-09-29) |
 | D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29) |
 | D43 | Trooper sandbox | Own container host plugin, child #32 in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
 
@@ -131,7 +131,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
    scrollback. Killing the core ends its terminals: every live session becomes `exited` and shows one-click
    Resume through the engine's own resume flag (revised 2026-10-02, UI revision D1 and D9).
 2. **Logic lives in the core service.** Shells read the database and send commands; they never decide.
-3. **A broken Metatrooper is indistinguishable from an absent one.** Every hook, the launcher step and the
+3. **A broken MetaTrooper is indistinguishable from an absent one.** Every hook, the launcher step and the
    notify wrapper finish within 250 ms, swallow every error and exit 0. They print nothing, with one named
    exception: the `UserPromptSubmit` hook prints the exact JSON in `events-and-hooks.md` when it has
    comments to deliver, and nothing otherwise.
@@ -141,7 +141,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 5. **Table ownership.** The core is the only writer of core-owned tables. Three queue tables have other
    writers: `event` (hooks, launcher, notify), `command` (workbench, tray, CLI), `comment` (workbench).
    Only the core marks queue rows processed.
-6. **Nothing Metatrooper writes lives in the vault or OneDrive**, except `<project>/.troop/runs/`, which is
+6. **Nothing MetaTrooper writes lives in the vault or OneDrive**, except `<project>/.troop/runs/`, which is
    git-excluded automatically.
 7. **ACU refusal.** `project.open` refuses any path containing `work/ACU` (case-insensitive) with error
    -32001. ACU work stays in plain Claude Code.
@@ -184,7 +184,7 @@ quotes when it passes arguments to native programs (verified 2026-09-29), and pr
    it), and exits with the engine's exit code. Verified 2026-09-29: quotes, spaces, semicolons, trailing
    backslashes and empty arguments arrive unchanged.
 
-The engine inherits the user's normal environment, exactly as when started by hand; Metatrooper adds only
+The engine inherits the user's normal environment, exactly as when started by hand; MetaTrooper adds only
 `TROOP_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
 
 One pty per session, in the session's folder. The window attaches over the terminal pipe
@@ -318,7 +318,7 @@ tiles' crops. Discard removes the worktree (`git worktree remove`) after a confi
 
 ## Hand-back tray
 
-Shows `git diff --cached --stat`, untracked files listed separately and never staged by Metatrooper, binary
+Shows `git diff --cached --stat`, untracked files listed separately and never staged by MetaTrooper, binary
 files and submodules shown by name only, a drafted commit message, and the exact command to run. A Copy
 button and no Commit button. No code path runs `git commit`, `git push`, `git rebase` or `git commit
 --amend`.
@@ -339,7 +339,7 @@ never picks a winner. The review lane refuses ACU paths like everything else.
 ## Threat model for gates and pipes
 
 Agents run as the user. Any agent with a shell can already do anything the user's account can, including
-posting or pushing without the IDE. So Metatrooper does not claim to stop a hostile process running as the
+posting or pushing without the IDE. So MetaTrooper does not claim to stop a hostile process running as the
 user. What gates guarantee is narrower and testable: a pipeline never performs a publish or external step
 unless a person approved that exact action in the workbench, tray, or an interactive CLI; a pipeline, a code
 step, a plugin action, or a cooperating agent using the `troop` CLI non-interactively cannot approve one.
@@ -387,7 +387,7 @@ First-party plugins:
 ### Trooper sandbox host plugin
 
 An alternative session host (D43), child #32. It exists so the `isolated` approval profile can run an engine
-with every approval skipped: that is only safe inside a boundary Metatrooper controls. The ideas come from
+with every approval skipped: that is only safe inside a boundary MetaTrooper controls. The ideas come from
 agent-infra/sandbox (one environment, shared filesystem, localhost only) and TencentCloud/CubeSandbox
 (credentials kept out of reach, egress allow-list); neither product is used. Both stay documented fallbacks:
 AIO Sandbox (Apache-2.0, 6,036 stars, needs `seccomp=unconfined`) and CubeSandbox (12,751 stars, KVM micro-VMs,
@@ -398,7 +398,7 @@ is installed on laptop-ops as of 2026-09-29: installing one is a hand-back. Wind
 instance at a time).
 
 **Image.** `metatrooper-trooper:<plugin version>`, built by `troop sandbox build` from the plugin's
-`Dockerfile`: Debian 12 slim, node 24, git 2.48 or newer, a non-root user `trooper` (uid 1000), the Metatrooper
+`Dockerfile`: Debian 12 slim, node 24, git 2.48 or newer, a non-root user `trooper` (uid 1000), the MetaTrooper
 hook scripts copied to `/opt/troop/`, and each engine installed from its registry entry's `sandbox.install`
 lines. Engine hooks inside the image point at `/opt/troop/event.js` and `/opt/troop/codex-notify.js`. No
 credential is ever written into the image.
@@ -437,7 +437,7 @@ and unlocks the keyring only when that volume is mounted.
 
 **Egress.** `troop-egress` is a Docker network created `--internal` (no route out). `troop-proxy` is a second
 container on both that network and the default bridge, running the plugin's dependency-free node CONNECT
-proxy on port 3128, which is never published to the host (D24 holds: Metatrooper opens no host port). It
+proxy on port 3128, which is never published to the host (D24 holds: MetaTrooper opens no host port). It
 allows only the union of every engine's `sandbox.egress` hosts plus `registry.npmjs.org`, answers 403 to
 anything else, and appends each denied host (host name only) to `~/.metatrooper/logs/egress-denied.log`.
 
@@ -485,7 +485,7 @@ MIT, both compatible.
 
 Prior art, checked 2026-09-29:
 
-| | Orca (stablyai/orca) | herdr (herdrdev/herdr) | Metatrooper |
+| | Orca (stablyai/orca) | herdr (herdrdev/herdr) | MetaTrooper |
 |---|---|---|---|
 | Stars, licence | 80,844, MIT | 41,291, Apache-2.0 | new, AGPL-3.0 core |
 | Where agents run | terminals embedded in the Electron app | herdr's server; viewed in any terminal | in-app terminals owned by the core service |
@@ -566,8 +566,8 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
 - M1-03 (superseded 2026-10-02 by UI-06). Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its
   turn, the user can keep typing, and restarting the core rediscovers the live sessions by pid within 10 s.
 - M1-04. With the core never started, every hook and `launch.js` exits 0 with no output, and the engine
-  starts no more than 1 s later than without Metatrooper.
-- M1-05. A test types a marker string into a session and asserts it appears in no Metatrooper log or table.
+  starts no more than 1 s later than without MetaTrooper.
+- M1-05. A test types a marker string into a session and asserts it appears in no MetaTrooper log or table.
 - M1-06. Speed with 3 live sessions and a running pipeline: window reads p95 under 1 ms; a hook event is on
   screen within 100 ms; pipe commands p95 under 20 ms.
 - M1-07. Over a 10-minute scripted session, including two core kills and restarts, the workbench renderer has
@@ -596,7 +596,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   fixture action that prints its environment to a file); a hung action is killed with its child processes at
   its timeout.
 - M1-17. An imported Claude Code plugin with one MCP server and one env key asks for `secrets:<KEY>`, and the
-  value is not written to any Metatrooper file.
+  value is not written to any MetaTrooper file.
 - M1-18. A pipeline with a publish step and no earlier approve gate fails validation from the file and the
   form view; so does a publish or external step with `fanout`, and an agent publish step without a pinned
   `engine`.
@@ -623,7 +623,7 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   with the header shown once.
 - M1-25a. An action spawned with the stripped environment can still run `npm` and a `.cmd` script by name.
 - M1-25b. An imported MCP server whose config held a literal env value still starts after import through the
-  MCP shim, and the value appears in no Metatrooper file or engine config in plain text (only in its `.dpapi`
+  MCP shim, and the value appears in no MetaTrooper file or engine config in plain text (only in its `.dpapi`
   blob). With the variable missing, the session starts, that server reports the missing name, and a needs-you
   item appears.
 - M1-25c. A `dev_command` variant is shown in its pane only after its port answers; discarding the variant
@@ -656,7 +656,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   `~/.gemini/antigravity-cli/conversations/` started in the window, excluding ACU cwds. It is a smoke test
   when its first user message is under 80 characters and matches
   `reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)` (case-insensitive).
-  Metatrooper's own `engine_check` rows are not engine runs.
+  MetaTrooper's own `engine_check` rows are not engine runs.
 - A-04. Pasted screenshots per 100 non-ACU prompts fall below 0.5. Baseline: 12 / 496 x 100 = 2.4. Counted as
   prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding ACU
   sessions (same rule as the baseline). #13 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
@@ -688,7 +688,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   request to a host not on the allow-list (proxy 403); any request that bypasses the proxy (no route); reaching
   the Docker socket; gaining root. Passes: writing in the worktree; `git commit` on the worktree's branch;
   an HTTPS request to one allow-listed host.
-- M2-10. A marker typed into a sandboxed session appears in no Metatrooper table, log, spool file or WAL once
+- M2-10. A marker typed into a sandboxed session appears in no MetaTrooper table, log, spool file or WAL once
   the session is `exited` and ingested (M1-05 extended to the sandbox).
 - M2-11. Closing a sandboxed session's window leaves no `troop-<id8>` container within 5 s; killing the core
   mid-turn leaves the agent working, and its spooled events are ingested in order after restart.
@@ -762,7 +762,7 @@ No terminal library, WebSocket library or native module is needed.
 - **v2, metered cloud:** gateway, cloud runs, hosted media, sync, accounts, payments (D29).
 - **v3, phone:** see and drive sessions from a phone, like Claude Code Remote Control. It must keep rule 1:
   the phone reaches an agent through the engine's own remote feature (Claude Code Remote Control), never by
-  streaming an agent's terminal through Metatrooper. Metatrooper's side is
+  streaming an agent's terminal through MetaTrooper. MetaTrooper's side is
   read-only status, the needs-you queue and gate approvals on the phone, which the cloud epic's relay makes
   possible. Nothing in this epic blocks it: state is already in the database and approvals already need a
   trusted UI connection.

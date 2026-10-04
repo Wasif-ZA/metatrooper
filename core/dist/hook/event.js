@@ -51,7 +51,7 @@ async function deliverComments(db              , sessionId        )             
     .prepare('SELECT id, body FROM comment WHERE session_id = ? AND prompt_at IS NULL ORDER BY rowid')
     .all(sessionId)                                       ;
   if (rows.length === 0) return;
-  const context = 'Comments from the Metatrooper browser:\n\n' + rows.map((r) => r.body).join('\n\n');
+  const context = 'Comments from the MetaTrooper browser:\n\n' + rows.map((r) => r.body).join('\n\n');
   const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } }) + '\n';
   await new Promise      ((resolve) => process.stdout.write(line, () => resolve()));
   const { nowIso } = await import('../time.js');

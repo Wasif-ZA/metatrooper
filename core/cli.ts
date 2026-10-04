@@ -93,7 +93,7 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
     return 0;
   }
   if (action === 'uninstall') {
-    if (!yes && !(await confirm('Remove the Metatrooper hooks?'))) {
+    if (!yes && !(await confirm('Remove the MetaTrooper hooks?'))) {
       console.log('Nothing changed.');
       return 1;
     }
@@ -285,7 +285,7 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
     canonical = '';
   }
   if (isAcuPath(dir) || isAcuPath(canonical)) {
-    console.error('error -32001: ACU projects are not opened in Metatrooper');
+    console.error('error -32001: ACU projects are not opened in MetaTrooper');
     return { code: 1 };
   }
   if (!canonical) {

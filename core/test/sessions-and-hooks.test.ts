@@ -112,7 +112,7 @@ test('UserPromptSubmit prints one exact comment envelope and marks only delivere
       const input = JSON.stringify({ session_id: 'native-1', cwd: h.home, prompt: 'PRIVATE_MARKER' });
       const first = await runNode(['core/event.js', 'claude.UserPromptSubmit'], env, input);
       assert.equal(first.code, 0);
-      const expected = { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: `Comments from the Metatrooper browser:\n\n${bodies.join('\n\n')}` } };
+      const expected = { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: `Comments from the MetaTrooper browser:\n\n${bodies.join('\n\n')}` } };
       assert.equal(first.stdout, JSON.stringify(expected) + '\n');
       assert.equal(store.prepare('SELECT count(*) AS n FROM comment WHERE prompt_at IS NOT NULL').get().n, 2);
       const second = await runNode(['core/event.js', 'claude.UserPromptSubmit'], env, input);

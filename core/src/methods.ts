@@ -62,15 +62,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('project.open', {
     handler: (p) => {
       const input = str(p, 'path');
-      if (isAcuPath(input)) throw new RpcError(E.ACU_REFUSED, 'ACU projects are not opened in Metatrooper');
+      if (isAcuPath(input)) throw new RpcError(E.ACU_REFUSED, 'ACU projects are not opened in MetaTrooper');
       let canonical: string;
       try {
         canonical = resolveProjectPath(input);
       } catch {
         throw new RpcError(E.NOT_FOUND, `folder not found: ${input}`);
       }
-      if (isAcuPath(canonical)) throw new RpcError(E.ACU_REFUSED, 'ACU projects are not opened in Metatrooper');
-      if (containsAcu(canonical)) throw new RpcError(E.ACU_REFUSED, 'this folder contains work/ACU, so it is not opened in Metatrooper');
+      if (isAcuPath(canonical)) throw new RpcError(E.ACU_REFUSED, 'ACU projects are not opened in MetaTrooper');
+      if (containsAcu(canonical)) throw new RpcError(E.ACU_REFUSED, 'this folder contains work/ACU, so it is not opened in MetaTrooper');
       const id = projectId(canonical);
       const now = nowIso();
       db.prepare(

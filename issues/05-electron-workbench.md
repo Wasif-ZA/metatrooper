@@ -1,6 +1,6 @@
 # Electron workbench
 
-Child #5 of the Metatrooper epic. Milestone 1. Effort: about 3 Claude Code days.
+Child #5 of the MetaTrooper epic. Milestone 1. Effort: about 3 Claude Code days.
 
 Depends on: child #1, child #4.
 

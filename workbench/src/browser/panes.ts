@@ -199,7 +199,7 @@ export class PaneManager {
       else {
         await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' });
         this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.request.url, reason: verdict.reason });
-        pane.console.push({ at: Date.now(), level: 'blocked', text: `Metatrooper blocked ${params.request.url}: ${verdict.reason}` });
+        pane.console.push({ at: Date.now(), level: 'blocked', text: `MetaTrooper blocked ${params.request.url}: ${verdict.reason}` });
       }
       return;
     }
@@ -223,7 +223,7 @@ export class PaneManager {
         if (!verdict.allow) {
           const reason = verdict.reason;
           this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });
-          pane.console.push({ at: Date.now(), level: 'blocked', text: `Metatrooper blocked ${params.response.url}: ${reason}` });
+          pane.console.push({ at: Date.now(), level: 'blocked', text: `MetaTrooper blocked ${params.response.url}: ${reason}` });
           await pane.view.webContents.loadURL('about:blank').catch(() => {});
         }
       }

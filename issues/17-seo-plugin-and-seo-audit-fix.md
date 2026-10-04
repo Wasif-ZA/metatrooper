@@ -1,6 +1,6 @@
 # `seo` plugin and `seo-audit-fix`
 
-Child #17 of the Metatrooper epic. Milestone 3. Effort: about 2 Claude Code days.
+Child #17 of the MetaTrooper epic. Milestone 3. Effort: about 2 Claude Code days.
 
 Depends on: child #6, child #14.
 

@@ -1,6 +1,6 @@
 # Core service
 
-Child #1 of the Metatrooper epic. Milestone 1. Effort: about 4.5 Claude Code days.
+Child #1 of the MetaTrooper epic. Milestone 1. Effort: about 4.5 Claude Code days.
 
 Depends on: nothing.
 
@@ -18,8 +18,8 @@ Core service: `schema.sql` (frozen first), event processor with redaction, state
 
 - [ ] M1-02. Launching claude, codex and agy for one project opens three Windows Terminal windows named `troop-<id8>`, each a normal interactive session on the existing logins, with no API key set.
 - [ ] M1-03. Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its turn, the user can keep typing, and restarting the core rediscovers the live sessions by pid within 10 s.
-- [ ] M1-04. With the core never started, every hook and `launch.ps1` exits 0 with no output, and the engine starts no more than 1 s later than without Metatrooper.
-- [ ] M1-05. A test types a marker string into a session and asserts it appears in no Metatrooper log or table.
+- [ ] M1-04. With the core never started, every hook and `launch.ps1` exits 0 with no output, and the engine starts no more than 1 s later than without MetaTrooper.
+- [ ] M1-05. A test types a marker string into a session and asserts it appears in no MetaTrooper log or table.
 - [ ] M1-06. Speed with 3 live sessions and a running pipeline: window reads p95 under 1 ms; a hook event is on screen within 100 ms; pipe commands p95 under 20 ms.
 - [ ] M1-08. Commands sent while the core is down show "queued" within 300 ms and all run, in order, within 2 s of restart. A command that arrives both by pipe and by queue (forced by delaying the reply past 300 ms) runs exactly once. `session.focus` is never queued.
 - [ ] M1-08a. Killing the core between `accepted` and `running` re-executes that command on restart; killing it after `running` marks it `error` "interrupted by core restart" with a needs-you item, and it is not re-run.

@@ -53,7 +53,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       if (!id || typeof msg.method !== 'string') return fail(id, -32600, 'invalid request');
       const params = (msg.params && typeof msg.params === 'object' ? msg.params : {}) as Record<string, any>;
       const db = deps.db();
-      if (!db) return fail(id, -32099, 'the Metatrooper database is not there yet');
+      if (!db) return fail(id, -32099, 'the MetaTrooper database is not there yet');
       const method = msg.method;
 
       if (method === 'browser.hello') {

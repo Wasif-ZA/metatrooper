@@ -59,9 +59,9 @@ redacted before the insert:
 | `WebFetch` | `{"host": str}`: the URL's host only |
 | anything else, including MCP tools | a flat object mapping each input key to the length of its value, e.g. `{"query": 14, "count": 4}` (strings by character count, anything else by the length of its JSON) |
 
-This is what lets test M1-05 (a marker string typed into a session appears nowhere in Metatrooper) pass.
+This is what lets test M1-05 (a marker string typed into a session appears nowhere in MetaTrooper) pass.
 
-## Linking a Metatrooper session to the engine's own session
+## Linking a MetaTrooper session to the engine's own session
 
 | Engine | How `session.native_id` is set |
 |---|---|
@@ -122,7 +122,7 @@ Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notific
 array only if it becomes empty and was absent before install (recorded in
 `~/.metatrooper/hooks-install.json`).
 
-Hooks do nothing outside a Metatrooper session: when `TROOP_SESSION_ID` is not set, `event.js` exits 0
+Hooks do nothing outside a MetaTrooper session: when `TROOP_SESSION_ID` is not set, `event.js` exits 0
 immediately without opening the database.
 
 ## The one hook with output: UserPromptSubmit
@@ -134,7 +134,7 @@ This is the named exception to "hooks print nothing".
 3. If any were selected, print exactly one line and wait for stdout to flush:
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Comments from the Metatrooper browser:\n\n<comment 1 body>\n\n<comment 2 body>"}}
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"Comments from the MetaTrooper browser:\n\n<comment 1 body>\n\n<comment 2 body>"}}
 ```
 
 4. After the flush completes, set `prompt_at = now` on exactly those comment ids, with `WHERE prompt_at IS

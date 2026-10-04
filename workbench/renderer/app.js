@@ -1034,7 +1034,7 @@ async function onClick(e) {
       return;
     case 'launch': {
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
-      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for Metatrooper: ${r.result.setup.join(', ')}`);
+      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for MetaTrooper: ${r.result.setup.join(', ')}`);
       if (r.result) await pick(r.result.session_id);
       return;
     }

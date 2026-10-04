@@ -54,7 +54,7 @@ filesystem and network sandboxing (AppContainer) is out of scope for this epic a
   `USERNAME` from the parent into every child (`required_vars` in libuv `src/win/process.c`).
 - Secret values: entered once by the user on the install screen (or migrated by an importer, below) and stored
   encrypted with Windows DPAPI for the current user at `~/.metatrooper/secrets/<plugin>/<NAME>.dpapi`,
-  recorded in `plugin_secret`. No plain-text secret is ever written by Metatrooper.
+  recorded in `plugin_secret`. No plain-text secret is ever written by MetaTrooper.
   - Encrypt: the core runs `powershell -NoProfile -NonInteractive -Command -` with the script on stdin and the
     value in the environment variable `TROOP_SECRET_IN` of that one child process:
     `ConvertTo-SecureString -String $env:TROOP_SECRET_IN -AsPlainText -Force | ConvertFrom-SecureString`.
@@ -122,7 +122,7 @@ read-only on the original files and follow an allowlist:
 
 | Imported | Becomes | Rule |
 |---|---|---|
-| Claude Code `.claude-plugin/plugin.json` `mcpServers` | MCP entries attached to Claude sessions | `command` and `args` copied. Each `env` key becomes a `secrets:<KEY>` permission the user must approve. A literal value in the original config is migrated into the DPAPI store on approval (so the import keeps working); a `${VAR}` reference is resolved from the user's environment at launch. No value is written to a Metatrooper file in plain text |
+| Claude Code `.claude-plugin/plugin.json` `mcpServers` | MCP entries attached to Claude sessions | `command` and `args` copied. Each `env` key becomes a `secrets:<KEY>` permission the user must approve. A literal value in the original config is migrated into the DPAPI store on approval (so the import keeps working); a `${VAR}` reference is resolved from the user's environment at launch. No value is written to a MetaTrooper file in plain text |
 | Claude Code skills | skills available to engines that support skills | files referenced by path, not copied |
 | Claude Code hooks | not imported | hooks run arbitrary commands on every tool call; the install screen lists them and says to install them through Claude Code itself |
 | Codex and agy MCP entries | MCP entries attached to those engines | same env and migration rule as Claude |

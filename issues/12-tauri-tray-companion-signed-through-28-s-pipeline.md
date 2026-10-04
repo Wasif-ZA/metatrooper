@@ -1,6 +1,6 @@
 # Tauri tray companion, signed through #28's pipeline
 
-Child #12 of the Metatrooper epic. Milestone 3. Effort: about 2 Claude Code days.
+Child #12 of the MetaTrooper epic. Milestone 3. Effort: about 2 Claude Code days.
 
 Depends on: child #1, child #28.
 

@@ -1,6 +1,6 @@
 # Trooper sandbox host plugin
 
-Child #32 of the Metatrooper epic. Milestone 2, after the adoption gate. Effort: about 3 Claude Code days
+Child #32 of the MetaTrooper epic. Milestone 2, after the adoption gate. Effort: about 3 Claude Code days
 (image and entry script 0.5, `--host sandbox` launcher path and path mapping 0.5, logins and agy keyring
 login 0.5, egress proxy 0.5, spool writer and ingest 0.5, self-test and tests 0.5).
 
@@ -9,7 +9,7 @@ Depends on: child #1, child #3, child #4.
 ## What
 
 A container host for troopers, so the `isolated` approval profile can skip every approval inside a boundary
-Metatrooper controls. Built by Metatrooper from the ideas of AIO Sandbox and CubeSandbox; neither is adopted.
+MetaTrooper controls. Built by MetaTrooper from the ideas of AIO Sandbox and CubeSandbox; neither is adopted.
 
 ## Source of truth
 

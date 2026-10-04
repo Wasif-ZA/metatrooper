@@ -1,7 +1,7 @@
 The following files are licensed under the MIT License below, so that plugins and pipelines
 built against them can use any licence: plugin-manifest.schema.json, plugins.md,
 pipeline.schema.json, pipelines.md, browser-tools.md. Everything else in this folder is part of
-the Metatrooper specification and follows the repository licence.
+the MetaTrooper specification and follows the repository licence.
 
 MIT License
 

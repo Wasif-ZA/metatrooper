@@ -1,6 +1,6 @@
 # Measurement tooling for the adoption gate
 
-Child #13 of the Metatrooper epic. Milestone 1. Effort: about 1 Claude Code day.
+Child #13 of the MetaTrooper epic. Milestone 1. Effort: about 1 Claude Code day.
 
 Depends on: child #5 to child #11, and toolrouter (renamed from callrouter 2026-09-30; repo still
 `Wasif-ZA/callrouter`, folder `projects/callrouter`) for A-05.
@@ -19,7 +19,7 @@ yet: no code exists for #13, and the 2026-09-29 baseline scripts were never kept
 | Claude transcripts | `~/.claude/projects/*/<sessionId>.jsonl` | `cwd`, `message.content[].type == "tool_use"` `.input` | usable; older sessions have no transcript left |
 | Codex runs | `~/.codex/sessions/**/*.jsonl` | `session_meta.payload.cwd`, `session_meta.timestamp`, `response_item` with `payload.role == "user"`, `payload.type == "function_call"` `.arguments` | usable |
 | agy runs | `~/.gemini/antigravity-cli/brain/*/.system_generated/logs/transcript.jsonl` | `type == "USER_INPUT"` `.content`, `created_at`, `tool_calls` | usable; `conversations/*.db` are protobuf and are not read |
-| Metatrooper sessions | `troop.db` table `session`, column `native_id` (`contracts/schema.sql:53`) | `native_id` | usable |
+| MetaTrooper sessions | `troop.db` table `session`, column `native_id` (`contracts/schema.sql:53`) | `native_id` | usable |
 | toolrouter calls | `~/.toolrouter/calls.jsonl` (`toolrouter/calls.py:87` `record`) | `time` (local ISO with offset), `project`, `bytes` (full output) | no shown size recorded today |
 | toolrouter ingest | `toolrouter/ingest.py` `scan`, `summarise` | per-tool result tokens (`chars // 4`), `--since` only | no `--until`, no saved tokens, no ACU filter |
 

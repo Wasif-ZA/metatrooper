@@ -1,6 +1,6 @@
 # `data` plugin and `data-to-dashboard`
 
-Child #20 of the Metatrooper epic. Milestone 3. Effort: about 1 Claude Code days.
+Child #20 of the MetaTrooper epic. Milestone 3. Effort: about 1 Claude Code days.
 
 Depends on: child #4, child #5.
 

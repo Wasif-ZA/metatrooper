@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero.png" width="640" alt="metatrooper: dithered dots on near-black gathering into four terminal clusters">
+  <img src="assets/hero.png" width="640" alt="MetaTrooper: dithered dots on near-black gathering into four terminal clusters">
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 <br>
 
 <p align="center">
-  <a href="assets/product.png"><img src="assets/product.png" width="900" alt="The metatrooper window: three agents in a grid, one waiting for you, and the diff of the last turn on the right"></a>
+  <a href="assets/product.png"><img src="assets/product.png" width="900" alt="The MetaTrooper window: three agents in a grid, one waiting for you, and the diff of the last turn on the right"></a>
 </p>
 
 <p align="center">
@@ -29,14 +29,14 @@
 
 <br>
 
-# metatrooper is the desk where you run all your coding agents at once.
+# MetaTrooper is the desk where you run all your coding agents at once.
 
 A desktop workbench for Claude Code, Codex and Gemini.
 
-**If your agents are the _troop_, metatrooper is the _base camp_.**
+**If your agents are the _troop_, MetaTrooper is the _base camp_.**
 
 You run three agents in three terminals, lose track of which one is waiting on you, paste
-screenshots back and forth, and type `/clear` when the context fills. metatrooper puts every
+screenshots back and forth, and type `/clear` when the context fills. MetaTrooper puts every
 agent in a terminal it owns, shows you which one needs you, and opens each result beside the
 agent that made it. Work runs through pipelines you can read and edit, with a stop before
 anything leaves your machine.
@@ -78,7 +78,7 @@ anything leaves your machine.
 
 <br>
 
-## metatrooper is right for you if
+## MetaTrooper is right for you if
 
 - ✅ You run **more than one agent at a time** and lose track of which one is waiting
 - ✅ You **paste screenshots** into the chat so the agent can see what it built
@@ -176,9 +176,9 @@ Real screens from one session on a small demo project.
 
 <br>
 
-## Problems metatrooper solves
+## Problems MetaTrooper solves
 
-| Without metatrooper | With metatrooper |
+| Without MetaTrooper | With MetaTrooper |
 | --- | --- |
 | ❌ Three agents in three terminals, and you find out ten minutes late that one asked you a question. | ✅ The inbox shows which session is waiting for you. |
 | ❌ You close the wrong window and lose an agent mid-task. | ✅ The core owns the terminal. Reopen the window and it reattaches with scrollback. |
@@ -189,12 +189,12 @@ Real screens from one session on a small demo project.
 
 <br>
 
-## Why metatrooper is different
+## Why MetaTrooper is different
 
 |                                    |                                                                                                   |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
 | **Real CLIs, your subscriptions.** | It runs `claude`, `codex` and `agy` as you would by hand. No API keys, no headless mode.            |
-| **A broken metatrooper is invisible.** | Every hook finishes within 250 ms, swallows every error and exits 0. Your agents never wait on it. |
+| **A broken MetaTrooper is invisible.** | Every hook finishes within 250 ms, swallows every error and exits 0. Your agents never wait on it. |
 | **No ports.**                      | Windows read a local SQLite file; commands go over a named pipe. No TCP port, token file or WebSocket. |
 | **Pipelines are files.**           | A pipeline is a `pipeline.json` you can read, diff and edit in a form, with optional TypeScript steps. |
 | **Local and free.**                | No account and no telemetry. The core is AGPL-3.0; the SDK, contracts and pipelines are MIT.        |
@@ -222,7 +222,7 @@ There is no installer yet; `troop` below means `node core/cli.ts`.
 
 > [!WARNING]
 > **Two things happen on first run.** Launching Claude Code from the workbench installs
-> metatrooper's hooks into `~/.claude/settings.json` (`troop hooks uninstall` takes them out again,
+> MetaTrooper's hooks into `~/.claude/settings.json` (`troop hooks uninstall` takes them out again,
 > leaving the rest of the file byte for byte). And the core keeps its state in
 > `~/.metatrooper/troop.db`; a newer core migrates it, after which an older build cannot open it.
 
@@ -265,7 +265,7 @@ Add `--json` to any command for one line of JSON.
 
 ### Approval profiles
 
-`--approval ask|edits|contained` on `launch`. `contained` is the default on a metatrooper worktree,
+`--approval ask|edits|contained` on `launch`. `contained` is the default on a MetaTrooper worktree,
 `ask` everywhere else.
 
 </details>

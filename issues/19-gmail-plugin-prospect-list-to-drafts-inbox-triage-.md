@@ -1,6 +1,6 @@
 # `gmail` plugin, `prospect-list-to-drafts`, `inbox-triage-drafts`
 
-Child #19 of the Metatrooper epic. Milestone 3. Effort: about 2 Claude Code days.
+Child #19 of the MetaTrooper epic. Milestone 3. Effort: about 2 Claude Code days.
 
 Depends on: child #4, child #5, child #7.
 

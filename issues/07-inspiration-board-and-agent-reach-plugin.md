@@ -1,6 +1,6 @@
 # Inspiration board and `agent-reach` plugin
 
-Child #7 of the Metatrooper epic. Milestone 2. Effort: about 1.5 Claude Code days.
+Child #7 of the MetaTrooper epic. Milestone 2. Effort: about 1.5 Claude Code days.
 
 Depends on: child #3, child #4, child #6.
 
