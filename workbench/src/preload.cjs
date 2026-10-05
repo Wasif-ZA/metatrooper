@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('troop', {
   review: (runId) => ipcRenderer.invoke('review', runId),
   handback: (projectId, runId) => ipcRenderer.invoke('handback', projectId, runId),
   copyText: (text) => ipcRenderer.invoke('copyText', text),
+  readText: () => ipcRenderer.invoke('readText'),
   longtasks: (entries) => ipcRenderer.invoke('longtasks', entries),
   probe: (state) => ipcRenderer.invoke('probe', state),
   paneShow: (paneId, bounds) => ipcRenderer.invoke('paneShow', paneId, bounds),

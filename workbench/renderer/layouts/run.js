@@ -4,7 +4,15 @@ const runLayouts = {};
 const runScreen = (() => {
   const rules = window.layoutRules;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split' };
+  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage' };
+  const SVG = (body) => `<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor">${body}</svg>`;
+  const REVIEW_ICON = {
+    'pr-inline': SVG('<path d="M1.5 2.5h13M1.5 6h9M1.5 11.5h13" stroke-dasharray="1 1"/><rect x="3" y="7.5" width="11" height="2.5" stroke-width="1.2"/>'),
+    duel: SVG('<rect x="1" y="1.5" width="6.2" height="11" stroke-dasharray="1 1.2"/><rect x="8.8" y="1.5" width="6.2" height="11" stroke-dasharray="1 1.2"/>'),
+    buckets: SVG('<rect x=".8" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="4.6" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="8.4" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="12.2" y="1.5" width="3" height="11" stroke-dasharray="1 1"/>'),
+    'coverage-map': SVG('<path d="M1.5 3h13M1.5 7h13M1.5 11h13" stroke-dasharray="1 1.5"/><path d="M5 3h3M10 7h2M3 11h4" stroke-width="2"/>'),
+    triage: SVG('<path d="M1.5 2.5h13" stroke-width="2"/><path d="M1.5 6.5h10M1.5 10h7M1.5 13h4" stroke-dasharray="1 1"/>'),
+  };
   const ICON = {
     'run-log': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M1.5 2.5h4M1.5 6h4M1.5 9.5h4" stroke-width="1.6" stroke-dasharray="1 1"/><rect x="7.5" y="1.5" width="7" height="11" stroke-dasharray="1 1.2"/></svg>',
     'artifact-columns': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="6.5" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="12" y="1.5" width="3" height="11" stroke-dasharray="1 1"/></svg>',
@@ -122,6 +130,7 @@ const runScreen = (() => {
       elapsed: (run.ended_at ? Date.parse(run.ended_at) : now) - Date.parse(run.started_at),
       log: runLog(run.id, list.map((x) => x.status).join()),
       detail: runDetail(run.id, list.map((x) => x.status).join()),
+      review: run.pipeline_id === 'two-engine-review' ? reviewStore.get(ctx.api, run.id, list.map((x) => x.status).join(), render) : null,
       agent,
       diff: agent ? sessionDiff(agent.session.id) : null,
       gates: snap.gates.filter((g) => g.run_id === run.id),
@@ -139,9 +148,11 @@ const runScreen = (() => {
     render();
   }
   function close() {
+    const was = S.runId;
     S.runId = null;
     clearTimeout(S.timer);
     if (el) el.hidden = true;
+    if (was && ctx.onClose) ctx.onClose();
   }
   const isOpen = () => Boolean(S.runId);
 
@@ -150,7 +161,7 @@ const runScreen = (() => {
     const m = model();
     if (!m) return close();
     if (S.manual && ended(m.run) && !S.pickedEnded) S.manual = null;
-    const want = rules.pickLayout(m.run, m.pipe, m.list, S.manual);
+    const want = rules.pickLayout(m.run, m.pipe, m.list, S.manual, m.review);
     if (!S.cur) S.cur = want;
     else if (want !== S.cur) {
       clearTimeout(S.timer);
@@ -197,7 +208,7 @@ const runScreen = (() => {
       <span class="chip needs ${m.waiting ? 'on' : ''}"><span class="n">${m.waiting}</span>need you</span>
       <span class="sp"></span>
       ${ctx.cancelButton(m.run)}
-      <span class="lsw" role="toolbar" aria-label="Layout">${rules.ruleOf(m.run.pipeline_id).five.map((k, i) => `<button data-rs="layout" data-l="${k}" class="${k === S.cur ? `on${S.manual ? ' hand' : ''}` : ''}" title="${i + 1}  ${NAME[k]}" aria-pressed="${k === S.cur}">${ICON[k]}</button>`).join('')}<button class="auto ${S.manual ? '' : 'on'}" data-rs="auto" title="${S.manual ? 'Manual pick held. Press 0 to follow the run again' : 'Auto: the layout follows the active step'}"><span class="lt"></span>${S.manual ? 'Manual' : 'Auto'}</button></span>
+      <span class="lsw" role="toolbar" aria-label="Layout">${rules.ruleOf(m.run.pipeline_id).five.map((k, i) => `<button data-rs="layout" data-l="${k}" class="${k === S.cur ? `on${S.manual ? ' hand' : ''}` : ''}" title="${i + 1}  ${NAME[k]}" aria-pressed="${k === S.cur}">${ICON[k] || REVIEW_ICON[k] || ""}</button>`).join('')}<button class="auto ${S.manual ? '' : 'on'}" data-rs="auto" title="${S.manual ? 'Manual pick held. Press 0 to follow the run again' : 'Auto: the layout follows the active step'}"><span class="lt"></span>${S.manual ? 'Manual' : 'Auto'}</button></span>
       <span class="chip"><kbd>Esc</kbd> wall</span>
     </header>`;
     const html = `${head}<div class="rsv L-${S.cur}">${L.render(m, helpers, S)}</div>`;
@@ -221,6 +232,11 @@ const runScreen = (() => {
     if (what === 'layout') return manual(b.dataset.l);
     if (what === 'auto') return auto();
     if (what === 'sel') { S.sel = b.dataset.step; S.html = ''; return render(); }
+    if (what === 'copy') {
+      const m = model();
+      const x = m && m.review && m.review.items[Number(b.dataset.f)];
+      if (x) void ctx.api.copyText(reviewView.comment(x)).then(() => { b.textContent = 'Copied'; });
+    }
   }
 
   function manual(name) {
@@ -232,7 +248,7 @@ const runScreen = (() => {
   function auto() {
     S.manual = null;
     const m = model();
-    if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null));
+    if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null, m.review));
   }
 
   /** Handles the run screen's own keys; returns true when it used the key. */

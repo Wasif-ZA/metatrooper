@@ -435,6 +435,7 @@ function handlers(): void {
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
+  on('readText', () => clipboard.readText());
   on('copyText', (text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
     return true;

@@ -80,7 +80,7 @@ const runBars = (() => {
       }
       const l = line(run, st, d);
       const cells = st.list.map((x) => `<i class="${x.status === 'done' ? 'd' : x.status === 'running' ? 'r' : x.status === 'failed' ? 'x' : ''}"></i>`).join('');
-      return `<div class="rbar${l.hot ? ' hot halo' : ''}${ended(run) ? ' end' : ''}" data-run="${reviewView.esc(run.id)}" role="button" tabindex="0" title="Open the run (Enter)">${l.hot ? '<span class="edge"></span>' : ''}
+      return `<div class="rbar${l.hot ? ' hot' : ''}${l.hot && !ctx.isOpen() ? ' halo' : ''}${ended(run) ? ' end' : ''}" data-run="${reviewView.esc(run.id)}" role="button" tabindex="0" title="Open the run (Enter)">${l.hot && !ctx.isOpen() ? '<span class="edge"></span>' : ''}
         <span class="dot"></span><span class="cells">${cells}</span><span class="t">${reviewView.esc(l.text)}</span><span class="fl">${reviewView.esc(l.last)}</span>
         ${ctx.cancelButton(run)}<kbd>Enter</kbd>${ended(run) ? `<button class="x" data-bar-close="${reviewView.esc(run.id)}" title="Remove this bar">x</button>` : ''}</div>`;
     }).join('');

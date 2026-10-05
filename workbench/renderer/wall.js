@@ -134,7 +134,8 @@ const wall = (() => {
     to('#sheet', { left: 16 + C });
     to('#split', { left: RX });
     gsap.set('#runbox', { left: 8, top: TOP + H - box, width: C, height: box, display: box ? 'block' : 'none' });
-    gsap.set('#runbars', { left: 8, top: TOP + H + G, width: innerWidth - 16 });
+    const rb2 = document.getElementById('runbars');
+    if (rb2) gsap.set(rb2, { left: 8, top: TOP + H + G, width: innerWidth - 16 });
   }
 
   function pair(id) {

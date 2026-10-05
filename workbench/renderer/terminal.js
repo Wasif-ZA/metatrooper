@@ -38,6 +38,17 @@ const termView = (() => {
     term.open(body);
     const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
     term.onData((data) => troop.termInput(sessionId, data));
+    const copy = () => { const s = term.getSelection(); if (!s) return false; void troop.copyText(s); term.clearSelection(); return true; };
+    const paste = () => troop.readText().then((s) => { if (s) term.paste(s); });
+    term.onSelectionChange(() => { const s = term.getSelection(); if (s) void troop.copyText(s); });
+    body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); void paste(); });
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
+      const k = e.key.toLowerCase();
+      if (k === 'c' && (e.shiftKey || term.hasSelection())) { copy(); e.preventDefault(); return false; }
+      if (k === 'v') { void paste(); e.preventDefault(); return false; }
+      return true;
+    });
     new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); }).observe(body);
     terms.set(sessionId, t);
     return t;

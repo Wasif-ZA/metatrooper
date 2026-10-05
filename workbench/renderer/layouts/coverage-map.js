@@ -12,7 +12,7 @@ runLayouts['coverage-map'] = {
       const hi = Math.max(nums.length ? Math.max(...nums) : 1, ...r.items.filter((x) => x.file === name && x.to != null).map((x) => x.to));
       const marks = r.items.map((x, i) => [x, i]).filter(([x]) => x.file === name && x[who] != null).map(([x, i]) => {
         const at = x.from == null ? 0 : (x.from - lo) / Math.max(1, hi - lo);
-        const w = x.from == null || x.to == null ? 0.02 : Math.max(0.02, (x.to - x.from + 1) / Math.max(1, hi - lo + 1));
+        const w = !d || x.from == null || x.to == null ? 0.02 : Math.max(0.02, (x.to - x.from + 1) / Math.max(1, hi - lo + 1));
         return `<i class="mk${reviewView.hot(x) ? ' hot' : ''}" style="left:${(Math.max(0, Math.min(0.98, at)) * 100).toFixed(1)}%;width:${(w * 100).toFixed(1)}%" title="${reviewView.esc(`${x.sev}: ${x.title}`)}"></i>`;
       }).join('');
       return `<span class="strip ${who === 'codex' ? 'cx' : 'gm'}">${marks}</span>`;

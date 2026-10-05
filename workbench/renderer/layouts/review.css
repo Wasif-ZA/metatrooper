@@ -104,3 +104,11 @@
 .halo > .edge { opacity: 1; animation: halo-breathe 1.2s ease-in-out infinite alternate; }
 @keyframes halo-breathe { from { opacity: .3; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .halo > .edge { animation: none; } }
+/* compact ring for rows, cards and bars (the mockup's folded-pane size) */
+:is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge { inset: -17px; padding: 16px; }
+:is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge::before { --f: 12px; }
+:is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge::after { --f: 14px; }
+.runbars { max-width: calc(100vw - 16px); }
+:is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge::before, :is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge::after { padding: 16px; }
+.runscreen :is(.dbody, .pfiles, .tlist, .bcb, .crows) { overflow-x: hidden; padding-left: 12px; padding-right: 12px; }
+.runscreen :is(.dbody, .pfiles, .tlist) { padding-top: 12px; padding-bottom: 12px; }

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "electron .",
-    "test": "node --test \"test/*.test.ts\""
+    "test": "node --test --test-concurrency=1 \"test/*.test.ts\""
   },
   "devDependencies": {
     "electron": "44.4.5"

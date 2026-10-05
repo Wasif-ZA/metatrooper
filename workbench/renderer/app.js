@@ -1719,7 +1719,7 @@ setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
-runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton });
+runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton, onClose: () => render() });
 runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id); } });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;

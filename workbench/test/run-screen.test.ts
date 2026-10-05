@@ -120,6 +120,8 @@ test('failed build opens on run-log and shows the error, numeric keys switch lay
     await w.wait('document.querySelector("#runscreen [data-rs=auto]").classList.contains("on") && document.querySelector("#runscreen .rsv.L-run-log")');
     await w.key('Escape', 'Escape');
     await w.wait('document.querySelector("#runscreen").hidden');
-    void session;
+    await h.pipe.request('session.focus', { session_id: session });
+    await w.wait(`termView.state()?.session === ${JSON.stringify(session)}`);
+    await w.wait(`document.querySelector('#runbox [data-action="run-open"][data-id=${JSON.stringify(run)}]')`);
   } finally { await w?.close(); await h.close(); }
 });
