@@ -220,7 +220,7 @@ schema). Step kinds and gate kinds do not change.
 - Pipeline `layout` (optional): the fallback, used only when the pipeline's pick rule matches nothing.
 - Step `layout` (optional): a hint, used while that step is the active one.
 - Pipeline `background` (optional, default `false`): `true` folds the run to the 36px wall bar; it opens only
-  when it needs the user. `false` keeps the run in the big slot.
+  when it needs the user. `false` opens the run screen at start.
 
 Which layout shows, first that applies:
 

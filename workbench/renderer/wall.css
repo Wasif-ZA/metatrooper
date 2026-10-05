@@ -81,7 +81,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .win button.x:hover { background: #b5483b; color: #fff; }
 kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 3px; background: var(--canvas); border: 1px solid var(--hairline-strong); border-bottom-width: 2px; }
 
-.search { position: absolute; top: 22px; left: 50%; width: 300px; transform: translateX(-50%); z-index: 40; border-radius: var(--r); background: var(--canvas-deep); border: 1px dotted var(--hairline-strong); overflow: hidden; }
+.search { position: absolute; top: 4px; left: 50%; width: 300px; transform: translateX(-50%); z-index: 40; border-radius: var(--r); background: var(--canvas-deep); border: 1px dotted var(--hairline-strong); overflow: hidden; }
 .search.open { box-shadow: var(--float); }
 .sbar { position: relative; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; color: var(--mute); }
 .sbar input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; color: var(--ink); font: inherit; font-size: 12px; }

@@ -41,7 +41,7 @@ column in spec.md). Esc folds it and Enter opens it. Done, it settles as a calm 
 **The view slot.** Each layout exposes one output region. The active step's `view` pane (#38's code in
 `workbench/renderer/panes.js`) renders there. When the layout changes, the pane moves with it.
 
-**Keys follow focus.** 1 to 5 and 0 act on a pipeline run that holds the big slot and has focus. 1 and 2 answer
+**Keys follow focus.** 1 to 5 and 0 act on an open run screen. 1 and 2 answer
 a question when the focused tile is an agent asking one.
 
 ## Rules for every phase

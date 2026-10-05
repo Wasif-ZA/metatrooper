@@ -584,7 +584,7 @@ function stepError(runId, stepId) {
 
 function stepListHtml(steps) {
   const dot = (st) => (st === 'running' ? 'working' : st === 'waiting' ? 'waiting_for_you' : st);
-  return `<div class="steps"><div class="s cur"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</div>
+  return `<div class="steps"><div class="s cur" data-action="run-open" data-id="${esc(steps.run.id)}" title="Open the run screen"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</div>
     ${steps.list.map((st) => {
       const meta = [st.items ? `${st.items.done}/${st.items.total}` : '', st.loop ? `loop ${st.loop.at}${st.loop.max ? ` of ${st.loop.max}` : ''}` : '', st.fails ? `${st.fails} fail${st.fails === 1 ? '' : 's'}` : '', st.status].filter(Boolean).join(' · ');
       const err = st.status === 'failed' ? stepError(steps.run.id, st.id) : null;
@@ -933,14 +933,14 @@ async function openShell(kind) {
   selectShell(r.result.shell_id);
 }
 
-async function pick(id) {
+async function pick(id, focus = true) {
   ui.shellSel = null;
   ui.localSel = id;
   ui.mode = 'single';
   save('mode', 'single');
   await rpc('session.focus', { session_id: id }, true);
   wall.promote(id);
-  render(true);
+  render(focus);
 }
 
 function onTilePick(id, e) {
@@ -971,6 +971,7 @@ function render(focus = false) {
   termView.show({ mode: ui.mode, selected: big, sessions: shown, onPick: onTilePick, onOutput: wall.output, onExit: (id) => { const sh = ui.shells.find((x) => x.id === id); if (sh) { sh.exited = true; render(); } }, focus });
   wall.apply(ui.mode);
   renderSheet();
+  runScreen.render();
   renderTabs();
   let html;
   if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
@@ -1080,7 +1081,7 @@ async function onClick(e) {
       ui.runId = id;
       setView();
       await refreshLog();
-      await openTab('runs');
+      runScreen.open(id);
       return;
     case 'launch-menu': {
       const menu = document.getElementById('menu');
@@ -1646,6 +1647,7 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (runScreen.isOpen() && !wall.sheetOpen() && !wall.listOpen() && runScreen.key(e)) { e.preventDefault(); return; }
   if (e.key === 'Escape') {
     if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
@@ -1683,6 +1685,7 @@ setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
+runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false) });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;
   applyLook(look);

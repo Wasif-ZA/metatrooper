@@ -76,6 +76,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29) |
 | D43 | Trooper sandbox | Own container host plugin, child #32 in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
 | D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
+| D45 | Default project | `projects.default` setting, opened at core start; Wasif's is `teehee/projects/metatrooper` (a plain folder inside the vault resolves to the vault repo and is refused). The vault root stays refused (M1-30) because no engine can fence `work/ACU` from shell reads. Revisit opening the vault root after launch (2026-10-05) |
 
 ## Current state, verified 2026-09-29
 
@@ -146,6 +147,10 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
    git-excluded automatically.
 7. **ACU refusal.** `project.open` refuses any path containing `work/ACU` (case-insensitive) with error
    -32001. ACU work stays in plain Claude Code.
+8. **Default project.** `projects.default` in `~/.metatrooper/settings.json` (empty by default) names the folder
+   the core opens through `project.open` at start, so it is the most recent project and the window selects it
+   when nothing else is chosen. It resolves like any project (to its git repo root), so the ACU refusal applies:
+   a plain folder inside the vault resolves to the vault repo and is refused. Wasif's is `teehee/projects/metatrooper`.
 
 ### Transport
 
@@ -187,6 +192,13 @@ quotes when it passes arguments to native programs (verified 2026-09-29), and pr
 
 The engine inherits the user's normal environment, exactly as when started by hand; MetaTrooper adds only
 `TROOP_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
+
+One exception, decided 2026-10-05: when the core itself was started from inside a Claude Code session, it drops
+that session's identity variables from every pty it opens (`PARENT_SESSION_ENV` in `core/src/terminal/`:
+`CLAUDECODE`, `CLAUDE_PID`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, the messaging socket and
+token, and the rest of that set). Otherwise every `claude` agent runs as that session's child and prints
+"Transcript saving is off", and it inherits the parent's messaging token. Claude Code settings the user sets
+(for example `CLAUDE_CODE_USE_BEDROCK`) are not in the set and pass through.
 
 One pty per session, in the session's folder. The window attaches over the terminal pipe
 (`pipe-protocol.md`, "Terminal pipe"); `session.focus` writes the `ui_selection` row and the window selects
@@ -284,10 +296,12 @@ Mined from the other round-8 concepts and approved with the wall:
 
 ### Pipelines on the wall
 
-- A foreground run holds the big slot in its layout (Pipeline UI below).
+- A run's step list sits under the big slot as a glance. Its header opens the run screen: the full window under
+  the title bar, in the run's layout (Pipeline UI below). Esc goes back to the wall. `agent-split` keeps the
+  agent's live terminal in the big slot and fills the rest. A foreground run opens its run screen at start.
 - A background run folds to the 36px wall bar and opens only when it needs the user.
 - A step's `view` pane renders inside the active layout's output slot.
-- Keys follow focus. When a pipeline run holds the big slot and has focus, 1 to 5 pick its layout and 0 goes back
+- Keys follow focus. When a run screen is open, 1 to 5 pick its layout and 0 goes back
   to automatic. When the focused tile is an agent asking a question, 1 and 2 answer it.
 
 ## Pipelines
@@ -379,7 +393,7 @@ Rules:
 |---|---|---|---|
 | `spec-build-review-handback` | background | hand-back, artifact-columns, agent-split, agent-split (worktree rail), run-log | `approve-spec` waits, the hand-back list is written, a verify or fix step fails |
 | `two-engine-review` | background | pr-inline, duel, buckets, coverage-map, triage | the Disagree bucket is not empty, or a finding is critical |
-| `spec-to-pr` | foreground | run-log, artifact-columns, pr-first, pipe, agent-split | holds the big slot from the start |
+| `spec-to-pr` | foreground | run-log, artifact-columns, pr-first, pipe, agent-split | opens its run screen at start |
 | `e2e-browser-qa` | background | timeline (trace), run-log, coverage-map, before-after, timeline (session) | a finding is left open, `reverify` fails, a critical finding lands |
 | `website-build` | background | preview-stage, before-after, pipe, agent-split, run-log | `approve` waits, critique gives up after round 3, `preview` or `production` fails |
 | `design-variants` | background | variants-grid, artifact-columns, preview-stage, agent-split, artifact-columns (direction lanes) | `approve-directions` or `pick` waits, a variant or `polish` fails, a port never answers |
@@ -393,7 +407,7 @@ Rules:
 | `inbox-triage-drafts` | background | triage, buckets, preview-stage, pr-first, run-log | `approve` waits, any step fails |
 | `data-to-dashboard` | background | preview-stage, artifact-columns, coverage-map, before-after, run-log | `signoff` waits, readback hits loop max with a headline wrong, `load` or `qa` fails |
 | `study-notes-to-pdf` | background | preview-stage, before-after, artifact-columns, coverage-map, run-log | `signoff` waits, a line is still unsourced, proof hits loop max, any step fails |
-| `form-fill-batch` | foreground | coverage-map, triage, preview-stage, pr-first, run-log | holds the big slot from the start; folded by hand, reopens when a gate waits or a step fails |
+| `form-fill-batch` | foreground | coverage-map, triage, preview-stage, pr-first, run-log | opens its run screen at start; folded by hand, reopens when a gate waits or a step fails |
 
 `design-variants` has no `run-log` among its five: a failure opens `agent-split` on the failing worktree, with its
 terminal output. Each pipeline's pick rule is in its child issue.
@@ -773,6 +787,17 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   run wait` returns at its first gate.
 - M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry
   MIT.
+- M1-33. A core started with `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION` and `CLAUDE_CODE_MESSAGING_TOKEN` set
+  opens agent and shell ptys without them, while `CLAUDE_CODE_USE_BEDROCK` and `PATH` pass through. Added
+  2026-10-05: agents launched from a core started inside Claude Code saved no transcripts.
+- M1-34. With `projects.default` set to an existing folder, a fresh core start leaves that folder as the most
+  recent project; set to a folder containing `work/ACU`, the core starts, logs the refusal and opens nothing.
+- M1-35. Installing the Codex notify hook over a config whose `notify` already runs MetaTrooper's
+  `codex-notify.js` (even wrapped several times, with no hooks state) leaves exactly one MetaTrooper wrapper
+  around the user's original notify. Added 2026-10-05: Wasif's config had the wrapper nested twice.
+- M1-36. A Codex session launched by MetaTrooper gets no `-c` arguments; its MCP servers live in one
+  MetaTrooper block in `config.toml`, and `troop hooks uninstall` removes the block. Added 2026-10-05: `-c`
+  forced Codex into embedded mode ("Running without the shared background server").
 
 ### Adoption gate (14 days after milestone 1, measured by #13)
 
