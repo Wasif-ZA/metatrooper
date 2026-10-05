@@ -105,6 +105,12 @@ async function selectSample(f: Awaited<ReturnType<typeof fixture>>) {
   await f.w.mouse('mouseReleased', point.x + 150, point.y);
 }
 
+async function samplePoint(f: Awaited<ReturnType<typeof fixture>>) {
+  const point = await f.w.evaluate(`(()=>{const screen=document.querySelector('.tile .xterm-screen');if(!screen)return null;const r=screen.getBoundingClientRect();return{x:r.x+2,y:r.y+8}})()`);
+  assert.ok(point, 'terminal screen should be visible');
+  return point;
+}
+
 async function cleanup(f: Awaited<ReturnType<typeof fixture>>) {
   f.viewer.socket.destroy();
   try { await f.w.evaluate('troop.copyText(' + JSON.stringify(f.savedClipboard ?? '') + ')'); }
@@ -120,6 +126,53 @@ test('selecting terminal text copies it immediately and keeps the selection', op
     await until(async () => (await f.w.evaluate('window.troop.readText()')) !== 'clipboard sentinel A', 10000);
     assert.equal(await f.w.evaluate('window.troop.readText()'), 'clipboard sample');
     assert.ok(await f.w.evaluate("document.querySelectorAll('.tile .xterm-selection div').length") > 0);
+  } finally { await cleanup(f); }
+});
+
+test('a terminal drag copies only on mouse release, not while dragging', options, async () => {
+  const f = await fixture();
+  try {
+    await prepareTerminal(f);
+    await f.w.evaluate("window.troop.copyText('clipboard sentinel drag')");
+    const point = await samplePoint(f);
+    await f.w.mouse('mousePressed', point.x, point.y);
+    await f.w.mouse('mouseMoved', point.x + 40, point.y);
+    await f.w.mouse('mouseMoved', point.x + 90, point.y);
+    await f.w.mouse('mouseMoved', point.x + 150, point.y);
+    assert.equal(await f.w.evaluate('window.troop.readText()'), 'clipboard sentinel drag');
+    await f.w.mouse('mouseReleased', point.x + 150, point.y);
+    await until(async () => (await f.w.evaluate('window.troop.readText()')) === 'clipboard sample', 10000, 'selection was not copied on mouseup');
+  } finally { await cleanup(f); }
+});
+
+test('terminal selection copies when mouseup happens outside the tile body', options, async () => {
+  const f = await fixture();
+  try {
+    await prepareTerminal(f);
+    await f.w.evaluate("window.troop.copyText('clipboard sentinel outside')");
+    const point = await samplePoint(f);
+    const outside = await f.w.evaluate(`(()=>{const r=document.querySelector('.tile .tile-body').getBoundingClientRect();return{x:Math.max(1,r.left-20),y:Math.max(1,r.top-20)}})()`);
+    await f.w.mouse('mousePressed', point.x, point.y);
+    await f.w.mouse('mouseMoved', point.x + 30, point.y);
+    await f.w.mouse('mouseMoved', point.x + 80, point.y);
+    assert.equal(await f.w.evaluate('window.troop.readText()'), 'clipboard sentinel outside');
+    await f.w.mouse('mouseMoved', outside.x, outside.y);
+    await f.w.mouse('mouseReleased', outside.x, outside.y);
+    await until(async () => (await f.w.evaluate('window.troop.readText()')) === 'clipboard sample', 10000, 'outside mouseup did not copy selection');
+  } finally { await cleanup(f); }
+});
+
+test('right-click with a selection does not copy it', options, async () => {
+  const f = await fixture();
+  try {
+    await prepareTerminal(f);
+    await f.w.evaluate("window.troop.copyText('clipboard sentinel right click')");
+    await selectSample(f);
+    const point = await samplePoint(f);
+    await f.w.mouse('mousePressed', point.x, point.y, 'right');
+    await f.w.mouse('mouseReleased', point.x, point.y, 'right');
+    await sleep(100);
+    assert.equal(await f.w.evaluate('window.troop.readText()'), 'clipboard sentinel right click');
   } finally { await cleanup(f); }
 });
 
