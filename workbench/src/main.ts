@@ -16,6 +16,7 @@ import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
 import { paneData } from '../../core/src/pipelines/panes.ts';
+import { runDetail } from './rundetail.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -366,6 +367,12 @@ function handlers(): void {
     const d = db();
     if (!d || typeof runId !== 'string' || typeof stepId !== 'string') return { error: 'no step' };
     return paneData(d, runId, stepId);
+  });
+
+  on('runDetail', (runId: unknown) => {
+    const d = db();
+    if (!d || typeof runId !== 'string') return { error: 'no run' };
+    return runDetail(d, runId);
   });
 
   const cwdOf = (sessionId: unknown) => {

@@ -33,8 +33,9 @@ export function paneFile(src: { runDir: string; projectDir: string }, value: unk
   if (typeof value !== 'string' || !value) return null;
   for (const base of [src.runDir, src.projectDir]) {
     const full = path.resolve(base, value);
-    const rel = path.relative(path.resolve(base), full);
-    if (!rel.startsWith('..') && !path.isAbsolute(rel) && fs.existsSync(full)) return full;
+    if (!fs.existsSync(full) || !fs.existsSync(base)) continue;
+    const rel = path.relative(fs.realpathSync(base), fs.realpathSync(full));
+    if (!rel.startsWith('..') && !path.isAbsolute(rel)) return full;
   }
   return null;
 }
