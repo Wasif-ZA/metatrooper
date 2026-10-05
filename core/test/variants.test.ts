@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, root, startCore, teardownCore, until } from './helpers.ts';
+import { buildGenerated, client, isolation, reservePortBand, root, startCore, teardownCore, until } from './helpers.ts';
 
 before(buildGenerated);
 
@@ -75,6 +75,7 @@ async function fakeHarness() {
   const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   const core = await startCore({ ...isolated, env });
   const store = db(isolated.home);
+  reservePortBand(store, 3200, 'test-port-band-variants');
   try {
     await until(() => store.prepare("SELECT 1 FROM engine_check WHERE engine_id = 'fake' AND installed = 1").get(), 5000);
   } finally {

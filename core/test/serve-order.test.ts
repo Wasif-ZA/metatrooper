@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { revisionHarness, runDone } from './ui-revision-helpers.ts';
+import { reservePortBand } from './helpers.ts';
 import { capturingEngine } from './pipeline-fixup-helpers.ts';
 import { until } from './helpers.ts';
 import { validatePipeline } from '../src/pipelines/validate.ts';
@@ -24,6 +25,7 @@ test('serve rejects during and accepts before, after, and the default', () => {
 for (const mode of ['before']) {
   test('agent fetch gets 200 with serve before', async () => {
     const h = await revisionHarness('website-build', capturingEngine);
+    reservePortBand(h.db, 3400, 'test-port-band-serve-order');
     try {
       const runId = await h.pipeline(pipeline(mode));
       await runDone(h, runId);
@@ -36,6 +38,7 @@ for (const mode of ['before']) {
 
 test('agent runs before its own server with serve after', async () => {
   const h = await revisionHarness('website-build', capturingEngine.replace("const {port} = db.prepare", "const serverBeforeProbe = db.prepare('SELECT 1 FROM dev_server WHERE run_id=(SELECT run_id FROM run_step WHERE session_id=?) AND idx=0').get(process.env.TROOP_SESSION_ID);\n    writeFileSync(join(captures, 'server-before-probe.json'), JSON.stringify({started: Boolean(serverBeforeProbe)}));\n    const {port} = db.prepare"));
+  reservePortBand(h.db, 3400, 'test-port-band-serve-order');
   try {
     const runId = await h.pipeline(pipeline('after'));
     await runDone(h, runId);
@@ -48,6 +51,7 @@ test('agent runs before its own server with serve after', async () => {
 
 test('serve before fails a non-answering server without starting its agent', { timeout: 120000 }, async () => {
   const h = await revisionHarness('website-build', capturingEngine.replace("const {port} = db.prepare", "const serverBeforeProbe = db.prepare('SELECT 1 FROM dev_server WHERE run_id=(SELECT run_id FROM run_step WHERE session_id=?) AND idx=0').get(process.env.TROOP_SESSION_ID);\n    writeFileSync(join(captures, 'server-before-probe.json'), JSON.stringify({started: Boolean(serverBeforeProbe)}));\n    const {port} = db.prepare"));
+  reservePortBand(h.db, 3400, 'test-port-band-serve-order');
   try {
     writeFileSync(join(h.project, 'serve.js'), 'import {createServer} from "node:http"; console.log("intentionally never answers"); createServer(() => {}).listen(Number(process.argv[process.argv.indexOf("--port") + 1]), "127.0.0.1");');
     const runId = await h.pipeline(pipeline('before'));

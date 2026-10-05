@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, root, startCore, teardownCore, until, uiHello } from './helpers.ts';
+import { buildGenerated, client, isolation, reservePortBand, root, startCore, teardownCore, until, uiHello } from './helpers.ts';
 
 before(buildGenerated);
 
@@ -37,6 +37,7 @@ async function fakeHarness() {
   const env = { ...isolated.env, METATROOPER_ENGINES: registry };
   const core = await startCore({ ...isolated, env });
   const store = db(isolated.home);
+  reservePortBand(store, 3100, 'test-port-band-runner');
   try {
     await until(() => store.prepare("SELECT 1 FROM engine_check WHERE engine_id = 'fake' AND installed = 1").get(), 5000);
   } finally { store.close(); }
@@ -382,7 +383,8 @@ function answers(port: number): Promise<boolean> {
 
 test('M1-22 creates fanout worktrees, leases ports from 3001 around an occupied port, and opens one pane per variant', async () => {
   const occupied = createServer();
-  let held = 3001;
+  const bandStart = 3100;
+  let held = bandStart;
   for (;; held++) {
     const ok = await new Promise<boolean>(resolve => occupied.once('error', () => resolve(false)).listen(held, '127.0.0.1', () => resolve(true)));
     if (ok) break;
@@ -474,7 +476,7 @@ test('M1-25c shows a dev_command variant only after readiness and discard kills 
       const pipe = await client(h.prefix);
       try {
         const discarded = await pipe.request('variant.discard', { run_id: runId, idx: 0 }, { timeout: 8000 });
-        assert.deepEqual(discarded.result, {});
+        assert.deepEqual(discarded.result, {}, JSON.stringify(discarded));
       } finally { pipe.close(); }
       await until(() => !alive(ready.pid) && !alive(parentPid) && !alive(childPid), 5000);
       assert.equal(store.prepare('SELECT 1 FROM dev_server WHERE run_id = ? AND idx = 0').get(runId), undefined);
