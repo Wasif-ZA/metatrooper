@@ -2,7 +2,7 @@
 runLayouts['run-log'] = {
   render(m, h, S) {
     const pick = m.list.find((s) => s.id === S.sel) || window.layoutRules.activeStep(m.list).step;
-    const rows = m.list.map((s) => `<div class="row k-${h.esc(s.kind)} s-${h.esc(s.status)}${pick && pick.id === s.id ? ' sel' : ''}" data-rs="sel" data-step="${h.esc(s.id)}" role="button" tabindex="0">
+    const rows = m.list.map((s) => `<div class="row k-${h.esc(s.kind)} s-${h.esc(s.status)}${pick && pick.id === s.id ? ' sel' : ''}${s.status === 'waiting' ? ' halo' : ''}" data-rs="sel" data-step="${h.esc(s.id)}" role="button" tabindex="0">${s.status === 'waiting' ? '<span class="edge"></span>' : ''}
       <div class="rl"><span class="gl">${h.glyph(s)}</span><span class="mn"><div class="t">${h.esc(s.title)}</div><div class="m"><span class="eng">${h.esc(h.who(s))}</span>${h.esc(s.status === 'failed' && s.fails ? `${s.fails} fail${s.fails === 1 ? '' : 's'}` : s.role || s.uses)}</div></span>
         <span class="rd"><span class="dur">${h.took(s)}</span><span class="sw">${h.stamp(s)}</span></span></div>
       ${s.status === 'waiting' ? h.gateCard(m, s) : ''}</div>`).join('');

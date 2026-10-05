@@ -1,8 +1,15 @@
 // Picks the layout a pipeline run is shown on, and decides when an automatic pick may move the screen.
 (function (root) {
   const LIBRARY = ['run-log', 'artifact-columns', 'pr-first', 'pipe', 'agent-split'];
+  const REVIEW = ['pr-inline', 'duel', 'buckets', 'coverage-map', 'triage'];
   const RULES = {
     'spec-to-pr': { five: LIBRARY, onFail: 'run-log', pick: () => null },
+    'two-engine-review': {
+      five: REVIEW,
+      onFail: 'run-log',
+      pick: (run, list, data) => (!data ? null : data.disagree ? 'duel' : data.critical ? 'triage' : data.files >= 3 ? 'buckets' : 'pr-inline'),
+      opens: (data) => Boolean(data && (data.disagree || data.critical)),
+    },
   };
   const LONG_MS = 5000;
   const QUIET_MS = 2000;
@@ -19,15 +26,15 @@
     return { step: started || list[0] || null, failed: false };
   }
 
-  /** run: { pipeline_id }, pipe: { layout } or null, list: stepsOf().list, manual: a layout name or null. */
-  function pickLayout(run, pipe, list, manual) {
+  /** run: { pipeline_id }, pipe: { layout } or null, list: stepsOf().list, manual: a layout name or null, data: the pipeline's own result summary. */
+  function pickLayout(run, pipe, list, manual, data) {
     const rule = ruleOf(run.pipeline_id);
     if (manual) return manual;
     const { step, failed } = activeStep(list);
-    if (failed) return rule.five.includes('run-log') ? 'run-log' : rule.onFail;
+    if (failed) return rule.onFail;
     const hint = step && step.def && step.def.layout;
     if (hint) return hint;
-    return rule.pick(run, list) || (pipe && pipe.layout) || 'run-log';
+    return rule.pick(run, list, data) || (pipe && pipe.layout) || rule.five[0];
   }
 
   /**
@@ -48,5 +55,11 @@
     return { move: true };
   }
 
-  root.layoutRules = { LIBRARY, RULES, LONG_MS, QUIET_MS, ruleOf, activeStep, pickLayout, due };
+  /** Whether a background run should open itself: the pipeline's open rule, or any failed step. */
+  function opens(run, list, data) {
+    const rule = ruleOf(run.pipeline_id);
+    return activeStep(list).failed || Boolean(rule.opens && rule.opens(data));
+  }
+
+  root.layoutRules = { LIBRARY, REVIEW, RULES, opens, LONG_MS, QUIET_MS, ruleOf, activeStep, pickLayout, due };
 })(globalThis);

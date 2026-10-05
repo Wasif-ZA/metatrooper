@@ -65,7 +65,8 @@ const wall = (() => {
 
   const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : (W - 32) / 3.3 * 1.3);
   function rects() {
-    const W = innerWidth, H = innerHeight - TOP - 60;
+    const nBars = document.querySelectorAll('#runbars .rbar').length;
+    const W = innerWidth, H = innerHeight - TOP - 60 - nBars * (BAR + G);
     const R = {};
     const ids = [...BIG, ...ORDER].filter((id) => S[id]);
     if (mode === 'grid') {
@@ -133,6 +134,7 @@ const wall = (() => {
     to('#sheet', { left: 16 + C });
     to('#split', { left: RX });
     gsap.set('#runbox', { left: 8, top: TOP + H - box, width: C, height: box, display: box ? 'block' : 'none' });
+    gsap.set('#runbars', { left: 8, top: TOP + H + G, width: innerWidth - 16 });
   }
 
   function pair(id) {

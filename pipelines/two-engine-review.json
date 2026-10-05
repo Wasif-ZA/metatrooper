@@ -11,6 +11,7 @@
       "default": "HEAD"
     }
   },
+  "background": true,
   "budget": {
     "max_minutes": 5
   },

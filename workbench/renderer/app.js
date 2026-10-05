@@ -584,7 +584,7 @@ function stepError(runId, stepId) {
 
 function stepListHtml(steps) {
   const dot = (st) => (st === 'running' ? 'working' : st === 'waiting' ? 'waiting_for_you' : st);
-  return `<div class="steps"><div class="s cur" data-action="run-open" data-id="${esc(steps.run.id)}" title="Open the run screen"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</div>
+  return `<div class="steps"><div class="s cur" data-action="run-open" data-id="${esc(steps.run.id)}" title="Open the run screen"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}<span class="grow"></span>${cancelButton(steps.run)}</div>
     ${steps.list.map((st) => {
       const meta = [st.items ? `${st.items.done}/${st.items.total}` : '', st.loop ? `loop ${st.loop.at}${st.loop.max ? ` of ${st.loop.max}` : ''}` : '', st.fails ? `${st.fails} fail${st.fails === 1 ? '' : 's'}` : '', st.status].filter(Boolean).join(' · ');
       const err = st.status === 'failed' ? stepError(steps.run.id, st.id) : null;
@@ -595,6 +595,24 @@ function stepListHtml(steps) {
         ? `<button class="link pv" data-action="tab" data-tab="${esc(`pane:${steps.run.id}:${st.id}`)}">${esc(PANE_LABELS[st.def.view])}</button>` : '';
       return `<div class="s s-${esc(st.status)}" data-step="${esc(st.id)}"><span class="dot ${esc(dot(st.status))}"></span>${esc(st.id)} <span class="meta">${esc(meta)}</span>${view}</div>${gates}${err ? `<div class="step-err">${esc(err)}</div>` : ''}`;
     }).join('')}</div>`;
+}
+
+const cancelArmed = (id) => ui.cancelArm === id && Date.now() - ui.cancelAt < 3000;
+
+/** First call arms the cancel for 3 s and returns false; a second call within 3 s returns true. */
+function armCancel(id) {
+  if (cancelArmed(id)) { ui.cancelArm = null; return true; }
+  ui.cancelArm = id;
+  ui.cancelAt = Date.now();
+  render();
+  setTimeout(render, 3050);
+  return false;
+}
+
+function cancelButton(run) {
+  if (!run || !['running', 'paused'].includes(run.status)) return '';
+  const armed = cancelArmed(run.id);
+  return `<button class="btn cancel${armed ? ' arm' : ''}" data-action="cancel-run" data-id="${esc(run.id)}" title="Cancel this run: its waiting gates are rejected and the agents it launched are closed">${armed ? 'Confirm cancel' : 'Cancel'}</button>`;
 }
 
 function gateButtons(g, keys) {
@@ -836,6 +854,16 @@ function paletteItems() {
   const sel = selectedSession();
   if (sel) items.push({ group: 'Actions', label: 'Paste the held prompt into this terminal', run: async () => { const r = await rpc('session.paste-prompt', { session_id: sel.id }); if (r.result && !r.result.written) toast(r.result.reason); } });
   for (const k of ui.shellKinds) if (project()) items.push({ group: 'Start', label: `New ${k.label} tab`, run: () => openShell(k.kind) });
+  for (const r of s.runs.filter((x) => !x.parent_run && ['running', 'paused'].includes(x.status))) {
+    const title = (s.pipelines.find((p) => p.id === r.pipeline_id) || {}).title || r.pipeline_id;
+    const label = `${cancelArmed(r.id) ? 'Confirm cancel' : 'Cancel'} run: ${title}`;
+    items.push({ group: 'Run', label, meta: r.id.slice(0, 8), run: async () => {
+      if (armCancel(r.id)) { await rpc('run.cancel', { run_id: r.id }); render(); return; }
+      openPalette();
+      document.getElementById('palette-input').value = `Confirm cancel run: ${title}`;
+      renderPalette();
+    } });
+  }
   for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
   items.push({ group: 'Actions', label: ui.mode === 'grid' ? 'Show one terminal' : 'Show all agents as a grid', meta: 'Ctrl+G', run: () => setMode(ui.mode === 'grid' ? 'single' : 'grid') });
   items.push({ group: 'Actions', label: 'Open a browser pane', run: async () => { const r = await rpc('pane.open', { project_id: ui.projectId }); if (r.result) { ui.paneId = r.result.pane_id; openTab('browser'); } } });
@@ -961,13 +989,14 @@ function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.engine_id, state: x.state, shell: Boolean(x.shell), task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : STATE_WORDS[x.state] || x.state }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : STATE_WORDS[x.state] || x.state }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();
   renderList(sel);
   renderStart();
   renderRunbox(sel);
+  runBars.render();
   termView.show({ mode: ui.mode, selected: big, sessions: shown, onPick: onTilePick, onOutput: wall.output, onExit: (id) => { const sh = ui.shells.find((x) => x.id === id); if (sh) { sh.exited = true; render(); } }, focus });
   wall.apply(ui.mode);
   renderSheet();
@@ -1233,9 +1262,13 @@ async function onClick(e) {
       }
       return;
     }
-    case 'cancel-run':
-      await rpc('run.cancel', { run_id: ui.runId });
+    case 'cancel-run': {
+      const runId = el.dataset.id || ui.runId;
+      if (!runId || !armCancel(runId)) return;
+      await rpc('run.cancel', { run_id: runId });
+      render();
       return;
+    }
     case 'hb-file': {
       const file = el.dataset.file;
       ui.hbFile = file;
@@ -1648,6 +1681,7 @@ document.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (runScreen.isOpen() && !wall.sheetOpen() && !wall.listOpen() && runScreen.key(e)) { e.preventDefault(); return; }
+  if (e.key === 'Enter' && !runScreen.isOpen() && !wall.sheetOpen() && !wall.listOpen() && runBars.enter()) { e.preventDefault(); return; }
   if (e.key === 'Escape') {
     if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
@@ -1685,7 +1719,8 @@ setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
-runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false) });
+runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton });
+runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id); } });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;
   applyLook(look);

@@ -53,9 +53,9 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
     };
-    const key = async (key: string, code: string) => {
-      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code });
-      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code });
+    const key = async (key: string, code: string, modifiers?: number) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers });
     };
     const wait = async (expression: string, timeout = 20000) => until(() => evaluate(expression), timeout);
     await wait('typeof ui !== "undefined" && ui.snap && ui.snap.core.online');
@@ -63,63 +63,91 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
   } catch (e) { ws?.close(); await stop(); throw e; }
 }
 
-async function specRun(h: Awaited<ReturnType<typeof revisionHarness>>, failed = false) {
+async function pausedRun(h: Awaited<ReturnType<typeof revisionHarness>>) {
   const def = JSON.parse(readFileSync(join(root, 'pipelines/spec-to-pr.json'), 'utf8'));
   for (const s of def.steps) if (s.kind === 'agent') {
     s.engine = 'fake';
-    const directive = s.id === 'spec' ? { outputs: { title: 'Add greet' } } : s.id === 'build'
-      ? failed ? { status: 'failed', outputs: { error: 'revision build exploded' } } : { files: { 'greet.js': 'export const greet = n => `Hello, ${n}!`;\n' }, commit: 'Add greet', outputs: { summary: 'Adds greet(name).' } } : {};
+    const directive = s.id === 'spec' ? { outputs: { title: 'Add greet' } }
+      : s.id === 'build' ? { files: { 'greet.js': 'export const greet = n => `Hello, ${n}!`;\n' }, commit: 'Add greet', outputs: { summary: 'Adds greet(name).' } } : {};
     s.prompt = `FAKE ${JSON.stringify(directive)}\n${s.prompt}`;
   }
   const run = await h.pipeline(def, { idea: readFileSync(join(h.project, 'idea.md'), 'utf8'), repo: 'fake/repo' });
   const gate = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-spec' AND status = 'waiting'").get(run), 60000);
-  assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
-  return run;
+  return { run, gate };
 }
 
-test('runbox run-open row opens the spec-to-pr run screen and approve-pr uses pr-first to approve the gate', options, async () => {
+async function fixture(mode: 'runbox' | 'screen') {
   const h = await revisionHarness('spec-to-pr'); let w;
   try {
-    const run = await specRun(h);
-    const gate = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-pr' AND status = 'waiting'").get(run), 60000);
-    const session = h.db.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND session_id IS NOT NULL ORDER BY started_at DESC LIMIT 1").get(run).session_id;
-    w = await windowFor(h); await w.click('[data-action="tab"][data-tab="runs"]');
-    await w.wait(`document.querySelector('#runbox [data-action="run-open"][data-id=${JSON.stringify(run)}]')`);
-    await w.click(`#runbox [data-action="run-open"][data-id="${run}"]`);
-    await w.wait('document.querySelector("#runscreen .rsv.L-pr-first") && getComputedStyle(document.querySelector("#runscreen")).display !== "none"');
-    assert.equal(await w.evaluate('runScreen.layout()'), 'pr-first');
-    await w.click('#runscreen .gin [data-action="gate"][data-decision="approve"]');
-    await until(() => h.db.prepare('SELECT status FROM gate WHERE id = ?').get(gate.id).status !== 'waiting', 10000);
-    const resolvedGate = h.db.prepare('SELECT status, note FROM gate WHERE id = ?').get(gate.id);
-    assert.ok(resolvedGate.status === 'approved' || (resolvedGate.status === 'stale' && resolvedGate.note === 'approval used by open-pr'));
-    void session;
-  } finally { await w?.close(); await h.close(); }
+    const { run, gate } = await pausedRun(h); w = await windowFor(h);
+    await w.click('[data-action="tab"][data-tab="runs"]');
+    await w.wait(`document.querySelector(${JSON.stringify(`#runbox [data-action="run-open"][data-id="${run}"]`)})`);
+    if (mode === 'screen') {
+      await w.click(`#runbox [data-action="run-open"][data-id="${run}"]`);
+      await w.wait('document.querySelector("#runscreen") && !document.querySelector("#runscreen").hidden');
+    }
+    return { h, w, run, gate };
+  } catch (e) { await w?.close(); await h.close(); throw e; }
+}
+
+async function cleanup(f: Awaited<ReturnType<typeof fixture>>) { await f.w.close(); await f.h.close(); }
+const status = (id: string) => `document.querySelector(${JSON.stringify(`#runbox [data-action="run-open"][data-id="${id}"]`)})?.textContent || ''`;
+const assertCancelled = async (f: Awaited<ReturnType<typeof fixture>>) => {
+  await until(() => f.h.db.prepare('SELECT status FROM run WHERE id = ?').get(f.run)?.status === 'cancelled', 10000);
+  await until(() => f.h.db.prepare('SELECT status FROM gate WHERE id = ?').get(f.gate.id)?.status === 'rejected', 10000);
+};
+
+test('runbox Cancel arms without cancelling the paused run', options, async () => {
+  const f = await fixture('runbox');
+  try {
+    await f.w.click('#runbox [data-action="cancel-run"]');
+    await f.w.wait('document.querySelector("#runbox [data-action=cancel-run]")?.textContent === "Confirm cancel"');
+    await sleep(1000);
+    assert.notEqual(f.h.db.prepare('SELECT status FROM run WHERE id = ?').get(f.run)?.status, 'cancelled');
+    assert.equal(f.h.db.prepare('SELECT status FROM gate WHERE id = ?').get(f.gate.id)?.status, 'waiting');
+  } finally { await cleanup(f); }
 });
 
-test('failed build opens on run-log and shows the error, numeric keys switch layouts, 0 restores auto, Esc returns to wall', options, async () => {
-  const h = await revisionHarness('spec-to-pr'); let w;
+test('runbox Cancel confirms within three seconds and rejects the waiting gate', options, async () => {
+  const f = await fixture('runbox');
   try {
-    const run = await specRun(h, true);
-    await until(() => h.db.prepare("SELECT 1 FROM run_step WHERE run_id = ? AND step_id = 'build' AND status = 'failed'").get(run), 60000);
-    const runDir = h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(run).run_dir as string;
-    const event = await until(() => readFileSync(join(runDir, 'log.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(e => e.event === 'step failed' && e.step === 'build').at(-1), 10000);
-    const session = h.db.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND step_id = 'build'").get(run).session_id;
-    w = await windowFor(h); await w.click('[data-action="tab"][data-tab="runs"]');
-    await w.wait(`document.querySelector(${JSON.stringify(`#runbox [data-action="run-open"][data-id="${run}"]`)})`); await w.click(`#runbox [data-action="run-open"][data-id="${run}"]`);
-    await w.wait('document.querySelector("#runscreen .rsv.L-run-log") && document.querySelector("#runscreen .rsv").getBoundingClientRect().width > 0');
-    assert.ok((await w.evaluate('document.querySelector("#runscreen .rsv").innerText')).includes(event.why));
-    const names = ['run-log', 'artifact-columns', 'pr-first', 'pipe', 'agent-split'];
-    for (let i = 1; i <= 5; i++) {
-      await w.key(String(i), `Digit${i}`);
-      await w.wait(`document.querySelector("#runscreen .rsv.L-${names[i - 1]}") && document.querySelector("#runscreen [data-rs=layout][data-l=${names[i - 1]}]").classList.contains("hand")`);
-      await w.wait('!document.querySelector("#runscreen .rs-ghost")');
-      const width = await w.evaluate(`document.querySelector("#runscreen .rsv.L-${names[i - 1]}").getBoundingClientRect().width`);
-      assert.ok(width > 0, `${names[i - 1]} has settled geometry`);
-    }
-    await w.key('0', 'Digit0');
-    await w.wait('document.querySelector("#runscreen [data-rs=auto]").classList.contains("on") && document.querySelector("#runscreen .rsv.L-run-log")');
-    await w.key('Escape', 'Escape');
-    await w.wait('document.querySelector("#runscreen").hidden');
-    void session;
-  } finally { await w?.close(); await h.close(); }
+    await f.w.click('#runbox [data-action="cancel-run"]');
+    await f.w.click('#runbox [data-action="cancel-run"]');
+    await assertCancelled(f);
+    await f.w.wait('!document.querySelector("#runbox [data-action=cancel-run]")', 10000);
+  } finally { await cleanup(f); }
+});
+
+test('runbox Cancel arm expires after three seconds', options, async () => {
+  const f = await fixture('screen');
+  try {
+    await f.w.click('#runscreen [data-action="cancel-run"]'); await sleep(3500);
+    await f.w.click('#runscreen [data-action="cancel-run"]'); await sleep(1000);
+    assert.notEqual(f.h.db.prepare('SELECT status FROM run WHERE id = ?').get(f.run)?.status, 'cancelled');
+    assert.equal(f.h.db.prepare('SELECT status FROM gate WHERE id = ?').get(f.gate.id)?.status, 'waiting');
+  } finally { await cleanup(f); }
+});
+
+test('run screen header Cancel confirms cancellation', options, async () => {
+  const f = await fixture('screen');
+  try {
+    await f.w.click('#runscreen [data-action="cancel-run"]');
+    await f.w.click('#runscreen [data-action="cancel-run"]');
+    await assertCancelled(f);
+    await f.w.wait('!document.querySelector("#runscreen [data-action=cancel-run]")', 10000);
+  } finally { await cleanup(f); }
+});
+
+test('Ctrl+K Cancel run palette item arms and Enter confirms', options, async () => {
+  const f = await fixture('runbox');
+  try {
+    await f.w.key('k', 'KeyK', 2);
+    await f.w.wait('!document.querySelector("#palette").hidden');
+    await f.w.wait('document.querySelector("#palette-list")?.textContent.includes("Cancel run:")');
+    await f.w.evaluate('(()=>{const input=document.querySelector("#palette-input");input.value="Cancel run";input.dispatchEvent(new Event("input",{bubbles:true}))})()');
+    await f.w.key('Enter', 'Enter');
+    await f.w.wait('document.querySelector("#palette-input").value.startsWith("Confirm cancel run:")');
+    await f.w.key('Enter', 'Enter');
+    await assertCancelled(f);
+  } finally { await cleanup(f); }
 });

@@ -16,6 +16,8 @@ const runScreen = (() => {
   const meta = {};
   const logs = {};
   const diffs = {};
+  const details = {};
+  const hunks = {};
   let ctx = null;
   let el = null;
 
@@ -63,6 +65,26 @@ const runScreen = (() => {
     return c.events;
   }
 
+  function runDetail(runId, sig) {
+    const c = (details[runId] ||= { at: 0, data: null, sig });
+    if (c.sig !== sig || Date.now() - c.at > 8000) {
+      c.sig = sig;
+      c.at = Date.now();
+      void ctx.api.runDetail(runId).then((d) => { c.data = d && !d.error ? d : null; render(); });
+    }
+    return c.data;
+  }
+
+  function fileHunk(sessionId, file) {
+    const key = `${sessionId}:${file}`;
+    const c = (hunks[key] ||= { at: 0, text: null });
+    if (Date.now() - c.at > 8000) {
+      c.at = Date.now();
+      void ctx.api.sessionDiffFile(sessionId, file, 'branch').then((t) => { c.text = typeof t === 'string' ? t : null; render(); });
+    }
+    return c.text;
+  }
+
   function sessionDiff(sessionId) {
     if (!sessionId) return null;
     const c = (diffs[sessionId] ||= { at: 0, data: null });
@@ -99,6 +121,7 @@ const runScreen = (() => {
       usd: sessions.reduce((n, x) => n + (x.usd || 0), 0),
       elapsed: (run.ended_at ? Date.parse(run.ended_at) : now) - Date.parse(run.started_at),
       log: runLog(run.id, list.map((x) => x.status).join()),
+      detail: runDetail(run.id, list.map((x) => x.status).join()),
       agent,
       diff: agent ? sessionDiff(agent.session.id) : null,
       gates: snap.gates.filter((g) => g.run_id === run.id),
@@ -173,6 +196,7 @@ const runScreen = (() => {
       <span class="crumb"><button class="lnk0" data-rs="wall" title="Back to the wall (Esc)">Wall</button><span>/</span><span class="here">${esc(m.title)}</span><span>/</span><span class="rid">${esc(m.run.id)}</span></span>
       <span class="chip needs ${m.waiting ? 'on' : ''}"><span class="n">${m.waiting}</span>need you</span>
       <span class="sp"></span>
+      ${ctx.cancelButton(m.run)}
       <span class="lsw" role="toolbar" aria-label="Layout">${rules.ruleOf(m.run.pipeline_id).five.map((k, i) => `<button data-rs="layout" data-l="${k}" class="${k === S.cur ? `on${S.manual ? ' hand' : ''}` : ''}" title="${i + 1}  ${NAME[k]}" aria-pressed="${k === S.cur}">${ICON[k]}</button>`).join('')}<button class="auto ${S.manual ? '' : 'on'}" data-rs="auto" title="${S.manual ? 'Manual pick held. Press 0 to follow the run again' : 'Auto: the layout follows the active step'}"><span class="lt"></span>${S.manual ? 'Manual' : 'Auto'}</button></span>
       <span class="chip"><kbd>Esc</kbd> wall</span>
     </header>`;
@@ -221,6 +245,8 @@ const runScreen = (() => {
     return false;
   }
 
+  const HUNK_FILES = 12;
+  const HUNK_LINES = 300;
   const DOT = '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="var(--done)" stroke-width="1.4" stroke-dasharray="1.2 2.4"/></svg>';
   const helpers = {
     esc, fmt,
@@ -263,7 +289,8 @@ const runScreen = (() => {
       const d = m.diff;
       if (!d) return '<div class="empty">No changes yet.</div>';
       if (d.error) return `<div class="empty">${esc(d.error)}</div>`;
-      const rows = [...d.files.map((f) => `<div class="dfh"><span class="fn">${esc(f.path)}</span><span class="ad">+${f.added ?? '?'}</span><span class="dl">-${f.deleted ?? '?'}</span></div>`),
+      const sid = m.agent.session.id;
+      const rows = [...d.files.map((f, i) => `<div class="dfile"><div class="dfh"><span class="fn">${esc(f.path)}</span><span class="ad">+${f.added ?? '?'}</span><span class="dl">-${f.deleted ?? '?'}</span></div>${i < HUNK_FILES ? helpers.hunk(fileHunk(sid, f.path)) : ''}</div>`),
         ...d.untracked.map((f) => `<div class="dfh"><span class="fn">${esc(f)}</span><span class="ad">new</span></div>`)];
       return rows.length ? rows.join('') : '<div class="empty">No changes on this branch.</div>';
     },
@@ -271,6 +298,21 @@ const runScreen = (() => {
       const d = m.diff && !m.diff.error ? m.diff : null;
       return d ? { files: d.files.length + d.untracked.length, add: d.files.reduce((n, f) => n + (f.added || 0), 0), del: d.files.reduce((n, f) => n + (f.deleted || 0), 0) } : null;
     },
+    hunk(text) {
+      if (!text) return '';
+      const lines = text.split('\n').filter((l) => l && !/^(diff --git|index |--- |\+\+\+ |new file mode|deleted file mode)/.test(l));
+      const body = lines.slice(0, HUNK_LINES).map((l) => `<span class="ln c-${l[0] === '@' ? 'hunk' : l[0] === '+' ? 'add' : l[0] === '-' ? 'del' : 'say'}">${esc(l)}</span>`).join('');
+      return `<div class="tb hk">${body}${lines.length > HUNK_LINES ? `<span class="ln c-dim">${lines.length - HUNK_LINES} more lines in the Diff tab</span>` : ''}</div>`;
+    },
+    spec(m) {
+      const text = m.detail && m.detail.docs.spec ? m.detail.docs.spec.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim() : '';
+      return text ? `<div class="md">${panes.markdown(text)}</div>` : '';
+    },
+    inputs(m) {
+      const vals = m.detail ? Object.entries(m.detail.inputs) : [];
+      return vals.map(([k, v]) => `<div class="kv"><span class="k">${esc((m.meta.inputs[k] && m.meta.inputs[k].label) || k)}</span><span class="v">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</span></div>`).join('');
+    },
+    pr: (m) => (m.detail && m.detail.pr ? `<a class="prl" href="${esc(m.detail.pr.url)}" target="_blank" rel="noopener" title="${esc(m.detail.pr.url)}">${m.detail.pr.number != null ? `PR #${m.detail.pr.number}` : 'Pull request'}</a>` : ''),
     open: (s) => `<button class="lnk" data-action="focus" data-id="${esc(s.session.id)}">Open terminal</button>`,
     status(m) {
       const r = m.run;
@@ -298,11 +340,16 @@ const runScreen = (() => {
       }
       if (s.kind === 'gate') {
         const card = s.status === 'waiting' ? helpers.gateCard(m, s) : `<div class="rec"><span class="verdict ${s.status === 'failed' ? 'no' : ''}">${s.status === 'done' ? 'Approved' : esc(s.status)}</span></div>`;
-        return `<div class="dec">${card}</div>${s.status === 'waiting' ? `<div class="sec">Changes</div><div class="files">${helpers.files(m)}</div>` : ''}${log}`;
+        const before = m.list[m.list.indexOf(s) - 1];
+        const what = before && before.role === 'plan' ? (helpers.spec(m) ? `<div class="sec">What you are approving</div>${helpers.spec(m)}` : '')
+          : s.status === 'waiting' ? `<div class="sec">Changes</div><div class="files">${helpers.files(m)}</div>` : '';
+        return `<div class="dec">${card}</div>${what}${log}`;
       }
       const term = s.session ? `<div class="tb"><span class="ln c-dim">${esc(s.session.engine_id)}  ·  ${esc(s.session.cwd || '')}</span><span class="ln c-say">${esc(s.session.last_line || s.session.last_tool || 'starting')}</span></div><div class="ga0">${helpers.open(s)}</div>` : '';
       const out = s.output ? `<div class="sec">Output</div><div class="tb"><span class="ln c-dim">${esc(s.output)}</span></div>` : '';
-      return term + out + (log || (term ? '' : '<div class="empty">No log lines yet.</div>'));
+      const doc = s.role === 'plan' && helpers.spec(m) ? `<div class="sec">spec.md</div>${helpers.spec(m)}` : '';
+      const pr = s.role === 'publish' && helpers.pr(m) ? `<div class="sec">Pull request</div><div class="ga0">${helpers.pr(m)}</div>` : '';
+      return term + doc + pr + out + (log || (term || doc ? '' : '<div class="empty">No log lines yet.</div>'));
     },
   };
 

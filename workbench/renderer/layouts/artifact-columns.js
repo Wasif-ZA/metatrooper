@@ -3,9 +3,11 @@ runLayouts['artifact-columns'] = {
   render(m, h) {
     const parts = [];
     let n = 0;
+    const asked = h.inputs(m);
+    if (asked) parts.push(`<section class="col idea"><div class="ch"><span class="no">00</span><span class="nm">Asked for</span></div><div class="cb" data-keep="ac-inputs">${asked}</div></section>`);
     for (const s of m.list) {
       if (s.kind === 'gate') {
-        parts.push(`<div class="seam s-${h.esc(s.status)}" title="${h.esc(s.title)}"><span class="line"></span><i class="dmd"></i><span class="sl">${h.esc(s.status === 'waiting' ? 'needs you' : s.status === 'done' ? 'approved' : s.status)}</span>
+        parts.push(`<div class="seam s-${h.esc(s.status)}${s.status === 'waiting' ? ' halo' : ''}" title="${h.esc(s.title)}">${s.status === 'waiting' ? '<span class="edge"></span>' : ''}<span class="line"></span><i class="dmd"></i><span class="sl">${h.esc(s.status === 'waiting' ? 'needs you' : s.status === 'done' ? 'approved' : s.status)}</span>
           ${s.status === 'waiting' ? `<div class="seamcard">${h.gateCard(m, s)}</div>` : ''}</div>`);
         continue;
       }
