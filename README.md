@@ -3,10 +3,15 @@
 </p>
 
 <p align="center">
+  <strong>The desk where you run all your coding agents at once.</strong><br>
+  Run Claude Code, Codex and Gemini side by side, each in a terminal that keeps going, with one place that tells you who needs you.
+</p>
+
+<p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
+  <a href="#features"><strong>Features</strong></a> &middot;
   <a href="#use-it-from-your-agent"><strong>Use from your agent</strong></a> &middot;
   <a href="#commands"><strong>Commands</strong></a> &middot;
-  <a href="#pipelines"><strong>Pipelines</strong></a> &middot;
   <a href="#docs"><strong>Docs</strong></a>
 </p>
 
@@ -17,23 +22,13 @@
   <img src="https://img.shields.io/badge/status-pre--release-c47f00" alt="Pre-release">
 </p>
 
-<br>
-
 <p align="center">
-  <a href="assets/product.png"><img src="assets/product.png" width="900" alt="The MetaTrooper window: three agents in a grid, one waiting for you, and the diff of the last turn on the right"></a>
+  <a href="assets/wall.png"><img src="assets/wall-demo.gif" width="960" alt="The wall: one agent finishes, another asks a question, its pane breathes orange and glides to the big slot, you answer, a gate is approved"></a>
 </p>
 
-<p align="center">
-  <img src="assets/chart.png" width="800" alt="58% of prompts went in while another agent was running; /clear 38, visual corrections 36, /resume 12, pasted screenshots 12, over 346 sessions">
-</p>
+<p align="center"><sub>The approved window design on demo data. It is being built into <code>workbench/</code> now.</sub></p>
 
 <br>
-
-# MetaTrooper is the desk where you run all your coding agents at once.
-
-A desktop workbench for Claude Code, Codex and Gemini.
-
-**If your agents are the _troop_, MetaTrooper is the _base camp_.**
 
 You run three agents in three terminals, lose track of which one is waiting on you, paste
 screenshots back and forth, and type `/clear` when the context fills. MetaTrooper puts every
@@ -41,42 +36,96 @@ agent in a terminal it owns, shows you which one needs you, and opens each resul
 agent that made it. Work runs through pipelines you can read and edit, with a stop before
 anything leaves your machine.
 
-**Stop being the glue between your agents.**
+**If your agents are the _troop_, MetaTrooper is the _base camp_.**
 
-|        | Step              | Example                                                                  |
-| ------ | ----------------- | ------------------------------------------------------------------------ |
-| **01** | Start the core    | _`node core/cli.ts serve`_                                               |
-| **02** | Open the workbench | _`npm run dev` in `workbench/`_                                         |
-| **03** | Launch an agent   | _Pick Claude Code, Codex or Gemini, or run a [pipeline](#pipelines)._    |
+## Features
 
-> [!TIP]
-> **🪖 Or hand the whole thing to your agent.** Paste this into Claude Code or Codex:
->
-> ```text
-> Clone https://github.com/Wasif-ZA/metatrooper, run `npm install` in core/ and workbench/,
-> start the core with `node core/cli.ts serve`, then copy skills/troop into my agent's
-> skills folder and run `node core/cli.ts engines` to show me which agents it found.
-> ```
-
-<br>
-
-<div align="center">
 <table>
-  <tr>
-    <td align="center"><strong>Runs</strong></td>
-    <td align="center" valign="top"><img src="assets/logos/claude.svg" width="32" height="32" alt="Claude Code"><br><sub>Claude Code</sub></td>
-    <td align="center" valign="top"><img src="assets/logos/openai.svg" width="32" height="32" alt="Codex"><br><sub>Codex</sub></td>
-    <td align="center" valign="top"><img src="assets/logos/googlegemini.svg" width="32" height="32" alt="Gemini"><br><sub>Gemini (agy)</sub></td>
-    <td align="center"><strong>Plugs<br>in</strong></td>
-    <td align="center" valign="top"><img src="assets/logos/modelcontextprotocol.svg" width="32" height="32" alt="MCP servers"><br><sub>MCP servers<br>and plugins</sub></td>
-  </tr>
+<tr>
+<td width="50%" valign="middle">
+
+### The one that needs you comes to you
+
+Every agent is a live terminal on one wall. When one asks a question, its pane breathes orange and
+glides to the big slot. Finished agents fold to one-line bars.
+
+</td>
+<td width="50%">
+  <img src="assets/feat-needs.gif" alt="An agent finishes and folds to a bar; another asks a question, turns orange and moves to the big slot" width="100%">
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Answer without switching windows
+
+Pick an option or type a reply right in the pane. The agent carries on and the wall settles back.
+
+</td>
+<td width="50%">
+  <img src="assets/feat-answer.gif" alt="Pressing 1 answers the agent's question in its pane; a toast confirms it was sent" width="100%">
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Gates you approve in one place
+
+Pipelines stop before a PR, a deploy or a post. Waiting gates sit along the bottom; open the sheet and
+approve. Only the window can approve, never an agent.
+
+</td>
+<td width="50%">
+  <img src="assets/feat-gates.gif" alt="The gates sheet opens from the bottom bar and a gate is approved" width="100%">
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Ctrl+K for everything
+
+One search over agents, gates, commands and runs. Jump to any of them without the mouse.
+
+</td>
+<td width="50%">
+  <img src="assets/feat-search.gif" alt="Ctrl+K opens the search; typing gre finds an agent, a gate, a command and a run" width="100%">
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Every agent and its usage, on Ctrl+B
+
+The agent list stays hidden until you want it: each session's state, the runs waiting on you, and
+how much of each engine's limit you have used.
+
+</td>
+<td width="50%">
+  <a href="assets/wall-list.png"><img src="assets/wall-list.png" alt="The agent list: six sessions with their state, two waiting runs, and usage per engine" width="100%"></a>
+</td>
+</tr>
 </table>
 
-<em>If it is an interactive CLI, a plugin can add it as an engine.</em>
+**Also in the box:**
 
-</div>
+- **Terminals that survive.** Close or crash the window and every agent keeps working; reopen it and the scrollback is there.
+- **Status you can trust.** Read from each agent's own hooks, never guessed from its output. A state it cannot know says "state unknown".
+- **One-click Resume.** If the core goes down, each session comes back as `exited` with Resume, through the engine's own resume flag.
+- **Diffs per turn.** See what the last turn changed, what is uncommitted, or the whole branch. Your `git stash` list is untouched.
+- **A browser your agents share.** Browser panes your agents drive through the `metatrooper-browser` MCP server, with full-page capture.
+- **Worktrees on launch.** `--worktree <branch>` starts an agent in its own worktree, trusted in every engine that asks.
+- **Plugins and importers.** Native `troop-plugin.json`, plus importers for Claude Code plugins and Codex and Gemini MCP config.
 
-<br>
+## Supported agents
+
+Works with any interactive CLI agent a plugin can describe. Three ship built in:
+
+<p>
+  <kbd><img src="assets/logos/claude.svg" width="16" valign="middle" alt=""> Claude Code</kbd> &nbsp;
+  <kbd><img src="assets/logos/openai.svg" width="16" valign="middle" alt=""> Codex</kbd> &nbsp;
+  <kbd><img src="assets/logos/googlegemini.svg" width="16" valign="middle" alt=""> Gemini (agy)</kbd> &nbsp;
+  <kbd><img src="assets/logos/modelcontextprotocol.svg" width="16" valign="middle" alt=""> MCP servers and plugins</kbd>
+</p>
 
 ## MetaTrooper is right for you if
 
@@ -87,94 +136,11 @@ anything leaves your machine.
 - ✅ You want a **hard stop** before anything is pushed, deployed or posted
 - ✅ You want to keep **your own subscriptions**, on Windows, with no account to sign up for
 
+<img src="assets/chart.png" width="800" alt="58% of prompts went in while another agent was running; /clear 38, visual corrections 36, /resume 12, pasted screenshots 12, over 346 sessions">
+
 These come from one person's numbers: over 346 agent sessions (2026-06-01 to 2026-09-29), 58% of
 prompts were sent while another session was live, and there were 38 `/clear`, 12 `/resume`, 36
 visual corrections and 12 pasted screenshots.
-
-<br>
-
-## The four parts
-
-Four things have to work for one person to run several agents without becoming the glue: the agent
-keeps running, you know which one needs you, you can see what it made, and the steps between agents
-run themselves.
-
-<img src="assets/parts.png" alt="The four parts: Terminals (agents keep running), Status (who needs you), Panes (see what it made), Pipelines (steps run themselves).">
-
-| Part | Built for | What it does |
-| --- | --- | --- |
-| **Terminals**: agents keep running | Every agent | Each agent runs in a terminal the core owns. Close the window and it keeps working; reopen it and the scrollback is there |
-| **Status**: who needs you | You, at a glance | Each session shows `working`, `waiting for you`, `done` or `exited`, read from the agent's own hooks, never guessed from its output |
-| **Panes**: see what it made | Your review | Results open beside the agent: a browser, a diff (last turn, uncommitted, whole branch), a document, rows, findings |
-| **Pipelines**: steps run themselves | Repeated work | Steps hand files to each other; a gate stops the run until you approve |
-
-<br>
-
-## Features
-
-<table>
-<tr>
-<td align="center" width="33%" valign="top">
-<h3>🖥️ Terminals that survive</h3>
-Agents run in real interactive CLIs inside the app. Closing or crashing the window leaves every one working.
-</td>
-<td align="center" width="33%" valign="top">
-<h3>🚦 Status you can trust</h3>
-An inbox of done, failed and waiting sessions. A state it cannot know says "state unknown", never green.
-</td>
-<td align="center" width="33%" valign="top">
-<h3>↩️ One-click Resume</h3>
-If the core goes down, each session comes back as <code>exited</code> with Resume, through the engine's own resume flag.
-</td>
-</tr>
-<tr>
-<td align="center" width="33%" valign="top">
-<h3>🌐 A browser your agents share</h3>
-Browser panes your agents drive through the <code>metatrooper-browser</code> MCP server, with full-page capture. You watch it happen.
-</td>
-<td align="center" width="33%" valign="top">
-<h3>🔀 Diffs per turn</h3>
-See what the last turn changed, what is uncommitted, or the whole branch. Your <code>git stash</code> list is untouched.
-</td>
-<td align="center" width="33%" valign="top">
-<h3>🛑 Gates before anything external</h3>
-A pipeline stops for your approval before a PR, a deploy or a post. Only the window can approve; an agent cannot.
-</td>
-</tr>
-<tr>
-<td align="center" width="33%" valign="top">
-<h3>🧩 Plugins and importers</h3>
-Native <code>troop-plugin.json</code>, plus importers for Claude Code plugins and Codex and Gemini MCP config.
-</td>
-<td align="center" width="33%" valign="top">
-<h3>🌳 Worktrees on launch</h3>
-<code>--worktree &lt;branch&gt;</code> starts an agent in its own worktree, trusted in every engine that asks.
-</td>
-<td align="center" width="33%" valign="top">
-<h3>⌨️ Ctrl+K for everything</h3>
-Launch agents, run pipelines, open shells. Five themes; settings live in one JSON file.
-</td>
-</tr>
-</table>
-
-<br>
-
-## See it work
-
-Real screens from one session on a small demo project.
-
-<table>
-<tr>
-<td width="50%" valign="top"><img src="assets/shot-terminal.png" alt="Claude explains the two pager bugs it fixed, then adds a doc comment to slug() on the next turn"><br><sub><b>An agent fixes a bug and says what it changed</b></sub></td>
-<td width="50%" valign="top"><img src="assets/shot-diff.png" alt="The diff of the last turn"><br><sub><b>The diff of the last turn, beside the agent</b></sub></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="assets/shot-gate.png" alt="A gate card asking you to approve the spec"><br><sub><b>A gate waits for you: approve or reject</b></sub></td>
-<td width="50%" valign="top"><img src="assets/shot-run.png" alt="The spec-to-pr run, paused at the approve-spec gate"><br><sub><b>The run, paused at the gate, step by step</b></sub></td>
-</tr>
-</table>
-
-<br>
 
 ## Problems MetaTrooper solves
 
@@ -202,6 +168,17 @@ Real screens from one session on a small demo project.
 <br>
 
 ## Quickstart
+
+> [!TIP]
+> **🪖 Just hand the whole thing to your agent.** Paste this into Claude Code or Codex:
+>
+> ```text
+> Clone https://github.com/Wasif-ZA/metatrooper, run `npm install` in core/ and workbench/,
+> start the core with `node core/cli.ts serve`, then copy skills/troop into my agent's
+> skills folder and run `node core/cli.ts engines` to show me which agents it found.
+> ```
+
+### Or install it yourself
 
 Windows, Node 24.16 or newer, and at least one of `claude`, `codex` or `agy` on your PATH.
 
@@ -270,6 +247,22 @@ Add `--json` to any command for one line of JSON.
 
 </details>
 
+## How it works
+
+Four things have to work for one person to run several agents without becoming the glue: the agent
+keeps running, you know which one needs you, you can see what it made, and the steps between agents
+run themselves.
+
+<img src="assets/parts.png" alt="The four parts: Terminals (agents keep running), Status (who needs you), Panes (see what it made), Pipelines (steps run themselves).">
+
+| Part | Built for | What it does |
+| --- | --- | --- |
+| **Terminals**: agents keep running | Every agent | Each agent runs in a terminal the core owns. Close the window and it keeps working; reopen it and the scrollback is there |
+| **Status**: who needs you | You, at a glance | Each session shows `working`, `waiting for you`, `done` or `exited`, read from the agent's own hooks, never guessed from its output |
+| **Panes**: see what it made | Your review | Results open beside the agent: a browser, a diff (last turn, uncommitted, whole branch), a document, rows, findings |
+| **Pipelines**: steps run themselves | Repeated work | Steps hand files to each other; a gate stops the run until you approve |
+
+
 ## Pipelines
 
 Five ship in `pipelines/`:
@@ -288,7 +281,7 @@ Five ship in `pipelines/`:
 The format is `contracts/pipeline.schema.json`.
 
 Four plugins ship in `plugins/`: `github`, `repo`, `deploy` and `agent-reach`.
-[metarouter](https://github.com/Wasif-ZA/toolrouter) plugs in as one more, for recipes and
+[metarouter](https://github.com/Wasif-ZA/metarouter) plugs in as one more, for recipes and
 smaller shell output.
 
 ## Platforms
@@ -318,10 +311,8 @@ smaller shell output.
 
 ## Roadmap
 
-- ⬜ The new window, designed and approved 2026-10-04, not built yet: a wall of live terminals with the
-  agent list hidden until Ctrl+B and one floating search. The pane that needs you breathes orange and
-  glides to the big slot; quiet agents fold to one-line bars; gates stamp APPROVED in place. Default look
-  is the dither style of this README; Warp charcoal ships as a theme
+- ⬜ The wall window shown above, approved 2026-10-04 and being built now. Default look is the
+  dither style of this README; Warp charcoal ships as a theme
 - ⬜ Each pipeline gets its own screen, starting with Spec to PR
 - ⬜ A signed installer, so the first agent starts within 30 seconds of install
 - ⬜ A tray companion: status lights, needs-you count, token meter
