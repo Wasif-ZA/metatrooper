@@ -267,8 +267,8 @@ function renderBrowser() {
   const s = ui.snap;
   if (ui.paneId && !s.panes.some((p) => p.id === ui.paneId)) ui.paneId = null;
   if (!ui.paneId && s.panes[0]) ui.paneId = s.panes[0].id;
-  const engineOf = (sid) => (s.sessions.find((x) => x.id === sid) || {}).engine_id;
-  const chips = s.panes.map((p) => `<button class="chip ${p.id === ui.paneId ? 'on' : ''}" data-action="pane" data-id="${esc(p.id)}">${esc(hostOf(p.url))}${p.session_id ? ` · ${esc(engineOf(p.session_id) || 'session')}` : p.variant !== null ? ` · variant ${p.variant + 1}` : ''}</button>`).join('');
+  const ownerOf = (sid) => { const x = s.sessions.find((y) => y.id === sid); return x ? sessionLabel(x) : 'closed session'; };
+  const chips = s.panes.map((p) => `<button class="chip ${p.id === ui.paneId ? 'on' : ''}" data-action="pane" data-id="${esc(p.id)}">${esc(hostOf(p.url))}${p.session_id ? ` · ${esc(ownerOf(p.session_id))}` : p.variant !== null ? ` · variant ${p.variant + 1}` : ''}</button>`).join('');
   const pane = s.panes.find((p) => p.id === ui.paneId);
   let body;
   if (ui.comment) body = renderCommentForm();
@@ -516,12 +516,18 @@ function short(iso) {
 function taskOf(x) {
   const t = (x.title || '').trim();
   if (t && !/[\\/]/.test(t)) return t;
-  return x.step_id || 'session';
+  return x.step_id || openedIn(x);
+}
+
+function openedIn(x) {
+  const folder = (x.cwd || '').split(/[\\/]/).filter(Boolean).pop();
+  const t = Date.parse(x.started_at);
+  const when = Number.isNaN(t) ? '' : new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  return [folder && `in ${folder}`, when && `opened ${when}`].filter(Boolean).join(', ') || 'new session';
 }
 
 function sessionLabel(x) {
-  const t = taskOf(x);
-  return `${x.engine_id} · ${t === 'session' ? x.id.slice(-8).toLowerCase() : t}`;
+  return `${x.engine_id} · ${taskOf(x)}`;
 }
 
 function unseen(x) {

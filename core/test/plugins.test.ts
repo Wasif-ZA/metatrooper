@@ -460,8 +460,9 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           await until(() => db.prepare("SELECT 1 FROM needs_you WHERE kind = 'missing-secret' AND text = 'set OTHER_KEY for claude-fixture-tools'").get());
           const claude = { id: 'claude', command: 'claude', version_cmd: ['claude'], state_source: 'hooks' as const, roles: ['worker'], cost_rank: 3, mcp_attach: { kind: 'claude-mcp-config-flag' } };
           const args = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, claude, 'S1'));
-          assert.equal(args[0], '--mcp-config');
-          const config = readFileSync(args[1], 'utf8');
+          assert.equal(args.length, 1);
+          assert.ok(args[0].startsWith('--mcp-config='));
+          const config = readFileSync(args[0].slice('--mcp-config='.length), 'utf8');
           assert.match(config, /mcp-shim\.js/);
           assert.match(config, /metatrooper-browser\.js/);
           assert.ok(!config.includes(literal));

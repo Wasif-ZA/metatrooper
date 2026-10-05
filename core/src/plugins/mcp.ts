@@ -82,7 +82,8 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, { command: node, args: s.args }]));
       fs.writeFileSync(file, JSON.stringify({ mcpServers }, null, 2) + '\n');
-      return ['--mcp-config', file.split(String.fromCharCode(92)).join('/')];
+      // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
+      return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`];
     }
     case 'codex-config':
       syncCodexMcp(node, servers);
