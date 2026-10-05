@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { claudeSettingsFile, codexConfigFile, coreDir, hooksStateFile } from '../paths.ts';
+import { removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { expandHome } from '../trust.ts';
 
@@ -131,7 +132,11 @@ export function installCodex(): Plan | null {
   const state = readState();
   if (state.codex) return { file, before: original, after: original };
   const m = original.match(NOTIFY_RE);
-  const previous: string[] | null = m ? JSON.parse(m[1]) : null;
+  let previous: string[] | null = m ? JSON.parse(m[1]) : null;
+  while (previous && previous[1] === codexScript()) {
+    const inner: string[] = JSON.parse(previous[2] ?? '[]');
+    previous = inner.length ? inner : null;
+  }
   const line = `notify = ${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`;
   const after = m ? original.replace(NOTIFY_RE, line) : `${line}\n${original}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.troop-bak`);
@@ -143,6 +148,7 @@ export function installCodex(): Plan | null {
 }
 
 export function uninstallCodex(): Plan | null {
+  removeCodexMcp();
   const state = readState();
   const rec = state.codex;
   if (!rec || !fs.existsSync(rec.file)) return null;

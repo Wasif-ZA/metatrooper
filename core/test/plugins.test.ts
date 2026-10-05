@@ -453,6 +453,9 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
         assert.equal(withVar.reply.result.other, 'from-env');
 
         const db = new DatabaseSync(join(h.home, 'troop.db'));
+        const previousCodexPath = process.env.METATROOPER_CODEX_CONFIG;
+        const codexConfig = join(h.home, 'codex-config.toml');
+        process.env.METATROOPER_CODEX_CONFIG = codexConfig;
         try {
           await until(() => db.prepare("SELECT 1 FROM needs_you WHERE kind = 'missing-secret' AND text = 'set OTHER_KEY for claude-fixture-tools'").get());
           const claude = { id: 'claude', command: 'claude', version_cmd: ['claude'], state_source: 'hooks' as const, roles: ['worker'], cost_rank: 3, mcp_attach: { kind: 'claude-mcp-config-flag' } };
@@ -463,8 +466,16 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           assert.match(config, /metatrooper-browser\.js/);
           assert.ok(!config.includes(literal));
           const codex = mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2');
-          assert.deepEqual(codex.filter((a) => a.startsWith('mcp_servers.')).map((a) => a.split('=')[0]), ['mcp_servers.metatrooper-browser.command', 'mcp_servers.metatrooper-browser.args']);
+          const codexToml = readFileSync(codexConfig, 'utf8');
+          assert.deepEqual(codex, []);
+          assert.match(codexToml, /# metatrooper mcp: begin/);
+          assert.match(codexToml, /\[mcp_servers\.metatrooper-browser\]/);
+          assert.ok(!codexToml.includes('[mcp_servers.claude-fixture-tools-tools]'));
+          assert.ok(!codexToml.includes('[mcp_servers.claude-fixture-tools-needs]'));
+          assert.ok(!codexToml.includes(literal));
         } finally {
+          if (previousCodexPath === undefined) delete process.env.METATROOPER_CODEX_CONFIG;
+          else process.env.METATROOPER_CODEX_CONFIG = previousCodexPath;
           db.close();
         }
         await sleep(300);

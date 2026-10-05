@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { coreDir, homeDir } from '../paths.ts';
+import { codexConfigFile, coreDir, homeDir } from '../paths.ts';
 import { getSecret } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
@@ -85,11 +85,35 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       return ['--mcp-config', file.split(String.fromCharCode(92)).join('/')];
     }
     case 'codex-config':
-      return servers.flatMap((s) => [
-        '-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`,
-        '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`,
-      ]);
+      syncCodexMcp(node, servers);
+      return [];
     default:
       return [];
   }
+}
+
+const CODEX_BEGIN = '# metatrooper mcp: begin (written by MetaTrooper; troop hooks uninstall removes it)';
+const CODEX_END = '# metatrooper mcp: end';
+const CODEX_BLOCK = /^# metatrooper mcp: begin[^\n]*\n[\s\S]*?^# metatrooper mcp: end[^\n]*(\n|$)/m;
+
+/** Keeps one MetaTrooper block of mcp_servers tables in Codex's config.toml; a name the user already defines is left to the user. */
+export function syncCodexMcp(node: string, servers: Array<{ name: string; args: string[] }>): void {
+  const file = codexConfigFile();
+  const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const left = current.replace(CODEX_BLOCK, '');
+  const rest = left.trim() ? left.replace(/\n*$/, '\n') : '';
+  const own = servers.filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(rest));
+  const tables = own.flatMap((s) => [`[mcp_servers.${s.name}]`, `command = ${JSON.stringify(node)}`, `args = ${JSON.stringify(s.args)}`, '']);
+  const after = own.length ? `${rest}${rest ? '\n' : ''}${[CODEX_BEGIN, ...tables, CODEX_END].join('\n')}\n` : rest;
+  if (after === current) return;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, after);
+}
+
+export function removeCodexMcp(): void {
+  const file = codexConfigFile();
+  if (!fs.existsSync(file)) return;
+  const current = fs.readFileSync(file, 'utf8');
+  const after = current.replace(CODEX_BLOCK, '').replace(/\n+$/, '\n');
+  if (after !== current) fs.writeFileSync(file, after);
 }
