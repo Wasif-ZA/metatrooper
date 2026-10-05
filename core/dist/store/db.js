@@ -31,6 +31,7 @@ export function openCoreDb()               {
     throw new Error(`troop.db schema version ${v} is not supported`);
   }
   db.exec('CREATE INDEX IF NOT EXISTS usage_session_idx ON usage (session_id)');
+  if (!(db.prepare('PRAGMA table_info(session)').all()                           ).some((c) => c.name === 'driven_engine')) db.exec('ALTER TABLE session ADD COLUMN driven_engine TEXT');
   return db;
 }
 

@@ -23,6 +23,7 @@ export interface EngineSpec {
   cost_rank: number;
   provider?: 'local-cli' | 'api-key' | 'gateway';
   usage_source?: 'claude-transcript' | 'codex-session' | 'none';
+  driver?: string;
 }
 
 export interface TrustSpec {
@@ -57,7 +58,7 @@ export const BUILT_IN: EngineSpec[] = [
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
     activity_waiting: { file: 'transcript.jsonl', last_line_regex: '"type":"PLANNER_RESPONSE".*"tool_calls":\\[\\{' },
     mcp_attach: { kind: 'agy-config' },
-    roles: ['research', 'worker', 'review', 'visual-check'], cost_rank: 1, usage_source: 'none',
+    roles: ['research', 'worker', 'review', 'visual-check'], cost_rank: 1, usage_source: 'none', driver: 'claude',
     trust: { kind: 'json-list', file: '~/.gemini/antigravity-cli/settings.json', at: ['trustedWorkspaces'], path_style: 'windows' },
     settings: { file: '~/.gemini/antigravity-cli/settings.json', set: { toolPermission: 'proceed-in-sandbox' } },
   },

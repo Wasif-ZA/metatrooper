@@ -78,6 +78,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
 | D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including `work/ACU`, now opens (2026-10-05) |
 | D46 | ACU access | Wasif, 2026-10-05: open the whole vault including `work/ACU`, as Claude Code already does. Sessions whose folder is in or contains `work/ACU` always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch ACU unasked. Replaces the M1-30 refusal |
+| D47 | Claude drives agy | Wasif, 2026-10-05: agy stalls in pipeline steps, so an agent step whose engine is agy runs as a claude session (the driver) that hands agy the step prompt in print mode (`agy --print`), checks the output file's front matter after each turn, sends a follow-up naming what is missing, and after 3 turns writes `status: failed` with the reason. The driver never does the step's work. A driven step with no `approval` runs `contained` (driver claude in auto mode, agy with `--mode accept-edits --sandbox`); in or around `work/ACU` both run `ask` (D46). While the driver session is still working, an output with `status: done` but missing keys does not fail the step; the driver gets its turns first. A driver engine that is not usable logs `driver unavailable` and the step runs agy directly. The engine field `driver` turns it on; the session row keeps `driven_engine`; the tile reads `claude > agy`. Wall launches of agy stay plain terminals |
 
 ## Current state, verified 2026-09-29
 
@@ -810,6 +811,11 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
 - M1-37. `session.launch` with no `approval` in an ordinary project starts claude with `--permission-mode auto`
   and codex with `--approve-for-me` (the `contained` profile); with `sessions.approval` set to `ask` it adds
   neither; an engine without a `contained` profile starts in `ask` instead of failing.
+- M1-38. A pipeline agent step bound to agy launches claude with `driven_engine = agy` and a prompt carrying the
+  step's `output_path`, its required keys and an `agy --print` command; with `driver` removed from agy it
+  launches agy directly. In a `work/ACU` folder the agy command carries no `--mode` or `--sandbox` flags. A
+  driven agy that writes the output on its third turn completes the step; one that never writes it fails
+  the step with the driver's reason. Added 2026-10-05 (D47).
 
 ### Adoption gate (14 days after milestone 1, measured by #13)
 

@@ -23,24 +23,29 @@ export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', 
   return { argv, promptDelivered: false };
 }
 
+/** The approval a session in this folder starts with: always ask in or around work/ACU (D46). */
+export function folderApproval(dir: string, approval?: string): string {
+  return isAcuPath(dir) || containsAcu(dir) ? 'ask' : approval ?? 'ask';
+}
+
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[] },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; drivenEngine?: string },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
-  const approval = isAcuPath(dir) || containsAcu(dir) ? 'ask' : opts.approval ?? 'ask';
+  const approval = folderApproval(dir, opts.approval);
   let setup: string[] | null = null;
   try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
   const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(
-    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, state, state_at, started_at)
-     VALUES (?, ?, ?, 'pty', ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
+    `INSERT INTO session (id, project_id, engine_id, driven_engine, host, cwd, run_id, step_id, state, state_at, started_at)
+     VALUES (?, ?, ?, ?, 'pty', ?, ?, ?, 'starting', ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, opts.drivenEngine ?? null, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
   const cwd = opts.cwd ?? opts.projectPath;
   try {
     term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, process.env);

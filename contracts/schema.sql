@@ -46,6 +46,7 @@ CREATE TABLE session (
   id            TEXT PRIMARY KEY,
   project_id    TEXT NOT NULL REFERENCES project(id),
   engine_id     TEXT NOT NULL REFERENCES engine(id),
+  driven_engine TEXT,                          -- engine a pipeline driver session prompts in print mode (claude > agy)
   host          TEXT NOT NULL CHECK (host IN ('pty')),  -- a terminal owned by the core
   pid           INTEGER,                       -- launcher pid from launch.js
   native_id     TEXT,                          -- claude session_id, codex thread-id, agy conversation id

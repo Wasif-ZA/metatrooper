@@ -6,7 +6,8 @@ import { coreDir, homeDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
-import { launchSession } from '../sessions/launch.ts';
+import { folderApproval, launchSession } from '../sessions/launch.ts';
+import { canonicalPath } from '../project.ts';
 import { trustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
@@ -21,6 +22,8 @@ import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCaptur
 
 const POLL_MS = 500;
 const STABLE_MS = 10_000;
+const DRIVER_PROMPT = path.join(import.meta.dirname, 'driver-prompt.md');
+const DRIVER_TURNS = 3;
 const BREAKER = 3;
 
 interface RunRow {
@@ -540,13 +543,16 @@ export class Runner {
   }
 
 
+  /** An active engine whose latest check does not say it is missing or signed out. */
+  private usableEngine(id: string): EngineSpec | null {
+    const e = getEngine(this.db, id);
+    if (!e) return null;
+    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
+    return c && (!c.installed || c.auth === 'missing') ? null : e;
+  }
+
   private bindEngine(step: Step): EngineSpec | null {
-    const usable = (id: string) => {
-      const e = getEngine(this.db, id);
-      if (!e) return null;
-      const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
-      return c && (!c.installed || c.auth === 'missing') ? null : e;
-    };
+    const usable = (id: string) => this.usableEngine(id);
     if (typeof step.engine === 'string') return usable(step.engine);
     if (Array.isArray(step.engine)) {
       for (const id of step.engine) {
@@ -574,6 +580,20 @@ export class Runner {
       `Earlier step results you may need are in: ${earlier.size ? [...earlier].join(', ') : 'none'}`,
     ].join('\n');
     return `${body}\n\n${footer}`;
+  }
+
+  /** The driver session's prompt: the step prompt goes to a file, and the driver runs the engine on it in print mode. */
+  private driverPrompt(engine: EngineSpec, prompt: string, a: { outPath: string; outputs: string[]; cwd: string; approval?: string }): string {
+    const promptFile = a.outPath.replace(/\.md$/, '.prompt.md');
+    fs.writeFileSync(promptFile, prompt);
+    const q = (s: string) => `'${s.split("'").join(`'\\''`)}'`;
+    const flags = engine.approval_profiles?.[folderApproval(canonicalPath(a.cwd), a.approval)] ?? [];
+    const command = [engine.command, ...(engine.args ?? []), '--print', `"$(cat ${q(promptFile)})"`, '--print-timeout', '0', '--output-format', 'text', ...flags, '--add-dir', q(slash(a.cwd))].join(' ');
+    const fill: Record<string, string> = {
+      engine: engine.id, prompt_file: promptFile, followup_file: a.outPath.replace(/\.md$/, '.followup.md'), output_path: a.outPath,
+      outputs: a.outputs.length ? a.outputs.join(', ') : 'none', cwd: slash(a.cwd), command, max_turns: String(DRIVER_TURNS),
+    };
+    return fs.readFileSync(DRIVER_PROMPT, 'utf8').replace(/\{\{(\w+)\}\}/g, (m, k: string) => fill[k] ?? m);
   }
 
   private async agentIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow, place: { cwd: string; paneId?: string }, raw = false): Promise<IndexResult> {
@@ -609,12 +629,16 @@ export class Runner {
       if (fs.existsSync(a.outPath)) fs.renameSync(a.outPath, a.outPath.replace(/\.md$/, `.iter${a.row.iteration}-${Date.now()}.md`));
       const prompt = this.promptFor(run, a.index, a.outPath, a.template, a.outputs, a.raw);
       const project = this.project(run.project_id);
-      trustFolder(fs.realpathSync.native(a.cwd), [engine]);
+      const driver = engine.driver ? this.usableEngine(engine.driver) : null;
+      if (engine.driver && !driver) this.log(run, { event: 'driver unavailable', step: a.stepId, detail: `${engine.driver} is not usable; ${engine.id} runs without a driver` });
+      const approval = driver ? a.approval ?? 'contained' : a.approval;
+      trustFolder(fs.realpathSync.native(a.cwd), driver ? [engine, driver] : [engine]);
       const launched = launchSession(this.db, {
-        projectId: project.id, projectPath: project.path, projectName: project.name, engine, prompt, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval: a.approval,
+        projectId: project.id, projectPath: project.path, projectName: project.name, engine: driver ?? engine,
+        prompt: driver ? this.driverPrompt(engine, prompt, { ...a, approval }) : prompt, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval, drivenEngine: driver ? engine.id : undefined,
       });
       sessionId = launched.session_id;
-      this.markRunning(run, a.row, { engine_id: engine.id, session_id: sessionId, output_path: a.outPath });
+      this.markRunning(run, a.row, { engine_id: (driver ?? engine).id, session_id: sessionId, output_path: a.outPath });
       if (a.paneId) this.db.prepare('UPDATE browser_pane SET session_id = ? WHERE id = ?').run(sessionId, a.paneId);
     }
     const started = Date.parse(a.row.started_at ?? nowIso());
@@ -622,7 +646,8 @@ export class Runner {
     for (;;) {
       const status = this.run(run.id)?.status;
       if (status === 'cancelled' || status === 'failed') return { paused: status };
-      const session = this.db.prepare('SELECT state FROM session WHERE id = ?').get(sessionId) as { state: string } | undefined;
+      const session = this.db.prepare('SELECT state, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; driven_engine: string | null } | undefined;
+      const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
       let fm: Record<string, unknown> | null = null;
       let mtime = 0;
       if (fs.existsSync(a.outPath)) {
@@ -634,10 +659,10 @@ export class Runner {
       }
       if (fm?.status === 'done') {
         const missing = a.outputs.filter((k) => !(k in fm));
-        if (missing.length) {
+        if (missing.length && (settled || !session?.driven_engine)) {
           return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}; session left open` };
         }
-        if (session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited' || Date.now() - mtime >= STABLE_MS) {
+        if (!missing.length && (settled || Date.now() - mtime >= STABLE_MS)) {
           const { status: _s, ...outputs } = fm;
           return { ok: true, outputs };
         }
