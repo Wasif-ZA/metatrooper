@@ -11,6 +11,9 @@ export const DEFAULTS = {
   projects: {
     default: '',
   },
+  sessions: {
+    approval: 'contained',
+  },
   terminal: {
     cols: 120,
     rows: 30,

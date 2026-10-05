@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { settings } from './settings.ts';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
@@ -96,7 +97,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         .get(engine.id) as { installed: number } | undefined;
       if (check && !check.installed) throw new RpcError(E.ENGINE_UNAVAILABLE, `${engine.id} is not installed`);
       const worktreesRoot = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
-      const approval = str(p, 'approval', false) || (project.path.toLowerCase().startsWith(worktreesRoot) ? 'contained' : 'ask');
+      const fallback = project.path.toLowerCase().startsWith(worktreesRoot) ? 'contained' : settings().sessions.approval;
+      const approval = str(p, 'approval', false) || (fallback === 'ask' || engine.approval_profiles?.[fallback] ? fallback : 'ask');
       if (approval !== 'ask' && !engine.approval_profiles?.[approval]) {
         throw new RpcError(E.INVALID_PARAMS, `${engine.id} has no approval profile ${approval}`);
       }
