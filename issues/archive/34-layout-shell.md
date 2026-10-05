@@ -1,12 +1,12 @@
 # Layout shell: 3 render rounds, then session list, big terminal, tile grid, Ctrl+K palette, status strip, side split, first screen
 
-Child #34 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 4 Claude Code days.
+Child #34 of the UI revision epic (issues/archive/ui-revision-epic.md). M1 revision. Effort: about 4 Claude Code days.
 
 Depends on: #33 (code only; renders start day one).
 
 ## Source of truth
 
-- issues/ui-revision-epic.md, sections: Render rounds (#34), Workbench.
+- issues/archive/ui-revision-epic.md, sections: Render rounds (#34), Workbench.
 - If this issue and the contracts disagree, the contracts win.
 
 ## Acceptance criteria

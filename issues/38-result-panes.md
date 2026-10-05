@@ -1,20 +1,10 @@
-# Result panes: Item review set, Document, Row table, Findings list; Diff widened to visual and text
+# Result panes (live stub)
 
-Child #38 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 4 Claude Code days.
+Child #38. The layout-A design text is archived at [issues/archive/38-result-panes.md](archive/38-result-panes.md); its epic is
+[issues/archive/ui-revision-epic.md](archive/ui-revision-epic.md). Built and checked 2026-10-02 to 2026-10-03;
+evidence per criterion is in UI-STATUS.md (UI-09).
 
-Depends on: #37.
+This issue still owns the code underneath the new wall: the four panes (Item review set, Document, Row table, Findings list), `run.item-set`, the Diff toggle (Last turn, Uncommitted, Whole branch) and their fixtures. In the port a step's `view` pane renders inside the active layout's output slot instead of a side-split tab.
 
-## Source of truth
-
-- issues/ui-revision-epic.md, sections: Result panes.
-- If this issue and the contracts disagree, the contracts win.
-
-## Acceptance criteria
-
-- [ ] UI-09: each of the 4 panes renders its fixture; Approve on an items card changes that item's status in the file.
-
-## Rules that bind every child
-
-- Never push or open PRs from an agent; hand back the command.
-- Codex writes the tests for #33.
-- No em dashes; comments say what the code does, not why.
+The screen around it is now [issues/ui-port-epic.md](ui-port-epic.md). A change to the code above is made here; a
+change to where it shows on screen is made in the port epic.

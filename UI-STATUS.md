@@ -1,7 +1,7 @@
 # UI revision status ledger
 
-Branch ui-revision, from m2 at b256909 (D20). Started 2026-10-02T20:28+10:00. Epic: issues/ui-revision-epic.md,
-children issues/33 to 38. Status values as in M1-STATUS.md, plus NEEDS-WASIF for a render pick. Nothing filed on
+Branch ui-revision, from m2 at b256909 (D20). Started 2026-10-02T20:28+10:00. Epic: issues/archive/ui-revision-epic.md,
+children issues/archive/33 to 38 (live stubs for 33, 35, 36, 38 in issues/). Status values as in M1-STATUS.md, plus NEEDS-WASIF for a render pick. Nothing filed on
 GitHub; filing and pushing are Wasif's.
 
 | Criterion | Status | Evidence / notes |
@@ -17,14 +17,19 @@ GitHub; filing and pushing are Wasif's.
 | UI-09 four result panes | VERIFIED-WINDOWS | 2026-10-03T16:44+10:00: workbench/test/ui-revision.test.ts UI-09 (by Codex, opt-in). Earlier: real Electron, a 4-step pipeline on tests/fixtures/result-panes with the fake engine (scratch panes-check.ts): Review set, Document (score, parts, markdown, sources), Rows and Findings tabs each render their fixture; Approve on clip-1 wrote `approved` into items.json. Test owed |
 | UI-10 speed | VERIFIED-WINDOWS | 2026-10-03T22:13+10:00: workbench/test/ui-revision.test.ts (by Codex, opt-in): six live grid terminals at 200 lines/s, keystroke echo median 0.5 ms, p90 0.8 ms over 30 samples (limit 50); a 10,000-row snapshot parsed in the window in 89 ms (limit 500). Suites after: core 143 pass 0 fail 3 skipped, workbench with E2E 20 pass 0 fail 4 skipped. Run them alone: under load from a second Electron run, UI-03, M1-07 and M1-11 time out or drop rows, and failed runs leave test Electron processes behind. Earlier: echo with 6 grid tiles each getting 200 lines/s: median 1 ms, p90 2 ms, max 3 ms of 50, from termInput to xterm.js parsing the echo (paint adds at most one frame, about 16 ms); window attach (pipe to xterm.js write callback) 14 to 23 ms in real Electron; core attach, 10,000 rows (733 KB snapshot): median 44 ms of 10 (min 42, max 53), pipe connect to snapshot parsed. xterm.js write half and 6-tile echo need #34 |
 | UI-11 tests on the terminal module | VERIFIED-WINDOWS | 2026-10-02: core 126 pass, 3 skipped, including Codex's 18 cases in core/test/terminal.test.ts, inbox-resume.test.ts, migration.test.ts; workbench 9 pass. Earlier note: | core 108 pass, 3 skipped (M1-03 superseded by UI-06, 2 opt-in); workbench 9 pass, 4 opt-in skipped; no test spawns wt.exe. New #33 tests owed to Codex (usage limit until 21:31) |
+| PORT-A core wall | TODO | issues/ui-port-epic.md phase A. Check: workbench suite and opt-in Electron suite pass, run alone; UI-04 click counts no worse |
+| PORT-B layout picking | TODO | phase B. Check: spec-to-pr fixture run shows the hinted layout per step; a failure shows run-log |
+| PORT-C background bar | TODO | phase C. Check: two-engine-review fixture stays folded with no findings, opens to duel on a Disagree |
+| PORT-D product layouts | TODO | phase D. Check: each fixture (e2e-browser-qa, website-build, design-variants, spec-build-review-handback) opens in its rule's layout |
+| PORT-E M3 pick rules | TODO | phase E. Check: each of the 12 M3 fixtures picks the layout its spec.md row names |
 
 | Child | Status | Notes |
 |---|---|---|
 | #33 terminal core | CODE DONE, TESTS OWED | 48d3ab1 code, 9f2bc1d docs. Codex tests owed. Issue 27 close is a hand-back |
-| #34 layout | CODE DONE | 01367bb; rounds done: A, themes (default graphite), row 4 |
+| #34 layout | CODE DONE, SUPERSEDED | superseded 2026-10-05 by issues/ui-port-epic.md (layout A gives way to the wall). 01367bb; rounds done: A, themes (default graphite), row 4 |
 | #35 status | DONE | tests by Codex 2026-10-02 (core/test/inbox-resume.test.ts); inbox, done/failed rows, read/unread, toast, Clear status, Resume; checked by script and in the real window |
 | #36 tools | DONE | 2026-10-03T16:44+10:00: core/test/ui-revision.test.ts (first-launch setup, shells) and the Ctrl+K Electron case, by Codex; file drop not testable from CDP; engine setup on first launch, shell tabs from settings, pipelines in Ctrl+K, drop files on a terminal |
-| #37 step list | DONE | 2026-10-03T16:44+10:00: Electron cases by Codex. Codex found Save wrote a schema-invalid pipeline over the valid file; fixed in workbench/renderer/app.js (validate first, save only when valid), test now passes; step list (e74a9d8) and editor restyle: collapsed rows, one open form, drag to reorder, JSON view and validation kept |
+| #37 step list | DONE, SUPERSEDED | superseded 2026-10-05 by issues/ui-port-epic.md (the step list becomes the run-log layout). 2026-10-03T16:44+10:00: Electron cases by Codex. Codex found Save wrote a schema-invalid pipeline over the valid file; fixed in workbench/renderer/app.js (validate first, save only when valid), test now passes; step list (e74a9d8) and editor restyle: collapsed rows, one open form, drag to reorder, JSON view and validation kept |
 | #38 panes | DONE | 2026-10-03T16:44+10:00: item-set and turn_base core cases, UI-09 and D15 Electron cases, by Codex; four panes, run.item-set, fixtures. D15 Diff toggle built: Last turn (git stash create at each turn start, stored as session.turn_base; your stash list is untouched), Uncommitted, Whole branch (merge-base with origin/HEAD, main or master); checked by scratch turn-check.ts. The visual half of the widened Diff is the Browser tab's Before/After compare |
 
 ## Click counts (today, before #34)

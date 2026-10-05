@@ -1,21 +1,10 @@
-# Status and notifications: done-unseen, bell and title signal, toast jump, notification inbox, Clear status, Resume dead sessions
+# Status and notifications (live stub)
 
-Child #35 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 1.5 Claude Code days.
+Child #35. The layout-A design text is archived at [issues/archive/35-status-and-notifications.md](archive/35-status-and-notifications.md); its epic is
+[issues/archive/ui-revision-epic.md](archive/ui-revision-epic.md). Built and checked 2026-10-02 to 2026-10-03;
+evidence per criterion is in UI-STATUS.md (UI-06).
 
-Depends on: #33, #34.
+This issue still owns the code underneath the new wall: done-unseen, the `term.bell` and `term.title` signal, toasts that jump to the session, the notification inbox with mark-read and mark-unread, Clear status, and Resume or Start new here for dead sessions. The wall shows this state on its tiles, the NEEDS YOU stamp and the "need you" chip.
 
-## Source of truth
-
-- issues/ui-revision-epic.md, sections: Selection, inbox, status; Resume.
-- If this issue and the contracts disagree, the contracts win.
-
-## Acceptance criteria
-
-- [ ] UI-06: killing the core marks live sessions exited; claude and codex show Resume with resume_args; agy shows Start new here.
-- [ ] Done, unseen, toast click, inbox mark-read and mark-unread, Clear status as in Contracts.
-
-## Rules that bind every child
-
-- Never push or open PRs from an agent; hand back the command.
-- Codex writes the tests for #33.
-- No em dashes; comments say what the code does, not why.
+The screen around it is now [issues/ui-port-epic.md](ui-port-epic.md). A change to the code above is made here; a
+change to where it shows on screen is made in the port epic.

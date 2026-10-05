@@ -1,25 +1,10 @@
-# Terminal module, terminal pipe, launch rewrite, schema migration, clean cut of wt and herdr, docs
+# Terminal core (live stub)
 
-Child #33 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 5 Claude Code days.
+Child #33. The layout-A design text is archived at [issues/archive/33-terminal-core.md](archive/33-terminal-core.md); its epic is
+[issues/archive/ui-revision-epic.md](archive/ui-revision-epic.md). Built and checked 2026-10-02 to 2026-10-03;
+evidence per criterion is in UI-STATUS.md (UI-03, UI-05, UI-07, UI-10, UI-11).
 
-Depends on: none.
+This issue still owns the code underneath the new wall: core/src/terminal/ (the only node-pty import, headless scrollback), the terminal pipe `\\.\pipe\metatrooper-term`, launch through the pty, the prompt typed on first idle, the schema v2 migration, and `workbench/renderer/terminal.js`. Every wall tile in the port reuses `terminal.js`.
 
-## Source of truth
-
-- issues/ui-revision-epic.md, sections: Implementation details, Contracts: Terminal pipe, Prompt typed into the terminal, Bell and title, Selection.
-- If this issue and the contracts disagree, the contracts win.
-
-## Acceptance criteria
-
-- [ ] Task 0: node-pty loads under core Node and drives ConPTY (spawn, echo, resize, exit).
-- [ ] UI-03 core half: a session keeps running and its snapshot matches after every viewer detaches.
-- [ ] UI-05: the grep for wt.exe, TROOP_LAUNCHER and herdr in core/src, workbench/src, workbench/renderer returns nothing.
-- [ ] UI-07: a fake engine with no prompt_arg gets the prompt once; core.prompt-written once; Paste prompt returns already written; no handoff gate row.
-- [ ] UI-10 attach half: 10,000 rows of scrollback attach in under 500 ms.
-- [ ] UI-11: all core and workbench tests pass on the terminal module; none spawns wt.exe.
-
-## Rules that bind every child
-
-- Never push or open PRs from an agent; hand back the command.
-- Codex writes the tests for #33.
-- No em dashes; comments say what the code does, not why.
+The screen around it is now [issues/ui-port-epic.md](ui-port-epic.md). A change to the code above is made here; a
+change to where it shows on screen is made in the port epic.

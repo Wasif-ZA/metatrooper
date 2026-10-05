@@ -210,10 +210,37 @@ Choices the sections above leave open, as built:
 - `code-host.js` gets `--experimental-default-type=module` only when the running node still accepts it.
 - `variant.combine` arrives with child #8.
 
+## Layout and background
+
+`layout` picks the screen a run is shown on. `view` is separate: it names the result pane for one step, and that
+pane fills the active layout's output slot. Both
+`layout` fields take one name from the frozen library in spec.md, Pipeline UI (enum `$defs.layout` in the
+schema). Step kinds and gate kinds do not change.
+
+- Pipeline `layout` (optional): the fallback, used only when the pipeline's pick rule matches nothing.
+- Step `layout` (optional): a hint, used while that step is the active one.
+- Pipeline `background` (optional, default `false`): `true` folds the run to the 36px wall bar; it opens only
+  when it needs the user. `false` keeps the run in the big slot.
+
+Which layout shows, first that applies:
+
+1. The user's key, 1 to 5 (the pipeline's five layouts in order). It holds until the user presses 0 or the run
+   ends. 0 hands the screen back to automatic.
+2. A failed step shows `run-log`, or the stand-in its pick rule names when `run-log` is not among its five. A
+   step hint never beats it.
+3. The active step's `layout` hint.
+4. The agent's pick, by the pipeline's pick rule.
+5. The pipeline's `layout`.
+
+Automatic changes (2 to 5) move the screen only when a gate starts waiting, a step fails, or a step has run for
+5 s or more. Never within 2 s of the user's last click or key; a due change waits until 2 s after it. Keys 1 to 5
+and 0 apply at once.
+
 ## Result panes
 
-A step with `view` of `items`, `document`, `table` or `findings` gets a tab in the side split once it has
-started. The pane reads the step output of the same name (`document` also reads `sources` and `score`): a path
+A step with `view` of `items`, `document`, `table` or `findings` gets its pane once it has started. The pane
+renders inside the active layout's output slot (spec.md, Pipeline UI); when the layout changes, the pane moves with
+it. The pane reads the step output of the same name (`document` also reads `sources` and `score`): a path
 resolved inside the run folder, then the project folder, or the data inline in the output. Shapes:
 
 - `items`: `[{"id","title","preview"?,"score"?,"reason"?,"status":"pending|approved|dropped|published|failed","error"?,"url"?}]`

@@ -59,7 +59,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D15 | Plugins | Native `troop-plugin.json` plus importers for Claude Code plugins and Codex/agy MCP and skills |
 | D16 | Pipelines | `pipeline.json` with a form editor, plus optional TypeScript code steps |
 | D17 | Tokens | Live meter, callrouter Plan A as the first plugin, cheapest-capable-engine routing |
-| D19 | Terminals | In-app terminals owned by the core service (node-pty over ConPTY); the window only shows them, and close and reopen reattaches. Revised 2026-10-02 by the UI revision (issues/ui-revision-epic.md D1) |
+| D19 | Terminals | In-app terminals owned by the core service (node-pty over ConPTY); the window only shows them, and close and reopen reattaches. Revised 2026-10-02 by the UI revision (issues/archive/ui-revision-epic.md D1) |
 | D21 | Browser MCP | Own `metatrooper-browser` MCP, no WebSocket |
 | D24 | Transport | Direct database reads; hooks append events; commands over a named pipe with a queue fallback. No TCP port, token file, WebSocket or SSE |
 | D25, D27 | Pipelines shipped | 17 working built-ins across 12 lanes; the other 17 catalog pipelines as templates |
@@ -75,6 +75,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a MetaTrooper worktree, `ask` elsewhere (2026-09-29) |
 | D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29) |
 | D43 | Trooper sandbox | Own container host plugin, child #32 in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
+| D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
 
 ## Current state, verified 2026-09-29
 
@@ -97,8 +98,8 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 ```
  +--------------------------------+   +-------------------------+   +-------------------+
  | Electron workbench             |   | Tauri tray (milestone 3)|   | troop CLI         |
- | board | browser | variants |   |   | lights, needs-you, meter|   | (agents use it)   |
- | runner | review | hand-back    |   +-----+-------------+-----+   +----+---------+----+
+ | wall of live terminals         |   | lights, needs-you, meter|   | (agents use it)   |
+ | pipeline layouts, gate sheet   |   +-----+-------------+-----+   +----+---------+----+
  +----+-------------+-------------+         |             |              |         |
       | reads       | commands              | reads       | commands     | reads   | commands
       | direct      | \\.\pipe\metatrooper| direct      |              | direct  |
@@ -229,6 +230,66 @@ and on `engines.check`, 10 s timeout each. Lights: green (installed, auth ok), g
   (`onorca.dev/docs/agents/usage-tracking`); Orca is MIT, so its readers may be adapted with its copyright
   notice kept. A provider with no local source shows "usage unavailable".
 
+## Workbench
+
+Decided 2026-10-04 (core screen) and 2026-10-05 (pipeline screens). This replaces layout A from the UI revision
+(`issues/archive/ui-revision-epic.md`, D2, D3, D10, D15). The terminal core, status, tools and panes from that
+revision stay underneath (#33, #35, #36, #38). The port is `issues/ui-port-epic.md`.
+
+### The wall
+
+The screen is a wall of tiled live terminals, one tile per session. Each tile is a real terminal over the
+terminal pipe; you type into it in place. One tile holds the big slot and the rest tile around it.
+
+- **Title bar.** Slim, one row: list toggle (Ctrl+B), wordmark, project / branch / core crumb, the "need you"
+  chip (its count opens the gate sheet), the usage chip, the Agent button with an engine picker, PowerShell and
+  Git Bash buttons, window controls.
+- **Tile header.** Engine, task, branch and the working indicator. The selected tile adds Diff (Ctrl+D) and Hand
+  back, and a Pair button.
+- **List, behind Ctrl+B.** It slides over the wall: New agent, pwsh, bash, then agents, Runs and Usage. A click
+  puts a session in the big slot. Shift+click pairs it.
+- **Search, Ctrl+K.** One floating box over agents, gates and commands. Pipelines are the one-click commands
+  (#36). Arrows move, Enter opens, Esc closes.
+- **Gate sheet.** A bottom sheet that peeks as a tab. The tab shows the gate count and each run's step N of M.
+  Each gate card draws its run's steps as a pipe, with Approve, Reject and Open run. A opens the sheet, then
+  approves the top gate. R rejects it.
+- **Esc** closes search first, then the sheet, then the list.
+- **Exited sessions** show as strips with Reopen (Resume or Start new here, #35). The inbox and toasts are #35's.
+- **Side tabs.** Diff, Hand-back, Browser, Runs and the Pipelines editor from layout A open as overlays over the
+  wall. They are not a fixed split.
+
+### The nine ideas
+
+Mined from the other round-8 concepts and approved with the wall:
+
+1. Done and exited panes fold to 36px bars; the freed height goes to live panes.
+2. A one-off attention sweep runs before the breathing edge.
+3. The pane that needs you glides into the big slot. If one is already waiting, it queues.
+4. A NEEDS YOU stamp stays on the pane until answered.
+5. Pair mode: two terminals side by side in the big slot.
+6. The working indicator is a live sparkline or a 3-bar equalizer (`spark` or `eq`).
+7. A gate shows an APPROVED or REJECTED stamp in place before its card leaves.
+8. The usage chip opens a hover popover with each provider's windows, with no scrim.
+9. In small panes the question card sits beside the log, so the log is not crushed.
+
+### Look and motion
+
+- **Dither is the default look.** Flat #0b0b0c, ink #f2f2f2, and orange #ff7a1a only for "needs you" and gates.
+  Space Mono labels, Silkscreen wordmark and stamps, dotted pane borders, dot halos, dot-bar working indicator.
+- **Warp charcoal ships as a theme** (Geist and Geist Mono). The other palettes from the rounds are also
+  selectable themes. Theme values live in settings; no colour is hardcoded in the CSS.
+- **Motion is GSAP**, loaded from `workbench/renderer/vendor/` (CSP is `script-src 'self'`). Lines stream in,
+  counters tick, the pane that needs you breathes at its edge, reflow glides, overlays spring. Reduced motion
+  turns it off.
+
+### Pipelines on the wall
+
+- A foreground run holds the big slot in its layout (Pipeline UI below).
+- A background run folds to the 36px wall bar and opens only when it needs the user.
+- A step's `view` pane renders inside the active layout's output slot.
+- Keys follow focus. When a pipeline run holds the big slot and has focus, 1 to 5 pick its layout and 0 goes back
+  to automatic. When the focused tile is an agent asking a question, 1 and 2 answer it.
+
 ## Pipelines
 
 Format: `contracts/pipeline.schema.json`. Execution: `contracts/pipelines.md`, which defines validation (with
@@ -257,7 +318,7 @@ and runs `pipeline.validate` on every change.
 | Security and upkeep | `security-review-and-upgrade` | A6 | repo, security | 2 |
 | Video and social | `footage-to-edit` | 6 | media | 3 |
 | Video and social | `clips-to-scheduled-posts` | 8 | media, social-scheduler | 3 |
-| SEO | `seo-audit-fix` | 11 | seo, repo | 3 |
+| SEO | `seo-audit-fix` | 11 | seo, repo, deploy | 3 |
 | Research | `deep-research-cited` | 10 | agent-reach, cite-check | 3 |
 | Lead gen | `prospect-list-to-drafts` | 13 | agent-reach, gmail | 3 |
 | Personal ops | `inbox-triage-drafts` | 12 | gmail | 3 |
@@ -270,6 +331,72 @@ sample repo, a 3-minute sample video, a sample site, a sample CSV, a sample lect
 with a captcha stand-in, a repo with one outdated dependency) and a test Gmail account for the two Gmail
 pipelines. Templates: the other 13 of the top 25 and the remaining 4 appendix pipelines, 17 in all, in a
 gallery that shows each template's `requires` and says "ready" only when all are installed.
+
+### Pipeline UI
+
+Decided 2026-10-04 and 2026-10-05. Each pipeline run is shown in one layout from a frozen library of 15. Field
+format and precedence: `contracts/pipelines.md`, "Layout and background".
+
+The library:
+
+- `run-log`: a step list and the selected step's log; every failure lands here.
+- `pipe`: all steps and gates at a glance, fan-outs and loops drawn as lanes and arcs.
+- `agent-split`: one agent live beside its newest output; a worktree rail on fan-out steps.
+- `artifact-columns`: a chain of documents left to right, gates on the seams.
+- `pr-first`: the one change, release or upgrade you will ship, with its ship gate at the foot.
+- `hand-back`: the numbered list of what only you can do, each with its exact command; no commit button.
+- `pr-inline`: findings pinned to the lines they are about.
+- `duel`: two verdicts side by side, equal weight, never a winner.
+- `buckets`: findings sorted into piles.
+- `coverage-map`: rows of strips showing what was covered and where things happened.
+- `triage`: a ranked queue with the selected item large and its actions.
+- `before-after`: old next to new, to prove a change worked.
+- `preview-stage`: the running product fills the screen; width, version and A / B / C tabs on top.
+- `variants-grid`: several products at equal weight; pick or combine one.
+- `timeline`: frames and tracks under a playhead; a text view as a toggle.
+
+A pipeline spec picks its five layouts from the library by name. It may add at most one new layout, with one
+line saying why none of the 15 fits.
+
+Rules:
+
+- The agent running the pipeline picks the layout by that pipeline's pick rule. There is no fixed default.
+- Each step may carry a `layout` hint. The pipeline `layout` is only a fallback.
+- Keys 1 to 5 pick one of the pipeline's five layouts by hand. The pick holds until 0 (back to automatic) or the
+  run ends.
+- A failed step always shows `run-log`.
+- A step's `view` renders inside the active layout's output slot. Every layout has one output slot. When the
+  layout changes, the pane moves with it. The `view` field and the pane code (#38) do not change.
+- Automatic mode moves the screen only when a gate starts waiting, a step fails, or a step has run for 5 s or
+  more. Never within 2 s of a click or key. The move is a calm glide.
+- A background pipeline folds to a 36px wall bar: step, progress dots, elapsed time, the last agent line, and at
+  most one small live extra. It opens only when it needs the user, in the layout the agent picks. Esc folds it,
+  Enter or a click opens it by hand. Done, it settles as a calm bar that says `nothing needs you`.
+- Orange means only the user can act: a waiting gate, a failure, a flag left for the user, and what points at
+  them. Everything else is ink. Orange stops once the user answers, in every layout at once.
+
+| Built-in | Runs | Five layouts (keys 1 to 5) | Opens when |
+|---|---|---|---|
+| `spec-build-review-handback` | background | hand-back, artifact-columns, agent-split, agent-split (worktree rail), run-log | `approve-spec` waits, the hand-back list is written, a verify or fix step fails |
+| `two-engine-review` | background | pr-inline, duel, buckets, coverage-map, triage | the Disagree bucket is not empty, or a finding is critical |
+| `spec-to-pr` | foreground | run-log, artifact-columns, pr-first, pipe, agent-split | holds the big slot from the start |
+| `e2e-browser-qa` | background | timeline (trace), run-log, coverage-map, before-after, timeline (session) | a finding is left open, `reverify` fails, a critical finding lands |
+| `website-build` | background | preview-stage, before-after, pipe, agent-split, run-log | `approve` waits, critique gives up after round 3, `preview` or `production` fails |
+| `design-variants` | background | variants-grid, artifact-columns, preview-stage, agent-split, artifact-columns (direction lanes) | `approve-directions` or `pick` waits, a variant or `polish` fails, a port never answers |
+| `docs-and-release-notes` | background | pr-first, run-log, before-after, preview-stage, artifact-columns | `approve` waits, a sample still fails after the fix pass, `release` fails, a breaking PR has no migration doc |
+| `security-review-and-upgrade` | background | pr-first, triage (ledger), triage, before-after, run-log | `approve-upgrade` waits, a high reachable finding is not fixed by the plan, the check loop hits max, a licence conflicts |
+| `footage-to-edit` | background | timeline, preview-stage, before-after, pipe, run-log | `approve-plan` or `approve-final` waits, the last edit pass leaves a flag for the user, any step fails |
+| `clips-to-scheduled-posts` | background | variants-grid, preview-stage, timeline, pr-first, run-log | `pick` or `approve` waits, any step fails |
+| `seo-audit-fix` | background | triage, coverage-map, before-after, pr-first, run-log | `approve` waits, the speed loop ends with a key page under 90, `crawl` or `deploy` fails |
+| `deep-research-cited` | background | artifact-columns, run-log, coverage-map, pr-inline, preview-stage | `approve-plan` waits, cite-check hits loop max, any step fails; never on done |
+| `prospect-list-to-drafts` | background | coverage-map, triage, preview-stage, pr-first, run-log | `approve-spend` or `approve` waits, any step fails |
+| `inbox-triage-drafts` | background | triage, buckets, preview-stage, pr-first, run-log | `approve` waits, any step fails |
+| `data-to-dashboard` | background | preview-stage, artifact-columns, coverage-map, before-after, run-log | `signoff` waits, readback hits loop max with a headline wrong, `load` or `qa` fails |
+| `study-notes-to-pdf` | background | preview-stage, before-after, artifact-columns, coverage-map, run-log | `signoff` waits, a line is still unsourced, proof hits loop max, any step fails |
+| `form-fill-batch` | foreground | coverage-map, triage, preview-stage, pr-first, run-log | holds the big slot from the start; folded by hand, reopens when a gate waits or a step fails |
+
+`design-variants` has no `run-log` among its five: a failure opens `agent-split` on the failing worktree, with its
+terminal output. Each pipeline's pick rule is in its child issue.
 
 ## Browser
 
@@ -514,6 +641,9 @@ Estimates are Claude Code days and were raised after the review said the first o
 | 11 | Token meter and prices (reads `usage` from #1 and callrouter "saved") | 1.5 | 1, 2 |
 | 31 | Agent-native `troop` CLI and skill | 1.5 | 1, 4 |
 | 13 | Measurement tooling for the adoption gate | 0.5 | 5 to 11 |
+
+#5's screen was revised twice: the UI revision (#33 to #38, `issues/archive/`) and the wall port
+(`issues/ui-port-epic.md`, phases A to E).
 
 Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, before milestone 2 starts.
 

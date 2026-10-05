@@ -1,23 +1,10 @@
-# Zero-setup tools: MCP, toolrouter, hooks, skills at launch; one-click actions; shell tabs; drag onto terminal
+# Zero-setup tools (live stub)
 
-Child #36 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 2 Claude Code days.
+Child #36. The layout-A design text is archived at [issues/archive/36-zero-setup-tools.md](archive/36-zero-setup-tools.md); its epic is
+[issues/archive/ui-revision-epic.md](archive/ui-revision-epic.md). Built and checked 2026-10-02 to 2026-10-03;
+evidence is the #36 row of UI-STATUS.md.
 
-Depends on: #33, #34.
+This issue still owns the code underneath the new wall: engine setup at first launch, pipelines as one-click actions in Ctrl+K (now the floating search), the PowerShell and Git Bash shell tabs from settings, and dropping files onto a terminal.
 
-## Source of truth
-
-- issues/ui-revision-epic.md, sections: Zero setup, actions, shells, drag.
-- If this issue and the contracts disagree, the contracts win.
-
-## Acceptance criteria
-
-- [ ] Engine settings applied at first launch with no separate step.
-- [ ] Plugin actions listed in the Ctrl+K palette.
-- [ ] PowerShell and Git Bash shell tabs.
-- [ ] Drag a file onto a terminal sends its text as input without Enter.
-
-## Rules that bind every child
-
-- Never push or open PRs from an agent; hand back the command.
-- Codex writes the tests for #33.
-- No em dashes; comments say what the code does, not why.
+The screen around it is now [issues/ui-port-epic.md](ui-port-epic.md). A change to the code above is made here; a
+change to where it shows on screen is made in the port epic.

@@ -1,12 +1,12 @@
 # Pipeline step list and restyled editor
 
-Child #37 of the UI revision epic (issues/ui-revision-epic.md). M1 revision. Effort: about 2 Claude Code days.
+Child #37 of the UI revision epic (issues/archive/ui-revision-epic.md). M1 revision. Effort: about 2 Claude Code days.
 
 Depends on: #34.
 
 ## Source of truth
 
-- issues/ui-revision-epic.md, sections: D16, D17.
+- issues/archive/ui-revision-epic.md, sections: D16, D17.
 - If this issue and the contracts disagree, the contracts win.
 
 ## Acceptance criteria

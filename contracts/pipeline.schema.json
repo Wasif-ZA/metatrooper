@@ -40,9 +40,15 @@
       "description": "Plugin ids this pipeline needs. The gallery shows 'ready' only when all are installed and enabled.",
       "type": "array", "items": { "type": "string" }
     },
+    "layout": { "$ref": "#/$defs/layout", "description": "Fallback screen layout, used only when the pipeline's pick rule matches nothing." },
+    "background": { "type": "boolean", "default": false, "description": "True: the run folds to the 36px wall bar and opens only when it needs the user. False: the run holds the big slot." },
     "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } }
   },
   "$defs": {
+    "layout": {
+      "description": "The frozen layout library (15). See spec.md, Pipeline UI.",
+      "enum": ["run-log", "pipe", "agent-split", "artifact-columns", "pr-first", "hand-back", "pr-inline", "duel", "buckets", "coverage-map", "triage", "before-after", "preview-stage", "variants-grid", "timeline"]
+    },
     "template": {
       "description": "Text with {{ }} references. Allowed references: inputs.<name>, steps.<id>.outputs.<key>, steps.<id>.output_path, steps.<id>.outputs.<key>[<i>] where i is a number or the literal i (the fan-out index), run.dir, run.id, project.path, index (the fan-out index, fan-out steps only), variants.picked.worktree, variants.picked.branch (the variant picked at an earlier handoff gate). No other expressions. An unknown reference fails validation.",
       "type": "string"
@@ -91,7 +97,8 @@
           "description": "Keys the step must write into its output file's front matter. Missing keys fail the step.",
           "type": "array", "items": { "type": "string" }
         },
-        "view": { "enum": ["none", "variants-grid", "board", "handback", "review", "diff", "items", "document", "table", "findings"], "default": "none", "description": "items, document, table and findings open a result pane that reads the step output of the same name (document also reads sources and score): a path inside the run or project folder, or the data inline." },
+        "layout": { "$ref": "#/$defs/layout", "description": "Layout hint while this step is the active one." },
+        "view": { "enum": ["none", "variants-grid", "board", "handback", "review", "diff", "items", "document", "table", "findings"], "default": "none", "description": "The result pane for this step. It renders inside the active layout's output slot (see layout). The view variants-grid is a pane; the layout variants-grid is a whole screen. items, document, table and findings open a result pane that reads the step output of the same name (document also reads sources and score): a path inside the run or project folder, or the data inline." },
         "loop": {
           "type": "object",
           "additionalProperties": false,

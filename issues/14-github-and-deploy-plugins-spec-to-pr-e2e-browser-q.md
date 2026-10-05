@@ -66,6 +66,38 @@ PATH, and a local bare repo as `origin`. Each test asserts the run pauses at the
 publish step, with an `action_hash`, before that step has run; then approves it and asserts the publish action
 ran once against the fakes. Pipelines with no publish step assert they run to `done`.
 
+## UI
+
+Keys 1 to 5 pick the layouts in the order above; 0 goes back to automatic. `design-variants` UI: child #8.
+
+### `spec-to-pr`
+
+Foreground: the run holds the big slot from the start.
+
+- Layouts: run-log, artifact-columns, pr-first, pipe, agent-split.
+- Step hints: `spec` and `approve-spec` artifact-columns, `build` agent-split, `verify` run-log, `approve-pr` and
+  `open-pr` pr-first. Pipeline fallback: pr-first.
+
+### `e2e-browser-qa`
+
+Background: the 36px wall bar with one small live browser thumbnail. A failing flow during `qa` is ink, not orange.
+
+- Layouts: timeline (trace), run-log (command log), coverage-map (flow grid), before-after, timeline (session
+  replay).
+- Opens when the report leaves a finding open, `reverify` fails, or a critical finding lands (mid-run).
+- Pick, first match: `reverify` failed to run-log; a critical finding to timeline at the broken frame; open
+  findings on 3 or more flows to coverage-map; some fixed and some open to before-after; otherwise timeline.
+  Session replay is by hand only. A clean run opened by hand shows before-after.
+
+### `website-build`
+
+Background: the 36px wall bar with one small live 390-wide site thumbnail.
+
+- Layouts: preview-stage, before-after (critique pair), pipe (deploy lane), agent-split (build), run-log.
+- Opens when `approve` waits, `critique` ends round 3 without `pass`, or `preview` or `production` fails.
+- Pick, first match: a deploy failure to run-log; critique gave up to before-after; `approve` to preview-stage.
+  Opened by hand: agent-split during `build`, before-after during `critique`, pipe otherwise and once live.
+
 ## Acceptance criteria
 
 - [ ] M2-01. Each milestone-2 built-in runs end to end on its fixture and stops at every gate before a publish step.
