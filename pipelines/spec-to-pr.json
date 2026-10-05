@@ -14,6 +14,7 @@
   "steps": [
     {
       "id": "spec",
+      "approval": "contained",
       "layout": "artifact-columns",
       "title": "Write the spec",
       "role": "plan",
@@ -31,6 +32,7 @@
     },
     {
       "id": "build",
+      "approval": "contained",
       "layout": "agent-split",
       "title": "Build it on a new branch",
       "role": "worker",
