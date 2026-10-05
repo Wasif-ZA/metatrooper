@@ -8,6 +8,7 @@ import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
 import { ensureEngineSetup } from '../hooks/install.ts';
+import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -29,7 +30,8 @@ export function launchSession(
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[] },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
-  const approval = opts.approval ?? 'ask';
+  const dir = canonicalPath(opts.cwd ?? opts.projectPath);
+  const approval = isAcuPath(dir) || containsAcu(dir) ? 'ask' : opts.approval ?? 'ask';
   let setup: string[] | null = null;
   try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
   const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);

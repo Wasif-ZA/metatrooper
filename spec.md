@@ -72,11 +72,12 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D36 | Review fixes | Contracts pack, contradiction cleanup, security hardening, operational fixes: all applied |
 | D37 | Scope | Keep all 31 children, ship in 3 milestones; #32 added 2026-09-29 (D43) |
 | D40 | Phone | Using the terminals and the IDE from a phone (like Claude Code Remote Control) is a v3 epic, after the cloud epic |
-| D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a MetaTrooper worktree, `ask` elsewhere (2026-09-29) |
+| D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a MetaTrooper worktree (2026-09-29). Elsewhere the default is the `sessions.approval` setting, `contained` out of the box (Wasif, 2026-10-05: every terminal starts in its engine's auto mode); an engine with no profile of that name starts in `ask`. Pipeline steps keep their own `approval` field |
 | D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29) |
 | D43 | Trooper sandbox | Own container host plugin, child #32 in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
 | D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
-| D45 | Default project | `projects.default` setting, opened at core start; Wasif's is `teehee/projects/metatrooper` (a plain folder inside the vault resolves to the vault repo and is refused). The vault root stays refused (M1-30) because no engine can fence `work/ACU` from shell reads. Revisit opening the vault root after launch (2026-10-05) |
+| D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including `work/ACU`, now opens (2026-10-05) |
+| D46 | ACU access | Wasif, 2026-10-05: open the whole vault including `work/ACU`, as Claude Code already does. Sessions whose folder is in or contains `work/ACU` always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch ACU unasked. Replaces the M1-30 refusal |
 
 ## Current state, verified 2026-09-29
 
@@ -145,12 +146,12 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
    Only the core marks queue rows processed.
 6. **Nothing MetaTrooper writes lives in the vault or OneDrive**, except `<project>/.troop/runs/`, which is
    git-excluded automatically.
-7. **ACU refusal.** `project.open` refuses any path containing `work/ACU` (case-insensitive) with error
-   -32001. ACU work stays in plain Claude Code.
+7. **ACU asks first (D46).** `project.open` opens any folder, `work/ACU` included. A session (interactive or a
+   pipeline step) whose folder is in or contains `work/ACU` starts in `ask`, whatever approval it requested.
 8. **Default project.** `projects.default` in `~/.metatrooper/settings.json` (empty by default) names the folder
    the core opens through `project.open` at start, so it is the most recent project and the window selects it
-   when nothing else is chosen. It resolves like any project (to its git repo root), so the ACU refusal applies:
-   a plain folder inside the vault resolves to the vault repo and is refused. Wasif's is `teehee/projects/metatrooper`.
+   when nothing else is chosen. It resolves like any project, to its git repo root, so a plain folder inside the
+   vault opens as the vault.
 
 ### Transport
 
@@ -266,6 +267,13 @@ terminal pipe; you type into it in place. One tile holds the big slot and the re
   Each gate card draws its run's steps as a pipe, with Approve, Reject and Open run. A opens the sheet, then
   approves the top gate. R rejects it.
 - **Esc** closes search first, then the sheet, then the list.
+- **Cancel a run** from its run screen header, its step list row under the big slot, its 36px background bar, or
+  Ctrl+K ("Cancel run: <pipeline>"). One confirm, then `run.cancel`: the run ends `cancelled`, waiting gates
+  are rejected, its actions and dev servers stop, and the agent sessions that run launched are closed (Wasif,
+  2026-10-05). Agents the user started are never touched.
+- **Copy and paste in a terminal** work like PuTTY (Wasif, 2026-10-05): highlighting text with the mouse copies
+  it at once; right-click pastes. Ctrl+C copies when text is selected and otherwise reaches the agent as an
+  interrupt; Ctrl+Shift+C copies; Ctrl+V pastes (as a bracketed paste).
 - **Exited sessions** show as strips with Reopen (Resume or Start new here, #35). The inbox and toasts are #35's.
 - **Side tabs.** Diff, Hand-back, Browser, Runs and the Pipelines editor from layout A open as overlays over the
   wall. They are not a fixed split.
@@ -781,8 +789,9 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   `toolrouter ingest --since --until --json` reports `shell_read_tokens` and `saved_tokens` with ACU excluded
   (#13, section 5), and the repo ships a `troop-plugin.json` whose `ingest` action validates with
   `validateManifest`. Superseded 2026-09-30: callrouter Plan A criteria 1 to 8.
-- M1-30. `project.open` on a path containing `work/ACU`, or on a folder with `work/ACU` (or, for a folder named
-  `work`, `ACU`) directly below it, returns -32001. Added 2026-10-02: opening the parent would let an engine read ACU.
+- M1-30. (Revised 2026-10-05, D46.) `project.open` on the vault root and on a folder inside `work/ACU` succeeds;
+  `session.launch` there with `approval: contained` (and a pipeline step asking for `contained`) starts in `ask`,
+  with no auto-mode flags in the engine's arguments; a session in an ordinary project still starts in auto mode.
 - M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop
   run wait` returns at its first gate.
 - M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry
@@ -791,13 +800,16 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   opens agent and shell ptys without them, while `CLAUDE_CODE_USE_BEDROCK` and `PATH` pass through. Added
   2026-10-05: agents launched from a core started inside Claude Code saved no transcripts.
 - M1-34. With `projects.default` set to an existing folder, a fresh core start leaves that folder as the most
-  recent project; set to a folder containing `work/ACU`, the core starts, logs the refusal and opens nothing.
+  recent project; set to a folder that does not exist, the core starts, logs it and opens nothing.
 - M1-35. Installing the Codex notify hook over a config whose `notify` already runs MetaTrooper's
   `codex-notify.js` (even wrapped several times, with no hooks state) leaves exactly one MetaTrooper wrapper
   around the user's original notify. Added 2026-10-05: Wasif's config had the wrapper nested twice.
 - M1-36. A Codex session launched by MetaTrooper gets no `-c` arguments; its MCP servers live in one
   MetaTrooper block in `config.toml`, and `troop hooks uninstall` removes the block. Added 2026-10-05: `-c`
   forced Codex into embedded mode ("Running without the shared background server").
+- M1-37. `session.launch` with no `approval` in an ordinary project starts claude with `--permission-mode auto`
+  and codex with `--approve-for-me` (the `contained` profile); with `sessions.approval` set to `ask` it adds
+  neither; an engine without a `contained` profile starts in `ask` instead of failing.
 
 ### Adoption gate (14 days after milestone 1, measured by #13)
 

@@ -56,9 +56,9 @@ test('projects.default opens the configured existing folder on fresh core start'
   }
 });
 
-test('projects.default refuses a folder containing work/ACU while core remains up', async () => {
-  const folder = mkdtempSync(join(tmpdir(), 'metatrooper-default-refused-'));
-  mkdirSync(join(folder, 'work', 'ACU'), { recursive: true });
+test('projects.default logs and skips a folder that does not exist', async () => {
+  const parent = mkdtempSync(join(tmpdir(), 'metatrooper-default-missing-'));
+  const folder = join(parent, 'does-not-exist');
   const canonicalPath = resolve(folder).replaceAll('\\', '/').replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`);
   const h = await startWithDefault(folder);
   let db: DatabaseSync | undefined;
@@ -70,6 +70,6 @@ test('projects.default refuses a folder containing work/ACU while core remains u
   } finally {
     db?.close();
     await h.teardown();
-    rmSync(folder, { recursive: true, force: true });
+    rmSync(parent, { recursive: true, force: true });
   }
 });
