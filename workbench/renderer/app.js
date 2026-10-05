@@ -284,7 +284,7 @@ function renderBrowser() {
       <button data-action="pane-mode">${ui.browserMode === 'compare' ? 'Live' : 'Compare'}</button>
       <select data-action="pane-owner" data-key="pane-owner" title="The one session allowed to drive this pane">
         <option value="">Driven by: you only</option>
-        ${s.sessions.map((x) => `<option value="${esc(x.id)}" ${x.id === pane.session_id ? 'selected' : ''}>Driven by: ${esc(x.engine_id)} ${esc(x.id.slice(-8).toLowerCase())}</option>`).join('')}
+        ${s.sessions.map((x) => `<option value="${esc(x.id)}" ${x.id === pane.session_id ? 'selected' : ''}>Driven by: ${esc(sessionLabel(x))}</option>`).join('')}
       </select>
       <button class="danger" data-action="pane-close">Close</button>
     </div>` : '';
@@ -302,7 +302,7 @@ function renderCommentForm() {
     <h3>Comment on ${esc(c.selector || 'element')}</h3>
     <img class="crop" src="data:image/png;base64,${esc(c.crop)}" alt="The element you picked">
     <div class="form">
-      <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} ${esc(x.id.slice(-8).toLowerCase())} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
+      <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(sessionLabel(x))} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
       <label>Note</label><textarea id="comment-note" data-key="comment-note" rows="4" placeholder="What should change here?"></textarea>
       <span></span><div class="toolbar"><button class="primary" data-action="comment-send" ${s.sessions.length ? '' : 'disabled'}>Send</button><button data-action="comment-cancel">Cancel</button></div>
     </div>
@@ -463,7 +463,7 @@ function renderDiff() {
   const form = picked ? `<div class="form">
       <label>Line</label><div class="meta">${esc(ui.hbFile)}:${picked.line}${picked.kind === 'del' ? ' (removed line, old numbering)' : ''}</div>
       <label>Note</label><textarea rows="2" id="hb-note" data-key="hb-note"></textarea>
-      <label>Session</label><select id="hb-session" data-key="hb-session">${sessions.map((x) => `<option value="${esc(x.id)}">${esc(x.engine_id)} · ${esc(x.id.slice(-8).toLowerCase())}</option>`).join('')}</select>
+      <label>Session</label><select id="hb-session" data-key="hb-session">${sessions.map((x) => `<option value="${esc(x.id)}">${esc(sessionLabel(x))}</option>`).join('')}</select>
       <span></span><div><button class="primary" data-action="hb-send" ${sessions.length ? '' : 'disabled'}>Send</button> ${sessions.length ? '' : '<span class="meta">No live session to send to.</span>'}</div>
     </div>` : '';
   return `<div class="diff">${rows}</div>${form}`;
@@ -517,6 +517,11 @@ function taskOf(x) {
   const t = (x.title || '').trim();
   if (t && !/[\\/]/.test(t)) return t;
   return x.step_id || 'session';
+}
+
+function sessionLabel(x) {
+  const t = taskOf(x);
+  return `${x.engine_id} · ${t === 'session' ? x.id.slice(-8).toLowerCase() : t}`;
 }
 
 function unseen(x) {
@@ -869,17 +874,17 @@ function paletteItems() {
   const sel = selectedSession();
   if (sel) items.push({ group: 'Actions', label: 'Paste the held prompt into this terminal', run: async () => { const r = await rpc('session.paste-prompt', { session_id: sel.id }); if (r.result && !r.result.written) toast(r.result.reason); } });
   for (const k of ui.shellKinds) if (project()) items.push({ group: 'Start', label: `New ${k.label} tab`, run: () => openShell(k.kind) });
+  for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
   for (const r of s.runs.filter((x) => !x.parent_run && ['running', 'paused'].includes(x.status))) {
     const title = (s.pipelines.find((p) => p.id === r.pipeline_id) || {}).title || r.pipeline_id;
     const label = `${cancelArmed(r.id) ? 'Confirm cancel' : 'Cancel'} run: ${title}`;
-    items.push({ group: 'Run', label, meta: r.id.slice(0, 8), run: async () => {
+    items.push({ group: 'Cancel', label, meta: r.id.slice(0, 8), run: async () => {
       if (armCancel(r.id)) { await rpc('run.cancel', { run_id: r.id }); render(); return; }
       openPalette();
       document.getElementById('palette-input').value = `Confirm cancel run: ${title}`;
       renderPalette();
     } });
   }
-  for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
   items.push({ group: 'Actions', label: ui.mode === 'grid' ? 'Show one terminal' : 'Show all agents as a grid', meta: 'Ctrl+G', run: () => setMode(ui.mode === 'grid' ? 'single' : 'grid') });
   items.push({ group: 'Actions', label: 'Open a browser pane', run: async () => { const r = await rpc('pane.open', { project_id: ui.projectId }); if (r.result) { ui.paneId = r.result.pane_id; openTab('browser'); } } });
   items.push({ group: 'Actions', label: 'Open a project folder', run: openFolder });
@@ -890,6 +895,8 @@ function paletteItems() {
   items.push({ group: 'Actions', label: eq ? 'Working indicator: sparkline' : 'Working indicator: equaliser', run: () => { document.body.classList.toggle('ind-eq', !eq); document.body.classList.toggle('ind-spark', eq); save('ind', eq ? 'spark' : 'eq'); } });
   const themes = (ui.settingsLook && ui.settingsLook.themes) || [];
   for (const t of themes) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look && ui.look.theme.name === t.id ? 'current' : '', run: () => setLook(t.id) });
+  items.push({ group: 'Core', label: 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
+  items.push({ group: 'Core', label: 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
   return items;
 }
 
@@ -1604,6 +1611,14 @@ function tickAges() {
     if (el.textContent !== text) el.textContent = text;
   }
 }
+
+api.onSelectProject((id) => {
+  ui.projectId = id;
+  ui.handback = undefined;
+  save('projectId', id);
+  setView();
+  render();
+});
 
 api.onSnapshot(async (s) => {
   ui.snap = s;

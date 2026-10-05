@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('troop', {
   handback: (projectId, runId) => ipcRenderer.invoke('handback', projectId, runId),
   copyText: (text) => ipcRenderer.invoke('copyText', text),
   readText: () => ipcRenderer.invoke('readText'),
+  restartCore: () => ipcRenderer.invoke('restartCore'),
+  stopCore: () => ipcRenderer.invoke('stopCore'),
   longtasks: (entries) => ipcRenderer.invoke('longtasks', entries),
   probe: (state) => ipcRenderer.invoke('probe', state),
   paneShow: (paneId, bounds) => ipcRenderer.invoke('paneShow', paneId, bounds),
@@ -42,6 +44,11 @@ contextBridge.exposeInMainWorld('troop', {
     const listener = (_e, sessionId, msg) => fn(sessionId, msg);
     ipcRenderer.on('term', listener);
     return () => ipcRenderer.removeListener('term', listener);
+  },
+  onSelectProject: (fn) => {
+    const listener = (_e, id) => fn(id);
+    ipcRenderer.on('select-project', listener);
+    return () => ipcRenderer.removeListener('select-project', listener);
   },
   onSnapshot: (fn) => {
     const listener = (_e, s) => fn(s);

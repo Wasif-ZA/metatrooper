@@ -234,7 +234,7 @@ test('#36 Ctrl+K lists project pipelines, filters them and starts the selected r
     await w.wait('!document.querySelector("#palette").hidden');
     const text = await w.evaluate('document.querySelector("#palette-list").innerText'); assert.ok(text.includes('Run Unique palette fixture'));
     await w.send('Input.insertText', { text: 'Unique palette fixture' });
-    assert.deepEqual(await w.evaluate('[...document.querySelectorAll("#palette-list [data-palette]")].map(e=>e.textContent)'), ['Run Unique palette fixturerevision-palette']);
+    assert.deepEqual(await w.evaluate('[...document.querySelectorAll("#palette-list [data-palette]")].filter(e=>e.textContent.startsWith("Run ")).map(e=>e.textContent)'), ['Run Unique palette fixturerevision-palette']);
     const before = h.db.prepare('SELECT COUNT(*) n FROM run WHERE pipeline_id = ?').get(def.id).n;
     await w.key('Enter', 'Enter');
     await until(() => h.db.prepare('SELECT COUNT(*) n FROM run WHERE pipeline_id = ?').get(def.id).n === Number(before) + 1, 10000);

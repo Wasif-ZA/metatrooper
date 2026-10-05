@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { connect } from 'node:net';
+import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell, type IpcMainInvokeEvent } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
-import { browserPipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
+import { browserPipe, corePipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
 import { ulid } from '../../core/src/time.ts';
 import { PaneManager, type PaneRow } from './browser/panes.ts';
 import { startBrowserServer } from './browser/server.ts';
@@ -436,6 +439,8 @@ function handlers(): void {
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('readText', () => clipboard.readText());
+  on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
+  on('stopCore', async () => { await stopCore(); return true; });
   on('copyText', (text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
     return true;
@@ -465,6 +470,7 @@ function lockDown(): void {
 
 function createWindow(): void {
   win = new BrowserWindow({
+    icon: path.join(APP_DIR, 'build', 'icon.png'),
     width: 1400,
     height: 900,
     minWidth: 900,
@@ -484,6 +490,11 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.on('close', (e) => {
+    if (closing || !ownCore) return;
+    e.preventDefault();
+    void onClose();
+  });
   win.on('closed', () => {
     panes?.closeAll();
     win = null;
@@ -497,21 +508,103 @@ function createWindow(): void {
   void win.loadFile(INDEX, process.env.METATROOPER_WORKBENCH_PROBE ? { query: { probe: '1' } } : {});
 }
 
+const CORE_MAIN = path.join(here, '..', '..', 'core', 'src', 'main.ts');
+const APP_DIR = path.resolve(here, '..');
+
+function coreUp(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const s = connect(corePipe());
+    const done = (v: boolean) => { s.destroy(); resolve(v); };
+    s.setTimeout(500, () => done(false));
+    s.once('connect', () => done(true));
+    s.once('error', () => done(false));
+  });
+}
+
+/** Starts the core detached when none answers, without the parent Claude Code session's identity; it outlives the window. */
+let ownCore = false;
+let closing = false;
+
+async function ensureCore(): Promise<void> {
+  if (await coreUp()) return;
+  ownCore = true;
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
+  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
+  for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
+}
+
+function folderArg(argv: string[], cwd: string): string | null {
+  for (const a of argv.slice(1)) {
+    if (a.startsWith('-')) continue;
+    const p = path.resolve(cwd, a);
+    if (p === APP_DIR) continue;
+    try { if (fs.statSync(p).isDirectory()) return p; } catch {}
+  }
+  return null;
+}
+
+async function stopCore(): Promise<void> {
+  await call('core.stop', {}, { ui: true });
+  for (let i = 0; i < 40 && (await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
+}
+
+async function restartCore(): Promise<void> {
+  await stopCore();
+  await ensureCore();
+}
+
+/** Any open agent session or unfinished run counts, so an agent waiting on the user is never stopped unasked. */
+function busy(): boolean {
+  const s = lastGood;
+  return !!s && (s.sessions.some((x) => x.state !== 'exited') || s.runs.some((r) => r.status === 'running' || r.status === 'paused'));
+}
+
+/** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
+async function onClose(): Promise<void> {
+  if (ownCore && busy()) {
+    const { response } = await dialog.showMessageBox(win!, {
+      type: 'question',
+      buttons: ['Keep running in the background', 'Stop everything', 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      message: 'Agents or runs are still open.',
+      detail: 'Keep them running and reattach next time, or stop the core and every agent now.',
+    });
+    if (response === 2) return;
+    if (response === 1) await stopCore();
+  } else if (ownCore) await stopCore();
+  closing = true;
+  win?.close();
+}
+
+async function openFolder(dir: string | null): Promise<void> {
+  if (!dir) return;
+  const out = await call('project.open', { path: dir });
+  const id = out.kind === 'reply' ? (out.reply.result as { project_id?: string } | undefined)?.project_id : undefined;
+  if (!id || !win) return;
+  const send = () => win?.webContents.send('select-project', id);
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+  else send();
+}
+
 app.setPath('userData', path.join(homeDir(), 'workbench'));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv, cwd) => {
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
+    void openFolder(folderArg(argv, cwd));
   });
   app.whenReady().then(() => {
     lockDown();
     handlers();
     createWindow();
+    void ensureCore().then(() => openFolder(folderArg(process.argv, process.cwd())));
     watch();
     const gitTick = async () => {
       try {
