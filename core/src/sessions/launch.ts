@@ -23,9 +23,16 @@ export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', 
   return { argv, promptDelivered: false };
 }
 
-/** The approval a session in this folder starts with: always ask in or around work/ACU (D46). */
-export function folderApproval(dir: string, approval?: string): string {
-  return isAcuPath(dir) || containsAcu(dir) ? 'ask' : approval ?? 'ask';
+function underAcuTree(dir: string): boolean {
+  for (let d = dir; d.lastIndexOf('/') > 2; d = d.slice(0, d.lastIndexOf('/'))) if (containsAcu(d)) return true;
+  return false;
+}
+
+/** The approval a session in this folder starts with: ask in or around work/ACU for every engine (D46), and anywhere under a tree holding work/ACU for engines with ask_near_acu (D48). */
+export function folderApproval(dir: string, approval?: string, engine?: EngineSpec): string {
+  if (isAcuPath(dir) || containsAcu(dir)) return 'ask';
+  if (engine?.ask_near_acu && underAcuTree(dir)) return 'ask';
+  return approval ?? 'ask';
 }
 
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
@@ -36,7 +43,7 @@ export function launchSession(
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
-  const approval = folderApproval(dir, opts.approval);
+  const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
   try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
   const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);

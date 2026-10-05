@@ -79,6 +79,7 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including `work/ACU`, now opens (2026-10-05) |
 | D46 | ACU access | Wasif, 2026-10-05: open the whole vault including `work/ACU`, as Claude Code already does. Sessions whose folder is in or contains `work/ACU` always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch ACU unasked. Replaces the M1-30 refusal |
 | D47 | Claude drives agy | Wasif, 2026-10-05: agy stalls in pipeline steps, so an agent step whose engine is agy runs as a claude session (the driver) that hands agy the step prompt in print mode (`agy --print`), checks the output file's front matter after each turn, sends a follow-up naming what is missing, and after 3 turns writes `status: failed` with the reason. The driver never does the step's work. A driven step with no `approval` runs `contained` (driver claude in auto mode, agy with `--mode accept-edits --sandbox`); in or around `work/ACU` both run `ask` (D46). While the driver session is still working, an output with `status: done` but missing keys does not fail the step; the driver gets its turns first. A driver engine that is not usable logs `driver unavailable` and the step runs agy directly. The engine field `driver` turns it on; the session row keeps `driven_engine`; the tile reads `claude > agy`. Wall launches of agy stay plain terminals |
+| D48 | External engines near ACU | Wasif, 2026-10-05: engines flagged `ask_near_acu` (codex and agy, which send to OpenAI and Google) start in `ask` in any folder that sits under a tree containing `work/ACU`, such as a project inside the vault, because one shell command reaches ACU from there. claude keeps the requested approval there, as in his own Claude Code; D46 still makes every engine ask in or around `work/ACU` itself |
 
 ## Current state, verified 2026-09-29
 
@@ -822,6 +823,10 @@ core that has survived daily use; milestone 3 lanes are independent of each othe
   launches agy directly. In a `work/ACU` folder the agy command carries no `--mode` or `--sandbox` flags. A
   driven agy that writes the output on its third turn completes the step; one that never writes it fails
   the step with the driver's reason. Added 2026-10-05 (D47).
+- M1-39. In a project inside a folder tree that contains `work/ACU` (but not containing it itself), `session.launch`
+  with `approval: contained` starts codex and agy with no auto-mode flags (ask) and claude with `--permission-mode
+  auto`; a project outside any such tree starts all three in auto mode; a driven agy step there runs agy without
+  `--mode accept-edits --sandbox`.
 
 ### Adoption gate (14 days after milestone 1, measured by #13)
 

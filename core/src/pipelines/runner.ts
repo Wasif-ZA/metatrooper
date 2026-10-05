@@ -587,7 +587,7 @@ export class Runner {
     const promptFile = a.outPath.replace(/\.md$/, '.prompt.md');
     fs.writeFileSync(promptFile, prompt);
     const q = (s: string) => `'${s.split("'").join(`'\\''`)}'`;
-    const flags = engine.approval_profiles?.[folderApproval(canonicalPath(a.cwd), a.approval)] ?? [];
+    const flags = engine.approval_profiles?.[folderApproval(canonicalPath(a.cwd), a.approval, engine)] ?? [];
     const command = [engine.command, ...(engine.args ?? []), '--print', `"$(cat ${q(promptFile)})"`, '--print-timeout', '0', '--output-format', 'text', ...flags, '--add-dir', q(slash(a.cwd))].join(' ');
     const fill: Record<string, string> = {
       engine: engine.id, prompt_file: promptFile, followup_file: a.outPath.replace(/\.md$/, '.followup.md'), output_path: a.outPath,
