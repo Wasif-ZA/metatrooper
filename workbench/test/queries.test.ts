@@ -39,7 +39,7 @@ test('the core reads as offline when its heartbeat is older than 6 s or absent',
   }
 });
 
-test('snapshot scopes sessions and runs to the project, keeps plugin engines only while enabled, and lifts sub-pipeline gates to their top run', () => {
+test('snapshot scopes sessions and runs to the project, keeps plugin engines only while enabled, lifts sub-pipeline gates, and retains pipeline layouts', () => {
   const f = fixture();
   try {
     const d = f.db;
@@ -54,7 +54,7 @@ test('snapshot scopes sessions and runs to the project, keeps plugin engines onl
       d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES (?, ?, 'claude', 'pty', 'working', ?, ?, ?)").run(id, p, now, now, hidden);
     }
     const file = join(f.dir, 'flow.json');
-    writeFileSync(file, JSON.stringify({ schema: 1, id: 'flow', title: 'The flow', inputs: { to: { type: 'text' } }, steps: [] }));
+    writeFileSync(file, JSON.stringify({ schema: 1, id: 'flow', title: 'The flow', layout: 'pr-first', background: true, inputs: { to: { type: 'text' } }, steps: [{ id: 'build', kind: 'agent', layout: 'agent-split' }] }));
     d.prepare("INSERT INTO pipeline (id, source, path, version, valid, errors) VALUES ('flow', 'project', ?, 1, 0, '[\"/steps: bad\"]')").run(file);
     d.prepare("INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at) VALUES ('r1', 'flow', 'p1', '{}', '/r', 'paused', 'manual', 1, 1, 1, ?)").run(now);
     d.prepare("INSERT INTO run (id, pipeline_id, parent_run, parent_step, depth, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at) VALUES ('r2', 'flow', 'r1', 'sub', 1, 'p1', '{}', '/r/sub', 'paused', 'manual', 1, 1, 1, ?)").run(now);
@@ -63,6 +63,9 @@ test('snapshot scopes sessions and runs to the project, keeps plugin engines onl
     d.prepare("INSERT INTO needs_you (id, at, kind, ref, text, resolved_at) VALUES ('n1', ?, 'other', NULL, 'open', NULL), ('n2', ?, 'other', NULL, 'closed', ?)").run(now, now, now);
 
     const s = snapshot(d, 'p1', 'r1');
+    assert.equal(s.pipelines[0].layout, 'pr-first');
+    assert.equal(s.pipelines[0].background, true);
+    assert.equal(s.pipelines[0].step_defs[0].layout, 'agent-split');
     assert.deepEqual(s.sessions.map((x) => x.id), ['s1']);
     assert.deepEqual(s.engines.map((e) => [e.id, e.light]), [['claude', 'green']]);
     assert.deepEqual(s.pipelines.map((p) => [p.id, p.title, p.valid, p.errors, Object.keys(p.inputs)]), [['flow', 'The flow', false, ['/steps: bad'], ['to']]]);
@@ -71,6 +74,22 @@ test('snapshot scopes sessions and runs to the project, keeps plugin engines onl
     assert.deepEqual(s.gates.map((g) => [g.id, g.run_id, g.top_run]), [['g1', 'r2', 'r1']]);
     assert.deepEqual(s.needs_you.map((n) => n.id), ['n1']);
     assert.deepEqual(snapshot(d, 'p2', null).sessions.map((x) => x.id), ['s2']);
+  } finally {
+    f.close();
+  }
+});
+
+test('pipeline snapshot defaults background to false and converts non-string layouts to null', () => {
+  const f = fixture();
+  try {
+    const file = join(f.dir, 'flow.json');
+    writeFileSync(file, JSON.stringify({ schema: 1, id: 'flow', title: 'The flow', layout: 42, steps: [{ id: 'build', kind: 'agent', layout: { name: 'pr-first' } }] }));
+    f.db.prepare("INSERT INTO pipeline (id, source, path, version, valid, errors) VALUES ('flow', 'project', ?, 1, 1, '[]')").run(file);
+
+    const pipeline = snapshot(f.db, null, null).pipelines[0];
+    assert.equal(pipeline.background, false);
+    assert.equal(pipeline.layout, null);
+    assert.equal(pipeline.step_defs[0].layout, null);
   } finally {
     f.close();
   }

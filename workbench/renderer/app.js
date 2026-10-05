@@ -12,7 +12,7 @@ const ui = {
   tab: ['diff', 'handback', 'browser', 'runs', 'pipelines'].includes(load('tab')) ? load('tab') : 'diff',
   paneCache: {},
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
-  split: load('split') !== '0',
+  split: false,
   mode: load('mode') === 'grid' ? 'grid' : 'single',
   localSel: null,
   shells: [],
@@ -109,19 +109,6 @@ function untilText(iso) {
   if (!(ms > 0)) return 'reset passed';
   const h = Math.floor(ms / 3_600_000), m = Math.floor((ms % 3_600_000) / 60_000);
   return h >= 24 ? `resets in ${Math.floor(h / 24)}d ${h % 24}h` : `resets in ${h}h ${m}m`;
-}
-
-function usageBar(rows) {
-  const by = new Map();
-  for (const r of rows) by.set(r.provider, [...(by.get(r.provider) || []), r]);
-  return [...by].map(([provider, list]) => {
-    const ok = list.filter((r) => r.status === 'ok' && r.used_pct !== null);
-    if (!ok.length) return `<span class="chip" title="No local source for this provider's limits">${esc(provider)} · usage unavailable</span>`;
-    const hot = ok.some((r) => r.used_pct >= 80);
-    const parts = ok.map((r) => `${Math.round(r.used_pct)}% ${esc(r.window === 'weekly' ? 'wk' : r.window)}${r.used_pct >= 80 && r.resets_at ? ` (${esc(untilText(r.resets_at).replace("resets in ", ""))} left)` : ''}`);
-    const title = ok.map((r) => `${r.window}: ${Math.round(r.used_pct)}%${r.resets_at ? `, ${untilText(r.resets_at)}` : ''}`).join('\n') + `\nread ${ok[0].read_at}`;
-    return `<span class="chip ${hot ? 'warn' : ''}" title="${esc(title)}">${esc(provider)} ${parts.join(' · ')}</span>`;
-  }).join('');
 }
 
 function meter(x) {
@@ -492,18 +479,28 @@ function refreshHandback() {
 
 const TABS = [['diff', 'Diff'], ['handback', 'Hand-back'], ['browser', 'Browser'], ['runs', 'Runs'], ['pipelines', 'Pipelines']];
 const PANE_LABELS = { items: 'Review set', document: 'Document', table: 'Rows', findings: 'Findings' };
-const THEME_VARS = { bg: '--bg', panel: '--panel', panel2: '--panel-2', line: '--line', text: '--text', muted: '--muted', accent: '--accent', on_accent: '--on-accent', ok: '--green', warn: '--amber', bad: '--red', grey: '--grey', unseen: '--unseen', term_bg: '--term-bg', term_fg: '--term-fg', add_bg: '--add-bg', add_fg: '--add-fg', del_bg: '--del-bg', del_fg: '--del-fg', font_ui: '--font-ui', font_mono: '--font-mono' };
-
+const THEME_VARS = {
+  bg: ['--canvas-deep'], panel: ['--canvas'], panel2: ['--canvas-soft'], line: ['--hairline', '--hairline-strong'], line_strong: ['--hairline-strong'],
+  text: ['--ink', '--body-strong', '--body'], body_strong: ['--body-strong'], body: ['--body'], muted: ['--mute', '--faint'], faint: ['--faint'],
+  accent: ['--primary'], on_accent: ['--on-primary'], ok: ['--work'], warn: ['--wait'], bad: ['--del'], grey: ['--done'], unseen: ['--unseen'],
+  term_bg: ['--pane'], term_fg: ['--term-fg'], add_bg: ['--add-bg'], add_fg: ['--add'], del_bg: ['--del-bg'], del_fg: ['--del'], font_ui: ['--sans'], font_mono: ['--mono'],
+};
+const MONO_STACK = "'Geist Mono', ui-monospace, Consolas, monospace";
 function applyLook(look) {
   ui.look = look;
-  const root = document.documentElement.style;
-  for (const [k, v] of Object.entries(THEME_VARS)) if (look.theme[k]) root.setProperty(v, look.theme[k]);
-  root.setProperty('--blue', look.theme.accent);
-  root.setProperty('--chip-bg', look.theme.panel2);
-  root.setProperty('--rail-w', `${look.ui.rail_width}px`);
-  root.setProperty('--split-w', `${look.ui.split_width}px`);
-  root.colorScheme = look.theme.scheme || 'dark';
+  const root = document.documentElement;
+  for (const vars of Object.values(THEME_VARS)) for (const v of vars) root.style.removeProperty(v);
+  for (const [k, vars] of Object.entries(THEME_VARS)) if (look.theme[k]) for (const v of vars) root.style.setProperty(v, look.theme[k]);
+  root.dataset.look = look.theme.look || 'plain';
+  root.style.colorScheme = look.theme.scheme || 'dark';
   termView.setLook(look);
+}
+
+async function setLook(id) {
+  const theme = await api.setTheme(id);
+  if (!theme) return;
+  applyLook({ ...ui.settingsLook, theme });
+  render();
 }
 
 function short(iso) {
@@ -535,6 +532,9 @@ function shellRows() {
 }
 
 function selectedSession() {
+  const big = wall.big();
+  const onWall = big && [...ui.snap.sessions, ...shellRows()].find((x) => x.id === big);
+  if (onWall) return onWall;
   if (ui.shellSel) { const sh = shellRows().find((x) => x.id === ui.shellSel); if (sh) return sh; }
   const s = ui.snap.sessions;
   return s.find((x) => x.id === ui.snap.selected) || s.find((x) => x.id === ui.localSel) || liveSessions()[0] || null;
@@ -591,20 +591,63 @@ function stepListHtml(steps) {
       const gates = st.gates.map((g) => `<div class="step-gate">${esc(g.summary)}
         ${g.kind === 'handoff' ? `<button class="primary" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Continue</button>`
           : `<button class="primary" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Approve</button><button class="danger" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Reject</button>`}</div>`).join('');
-      return `<div class="s s-${esc(st.status)}" data-step="${esc(st.id)}"><span class="dot ${esc(dot(st.status))}"></span>${esc(st.id)} <span class="meta">${esc(meta)}</span></div>${gates}${err ? `<div class="step-err">${esc(err)}</div>` : ''}`;
+      const view = st.def && PANE_LABELS[st.def.view] && st.status !== 'pending'
+        ? `<button class="link pv" data-action="tab" data-tab="${esc(`pane:${steps.run.id}:${st.id}`)}">${esc(PANE_LABELS[st.def.view])}</button>` : '';
+      return `<div class="s s-${esc(st.status)}" data-step="${esc(st.id)}"><span class="dot ${esc(dot(st.status))}"></span>${esc(st.id)} <span class="meta">${esc(meta)}</span>${view}</div>${gates}${err ? `<div class="step-err">${esc(err)}</div>` : ''}`;
     }).join('')}</div>`;
 }
 
-function gateHtml(g) {
-  return `<div class="gate">
-    <div class="meta">${esc(g.pipeline_id)} · ${esc(g.kind === 'auto-external' ? 'external step' : g.kind)}${g.guards_step ? ` · guards ${esc(g.guards_step)}` : ''}</div>
-    <div class="summary">${esc(g.summary)}</div>
-    <div class="actions">
-      ${g.kind === 'handoff' ? `<button class="primary" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Continue</button>` : `
-      <input placeholder="Note" data-note="${esc(g.id)}" data-key="note:${esc(g.id)}">
-      <button class="primary" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Approve</button>
-      <button class="danger" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Reject</button>`}
-    </div></div>`;
+function gateButtons(g, keys) {
+  const k = (x) => (keys ? ` <kbd>${x}</kbd>` : '');
+  return g.kind === 'handoff'
+    ? `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Continue${k('A')}</button>`
+    : `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Approve${k('A')}</button><button class="btn" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Reject${k('R')}</button>`;
+}
+
+function gateHtml(g, i) {
+  const d = (ui.decided || {})[g.id];
+  const steps = stepsOf(g.run_id);
+  const at = steps ? steps.list.findIndex((x) => x.id === g.step_id) : -1;
+  const pipe = steps ? steps.list.map((x, j) => `<i class="nd${x.def && x.def.kind === 'gate' ? ' g' : ''}${j < at ? ' d' : j === at ? ' c' : ''}" title="${esc(x.id)}"></i>`).join('<b></b>') : '';
+  return `<div class="gate ${i === 0 ? 'cur' : ''}" data-g="${esc(g.id)}">
+    <div class="gt"><span class="dm"></span><b>${esc(g.pipeline_id)}</b><span>${steps ? `step ${at + 1} of ${steps.list.length}` : ''}${g.kind === 'auto-external' ? ' · external step' : ''}</span></div>
+    ${pipe ? `<div class="pipe" aria-hidden="true">${pipe}</div>` : ''}
+    <div class="gs">${esc(g.step_id)}${g.guards_step ? `<span>guards ${esc(g.guards_step)}</span>` : ''}</div>
+    <div class="gd">${esc(g.summary)}</div>
+    <div class="ga">${d ? `<span class="verdict ${d.ok ? 'ok' : 'no'}">${d.ok ? 'Approved' : 'Rejected'}</span>` : `${g.kind === 'handoff' ? '' : `<input placeholder="Note" data-note="${esc(g.id)}" data-key="note:${esc(g.id)}">`}${gateButtons(g, i === 0)}<button class="lnk" data-action="run-open" data-id="${esc(g.run_id)}">Open run</button>`}</div></div>`;
+}
+
+function shownGates() {
+  const list = [...ui.snap.gates];
+  for (const [id, d] of Object.entries(ui.decided || {})) if (!list.some((g) => g.id === id)) list.splice(Math.min(d.i, list.length), 0, d.g);
+  return list;
+}
+
+function renderSheet() {
+  const s = ui.snap;
+  const gates = shownGates();
+  const live = s.gates.filter((g) => !(ui.decided || {})[g.id]);
+  wall.roll(document.getElementById('sheetN'), live.length);
+  document.getElementById('sheetT').textContent = live.length ? `${live.length === 1 ? '1 gate' : `${live.length} gates`} waiting` : 'No gates waiting';
+  const runs = s.runs.filter((r) => !r.parent_run && (r.status === 'running' || r.status === 'paused')).slice(0, 4);
+  setHtml('sheetRuns', runs.map((r) => {
+    const st = stepsOf(r.id);
+    return `<span><b>${esc(r.pipeline_id)}</b> step ${st ? `${Math.min(st.at, st.list.length)}/${st.list.length}` : '?'}, <span class="rs ${r.status === 'running' ? 'go' : ''}">${esc(r.status)}</span></span>`;
+  }).join(''));
+  setHtml('sheetAct', live[0] ? gateButtons(live[0], true) : '');
+  setHtml('gates', gates.length ? gates.map(gateHtml).join('') : '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">All gates cleared. Runs are moving.</div>');
+}
+
+async function resolveGate(id, decision) {
+  const g = ui.snap.gates.find((x) => x.id === id);
+  if (!g || (ui.decided || {})[id]) return;
+  const note = document.querySelector(`[data-note="${CSS.escape(id)}"]`);
+  const params = { gate_id: id, decision, action_hash: g.action_hash };
+  if (note && note.value) params.note = note.value;
+  (ui.decided ||= {})[id] = { g, ok: decision === 'approve', i: ui.snap.gates.indexOf(g) };
+  for (const card of document.querySelectorAll(`.gate[data-g="${CSS.escape(id)}"]`)) wall.verdict(card, decision === 'approve');
+  const r = await rpc('gate.resolve', params);
+  setTimeout(() => { delete ui.decided[id]; render(); }, r.error ? 0 : 900);
 }
 
 function resumeButton(x) {
@@ -614,55 +657,78 @@ function resumeButton(x) {
     : `<button data-action="resume" data-id="${esc(x.id)}" title="Start ${esc(x.engine_id)} in the same folder">Start new here</button>`;
 }
 
+const STATE_ORDER = ['waiting_for_you', 'working', 'starting', 'unknown', 'done', 'idle', 'exited'];
+
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
-  const asking = x.state === 'waiting_for_you';
-  const lines = [];
-  if (g && g.branch) lines.push(`<div class="sub">${esc(g.branch)} <span class="add">+${g.added}</span> <span class="del">-${g.deleted}</span></div>`);
-  if (x.last_line) lines.push(`<div class="sub${asking ? ' asking' : ''}" title="${esc(x.last_line)}">${esc(x.last_line)}</div>`);
-  const steps = sel && x.run_id ? stepsOf(x.run_id) : null;
-  const stepList = steps ? stepListHtml(steps) : '';
-  return `<div class="srow${sel ? ' on' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Drop files here to send their paths to this session">
-    <div class="top-line"><span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span>${esc(x.engine_id)} <span class="task">${esc(taskOf(x))}</span>
-      <span class="when" data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span><button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button></div>
-    ${lines.join('')}${x.state === 'exited' ? `<div class="sub">${resumeButton(x)}</div>` : ''}</div>${stepList}`;
+  const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
+  return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Click: big slot. Shift+click: pair. Drop files to send their paths.">
+    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span><button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button></span>
+    <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
 
-function renderRail(sel) {
+function limitGroups() {
+  const by = new Map();
+  for (const r of ui.snap.limits || []) by.set(r.provider, [...(by.get(r.provider) || []), r]);
+  return [...by].map(([provider, list]) => ({ provider, ok: list.filter((r) => r.status === 'ok' && r.used_pct !== null) }));
+}
+
+function limitRows(cls) {
+  const groups = limitGroups();
+  if (!groups.length) return `<div class="${cls} na"><span class="e">usage</span><span class="nav">No local usage readings yet.</span></div>`;
+  return groups.map((u) => !u.ok.length
+    ? `<div class="${cls} na"><span class="e">${esc(u.provider)}</span><span class="nav">No local source for this provider's limits</span></div>`
+    : `<div class="${cls}"><span class="e">${esc(u.provider)}</span>${u.ok.map((r) => `<div class="${cls === 'u' ? 'r' : 'ul'}"><span>${esc(r.window === 'weekly' ? 'wk' : r.window)}</span><div class="bar"><i style="width:${Math.round(r.used_pct)}%"></i></div><span class="v">${Math.round(r.used_pct)}%${cls === 'u' && r.resets_at ? ` · ${esc(untilText(r.resets_at).replace('resets in ', ''))}` : ''}</span>${cls === 'u' ? '' : `<span class="rs">${r.resets_at ? esc(untilText(r.resets_at).replace('resets in ', '')) : ''}</span>`}</div>`).join('')}</div>`).join('');
+}
+
+function renderTitle() {
   const s = ui.snap;
   const age = s.core.heartbeat_age_ms;
-  setHtml('core', s.core.online ? '<span class="dot green" title="Core online"></span>'
-    : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">offline</span>`);
+  setHtml('core', s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
+    : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`);
   setHtml('project-pick', s.projects.length
     ? s.projects.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.projectId ? 'selected' : ''} title="${esc(p.path)}">${esc(p.name)}</option>`).join('')
     : '<option value="">No project</option>');
-  const needs = s.needs_you.filter((n) => !['gate', 'handoff', 'done', 'failed'].includes(n.kind));
-  setHtml('gates', s.gates.length || needs.length ? `<div class="head">Needs you</div>${s.gates.map(gateHtml).join('')}${needs.map((n) => `<div class="gate need">
-      <div class="meta">${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></div><div>${esc(n.text)}</div>
-      <div class="actions"><button data-action="dismiss" data-id="${esc(n.id)}">Dismiss</button></div></div>`).join('')}` : '');
-  const shells = shellRows();
-  setHtml('sessions', (s.sessions.length ? `<div class="head">Agents</div>${s.sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}` : '')
-    + (shells.length ? `<div class="head">Shells</div>${shells.map((x) => `<div class="srow${sel && sel.id === x.id ? ' on' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
-        <div class="top-line"><span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span>${esc(x.engine_id)} <span class="task">${esc(x.task)}</span>
-        <button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell">x</button></div></div>`).join('')}` : ''));
-  setHtml('launch', project() ? `<span class="label">New</span>${s.engines.map((e) => `<button data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="Start ${esc(e.id)} in this project">${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '');
+  wall.roll(document.getElementById('needsN'), needsCount());
+  const groups = limitGroups();
+  const hot = groups.some((u) => u.ok.some((r) => r.used_pct >= 80));
+  setHtml('usage', `<button class="chip uchip${hot ? ' warn' : ''}" data-action="list" title="Usage">${groups.length ? groups.map((u) => {
+    const r = u.ok[0];
+    return r ? `<span>${esc(u.provider)} <span class="mini"><i style="width:${Math.round(r.used_pct)}%"></i></span>${Math.round(r.used_pct)}%</span>` : `<span class="na">${esc(u.provider)} n/a</span>`;
+  }).join('') : '<span class="na">usage n/a</span>'}</button>
+    <div class="pop" role="tooltip"><h4><span>Usage</span><span>% used · resets in</span></h4>${limitRows('urow')}</div>`);
+  const eng = s.engines.filter((e) => e.light !== 'red');
+  const def = eng.find((e) => e.id === load('engine')) || eng[0];
+  setHtml('newagent', project() ? `${def ? `<span class="nsplit"><button class="btn acc" data-action="launch" data-engine="${esc(def.id)}" title="Start ${esc(def.id)} in this project">+ ${esc(def.id)}</button><button class="btn acc" data-action="launch-menu" title="Pick engine">v</button></span>` : ''}
+    ${ui.shellKinds.map((k) => `<button class="ib" data-action="shell-open" data-kind="${esc(k.kind)}" title="New ${esc(k.label)} tab">${esc(k.label)}</button>`).join('')}` : '');
 }
 
-function renderTermHead(sel) {
-  if (sel && sel.shell && ui.mode !== 'grid') {
-    setHtml('term-head', `<span class="dot idle"></span><b>${esc(sel.engine_id)}</b><span class="what">${esc(sel.task)}</span><span class="grow"></span><button data-action="mode" title="Ctrl+G">Grid</button>`);
-    return;
-  }
-  if (!sel || ui.mode === 'grid') {
-    setHtml('term-head', ui.mode === 'grid' ? `<b>All agents</b><span class="what">${liveSessions().length} live</span><span class="grow"></span><button data-action="mode" title="Ctrl+G">One terminal</button>` : '');
-    return;
-  }
-  setHtml('term-head', `<span class="dot ${esc(sel.state)}${unseen(sel) ? ' unseen' : ''}"></span><b>${esc(sel.engine_id)}</b>
-    <span class="what">${esc(taskOf(sel))} · ${esc(STATE_WORDS[sel.state] || sel.state)}</span><span class="grow"></span>
-    ${sel.state === 'exited' ? resumeButton(sel) : ''}
-    <button data-action="mode" title="Ctrl+G">Grid</button>
-    <button data-action="tab" data-tab="diff" title="Show what this agent changed">Diff</button>
-    <button data-action="tab" data-tab="handback" title="The command to commit these changes">Hand back</button>`);
+function needsCount() {
+  const s = ui.snap;
+  return s.gates.length + s.sessions.filter((x) => x.state === 'waiting_for_you').length + s.needs_you.filter((n) => !n.read_at && !['gate', 'handoff'].includes(n.kind)).length;
+}
+
+function renderList(sel) {
+  const s = ui.snap;
+  const shells = shellRows();
+  const sessions = [...s.sessions].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
+  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${s.sessions.length} sessions</span><button class="ib" data-action="list" title="Close (Ctrl+B)">x</button></div>
+    <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="Start ${esc(e.id)} in this project">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
+    <div class="lbody" id="sessions">
+      ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
+      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
+        <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
+      ${s.runs.some((r) => !r.parent_run) ? `<div class="lsec">Runs</div>${s.runs.filter((r) => !r.parent_run).slice(0, 8).map((r) => {
+        const st = stepsOf(r.id);
+        return `<div class="run1" data-action="run-open" data-id="${esc(r.id)}">${esc(r.pipeline_id)} <span class="st">step ${st ? `${Math.min(st.at, st.list.length)}/${st.list.length}` : '?'}</span><span class="w ${r.status === 'running' ? 'go' : ''}">${esc(r.status)}</span></div>`;
+      }).join('')}` : ''}
+    </div>
+    <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
+}
+
+function renderRunbox(sel) {
+  const steps = sel && sel.run_id && ui.mode !== 'grid' ? stepsOf(sel.run_id) : null;
+  setHtml('runbox', steps ? stepListHtml(steps) : '');
 }
 
 function renderStart() {
@@ -739,13 +805,13 @@ function renderDiffTab(sel) {
 function renderStrip(sel) {
   const s = ui.snap;
   const needs = s.needs_you.filter((n) => !n.read_at).length + s.sessions.filter((x) => x.state === 'waiting_for_you').length;
-  const steps = sel && sel.run_id ? stepsOf(sel.run_id) : null;
   const working = s.sessions.filter((x) => x.state === 'working').length;
-  setHtml('strip', `${needs ? `<span class="needs" data-action="inbox"><span class="dot waiting_for_you"></span> ${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">nothing waiting</span>'}
-    ${steps ? `<span>${esc(steps.run.pipeline_id)} <b>step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}</b></span>` : ''}
-    <span>${working} working</span><span class="grow"></span>
-    <span class="usage-bar">${usageBar(s.limits || [])}</span>
-    <button class="link" data-action="palette" title="Command palette">Ctrl+K</button>`);
+  const d = ui.sdiff && ui.sdiff.data;
+  const n = d && d.files ? d.files.length + d.untracked.length : 0;
+  setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox"><span class="dot waiting_for_you"></span>${needs}</span>` : '<span class="link" data-action="inbox" title="Inbox">0</span>');
+  setHtml('strip-info', sel ? `${esc(sel.engine_id)} · ${esc(sel.task || taskOf(sel))} · ${working} working` : `${working} working`);
+  document.getElementById('diffN').textContent = n ? ` ${n}` : '';
+  for (const b of document.querySelectorAll('#strip [data-action="tab"]')) b.classList.toggle('on', ui.split && ui.tab === b.dataset.tab);
 }
 
 function renderInbox() {
@@ -775,35 +841,57 @@ function paletteItems() {
   items.push({ group: 'Actions', label: 'Open a browser pane', run: async () => { const r = await rpc('pane.open', { project_id: ui.projectId }); if (r.result) { ui.paneId = r.result.pane_id; openTab('browser'); } } });
   items.push({ group: 'Actions', label: 'Open a project folder', run: openFolder });
   for (const [id, label] of TABS) items.push({ group: 'Panels', label, run: () => openTab(id) });
-  for (const t of (ui.look && ui.look.themes) || []) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look.theme.name === t.id ? 'current' : '', run: async () => { const theme = await api.setTheme(t.id); if (theme) applyLook({ ...ui.look, theme }); render(); } });
+  items.push({ group: 'Actions', label: 'Toggle the agent list', meta: 'Ctrl+B', run: () => wall.setList(!wall.listOpen()) });
+  items.push({ group: 'Actions', label: 'Show gates', meta: 'A', run: () => wall.setSheet(true) });
+  const eq = document.body.classList.contains('ind-eq');
+  items.push({ group: 'Actions', label: eq ? 'Working indicator: sparkline' : 'Working indicator: equaliser', run: () => { document.body.classList.toggle('ind-eq', !eq); document.body.classList.toggle('ind-spark', eq); save('ind', eq ? 'spark' : 'eq'); } });
+  const themes = (ui.settingsLook && ui.settingsLook.themes) || [];
+  for (const t of themes) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look && ui.look.theme.name === t.id ? 'current' : '', run: () => setLook(t.id) });
   return items;
 }
+
+const ICONS = {
+  Agents: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"><rect x="1.5" y="3.5" width="11" height="8" rx="2"/><path d="M5 7h.01M9 7h.01M7 1v2.5" stroke-linecap="round" stroke-width="1.6"/></svg>',
+  'Needs you': '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M7 1.5l5.5 5.5L7 12.5 1.5 7z"/></svg>',
+  Run: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"><circle cx="3" cy="7" r="1.8"/><circle cx="11" cy="7" r="1.8"/><path d="M4.8 7h4.4"/></svg>',
+};
+const CMD_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"><path d="M2 4l3 3-3 3M7 10.5h5"/></svg>';
 
 function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
   const all = paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q));
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
+  const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
   let last = '';
   document.getElementById('palette-list').innerHTML = all.map((x, i) => {
-    const head = x.group !== last ? `<div class="group">${esc(x.group)}</div>` : '';
+    const head = x.group !== last ? `<div class="rg">${esc(x.group)}</div>` : '';
     last = x.group;
-    return `${head}<div class="item${i === ui.paletteAt ? ' on' : ''}" data-palette="${i}">${esc(x.label)}${x.meta ? `<span class="meta">${esc(x.meta)}</span>` : ''}</div>`;
-  }).join('') || '<p class="empty" style="padding:6px 14px">No match.</p>';
+    return `${head}<button class="ri${i === ui.paletteAt ? ' cur' : ''}" data-palette="${i}"><span class="ic">${ICONS[x.group] || CMD_ICON}</span><span class="lab">${hl(x.label)}</span>${x.meta ? `<span class="sub">${esc(x.meta)}</span>` : ''}</button>`;
+  }).join('') || '<div class="rg">No matches</div>';
+  const cur = document.querySelector('#palette-list .ri.cur');
+  if (cur) cur.scrollIntoView({ block: 'nearest' });
 }
 
 function openPalette() {
   const el = document.getElementById('palette');
-  el.hidden = false;
   const input = document.getElementById('palette-input');
-  input.value = '';
-  ui.paletteAt = 0;
-  renderPalette();
+  if (el.hidden) {
+    el.hidden = false;
+    input.value = '';
+    ui.paletteAt = 0;
+    wall.openSearch();
+    renderPalette();
+  }
   input.focus();
 }
 
 function closePalette() {
   document.getElementById('palette').hidden = true;
+  const input = document.getElementById('palette-input');
+  input.value = '';
+  input.blur();
+  wall.closeSearch();
 }
 
 async function runPalette(i) {
@@ -834,6 +922,7 @@ function setMode(mode) {
 function selectShell(id) {
   ui.shellSel = id;
   ui.mode = 'single';
+  wall.promote(id);
   render(true);
 }
 
@@ -850,19 +939,38 @@ async function pick(id) {
   ui.mode = 'single';
   save('mode', 'single');
   await rpc('session.focus', { session_id: id }, true);
+  wall.promote(id);
   render(true);
+}
+
+function onTilePick(id, e) {
+  if (wall.toggleOpen(id) || wall.isBig(id)) return;
+  if (e && e.shiftKey) { wall.pair(id); return; }
+  if (id.startsWith('sh_')) selectShell(id); else void pick(id);
+}
+
+function tileMeta(x) {
+  const g = (ui.snap.git || {})[x.id];
+  const parts = [];
+  if (g && g.branch) parts.push(`${g.branch} +${g.added} -${g.deleted}`);
+  if (x.tokens !== null && x.tokens !== undefined) parts.push(`${x.tokens.toLocaleString('en-US')} tok`);
+  return parts.join('  ');
 }
 
 function render(focus = false) {
   if (!ui.snap) return;
-  const sel = selectedSession();
   document.body.classList.toggle('no-split', !ui.split);
-  renderRail(sel);
-  renderTermHead(sel);
+  const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
+    .map((x) => ({ id: x.id, engine_id: x.engine_id, state: x.state, shell: Boolean(x.shell), task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : STATE_WORDS[x.state] || x.state }));
+  const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
+  const sel = selectedSession();
+  renderTitle();
+  renderList(sel);
   renderStart();
-  const shown = [...ui.snap.sessions, ...shellRows()].filter((x) => ui.mode === 'grid' ? x.state !== 'exited' : true)
-    .map((x) => ({ id: x.id, engine_id: x.engine_id, state: x.state, task: x.shell ? x.task : taskOf(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : STATE_WORDS[x.state] || x.state }));
-  termView.show({ mode: ui.mode, selected: sel ? sel.id : null, sessions: project() ? shown : [], onPick: (id) => (id.startsWith('sh_') ? selectShell(id) : void pick(id)), onExit: (id) => { const sh = ui.shells.find((x) => x.id === id); if (sh) { sh.exited = true; render(); } }, focus });
+  renderRunbox(sel);
+  termView.show({ mode: ui.mode, selected: big, sessions: shown, onPick: onTilePick, onOutput: wall.output, onExit: (id) => { const sh = ui.shells.find((x) => x.id === id); if (sh) { sh.exited = true; render(); } }, focus });
+  wall.apply(ui.mode);
+  renderSheet();
   renderTabs();
   let html;
   if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
@@ -944,13 +1052,51 @@ async function onClick(e) {
   const el = e.target.closest('[data-action]');
   if (!el || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
   const a = el.dataset.action;
-  const id = el.dataset.id;
+  const id = el.dataset.id || (el.closest('.tile') ? el.closest('.tile').dataset.id : undefined);
   if (a !== 'seen') e.stopPropagation();
   switch (a) {
+    case 'list':
+      wall.setList(!wall.listOpen());
+      return;
+    case 'sheet':
+      wall.setSheet(!wall.sheetOpen());
+      return;
+    case 'open-panel':
+      await openTab(el.dataset.tab);
+      return;
+    case 'pair':
+      wall.pair(id);
+      return;
+    case 'unpair':
+      wall.unpair();
+      return;
+    case 'resume-tile': {
+      const r = await rpc('session.resume', { session_id: id });
+      if (r.result) await pick(r.result.session_id);
+      return;
+    }
+    case 'run-open':
+      wall.setList(false);
+      ui.runId = id;
+      setView();
+      await refreshLog();
+      await openTab('runs');
+      return;
+    case 'launch-menu': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      menu.innerHTML = ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ' (not ready)' : ''}</div>`).join('');
+      menu.style.left = `${Math.max(8, r.right - 160)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
     case 'open-folder':
       await openFolder();
       return;
     case 'pick':
+      wall.setList(false);
+      if (e.shiftKey && !wall.isBig(id)) { wall.pair(id); return; }
       await pick(id);
       return;
     case 'mode':
@@ -981,7 +1127,7 @@ async function onClick(e) {
       document.getElementById('inbox').hidden = true;
       if (!n) return;
       if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
-      else { await rpc('needs_you.mark-read', { id }, true); document.getElementById('gates').scrollIntoView({ block: 'start' }); }
+      else { await rpc('needs_you.mark-read', { id }, true); wall.setSheet(true); }
       return;
     }
     case 'resume': {
@@ -1033,6 +1179,9 @@ async function onClick(e) {
       await rpc('engines.check', {});
       return;
     case 'launch': {
+      document.getElementById('menu').hidden = true;
+      wall.setList(false);
+      save('engine', el.dataset.engine);
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
       if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for MetaTrooper: ${r.result.setup.join(', ')}`);
       if (r.result) await pick(r.result.session_id);
@@ -1042,6 +1191,7 @@ async function onClick(e) {
       await openShell(el.dataset.kind);
       return;
     case 'pick-shell':
+      wall.setList(false);
       selectShell(id);
       return;
     case 'shell-close':
@@ -1166,15 +1316,9 @@ async function onClick(e) {
       await rpc('run.resume', params);
       return;
     }
-    case 'gate': {
-      const g = ui.snap.gates.find((x) => x.id === id);
-      if (!g) return;
-      const note = document.querySelector(`[data-note="${CSS.escape(id)}"]`);
-      const params = { gate_id: id, decision: el.dataset.decision, action_hash: g.action_hash };
-      if (note && note.value) params.note = note.value;
-      await rpc('gate.resolve', params);
+    case 'gate':
+      await resolveGate(id, el.dataset.decision);
       return;
-    }
     case 'pane':
       ui.paneId = id;
       ui.browserMode = 'live';
@@ -1429,15 +1573,16 @@ api.onSnapshot(async (s) => {
 document.addEventListener('click', (e) => {
   const item = e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
-  if (!document.getElementById('palette').hidden && !e.target.closest('#palette')) closePalette();
+  if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
   if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
   if (!document.getElementById('inbox').hidden && !e.target.closest('#inbox') && !e.target.closest('[data-action="inbox"]')) document.getElementById('inbox').hidden = true;
   void onClick(e);
 });
 document.addEventListener('contextmenu', (e) => {
-  const row = e.target.closest && e.target.closest('.srow');
+  const row = e.target.closest && e.target.closest('.srow, .tile-head');
   const menu = document.getElementById('menu');
-  if (!row) { menu.hidden = true; return; }
+  if (row && !row.dataset.id) row.dataset.id = row.closest('.tile').dataset.id;
+  if (!row || row.dataset.id.startsWith('sh_')) { menu.hidden = true; return; }
   e.preventDefault();
   const id = row.dataset.id;
   menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div><div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>`;
@@ -1479,7 +1624,7 @@ document.addEventListener('drop', async (e) => {
   const onTerm = e.target.closest && e.target.closest('#centre .tile');
   if (onTerm && e.dataTransfer.files.length) {
     const paths = api.filePaths(e.dataTransfer.files).map((p) => (/[\s"]/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p));
-    termView.type(paths.join(' ') + ' ');
+    termView.type(paths.join(' ') + ' ', onTerm.dataset.id);
     return;
   }
   for (const c of document.querySelectorAll('.srow.drop')) c.classList.remove('drop');
@@ -1498,8 +1643,19 @@ document.addEventListener('keydown', (e) => {
     else if (e.key === 'Enter') { e.preventDefault(); void runPalette(ui.paletteAt || 0); }
     return;
   }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
-  if (ui.tab !== 'browser' || typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape') {
+    if (wall.sheetOpen()) wall.setSheet(false);
+    else if (wall.listOpen()) wall.setList(false);
+    else if (ui.split) { ui.split = false; render(); }
+    return;
+  }
+  const live = ui.snap ? ui.snap.gates.filter((g) => !(ui.decided || {})[g.id]) : [];
+  if (e.key === 'a' || e.key === 'A') { if (!wall.sheetOpen()) wall.setSheet(true); else if (live[0]) void resolveGate(live[0].id, 'approve'); return; }
+  if ((e.key === 'r' || e.key === 'R') && wall.sheetOpen() && live[0] && live[0].kind !== 'handoff') { void resolveGate(live[0].id, 'reject'); return; }
+  if (ui.tab !== 'browser' || !ui.split) return;
   if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
   if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {
     e.preventDefault();
@@ -1524,6 +1680,13 @@ document.addEventListener('change', onInput);
 document.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT') onInput(e); });
 observeLongTasks();
 setInterval(tickAges, 5000);
-void api.uiSettings().then((look) => { applyLook(look); render(); });
+document.getElementById('palette-input').addEventListener('focus', openPalette);
+if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
+const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
+void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
+  ui.settingsLook = look;
+  applyLook(look);
+  render();
+});
 void rpc('shell.list', {}, true).then((r) => { if (r.result) { ui.shellKinds = r.result.shells; render(); } });
 setView();

@@ -1,40 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-look="dither">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <title>MetaTrooper</title>
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <link rel="stylesheet" href="wall.css">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <aside class="rail">
-    <div class="rail-top">
-      <select id="project-pick" data-action="project-pick" title="Project"></select>
-      <button class="link" data-action="open-folder" title="Open a project folder">Open</button>
-      <span id="core"></span>
-    </div>
-    <div id="gates"></div>
-    <div id="sessions" class="sessions"></div>
-    <div id="launch" class="launch"></div>
-  </aside>
+<body class="ind-spark">
+  <header class="title">
+    <button class="ib" id="listBtn" data-action="list" title="Agent list (Ctrl+B)" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+    <span class="brand" id="brand"><svg width="16" height="16" viewBox="0 0 16 16"><g fill="var(--done)"><circle cx="10" cy="2" r="1.35"/><circle cx="14" cy="2" r="1.35"/><circle cx="10" cy="6" r="1.35"/><circle cx="14" cy="6" r="1.35"/><circle cx="2" cy="10" r="1.35"/><circle cx="6" cy="10" r="1.35"/><circle cx="14" cy="10" r="1.35"/><circle cx="2" cy="14" r="1.35"/><circle cx="6" cy="14" r="1.35"/><circle cx="10" cy="14" r="1.35"/></g><g fill="var(--ink)"><circle cx="2" cy="2" r="1.35"/><circle cx="6" cy="2" r="1.35"/><circle cx="2" cy="6" r="1.35"/><circle cx="6" cy="6" r="1.35"/><circle cx="10" cy="10" r="1.35"/><circle cx="14" cy="14" r="1.35"/></g></svg><b>MetaTrooper</b></span>
+    <span class="crumb"><span>/</span><select id="project-pick" class="proj" data-action="project-pick" title="Project"></select><button class="link" data-action="open-folder" title="Open a project folder">Open</button><span id="core" class="core"></span></span>
+    <button class="chip needs" data-action="inbox"><span class="n roll" id="needsN"><span>0</span></span>need you</button>
+    <span class="sp"></span>
+    <span class="usage" id="usage"></span>
+    <span class="vsep"></span>
+    <span id="newagent" class="newagent"></span>
+  </header>
 
-  <main class="work">
-    <header id="term-head" class="term-head"></header>
-    <div id="centre" class="centre"></div>
-    <div id="start" class="start" hidden></div>
-  </main>
+  <main id="centre" class="wall"></main>
+  <div id="start" class="start" hidden></div>
+  <div id="runbox" class="runbox"></div>
+  <footer id="strip" class="strip"><span id="strip-needs"></span><span id="strip-info" class="task"></span><button class="btn" data-action="tab" data-tab="diff">Diff<span class="n" id="diffN"></span></button><button class="btn" data-action="tab" data-tab="handback">Hand-back</button><button class="btn" data-action="tab" data-tab="browser">Browser</button><button class="btn" data-action="tab" data-tab="runs">Runs</button><button class="btn" data-action="tab" data-tab="pipelines">Pipelines</button><button class="btn" data-action="palette" title="Search (Ctrl+K)">K</button></footer>
 
   <section class="side-split" id="split">
     <nav class="tabs" id="tabs"></nav>
     <div id="view" class="view"></div>
   </section>
 
-  <footer id="strip" class="strip"></footer>
+  <div class="scrim" data-action="list"></div>
+  <aside class="alist" id="list" aria-label="Agents"></aside>
+  <section class="sheet" id="sheet"><div class="tab" id="sheet-tab" data-action="sheet" aria-expanded="false"><span class="n roll" id="sheetN"><span>0</span></span><span class="t" id="sheetT"></span><span class="runs" id="sheetRuns"></span><span class="ga" id="sheetAct"></span><span class="chev"><svg width="10" height="10"><path d="M2 6.5L5 3.5 8 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span></div><div class="gates" id="gates"></div></section>
 
-  <div id="palette" class="palette" hidden>
-    <input id="palette-input" placeholder="Switch agent, run an action, open a tab, change theme" autocomplete="off" spellcheck="false">
-    <div id="palette-list" class="palette-list"></div>
+  <div class="search" id="search" role="search">
+    <div class="sbar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg><input id="palette-input" placeholder="Search agents, gates, commands" autocomplete="off" spellcheck="false"><kbd>Ctrl</kbd><kbd>K</kbd></div>
+    <div id="palette" class="palette" hidden>
+      <div id="palette-list" class="res palette-list"></div>
+      <div class="sfoot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
   </div>
 
   <div id="inbox" class="inbox" hidden><div class="head">Inbox</div><div id="inbox-list" class="palette-list"></div></div>
@@ -42,9 +48,11 @@
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
   <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="vendor/gsap.min.js"></script>
   <script src="diff.js"></script>
   <script src="terminal.js"></script>
   <script src="panes.js"></script>
+  <script src="wall.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

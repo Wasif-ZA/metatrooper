@@ -10,9 +10,11 @@
     "base_branch": { "type": "text", "label": "Base branch", "required": false, "default": "main" }
   },
   "budget": { "max_minutes": 120 },
+  "layout": "pr-first",
   "steps": [
     {
       "id": "spec",
+      "layout": "artifact-columns",
       "title": "Write the spec",
       "role": "plan",
       "kind": "agent",
@@ -21,6 +23,7 @@
     },
     {
       "id": "approve-spec",
+      "layout": "artifact-columns",
       "title": "Approve the spec",
       "kind": "gate",
       "gate": "approve",
@@ -28,6 +31,7 @@
     },
     {
       "id": "build",
+      "layout": "agent-split",
       "title": "Build it on a new branch",
       "role": "worker",
       "kind": "agent",
@@ -37,6 +41,7 @@
     },
     {
       "id": "verify",
+      "layout": "run-log",
       "title": "Run the tests",
       "role": "verify",
       "kind": "action",
@@ -45,6 +50,7 @@
     },
     {
       "id": "approve-pr",
+      "layout": "pr-first",
       "title": "Approve opening the pull request",
       "kind": "gate",
       "gate": "approve",
@@ -52,6 +58,7 @@
     },
     {
       "id": "open-pr",
+      "layout": "pr-first",
       "title": "Push and open the pull request",
       "role": "publish",
       "kind": "action",

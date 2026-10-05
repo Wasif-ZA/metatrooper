@@ -11,7 +11,7 @@ export interface Snapshot {
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean }>;
   sessions: Array<{ id: string; engine_id: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
-  pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown>; step_defs: StepDef[] }>;
+  pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown>; layout: string | null; background: boolean; step_defs: StepDef[] }>;
   runs: Array<{ id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string; ended_at: string | null; depth: number; parent_run: string | null }>;
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
   gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string }>;
@@ -32,17 +32,18 @@ export function light(check: { installed: number; auth: string } | null | undefi
   return check.auth === 'ok' ? 'green' : 'grey';
 }
 
-const fileCache = new Map<string, { title: string; inputs: Record<string, unknown> }>();
+const fileCache = new Map<string, PipelineFile>();
 
-type StepDef = { id: string; kind: string; gate?: string; fanout?: number; loop_max?: number; view?: string };
+type StepDef = { id: string; kind: string; gate?: string; fanout?: number; loop_max?: number; view?: string; layout: string | null };
+type PipelineFile = { title: string; inputs: Record<string, unknown>; layout: string | null; background: boolean; step_defs: StepDef[] };
 
-function pipelineFile(path: string, version: number, id: string): { title: string; inputs: Record<string, unknown>; step_defs: StepDef[] } {
+function pipelineFile(path: string, version: number, id: string): PipelineFile {
   const key = `${path}:${version}`;
   let hit = fileCache.get(key);
   if (!hit) {
     const json = (() => {
       try {
-        return JSON.parse(fs.readFileSync(path, 'utf8')) as { title?: unknown; inputs?: unknown; steps?: unknown };
+        return JSON.parse(fs.readFileSync(path, 'utf8')) as { title?: unknown; inputs?: unknown; steps?: unknown; layout?: unknown; background?: unknown };
       } catch {
         return {};
       }
@@ -51,7 +52,9 @@ function pipelineFile(path: string, version: number, id: string): { title: strin
     hit = {
       title: typeof json.title === 'string' ? json.title : id,
       inputs: json.inputs && typeof json.inputs === 'object' ? (json.inputs as Record<string, unknown>) : {},
-      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max, view: s.view })),
+      layout: typeof json.layout === 'string' ? json.layout : null,
+      background: json.background === true,
+      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max, view: s.view, layout: typeof s.layout === 'string' ? s.layout : null })),
     };
     fileCache.set(key, hit);
   }
