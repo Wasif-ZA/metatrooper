@@ -16,6 +16,7 @@ import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
 import { startDevServer, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
+import * as term from '../terminal/index.ts';
 import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
 
 const POLL_MS = 500;
@@ -237,6 +238,7 @@ export class Runner {
       this.db.prepare("UPDATE gate SET status = 'rejected', decided_at = ?, note = 'run cancelled' WHERE run_id = ? AND status = 'waiting'").run(nowIso(), run.id);
       this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND (ref = ? OR ref IN (SELECT id FROM gate WHERE run_id = ?))").run(nowIso(), run.id, run.id);
       for (const [k, child] of this.children) if (k.startsWith(`${run.id}/`)) killTree(child);
+      for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) term.kill(s.id);
     }
     stopRunServers(this.db, run.id);
     this.log(run, { event: `run ${status}` });
