@@ -21,21 +21,33 @@ test('serve rejects during and accepts before, after, and the default', () => {
   assert.ok(validatePipeline(pipeline('during'), context).some(e => /serve/.test(e)));
 });
 
-for (const mode of ['before', undefined]) {
-  test(`agent fetch gets ${mode ? '200 with serve before' : 'ECONNREFUSED with default serve after'}`, async () => {
+for (const mode of ['before']) {
+  test('agent fetch gets 200 with serve before', async () => {
     const h = await revisionHarness('website-build', capturingEngine);
     try {
       const runId = await h.pipeline(pipeline(mode));
       await runDone(h, runId);
       const row = h.db.prepare('SELECT outputs FROM run_step WHERE run_id=? AND step_id=?').get(runId, 'probe');
-      assert.equal(JSON.parse(row.outputs as string).probe, mode ? 200 : 'ECONNREFUSED');
+      assert.equal(JSON.parse(row.outputs as string).probe, 200);
       assert.ok(readdirSync(join(h.iso.home, 'listener-pids')).length > 0);
     } finally { await h.close(); }
   });
 }
 
+test('agent runs before its own server with serve after', async () => {
+  const h = await revisionHarness('website-build', capturingEngine.replace("const {port} = db.prepare", "const serverBeforeProbe = db.prepare('SELECT 1 FROM dev_server WHERE run_id=(SELECT run_id FROM run_step WHERE session_id=?) AND idx=0').get(process.env.TROOP_SESSION_ID);\n    writeFileSync(join(captures, 'server-before-probe.json'), JSON.stringify({started: Boolean(serverBeforeProbe)}));\n    const {port} = db.prepare"));
+  try {
+    const runId = await h.pipeline(pipeline('after'));
+    await runDone(h, runId);
+    const serverCheck = JSON.parse(readFileSync(join(h.iso.home, 'captures', 'server-before-probe.json'), 'utf8')) as { started: boolean };
+    const server = h.db.prepare('SELECT started_at FROM dev_server WHERE run_id=? AND idx=0').get(runId) as { started_at: string } | undefined;
+    assert.ok(server, 'serve after should start this run’s server after the agent step');
+    assert.equal(serverCheck.started, false, 'this run’s server must not exist when its agent probes');
+  } finally { await h.close(); }
+});
+
 test('serve before fails a non-answering server without starting its agent', { timeout: 120000 }, async () => {
-  const h = await revisionHarness('website-build', capturingEngine);
+  const h = await revisionHarness('website-build', capturingEngine.replace("const {port} = db.prepare", "const serverBeforeProbe = db.prepare('SELECT 1 FROM dev_server WHERE run_id=(SELECT run_id FROM run_step WHERE session_id=?) AND idx=0').get(process.env.TROOP_SESSION_ID);\n    writeFileSync(join(captures, 'server-before-probe.json'), JSON.stringify({started: Boolean(serverBeforeProbe)}));\n    const {port} = db.prepare"));
   try {
     writeFileSync(join(h.project, 'serve.js'), 'import {createServer} from "node:http"; console.log("intentionally never answers"); createServer(() => {}).listen(Number(process.argv[process.argv.indexOf("--port") + 1]), "127.0.0.1");');
     const runId = await h.pipeline(pipeline('before'));

@@ -37,10 +37,17 @@ export function setTermHooks(h: TermHooks): void {
   hooks = h;
 }
 
+/** Session identity a parent Claude Code passes down; an agent that inherits it runs as that session's child and saves no transcript. */
+export const PARENT_SESSION_ENV = new Set([
+  'CLAUDECODE', 'CLAUDE_PID', 'CLAUDE_EFFORT', 'CLAUDE_PLUGIN_DATA',
+  'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_BRIDGE_SESSION_ID',
+  'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_SSE_PORT', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_EXECPATH',
+]);
+
 export function open(id: string, argv: string[], cwd: string, env: Record<string, string | undefined>, cols = settings().terminal.cols, rows = settings().terminal.rows): number {
   if (terms.has(id)) throw new Error(`terminal ${id} already open`);
   const cleanEnv: Record<string, string> = {};
-  for (const [k, v] of Object.entries(env)) if (v !== undefined) cleanEnv[k] = v;
+  for (const [k, v] of Object.entries(env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase())) cleanEnv[k] = v;
   const proc = pty.spawn(argv[0], argv.slice(1), { name: 'xterm-256color', cols, rows, cwd, env: cleanEnv, useConpty: true });
   const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true });
   const ser = new SerializeAddon();
