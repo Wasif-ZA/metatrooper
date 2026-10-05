@@ -268,6 +268,12 @@ terminal pipe; you type into it in place. One tile holds the big slot and the re
   Each gate card draws its run's steps as a pipe, with Approve, Reject and Open run. A opens the sheet, then
   approves the top gate. R rejects it.
 - **Esc** closes search first, then the sheet, then the list.
+- **Runs that need you, with nothing selected.** When no selected session owns a run, the step list under the
+  big slot shows the newest run that needs the user (waiting at a gate, or failed), labelled "Needs you: <pipeline>"
+  so it never reads as the selected agent's run. Decided 2026-10-05 by Codex and Gemini independently (both A).
+  A failed run qualifies only while its `run-failed` needs-you item is unresolved, so acknowledging it clears
+  the row. Codex picked this (C); Gemini picked "failed since the window opened" (B), with the risk that a
+  failure just before opening is missed; the conservative choice, C, was taken.
 - **Cancel a run** from its run screen header, its step list row under the big slot, its 36px background bar, or
   Ctrl+K ("Cancel run: <pipeline>"). One confirm, then `run.cancel`: the run ends `cancelled`, waiting gates
   are rejected, its actions and dev servers stop, and the agent sessions that run launched are closed (Wasif,

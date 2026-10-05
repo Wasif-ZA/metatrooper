@@ -112,3 +112,4 @@
 :is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge::before, :is(.row, .fnd, .drow, .crow, .node, .rbar, .bcol).halo > .edge::after { padding: 16px; }
 .runscreen :is(.dbody, .pfiles, .tlist, .bcb, .crows) { overflow-x: hidden; padding-left: 12px; padding-right: 12px; }
 .runscreen :is(.dbody, .pfiles, .tlist) { padding-top: 12px; padding-bottom: 12px; }
+.steps .needs-run { color: var(--wait); font-weight: 700; }

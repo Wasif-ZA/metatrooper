@@ -582,9 +582,10 @@ function stepError(runId, stepId) {
   return null;
 }
 
-function stepListHtml(steps) {
+function stepListHtml(steps, label) {
   const dot = (st) => (st === 'running' ? 'working' : st === 'waiting' ? 'waiting_for_you' : st);
-  return `<div class="steps"><div class="s cur" data-action="run-open" data-id="${esc(steps.run.id)}" title="Open the run screen"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${esc(steps.run.pipeline_id)} step ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}<span class="grow"></span>${cancelButton(steps.run)}</div>
+  const head = label ? `<span class="needs-run">${esc(label)}</span> step` : `${esc(steps.run.pipeline_id)} step`;
+  return `<div class="steps"><div class="s cur" data-action="run-open" data-id="${esc(steps.run.id)}" title="Open the run screen"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${head} ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}<span class="grow"></span>${cancelButton(steps.run)}</div>
     ${steps.list.map((st) => {
       const meta = [st.items ? `${st.items.done}/${st.items.total}` : '', st.loop ? `loop ${st.loop.at}${st.loop.max ? ` of ${st.loop.max}` : ''}` : '', st.fails ? `${st.fails} fail${st.fails === 1 ? '' : 's'}` : '', st.status].filter(Boolean).join(' · ');
       const err = st.status === 'failed' ? stepError(steps.run.id, st.id) : null;
@@ -744,9 +745,23 @@ function renderList(sel) {
     <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
 }
 
+/** The newest top-level run waiting at a gate, or failed with its run-failed item not yet read or resolved. */
+function needsYouRun() {
+  const s = ui.snap;
+  const gated = new Set(s.gates.map((g) => g.top_run || g.run_id));
+  const failed = new Set(s.needs_you.filter((n) => n.kind === 'run-failed' && !n.read_at).map((n) => n.ref));
+  return s.runs.filter((r) => !r.parent_run && (gated.has(r.id) || (r.status === 'failed' && failed.has(r.id))))
+    .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))[0] || null;
+}
+
 function renderRunbox(sel) {
-  const steps = sel && sel.run_id && ui.mode !== 'grid' ? stepsOf(sel.run_id) : null;
-  setHtml('runbox', steps ? stepListHtml(steps) : '');
+  if (ui.mode === 'grid') return setHtml('runbox', '');
+  const own = sel && sel.run_id ? stepsOf(sel.run_id) : null;
+  if (own) return setHtml('runbox', stepListHtml(own));
+  const run = needsYouRun();
+  const steps = run && stepsOf(run.id);
+  const title = run && ((ui.snap.pipelines.find((p) => p.id === run.pipeline_id) || {}).title || run.pipeline_id);
+  setHtml('runbox', steps ? stepListHtml(steps, `Needs you: ${title}`) : '');
 }
 
 function renderStart() {
