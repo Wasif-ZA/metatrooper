@@ -719,6 +719,123 @@ can be built in parallel from day one; only its plugin manifest waits for #3. Th
 and variants because both render through it. Milestone 2 waits for the adoption gate so lanes are built on a
 core that has survived daily use; milestone 3 lanes are independent of each other.
 
+### Milestone 4: improve what runs today (about 11.75 CC days)
+
+M1 is built and dogfooding has started (UI-01 still TODO). Three costs show up in daily use. Review steps tell
+agents to read whole source files. Agents rebuild things open-source tools already do. Small rough edges
+show up in real runs and in the test suites. M4 adopts researched tools into code that runs today, gives
+every pipeline optional helper tools, applies ideas mined from those tools, and fixes what real use finds.
+Tools and ideas for pipelines that are not built yet go into their M2 and M3 issues (M4-D1).
+
+Specced 2026-10-05 through `/spec`. Research behind it: `research-core-coding.md`, `research-lanes.md`,
+`research-assists.md`, `ideas-coding.md`, `ideas-lanes.md` (scratch, 2026-10-05). Each child's detail is in its
+issue file; the Codex gate scored the single-file draft 4/10 twice, so each child file is scored on its own
+before it is built.
+
+#### Milestone 4 decisions
+
+| # | Decision | Chosen |
+|---|---|---|
+| M4-D1 | Scope | Built parts only: core, the five built pipelines, the wall, fixes from real use. Tools and ideas for unbuilt pipelines amend their issues (M4-8) |
+| M4-D2 | Done | The replay gate (M4-03) passes, the real confirm runs point the same way (M4-04), UI-01 passes, and both suites run clean alone (M4-02) |
+| M4-D3 | Tools | Code map, TOON output, gitleaks at publish gates, OSC notifications as a needs-you signal |
+| M4-D4 | Code map | `tirth8205/code-review-graph` (MIT, 31,923 stars, pushed 2026-09-18), installed with the real Python 3.14 interpreter like `metarouter` (`Python314/Scripts`, on PATH). `codebase-memory-mcp` is an unsigned .exe that Smart App Control is expected to block |
+| M4-D5 | Measuring tokens | A deterministic replay of offered context (a proxy, not the bill) is the gate; one real run per pipeline before and after must point the same way, no threshold |
+| M4-D6 | Secret findings at a publish gate | Approve is replaced by "Approve anyway" plus a typed reason; a scanner that cannot run shows a red line and Approve still works |
+| M4-D7 | Code-map install | Never run `code-review-graph install` or `uninstall`: they edit every agent's settings, hooks and rules files. MetaTrooper starts the server through its own manifest and `mcp-shim.js` |
+| M4-D8 | TOON default | Opt-in flag. A command's default flips only when its recorded payload saves at least 15% and decoding gives back the same JSON |
+| M4-D9 | Helper tools | Every one of the 17 pipelines lists optional helper tools that steps use when installed. A pipeline never depends on one. User-installed, never bundled, so the dependency gate does not apply; each shows licence risk and what it sends off the machine |
+| M4-D10 | Worktree dependencies | Revised after reading the code: every step with `worktree: true` today is an agent step, and the runner cannot intercept an agent's own `npm install`, so no junction is used. A fresh worktree with a `package-lock.json` and no `node_modules` gets `npm ci --prefer-offline --no-audit --no-fund` before its dev server or agent starts |
+| M4-D11 | Secret hit before an external send | Same rule as M4-D6 for `review.diff` before Codex and Gemini read it |
+| M4-D12 | Replay scope | Revised after reading the code: only `two-engine-review` `codex-review` is replayed. `gemini-review` runs on agy, which gets no MCP servers yet (`contracts/plugins.md:112`, `agy-config` "not attached yet"); `spec-to-pr`'s agent steps (`spec`, `build`) read open-ended parts of the repo, so no fixed context exists to replay. Both are covered by the real confirm runs instead |
+
+#### Milestone 4 current state
+
+- `pipelines/two-engine-review.json`: steps `diff` (code), `codex-review` (agent, codex), `gemini-review`
+  (agent, agy), `bucket` (code). Both review prompts say "Read that file and the source files it touches".
+- `pipelines/two-engine-review/diff.mjs`: writes `git diff <range>` of `ctx.projectPath` to `review.diff`.
+  `bucket.mjs`: matches findings across engines after widening each range by 3 lines (`WIDEN = 3`); buckets
+  `both`, `codex_only`, `gemini_only`, `disagree`; no check against the diff hunks.
+- `workbench/renderer/layouts/rules.js:11`: a review run opens (leaves the 36px bar) when
+  `disagree || critical`; `review.js:36-37` counts both over all four buckets.
+- `pipelines/spec-to-pr.json`: `spec` (agent, plan), `approve-spec` (gate), `build` (agent, worker,
+  `worktree: true`), `verify` (action `plugin:repo/run-tests`), `approve-pr` (gate), `open-pr` (action
+  `plugin:github/create-pr`, role `publish`). Input `base_branch` defaults to `main`.
+- `pipelines/website-build.json`: `build` (agent, worktree, `serve: before`), `critique` (agent, one pass,
+  no `until`), `preview` (action), `approve` (gate), `production` (action `plugin:deploy/production`,
+  role `publish`, `with.path: {{steps.build.outputs.worktree}}`).
+- `core/src/pipelines/runner.ts:489-504` `placeIndex`: creates a worktree at
+  `~/.metatrooper/worktrees/<project id>/<run>-<step>-<idx>` on branch `troop/<same>` from the project HEAD;
+  the starting commit is not recorded. `:754` `gateStep` opens gates; `:775` `checkApproval` binds them to
+  `action_hash`. `:137` `needsYou(kind, ref, text)` inserts a `needs_you` row. `:646-675` is the wait loop
+  for an agent step; `:670` fails with "the session exited without writing <path>".
+- `contracts/schema.sql`: `gate` has no scan or override columns; `needs_you.kind` allows `other`.
+  `core/src/store/db.ts:33` adds a missing column with `ALTER TABLE` at open (the `driven_engine` pattern).
+- `core/src/methods.ts:279-297` `gate.resolve {gate_id, decision, action_hash, note?}`.
+  `workbench/renderer/app.js:670` `resolveGate` and `:877` a Ctrl+K "Approve: <summary>" quick action call it.
+- `contracts/plugin-manifest.schema.json:103-114`: an `mcp` entry has `id`, `command`, `args`, `env_keys`
+  (secrets only), `engines`; no literal `env`, no argument templating. Attach kinds that work:
+  `claude-mcp-config-flag`, `codex-config`.
+- `core/src/terminal/index.ts:56`: `head.onBell` feeds `term.bell`; no OSC handler is registered.
+- `core/cli.ts:361-390` `troop run` has `start`, `wait`, `status`; no `cancel`. `run.cancel {run_id}` exists
+  (`contracts/pipe-protocol.md:131`).
+- `core/src/hook/browser-mcp.ts:15` and `workbench/src/browser/panes.ts:414`: `snapshot {pane_id, max_nodes}`.
+  The other browser tools return small JSON objects; `snapshot` returns text.
+- `core/src/engines/registry.ts:62`: agy has `driver: 'claude'`.
+- The meter counts Claude (`message.usage`) and Codex tokens; agy has none (M1-28). Test pipelines use a
+  fake engine, so the meter reads zero for them.
+
+#### Milestone 4 children
+
+| # | Title | Issue file | Priority | Effort (CC days) | Depends on |
+|---|---|---|---|---|---|
+| M4-1 | Replay harness, baselines, before-runs | `issues/m4-01-replay-harness.md` | Critical | 0.75 | none |
+| M4-2 | Test suites clean up after themselves | `issues/m4-02-clean-test-suites.md` | Critical | 0.5 | none |
+| M4-3 | `code-map` plugin and the codex review prompt | `issues/m4-03-code-map-plugin.md` | High | 2 | M4-1 |
+| M4-4 | Secret scan at publish gates and before external sends | `issues/m4-04-secret-scan.md` | High | 2 | M4-2 |
+| M4-5 | TOON output for `troop` | `issues/m4-05-toon-output.md` | Low | 0.5 | M4-1 |
+| M4-6 | OSC notification probe and signal | `issues/m4-06-osc-signal.md` | Medium | 0.5 | none |
+| M4-7 | Fixes from real use | `issues/m4-07-fixes-from-real-use.md` | High | 1.5 | M4-2 |
+| M4-8 | M2 and M3 issue amendments (docs only) | `issues/m4-08-issue-amendments.md` | Medium | 0.5 | M4-9 |
+| M4-9 | Helper tools for every pipeline (`assists`) | `issues/m4-09-helper-tools.md` | High | 1.5 | none |
+| M4-10 | Ideas mined from the helper repos, built pipelines | `issues/m4-10-mined-ideas.md` | High | 2 | M4-2, M4-4 |
+
+Total about 11.75 CC days.
+
+```
+M4-1 baselines ──┬─> M4-3 code map ──┐
+                 └─> M4-5 TOON       ├─> M4-04 real after-runs, M4-03 replay check
+M4-2 clean suites ─┬─> M4-4 secret scan ──> M4-10 ideas
+                   └─> M4-7 fixes ──> M4-12 UI-01 workday
+M4-9 assists ──> M4-8 issue edits
+M4-6 OSC probe   (any time)
+```
+
+Why this order: baselines and before-runs must exist before any prompt or tool changes, or nothing can be
+compared. The suites must run clean first because every later child adds tests, and leftover listeners on
+ports 3001 to 3100 make the full core suite hang today (M2-STATUS, M2-01).
+
+#### Milestone 4 rollback and out of scope
+
+Each child lands as its own commit. The code-map plugin uninstalls through the plugin screen and the codex
+prompt still works without it. `gate.scan` and `gate.override_reason` are nullable additions, so reverting
+the code leaves a database older code can open. TOON is opt-in until a measured flip. `assists` is optional
+in the schema; removing it from a pipeline file restores the old prompts. `worktree.npm_ci: false` turns off
+I8 without a code change.
+
+Out of scope:
+
+- Tools and ideas for pipelines not built yet (they go into their issues through M4-8).
+- `browser.hello` trusting a self-reported pid: same-user processes can already read the ui key, so a pid
+  check is not the boundary, and a real fix needs a native module (spec.md: no native module).
+- UI-02 (installer and a fresh account): waits on #28 SignPath.
+- Code map for agy: waits on a verified `agy-config` attach.
+- Installing helpers for the user; helpers contributed by third-party plugins (first-party registry only).
+- TOON for browser tools.
+- Later list, all gate passes, not built in M4: OpenSpec change-proposal handoff for plan steps, repomix
+  `--compress` context packs, difftastic as a diff display, context7 and github-mcp-server as recommended
+  MCPs, `anthropics/sandbox-runtime` (Apache-2.0) as a Docker-free option for #32.
+
 ## Acceptance criteria
 
 ### Milestone 1
@@ -894,6 +1011,22 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
 - M3-05. The Tauri tray shows the same session states and gates as the workbench.
 - M3-06. `provider: gateway` and `run_in: cloud` are refused with -32040 and nothing else changes; signed
   out, a full `spec-to-pr` run makes zero outbound connections from the core, workbench or tray.
+
+### Milestone 4
+
+M4 is done when M4-02, M4-03 and M4-04 below pass and UI-01 passes as M4-12 defines. Every other
+criterion lives in its child's issue file.
+
+- M4-02. The full core suite, run alone twice in a row, passes, and `tests/windows/listeners.ps1` prints
+  `count=0` after each run. Same for the workbench suite.
+- M4-03. Replay: for each of `small`, `medium`, `large`, compute `after.tokens / before.tokens` for
+  `codex-review`. The median of the three ratios is at most 0.70.
+- M4-04. After M4-3, M4-9 and M4-10 land, the same two real runs as `real-before.json` are repeated on the
+  same fixture and inputs: for each pipeline, the total Claude plus Codex tokens of its agent steps is lower
+  than before. Recorded in `tests/fixtures/token-replay/real-after.json`. No threshold.
+- M4-12. UI-01, evidence-based: on one weekday Wasif works only in the app. Evidence: `troop gate --since
+  <day> --until <next day> --json` shows at least 5 sessions launched from the app and 1 completed pipeline
+  run, and Wasif records in UI-STATUS any moment he left the app for an agent task (zero for a pass).
 
 ## Testing
 
