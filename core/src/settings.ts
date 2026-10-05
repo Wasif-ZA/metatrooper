@@ -8,6 +8,9 @@ const MONO = "'Cascadia Mono', Consolas, monospace";
 const DITHER_MONO = "'Geist Mono', ui-monospace, Consolas, monospace";
 
 export const DEFAULTS = {
+  projects: {
+    default: '',
+  },
   terminal: {
     cols: 120,
     rows: 30,

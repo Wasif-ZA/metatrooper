@@ -21,6 +21,7 @@ import { Runner } from './pipelines/runner.ts';
 import { browserCall } from './browser/client.ts';
 import { syncBuiltinPlugins, syncPipelines } from './pipelines/store.ts';
 import { ulid } from './time.ts';
+import { settings } from './settings.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -71,7 +72,10 @@ async function main(): Promise<void> {
   const uiKey = rotateUiKey();
   runner.setBoardCapture((req) => browserCall(uiKey, 'browser.board_capture', req, 60_000));
   runner.setPaneCapture((pane_id, label) => browserCall(uiKey, 'browser.capture', { pane_id, label }, 60_000) as Promise<{ w1280_path: string }>);
-  const commands = new CommandRunner(db, buildMethods(db, { engines: () => activeEngines(db), stop, runner, uiKey }));
+  const methods = buildMethods(db, { engines: () => activeEngines(db), stop, runner, uiKey });
+  const commands = new CommandRunner(db, methods);
+  const home = settings().projects.default;
+  if (home) try { methods.get('project.open')!.handler({ path: home }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
   await commands.recover();
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
   processEvents(db);
