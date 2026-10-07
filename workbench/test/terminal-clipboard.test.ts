@@ -57,7 +57,7 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
     };
     const key = async (key: string, code: string, modifiers = 0) => {
-      const virtualKeyCode = code === 'KeyC' ? 67 : undefined;
+      const virtualKeyCode = code === 'KeyC' ? 67 : code === 'KeyV' ? 86 : undefined;
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers, windowsVirtualKeyCode: virtualKeyCode, nativeVirtualKeyCode: virtualKeyCode });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode: virtualKeyCode, nativeVirtualKeyCode: virtualKeyCode });
     };
@@ -67,8 +67,8 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
   } catch (e) { ws?.close(); await stop(); throw e; }
 }
 
-async function fixture() {
-  const fakeEngine = `if (process.stdin.setRawMode) process.stdin.setRawMode(true); process.stdin.resume(); process.stdout.write('clipboard sample\\r\\n'); process.stdin.on('data', data => process.stdout.write('INPUTHEX:' + [...data].map(x => x.toString(16).padStart(2, '0')).join('') + '\\r\\n'));`;
+async function fixture(prelude = '') {
+  const fakeEngine = `if (process.stdin.setRawMode) process.stdin.setRawMode(true); process.stdin.resume(); ${prelude}process.stdout.write('clipboard sample\\r\\n'); process.stdin.on('data', data => process.stdout.write('INPUTHEX:' + [...data].map(x => x.toString(16).padStart(2, '0')).join('') + '\\r\\n'));`;
   const h = await revisionHarness(undefined, fakeEngine);
   let w: Awaited<ReturnType<typeof windowFor>> | undefined;
   let viewer: Awaited<ReturnType<typeof terminalViewer>> | undefined;
@@ -223,8 +223,41 @@ test('right-click pastes clipboard text into the terminal', options, async () =>
   try {
     await prepareTerminal(f);
     await f.w.evaluate("window.troop.copyText('clipboard paste payload')");
-    await f.w.evaluate(`document.querySelector('.tile .tile-body').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }))`);
+    const point = await samplePoint(f);
+    await f.w.mouse('mousePressed', point.x, point.y, 'right');
+    await f.w.mouse('mouseReleased', point.x, point.y, 'right');
     await engineHas(f, Buffer.from('clipboard paste payload').toString('hex'));
+  } finally { await cleanup(f); }
+});
+
+test('Ctrl+V pastes clipboard text exactly once', options, async () => {
+  const f = await fixture();
+  try {
+    await prepareTerminal(f);
+    await f.w.evaluate("window.troop.copyText('pasteonce')");
+    await f.w.click('.tile .xterm-screen');
+    await f.w.wait("document.activeElement?.classList.contains('xterm-helper-textarea')", 10000);
+    await f.w.key('v', 'KeyV', 2);
+    const hex = Buffer.from('pasteonce').toString('hex');
+    await engineHas(f, hex);
+    await sleep(1000);
+    const seen = f.viewer.messages.filter(message => message.op === 'output').map(message => String(message.data)).join('');
+    assert.equal(seen.split(hex).length - 1, 1, 'paste reached the engine more than once');
+  } finally { await cleanup(f); }
+});
+
+test('right-click leaves the paste to a program that turned mouse tracking on', options, async () => {
+  const f = await fixture("process.stdout.write('\\x1b[?1000h\\x1b[?1006h'); ");
+  try {
+    await prepareTerminal(f);
+    await f.w.wait("termView.state().tail.some(line => line.includes('clipboard sample'))", 10000);
+    await f.w.evaluate("window.troop.copyText('mousemode')");
+    const point = await samplePoint(f);
+    await f.w.mouse('mousePressed', point.x, point.y, 'right');
+    await f.w.mouse('mouseReleased', point.x, point.y, 'right');
+    await sleep(1000);
+    const seen = f.viewer.messages.filter(message => message.op === 'output').map(message => String(message.data)).join('');
+    assert.equal(seen.includes(Buffer.from('mousemode').toString('hex')), false, 'the terminal pasted on top of the program');
   } finally { await cleanup(f); }
 });
 
@@ -233,7 +266,9 @@ test('right-click with a selection still pastes clipboard text', options, async 
   try {
     await prepareTerminal(f);
     await selectSample(f);
-    await f.w.evaluate(`document.querySelector('.tile .tile-body').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }))`);
+    const point = await samplePoint(f);
+    await f.w.mouse('mousePressed', point.x, point.y, 'right');
+    await f.w.mouse('mouseReleased', point.x, point.y, 'right');
     await engineHas(f, Buffer.from('clipboard sample').toString('hex'));
   } finally { await cleanup(f); }
 });
