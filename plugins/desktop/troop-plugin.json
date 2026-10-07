@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "id": "desktop",
+  "version": "0.1.0",
+  "name": "Desktop",
+  "description": "Screenshots a window, presses Submit in each filled form window, and reads the text each window shows afterwards, through Windows UI Automation.",
+  "platforms": ["windows"],
+  "permissions": ["run:write"],
+  "actions": [
+    {
+      "id": "screenshot",
+      "title": "Screenshot one window",
+      "run": ["bin/desktop.js", "screenshot"],
+      "timeout_seconds": 60,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["window", "out"],
+        "properties": { "window": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" } } }
+    },
+    {
+      "id": "submit",
+      "title": "Press Submit in every filled row's window",
+      "run": ["bin/desktop.js", "submit"],
+      "external": true,
+      "timeout_seconds": 300,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows"],
+        "properties": { "rows": { "type": "string", "minLength": 1, "description": "rows.json; each row with a window title is submitted." } }
+      },
+      "output_schema": { "type": "object", "required": ["submitted"], "properties": { "submitted": { "type": "integer" }, "windows": { "type": "array" }, "failed": { "type": "array" } } }
+    },
+    {
+      "id": "read",
+      "title": "Read each window's confirmation text",
+      "run": ["bin/desktop.js", "read"],
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows", "out"],
+        "properties": { "rows": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["out", "read"], "properties": { "out": { "type": "string" }, "read": { "type": "integer" }, "failed": { "type": "integer" } } }
+    }
+  ]
+}

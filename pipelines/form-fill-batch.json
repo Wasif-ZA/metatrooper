@@ -27,7 +27,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Take the first unfilled row in {{run.dir}}/rows.json. Open a fresh {{inputs.window}} window for it, type its values and leave it open and unsent. Never touch the captcha panel and never press Submit. Mark the row filled in rows.json. Set window to that window's title, values to what you typed, captcha to shown or none, and rows_left to the number of rows still unfilled.",
+      "prompt": "Take the first unfilled row in {{run.dir}}/rows.json. Open a fresh {{inputs.window}} window for it, type its values and leave it open and unsent. Never touch the captcha panel and never press Submit. Mark the row filled in rows.json and save the window title on it as window. Set window to that window's title, values to what you typed, captcha to shown or none, and rows_left to the number of rows still unfilled.",
       "outputs": ["window", "values", "captcha", "rows_left"]
     },
     {
