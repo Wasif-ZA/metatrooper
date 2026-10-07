@@ -6,6 +6,8 @@
     const st = (id) => (list.find((s) => s.id === id) || {}).status;
     return st('approve-spec') === 'waiting' ? 'spec' : st('handback') === 'done' ? 'handback' : '';
   };
+  const status = (list, id) => (list.find((s) => s.id === id) || {}).status;
+  const siteMoment = (list = [], run = {}) => (run.paused_why === 'loop-max' ? 'gaveup' : status(list, 'approve') === 'waiting' ? 'approve' : '');
   const RULES = {
     'spec-to-pr': { five: LIBRARY, onFail: 'run-log', pick: () => null },
     'two-engine-review': {
@@ -20,6 +22,20 @@
       pick: (run, list) => ({ spec: 'artifact-columns', handback: 'hand-back' }[loopMoment(list)] || (list.some((s) => s.status === 'running') ? 'agent-split' : null)),
       opens: (data, list) => Boolean(loopMoment(list)),
       moment: loopMoment,
+    },
+    'website-build': {
+      five: ['preview-stage', 'before-after', 'pipe', 'agent-split', 'run-log'],
+      onFail: 'run-log',
+      pick: (run, list) => {
+        const m = siteMoment(list, run);
+        if (m) return m === 'gaveup' ? 'before-after' : 'preview-stage';
+        if (status(list, 'production') === 'done') return 'pipe';
+        if (status(list, 'build') === 'running') return 'agent-split';
+        if (status(list, 'critique') === 'running') return 'before-after';
+        return 'pipe';
+      },
+      opens: (data, list, run) => Boolean(siteMoment(list, run)),
+      moment: siteMoment,
     },
   };
   const LONG_MS = 5000;
@@ -69,11 +85,11 @@
   /** Whether a background run should open itself: the pipeline's open rule, or any failed step. */
   function opens(run, list, data) {
     const rule = ruleOf(run.pipeline_id);
-    return activeStep(list).failed || Boolean(rule.opens && rule.opens(data, list));
+    return activeStep(list).failed || Boolean(rule.opens && rule.opens(data, list, run));
   }
 
   /** Which opening moment the run is at, so a second moment opens a bar the first one already opened. */
-  const moment = (run, list) => (ruleOf(run.pipeline_id).moment || (() => ''))(list);
+  const moment = (run, list) => (ruleOf(run.pipeline_id).moment || (() => ''))(list, run);
 
   root.layoutRules = { LIBRARY, REVIEW, RULES, opens, moment, LONG_MS, QUIET_MS, ruleOf, activeStep, pickLayout, due };
 })(globalThis);

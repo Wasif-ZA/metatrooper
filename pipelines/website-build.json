@@ -8,6 +8,8 @@
     "brief": { "type": "text", "label": "What the site is for", "required": true }
   },
   "budget": { "max_minutes": 180 },
+  "background": true,
+  "layout": "pipe",
   "steps": [
     {
       "id": "design",

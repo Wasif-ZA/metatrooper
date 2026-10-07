@@ -4,7 +4,7 @@ const runLayouts = {};
 const runScreen = (() => {
   const rules = window.layoutRules;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage', 'hand-back': 'Hand-back' };
+  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage', 'hand-back': 'Hand-back', 'preview-stage': 'Preview stage', 'before-after': 'Before / after' };
   const SVG = (body) => `<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor">${body}</svg>`;
   const REVIEW_ICON = {
     'pr-inline': SVG('<path d="M1.5 2.5h13M1.5 6h9M1.5 11.5h13" stroke-dasharray="1 1"/><rect x="3" y="7.5" width="11" height="2.5" stroke-width="1.2"/>'),
@@ -19,6 +19,8 @@ const runScreen = (() => {
     'pr-first': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M1.5 2h13" stroke-width="1.6" stroke-dasharray="1 1"/><rect x="1.5" y="4.5" width="8.5" height="5" stroke-dasharray="1 1.2"/><rect x="11.5" y="4.5" width="3" height="8" stroke-dasharray="1 1"/><path d="M1.5 12h8.5" stroke-width="1.6"/></svg>',
     pipe: '<svg width="16" height="14" viewBox="0 0 16 14" fill="currentColor"><circle cx="2" cy="7" r="1.4"/><circle cx="5" cy="7" r=".7"/><circle cx="7" cy="7" r=".7"/><path d="M10.5 4.2l2.8 2.8-2.8 2.8-2.8-2.8z" opacity=".9"/><circle cx="15" cy="7" r=".9"/></svg>',
     'hand-back': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1.5" y="2" width="3" height="3" stroke-dasharray="1 1"/><path d="M6.5 3.5h8" stroke-width="1.6"/><rect x="1.5" y="9" width="3" height="3" stroke-dasharray="1 1"/><path d="M6.5 10.5h8" stroke-width="1.6" stroke-dasharray="1 1"/></svg>',
+    'preview-stage': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="5.5" y="1.5" width="9.5" height="7.5" stroke-width="1.4"/><path d="M5.5 11.5h9.5" stroke-dasharray="1 1"/></svg>',
+    'before-after': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="6.2" height="11" stroke-dasharray="1 1.2"/><rect x="8.8" y="1.5" width="6.2" height="11" stroke-width="1.4"/></svg>',
     'agent-split': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M1 1.5h14" stroke-width="1.6" stroke-dasharray="2 1"/><rect x="1" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/><rect x="8.8" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/></svg>',
   };
   const S = { runId: null, cur: null, manual: null, lastTouch: -1e12, timer: null, sel: null, focused: null, html: '' };

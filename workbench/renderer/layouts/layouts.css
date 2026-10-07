@@ -238,3 +238,22 @@
 .L-hand-back .side { min-height: 0; overflow: auto; }
 .L-hand-back .side .sum { height: auto; flex-direction: column; }
 .L-hand-back .side .sum > div { padding: 12px 16px; border-right: 0; border-bottom: 1px dotted var(--hairline); }
+
+/* preview stage */
+.L-preview-stage { display: grid; grid-template-columns: 300px 1fr; gap: 8px; }
+.L-preview-stage .rail { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); }
+.L-preview-stage .pr-step { position: relative; display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r); font-size: 12px; }
+.L-preview-stage .pr-step .nm { color: var(--body-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.L-preview-stage .pr-step .mt { font-size: 10.5px; color: var(--faint); }
+.L-preview-stage .pr-step.s-pending .nm { color: var(--faint); }
+.L-preview-stage .stage { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.L-preview-stage .boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.L-preview-stage .pv, .L-preview-stage .files, .L-preview-stage .gatebox, .L-before-after .gatebox { position: relative; padding: 12px 16px; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); }
+.L-preview-stage .pv.s-failed { border-color: var(--del); }
+.L-preview-stage .pvh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.L-preview-stage .pvh .tt { font-size: 13px; color: var(--body-strong); }
+.L-preview-stage .pvb .prl { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+/* before / after */
+.L-before-after { display: grid; grid-template-columns: 380px 1fr; gap: 8px; }
+.L-before-after .notes, .L-before-after .after { position: relative; min-height: 0; overflow: auto; padding: 12px 16px; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); display: flex; flex-direction: column; gap: 8px; }
