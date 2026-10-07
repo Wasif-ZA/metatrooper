@@ -229,6 +229,41 @@ test('codex.turn from another thread does not mark the session done', async () =
   }
 });
 
+test('resolveSpentNotices clears notices for exited, missing and re-working sessions only', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const prev = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-spent-'));
+  try {
+    const { openCoreDb } = await import('../src/store/db.ts');
+    const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+    const { resolveSpentNotices } = await import('../src/events/processor.ts');
+    const db = openCoreDb();
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', 'c:/p', 'p', 'x', 'x')").run();
+    const session = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, ended_at) VALUES (?, 'p', 'claude', 'pty', ?, 'x', 'x', ?)");
+    session.run('exited', 'exited', 'x');
+    session.run('live', 'done', null);
+    session.run('again', 'working', null);
+    const note = db.prepare("INSERT INTO needs_you (id, at, kind, ref, text, read_at) VALUES (?, 'x', ?, ?, 't', ?)");
+    note.run('exited-done', 'done', 'exited', null);
+    note.run('gone-done', 'done', 'gone', null);
+    note.run('exited-failed-unread', 'failed', 'exited', null);
+    note.run('exited-failed-read', 'failed', 'exited', 'x');
+    note.run('live-done', 'done', 'live', null);
+    note.run('again-done', 'done', 'again', null);
+    note.run('gate', 'gate', 'exited', null);
+    resolveSpentNotices(db);
+    const open = (db.prepare('SELECT id FROM needs_you WHERE resolved_at IS NULL ORDER BY id').all() as Array<{ id: string }>).map((r) => r.id);
+    assert.deepEqual(open, ['exited-failed-unread', 'gate', 'live-done']);
+    db.close();
+  } finally {
+    if (prev === undefined) delete process.env.METATROOPER_HOME;
+    else process.env.METATROOPER_HOME = prev;
+  }
+});
+
 test('scrubParams keeps ids and replaces prompt and body text with lengths', () => {
   assert.deepEqual(scrubParams({ project_id: 'p', engine_id: 'claude', prompt: 'PRIVATE_MARKER' }), { project_id: 'p', engine_id: 'claude', prompt_length: 14 });
   assert.deepEqual(scrubParams({ body: 'abc', session_id: 's' }), { body_length: 3, session_id: 's' });

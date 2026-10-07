@@ -70,6 +70,15 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   return rows.length;
 }
 
+/** Clears session notices that are spent: "finished" once the session exits, is gone or starts another turn; "failed" once read and the session is gone. */
+export function resolveSpentNotices(db: DatabaseSync): void {
+  db.prepare(
+    `UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND kind IN ('done', 'failed') AND (
+       (NOT EXISTS (SELECT 1 FROM session s WHERE s.id = needs_you.ref AND s.ended_at IS NULL) AND (kind = 'done' OR read_at IS NOT NULL))
+       OR (kind = 'done' AND EXISTS (SELECT 1 FROM session s WHERE s.id = needs_you.ref AND s.state = 'working')))`,
+  ).run(nowIso());
+}
+
 /** Records what the session's folder looked like when a turn started, so the Diff tab can show only that turn. */
 export function markTurnBase(db: DatabaseSync, sessionId: string): void {
   const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;

@@ -12,7 +12,7 @@ import { startPipeServer } from './pipe/server.ts';
 import { buildMethods } from './methods.ts';
 import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
-import { processEvents } from './events/processor.ts';
+import { processEvents, resolveSpentNotices } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { tickSchedules } from './schedules.ts';
 import { readMeters } from './meter.ts';
@@ -79,6 +79,7 @@ async function main(): Promise<void> {
   await commands.recover();
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
   processEvents(db);
+  resolveSpentNotices(db);
   runner.recover();
 
   wireTermEvents(db);
@@ -106,6 +107,7 @@ async function main(): Promise<void> {
   every(60_000, () => readLimits(db));
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));
+  every(5000, () => resolveSpentNotices(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));
   every(30_000, () => tickSchedules(db, (pipelineId, projectId, inputs) => {
     try {
