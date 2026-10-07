@@ -21,7 +21,7 @@ GitHub; filing and pushing are Wasif's.
 | PORT-B layout picking | VERIFIED-WINDOWS | 2026-10-05T15:38+11:00: 8641cc6 run screen in five layouts. workbench/test/layout-rules.test.ts (by Codex) 5 pass: step hints pick each step's layout, a failed step picks run-log ahead of its hint, a manual pick holds until 0, a running step is eligible at 5 s, automatic moves wait 2 s after a touch. workbench/test/run-screen.test.ts (by Codex, opt-in) 2 pass, run alone: the spec-to-pr run opens on pr-first at approve-pr and approves the gate; a failed build opens on run-log with its error, keys 1 to 5 switch, 0 restores auto, Esc returns to the wall |
 | PORT-C background bar | CODE DONE | bf1ff8e: bar, open rule, five review layouts, review-bar and review-rules tests by Codex. Ledger row updated 2026-10-07. phase C. Check: two-engine-review fixture stays folded with no findings, opens to duel on a Disagree |
 | PORT-D product layouts | CODE DONE | 2026-10-07T15:58+11:00: all four slices built. spec-build-review-handback 54ef31d, 3735c52 (hand-back layout); website-build 4ee347c (preview-stage, before-after); design-variants eec8159 (variants-grid); e2e-browser-qa 645d11d (timeline, findings in coverage-map and before-after, findings.json via runDetail). Rule tests by Codex: loop-rules 7, site-rules 7, variants-rules 7, qa-rules 13, rundetail 13, plus loop-handback 3, two-engine-review-diff 2, validation 1, all pass run alone; run-screen and review-bar Electron suites 2 and 2 pass. Not built: pictures of the site (needs screenshot save_to into the run folder), the worktree-rail variant of agent-split, the hand-back bar staying orange until every item is ticked. Never run end to end on a real pipeline. |
-| PORT-E M3 pick rules | CODE DONE, TESTS RUNNING | 2026-10-07T19:00+11:00: rules for all 11 M3 pipelines in workbench/renderer/layouts/rules.js (the epic said 12; issues #15 to #25 hold 11 pipelines, #21 is the gallery). Pipeline JSON and fixture run.js for each, all validate. Rule tests by Codex in workbench/test/m3-rules.test.ts. Progress table: "M3 progress" below |
+| PORT-E M3 pick rules | CODE DONE | 2026-10-07T22:05+11:00: rules for all 11 M3 pipelines in workbench/renderer/layouts/rules.js, flags read from step outputs by flagsOf (f75b6a2). Rule tests by Codex: workbench/test/m3-rules.test.ts 60 pass. Plugin tests by Codex: core/test/m3-plugins.test.ts 14 pass, 1 skipped (PDF export needs Chrome). Codex and Gemini reviewed the plugins; the fixes Wasif picked are in 3b59781. Not done: gmail and social-scheduler (accounts), end-to-end runs (M3-01). |
 
 ## M3 progress
 
@@ -32,17 +32,17 @@ or step that should is noted in its row. 2026-10-07T21:10+11:00: flags now reach
 
 | Pipeline | Rule | JSON | Fixture | Rule tests | Plugin | End to end |
 |---|---|---|---|---|---|---|
-| footage-to-edit (#15) | done | done | done | running | media: TODO | TODO |
-| clips-to-scheduled-posts (#16) | done | done | done | running | media, social-scheduler: TODO (account) | TODO |
-| seo-audit-fix (#17) | done | done | done | running | seo crawl: done, tests by Codex running | TODO |
-| deep-research-cited (#18) | done | done | done | running | cite-check check, agent-reach search: done (search saves page text, else the Exa excerpt), tests by Codex running | TODO |
-| prospect-list-to-drafts (#19) | done | done | done | running | gmail: TODO (account) | TODO |
-| inbox-triage-drafts (#19) | done | done | done | running | gmail: TODO (account); schedule row not in JSON | TODO |
-| data-to-dashboard (#20) | done | done | done | running | data load, query, render: done on node:sqlite, tests by Codex running. qa and build are agent steps, so their `uses` is not run | TODO |
-| study-notes-to-pdf (#22) | done | done | done | running | docs-export ingest (pdftotext, text only, no page images) and export-pdf (headless Chrome or Edge): done; unsourced flag from check | TODO |
-| docs-and-release-notes (#23) | done | done | done | running | github list-prs: done, checked live; release: done, not run (external); breaking_no_doc flag from map | TODO |
-| form-fill-batch (#24) | done | done | done | running | desktop: TODO | TODO |
-| security-review-and-upgrade (#25) | done | done | done | running | security list-deps (npm only), licence-report (sets licence_conflict): done; high_reachable from plan. review-prompts and upgrade are on agent steps, not built | TODO |
+| footage-to-edit (#15) | done | done | done | pass | media probe, transcribe (whisper.cpp base.en, CPU, word times): done | TODO |
+| clips-to-scheduled-posts (#16) | done | done | done | pass | media download (yt-dlp), transcribe, cut (9:16), captions (ASS, hook): done; social-scheduler: TODO (account) | TODO |
+| seo-audit-fix (#17) | done | done | done | pass | seo crawl: done; fetches refuse private addresses | TODO |
+| deep-research-cited (#18) | done | done | done | pass | cite-check check, agent-reach search: done (search saves page text, else the Exa excerpt) | TODO |
+| prospect-list-to-drafts (#19) | done | done | done | pass | agent-reach sources: done; gmail draft: TODO (account) | TODO |
+| inbox-triage-drafts (#19) | done | done | done | pass | gmail: TODO (account); schedule row not in JSON | TODO |
+| data-to-dashboard (#20) | done | done | done | pass | data load, query, render: done on node:sqlite. qa and build are agent steps, so their `uses` is not run | TODO |
+| study-notes-to-pdf (#22) | done | done | done | pass | docs-export ingest (pdftotext, text only, no page images) and export-pdf (headless Chrome or Edge): done; unsourced flag from check | TODO |
+| docs-and-release-notes (#23) | done | done | done | pass | github list-prs: done, checked live; release: done, not run (external); breaking_no_doc flag from map | TODO |
+| form-fill-batch (#24) | done | done | done | pass | desktop screenshot, submit, read (UI Automation, click fallback): done; checked on a test form | TODO |
+| security-review-and-upgrade (#25) | done | done | done | pass | security list-deps (npm only), licence-report (sets licence_conflict): done; high_reachable from plan. review-prompts and upgrade are on agent steps, not built | TODO |
 | template gallery (#21) | n/a | n/a | n/a | n/a | n/a | TODO |
 
 | Child | Status | Notes |
