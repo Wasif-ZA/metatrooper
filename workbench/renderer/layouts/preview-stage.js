@@ -10,7 +10,11 @@ runLayouts['preview-stage'] = {
       <div class="pvb">${url ? link(url) : `<div class="empty">${s && s.status === 'failed' ? 'Failed. The run log has the error.' : 'Not deployed yet.'}</div>`}</div></section>`;
     return `<aside class="rail" data-keep="ps-rail">${rail}</aside>
       <main class="stage">
-        <div class="boxes">${box('Preview', step('preview'), out('preview').url)}${box('Production', step('production'), out('production').url)}</div>
+        <div class="boxes">${[
+          step('preview') ? box('Preview', step('preview'), out('preview').url) : '',
+          step('production') ? box('Production', step('production'), out('production').url) : '',
+          ...m.variants.filter((v) => v.status === 'picked').map((v) => box(`Picked variant ${String.fromCharCode(65 + v.idx)}`, null, v.dev_port ? `http://localhost:${v.dev_port}/` : '')),
+        ].join('')}</div>
         ${gate ? `<section class="gatebox halo"><span class="edge"></span><div class="sec">${h.esc(gate.title)}</div>${h.gateCard(m, gate)}</section>` : ''}
         <section class="files" data-keep="ps-files"><div class="sec">Changes on the branch</div>${m.agent ? h.files(m) : '<div class="empty">No changes yet.</div>'}</section>
       </main>`;

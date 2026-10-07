@@ -8,6 +8,7 @@
   };
   const status = (list, id) => (list.find((s) => s.id === id) || {}).status;
   const siteMoment = (list = [], run = {}) => (run.paused_why === 'loop-max' ? 'gaveup' : status(list, 'approve') === 'waiting' ? 'approve' : '');
+  const variantsMoment = (list = []) => (status(list, 'approve-directions') === 'waiting' ? 'directions' : status(list, 'pick') === 'waiting' ? 'pick' : '');
   const RULES = {
     'spec-to-pr': { five: LIBRARY, onFail: 'run-log', pick: () => null },
     'two-engine-review': {
@@ -36,6 +37,19 @@
       },
       opens: (data, list, run) => Boolean(siteMoment(list, run)),
       moment: siteMoment,
+    },
+    'design-variants': {
+      five: ['variants-grid', 'artifact-columns', 'preview-stage', 'agent-split', 'artifact-columns'],
+      onFail: 'agent-split',
+      pick: (run, list) => {
+        const m = variantsMoment(list);
+        if (m) return m === 'directions' ? 'artifact-columns' : 'variants-grid';
+        if (status(list, 'polish') === 'running' || status(list, 'polish') === 'done') return 'preview-stage';
+        if (status(list, 'variants') === 'running') return 'variants-grid';
+        return 'artifact-columns';
+      },
+      opens: (data, list) => Boolean(variantsMoment(list)),
+      moment: variantsMoment,
     },
   };
   const LONG_MS = 5000;

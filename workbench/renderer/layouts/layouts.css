@@ -257,3 +257,17 @@
 /* before / after */
 .L-before-after { display: grid; grid-template-columns: 380px 1fr; gap: 8px; }
 .L-before-after .notes, .L-before-after .after { position: relative; min-height: 0; overflow: auto; padding: 12px 16px; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); display: flex; flex-direction: column; gap: 8px; }
+
+/* variants grid */
+.L-variants-grid { display: flex; flex-direction: column; gap: 8px; }
+.L-variants-grid .gatebox { position: relative; padding: 12px 16px; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); }
+.L-variants-grid .grid { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; align-content: start; }
+.L-variants-grid .vt { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); }
+.L-variants-grid .vt.s-picked { border-color: var(--body); }
+.L-variants-grid .vt.s-discarded { opacity: .5; }
+.L-variants-grid .vth { display: flex; align-items: center; gap: 10px; }
+.L-variants-grid .vth b { font-size: 16px; color: var(--body-strong); }
+.L-variants-grid .vth .sp { flex: 1; }
+.L-variants-grid .mt { font-size: 10.5px; color: var(--faint); }
+.L-variants-grid .prl { font-family: var(--mono); font-size: 12px; }
+.L-variants-grid .vta { display: flex; gap: 12px; }

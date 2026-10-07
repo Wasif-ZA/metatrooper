@@ -4,7 +4,7 @@ const runLayouts = {};
 const runScreen = (() => {
   const rules = window.layoutRules;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage', 'hand-back': 'Hand-back', 'preview-stage': 'Preview stage', 'before-after': 'Before / after' };
+  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage', 'hand-back': 'Hand-back', 'preview-stage': 'Preview stage', 'before-after': 'Before / after', 'variants-grid': 'Variants grid' };
   const SVG = (body) => `<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor">${body}</svg>`;
   const REVIEW_ICON = {
     'pr-inline': SVG('<path d="M1.5 2.5h13M1.5 6h9M1.5 11.5h13" stroke-dasharray="1 1"/><rect x="3" y="7.5" width="11" height="2.5" stroke-width="1.2"/>'),
@@ -21,6 +21,7 @@ const runScreen = (() => {
     'hand-back': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1.5" y="2" width="3" height="3" stroke-dasharray="1 1"/><path d="M6.5 3.5h8" stroke-width="1.6"/><rect x="1.5" y="9" width="3" height="3" stroke-dasharray="1 1"/><path d="M6.5 10.5h8" stroke-width="1.6" stroke-dasharray="1 1"/></svg>',
     'preview-stage': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="5.5" y="1.5" width="9.5" height="7.5" stroke-width="1.4"/><path d="M5.5 11.5h9.5" stroke-dasharray="1 1"/></svg>',
     'before-after': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="6.2" height="11" stroke-dasharray="1 1.2"/><rect x="8.8" y="1.5" width="6.2" height="11" stroke-width="1.4"/></svg>',
+    'variants-grid': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="4" height="11" stroke-dasharray="1 1"/><rect x="6" y="1.5" width="4" height="11" stroke-dasharray="1 1"/><rect x="11" y="1.5" width="4" height="11" stroke-dasharray="1 1"/></svg>',
     'agent-split': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M1 1.5h14" stroke-width="1.6" stroke-dasharray="2 1"/><rect x="1" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/><rect x="8.8" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/></svg>',
   };
   const S = { runId: null, cur: null, manual: null, lastTouch: -1e12, timer: null, sel: null, focused: null, html: '' };
@@ -137,6 +138,7 @@ const runScreen = (() => {
       agent,
       diff: agent ? sessionDiff(agent.session.id) : null,
       gates: snap.gates.filter((g) => g.run_id === run.id),
+      variants: snap.variants || [],
     };
   }
 

@@ -8,6 +8,8 @@
     "brief": { "type": "text", "label": "Design brief", "required": true }
   },
   "budget": { "max_minutes": 90, "max_parallel": 3 },
+  "background": true,
+  "layout": "variants-grid",
   "steps": [
     {
       "id": "board",
