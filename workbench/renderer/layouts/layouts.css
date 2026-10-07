@@ -218,3 +218,23 @@
 .L-agent-split .foot b { color: var(--body-strong); font-weight: 400; }
 
 @media (prefers-reduced-motion: reduce) { .runscreen .spin { animation: none; } }
+
+/* hand-back */
+.L-hand-back { display: grid; grid-template-columns: 1fr 260px; gap: 8px; }
+.L-hand-back .hb { display: flex; flex-direction: column; min-height: 0; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); overflow: hidden; }
+.L-hand-back .hbh { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; border-bottom: 1px dotted var(--hairline); }
+.L-hand-back .hbh h1 { font-size: 14px; margin: 0; color: var(--body-strong); }
+.L-hand-back .hbh .sub { font-size: 11.5px; color: var(--muted); }
+.L-hand-back .hbh .sp { flex: 1; }
+.L-hand-back .hb > .empty { padding: 16px; }
+.L-hand-back .hbl { list-style: none; margin: 0; padding: 8px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.L-hand-back .hbi { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r); border: 1px dotted var(--hairline); }
+.L-hand-back .hbi.ticked { opacity: .55; }
+.L-hand-back .hbi.ticked .tx { text-decoration: line-through; }
+.L-hand-back .tick { flex: none; width: 18px; height: 18px; border: 1px solid var(--hairline-strong); border-radius: 3px; background: none; color: var(--body-strong); font-size: 12px; line-height: 1; cursor: pointer; }
+.L-hand-back .no { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.L-hand-back .kind { font-family: var(--mono); font-size: 10.5px; color: var(--muted); min-width: 72px; }
+.L-hand-back .tx { flex: 1; min-width: 0; font-size: 12.5px; color: var(--body); }
+.L-hand-back .side { min-height: 0; overflow: auto; }
+.L-hand-back .side .sum { height: auto; flex-direction: column; }
+.L-hand-back .side .sum > div { padding: 12px 16px; border-right: 0; border-bottom: 1px dotted var(--hairline); }

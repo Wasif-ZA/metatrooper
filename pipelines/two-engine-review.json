@@ -9,6 +9,12 @@
       "label": "Git diff range to review",
       "required": false,
       "default": "HEAD"
+    },
+    "path": {
+      "type": "text",
+      "label": "Folder to diff (empty means the project)",
+      "required": false,
+      "default": ""
     }
   },
   "background": true,

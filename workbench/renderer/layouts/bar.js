@@ -44,7 +44,7 @@ const runBars = (() => {
     return run.pipeline_id === 'two-engine-review' ? reviewStore.get(ctx.api, run.id, list.map((x) => x.status).join(), ctx.render) : null;
   }
 
-  const needKey = (run, list, d) => (rules.opens(run, list, d) ? `${d ? `${d.disagree}:${d.critical}` : ''}:${rules.activeStep(list).failed ? 'f' : ''}` : '');
+  const needKey = (run, list, d) => (rules.opens(run, list, d) ? `${d ? `${d.disagree}:${d.critical}` : ''}:${rules.activeStep(list).failed ? 'f' : ''}:${rules.moment(run, list)}` : '');
 
   function open(runId) {
     const st = ctx.stepsOf(runId);

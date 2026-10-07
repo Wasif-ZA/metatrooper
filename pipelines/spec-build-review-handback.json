@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "id": "spec-build-review-handback",
+  "title": "Spec, build, review, hand back",
+  "lane": "coding",
+  "requires": ["repo"],
+  "inputs": {
+    "idea": { "type": "text", "label": "What to build", "required": true }
+  },
+  "background": true,
+  "budget": { "max_minutes": 180 },
+  "layout": "hand-back",
+  "steps": [
+    {
+      "id": "spec",
+      "approval": "contained",
+      "layout": "artifact-columns",
+      "title": "Write the spec",
+      "role": "plan",
+      "kind": "agent",
+      "prompt": "Read this repository. Write spec.md in {{run.dir}} for: {{inputs.idea}}. Sections: goal, non-goals, user-visible behaviour, acceptance checks. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-spec",
+      "layout": "artifact-columns",
+      "title": "Approve the spec",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/spec.md. Approve to build it, reject to stop."
+    },
+    {
+      "id": "build",
+      "approval": "contained",
+      "layout": "agent-split",
+      "title": "Build it in a worktree",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "prompt": "Build what {{run.dir}}/spec.md describes in this worktree. Write a failing test first, then the code, then run the tests. Do not commit and do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "verify",
+      "layout": "run-log",
+      "title": "Run the tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "review",
+      "layout": "run-log",
+      "title": "Two-engine review",
+      "role": "review",
+      "kind": "pipeline",
+      "uses": "pipeline:two-engine-review",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "fix",
+      "approval": "contained",
+      "layout": "agent-split",
+      "title": "Fix what both engines found",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.build.outputs.worktree}}",
+      "prompt": "Read the review-buckets.json file in the one folder under {{run.dir}}/review/. Fix only the findings in its \"both\" list, in this worktree. Leave every other finding alone. Then run the tests. Do not commit and do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "reverify",
+      "layout": "run-log",
+      "title": "Run the tests again",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "rereview",
+      "layout": "run-log",
+      "title": "Review the fixes",
+      "role": "review",
+      "kind": "pipeline",
+      "uses": "pipeline:two-engine-review",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "handback",
+      "layout": "hand-back",
+      "title": "Write the hand-back",
+      "kind": "code",
+      "code": "spec-build-review-handback/handback.mjs"
+    }
+  ]
+}

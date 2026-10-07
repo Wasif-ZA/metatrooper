@@ -2,6 +2,10 @@
 (function (root) {
   const LIBRARY = ['run-log', 'artifact-columns', 'pr-first', 'pipe', 'agent-split'];
   const REVIEW = ['pr-inline', 'duel', 'buckets', 'coverage-map', 'triage'];
+  const loopMoment = (list = []) => {
+    const st = (id) => (list.find((s) => s.id === id) || {}).status;
+    return st('approve-spec') === 'waiting' ? 'spec' : st('handback') === 'done' ? 'handback' : '';
+  };
   const RULES = {
     'spec-to-pr': { five: LIBRARY, onFail: 'run-log', pick: () => null },
     'two-engine-review': {
@@ -9,6 +13,13 @@
       onFail: 'run-log',
       pick: (run, list, data) => (!data ? null : data.disagree ? 'duel' : data.critical ? 'triage' : data.files >= 3 ? 'buckets' : 'pr-inline'),
       opens: (data) => Boolean(data && (data.disagree || data.critical)),
+    },
+    'spec-build-review-handback': {
+      five: ['hand-back', 'artifact-columns', 'agent-split', 'agent-split', 'run-log'],
+      onFail: 'run-log',
+      pick: () => null,
+      opens: (data, list) => Boolean(loopMoment(list)),
+      moment: loopMoment,
     },
   };
   const LONG_MS = 5000;
@@ -58,8 +69,11 @@
   /** Whether a background run should open itself: the pipeline's open rule, or any failed step. */
   function opens(run, list, data) {
     const rule = ruleOf(run.pipeline_id);
-    return activeStep(list).failed || Boolean(rule.opens && rule.opens(data));
+    return activeStep(list).failed || Boolean(rule.opens && rule.opens(data, list));
   }
 
-  root.layoutRules = { LIBRARY, REVIEW, RULES, opens, LONG_MS, QUIET_MS, ruleOf, activeStep, pickLayout, due };
+  /** Which opening moment the run is at, so a second moment opens a bar the first one already opened. */
+  const moment = (run, list) => (ruleOf(run.pipeline_id).moment || (() => ''))(list);
+
+  root.layoutRules = { LIBRARY, REVIEW, RULES, opens, moment, LONG_MS, QUIET_MS, ruleOf, activeStep, pickLayout, due };
 })(globalThis);
