@@ -55,7 +55,8 @@ function applyTomlTable(file: string, spec: TrustSpec, key: string): void {
   if (key.includes("'")) throw new Error('path cannot be a TOML literal key');
   const text = fs.readFileSync(file, 'utf8');
   const header = `[${spec.at.join('.')}.'${key}']`;
-  if (text.includes(header)) return;
+  const basic = `[${spec.at.join('.')}.${JSON.stringify(key)}]`;
+  if (text.includes(header) || text.includes(basic)) return;
   const body = Object.entries(spec.set ?? {}).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join('\n');
   fs.writeFileSync(file, `${text}${text.endsWith('\n') ? '' : '\n'}\n${header}\n${body}\n`);
 }
