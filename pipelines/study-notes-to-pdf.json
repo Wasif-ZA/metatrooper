@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "id": "study-notes-to-pdf",
+  "title": "Study notes to PDF",
+  "lane": "study",
+  "requires": ["docs-export"],
+  "inputs": {
+    "lecture": { "type": "path", "label": "Lecture PDF", "required": true },
+    "name": { "type": "text", "label": "Notes name", "required": true }
+  },
+  "budget": { "max_minutes": 20 },
+  "background": true,
+  "layout": "preview-stage",
+  "steps": [
+    {
+      "id": "ingest",
+      "title": "Read the lecture",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:docs-export/ingest",
+      "with": { "path": "{{inputs.lecture}}", "out": "{{run.dir}}/slides" }
+    },
+    {
+      "id": "outline",
+      "title": "Outline the notes",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "The lecture {{inputs.lecture}} is in {{run.dir}}/slides as text and one page image per slide. Write {{run.dir}}/outline.md: the sections, the slides each covers, and the key terms. No notes yet.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "notes",
+      "title": "Write the notes",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{run.dir}}/outline.md and {{run.dir}}/slides, write {{run.dir}}/notes.md: summary lines, terms, one worked example and self-test questions. Every line cites its slide as p.N.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "check",
+      "title": "Check every line against its slide",
+      "role": "verify",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Check each line of {{run.dir}}/notes.md against the slide it cites in {{run.dir}}/slides. Rewrite an unsourced line from a slide or cut it, once. Every slide is cited or skipped with a reason. Write the result to {{run.dir}}/CHECK.md. Set passed to true when no unsourced line is left, otherwise false. Set unsourced to true when any line is still unsourced after the rewrite, otherwise false.",
+      "outputs": ["passed", "unsourced"]
+    },
+    {
+      "id": "export",
+      "title": "Export the PDF",
+      "role": "worker",
+      "kind": "action",
+      "uses": "plugin:docs-export/export-pdf",
+      "with": { "path": "{{run.dir}}/notes.md", "css": "{{run.dir}}/print.css", "out": "{{run.dir}}/out/{{inputs.name}}.pdf", "paper": "A4" }
+    },
+    {
+      "id": "proof",
+      "title": "Proof every page",
+      "role": "visual-check",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Look at each page of {{run.dir}}/out/{{inputs.name}}.pdf. No table or example split across pages, no heading alone at a page foot, no clipped line. Fix problems in {{run.dir}}/print.css and list them in {{run.dir}}/PROOF.md. Set passed to true when every page is clean, otherwise false.",
+      "outputs": ["passed"],
+      "loop": { "steps": ["export", "proof"], "until": "steps.proof.passed", "max": 2 }
+    },
+    {
+      "id": "signoff",
+      "title": "Read the PDF, then Continue",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Read {{run.dir}}/out/{{inputs.name}}.pdf. Continue keeps the PDF; reject cancels the run."
+    }
+  ]
+}

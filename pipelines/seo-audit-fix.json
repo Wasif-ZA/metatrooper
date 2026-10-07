@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "id": "seo-audit-fix",
+  "title": "SEO audit and fix",
+  "lane": "seo",
+  "requires": ["seo", "repo", "deploy"],
+  "inputs": {
+    "url": { "type": "url", "label": "Live site URL", "required": true },
+    "market": { "type": "text", "label": "What the site sells or does", "required": false, "default": "" }
+  },
+  "budget": { "max_minutes": 120 },
+  "background": true,
+  "layout": "triage",
+  "steps": [
+    {
+      "id": "crawl",
+      "title": "Crawl the site",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:seo/crawl",
+      "with": { "url": "{{inputs.url}}", "out": "{{run.dir}}/crawl.json" }
+    },
+    {
+      "id": "audit",
+      "title": "Audit one area",
+      "role": "review",
+      "kind": "agent",
+      "fanout": 5,
+      "approval": "edits",
+      "view": "findings",
+      "prompt": "Crawl data: {{run.dir}}/crawl.json. Market: {{inputs.market}}. You are audit lane {{index}} of 0 to 4: 0 technical, 1 on-page, 2 schema, 3 content, 4 images. Audit only your area from the crawl data. Write {{run.dir}}/audit-{{index}}.json as a list of findings with severity, title, page and detail. Set the output key findings to that path. Do not edit the repository.",
+      "outputs": ["findings"]
+    },
+    {
+      "id": "prioritise",
+      "title": "Rank the fixes",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Findings: {{steps.audit.outputs.findings}}. Merge them into one list ranked by impact over effort and write {{run.dir}}/FIXES.md, one line per fix with the file it touches. Name the three key pages for the speed check. Do not edit the repository.",
+      "outputs": ["summary", "key_pages"]
+    },
+    {
+      "id": "fix",
+      "title": "Fix on a new branch",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Apply {{run.dir}}/FIXES.md in this worktree, top down. One commit per area on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "speed",
+      "title": "Lighthouse the key pages",
+      "role": "verify",
+      "kind": "agent",
+      "cwd": "{{steps.fix.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Build and serve the site from this folder and run Lighthouse on these key pages: {{steps.prioritise.outputs.key_pages}}. Fix what holds performance under 90 and commit on the current branch. Do not push. Append each page score to {{run.dir}}/speed.md. Set passed to true when every key page scores 90 or more, otherwise false.",
+      "outputs": ["passed", "scores"],
+      "loop": { "steps": ["speed"], "until": "steps.speed.passed", "max": 3 }
+    },
+    {
+      "id": "approve",
+      "title": "Approve the deploy",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Fixes: {{steps.fix.outputs.summary}}. Speed: {{steps.speed.outputs.scores}}. Approve to deploy {{steps.fix.outputs.branch}} to production."
+    },
+    {
+      "id": "deploy",
+      "title": "Deploy to production",
+      "role": "publish",
+      "kind": "action",
+      "external": true,
+      "uses": "plugin:deploy/production",
+      "with": { "path": "{{steps.fix.outputs.worktree}}" }
+    }
+  ]
+}

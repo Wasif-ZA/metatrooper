@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "id": "security-review-and-upgrade",
+  "title": "Security review and upgrade",
+  "lane": "security",
+  "requires": ["repo", "security"],
+  "inputs": {
+    "package": { "type": "text", "label": "Package to upgrade first (blank: the plan picks)", "required": false, "default": "" }
+  },
+  "budget": { "max_minutes": 60 },
+  "background": true,
+  "layout": "pr-first",
+  "steps": [
+    {
+      "id": "inventory",
+      "title": "List dependencies",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:security/list-deps",
+      "with": { "path": "{{project.path}}", "out": "{{run.dir}}/inventory.json" }
+    },
+    {
+      "id": "notes",
+      "title": "Read release notes",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "For each outdated package in {{run.dir}}/inventory.json, read its release notes between the installed and latest versions. Write {{run.dir}}/NOTES.md: breaking changes and migration steps per package.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "plan",
+      "title": "Review and plan",
+      "role": "plan",
+      "kind": "agent",
+      "uses": "plugin:security/review-prompts",
+      "approval": "edits",
+      "prompt": "Review this repository for security issues, using {{run.dir}}/inventory.json and {{run.dir}}/NOTES.md. Do not edit the repository. Write {{run.dir}}/security-report.md: each finding with severity, file, line, and reachable or not. Then plan one major upgrade at a time, starting with {{inputs.package}} if given, and name the findings each upgrade closes. Set package to the first package to upgrade. Set high_reachable to true when any high or critical finding is reachable, otherwise false.",
+      "outputs": ["package", "high_reachable"]
+    },
+    {
+      "id": "bump",
+      "title": "Bump and run the codemod",
+      "role": "worker",
+      "kind": "agent",
+      "uses": "plugin:security/upgrade",
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Upgrade {{steps.plan.outputs.package}} as {{run.dir}}/security-report.md plans, in this worktree: bump it, run its codemod if one exists, apply the migration steps in {{run.dir}}/NOTES.md. Commit on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "check",
+      "title": "Build, types, tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.bump.outputs.worktree}}" }
+    },
+    {
+      "id": "fix",
+      "title": "Fix breakages",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.bump.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Tests passed: {{steps.check.outputs.passed}}. If true, change nothing. Otherwise fix what the upgrade of {{steps.plan.outputs.package}} broke; the test output ends with:\n{{steps.check.outputs.output_tail}}\nCommit on the current branch. Do not push.",
+      "outputs": ["summary"],
+      "loop": { "steps": ["check", "fix"], "until": "steps.check.passed", "max": 2 }
+    },
+    {
+      "id": "licences",
+      "title": "Licence report",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:security/licence-report",
+      "with": { "path": "{{steps.bump.outputs.worktree}}", "out": "{{run.dir}}/licence-report.md" }
+    },
+    {
+      "id": "approve-upgrade",
+      "title": "Approve the upgrade",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Hand back branch {{steps.bump.outputs.branch}} upgrading {{steps.plan.outputs.package}}. Tests passed: {{steps.check.outputs.passed}}. Reports: {{run.dir}}/security-report.md and {{run.dir}}/licence-report.md. The git push and gh pr create commands are handed back, not run."
+    }
+  ]
+}

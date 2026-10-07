@@ -21,7 +21,29 @@ GitHub; filing and pushing are Wasif's.
 | PORT-B layout picking | VERIFIED-WINDOWS | 2026-10-05T15:38+11:00: 8641cc6 run screen in five layouts. workbench/test/layout-rules.test.ts (by Codex) 5 pass: step hints pick each step's layout, a failed step picks run-log ahead of its hint, a manual pick holds until 0, a running step is eligible at 5 s, automatic moves wait 2 s after a touch. workbench/test/run-screen.test.ts (by Codex, opt-in) 2 pass, run alone: the spec-to-pr run opens on pr-first at approve-pr and approves the gate; a failed build opens on run-log with its error, keys 1 to 5 switch, 0 restores auto, Esc returns to the wall |
 | PORT-C background bar | CODE DONE | bf1ff8e: bar, open rule, five review layouts, review-bar and review-rules tests by Codex. Ledger row updated 2026-10-07. phase C. Check: two-engine-review fixture stays folded with no findings, opens to duel on a Disagree |
 | PORT-D product layouts | CODE DONE | 2026-10-07T15:58+11:00: all four slices built. spec-build-review-handback 54ef31d, 3735c52 (hand-back layout); website-build 4ee347c (preview-stage, before-after); design-variants eec8159 (variants-grid); e2e-browser-qa 645d11d (timeline, findings in coverage-map and before-after, findings.json via runDetail). Rule tests by Codex: loop-rules 7, site-rules 7, variants-rules 7, qa-rules 13, rundetail 13, plus loop-handback 3, two-engine-review-diff 2, validation 1, all pass run alone; run-screen and review-bar Electron suites 2 and 2 pass. Not built: pictures of the site (needs screenshot save_to into the run folder), the worktree-rail variant of agent-split, the hand-back bar staying orange until every item is ticked. Never run end to end on a real pipeline. |
-| PORT-E M3 pick rules | TODO | phase E. Check: each of the 12 M3 fixtures picks the layout its spec.md row names |
+| PORT-E M3 pick rules | CODE DONE, TESTS RUNNING | 2026-10-07T19:00+11:00: rules for all 11 M3 pipelines in workbench/renderer/layouts/rules.js (the epic said 12; issues #15 to #25 hold 11 pipelines, #21 is the gallery). Pipeline JSON and fixture run.js for each, all validate. Rule tests by Codex in workbench/test/m3-rules.test.ts. Progress table: "M3 progress" below |
+
+## M3 progress
+
+The remaining project: Phase E plus children #15 to #25. One row per pipeline; plugin column names the plugin it needs.
+Rule inputs beyond step status: `run.paused_why === 'loop-max'` and the pipeline's `data` flags `flag`,
+`breaking_no_doc`, `licence_conflict`, `high_reachable`, `unsourced`. Nothing produces those flags yet; each plugin
+or step that should is noted in its row. 2026-10-07T21:10+11:00: flags now reach the rules: `layoutRules.flagsOf(runDetail)` reads them from any step's outputs (a non-empty `flags` or `flags_left` list sets `flag`); the run screen and the background bar both pass it in.
+
+| Pipeline | Rule | JSON | Fixture | Rule tests | Plugin | End to end |
+|---|---|---|---|---|---|---|
+| footage-to-edit (#15) | done | done | done | running | media: TODO | TODO |
+| clips-to-scheduled-posts (#16) | done | done | done | running | media, social-scheduler: TODO (account) | TODO |
+| seo-audit-fix (#17) | done | done | done | running | seo crawl: done, tests by Codex running | TODO |
+| deep-research-cited (#18) | done | done | done | running | cite-check check, agent-reach search: done (search saves page text, else the Exa excerpt), tests by Codex running | TODO |
+| prospect-list-to-drafts (#19) | done | done | done | running | gmail: TODO (account) | TODO |
+| inbox-triage-drafts (#19) | done | done | done | running | gmail: TODO (account); schedule row not in JSON | TODO |
+| data-to-dashboard (#20) | done | done | done | running | data load, query, render: done on node:sqlite, tests by Codex running. qa and build are agent steps, so their `uses` is not run | TODO |
+| study-notes-to-pdf (#22) | done | done | done | running | docs-export ingest (pdftotext, text only, no page images) and export-pdf (headless Chrome or Edge): done; unsourced flag from check | TODO |
+| docs-and-release-notes (#23) | done | done | done | running | github list-prs: done, checked live; release: done, not run (external); breaking_no_doc flag from map | TODO |
+| form-fill-batch (#24) | done | done | done | running | desktop: TODO | TODO |
+| security-review-and-upgrade (#25) | done | done | done | running | security list-deps (npm only), licence-report (sets licence_conflict): done; high_reachable from plan. review-prompts and upgrade are on agent steps, not built | TODO |
+| template gallery (#21) | n/a | n/a | n/a | n/a | n/a | TODO |
 
 | Child | Status | Notes |
 |---|---|---|

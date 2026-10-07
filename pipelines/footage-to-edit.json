@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "id": "footage-to-edit",
+  "title": "Raw footage to edited video",
+  "lane": "video-social",
+  "requires": ["media"],
+  "inputs": {
+    "footage": { "type": "path", "label": "Folder of raw takes", "required": true },
+    "brief": { "type": "text", "label": "What the video is for", "required": false, "default": "" }
+  },
+  "budget": { "max_minutes": 45 },
+  "background": true,
+  "layout": "timeline",
+  "steps": [
+    {
+      "id": "inventory",
+      "title": "List the takes",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:media/probe",
+      "with": { "path": "{{inputs.footage}}" }
+    },
+    {
+      "id": "transcribe",
+      "title": "Transcribe every take",
+      "role": "worker",
+      "kind": "action",
+      "uses": "plugin:media/transcribe",
+      "with": { "path": "{{inputs.footage}}", "out": "{{run.dir}}/words.json" }
+    },
+    {
+      "id": "plan",
+      "title": "Plan the edit",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Brief: {{inputs.brief}}\n\nTakes: {{steps.inventory.output_path}}. Transcript with word times: {{run.dir}}/words.json. Write {{run.dir}}/edit-plan.md: takes to use and their order, every cut with source times, graphics cues, and the length estimate. Do not touch the footage.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-plan",
+      "title": "Approve the edit plan",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/edit-plan.md. Approve to cut and render; reject stops the run before any render."
+    },
+    {
+      "id": "edit",
+      "title": "Cut and render",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Follow {{run.dir}}/edit-plan.md on the takes in {{inputs.footage}}. Cut fillers, false starts and silences over 400 ms at word boundaries with 30 ms fades, add the overlays, and render {{run.dir}}/edit/rough.mp4. If {{run.dir}}/flags.json exists, fix the flagged cuts you can, burn captions, duck the music bed, and render {{run.dir}}/out/final.mp4 plus a 9:16 centre crop. Mark a flag you cannot settle as left for you. Never edit the source takes.",
+      "outputs": ["summary", "flags_left"]
+    },
+    {
+      "id": "visual-check",
+      "title": "Check every cut",
+      "role": "visual-check",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Check the newest render in {{run.dir}}/out/ or {{run.dir}}/edit/. At every cut, look at frames and the waveform in a 3 s window: jump cuts, clipped words, pops, rushed cuts. Write each problem to {{run.dir}}/flags.json with its cut id and time. Set passed to true when no flag is left that the edit step can fix, otherwise false.",
+      "outputs": ["passed", "flags"],
+      "loop": { "steps": ["edit", "visual-check"], "until": "steps.visual-check.passed", "max": 2 }
+    },
+    {
+      "id": "approve-final",
+      "title": "Watch and approve the cut",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Watch {{run.dir}}/out/final.mp4. Flags left for you: {{steps.edit.outputs.flags_left}}. Approve to finish; reject cancels the run."
+    }
+  ]
+}

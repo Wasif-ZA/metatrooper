@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "id": "prospect-list-to-drafts",
+  "title": "Prospect list to drafts",
+  "lane": "lead-gen",
+  "requires": ["agent-reach", "gmail"],
+  "inputs": {
+    "list": { "type": "path", "label": "Prospect CSV (name, business, site, email)", "required": true },
+    "offer": { "type": "text", "label": "What you are offering, in one line", "required": true },
+    "do_not_contact": { "type": "path", "label": "Do-not-contact list, one address per line", "required": false },
+    "max_pages": { "type": "number", "label": "Pages fetched per site", "required": false, "default": 3 }
+  },
+  "budget": { "max_minutes": 90 },
+  "background": true,
+  "layout": "coverage-map",
+  "steps": [
+    {
+      "id": "load",
+      "title": "Load and clean the list",
+      "role": "ingest",
+      "kind": "code",
+      "code": "prospect-list-to-drafts/load.mjs"
+    },
+    {
+      "id": "approve-spend",
+      "title": "Approve the site lookups",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Fetch up to {{inputs.max_pages}} pages from each kept prospect's own site ({{steps.load.outputs.kept}} sites, listed in {{run.dir}}/prospects.json)."
+    },
+    {
+      "id": "sources",
+      "title": "Fetch each prospect's site",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/sources",
+      "external": true,
+      "with": { "prospects": "{{run.dir}}/{{steps.load.outputs.prospects}}", "max_pages": "{{inputs.max_pages}}", "out": "{{run.dir}}/sources" }
+    },
+    {
+      "id": "hook",
+      "title": "One checkable fact each",
+      "role": "research",
+      "kind": "agent",
+      "fanout": 4,
+      "approval": "edits",
+      "view": "items",
+      "prompt": "Prospects are in {{run.dir}}/prospects.json and their fetched pages in {{run.dir}}/sources. Take every prospect whose position in the list, counted from 0, divided by 4 leaves {{index}}. For each, find one checkable fact on their own pages, quote it exactly and give its URL. No fact found: drop the prospect and say why. Write {{run.dir}}/hooks-{{index}}.json, and set the output key items to that path, one item per prospect (id, title, preview = the quote, url, status pending or dropped, reason).",
+      "outputs": ["items"]
+    },
+    {
+      "id": "write",
+      "title": "Write the first emails",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Offer: {{inputs.offer}}\n\nFor every prospect kept in {{run.dir}}/hooks-*.json, write a subject and a first email under 100 words: the quoted fact in line one, one ask, no flattery opener. Write {{run.dir}}/emails.json as a list of {id, to, subject, body}.",
+      "outputs": ["count"]
+    },
+    {
+      "id": "check",
+      "title": "Check facts and rules",
+      "role": "verify",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Check every email in {{run.dir}}/emails.json against its hook and fetched page in {{run.dir}}/sources: the quote appears in the page, under 100 words, no unfilled template braces left, no flattery opener. Write {{run.dir}}/check.json with pass or the reason per email. Set flag to the id of the first email that failed, or none.",
+      "outputs": ["passed", "flag"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve the drafts",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Save {{steps.write.outputs.count}} emails from {{run.dir}}/emails.json as Gmail drafts. Nothing is sent. Check result: {{steps.check.outputs.passed}}, flag: {{steps.check.outputs.flag}}."
+    },
+    {
+      "id": "drafts",
+      "title": "Save as Gmail drafts",
+      "role": "publish",
+      "kind": "action",
+      "uses": "plugin:gmail/draft",
+      "external": true,
+      "with": { "drafts": "{{run.dir}}/emails.json" }
+    }
+  ]
+}

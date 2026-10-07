@@ -32,7 +32,7 @@ export function parseExaText(text) {
       .split('\n')
       .map((l) => l.replace(/^#+\s*/, '').trim())
       .find((l) => l.length > 40 && l !== title && l !== '...');
-    out.push({ source_url: url, title, reason: clip(line || title), kind: 'web' });
+    out.push({ source_url: url, title, reason: clip(line || title), kind: 'web', excerpt: highlights.trim() });
   }
   return out;
 }
@@ -76,10 +76,13 @@ export function pickReferences(web, github, count) {
   return picked.slice(0, count);
 }
 
-async function searchExa(brief, n) {
+function searchExa(brief, n) {
+  return exaSearch(`websites and landing pages with strong visual design for: ${brief}`, n);
+}
+
+export async function exaSearch(query, n) {
   const cli = path.join(process.env.APPDATA ?? '', 'npm', 'node_modules', 'mcporter', 'dist', 'cli.js');
   if (!fs.existsSync(cli)) throw new Error(`mcporter not found at ${cli}`);
-  const query = `websites and landing pages with strong visual design for: ${brief}`;
   const raw = await run(process.execPath, [cli, 'call', 'exa.web_search_exa', `query=${query}`, `numResults=${n}`, '--output', 'json'], 90_000);
   const parsed = JSON.parse(raw);
   return (parsed.content ?? []).filter((c) => c.type === 'text' && c.text).flatMap((c) => parseExaText(c.text));
@@ -106,7 +109,8 @@ async function main() {
   for (const r of [web, github]) if (r.status === 'rejected') process.stderr.write(`${r.reason.message}\n`);
   const refs = pickReferences(web.status === 'fulfilled' ? web.value : [], github.status === 'fulfilled' ? github.value : [], count);
   if (refs.length === 0) throw new Error('no references found');
-  process.stdout.write(JSON.stringify({ ok: true, outputs: { references: refs } }) + '\n');
+  const references = refs.map(({ excerpt, ...r }) => r);
+  process.stdout.write(JSON.stringify({ ok: true, outputs: { references } }) + '\n');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

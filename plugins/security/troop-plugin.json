@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "id": "security",
+  "version": "0.1.0",
+  "name": "Security",
+  "description": "Lists a project's npm dependencies with installed, wanted and latest versions, and reports every installed package's licence with copyleft conflicts. Read-only.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": ["project:read", "run:write", "network"],
+  "actions": [
+    {
+      "id": "list-deps",
+      "title": "List dependencies and what is outdated",
+      "run": ["bin/security.js", "list-deps"],
+      "timeout_seconds": 300,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": { "path": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["total", "outdated"], "properties": { "out": {}, "total": { "type": "integer" }, "outdated": { "type": "integer" }, "major": { "type": "integer" } } }
+    },
+    {
+      "id": "licence-report",
+      "title": "Report every installed package's licence",
+      "run": ["bin/security.js", "licence-report"],
+      "timeout_seconds": 300,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": { "path": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["licence_conflict", "conflicts", "total"], "properties": { "out": {}, "licence_conflict": { "type": "boolean" }, "conflicts": { "type": "array" }, "review": { "type": "integer" }, "unknown": { "type": "integer" }, "total": { "type": "integer" } } }
+    }
+  ]
+}

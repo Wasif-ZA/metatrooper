@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "id": "docs-and-release-notes",
+  "title": "Docs and release notes",
+  "lane": "docs",
+  "requires": ["repo", "github"],
+  "inputs": {
+    "repo": { "type": "text", "label": "GitHub repository (owner/name)", "required": true },
+    "since": { "type": "text", "label": "Since (tag or date)", "required": false, "default": "last tag" },
+    "base_branch": { "type": "text", "label": "Base branch", "required": false, "default": "main" }
+  },
+  "budget": { "max_minutes": 45 },
+  "background": true,
+  "layout": "pr-first",
+  "steps": [
+    {
+      "id": "diff",
+      "title": "List merged changes",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:github/list-prs",
+      "with": { "repo": "{{inputs.repo}}", "since": "{{inputs.since}}", "base": "{{inputs.base_branch}}" }
+    },
+    {
+      "id": "map",
+      "title": "Map changes to docs",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Merged PRs and commits: {{steps.diff.output_path}}. Write {{run.dir}}/map.md: which docs each PR affects, missing tutorial, how-to, reference or explanation pages, and the files for each of three update lanes (0, 1, 2). Do not edit the repository. Set breaking_no_doc to true when a breaking PR has no migration note in the docs, otherwise false.",
+      "outputs": ["summary", "breaking_no_doc"]
+    },
+    {
+      "id": "update",
+      "title": "Update the docs",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 3,
+      "approval": "edits",
+      "prompt": "You are update lane {{index}}. Edit only the files {{run.dir}}/map.md gives lane {{index}}. Stage your changes with git add. Never commit or push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "changelog",
+      "title": "Write the changelog",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{steps.diff.output_path}} and {{run.dir}}/map.md, write {{run.dir}}/release-notes.md and a new CHANGELOG.md section grouped Added, Changed, Fixed. Pick the semver bump from the PR labels. Every line names its PR and doc. Skip chores and say why. Stage CHANGELOG.md; never commit.",
+      "outputs": ["bump", "version"]
+    },
+    {
+      "id": "samples",
+      "title": "Run every sample",
+      "role": "verify",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Run every code sample in the docs touched by {{run.dir}}/map.md, check their links and each --help output. Fix a failing sample once and run it again. Write {{run.dir}}/samples.md. Set passed to true when every sample passes, otherwise false.",
+      "outputs": ["passed"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve the release",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Release {{steps.changelog.outputs.version}} ({{steps.changelog.outputs.bump}} bump) of {{inputs.repo}} from {{inputs.base_branch}} with {{run.dir}}/release-notes.md. Samples passed: {{steps.samples.outputs.passed}}. Approve to tag and publish."
+    },
+    {
+      "id": "release",
+      "title": "Tag and publish the release",
+      "role": "publish",
+      "kind": "action",
+      "external": true,
+      "uses": "plugin:github/release",
+      "with": {
+        "repo": "{{inputs.repo}}",
+        "tag": "v{{steps.changelog.outputs.version}}",
+        "target": "{{inputs.base_branch}}",
+        "notes": "{{run.dir}}/release-notes.md",
+        "path": "{{project.path}}"
+      }
+    }
+  ]
+}

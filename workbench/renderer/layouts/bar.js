@@ -43,8 +43,17 @@ const runBars = (() => {
   function data(run, list) {
     const sig = list.map((x) => x.status).join();
     if (run.pipeline_id === 'e2e-browser-qa') return findingStore.get(ctx.api, run.id, sig, ctx.render);
-    return run.pipeline_id === 'two-engine-review' ? reviewStore.get(ctx.api, run.id, sig, ctx.render) : null;
+    if (run.pipeline_id === 'two-engine-review') return reviewStore.get(ctx.api, run.id, sig, ctx.render);
+    if (!rules.RULES[run.pipeline_id]) return null;
+    const c = (flags[run.id] ||= { at: 0, data: null, sig });
+    if (c.sig !== sig || Date.now() - c.at > 8000) {
+      c.sig = sig;
+      c.at = Date.now();
+      void ctx.api.runDetail(run.id).then((d) => { c.data = rules.flagsOf(d && !d.error ? d : null); ctx.render(); });
+    }
+    return c.data;
   }
+  const flags = {};
 
   const needKey = (run, list, d) => (rules.opens(run, list, d) ? `${d ? `${d.disagree}:${d.critical}` : ''}:${rules.activeStep(list).failed ? 'f' : ''}:${rules.moment(run, list, d)}` : '');
 
@@ -65,7 +74,7 @@ const runBars = (() => {
     if (run.status !== 'done') return { text: `${id} · ${run.status}`, last: '', hot: true };
     if (d && d.open) return { text: `${id} done`, last: `${d.open} still open${d.critical ? ` · ${d.critical} critical` : ''}`, hot: true };
     if (d && (d.disagree || d.critical)) return { text: `${id} done`, last: [d.disagree ? `${d.disagree} disagree` : '', d.critical ? `${d.critical} critical` : ''].filter(Boolean).join(' · '), hot: true };
-    return { text: `${id} done`, last: d ? `nothing needs you · ${d.items.length} finding${d.items.length === 1 ? '' : 's'}` : 'nothing needs you', hot: false };
+    return { text: `${id} done`, last: d && d.items ? `nothing needs you · ${d.items.length} finding${d.items.length === 1 ? '' : 's'}` : 'nothing needs you', hot: false };
   }
 
   function render() {

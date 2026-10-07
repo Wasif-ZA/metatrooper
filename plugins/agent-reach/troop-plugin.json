@@ -81,6 +81,62 @@
           }
         }
       }
+    },
+    {
+      "id": "search",
+      "title": "Search the plan's angles and save each source",
+      "run": [
+        "bin/search.js"
+      ],
+      "timeout_seconds": 600,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan",
+          "out"
+        ],
+        "properties": {
+          "plan": {
+            "type": "string",
+            "minLength": 1,
+            "description": "plan.md; every line starting search: is one query."
+          },
+          "out": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Folder for sources.json and one sNN.txt per saved page."
+          },
+          "per_query": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 3
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "sources",
+          "count",
+          "saved"
+        ],
+        "properties": {
+          "sources": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "saved": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "array"
+          }
+        }
+      }
     }
   ]
 }

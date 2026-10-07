@@ -41,6 +41,45 @@
         "properties": { "repo": { "type": "string" }, "pr": { "type": "string", "minLength": 1 } }
       },
       "output_schema": { "type": "object", "required": ["state", "checks"], "properties": { "state": { "type": "string" }, "checks": { "type": "array" } } }
+    },
+    {
+      "id": "list-prs",
+      "title": "List pull requests merged since a tag or date",
+      "run": ["bin/github.js", "list-prs"],
+      "timeout_seconds": 60,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo"],
+        "properties": {
+          "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+          "since": { "type": "string", "description": "A tag, a YYYY-MM-DD date, or 'last tag' (the latest release)." },
+          "base": { "type": "string", "minLength": 1 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 1000 }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["count", "prs"], "properties": { "count": { "type": "integer" }, "prs": { "type": "array" } } }
+    },
+    {
+      "id": "release",
+      "title": "Tag and publish a GitHub release",
+      "run": ["bin/github.js", "release"],
+      "external": true,
+      "destination_field": "repo",
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo", "tag", "target", "notes"],
+        "properties": {
+          "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+          "tag": { "type": "string", "pattern": "^v?[0-9]+[.][0-9]+[.][0-9]+" },
+          "target": { "type": "string", "minLength": 1 },
+          "notes": { "type": "string", "minLength": 1, "description": "Path to the release notes markdown." },
+          "path": { "type": "string" }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string" }, "tag": { "type": "string" } } }
     }
   ]
 }

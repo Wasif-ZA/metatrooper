@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "id": "form-fill-batch",
+  "title": "Form fill batch",
+  "lane": "desktop-forms",
+  "requires": ["desktop"],
+  "inputs": {
+    "sheet": { "type": "path", "label": "Sheet of rows to enter (CSV)", "required": true },
+    "window": { "type": "text", "label": "Form window title", "required": true }
+  },
+  "budget": { "max_minutes": 120 },
+  "background": false,
+  "layout": "coverage-map",
+  "steps": [
+    {
+      "id": "map",
+      "title": "Map columns to fields",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Open the window titled {{inputs.window}} and read its UI tree. Map each column of {{inputs.sheet}} to a form field. Write {{run.dir}}/rows.json: the field map and one entry per row with its values, all marked unfilled. Do not type into the form.",
+      "outputs": ["rows"]
+    },
+    {
+      "id": "fill",
+      "title": "Fill the next row",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Take the first unfilled row in {{run.dir}}/rows.json. Open a fresh {{inputs.window}} window for it, type its values and leave it open and unsent. Never touch the captcha panel and never press Submit. Mark the row filled in rows.json. Set window to that window's title, values to what you typed, captcha to shown or none, and rows_left to the number of rows still unfilled.",
+      "outputs": ["window", "values", "captcha", "rows_left"]
+    },
+    {
+      "id": "captcha",
+      "title": "Hand the captcha to you",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Window {{steps.fill.outputs.window}}: captcha {{steps.fill.outputs.captcha}}. Solve it in that window, then Continue. This does not submit anything."
+    },
+    {
+      "id": "shot",
+      "title": "Screenshot the filled row",
+      "role": "visual-check",
+      "kind": "action",
+      "uses": "plugin:desktop/screenshot",
+      "with": { "window": "{{steps.fill.outputs.window}}", "out": "{{run.dir}}/shots" },
+      "loop": { "steps": ["fill", "captcha", "shot"], "until": "steps.fill.outputs.rows_left == \"0\"", "max": 20 }
+    },
+    {
+      "id": "approve",
+      "title": "Approve the whole batch",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Press Submit in every filled window listed in {{run.dir}}/rows.json, in row order. Screenshots are in {{run.dir}}/shots."
+    },
+    {
+      "id": "submit",
+      "title": "Submit every row",
+      "role": "publish",
+      "kind": "action",
+      "uses": "plugin:desktop/submit",
+      "external": true,
+      "with": { "rows": "{{run.dir}}/rows.json" }
+    },
+    {
+      "id": "confirm",
+      "title": "Read the confirmations",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:desktop/read",
+      "with": { "rows": "{{run.dir}}/rows.json", "out": "{{run.dir}}/confirmations.json" }
+    }
+  ]
+}

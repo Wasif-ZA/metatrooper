@@ -168,7 +168,7 @@ const runScreen = (() => {
     const m = model();
     if (!m) return close();
     if (S.manual && ended(m.run) && !S.pickedEnded) S.manual = null;
-    const want = rules.pickLayout(m.run, m.pipe, m.list, S.manual, m.review || m.findings);
+    const want = rules.pickLayout(m.run, m.pipe, m.list, S.manual, m.review || m.findings || rules.flagsOf(m.detail));
     if (!S.cur) S.cur = want;
     else if (want !== S.cur) {
       clearTimeout(S.timer);
@@ -263,7 +263,7 @@ const runScreen = (() => {
   function auto() {
     S.manual = null;
     const m = model();
-    if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null, m.review || m.findings));
+    if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null, m.review || m.findings || rules.flagsOf(m.detail)));
   }
 
   /** Handles the run screen's own keys; returns true when it used the key. */

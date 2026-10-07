@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "id": "data",
+  "version": "0.1.0",
+  "name": "Data",
+  "description": "Loads a CSV into SQLite as text columns, runs read-only queries, and runs each KPI query in a dashboard spec. Uses Node's built-in node:sqlite.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": ["project:read", "run:write"],
+  "actions": [
+    {
+      "id": "load",
+      "title": "Load a CSV into a table",
+      "run": ["bin/data.js", "load"],
+      "timeout_seconds": 300,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "db"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "db": { "type": "string", "minLength": 1 },
+          "table": { "type": "string", "minLength": 1, "default": "raw" }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["db", "table", "rows", "columns"], "properties": { "db": { "type": "string" }, "table": { "type": "string" }, "rows": { "type": "integer" }, "columns": { "type": "array" }, "ragged": { "type": "integer" } } }
+    },
+    {
+      "id": "query",
+      "title": "Run a read-only query",
+      "run": ["bin/data.js", "query"],
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["db", "sql"],
+        "properties": {
+          "db": { "type": "string", "minLength": 1 },
+          "sql": { "type": "string", "minLength": 1 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100000 },
+          "out": { "type": "string", "minLength": 1 }
+        }
+      },
+      "output_schema": { "type": "object", "properties": { "columns": { "type": "array" }, "rows": { "type": "array" }, "total": { "type": "integer" }, "out": { "type": "string" } } }
+    },
+    {
+      "id": "render",
+      "title": "Run each KPI query in the dashboard spec",
+      "run": ["bin/data.js", "render"],
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["db", "spec"],
+        "properties": {
+          "db": { "type": "string", "minLength": 1 },
+          "spec": { "type": "string", "minLength": 1, "description": "DASHBOARD.md; each sql code block under a heading is one KPI." },
+          "out": { "type": "string", "minLength": 1 }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["out", "kpis"], "properties": { "out": { "type": "string" }, "kpis": { "type": "integer" }, "failed": { "type": "array" } } }
+    }
+  ]
+}

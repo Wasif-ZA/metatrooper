@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "id": "seo",
+  "version": "0.1.0",
+  "name": "SEO",
+  "description": "Crawls a site's same-origin pages breadth first and records status, title, meta description, canonical, headings, images without alt, word count and links. Read-only.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": ["network", "run:write"],
+  "actions": [
+    {
+      "id": "crawl",
+      "title": "Crawl the site",
+      "run": ["bin/seo.js", "crawl"],
+      "timeout_seconds": 900,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url"],
+        "properties": {
+          "url": { "type": "string", "pattern": "^https?://" },
+          "out": { "type": "string", "minLength": 1 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 5000 }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["pages", "broken", "key_pages"],
+        "properties": {
+          "crawl": { "type": "string" },
+          "pages": { "type": "integer" },
+          "broken": { "type": "integer" },
+          "key_pages": { "type": "array", "items": { "type": "string" } },
+          "data": { "type": "object" }
+        }
+      }
+    }
+  ]
+}

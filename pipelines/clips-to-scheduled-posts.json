@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "id": "clips-to-scheduled-posts",
+  "title": "Long video to clips to scheduled posts",
+  "lane": "video-social",
+  "requires": ["media", "social-scheduler"],
+  "inputs": {
+    "video": { "type": "text", "label": "Video URL or file", "required": true },
+    "platforms": { "type": "text", "label": "Platforms, comma separated", "required": false, "default": "tiktok, youtube-shorts, instagram-reels" },
+    "max_clips": { "type": "number", "label": "Most clips to make", "required": false, "default": 6 },
+    "week_start": { "type": "text", "label": "First posting day (ISO date)", "required": true }
+  },
+  "budget": { "max_minutes": 40 },
+  "background": true,
+  "layout": "variants-grid",
+  "steps": [
+    {
+      "id": "ingest",
+      "title": "Fetch the video",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:media/download",
+      "with": { "source": "{{inputs.video}}", "out": "{{run.dir}}/source" }
+    },
+    {
+      "id": "transcribe",
+      "title": "Transcribe and find scenes",
+      "role": "worker",
+      "kind": "action",
+      "uses": "plugin:media/transcribe",
+      "with": { "path": "{{steps.ingest.outputs.path}}", "out": "{{run.dir}}/words.json", "scenes": true }
+    },
+    {
+      "id": "moments",
+      "title": "Find clip moments",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "Transcript with word times: {{run.dir}}/words.json. Find up to 3 x {{inputs.max_clips}} moments that stand alone as short clips. Write {{run.dir}}/moments.json as a list of items with id, title (the hook), preview (the payoff), reason and status pending, plus src_start and src_end in seconds at word boundaries. Set the output key items to that path.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "pick",
+      "title": "Pick the clips to make",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Approve the moments to cut in {{run.dir}}/moments.json and drop the rest, then Continue. Nothing is cut before this."
+    },
+    {
+      "id": "cut",
+      "title": "Cut and reframe",
+      "role": "worker",
+      "kind": "action",
+      "fanout": 4,
+      "uses": "plugin:media/cut",
+      "with": { "video": "{{steps.ingest.outputs.path}}", "moments": "{{steps.moments.outputs.items}}", "index": "{{index}}", "aspect": "9:16", "out": "{{run.dir}}/clips" }
+    },
+    {
+      "id": "style",
+      "title": "Caption the clips",
+      "role": "worker",
+      "kind": "action",
+      "fanout": 4,
+      "uses": "plugin:media/captions",
+      "with": { "clip": "{{steps.cut.outputs.path[i]}}", "words": "{{run.dir}}/words.json", "hook_seconds": "2", "out": "{{run.dir}}/styled" }
+    },
+    {
+      "id": "copy",
+      "title": "Write the posts",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Clips: {{steps.style.outputs.path}}. Picked moments: {{run.dir}}/moments.json. For each clip and each of {{inputs.platforms}}, write a title, caption and hashtags, and a posting slot in the week from {{inputs.week_start}} as ISO with the Sydney offset. Write {{run.dir}}/posts.json and set the output key posts to that path.",
+      "outputs": ["posts"]
+    },
+    {
+      "id": "check",
+      "title": "Check clips per platform",
+      "role": "visual-check",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Check every clip in {{steps.style.outputs.path}} against {{run.dir}}/posts.json: speaker in frame, captions inside each platform safe zone, no cut mid-word. Write {{run.dir}}/check.md. Set passed to true when nothing is wrong, and list each problem with clip and platform under flags.",
+      "outputs": ["passed", "flags"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve the posts",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Posts and slots: {{steps.copy.outputs.posts}}. Check flags: {{steps.check.outputs.flags}}. Approve to schedule every post in one batch."
+    },
+    {
+      "id": "schedule",
+      "title": "Schedule the posts",
+      "role": "publish",
+      "kind": "action",
+      "external": true,
+      "uses": "plugin:social-scheduler/schedule-post",
+      "with": { "posts": "{{steps.copy.outputs.posts}}", "clips": "{{steps.style.outputs.path}}" }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "docs-export",
+  "version": "0.1.0",
+  "name": "Docs export",
+  "description": "Splits a PDF into one text file per page with pdftotext, and prints markdown to PDF through headless Chrome or Edge.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": ["project:read", "run:write"],
+  "actions": [
+    {
+      "id": "ingest",
+      "title": "Read a PDF page by page",
+      "run": ["bin/docs-export.js", "ingest"],
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "out"],
+        "properties": { "path": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["out", "pages", "files"], "properties": { "out": { "type": "string" }, "pages": { "type": "integer" }, "files": { "type": "array" }, "empty": { "type": "array" } } }
+    },
+    {
+      "id": "export-pdf",
+      "title": "Print markdown to PDF",
+      "run": ["bin/docs-export.js", "export-pdf"],
+      "timeout_seconds": 120,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "out"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "css": { "type": "string" },
+          "out": { "type": "string", "minLength": 1 },
+          "paper": { "type": "string", "enum": ["A4", "Letter", "A5"], "default": "A4" }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["out", "pages"], "properties": { "out": { "type": "string" }, "pages": { "type": "integer" }, "bytes": { "type": "integer" } } }
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "id": "deep-research-cited",
+  "title": "Deep research report with citations",
+  "lane": "research",
+  "requires": ["agent-reach", "cite-check"],
+  "inputs": {
+    "question": { "type": "text", "label": "Research question", "required": true }
+  },
+  "budget": { "max_usd": 5, "max_minutes": 40 },
+  "background": true,
+  "layout": "artifact-columns",
+  "steps": [
+    {
+      "id": "decompose",
+      "title": "Break the question down",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Question: {{inputs.question}}\n\nSave the question word for word in {{run.dir}}/question.md. Write {{run.dir}}/plan.md: six atomic items, the depth each needs, and three search angles per item, each on its own line as search: <query>. Do not search yet.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-plan",
+      "title": "Approve the plan",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/plan.md. Approve to start searching; reject cancels the run."
+    },
+    {
+      "id": "sweep",
+      "title": "Search and save sources",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/search",
+      "with": { "plan": "{{run.dir}}/plan.md", "out": "{{run.dir}}/sources" }
+    },
+    {
+      "id": "depth",
+      "title": "Go deep on one key point",
+      "role": "research",
+      "kind": "agent",
+      "fanout": 4,
+      "approval": "edits",
+      "prompt": "Plan: {{run.dir}}/plan.md. Sources: {{run.dir}}/sources/. Take key point {{index}} of 0 to 3. Write {{run.dir}}/depth-{{index}}.md: each position with a verbatim quote and its source id, and every source that disagrees. Use only saved sources.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "critic",
+      "title": "Find what would overturn it",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Read {{run.dir}}/depth-*.md and {{run.dir}}/sources/. For each position, name the saved source that would overturn it, or say none does. Write {{run.dir}}/digest.md with the positions, the challenges, and the gaps as limits.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "draft",
+      "title": "Draft the report",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "document",
+      "prompt": "Write {{run.dir}}/report.md from {{run.dir}}/digest.md only, answering {{run.dir}}/question.md. Every claim carries [s#] and a quote id. Set the output key document to the report path and sources to a list of title and url for each cited source.",
+      "outputs": ["document", "sources"]
+    },
+    {
+      "id": "critics",
+      "title": "Critique the report",
+      "role": "review",
+      "kind": "agent",
+      "fanout": 3,
+      "approval": "edits",
+      "view": "findings",
+      "prompt": "Read {{run.dir}}/report.md. You are critic {{index}} of 0 to 2: 0 off-topic, 1 overclaiming, 2 missing evidence. Write {{run.dir}}/critics-{{index}}.json as a list of findings with severity, title and detail. Set the output key findings to that path. Do not edit the report.",
+      "outputs": ["findings"]
+    },
+    {
+      "id": "patch",
+      "title": "Patch the report",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Apply the findings in {{run.dir}}/critics-*.json and, if it exists, the failures in {{run.dir}}/cite-check.json to {{run.dir}}/report.md. Edit in place; never regenerate the report.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "cite-check",
+      "title": "Check every quote",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:cite-check/check",
+      "with": { "report": "{{run.dir}}/report.md", "sources": "{{run.dir}}/sources" },
+      "loop": { "steps": ["patch", "cite-check"], "until": "steps.cite-check.passed", "max": 2 }
+    }
+  ]
+}

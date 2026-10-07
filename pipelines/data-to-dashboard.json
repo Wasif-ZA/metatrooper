@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "id": "data-to-dashboard",
+  "title": "Data to dashboard",
+  "lane": "data",
+  "requires": ["data"],
+  "inputs": {
+    "csv": { "type": "path", "label": "CSV file", "required": true },
+    "question": { "type": "text", "label": "What the dashboard should answer", "required": false, "default": "What moved, and by how much?" }
+  },
+  "budget": { "max_minutes": 60 },
+  "background": true,
+  "layout": "preview-stage",
+  "steps": [
+    {
+      "id": "load",
+      "title": "Load the CSV",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:data/load",
+      "with": { "path": "{{inputs.csv}}", "db": "{{run.dir}}/data.sqlite", "table": "raw" }
+    },
+    {
+      "id": "clean",
+      "title": "Clean the table",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "The CSV {{inputs.csv}} is loaded into table raw of {{run.dir}}/data.sqlite ({{steps.load.outputs.rows}} rows). Make a clean table: fix types, duplicates, date and price formats and blank categories. Do not edit the CSV. List every change in {{run.dir}}/CLEANING.md.",
+      "outputs": ["table", "rows"]
+    },
+    {
+      "id": "qa",
+      "title": "Check against the source",
+      "role": "verify",
+      "kind": "agent",
+      "uses": "plugin:data/query",
+      "approval": "edits",
+      "prompt": "Compare table {{steps.clean.outputs.table}} in {{run.dir}}/data.sqlite with table raw and {{inputs.csv}}: row counts, column totals, nulls. Set passed to false when any total is more than 0.5% off. Write the comparison to {{run.dir}}/QA.md.",
+      "outputs": ["passed"]
+    },
+    {
+      "id": "plan",
+      "title": "Pick KPIs and charts",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Question: {{inputs.question}}\n\nFrom table {{steps.clean.outputs.table}} in {{run.dir}}/data.sqlite, pick 5 KPIs and one chart form each. Write {{run.dir}}/DASHBOARD.md with each KPI's SQL and its expected headline value.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "build",
+      "title": "Build the dashboard",
+      "role": "worker",
+      "kind": "agent",
+      "uses": "plugin:data/render",
+      "approval": "edits",
+      "dev_command": "npx --yes http-server \"{{run.dir}}\" -p {{port}} -c-1",
+      "prompt": "Build {{run.dir}}/dashboard.html from {{run.dir}}/DASHBOARD.md and {{run.dir}}/data.sqlite: one self-contained page, every headline and chart from the SQL in DASHBOARD.md. If {{run.dir}}/READBACK.md lists wrong headlines, fix those.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "readback",
+      "title": "Read the numbers back",
+      "role": "visual-check",
+      "kind": "agent",
+      "browser": true,
+      "approval": "edits",
+      "prompt": "dashboard.html is open in your browser pane. Read each headline off the page and compare it with the expected value in {{run.dir}}/DASHBOARD.md. Write {{run.dir}}/READBACK.md listing each headline, page value, expected value, match or not. Set verdict to pass when every headline matches, otherwise wrong.",
+      "outputs": ["verdict"],
+      "loop": { "steps": ["build", "readback"], "until": "steps.readback.outputs.verdict == \"pass\"", "max": 2 }
+    },
+    {
+      "id": "narrate",
+      "title": "Write what moved",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Question: {{inputs.question}}\n\nUsing {{run.dir}}/DASHBOARD.md and {{run.dir}}/data.sqlite, write {{run.dir}}/SUMMARY.md: what moved and by how much, with the working shown step by step with the real numbers.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "signoff",
+      "title": "Check the numbers, then Continue",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Read {{run.dir}}/SUMMARY.md and {{run.dir}}/dashboard.html. Continue signs off; reject cancels the run. Sending the summary is yours."
+    }
+  ]
+}
