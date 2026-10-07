@@ -4,7 +4,7 @@ const runLayouts = {};
 const runScreen = (() => {
   const rules = window.layoutRules;
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage', 'hand-back': 'Hand-back', 'preview-stage': 'Preview stage', 'before-after': 'Before / after', 'variants-grid': 'Variants grid' };
+  const NAME = { 'run-log': 'Run log', 'artifact-columns': 'Artifact columns', 'pr-first': 'PR first', pipe: 'The pipe', 'agent-split': 'Agent split', 'pr-inline': 'PR inline', duel: 'Duel', buckets: 'Bucket board', 'coverage-map': 'Coverage map', triage: 'Triage', 'hand-back': 'Hand-back', 'preview-stage': 'Preview stage', 'before-after': 'Before / after', 'variants-grid': 'Variants grid', timeline: 'Timeline' };
   const SVG = (body) => `<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor">${body}</svg>`;
   const REVIEW_ICON = {
     'pr-inline': SVG('<path d="M1.5 2.5h13M1.5 6h9M1.5 11.5h13" stroke-dasharray="1 1"/><rect x="3" y="7.5" width="11" height="2.5" stroke-width="1.2"/>'),
@@ -22,6 +22,7 @@ const runScreen = (() => {
     'preview-stage': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="3" height="11" stroke-dasharray="1 1"/><rect x="5.5" y="1.5" width="9.5" height="7.5" stroke-width="1.4"/><path d="M5.5 11.5h9.5" stroke-dasharray="1 1"/></svg>',
     'before-after': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="6.2" height="11" stroke-dasharray="1 1.2"/><rect x="8.8" y="1.5" width="6.2" height="11" stroke-width="1.4"/></svg>',
     'variants-grid': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><rect x="1" y="1.5" width="4" height="11" stroke-dasharray="1 1"/><rect x="6" y="1.5" width="4" height="11" stroke-dasharray="1 1"/><rect x="11" y="1.5" width="4" height="11" stroke-dasharray="1 1"/></svg>',
+    timeline: '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M3 1.5v11" stroke-dasharray="1 1"/><circle cx="3" cy="3.5" r="1.3" fill="currentColor"/><circle cx="3" cy="10.5" r="1.3" fill="currentColor"/><path d="M6 3.5h9M6 10.5h7" stroke-width="1.4"/></svg>',
     'agent-split': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M1 1.5h14" stroke-width="1.6" stroke-dasharray="2 1"/><rect x="1" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/><rect x="8.8" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/></svg>',
   };
   const S = { runId: null, cur: null, manual: null, lastTouch: -1e12, timer: null, sel: null, focused: null, html: '' };
@@ -135,6 +136,7 @@ const runScreen = (() => {
       log: runLog(run.id, list.map((x) => x.status).join()),
       detail: runDetail(run.id, list.map((x) => x.status).join()),
       review: run.pipeline_id === 'two-engine-review' ? reviewStore.get(ctx.api, run.id, list.map((x) => x.status).join(), render) : null,
+      findings: run.pipeline_id === 'e2e-browser-qa' ? findingStore.get(ctx.api, run.id, list.map((x) => x.status).join(), render) : null,
       agent,
       diff: agent ? sessionDiff(agent.session.id) : null,
       gates: snap.gates.filter((g) => g.run_id === run.id),
@@ -166,7 +168,7 @@ const runScreen = (() => {
     const m = model();
     if (!m) return close();
     if (S.manual && ended(m.run) && !S.pickedEnded) S.manual = null;
-    const want = rules.pickLayout(m.run, m.pipe, m.list, S.manual, m.review);
+    const want = rules.pickLayout(m.run, m.pipe, m.list, S.manual, m.review || m.findings);
     if (!S.cur) S.cur = want;
     else if (want !== S.cur) {
       clearTimeout(S.timer);
@@ -261,7 +263,7 @@ const runScreen = (() => {
   function auto() {
     S.manual = null;
     const m = model();
-    if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null, m.review));
+    if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null, m.review || m.findings));
   }
 
   /** Handles the run screen's own keys; returns true when it used the key. */

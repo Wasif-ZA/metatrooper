@@ -9,6 +9,7 @@
   const status = (list, id) => (list.find((s) => s.id === id) || {}).status;
   const siteMoment = (list = [], run = {}) => (run.paused_why === 'loop-max' ? 'gaveup' : status(list, 'approve') === 'waiting' ? 'approve' : '');
   const variantsMoment = (list = []) => (status(list, 'approve-directions') === 'waiting' ? 'directions' : status(list, 'pick') === 'waiting' ? 'pick' : '');
+  const qaMoment = (list = [], run = {}, data = null) => (data && data.critical ? 'critical' : status(list, 'report') === 'done' && data && data.open ? 'open' : '');
   const RULES = {
     'spec-to-pr': { five: LIBRARY, onFail: 'run-log', pick: () => null },
     'two-engine-review': {
@@ -50,6 +51,19 @@
       },
       opens: (data, list) => Boolean(variantsMoment(list)),
       moment: variantsMoment,
+    },
+    'e2e-browser-qa': {
+      five: ['timeline', 'run-log', 'coverage-map', 'before-after', 'timeline'],
+      onFail: 'run-log',
+      pick: (run, list, data) => {
+        if (!data) return null;
+        if (data.critical) return 'timeline';
+        if (data.open && data.files >= 3) return 'coverage-map';
+        if (data.open && data.fixed) return 'before-after';
+        return data.open ? 'timeline' : 'before-after';
+      },
+      opens: (data, list, run) => Boolean(qaMoment(list, run, data)),
+      moment: qaMoment,
     },
   };
   const LONG_MS = 5000;
@@ -103,7 +117,7 @@
   }
 
   /** Which opening moment the run is at, so a second moment opens a bar the first one already opened. */
-  const moment = (run, list) => (ruleOf(run.pipeline_id).moment || (() => ''))(list, run);
+  const moment = (run, list, data) => (ruleOf(run.pipeline_id).moment || (() => ''))(list, run, data);
 
   root.layoutRules = { LIBRARY, REVIEW, RULES, opens, moment, LONG_MS, QUIET_MS, ruleOf, activeStep, pickLayout, due };
 })(globalThis);

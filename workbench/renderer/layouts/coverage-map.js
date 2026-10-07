@@ -2,6 +2,11 @@
 runLayouts['coverage-map'] = {
   render(m, h) {
     const r = m.review;
+    if (!r && m.findings) {
+      const groups = [...new Set(m.findings.items.map((x) => x.file || '(no file)'))];
+      const rows = groups.map((name) => `<section class="fg"><div class="sec">${h.esc(name)}</div><ol class="fdl">${m.findings.items.filter((x) => (x.file || '(no file)') === name).map((x) => findingStore.row(x, h)).join('')}</ol></section>`).join('');
+      return `<main class="crows" data-keep="coverage">${rows || '<div class="empty">No findings.</div>'}</main>`;
+    }
     if (!r) return reviewView.waiting(m, h);
     const diff = reviewStore.parseDiff(m.detail && m.detail.docs && m.detail.docs.diff);
     const names = [...new Set([...diff.map((f) => f.file), ...r.items.map((x) => x.file)])];

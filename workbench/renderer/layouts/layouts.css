@@ -271,3 +271,22 @@
 .L-variants-grid .mt { font-size: 10.5px; color: var(--faint); }
 .L-variants-grid .prl { font-family: var(--mono); font-size: 12px; }
 .L-variants-grid .vta { display: flex; gap: 12px; }
+
+/* timeline and findings */
+.L-timeline { display: grid; grid-template-columns: 1fr 380px; gap: 8px; }
+.L-timeline .trace { display: flex; flex-direction: column; min-height: 0; border-radius: var(--r); border: 1px dotted var(--hairline-strong); background: var(--pane); overflow: auto; }
+.L-timeline .hbh { display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; border-bottom: 1px dotted var(--hairline); }
+.L-timeline .hbh h1 { font-size: 14px; margin: 0; color: var(--body-strong); }
+.L-timeline .hbh .sub { font-size: 11.5px; color: var(--muted); }
+.L-timeline .side { min-height: 0; overflow: auto; }
+.L-timeline .side .sum { height: auto; flex-direction: column; }
+.runscreen .fdl { list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.runscreen .fd { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 10px; border-radius: var(--r); border: 1px dotted var(--hairline); font-size: 12.5px; }
+.runscreen .fd .sv { font-family: var(--mono); font-size: 10.5px; color: var(--muted); min-width: 56px; }
+.runscreen .fd.sev-critical .sv { color: var(--wait); }
+.runscreen .fd .tt { flex: 1; min-width: 0; color: var(--body-strong); }
+.runscreen .fd .at { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.runscreen .fd .st { font-size: 10.5px; color: var(--muted); }
+.runscreen .fd.fixed { opacity: .6; }
+.runscreen .fd .dt { flex-basis: 100%; color: var(--body); font-size: 12px; }
+.L-coverage-map .fg { padding: 0 0 8px; }

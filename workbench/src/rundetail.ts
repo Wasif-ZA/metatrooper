@@ -9,6 +9,7 @@ export interface RunDetail {
   outputs: Record<string, Record<string, unknown>>;
   docs: { spec: string | null; diff: string | null };
   pr: { number: number | null; url: string } | null;
+  findings: unknown[] | null;
 }
 
 const parse = (text: string | null | undefined): Record<string, unknown> => {
@@ -20,7 +21,7 @@ const parse = (text: string | null | undefined): Record<string, unknown> => {
   }
 };
 
-/** Inputs, each step's latest outputs, spec.md and review.diff from the run folder, and the PR a step output names. */
+/** Inputs, each step's latest outputs, spec.md, review.diff and findings.json from the run folder, and the PR a step output names. */
 export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error: string } {
   const run = db.prepare('SELECT r.inputs, r.run_dir, p.path AS project_dir FROM run r JOIN project p ON p.id = r.project_id WHERE r.id = ?').get(runId) as
     | { inputs: string | null; run_dir: string; project_dir: string }
@@ -48,5 +49,10 @@ export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error:
     const m = typeof url === 'string' ? /\/pull\/(\d+)/.exec(url) : null;
     if (m) pr = { number: Number(m[1]), url: url as string };
   }
-  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr };
+  let findings: unknown[] | null = null;
+  try {
+    const v = JSON.parse(doc('findings.json') ?? 'null');
+    if (Array.isArray(v)) findings = v;
+  } catch {}
+  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings };
 }

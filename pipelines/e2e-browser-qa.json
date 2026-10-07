@@ -8,6 +8,8 @@
     "focus": { "type": "text", "label": "What to check (optional)", "required": false, "default": "the main user flows" }
   },
   "budget": { "max_minutes": 90 },
+  "background": true,
+  "layout": "timeline",
   "steps": [
     {
       "id": "flows",

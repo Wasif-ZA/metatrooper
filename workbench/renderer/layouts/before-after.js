@@ -6,6 +6,12 @@ runLayouts['before-after'] = {
     const gaveUp = m.run.paused_why === 'loop-max';
     const notes = rounds.length ? `<div class="tb">${rounds.map(h.eventLine).join('')}</div>` : '<div class="empty">No rounds yet.</div>';
     const gate = m.list.find((x) => x.kind === 'gate' && x.status === 'waiting');
+    const f = m.findings;
+    const split = (fixed) => { const xs = f.items.filter((x) => x.fixed === fixed); return xs.length ? `<ol class="fdl">${xs.map((x) => findingStore.row(x, h)).join('')}</ol>` : `<div class="empty">${fixed ? 'Nothing fixed yet.' : 'Every finding is fixed.'}</div>`; };
+    if (f) {
+      return `<aside class="notes" data-keep="ba-notes"><div class="sec">Fixed (${f.fixed})</div>${split(true)}</aside>
+        <main class="after" data-keep="ba-after"><div class="sec">Still open (${f.open})</div>${split(false)}<div class="sec">What changed</div><div class="files">${m.agent ? h.files(m) : '<div class="empty">No changes yet.</div>'}</div></main>`;
+    }
     return `<aside class="notes${gaveUp ? ' halo' : ''}" data-keep="ba-notes">${gaveUp ? '<span class="edge"></span>' : ''}
         <div class="sec">${h.esc(s ? s.title : 'Rounds')}${gaveUp ? ' gave up after its last round' : ''}</div>${notes}${s ? h.detail(m, s) : ''}</aside>
       <main class="after" data-keep="ba-after">

@@ -41,10 +41,12 @@ const runBars = (() => {
   }
 
   function data(run, list) {
-    return run.pipeline_id === 'two-engine-review' ? reviewStore.get(ctx.api, run.id, list.map((x) => x.status).join(), ctx.render) : null;
+    const sig = list.map((x) => x.status).join();
+    if (run.pipeline_id === 'e2e-browser-qa') return findingStore.get(ctx.api, run.id, sig, ctx.render);
+    return run.pipeline_id === 'two-engine-review' ? reviewStore.get(ctx.api, run.id, sig, ctx.render) : null;
   }
 
-  const needKey = (run, list, d) => (rules.opens(run, list, d) ? `${d ? `${d.disagree}:${d.critical}` : ''}:${rules.activeStep(list).failed ? 'f' : ''}:${rules.moment(run, list)}` : '');
+  const needKey = (run, list, d) => (rules.opens(run, list, d) ? `${d ? `${d.disagree}:${d.critical}` : ''}:${rules.activeStep(list).failed ? 'f' : ''}:${rules.moment(run, list, d)}` : '');
 
   function open(runId) {
     const st = ctx.stepsOf(runId);
@@ -61,6 +63,7 @@ const runBars = (() => {
       return { text: `${id} · ${at} · ${secs}s`, last: s ? s.last_line : '', hot: false };
     }
     if (run.status !== 'done') return { text: `${id} · ${run.status}`, last: '', hot: true };
+    if (d && d.open) return { text: `${id} done`, last: `${d.open} still open${d.critical ? ` · ${d.critical} critical` : ''}`, hot: true };
     if (d && (d.disagree || d.critical)) return { text: `${id} done`, last: [d.disagree ? `${d.disagree} disagree` : '', d.critical ? `${d.critical} critical` : ''].filter(Boolean).join(' · '), hot: true };
     return { text: `${id} done`, last: d ? `nothing needs you · ${d.items.length} finding${d.items.length === 1 ? '' : 's'}` : 'nothing needs you', hot: false };
   }
