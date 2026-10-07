@@ -62,10 +62,65 @@ export async function search(input, search_ = exaSearch, save_ = save) {
   return { sources: path.join(input.out, 'sources.json'), count: sources.length, saved: sources.filter((s) => s.path && !s.excerpt_only).length, excerpts: sources.filter((s) => s.excerpt_only).length, failed };
 }
 
+const PREFER = /about|service|team|story|work|menu|pricing|book|contact/i;
+
+export function sameSiteLinks(html, base) {
+  const origin = new URL(base).origin;
+  const links = new Set();
+  for (const m of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"'#]+)["']/gi)) {
+    try {
+      const u = new URL(m[1], base);
+      if (u.origin === origin && !/\.(pdf|jpe?g|png|gif|zip|mp4)$/i.test(u.pathname) && u.href !== base) links.add(u.href.replace(/\/$/, ''));
+    } catch {}
+  }
+  return [...links].sort((a, b) => Number(PREFER.test(b)) - Number(PREFER.test(a)));
+}
+
+async function fetchHtml(url) {
+  const res = await fetch(url, { redirect: 'follow', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!/html/i.test(res.headers.get('content-type') ?? '')) throw new Error('not an HTML page');
+  return { html: await res.text(), url: res.url || url };
+}
+
+export async function sources(input, get = fetchHtml) {
+  const prospects = JSON.parse(fs.readFileSync(input.prospects, 'utf8'));
+  const max = Number(input.max_pages ?? 3);
+  fs.mkdirSync(input.out, { recursive: true });
+  const index = [];
+  for (const [i, p] of prospects.entries()) {
+    const entry = { index: i, name: p.name ?? '', business: p.business ?? '', site: p.site ?? '', pages: [], errors: [] };
+    index.push(entry);
+    if (!p.site) { entry.errors.push('no site'); continue; }
+    const start = /^https?:\/\//i.test(p.site) ? p.site : `https://${p.site}`;
+    const dir = path.join(input.out, String(i));
+    fs.mkdirSync(dir, { recursive: true });
+    const queue = [start];
+    const seen = new Set();
+    while (queue.length && entry.pages.length < max) {
+      const url = queue.shift();
+      if (seen.has(url)) continue;
+      seen.add(url);
+      try {
+        const page = await get(url);
+        const file = `p${entry.pages.length + 1}.txt`;
+        fs.writeFileSync(path.join(dir, file), `${page.url}\n\n${pageText(page.html)}`);
+        entry.pages.push({ url: page.url, file: `${i}/${file}` });
+        if (entry.pages.length === 1) queue.push(...sameSiteLinks(page.html, page.url));
+      } catch (e) {
+        entry.errors.push(`${url}: ${e.message}`);
+      }
+    }
+  }
+  fs.writeFileSync(path.join(input.out, 'index.json'), JSON.stringify(index, null, 2));
+  return { out: input.out, prospects: index.length, with_pages: index.filter((e) => e.pages.length).length, pages: index.reduce((n, e) => n + e.pages.length, 0) };
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
-    process.stdout.write(JSON.stringify({ ok: true, outputs: await search(req.input || {}) }) + '\n');
+    const fn = process.argv[2] === 'sources' ? sources : search;
+    process.stdout.write(JSON.stringify({ ok: true, outputs: await fn(req.input || {}) }) + '\n');
   } catch (e) {
     process.stdout.write(JSON.stringify({ ok: false, error: { message: e.message, retryable: true } }) + '\n');
     process.exit(1);

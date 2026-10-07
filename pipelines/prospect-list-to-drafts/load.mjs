@@ -1,11 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const cellsOf = (line) => [...line.matchAll(/\s*(?:"((?:[^"]|"")*)"|([^,]*))\s*(?:,|$)/g)]
+  .slice(0, -1)
+  .map((m) => (m[1] !== undefined ? m[1].replace(/""/g, '"') : m[2].trim()));
+
+// Quoted fields may hold commas; a quoted field spanning lines is not handled.
 const rowsOf = (text) => {
-  const [head, ...lines] = text.split(/\r?\n/).filter((l) => l.trim());
-  const cols = head.split(',').map((c) => c.trim().toLowerCase());
-  // Splits on every comma; quoted commas are not handled.
-  return lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [cols[i], v.trim()])));
+  const [head, ...lines] = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+  const cols = cellsOf(head).map((c) => c.toLowerCase());
+  return lines.map((l) => Object.fromEntries(cellsOf(l).map((v, i) => [cols[i], v])));
 };
 
 /** Reads the prospect CSV, drops rows with no email, duplicates and do-not-contact addresses, writes prospects.json. */

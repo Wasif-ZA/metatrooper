@@ -137,6 +137,62 @@
           }
         }
       }
+    },
+    {
+      "id": "sources",
+      "title": "Fetch a few pages from each prospect site",
+      "run": [
+        "bin/search.js",
+        "sources"
+      ],
+      "timeout_seconds": 1800,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prospects",
+          "out"
+        ],
+        "properties": {
+          "prospects": {
+            "type": "string",
+            "minLength": 1,
+            "description": "prospects.json: a list with site, name, business."
+          },
+          "max_pages": {
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "out": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "out",
+          "prospects",
+          "pages"
+        ],
+        "properties": {
+          "out": {
+            "type": "string"
+          },
+          "prospects": {
+            "type": "integer"
+          },
+          "with_pages": {
+            "type": "integer"
+          },
+          "pages": {
+            "type": "integer"
+          }
+        }
+      }
     }
   ]
 }
