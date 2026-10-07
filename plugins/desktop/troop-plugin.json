@@ -25,6 +25,7 @@
       "title": "Press Submit in every filled row's window",
       "run": ["bin/desktop.js", "submit"],
       "external": true,
+      "destination_field": "rows",
       "timeout_seconds": 300,
       "input_schema": {
         "type": "object",
