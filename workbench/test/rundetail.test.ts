@@ -60,6 +60,36 @@ test('runDetail reads spec.md from the run directory and returns null when absen
   } finally { f.close(); }
 });
 
+test('runDetail returns findings from a findings.json array in the run directory', () => {
+  const f = fixture();
+  try {
+    const findings = [{ severity: 'high', file: 'src/app.js' }];
+    writeFileSync(join(f.runDir, 'findings.json'), JSON.stringify(findings));
+    assert.deepEqual(runDetail(f.db, 'run-1').findings, findings);
+  } finally { f.close(); }
+});
+
+test('runDetail returns null findings when findings.json is missing', () => {
+  const f = fixture();
+  try { assert.equal(runDetail(f.db, 'run-1').findings, null); } finally { f.close(); }
+});
+
+test('runDetail returns null findings when findings.json is not an array', () => {
+  const f = fixture();
+  try {
+    writeFileSync(join(f.runDir, 'findings.json'), JSON.stringify({ issue: 'not an array' }));
+    assert.equal(runDetail(f.db, 'run-1').findings, null);
+  } finally { f.close(); }
+});
+
+test('runDetail returns null findings when findings.json is invalid JSON', () => {
+  const f = fixture();
+  try {
+    writeFileSync(join(f.runDir, 'findings.json'), '{bad json');
+    assert.equal(runDetail(f.db, 'run-1').findings, null);
+  } finally { f.close(); }
+});
+
 test('runDetail caps spec.md at 200 KiB', () => {
   const f = fixture();
   try {
