@@ -8,11 +8,11 @@ Twelve pipelines are not built. Each of their issues gets: its helper rows from 
 (top 3 to 4, with licence risk and egress), and its ideas table from `ideas-coding.md` or `ideas-lanes.md`
 (High value rows as requirements, the rest as notes). Issue #19 covers two pipelines, so it gets two lists.
 `spec-build-review-handback` is an M1 built-in with no pipeline file yet, so its list goes into
-`issues/04-pipeline-runner.md`, the issue that ships the built-ins.
+`issues/archive/04-pipeline-runner.md`, the issue that ships the built-ins.
 
 | Issue file | Pipeline | Helpers, first picks | Extra change |
 |---|---|---|---|
-| `issues/04-pipeline-runner.md` | spec-build-review-handback | OpenSpec, spec-kit, context7, repomix | none |
+| `issues/archive/04-pipeline-runner.md` | spec-build-review-handback | OpenSpec, spec-kit, context7, repomix | none |
 | `issues/23-docs-and-release-notes.md` | docs-and-release-notes | git-cliff, release-please, changesets, vale | version bump computed from commit prefixes (ideas-coding.md) |
 | `issues/25-security-plugin-and-security-review-and-upgrade.md` | security-review-and-upgrade | osv-scanner, trivy, semgrep, gitleaks | reuse M4-4's scan function |
 | `issues/15-media-plugin-and-footage-to-edit.md` | footage-to-edit | auto-editor, faster-whisper, Remotion (caution), OpenMontage (AGPL, caution) | none |
