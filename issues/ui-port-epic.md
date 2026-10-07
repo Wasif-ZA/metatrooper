@@ -7,7 +7,7 @@ the library of 15 (spec.md, Pipeline UI). The mockups are fixture-driven HTML. T
 `ui.snap`; it does not paste them in.
 
 Replaces the layout-A design of the UI revision (`issues/archive/`). The code under it stays: terminal core
-(#33), status and inbox (#35), tools (#36) and result panes (#38).
+(terminal-core), status and inbox (status-and-notifications), tools (zero-setup-tools) and result panes (result-panes).
 
 ## Decided
 
@@ -38,7 +38,7 @@ and 0 apply at once. The move is a GSAP glide.
 agent line, and one small live extra. The bar opens only when the pipeline's open rule fires (the "Opens when"
 column in spec.md). Esc folds it and Enter opens it. Done, it settles as a calm bar that says `nothing needs you`.
 
-**The view slot.** Each layout exposes one output region. The active step's `view` pane (#38's code in
+**The view slot.** Each layout exposes one output region. The active step's `view` pane (result-panes's code in
 `workbench/renderer/panes.js`) renders there. When the layout changes, the pane moves with it.
 
 **Keys follow focus.** 1 to 5 and 0 act on an open run screen. 1 and 2 answer
@@ -67,7 +67,7 @@ a question when the focused tile is an agent asking one.
 ## Phase B: layout picking and the first five layouts
 
 - **Scope.** `layout` and `background` reach the window through `step_defs`. `pickLayout`, the glide timing,
-  keys 1 to 5 and 0. Layouts `run-log` (reuses #37's `stepsOf()` step list), `artifact-columns`, `pr-first`,
+  keys 1 to 5 and 0. Layouts `run-log` (reuses step-list's `stepsOf()` step list), `artifact-columns`, `pr-first`,
   `pipe`, `agent-split`. The `spec-to-pr` pick rule.
 - **Check.** A `spec-to-pr` fixture run shows the hinted layout per step; a failure shows `run-log`.
 - **Files.** `workbench/src/queries.ts` (step_defs carry `layout`; pipelines carry `layout` and `background`),
@@ -90,7 +90,7 @@ a question when the focused tile is an agent asking one.
 
 ### UI: `spec-build-review-handback`
 
-This child carries the screen of Wasif's loop (milestone 1). Moved here from #37 on 2026-10-05.
+This child carries the screen of Wasif's loop (milestone 1). Moved here from step-list on 2026-10-05.
 
 Background. The run folds to the 36px wall bar with a small live terminal tail.
 
@@ -106,15 +106,15 @@ Background. The run folds to the 36px wall bar with a small live terminal tail.
 
 ## Phase E: pick rules for the 12 M3 pipelines
 
-- **Scope.** Pick rules for the 12 pipelines owned by #15 to #25. Each is tested on its scratch `run.js` fixture,
-  copied into `tests/fixtures/<id>/`. Their pipeline JSON and plugins stay with #15 to #25.
+- **Scope.** Pick rules for the 12 pipelines owned by #32 to #27. Each is tested on its scratch `run.js` fixture,
+  copied into `tests/fixtures/<id>/`. Their pipeline JSON and plugins stay with #32 to #27.
 - **Check.** Each fixture picks the layout its spec.md row names.
 - **Files.** `rules.js`, `tests/fixtures/<id>/` for each of the 12.
 
 ## Out of scope
 
-- The 12 M3 pipelines' JSON and plugins (#15 to #25).
-- Push, release and the installer (UI-02, #28).
+- The 12 M3 pipelines' JSON and plugins (#32 to #27).
+- Push, release and the installer (UI-02, #31).
 - New design rounds.
 
 ## Related

@@ -103,7 +103,7 @@ command, args and resolved secrets (DPAPI values and `${VAR}` references resolve
 at that moment), then spawns the real server with that environment and relays stdio. No secret is written into
 any engine's config file.
 
-How engines are pointed at the shim (child #3):
+How engines are pointed at the shim (child #13):
 
 | `mcp_attach.kind` | How |
 |---|---|

@@ -1,6 +1,6 @@
 # Epic: Workbench revision, agents in in-app terminals (M1 revision)
 
-Children #33 to #38. Branch: new branch off `m2` (D20). Effort: about 18.5 Claude Code days (human team: about 3.5 months).
+Children terminal-core to result-panes. Branch: new branch off `m2` (D20). Effort: about 18.5 Claude Code days (human team: about 3.5 months).
 No deadline: Wasif would rather this takes longer and is done properly (D19).
 
 ## Context
@@ -55,7 +55,7 @@ the build differs from the spec below, the build wins and UI-STATUS.md "Decision
 | D4 | Zero setup per agent: browser MCP, toolrouter, hooks and skills wired at launch. One-click actions. Plain PowerShell and bash tabs. Drag a file, screenshot or diff line onto a terminal to put it in the prompt. |
 | D5 | Done when the four user checks pass (Acceptance criteria 1 to 4). Criteria 5 to 11 are the technical checks behind them; all 11 block the merge. |
 | D7 | xterm.js (MIT, 21,240 stars) and node-pty (MIT, 2,040 stars), both under the 25k gate; nothing better passes. Temporary, behind one terminal module so either can be swapped. |
-| D8 | One way to run agents: delete the wt launcher, drop herdr (#27). |
+| D8 | One way to run agents: delete the wt launcher, drop herdr (#28). |
 | D9 | When the core dies, dead sessions show one-click Resume (engine's own resume flag, same folder). |
 | D10 | Browser, diff, pipeline and hand-back open split beside their terminal. |
 | D11 | Windows toast (click jumps to the session), dot on the session, count in the status strip. |
@@ -104,11 +104,11 @@ source; until then the terminal header shows a "Paste prompt" button. The clipbo
 `session.focus` becomes "select this session in the window" (a database row the window watches), with no
 process call.
 
-**Task 0 of #33: prove node-pty.** Core has no dependencies today and this is its first native addon. Before
+**Task 0 of terminal-core: prove node-pty.** Core has no dependencies today and this is its first native addon. Before
 anything else: node-pty installs under core's Node (24.18 on this laptop), spawns `pwsh` through ConPTY,
 echoes input, resizes and exits cleanly. If its prebuilt binary does not load, try a maintained prebuilt fork
 (checked against the dependency gate first), then a from-source build with the VS Build Tools. Nothing else in
-#33 starts until one of the three passes.
+terminal-core starts until one of the three passes.
 
 **Schema migration.** `host CHECK (host IN ('pty'))`; existing rows set to `'pty'`; drop `window_name` and
 `herdr_pane`. Migration runs at core start, idempotent. "Done, unseen" (D14) needs no column: a session is unseen when its last `done` state_at is later than its last `core.seen` event (methods.ts:123 already writes that event).
@@ -122,7 +122,7 @@ Panes from D16 render inside the side split. Pipeline step list sits under the s
 The 5 tabs and 2 rails are removed; Gates and Needs-you move to the status strip and the notification inbox.
 
 **Docs.** spec.md D19, Rule 1 and the Sessions section rewritten for in-app terminals; contracts/pipe-protocol.md
-gains the terminal pipe; events-and-hooks.md, pipelines.md and testing.md lose wt and herdr text. Issue #27
+gains the terminal pipe; events-and-hooks.md, pipelines.md and testing.md lose wt and herdr text. Issue #28
 closed as dropped.
 
 ## Contracts
@@ -210,31 +210,31 @@ closed as dropped.
   - `findings`: `[{"severity":"critical|high|medium|low","title","file"?,"line"?,"detail","fixed_by"?}]`
 - Approve, Edit and Drop on `items` write back to that file through new `run.item-set {run_id, step_id, id, status}`.
 
-### Render rounds (#34)
+### Render rounds (layout-shell)
 
 - Three rounds of scratch renders, five options each, on a comparison board, before any layout code. Wasif picks
-  or rejects each round. The round-3 pick, written to STATE.md, is #34's layout brief; code starts after it.
+  or rejects each round. The round-3 pick, written to STATE.md, is layout-shell's layout brief; code starts after it.
 
 ## Child issues
 
 | # | Title | Effort (CC days) | Depends on |
 |---|---|---|---|
-| 33 | Terminal module, terminal pipe, launch rewrite, schema migration, clean cut of wt and herdr, docs | 5 | none |
-| 34 | Layout shell: 3 render rounds, then session list, big terminal, tile grid, Ctrl+K palette, status strip, side split, first screen | 4 | 33 (code only; renders start day one) |
-| 35 | Status and notifications: done-unseen, bell and title signal, toast jump, notification inbox, Clear status, Resume dead sessions | 1.5 | 33, 34 |
-| 36 | Zero-setup tools: MCP, toolrouter, hooks, skills at launch; one-click actions; shell tabs; drag onto terminal | 2 | 33, 34 |
-| 37 | Pipeline step list and restyled editor | 2 | 34 |
-| 38 | Result panes: Item review set, Document, Row table, Findings list; Diff widened to visual and text | 4 | 37 |
+| terminal-core | Terminal module, terminal pipe, launch rewrite, schema migration, clean cut of wt and herdr, docs | 5 | none |
+| layout-shell | Layout shell: 3 render rounds, then session list, big terminal, tile grid, Ctrl+K palette, status strip, side split, first screen | 4 | terminal-core (code only; renders start day one) |
+| status-and-notifications | Status and notifications: done-unseen, bell and title signal, toast jump, notification inbox, Clear status, Resume dead sessions | 1.5 | terminal-core, layout-shell |
+| zero-setup-tools | Zero-setup tools: MCP, toolrouter, hooks, skills at launch; one-click actions; shell tabs; drag onto terminal | 2 | terminal-core, layout-shell |
+| step-list | Pipeline step list and restyled editor | 2 | layout-shell |
+| result-panes | Result panes: Item review set, Document, Row table, Findings list; Diff widened to visual and text | 4 | step-list |
 
 ```
-#33 terminal core --+--> #34 layout --+--> #35 status
-                    |                 +--> #36 tools
-                    |                 +--> #37 step list --> #38 panes
-#34 render rounds (design only) can start on day one
+terminal-core --+--> layout-shell --+--> status-and-notifications
+                                    +--> zero-setup-tools
+                                    +--> step-list --> result-panes
+layout-shell render rounds (design only) can start on day one
 ```
 
-Why this order: every screen reads terminals from #33, so it lands first and alone. The layout (#34) decides
-where everything sits, so status, tools and the step list wait for it. Panes (#38) render inside the step
+Why this order: every screen reads terminals from terminal-core, so it lands first and alone. The layout (layout-shell) decides
+where everything sits, so status, tools and the step list wait for it. Panes (result-panes) render inside the step
 list's split, so they come last.
 
 ## Acceptance criteria
@@ -252,7 +252,7 @@ All 11 block the merge. 1 to 4 are the user checks from D5.
    The session is still `working`, and the reattached terminal's last 200 rows match the headless terminal's.
 4. **Fewer clicks.** A click is one mouse click or one key chord, counted from the app focused on its home
    screen to the result visible. For start agent, approve gate, see diff, hand back and open browser, today's
-   counts are written into #34 before any #34 code; no new count is higher than today's and at least 3 of the 5
+   counts are written into layout-shell before any layout-shell code; no new count is higher than today's and at least 3 of the 5
    are lower (reworded 2026-10-02: start agent and approve gate were already 1 click).
 5. `grep -rn "wt.exe\|TROOP_LAUNCHER\|herdr" core/src workbench/src workbench/renderer` returns nothing.
 6. Killing the core marks every live session `exited`. A claude or codex session with a `native_id` shows
@@ -276,7 +276,7 @@ All 11 block the merge. 1 to 4 are the user checks from D5.
 | Integration | Terminal pipe attach and snapshot, two viewers on one session, detach and reattach, core kill to Resume, prompt written into pty, the 12 moved tests | +8 |
 | E2E (real Electron) | Window close mid-turn and reopen; spec-to-pr with gates; drag a file onto a terminal | +3 |
 
-Codex writes the tests for #33 (core), matching the rule for #1, #4 and #6.
+Codex writes the tests for terminal-core (core), matching the rule for #12, #15 and #17.
 
 ## Rollback
 
@@ -313,9 +313,9 @@ database is rebuilt from a fresh core start (session rows are history, not state
 - Phone push (D12), account switcher (#29 second half), Mac and Linux builds.
 - Canvas editor or flow graph (D16, D17), calendar view, agent-written pipelines.
 - Swapping xterm.js for ghostty-web (possible later, behind the terminal module).
-- herdr host (#27, closed).
+- herdr host (#28, closed).
 
 ## Related
 
-- spec.md (epic), issues #5 (workbench), #27 (closed by this), #30 (drag onto session, reused by #36).
+- spec.md (epic), issues #16 (workbench), #28 (closed by this), #30 (drag onto session, reused by zero-setup-tools).
 - Research: ~/.cache/claude-scratch/metatrooper-ui-revision-2026-10-02/pipeline-visuals.html

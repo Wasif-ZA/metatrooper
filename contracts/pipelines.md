@@ -176,7 +176,7 @@ outputs. `run(ctx)` must return a JSON-serialisable object; the runner writes it
 it as the step's outputs. Throwing, or returning something that is not JSON-serialisable, fails the step. The
 module runs in a separate node process with the same limits as plugin actions.
 
-## Runner details (child #4)
+## Runner details (child #15)
 
 Choices the sections above leave open, as built:
 
@@ -208,7 +208,7 @@ Choices the sections above leave open, as built:
 - On core start, a step that was running an action, a code module or had no session yet is failed with
   "interrupted by core restart"; agent steps with a session and sub-pipeline steps are picked up again.
 - `code-host.js` gets `--experimental-default-type=module` only when the running node still accepts it.
-- `variant.combine` arrives with child #8.
+- `variant.combine` arrives with child #24.
 
 ## Layout and background
 

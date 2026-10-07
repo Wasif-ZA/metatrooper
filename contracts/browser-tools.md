@@ -62,7 +62,7 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 4. Browser panes use a separate Electron session partition per project (`persist:troop-<project_id>`), so
    cookies and storage never mix between projects.
 
-## As built (child #6)
+## As built (child #17)
 
 - Panes are `WebContentsView`s in the workbench window. The pane on screen has the Browser tab's bounds; every
   other pane stays attached as a 1 px view in the window corner with `Emulation.setDeviceMetricsOverride`

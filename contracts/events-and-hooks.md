@@ -159,7 +159,7 @@ both print the same comment for the same reason; that is the accepted cost of ne
 
 Uninstall restores `notify` to the previous array exactly, read from `hooks-install.json`.
 
-## Spool ingest (sandbox host, child #32)
+## Spool ingest (sandbox host, child sandbox-host)
 
 A sandboxed engine cannot reach `troop.db` or the named pipe. When `METATROOPER_SPOOL` is set, the event writer
 appends one line per event to `$METATROOPER_SPOOL/events.ndjson` instead of opening the database:

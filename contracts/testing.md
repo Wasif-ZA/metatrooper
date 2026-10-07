@@ -1,4 +1,4 @@
-# Testing surface for the core (child #1)
+# Testing surface for the core (child #12)
 
 Version 1. Tests use only what this file and the other contracts expose. They never import anything else
 from `core/src/`.
@@ -53,7 +53,7 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 | `core/src/events/state.ts` | `nextState(current: string, event: {kind: string, payload: object}): string \| null` | the state mapping table; `null` means no change |
 | `core/src/pipe/framing.ts` | `encode(msg: object): string`, `createDecoder(onMessage): (chunk: Buffer \| string) => void` | newline-delimited JSON, 1 MiB line cap (over the cap: throws `LineTooLong`) |
 
-## Plugin modules tests may import (child #3)
+## Plugin modules tests may import (child #13)
 
 | Module | Export | Contract |
 |---|---|---|
@@ -65,7 +65,7 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 | `core/src/plugins/mcp.ts` | `mcpAttachArgs(db, engine, sessionId): string[]` | engine arguments pointing plugin MCP servers at the shim |
 | `core/src/engines/registry.ts` | `bindRole(db, role, pinned?)` | lowest `cost_rank` engine listing the role, installed and not red |
 
-## Pipeline modules tests may import (child #4)
+## Pipeline modules tests may import (child #15)
 
 | Module | Export | Contract |
 |---|---|---|
@@ -78,7 +78,7 @@ Everything else about runs is observable through the pipe (`run.*`, `gate.resolv
 `port_lease` tables. A fake engine (`METATROOPER_ENGINES`) that reads the handoff
 footer from its last argument and writes the output file is enough to drive every step kind.
 
-## Browser modules tests may import (child #6)
+## Browser modules tests may import (child #17)
 
 | Module | Export | Contract |
 |---|---|---|

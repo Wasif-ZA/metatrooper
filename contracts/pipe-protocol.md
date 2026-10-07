@@ -148,7 +148,7 @@ Every other interaction is a database read.
 | `pane.url` | `{pane_id, url}` | `{}`; needs `ui.hello`; the workbench reports each navigation |
 | `pane.assign` | `{pane_id, session_id?}` | `{}`; needs `ui.hello`; sets or clears the one session allowed to drive the pane |
 | `pane.capture` | `{pane_id, label}` | `{snapshot_id}`; needs `ui.hello`; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row |
-| `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #5 for items nothing else resolves, such as a missed schedule) |
+| `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule) |
 
 ## Browser methods (`\\.\pipe\metatrooper-browser`)
 

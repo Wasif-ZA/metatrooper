@@ -70,18 +70,18 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D33 | Borrowed | Usage limits and reset timers, done vs idle, free SignPath signing, diff annotation, file drag, an agent-native CLI and skill |
 | D35 | Step handoff | Files between steps always; each agent step starts a fresh session with its prompt; `continue: true` falls back to a fresh session with a visible note |
 | D36 | Review fixes | Contracts pack, contradiction cleanup, security hardening, operational fixes: all applied |
-| D37 | Scope | Keep all 31 children, ship in 3 milestones; #32 added 2026-09-29 (D43) |
+| D37 | Scope | Keep all 31 children, ship in 3 milestones; sandbox-host added 2026-09-29 (D43) |
 | D40 | Phone | Using the terminals and the IDE from a phone (like Claude Code Remote Control) is a v3 epic, after the cloud epic |
 | D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a MetaTrooper worktree (2026-09-29). Elsewhere the default is the `sessions.approval` setting, `contained` out of the box (Wasif, 2026-10-05: every terminal starts in its engine's auto mode); an engine with no profile of that name starts in `ask`. Pipeline steps keep their own `approval` field |
 | D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29) |
-| D43 | Trooper sandbox | Own container host plugin, child #32 in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
+| D43 | Trooper sandbox | Own container host plugin, child sandbox-host in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
 | D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
 | D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including `work/ACU`, now opens (2026-10-05) |
 | D46 | ACU access | Wasif, 2026-10-05: open the whole vault including `work/ACU`, as Claude Code already does. Sessions whose folder is in or contains `work/ACU` always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch ACU unasked. Replaces the M1-30 refusal |
 | D47 | Claude drives agy | Wasif, 2026-10-05: agy stalls in pipeline steps, so an agent step whose engine is agy runs as a claude session (the driver) that hands agy the step prompt in print mode (`agy --print`), checks the output file's front matter after each turn, sends a follow-up naming what is missing, and after 3 turns writes `status: failed` with the reason. The driver never does the step's work. A driven step with no `approval` runs `contained` (driver claude in auto mode, agy with `--mode accept-edits --sandbox`); in or around `work/ACU` both run `ask` (D46). While the driver session is still working, an output with `status: done` but missing keys does not fail the step; the driver gets its turns first. A driver engine that is not usable logs `driver unavailable` and the step runs agy directly. The engine field `driver` turns it on; the session row keeps `driven_engine`; the tile reads `claude > agy`. Wall launches of agy stay plain terminals |
 | D48 | External engines near ACU | Wasif, 2026-10-05: engines flagged `ask_near_acu` (codex and agy, which send to OpenAI and Google) start in `ask` in any folder that sits under a tree containing `work/ACU`, such as a project inside the vault, because one shell command reaches ACU from there. claude keeps the requested approval there, as in his own Claude Code; D46 still makes every engine ask in or around `work/ACU` itself |
 | D49 | Launch and close | Wasif, 2026-10-05: open it like VS Code. `workbench/bin/install-launcher.ps1` adds a `metatrooper` command (`metatrooper .` opens that folder as the project) and Start menu and desktop shortcuts. The window starts the core when none answers, without the parent Claude Code session's variables. Closing asks Keep running / Stop everything only when the window started the core and agents or runs are open (Keep is the default); an idle own core is stopped; a core started elsewhere is left alone. Ctrl+K has Restart core and Stop core. Chosen by Codex and Gemini independently (both B) |
-| D50 | First user, distro and accounts | Wasif, 2026-10-07: a first outside user exists. Distribution waits on the signed installer (#28, SignPath); no unsigned release in the meantime. Accounts with sign-in are wanted, but in the cloud milestone with the gateway and sync, not now; this epic stays `signed_out`. Next work is the UI port, phases D and E |
+| D50 | First user, distro and accounts | Wasif, 2026-10-07: a first outside user exists. Distribution waits on the signed installer (#31, SignPath); no unsigned release in the meantime. Accounts with sign-in are wanted, but in the cloud milestone with the gateway and sync, not now; this epic stays `signed_out`. Next work is the UI port, phases D and E |
 
 ## Current state, verified 2026-09-29
 
@@ -226,7 +226,7 @@ An engine is any interactive CLI, defined by the `engine` object in `plugin-mani
 |---|---|---|---|---|---|---|---|
 | `claude` | `claude` | positional | hooks | none (auth `unknown`) | research, plan, worker, review, verify, visual-check | 3 | claude-transcript |
 | `codex` | `codex` | positional | notify | `codex login status`, exit 0 | plan, worker, review, verify | 2 | codex-session |
-| `agy` | `agy` | none (clipboard handoff until verified in child #1) | file-activity, glob `~/.gemini/antigravity-cli/brain/*/.system_generated/logs/**` | none | research, worker, review, visual-check | 1 | none |
+| `agy` | `agy` | none (clipboard handoff until verified in child #12) | file-activity, glob `~/.gemini/antigravity-cli/brain/*/.system_generated/logs/**` | none | research, worker, review, visual-check | 1 | none |
 
 Role binding picks the lowest `cost_rank` engine that lists the role, is installed, and is not red; the user
 can pin an engine per step or per project. Health: `version_cmd` and `auth_cmd` on start, every 10 minutes,
@@ -251,7 +251,7 @@ and on `engines.check`, 10 s timeout each. Lights: green (installed, auth ok), g
 
 Decided 2026-10-04 (core screen) and 2026-10-05 (pipeline screens). This replaces layout A from the UI revision
 (`issues/archive/ui-revision-epic.md`, D2, D3, D10, D15). The terminal core, status, tools and panes from that
-revision stay underneath (#33, #35, #36, #38). The port is `issues/ui-port-epic.md`.
+revision stay underneath (terminal-core, status-and-notifications, zero-setup-tools, result-panes). The port is `issues/ui-port-epic.md`.
 
 ### The wall
 
@@ -266,7 +266,7 @@ terminal pipe; you type into it in place. One tile holds the big slot and the re
 - **List, behind Ctrl+B.** It slides over the wall: New agent, pwsh, bash, then agents, Runs and Usage. A click
   puts a session in the big slot. Shift+click pairs it.
 - **Search, Ctrl+K.** One floating box over agents, gates and commands. Pipelines are the one-click commands
-  (#36). Arrows move, Enter opens, Esc closes.
+  (zero-setup-tools). Arrows move, Enter opens, Esc closes.
 - **Gate sheet.** A bottom sheet that peeks as a tab. The tab shows the gate count and each run's step N of M.
   Each gate card draws its run's steps as a pipe, with Approve, Reject and Open run. A opens the sheet, then
   approves the top gate. R rejects it.
@@ -286,7 +286,7 @@ terminal pipe; you type into it in place. One tile holds the big slot and the re
 - **Copy and paste in a terminal** work like PuTTY (Wasif, 2026-10-05): highlighting text with the mouse copies
   it at once; right-click pastes. Ctrl+C copies when text is selected and otherwise reaches the agent as an
   interrupt; Ctrl+Shift+C copies; Ctrl+V pastes (as a bracketed paste).
-- **Exited sessions** show as strips with Reopen (Resume or Start new here, #35). The inbox and toasts are #35's.
+- **Exited sessions** show as strips with Reopen (Resume or Start new here, status-and-notifications). The inbox and toasts are status-and-notifications's.
 - **Side tabs.** Diff, Hand-back, Browser, Runs and the Pipelines editor from layout A open as overlays over the
   wall. They are not a fixed split.
 
@@ -400,7 +400,7 @@ Rules:
   run ends.
 - A failed step always shows `run-log`.
 - A step's `view` renders inside the active layout's output slot. Every layout has one output slot. When the
-  layout changes, the pane moves with it. The `view` field and the pane code (#38) do not change.
+  layout changes, the pane moves with it. The `view` field and the pane code (result-panes) do not change.
 - Automatic mode moves the screen only when a gate starts waiting, a step fails, or a step has run for 5 s or
   more. Never within 2 s of a click or key. The move is a calm glide.
 - A background pipeline folds to a 36px wall bar: step, progress dots, elapsed time, the last agent line, and at
@@ -547,7 +547,7 @@ First-party plugins:
 
 ### Trooper sandbox host plugin
 
-An alternative session host (D43), child #32. It exists so the `isolated` approval profile can run an engine
+An alternative session host (D43), child sandbox-host. It exists so the `isolated` approval profile can run an engine
 with every approval skipped: that is only safe inside a boundary MetaTrooper controls. The ideas come from
 agent-infra/sandbox (one environment, shared filesystem, localhost only) and TencentCloud/CubeSandbox
 (credentials kept out of reach, egress allow-list); neither product is used. Both stay documented fallbacks:
@@ -664,59 +664,59 @@ Estimates are Claude Code days and were raised after the review said the first o
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
-| 1 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
-| 3 | Plugin system: manifest validation, install screen and approval, action runner with env stripping and tree kill, pane bridge, Claude and Codex/agy importers | 3.5 | 1 |
-| 2 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json` | 2.5 | 3 (for the plugin part only) |
-| 4 | Pipeline runner: validation with the publish rule, handoff contract, completion signals, gates with `action_hash`, fan-out, worktrees, port allocation, loops, resume, breaker, budgets, code steps, `repo` plugin | 4.5 | 1, 3 |
-| 5 | Electron workbench: project picker, session cards and focus, engine lights, runner view, form editor, gate panel, needs-you queue, "core offline" badge, database watcher | 3 | 1, 4 |
-| 6 | Live browser: panes, `metatrooper-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after | 5 | 1, 5 |
-| 9 | Two-engine review pipeline and view | 1 | 4, 5 |
-| 10 | Hand-back tray | 0.5 | 1, 5 |
-| 11 | Token meter and prices (reads `usage` from #1 and callrouter "saved") | 1.5 | 1, 2 |
-| 31 | Agent-native `troop` CLI and skill | 1.5 | 1, 4 |
-| 13 | Measurement tooling for the adoption gate | 0.5 | 5 to 11 |
+| 12 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
+| 13 | Plugin system: manifest validation, install screen and approval, action runner with env stripping and tree kill, pane bridge, Claude and Codex/agy importers | 3.5 | 12 |
+| 14 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json` | 2.5 | 13 (for the plugin part only) |
+| 15 | Pipeline runner: validation with the publish rule, handoff contract, completion signals, gates with `action_hash`, fan-out, worktrees, port allocation, loops, resume, breaker, budgets, code steps, `repo` plugin | 4.5 | 12, 13 |
+| 16 | Electron workbench: project picker, session cards and focus, engine lights, runner view, form editor, gate panel, needs-you queue, "core offline" badge, database watcher | 3 | 12, 15 |
+| 17 | Live browser: panes, `metatrooper-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after | 5 | 12, 16 |
+| 18 | Two-engine review pipeline and view | 1 | 15, 16 |
+| 19 | Hand-back tray | 0.5 | 12, 16 |
+| 20 | Token meter and prices (reads `usage` from #12 and callrouter "saved") | 1.5 | 12, 14 |
+| 21 | Agent-native `troop` CLI and skill | 1.5 | 12, 15 |
+| 22 | Measurement tooling for the adoption gate | 0.5 | 16 to 20 |
 
-#5's screen was revised twice: the UI revision (#33 to #38, `issues/archive/`) and the wall port
+#16's screen was revised twice: the UI revision (terminal-core to result-panes, `issues/archive/`) and the wall port
 (`issues/ui-port-epic.md`, phases A to E).
 
-Then the **adoption gate**: 14 days of Wasif's daily use, measured by #13, before milestone 2 starts.
+Then the **adoption gate**: 14 days of Wasif's daily use, measured by #22, before milestone 2 starts.
 
 ### Milestone 2: design and coding lanes (about 18 CC days)
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
-| 7 | Inspiration board and `agent-reach` plugin | 1.5 | 3, 4, 6 |
-| 8 | Variants grid: tiles, pick, combine, discard | 2 | 4, 6 |
-| 14 | `github` and `deploy` plugins; `spec-to-pr`, `e2e-browser-qa`, `website-build`, `design-variants` | 2.5 | 4, 5, 6, 7, 8 |
-| 23 | `docs-and-release-notes` | 1 | 14 |
-| 25 | `security` plugin and `security-review-and-upgrade` | 1.5 | 9, 14 |
-| 27 | herdr host plugin (dropped 2026-10-02, UI revision D8) | 0 | none |
-| 29 | Usage limits and account switcher | 2 | 1, 5 |
-| 30 | Diff annotation and file drag | 1 | 10 |
-| 28 | Signed packaging through SignPath Foundation (Electron now; Tauri in milestone 3) | 1.5 | 5 |
-| 32 | Trooper sandbox host plugin: container image, `--host sandbox` launcher path, read-only logins, agy keyring login, egress proxy, spool bridge, escape self-test | 3 | 1, 3, 4 |
+| 23 | Inspiration board and `agent-reach` plugin | 1.5 | 13, 15, 17 |
+| 24 | Variants grid: tiles, pick, combine, discard | 2 | 15, 17 |
+| 25 | `github` and `deploy` plugins; `spec-to-pr`, `e2e-browser-qa`, `website-build`, `design-variants` | 2.5 | 15, 16, 17, 23, 24 |
+| 26 | `docs-and-release-notes` | 1 | 25 |
+| 27 | `security` plugin and `security-review-and-upgrade` | 1.5 | 18, 25 |
+| 28 | herdr host plugin (dropped 2026-10-02, UI revision D8) | 0 | none |
+| 29 | Usage limits and account switcher | 2 | 12, 16 |
+| 30 | Diff annotation and file drag | 1 | 19 |
+| 31 | Signed packaging through SignPath Foundation (Electron now; Tauri in milestone 3) | 1.5 | 16 |
+| sandbox-host | Trooper sandbox host plugin: container image, `--host sandbox` launcher path, read-only logins, agy keyring login, egress proxy, spool bridge, escape self-test | 3 | 12, 13, 15 |
 
 ### Milestone 3: every other lane (about 18.5 CC days)
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
-| 15 | `media` plugin and `footage-to-edit` | 2.5 | 4, 5 |
-| 16 | `social-scheduler` plugin and `clips-to-scheduled-posts` | 1.5 | 15 |
-| 17 | `seo` plugin and `seo-audit-fix` | 2 | 6, 14 |
-| 18 | `cite-check` plugin and `deep-research-cited` | 1 | 4, 6, 7 |
-| 19 | `gmail` plugin, `prospect-list-to-drafts`, `inbox-triage-drafts` | 2 | 4, 5, 7 |
-| 20 | `data` plugin and `data-to-dashboard` | 1 | 4, 5 |
-| 22 | `docs-export` plugin and `study-notes-to-pdf` | 1.5 | 9, 15 |
-| 24 | `desktop` plugin, handoff gate UI, `form-fill-batch` | 3 | 4, 5, 6 |
-| 21 | Template gallery (17 templates) | 1 | 3, 4, 5 |
-| 12 | Tauri tray companion, signed through #28's pipeline | 2 | 1, 28 |
-| 26 | Open-core seams: `provider: gateway` and `run_in: cloud` refusals, account state | 1 | 1, 4 |
+| 32 | `media` plugin and `footage-to-edit` | 2.5 | 15, 16 |
+| 33 | `social-scheduler` plugin and `clips-to-scheduled-posts` | 1.5 | 32 |
+| 34 | `seo` plugin and `seo-audit-fix` | 2 | 17, 25 |
+| 35 | `cite-check` plugin and `deep-research-cited` | 1 | 15, 17, 23 |
+| 36 | `gmail` plugin, `prospect-list-to-drafts`, `inbox-triage-drafts` | 2 | 15, 16, 23 |
+| 37 | `data` plugin and `data-to-dashboard` | 1 | 15, 16 |
+| 38 | `docs-export` plugin and `study-notes-to-pdf` | 1.5 | 18, 32 |
+| 39 | `desktop` plugin, handoff gate UI, `form-fill-batch` | 3 | 15, 16, 17 |
+| 40 | Template gallery (17 templates) | 1 | 13, 15, 16 |
+| 41 | Tauri tray companion, signed through #31's pipeline | 2 | 12, 31 |
+| 42 | Open-core seams: `provider: gateway` and `run_in: cloud` refusals, account state | 1 | 12, 15 |
 
 Total: about 64.5 CC days (28 + 18 + 18.5). Human-team equivalent: about 12 months.
 
-Sequencing: #1's schema and pipe protocol are frozen before any client is built, because everything else
+Sequencing: #12's schema and pipe protocol are frozen before any client is built, because everything else
 reads them. Plugins come before the runner because steps call actions. Callrouter's own code (C1, C9, C7)
-can be built in parallel from day one; only its plugin manifest waits for #3. The browser precedes the board
+can be built in parallel from day one; only its plugin manifest waits for #13. The browser precedes the board
 and variants because both render through it. Milestone 2 waits for the adoption gate so lanes are built on a
 core that has survived daily use; milestone 3 lanes are independent of each other.
 
@@ -829,13 +829,13 @@ Out of scope:
 - Tools and ideas for pipelines not built yet (they go into their issues through M4-8).
 - `browser.hello` trusting a self-reported pid: same-user processes can already read the ui key, so a pid
   check is not the boundary, and a real fix needs a native module (spec.md: no native module).
-- UI-02 (installer and a fresh account): waits on #28 SignPath.
+- UI-02 (installer and a fresh account): waits on #31 SignPath.
 - Code map for agy: waits on a verified `agy-config` attach.
 - Installing helpers for the user; helpers contributed by third-party plugins (first-party registry only).
 - TOON for browser tools.
 - Later list, all gate passes, not built in M4: OpenSpec change-proposal handoff for plan steps, repomix
   `--compress` context packs, difftastic as a diff display, context7 and github-mcp-server as recommended
-  MCPs, `anthropics/sandbox-runtime` (Apache-2.0) as a Docker-free option for #32.
+  MCPs, `anthropics/sandbox-runtime` (Apache-2.0) as a Docker-free option for sandbox-host.
 
 ## Acceptance criteria
 
@@ -916,7 +916,7 @@ Out of scope:
   its transcript.
 - M1-29. toolrouter (renamed from callrouter 2026-09-30, CLI only, no hooks) records `shown_bytes` per call,
   `toolrouter ingest --since --until --json` reports `shell_read_tokens` and `saved_tokens` with ACU excluded
-  (#13, section 5), and the repo ships a `troop-plugin.json` whose `ingest` action validates with
+  (#22, section 5), and the repo ships a `troop-plugin.json` whose `ingest` action validates with
   `validateManifest`. Superseded 2026-09-30: callrouter Plan A criteria 1 to 8.
 - M1-30. (Revised 2026-10-05, D46.) `project.open` on the vault root and on a folder inside `work/ACU` succeeds;
   `session.launch` there with `approval: contained` (and a pipeline step asking for `contained`) starts in `ask`,
@@ -949,7 +949,7 @@ Out of scope:
   auto`; a project outside any such tree starts all three in auto mode; a driven agy step there runs agy without
   `--mode accept-edits --sandbox`.
 
-### Adoption gate (14 days after milestone 1, measured by #13)
+### Adoption gate (14 days after milestone 1, measured by #22)
 
 Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 total minus 349 ACU).
 
@@ -964,10 +964,10 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   MetaTrooper's own `engine_check` rows are not engine runs.
 - A-04. Pasted screenshots per 100 non-ACU prompts fall below 0.5. Baseline: 12 / 496 x 100 = 2.4. Counted as
   prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding ACU
-  sessions (same rule as the baseline). #13 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
+  sessions (same rule as the baseline). #22 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
   are measured the same way.
 - A-05. toolrouter saves at least 20% of shell and Read result tokens in the window:
-  `saved_tokens / (shell_read_tokens + saved_tokens)`, from `toolrouter ingest` (#13, section 5).
+  `saved_tokens / (shell_read_tokens + saved_tokens)`, from `toolrouter ingest` (#22, section 5).
 
 ### Milestone 2
 
@@ -976,7 +976,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
 - M2-02. The inspiration board returns at least 8 references with captures for the fixture brief.
 - M2-03. Variants: Pick shows that worktree's diff in the tray; Combine starts a new worktree with the note
   and crops; Discard removes the worktree.
-- M2-04 (dropped 2026-10-02 with #27). With the herdr plugin, a `continue` step reaches the earlier herdr pane via `agent.prompt` and the
+- M2-04 (dropped 2026-10-02 with #28). With the herdr plugin, a `continue` step reaches the earlier herdr pane via `agent.prompt` and the
   run advances on herdr `done`; without it, the same pipeline runs in Windows Terminal and the log shows
   `memory not kept`.
 - M2-05. The usage bar shows Claude and Codex usage against their windows with reset times, or "usage
@@ -1031,7 +1031,7 @@ criterion lives in its child's issue file.
 
 ## Testing
 
-The builder writes code; Codex writes the tests for #1, #4, #6 and #32 (the parts others will trust), matching the
+The builder writes code; Codex writes the tests for #12, #15, #17 and sandbox-host (the parts others will trust), matching the
 rule already binding callrouter. Every contract file gets a conformance suite: `schema.sql` loads; every
 built-in and template validates against `pipeline.schema.json`; every first-party manifest validates against
 `plugin-manifest.schema.json`; the pipe protocol has a replay suite of recorded requests and replies.
@@ -1092,7 +1092,7 @@ No terminal library, WebSocket library or native module is needed.
 
 - The metered cloud and phone control: later epics, above.
 - Scheduled runs while the core is not running; back-filling missed schedules.
-- OS-level sandboxing of plugin filesystem and network access (AppContainer). Trooper sandboxing is #32, not this.
+- OS-level sandboxing of plugin filesystem and network access (AppContainer). Trooper sandboxing is sandbox-host, not this.
 - Auto-update.
 - The sprawll plugin, until sprawll's code is present with its machine contract.
 - Paid data integrations beyond the listed adapters (Ahrefs, Semrush, DataForSEO, Clay, Apollo); users add
