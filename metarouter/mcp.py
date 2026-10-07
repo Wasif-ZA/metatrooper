@@ -63,11 +63,11 @@ def catalog_lines(words=(), remote=True):
 class Session:
     """One MCP server over stdio: newline-delimited JSON-RPC."""
 
-    def __init__(self, spec):
+    def __init__(self, spec, cwd=None):
         cmd = [shutil.which(spec["command"]) or spec["command"], *spec.get("args", [])]
         env = {**os.environ, **spec.get("env", {})}
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                     env=env)
+                                     env=env, cwd=cwd)
         self.lines = queue.Queue()
         threading.Thread(target=self._read, daemon=True).start()
         self.next_id = 0
@@ -250,9 +250,9 @@ def server_spec(name):
     return spec
 
 
-def open_session(name):
+def open_session(name, cwd=None):
     spec = server_spec(name)
-    return HttpSession(spec) if "url" in spec else Session(spec)
+    return HttpSession(spec) if "url" in spec else Session(spec, cwd)
 
 
 def cached_tools():

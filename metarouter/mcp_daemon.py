@@ -56,20 +56,22 @@ def serve():
                     server = req["server"]
                     method = req.get("method", "")
                     params = req.get("params") or {}
+                    key = (server, req.get("cwd"))
                     try:
-                        if server not in sessions:
-                            sessions[server] = mcp.open_session(server)
-                        res = sessions[server].request(method, params)
+                        if key not in sessions:
+                            sessions[key] = mcp.open_session(server, req.get("cwd"))
+                        res = sessions[key].request(method, params)
                         reply = {"result": res}
                     except Exception as e:
-                        if isinstance(e, (ConnectionError, BrokenPipeError, TimeoutError)):
-                            old = sessions.pop(server, None)
+                        reply = {"error": str(e)}
+                        if isinstance(e, (ConnectionError, TimeoutError, OSError)):
+                            reply["transport"] = True
+                            old = sessions.pop(key, None)
                             if old:
                                 try:
                                     old.close()
                                 except Exception:
                                     pass
-                        reply = {"error": str(e)}
                 else:
                     reply = {"error": "invalid request"}
                 f.write((json.dumps(reply, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -139,7 +141,7 @@ def call(server, method, params=None):
     sock.connect(("127.0.0.1", state["port"]))
     with sock:
         f = sock.makefile("rwb")
-        req = {"server": server, "method": method, "params": params or {}}
+        req = {"server": server, "method": method, "params": params or {}, "cwd": os.getcwd()}
         f.write((json.dumps(req, ensure_ascii=False) + "\n").encode("utf-8"))
         f.flush()
         line = f.readline()
@@ -147,7 +149,7 @@ def call(server, method, params=None):
             raise ConnectionError("daemon closed connection without reply")
         msg = json.loads(line.decode("utf-8"))
         if "error" in msg:
-            raise RuntimeError(msg["error"])
+            raise (ConnectionError if msg.get("transport") else RuntimeError)(msg["error"])
         return msg.get("result", {})
 
 
