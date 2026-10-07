@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { safeFetch } from './safe-fetch.js';
 
 const UA = 'MetaTrooper-CiteCheck/0.1';
 
@@ -30,8 +31,12 @@ function loadSources(where) {
 }
 
 async function sourceText(src, dir, ms) {
-  if (src.path) return fs.readFileSync(path.resolve(dir, src.path), 'utf8');
-  const res = await fetch(src.url, { redirect: 'follow', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(ms) });
+  if (src.path) {
+    const file = path.resolve(dir, src.path);
+    if (path.relative(dir, file).startsWith('..') || path.isAbsolute(path.relative(dir, file))) throw new Error(`path ${src.path} is outside the sources folder`);
+    return fs.readFileSync(file, 'utf8');
+  }
+  const res = await safeFetch(src.url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(ms) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
 }

@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { checkUrl } from './safe-fetch.js';
 
 const MEDIA = /\.(mp4|mov|mkv|webm|m4v|avi|mp3|wav|m4a|aac|flac|ogg)$/i;
 const LOCAL = process.env.LOCALAPPDATA ?? path.join(os.homedir(), '.local');
@@ -70,7 +71,13 @@ export function transcribe(input) {
   }
 }
 
-export function download(input) {
+const safeId = (id) => {
+  const s = String(id ?? '');
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(s)) throw new Error(`moment id ${JSON.stringify(s)} must be letters, digits, _ or -`);
+  return s;
+};
+
+export async function download(input) {
   fs.mkdirSync(input.out, { recursive: true });
   if (fs.existsSync(input.source)) {
     const dest = path.join(input.out, path.basename(input.source));
@@ -78,6 +85,8 @@ export function download(input) {
     return { path: dest, from: 'file' };
   }
   if (!/^https?:\/\//i.test(input.source)) throw new Error(`${input.source} is neither a file nor a URL`);
+  // ponytail: checks the first host only; yt-dlp follows its own redirects.
+  await checkUrl(input.source);
   const r = run('yt-dlp', ['--no-playlist', '-f', 'bv*[height<=1080]+ba/b[height<=1080]/b', '--merge-output-format', 'mp4', '-o', path.join(input.out, 'source.%(ext)s'), '--print', 'after_move:filepath', input.source]);
   const file = r.stdout.trim().split(/\r?\n/).pop();
   if (!file || !fs.existsSync(file)) throw new Error(`yt-dlp did not report a file: ${r.stdout.slice(-300)}`);
@@ -100,12 +109,13 @@ export function cut(input) {
   const end = Number(m.src_end);
   if (!(end > start)) throw new Error(`moment ${m.id} has no src_start/src_end range`);
   fs.mkdirSync(input.out, { recursive: true });
-  const out = path.join(input.out, `${m.id}.mp4`);
+  const id = safeId(m.id);
+  const out = path.join(input.out, `${id}.mp4`);
   const crop = ASPECT[input.aspect ?? '9:16'];
   run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-ss', String(start), '-to', String(end), '-i', input.video,
     ...(crop ? ['-vf', crop] : []), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-c:a', 'aac', out]);
-  fs.writeFileSync(`${out}.json`, JSON.stringify({ id: m.id, title: m.title ?? '', source: input.video, src_start: start, src_end: end }, null, 2));
-  return { path: out, id: m.id, seconds: Math.round((end - start) * 10) / 10 };
+  fs.writeFileSync(`${out}.json`, JSON.stringify({ id, title: m.title ?? '', source: input.video, src_start: start, src_end: end }, null, 2));
+  return { path: out, id, seconds: Math.round((end - start) * 10) / 10 };
 }
 
 const assTime = (s) => {
@@ -139,11 +149,12 @@ export function captions(input) {
   const sourceName = path.basename(meta.source);
   const own = words.filter((w) => !w.file || w.file === sourceName);
   fs.mkdirSync(input.out, { recursive: true });
-  const ass = path.join(input.out, `${meta.id}.ass`);
+  const id = safeId(meta.id);
+  const ass = path.join(input.out, `${id}.ass`);
   fs.writeFileSync(ass, captionsAss(meta, own.length ? own : words, Number(input.hook_seconds ?? 2)));
-  const out = path.join(input.out, `${meta.id}.mp4`);
+  const out = path.join(input.out, `${id}.mp4`);
   run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path.resolve(input.clip), '-vf', `ass=${path.basename(ass)}`, '-c:a', 'copy', path.resolve(out)], input.out);
-  return { path: out, id: meta.id };
+  return { path: out, id };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -151,7 +162,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
     const fn = { probe, transcribe, download, cut, captions }[process.argv[2]];
     if (!fn) throw new Error(`unknown action ${process.argv[2]}`);
-    process.stdout.write(JSON.stringify({ ok: true, outputs: fn(req.input || {}) }));
+    process.stdout.write(JSON.stringify({ ok: true, outputs: await fn(req.input || {}) }));
   } catch (e) {
     process.stdout.write(JSON.stringify({ ok: false, error: { message: e instanceof Error ? e.message : String(e), retryable: false } }));
   }

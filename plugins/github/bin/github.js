@@ -2,21 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const win = process.platform === 'win32';
-
 function run(cmd, args, cwd) {
-  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, shell: win && cmd === 'gh', maxBuffer: 16 * 1024 * 1024 });
+  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
   if (r.error) throw new Error(`${cmd} could not start: ${r.error.message}`);
   if (r.status !== 0) throw new Error(`${cmd} ${args[0]} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 500)}`);
   return r.stdout;
 }
 
-function quote(a) {
-  return win && /[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a;
-}
-
 function gh(args, cwd) {
-  return run('gh', win ? args.map(quote) : args, cwd);
+  return run('gh', args, cwd);
 }
 
 function createPr(input, project) {
@@ -40,8 +34,8 @@ function sinceDate(repo, since) {
   if (/^\d{4}-\d{2}-\d{2}/.test(since)) return { tag: null, date: since.slice(0, 10) };
   const args = since && since !== 'last tag' ? ['release', 'view', since] : ['release', 'view'];
   try {
-    const r = JSON.parse(gh([...args, '--repo', repo, '--json', 'tagName,publishedAt']));
-    return { tag: r.tagName, date: r.publishedAt.slice(0, 10) };
+    const r = JSON.parse(gh([...args, '--repo', repo, '--json', 'tagName,publishedAt,createdAt']));
+    return { tag: r.tagName, date: (r.publishedAt || r.createdAt || '').slice(0, 10) || null };
   } catch (e) {
     if (since && since !== 'last tag') throw e;
     return { tag: null, date: null };

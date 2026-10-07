@@ -87,7 +87,10 @@ function browser() {
 
 export function exportPdf(input, chrome = browser) {
   const md = fs.readFileSync(input.path, 'utf8');
-  const css = input.css && fs.existsSync(input.css) ? fs.readFileSync(input.css, 'utf8') : '';
+  const css = (input.css && fs.existsSync(input.css) ? fs.readFileSync(input.css, 'utf8') : '')
+    .replace(/@import[^;]*;?/gi, '')
+    .replace(/url\(\s*(?!["']?data:)[^)]*\)/gi, 'none')
+    .replace(/<\/style/gi, '');
   const title = (md.match(/^#\s+(.+)$/m) || [])[1] || path.basename(input.path, '.md');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page { size: ${input.paper || 'A4'}; margin: 18mm; } body { font: 11pt/1.45 Georgia, serif; } table { border-collapse: collapse; } th, td { border: 1px solid #999; padding: 3px 6px; } pre { white-space: pre-wrap; }\n${css}</style></head><body>${markdownToHtml(md)}</body></html>`;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-pdf-'));

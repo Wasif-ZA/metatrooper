@@ -31,12 +31,13 @@ export function parseCsv(text) {
 const ident = (name) => `"${String(name).replace(/"/g, '""')}"`;
 
 function columnNames(header) {
-  const seen = new Map();
+  const used = new Set();
   return header.map((h, i) => {
     const base = h.trim() || `column_${i + 1}`;
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    return n ? `${base}_${n + 1}` : base;
+    let name = base;
+    for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base}_${n}`;
+    used.add(name.toLowerCase());
+    return name;
   });
 }
 
@@ -66,8 +67,9 @@ export function load(input) {
 function select(dbPath, sql, limit = 1000) {
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
-    const rows = db.prepare(sql).all();
-    return { columns: rows[0] ? Object.keys(rows[0]) : [], rows: rows.slice(0, limit), total: rows.length, truncated: rows.length > limit };
+    const stmt = db.prepare(sql);
+    const rows = stmt.all();
+    return { columns: stmt.columns().map((c) => c.name), rows: rows.slice(0, limit), total: rows.length, truncated: rows.length > limit };
   } finally {
     db.close();
   }

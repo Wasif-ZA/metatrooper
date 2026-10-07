@@ -89,3 +89,11 @@ test('flagsOf treats false string flags as false and list counts as flags', () =
 test('security licence conflict from flagsOf selects triage', () => {
   assert.equal(pickLayout(run('security-review-and-upgrade'), pipe('pr-first'), [], null, flagsOf({ outputs: { licences: { licence_conflict: true } } })), 'triage');
 });
+
+test('flagsOf ignores empty and false-like values on every rule flag key', () => {
+  const keys = ['flag', 'breaking_no_doc', 'licence_conflict', 'high_reachable', 'unsourced'];
+  for (const key of keys) {
+    for (const value of [[], '', 'false', '0']) assert.equal(flagsOf({ outputs: { step: { [key]: value } } }), null, `${key}=${JSON.stringify(value)}`);
+    assert.deepEqual(flagsOf({ outputs: { step: { [key]: true } } }), { [key]: true });
+  }
+});

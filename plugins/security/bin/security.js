@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const COPYLEFT = /\b(A?GPL|SSPL|EUPL|OSL|CC-BY-SA)\b/i;
 const WEAK = /\b(LGPL|MPL|EPL|CDDL)\b/i;
 
+const write = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text); };
 const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } };
 const licenceOf = (pkg) => (pkg && (typeof pkg.license === 'string' ? pkg.license : pkg.license?.type ?? (Array.isArray(pkg.licenses) ? pkg.licenses.map((l) => l.type ?? l).join(' OR ') : null))) || null;
 
@@ -28,7 +29,7 @@ export function listDeps(input, outdated = npmOutdated) {
     }
   }
   const result = { project: pkg.name ?? path.basename(dir), licence: licenceOf(pkg), deps };
-  if (input.out) fs.writeFileSync(input.out, JSON.stringify(result, null, 2));
+  if (input.out) write(input.out, JSON.stringify(result, null, 2));
   return { out: input.out ?? null, total: deps.length, outdated: deps.filter((d) => d.outdated).length, major: deps.filter((d) => d.major).length };
 }
 
@@ -67,7 +68,7 @@ export function licenceReport(input) {
   const table = (title, list) => (list.length ? [`## ${title} (${list.length})`, '', '| Package | Version | Licence |', '|---|---|---|', ...list.map(row), ''] : [`## ${title} (0)`, '']);
   const md = [`# Licence report`, '', `Project licence: ${own ?? 'none declared'}. Packages: ${all.length}.`, '',
     ...table('Conflicts', conflicts), ...table('Review', review), ...table('No licence declared', unknown)].join('\n');
-  if (input.out) fs.writeFileSync(input.out, md);
+  if (input.out) write(input.out, md);
   return { out: input.out ?? null, licence_conflict: conflicts.length > 0, conflicts: conflicts.map((p) => `${p.name}@${p.version} (${p.licence})`), review: review.length, unknown: unknown.length, total: all.length };
 }
 

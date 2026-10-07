@@ -73,7 +73,7 @@
         "required": ["repo", "tag", "target", "notes"],
         "properties": {
           "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
-          "tag": { "type": "string", "pattern": "^v?[0-9]+[.][0-9]+[.][0-9]+" },
+          "tag": { "type": "string", "pattern": "^v?[0-9]+[.][0-9]+[.][0-9]+([-+][0-9A-Za-z.-]+)?$" },
           "target": { "type": "string", "minLength": 1 },
           "notes": { "type": "string", "minLength": 1, "description": "Path to the release notes markdown." },
           "path": { "type": "string" }

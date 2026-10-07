@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exaSearch } from './inspiration-board.js';
+import { safeFetch } from './safe-fetch.js';
 
 const UA = 'MetaTrooper-Search/0.1';
 
@@ -20,7 +21,7 @@ export function pageText(html) {
 }
 
 async function save(url, file) {
-  const res = await fetch(url, { redirect: 'follow', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20_000) });
+  const res = await safeFetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const type = res.headers.get('content-type') ?? '';
   if (!/html|text\/plain/i.test(type)) throw new Error(`unsupported content type ${type}`);
@@ -77,7 +78,7 @@ export function sameSiteLinks(html, base) {
 }
 
 async function fetchHtml(url) {
-  const res = await fetch(url, { redirect: 'follow', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20_000) });
+  const res = await safeFetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   if (!/html/i.test(res.headers.get('content-type') ?? '')) throw new Error('not an HTML page');
   return { html: await res.text(), url: res.url || url };

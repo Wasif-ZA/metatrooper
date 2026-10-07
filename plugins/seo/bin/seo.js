@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeFetch } from './safe-fetch.js';
 
 const UA = 'MetaTrooper-SEO/0.1';
 
@@ -8,7 +9,7 @@ const decode = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&g
 
 async function fetchText(url, ms = 15000) {
   const started = Date.now();
-  const res = await fetch(url, { redirect: 'follow', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(ms) });
+  const res = await safeFetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(ms) });
   const body = await res.text();
   return { res, body, ms: Date.now() - started };
 }

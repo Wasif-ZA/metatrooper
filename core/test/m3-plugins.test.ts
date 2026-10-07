@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { isPrivate, checkUrl, safeFetch } from '../../plugins/agent-reach/bin/safe-fetch.js';
 import { check, normalise } from '../../plugins/cite-check/bin/cite-check.js';
 import { search, queriesOf } from '../../plugins/agent-reach/bin/search.js';
 import { parseCsv, load, query, render, kpiBlocks } from '../../plugins/data/bin/data.js';
+import { cut, captions } from '../../plugins/media/bin/media.js';
 import { listDeps, licenceReport } from '../../plugins/security/bin/security.js';
 
 function tempDir() {
@@ -185,3 +187,90 @@ test('security reports copyleft conflict, optional licence review and missing li
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('safe-fetch blocks private address ranges and allows public addresses', async () => {
+  for (const ip of ['0.0.0.0', '10.1.2.3', '100.64.0.1', '127.0.0.1', '169.254.1.1', '172.16.0.1', '172.31.255.255', '192.168.1.1', '224.0.0.1', '255.255.255.255', '::', '::1', 'fc00::1', 'fdff::1', 'fe80::1', 'febf::1', 'ff02::1', '::ffff:127.0.0.1']) assert.equal(isPrivate(ip), true, ip);
+  for (const ip of ['172.32.0.1', '8.8.8.8', '2606:4700::1111']) assert.equal(isPrivate(ip), false, ip);
+  await assert.rejects(checkUrl('file:///tmp/x'), /refused file:/);
+  await assert.rejects(checkUrl('ftp://example.test/file'), /refused ftp:/);
+  await assert.rejects(checkUrl('http://127.0.0.1/'), /private address/);
+  await assert.rejects(checkUrl('https://private.example/', async (host, options) => {
+    assert.equal(host, 'private.example'); assert.deepEqual(options, { all: true }); return [{ address: '10.0.0.4' }];
+  }), /private address/);
+  const resolved = await checkUrl('https://public.example/', async (host, options) => {
+    assert.equal(host, 'public.example'); assert.deepEqual(options, { all: true }); return [{ address: '8.8.8.8' }];
+  });
+  assert.equal(resolved.hostname, 'public.example');
+  for (const name of ['seo', 'cite-check', 'media']) {
+    assert.deepEqual(readFileSync(new URL(`../../plugins/${name}/bin/safe-fetch.js`, import.meta.url)), readFileSync(new URL('../../plugins/agent-reach/bin/safe-fetch.js', import.meta.url)));
+  }
+  assert.equal(typeof safeFetch, 'function');
+});
+
+test('cite-check rejects source paths escaping the sources folder', async () => {
+  const dir = tempDir();
+  try {
+    const sources = join(dir, 'refs', 'sources.json');
+    write(join(dir, 'outside.txt'), 'secret text');
+    writeJson(sources, [{ id: 's1', path: '../outside.txt' }]);
+    write(join(dir, 'report.md'), 'A claim [s1].\n');
+    const result = await check({ report: join(dir, 'report.md'), sources }, dir);
+    assert.equal(result.passed, false);
+    assert.equal(result.dead_links.length, 1);
+    assert.match(result.dead_links[0].error, /sources folder/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('media validates cut and caption moment ids before invoking ffmpeg or writing files', () => {
+  const dir = tempDir();
+  try {
+    const out = join(dir, 'out');
+    for (const id of ['../x', 'a b']) {
+      assert.throws(() => cut({ moments: [{ id, src_start: 0, src_end: 1 }], video: 'unused.mp4', out }), /moment id/);
+      assert.deepEqual(readdirSync(out), []);
+    }
+    const clip = join(dir, 'clip.mp4');
+    writeJson(`${clip}.json`, { id: '../x', source: 'source.mp4', src_start: 0, src_end: 1 });
+    writeJson(join(dir, 'words.json'), { words: [] });
+    assert.throws(() => captions({ clip, words: join(dir, 'words.json'), out }), /moment id/);
+    assert.deepEqual(existsSync(out) ? readdirSync(out) : [], []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('data load and empty query preserve duplicate case-insensitive column names', () => {
+  const dir = tempDir();
+  try {
+    const csv = join(dir, 'data.csv'); const db = join(dir, 'data.sqlite');
+    write(csv, 'count,count_2,count,Count\n');
+    assert.deepEqual(load({ path: csv, db }).columns, ['count', 'count_2', 'count_3', 'Count_4']);
+    const result = query({ db, sql: 'SELECT * FROM raw WHERE 0' });
+    assert.deepEqual(result.columns, ['count', 'count_2', 'count_3', 'Count_4']);
+    assert.deepEqual(result.rows, []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('security report writers create missing output parents', () => {
+  const dir = tempDir();
+  try {
+    const project = join(dir, 'project'); mkdirSync(project);
+    writeJson(join(project, 'package.json'), { name: 'empty', license: 'MIT' });
+    const licenceOut = join(dir, 'new', 'nested', 'licence.md');
+    const depsOut = join(dir, 'other', 'nested', 'deps.json');
+    licenceReport({ path: project, out: licenceOut });
+    listDeps({ path: project, out: depsOut }, () => ({}));
+    assert.equal(readFileSync(licenceOut, 'utf8').startsWith('# Licence report'), true);
+    assert.deepEqual(JSON.parse(readFileSync(depsOut, 'utf8')).deps, []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('GitHub release tag pattern rejects command text and accepts semver tags', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../plugins/github/troop-plugin.json', import.meta.url), 'utf8'));
+  const pattern = manifest.actions.find((action) => action.id === 'release').input_schema.properties.tag.pattern;
+  const regex = new RegExp(pattern);
+  assert.equal(regex.test('v1.0.0 --draft'), false);
+  assert.equal(regex.test('v1.2.3'), true);
+  assert.equal(regex.test('1.2.3-rc.1'), true);
+  assert.doesNotMatch(readFileSync(new URL('../../plugins/github/bin/github.js', import.meta.url), 'utf8'), /shell:/);
+});
+
+test.skip('docs-export exportPdf fake Chrome receives Chrome flags', () => {}); // exportPdf receives Chrome flags, so fake Chrome cannot test it.

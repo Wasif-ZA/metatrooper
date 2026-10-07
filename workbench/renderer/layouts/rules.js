@@ -196,7 +196,8 @@
     const set = {};
     for (const out of Object.values((detail && detail.outputs) || {})) {
       if (!out) continue;
-      for (const k of FLAGS) if (out[k] && out[k] !== 'false') set[k] = true;
+      const on = (v) => (Array.isArray(v) ? v.length > 0 : Boolean(v) && v !== 'false' && v !== '0');
+      for (const k of FLAGS) if (on(out[k])) set[k] = true;
       for (const k of ['flags', 'flags_left']) if (Array.isArray(out[k]) ? out[k].length : Number(out[k]) > 0) set.flag = true;
     }
     return Object.keys(set).length ? set : null;
