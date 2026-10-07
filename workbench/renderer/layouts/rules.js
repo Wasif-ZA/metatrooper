@@ -17,7 +17,7 @@
     'spec-build-review-handback': {
       five: ['hand-back', 'artifact-columns', 'agent-split', 'agent-split', 'run-log'],
       onFail: 'run-log',
-      pick: () => null,
+      pick: (run, list) => ({ spec: 'artifact-columns', handback: 'hand-back' }[loopMoment(list)] || (list.some((s) => s.status === 'running') ? 'agent-split' : null)),
       opens: (data, list) => Boolean(loopMoment(list)),
       moment: loopMoment,
     },
