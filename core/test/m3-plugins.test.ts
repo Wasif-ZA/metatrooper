@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { isPrivate, checkUrl, safeFetch } from '../../plugins/agent-reach/bin/safe-fetch.js';
@@ -291,6 +292,27 @@ test('docs-export keeps a written PDF when the browser profile cannot be removed
     assert.equal(r.pages, 1);
   } finally {
     fs.rmSync = rmSync;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function desktop(action, input) {
+  const script = fileURLToPath(new URL('../../plugins/desktop/bin/desktop.js', import.meta.url));
+  return JSON.parse(spawnSync(process.execPath, [script, action], { input: JSON.stringify({ input }), encoding: 'utf8' }).stdout);
+}
+
+test('desktop returns non-ASCII window titles intact and writes confirmations without a BOM', { skip: process.platform !== 'win32' }, () => {
+  const dir = tempDir();
+  try {
+    const title = `troop-test-Ωé-${Date.now()}`;
+    assert.equal(desktop('screenshot', { window: title, out: dir }).error.message, `no window titled '${title}'`);
+    writeJson(join(dir, 'rows.json'), [{ window: title }]);
+    const r = desktop('read', { rows: join(dir, 'rows.json'), out: join(dir, 'confirmations.json') });
+    assert.equal(r.outputs.failed, 1);
+    const bytes = readFileSync(join(dir, 'confirmations.json'));
+    assert.notEqual(bytes[0], 0xef);
+    assert.equal(JSON.parse(bytes.toString('utf8'))[0].window, title);
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });

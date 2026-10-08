@@ -1,5 +1,6 @@
 param([string]$Action)
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
 $in = $env:TROOP_DESKTOP_INPUT | ConvertFrom-Json
 $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -85,7 +86,7 @@ function Read-Confirmations([string]$file, [string]$out) {
     try { $list += @{ window = $row.window; text = (Texts (Find-Window $row.window)) } }
     catch { $list += @{ window = $row.window; error = $_.Exception.Message } }
   }
-  ConvertTo-Json -Depth 5 -InputObject $list | Set-Content -Encoding UTF8 $out
+  [IO.File]::WriteAllText($out, (ConvertTo-Json -Depth 5 -InputObject $list))
   return @{ out = $out; read = @($list | Where-Object { -not $_.error }).Count; failed = @($list | Where-Object { $_.error }).Count }
 }
 
