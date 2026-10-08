@@ -116,7 +116,7 @@ Every other interaction is a database read.
 | Method | Params | Result |
 |---|---|---|
 | `project.open` | `{path}` | `{project_id}`; error -32001 for ACU paths. `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
-| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty"}` | `{session_id, prompt_delivered}` |
+| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it |
 | `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once |
 | `session.clear-status` | `{session_id}` | `{}`: sets `idle`, appends `core.status-cleared`, marks its inbox rows read |
 | `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` |

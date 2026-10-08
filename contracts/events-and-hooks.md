@@ -98,7 +98,12 @@ The core processes events in `seq` order and sets `session.state`:
 Claude Code's settings keep hooks in an object keyed by event name, each holding an array of matcher groups;
 this is the shape already used in the vault's `.claude/settings.json`.
 
-`troop hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
+A Claude session launched by MetaTrooper gets these hooks per session: the core writes
+`~/.metatrooper/mcp/<session id>.settings.json` holding only the entries below and adds `--settings=<file>`.
+Launching never edits `~/.claude/settings.json`. When the user's settings already hold MetaTrooper's entries
+(from `troop hooks install`), no `--settings` is added, so no hook fires twice.
+
+`troop hooks install` is optional, for users who want the hooks in every Claude session. It merges these entries into `~/.claude/settings.json` under `hooks`, one per
 event name. It prints a unified diff and asks before writing. It never removes or reorders an existing entry.
 
 ```json
@@ -120,7 +125,8 @@ Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notific
 `SessionEnd`. The entry is identified for uninstall by the exact command string containing
 `<core>/event.js`. `hooks uninstall` removes only entries whose command matches, and deletes an event name's
 array only if it becomes empty and was absent before install (recorded in
-`~/.metatrooper/hooks-install.json`).
+`~/.metatrooper/hooks-install.json`). With no install record (hooks written by an older first launch),
+`hooks uninstall` still removes exactly the matching entries and leaves every user hook.
 
 Hooks do nothing outside a MetaTrooper session: when `TROOP_SESSION_ID` is not set, `event.js` exits 0
 immediately without opening the database.
@@ -147,6 +153,10 @@ both print the same comment for the same reason; that is the accepted cost of ne
 
 ## Codex notify wrapper
 
+A Codex session launched by MetaTrooper gets the wrapper per session as `-c notify=[...]`, wrapping the
+user's own `notify` with any MetaTrooper wrapper peeled off; launching never edits `config.toml`. The install
+below is optional, for users who want the wrapper in every Codex run.
+
 `troop hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.troop-bak`, then sets
 `notify` to `["node", "<core>/codex-notify.js", <the previous notify array as JSON>]`.
 
@@ -157,7 +167,9 @@ both print the same comment for the same reason; that is the accepted cost of ne
 2. Append a `codex.turn` event.
 3. Exit 0.
 
-Uninstall restores `notify` to the previous array exactly, read from `hooks-install.json`.
+Uninstall puts back the file recorded in `hooks-install.json` when `config.toml` is unchanged since install.
+Otherwise it peels MetaTrooper's wrapper off the current `notify` only when that line still starts with it; a
+`notify` another tool has since replaced is left alone.
 
 ## Spool ingest (sandbox host, child sandbox-host)
 

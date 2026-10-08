@@ -63,3 +63,12 @@ test('uninstallCodex restores the original notify after nested wrappers were unw
     assert.deepEqual(JSON.parse(readFileSync(config, 'utf8').split('\n')[0].slice('notify = '.length)), original);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test('uninstallCodex leaves notify alone when another tool replaced the MetaTrooper wrapper', () => {
+  const { home, config } = fixture(['orig.exe', 'turn-ended']);
+  try {
+    const replaced = `notify = ${JSON.stringify(['other.exe', '--previous-notify', JSON.stringify(wrapper(['orig.exe']))])}\nmodel = "fixture"\n`;
+    invoke(home, config, `installCodex(); (await import('node:fs')).writeFileSync(${JSON.stringify(config)}, ${JSON.stringify(replaced)}); uninstallCodex();`);
+    assert.equal(readFileSync(config, 'utf8'), replaced);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});

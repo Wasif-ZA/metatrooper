@@ -505,21 +505,19 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
         try {
           await until(() => db.prepare("SELECT 1 FROM needs_you WHERE kind = 'missing-secret' AND text = 'set OTHER_KEY for claude-fixture-tools'").get());
           const claude = { id: 'claude', command: 'claude', version_cmd: ['claude'], state_source: 'hooks' as const, roles: ['worker'], cost_rank: 3, mcp_attach: { kind: 'claude-mcp-config-flag' } };
-          const args = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, claude, 'S1'));
+          const args = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, claude, 'S1', true));
           assert.equal(args.length, 1);
           assert.ok(args[0].startsWith('--mcp-config='));
           const config = readFileSync(args[0].slice('--mcp-config='.length), 'utf8');
           assert.match(config, /mcp-shim\.js/);
           assert.match(config, /metatrooper-browser\.js/);
           assert.ok(!config.includes(literal));
-          const codex = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2'));
-          const codexToml = readFileSync(codexConfig, 'utf8');
-          assert.deepEqual(codex, []);
-          assert.match(codexToml, /# metatrooper mcp: begin/);
-          assert.match(codexToml, /\[mcp_servers\.metatrooper-browser\]/);
-          assert.ok(!codexToml.includes('[mcp_servers.claude-fixture-tools-tools]'));
-          assert.ok(!codexToml.includes('[mcp_servers.claude-fixture-tools-needs]'));
-          assert.ok(!codexToml.includes(literal));
+          const codex = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2', true));
+          assert.ok(!existsSync(codexConfig));
+          assert.equal(codex.filter((a) => a === '-c').length, 2);
+          assert.match(codex[1], /^mcp_servers\.metatrooper-browser\.command=".*"$/);
+          assert.match(codex[3], /^mcp_servers\.metatrooper-browser\.args=\[".*metatrooper-browser\.js"\]$/);
+          assert.ok(!codex.join(' ').includes(literal));
         } finally {
           if (previousCodexPath === undefined) delete process.env.METATROOPER_CODEX_CONFIG;
           else process.env.METATROOPER_CODEX_CONFIG = previousCodexPath;

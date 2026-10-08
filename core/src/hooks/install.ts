@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { claudeSettingsFile, codexConfigFile, coreDir, hooksStateFile } from '../paths.ts';
+import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile } from '../paths.ts';
 import { removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { expandHome } from '../trust.ts';
@@ -65,6 +65,11 @@ export interface Plan {
   after: string;
 }
 
+function ourGroup(ev: string): Json {
+  const hooks = [{ type: 'command', command: hookCommand(ev), timeout: 5 }];
+  return TOOL_EVENTS.has(ev) ? { matcher: '*', hooks } : { hooks };
+}
+
 export function planClaudeInstall(): Plan {
   const file = claudeSettingsFile();
   const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
@@ -73,12 +78,28 @@ export function planClaudeInstall(): Plan {
   if (!next.hooks) next.hooks = {};
   for (const ev of EVENTS) {
     const groups: Json[] = Array.isArray(next.hooks[ev]) ? next.hooks[ev].filter((g: Json) => !isOurs(g)) : [];
-    const group: Json = { hooks: [{ type: 'command', command: hookCommand(ev), timeout: 5 }] };
-    if (TOOL_EVENTS.has(ev)) group.matcher = '*';
-    const ordered = TOOL_EVENTS.has(ev) ? { matcher: group.matcher, hooks: group.hooks } : group;
-    next.hooks[ev] = [...groups, ordered];
+    next.hooks[ev] = [...groups, ourGroup(ev)];
   }
   return { file, before: original ?? '', after: JSON.stringify(next, null, 2) + '\n' };
+}
+
+function globalClaudeHooks(): boolean {
+  try {
+    const settings: Json = JSON.parse(fs.readFileSync(claudeSettingsFile(), 'utf8'));
+    return EVENTS.some((ev) => Array.isArray(settings.hooks?.[ev]) && settings.hooks[ev].some(isOurs));
+  } catch {
+    return false;
+  }
+}
+
+/** Per-session arguments carrying MetaTrooper's Claude hooks or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
+export function sessionHookArgs(engine: EngineSpec, sessionId: string): string[] {
+  if (engine.mcp_attach?.kind === 'codex-config') return codexNotifyArgs();
+  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag' || globalClaudeHooks()) return [];
+  const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ hooks: Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]])) }, null, 2) + '\n');
+  return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
 
 export function installClaude(): Plan {
@@ -126,17 +147,30 @@ function tomlArray(values: string[]): string {
   return `[${values.map((v) => JSON.stringify(v)).join(', ')}]`;
 }
 
+/** The notify array in a config.toml with every MetaTrooper wrapper peeled off; null when there is none. */
+function userNotify(text: string): string[] | null {
+  const m = text.match(NOTIFY_RE);
+  let previous: string[] | null = m ? JSON.parse(m[1]) : null;
+  while (previous && previous[1] === codexScript()) {
+    const inner: string[] = JSON.parse(previous[2] ?? '[]');
+    previous = inner.length ? inner : null;
+  }
+  return previous;
+}
+
+function codexNotifyArgs(): string[] {
+  let previous: string[] | null = null;
+  try { previous = userNotify(fs.readFileSync(codexConfigFile(), 'utf8')); } catch {}
+  return ['-c', `notify=${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`];
+}
+
 export function installCodex(): Plan | null {
   const file = codexConfigFile();
   const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const state = readState();
   if (state.codex) return { file, before: original, after: original };
   const m = original.match(NOTIFY_RE);
-  let previous: string[] | null = m ? JSON.parse(m[1]) : null;
-  while (previous && previous[1] === codexScript()) {
-    const inner: string[] = JSON.parse(previous[2] ?? '[]');
-    previous = inner.length ? inner : null;
-  }
+  const previous = userNotify(original);
   const line = `notify = ${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`;
   const after = m ? original.replace(NOTIFY_RE, line) : `${line}\n${original}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.troop-bak`);
@@ -151,16 +185,22 @@ export function uninstallCodex(): Plan | null {
   removeCodexMcp();
   const state = readState();
   const rec = state.codex;
-  if (!rec || !fs.existsSync(rec.file)) return null;
-  const current = fs.readFileSync(rec.file, 'utf8');
-  let after: string;
-  if (current === rec.installed) after = rec.original;
-  else if (rec.previous) after = current.replace(NOTIFY_RE, `notify = ${tomlArray(rec.previous)}`);
-  else after = current.replace(/^notify\s*=\s*\[.*\]\s*\r?\n/m, '');
-  fs.writeFileSync(rec.file, after);
+  const file = rec?.file ?? codexConfigFile();
+  if (!fs.existsSync(file)) return null;
+  const current = fs.readFileSync(file, 'utf8');
+  let ours = false;
+  try { ours = JSON.parse(current.match(NOTIFY_RE)?.[1] ?? '[]')[1] === codexScript(); } catch {}
+  if (!rec && !ours) return null;
+  let after = current;
+  if (rec && current === rec.installed) after = rec.original;
+  else if (ours) {
+    const previous = userNotify(current);
+    after = previous ? current.replace(NOTIFY_RE, `notify = ${tomlArray(previous)}`) : current.replace(/^notify\s*=\s*\[.*\]\s*\r?\n/m, '');
+  }
+  if (after !== current) fs.writeFileSync(file, after);
   delete state.codex;
   writeState(state);
-  return { file: rec.file, before: current, after };
+  return { file, before: current, after };
 }
 
 /** A minimal line diff for the confirm screen. */
@@ -226,15 +266,10 @@ export function uninstallEngineSettings(): Plan[] {
   return plans;
 }
 
-/** First launch of an engine from the app: installs its hooks or notify wrapper and its settings once; null when already done. */
+/** First launch of an engine from the app: applies its declared settings once; null when already done. Hooks and notify travel per session. */
 export function ensureEngineSetup(engine: EngineSpec, at: string): string[] | null {
   if (readState().setup?.[engine.id]) return null;
   const files: string[] = [];
-  if (engine.state_source === 'hooks') files.push(installClaude().file);
-  if (engine.state_source === 'notify') {
-    const p = installCodex();
-    if (p) files.push(p.file);
-  }
   for (const p of installEngineSettings([engine])) files.push(p.file);
   const state = readState();
   state.setup = { ...(state.setup ?? {}), [engine.id]: at };

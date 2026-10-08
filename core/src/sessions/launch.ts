@@ -3,11 +3,11 @@ import type { DatabaseSync } from 'node:sqlite';
 import { coreDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import type { EngineSpec } from '../engines/registry.ts';
-import { mcpAttachArgs } from '../plugins/mcp.ts';
+import { mcpAttachArgs, sweepSessionFiles } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
-import { ensureEngineSetup } from '../hooks/install.ts';
+import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
 import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
 
 export interface LaunchPlan {
@@ -39,14 +39,15 @@ const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; drivenEngine?: string },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; drivenEngine?: string; browser?: boolean },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
   try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
-  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);
+  try { sweepSessionFiles(db); } catch {}
+  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser)]);
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(
