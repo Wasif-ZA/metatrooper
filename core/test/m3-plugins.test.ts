@@ -13,7 +13,7 @@ import { parseCsv, load, query, render, kpiBlocks } from '../../plugins/data/bin
 import { cut, captions, transcribe } from '../../plugins/media/bin/media.js';
 import { listDeps, licenceReport } from '../../plugins/security/bin/security.js';
 import { exportPdf } from '../../plugins/docs-export/bin/docs-export.js';
-import { read as gmailRead, draft as gmailDraft, rawMessage, textOf, refusal, unanswered, searchQuery } from '../../plugins/gmail/bin/gmail.js';
+import { read as gmailRead, draft as gmailDraft, rawMessage, textOf, refusal, unanswered, searchQuery, addressOf } from '../../plugins/gmail/bin/gmail.js';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'm3-plugins-'));
@@ -403,6 +403,42 @@ test('gmail read writes messages with plain text and only threads whose last mes
   }
 });
 
+test('gmail follow-ups match my address exactly, not as part of a longer one', () => {
+  const thread = (from) => ({ id: 't', messages: [{ payload: { headers: [{ name: 'From', value: from }] } }] });
+  assert.equal(addressOf('Me <ME@x.example> '), 'me@x.example');
+  assert.ok(unanswered(thread('Me <me@x.example>'), 'me@x.example'));
+  assert.ok(unanswered(thread('ME@X.example'), 'me@x.example'));
+  assert.equal(unanswered(thread('Jo <some.me@x.example>'), 'me@x.example'), null);
+  assert.equal(unanswered(thread('me@x.example.evil'), 'me@x.example'), null);
+});
+
+test('gmail draft re-run after a failure part way saves only the drafts not yet saved', async () => {
+  const dir = tempDir();
+  try {
+    const posts = [];
+    let failAt = 2;
+    const api = async (method, route, body) => {
+      if (posts.length + 1 === failAt) { failAt = 0; throw new Error('Gmail POST drafts failed: 503'); }
+      posts.push(body);
+      return { id: `d${posts.length}` };
+    };
+    const list = ['a', 'b', 'c'].map((n) => ({ id: n, to: `${n}@x.example`, subject: `Hi ${n}`, body: 'Hello' }));
+    writeJson(join(dir, 'drafts.json'), list);
+    await assert.rejects(gmailDraft({ drafts: 'drafts.json' }, api, dir), /503/);
+    assert.equal(posts.length, 1);
+    const r = await gmailDraft({ drafts: 'drafts.json' }, api, dir);
+    assert.equal(posts.length, 3);
+    assert.deepEqual(r, { count: 3, skipped: 1, drafts: [{ id: 'a', draft_id: 'd1' }, { id: 'b', draft_id: 'd2' }, { id: 'c', draft_id: 'd3' }] });
+    list[0].body = 'Hello again';
+    writeJson(join(dir, 'drafts.json'), list);
+    const again = await gmailDraft({ drafts: 'drafts.json' }, api, dir);
+    assert.equal(posts.length, 4);
+    assert.equal(again.skipped, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('gmail draft refuses the whole batch on one bad draft and saves replies in their thread', async () => {
   const dir = tempDir();
   try {
@@ -417,7 +453,7 @@ test('gmail draft refuses the whole batch on one bad draft and saves replies in 
     assert.equal(posts.length, 0);
     writeJson(join(dir, 'ok.json'), [{ id: 'm1', to: 'Dana <dana@x.example>', subject: 'Re: café', body: 'Yes.\nThanks' }]);
     const r = await gmailDraft({ drafts: 'ok.json', reply: true }, api, dir);
-    assert.deepEqual(r, { count: 1, drafts: [{ id: 'm1', draft_id: 'd1' }] });
+    assert.deepEqual(r, { count: 1, skipped: 0, drafts: [{ id: 'm1', draft_id: 'd1' }] });
     assert.equal(posts[0].message.threadId, 'T9');
     const raw = Buffer.from(posts[0].message.raw, 'base64url').toString('utf8');
     assert.match(raw, /In-Reply-To: <p@x>\r\n/);

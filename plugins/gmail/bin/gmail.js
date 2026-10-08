@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -88,9 +89,13 @@ function messageRow(m) {
   };
 }
 
+export function addressOf(value) {
+  return String(value).replace(/^.*<([^>]+)>\s*$/, '$1').trim().toLowerCase();
+}
+
 export function unanswered(thread, me) {
   const last = thread.messages?.at(-1);
-  if (!last || !header(last.payload, 'From').toLowerCase().includes(me.toLowerCase())) return null;
+  if (!last || addressOf(header(last.payload, 'From')) !== addressOf(me)) return null;
   return { thread: thread.id, to: header(last.payload, 'To'), subject: header(last.payload, 'Subject'), date: header(last.payload, 'Date') };
 }
 
@@ -145,8 +150,18 @@ export async function draft(input, api, runDir = process.env.TROOP_RUN_DIR || '.
   if (!Array.isArray(list)) throw new ApiError(`${input.drafts} is not a JSON list`, false);
   const refused = list.map((d, i) => [d?.id ?? `#${i}`, refusal(d)]).filter(([, why]) => why);
   if (refused.length) throw new ApiError(`refused, no drafts saved: ${refused.map(([id, why]) => `${id}: ${why}`).join('; ')}`, false);
+  const ledgerFile = `${file}.saved.json`;
+  const ledger = fs.existsSync(ledgerFile) ? JSON.parse(fs.readFileSync(ledgerFile, 'utf8')) : {};
   const saved = [];
+  let skipped = 0;
   for (const d of list) {
+    const key = createHash('sha256').update(JSON.stringify([Boolean(input.reply), d.id, d.to, d.subject, d.body, d.thread ?? null])).digest('hex');
+    if (ledger[key]) {
+      saved.push({ id: d.id, draft_id: ledger[key] });
+      skipped++;
+      process.stderr.write(`draft for ${d.id} already saved in this run\n`);
+      continue;
+    }
     let parent = null;
     if (input.reply) {
       const m = await api('GET', `messages/${encodeURIComponent(d.id)}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References`);
@@ -157,9 +172,11 @@ export async function draft(input, api, runDir = process.env.TROOP_RUN_DIR || '.
     if (thread) message.threadId = thread;
     const r = await api('POST', 'drafts', { message });
     saved.push({ id: d.id, draft_id: r.id });
+    ledger[key] = r.id ?? true;
+    fs.writeFileSync(ledgerFile, JSON.stringify(ledger, null, 2));
     process.stderr.write(`saved draft for ${d.id}\n`);
   }
-  return { count: saved.length, drafts: saved };
+  return { count: saved.length, skipped, drafts: saved };
 }
 
 async function auth() {
