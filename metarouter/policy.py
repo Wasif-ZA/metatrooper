@@ -6,14 +6,9 @@ from metarouter.log import home
 
 
 def files():
-    """Policy files in force: the repo's .metarouter/policy.json (walking up to the git top), then the user's."""
-    found = []
-    for d in [Path.cwd(), *Path.cwd().parents]:
-        if (d / ".metarouter" / "policy.json").is_file():
-            found.append(d / ".metarouter" / "policy.json")
-            break
-        if (d / ".git").exists():
-            break
+    """Policy files in force: .metarouter/policy.json at the git top of cwd, then the user's."""
+    top = next((d for d in [Path.cwd(), *Path.cwd().parents] if (d / ".git").exists()), None)
+    found = [top / ".metarouter" / "policy.json"] if top else []
     found.append(home() / "policy.json")
     out = []
     for f in found:
