@@ -627,7 +627,7 @@ def check(args):
                 lines.append(f"FAIL  filter:{name}: got {got}")
     cutoff = (datetime.datetime.now().astimezone() - datetime.timedelta(days=STALE_DAYS)).isoformat()
     for name, r in sorted(recipes.items()):
-        if project_only or r.get("source") in ("seed", "catalog"):
+        if project_only or r.get("source") in ("seed", "catalog") or str(r.get("source")).startswith("pack:"):
             continue
         last = max((row["time"] for row in rows if row.get("recipe") == name), default=None)
         if last is None or last < cutoff:

@@ -140,6 +140,8 @@ def test_pack_add_then_remove_leaves_user_store_as_before(tmp_path, capsys):
 
 def test_pack_add_remove_on_empty_home_leaves_nothing(tmp_path, capsys):
     invoke(capsys, "pack", "add", "docker")
+    _, res = invoke(capsys, "check")
+    assert "stale dk-" not in res["out"]
     invoke(capsys, "pack", "remove", "docker")
     home = tmp_path / "home"
     assert not (home / "hints.json").exists()
