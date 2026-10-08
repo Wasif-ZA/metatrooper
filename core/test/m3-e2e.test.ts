@@ -127,7 +127,176 @@ test('M3-01 study-notes-to-pdf reads the fixture lecture, exports a real PDF and
   } finally { await close(h); }
 });
 
+async function fakeGmail(mailbox: any) {
+  const calls: Array<{ method: string; url: string; body: string }> = [];
+  const b64 = (s: string) => Buffer.from(s).toString('base64url');
+  const headers = (m: any) => [{ name: 'From', value: m.from }, { name: 'Subject', value: m.subject }, { name: 'Message-ID', value: m.messageId }, ...(m.to ? [{ name: 'To', value: m.to }] : [])];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      calls.push({ method: req.method!, url: req.url!, body });
+      const route = (req.url ?? '').replace(/^\/gmail\/v1\/users\/me\//, '');
+      const msg = mailbox.messages.find((m: any) => route.startsWith(`messages/${m.id}?`));
+      const sent = mailbox.sent.find((t: any) => route.startsWith(`threads/${t.id}?`));
+      const reply = req.url === '/token' ? { access_token: 'fake-token' }
+        : route === 'profile' ? { emailAddress: mailbox.me }
+        : route.startsWith('messages?') ? { messages: mailbox.messages.map((m: any) => ({ id: m.id })) }
+        : msg ? { id: msg.id, threadId: msg.threadId, snippet: msg.body.slice(0, 40), payload: { mimeType: 'text/plain', headers: headers(msg), body: { data: b64(msg.body) } } }
+        : route.startsWith('threads?') ? { threads: mailbox.sent.map((t: any) => ({ id: t.id })) }
+        : sent ? { id: sent.id, messages: [{ payload: { headers: headers(sent) } }] }
+        : route === 'drafts' && req.method === 'POST' ? { id: `d${calls.length}` }
+        : null;
+      res.writeHead(reply ? 200 : 404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(reply ?? { error: { message: `no route ${req.url}` } }));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  return { calls, url: `http://127.0.0.1:${(server.address() as any).port}`, close: () => server.close() };
+}
+
+async function gmailHarness(api: string) {
+  const prev = process.env.TROOP_GMAIL_API;
+  process.env.TROOP_GMAIL_API = api;
+  try {
+    const h = await revisionHarness(undefined, capturingEngine);
+    for (const [name, value] of [['GMAIL_CLIENT_ID', 'id'], ['GMAIL_CLIENT_SECRET', 'secret'], ['GMAIL_REFRESH_TOKEN', 'refresh']]) {
+      assert.deepEqual((await h.pipe.request('plugin.secret.set', { plugin_id: 'gmail', name, value })).result, {});
+    }
+    return h;
+  } finally { if (prev === undefined) delete process.env.TROOP_GMAIL_API; else process.env.TROOP_GMAIL_API = prev; }
+}
+
+test('M3-01 inbox-triage-drafts reads the fixture mailbox and saves a reply draft only after approve', async () => {
+  const mailbox = JSON.parse(readFileSync(join(root, 'tests/fixtures/inbox-triage-drafts/input/mailbox.json'), 'utf8'));
+  const gmail = await fakeGmail(mailbox);
+  const h = await gmailHarness(gmail.url);
+  try {
+    copyFileSync(join(root, 'tests/fixtures/inbox-triage-drafts/input/rules.md'), join(h.project, 'rules.md'));
+    cpSync(join(root, 'pipelines/inbox-triage-drafts'), join(h.project, '.troop/pipelines/inbox-triage-drafts'), { recursive: true });
+    const replies = [{ id: 'm1', thread: 't1', to: 'dana@crumb.example', subject: 'Re: Saturday order', body: 'Yes, 40 loaves are confirmed for Saturday.\nSam' }];
+    const def = builtin('inbox-triage-drafts', {
+      classify: { outputs: { items: 'classified.json' } },
+      draft: { outputs: { count: 1 }, run_files: { 'replies.json': JSON.stringify(replies) } },
+      check: { outputs: { passed: true, flag: 'none' } },
+    });
+    const runId = await h.pipeline(def, {});
+    const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId)
+      ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 60000);
+    assert.equal(gate.guards_step, 'drafts');
+    const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
+    assert.match(readFileSync(join(runDir, 'rules.md'), 'utf8'), /Never draft/);
+    const fetched = JSON.parse(readFileSync(join(runDir, 'messages.json'), 'utf8'));
+    assert.deepEqual(fetched.messages.map((m: any) => [m.id, m.body]), mailbox.messages.map((m: any) => [m.id, m.body]));
+    assert.deepEqual(fetched.followups.map((f: any) => f.thread), ['t3']);
+    assert.equal(gmail.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/drafts')).length, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+    const posts = gmail.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/drafts'));
+    assert.equal(posts.length, 1);
+    const message = JSON.parse(posts[0].body).message;
+    assert.equal(message.threadId, 't1');
+    assert.match(Buffer.from(message.raw, 'base64url').toString('utf8'), /In-Reply-To: <m1@crumb\.example>/);
+  } finally { gmail.close(); await close(h); }
+});
+
+test('M3-01 prospect-list-to-drafts drops bad rows, gates the site fetch and saves new drafts only after approve', async () => {
+  const gmail = await fakeGmail({ me: 'sam@crumb.example', messages: [], sent: [] });
+  const h = await gmailHarness(gmail.url);
+  try {
+    for (const f of ['prospects.csv', 'do-not-contact.txt']) copyFileSync(join(root, 'tests/fixtures/prospect-list-to-drafts/input', f), join(h.project, f));
+    cpSync(join(root, 'pipelines/prospect-list-to-drafts'), join(h.project, '.troop/pipelines/prospect-list-to-drafts'), { recursive: true });
+    const emails = [
+      { id: 'priya', to: 'priya@shahphysio.example', subject: 'Your Saturday clinic', body: 'You open Saturdays from 8am. Want a booking page for it?' },
+      { id: 'marco', to: 'marco@rossibarbers.example', subject: 'Walk-ins', body: 'Your site says walk-ins only. Want a live queue page?' },
+    ];
+    const def = builtin('prospect-list-to-drafts', {
+      hook: { outputs: { items: 'hooks.json' } },
+      write: { outputs: { count: 2 }, run_files: { 'emails.json': JSON.stringify(emails) } },
+      check: { outputs: { passed: true, flag: 'none' } },
+    });
+    // agent-reach/sources fetches the prospects' public sites, so a fake external step stands in with the same gate.
+    def.steps[def.steps.findIndex((s: any) => s.id === 'sources')] = { id: 'sources', title: 'Fetch their sites', role: 'research', kind: 'agent', engine: 'fake', external: true, destination: 'prospect sites', approval: 'edits', outputs: ['count'], prompt: 'FAKE {"outputs":{"count":2}}\nFetch.' };
+    const runId = await h.pipeline(def, { list: 'prospects.csv', do_not_contact: 'do-not-contact.txt', offer: 'booking pages' });
+    const gateAt = (step: string) => until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = ? AND status = 'waiting'").get(runId, step)
+      ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 60000);
+    const spend: any = await gateAt('approve-spend');
+    assert.equal(spend.guards_step, 'sources');
+    const load = JSON.parse((h.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'load'").get(runId) as any).outputs);
+    assert.equal(load.kept, 2);
+    assert.deepEqual(load.dropped.map((d: any) => d.why), ['no email', 'duplicate', 'do not contact']);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'sources' AND status <> 'pending'").get(runId) as any).n, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: spend.id, decision: 'approve', action_hash: spend.action_hash })).result, {});
+    const approve: any = await gateAt('approve');
+    assert.equal(approve.guards_step, 'drafts');
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'hook' AND status = 'done'").get(runId) as any).n, 4);
+    assert.equal(gmail.calls.length, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: approve.id, decision: 'approve', action_hash: approve.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+    const posts = gmail.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/drafts')).map((c) => JSON.parse(c.body).message);
+    assert.equal(posts.length, 2);
+    assert.ok(posts.every((m) => m.threadId === undefined));
+    assert.match(Buffer.from(posts[0].raw, 'base64url').toString('utf8'), /To: priya@shahphysio\.example/);
+  } finally { gmail.close(); await close(h); }
+});
+
+test('gmail refuses a TROOP_GMAIL_API that is not loopback, so the refresh token never leaves the machine', async () => {
+  const { endpoints } = await import('../../plugins/gmail/bin/gmail.js');
+  assert.deepEqual(endpoints({}), { api: 'https://gmail.googleapis.com/gmail/v1/users/me', token: 'https://oauth2.googleapis.com/token' });
+  assert.deepEqual(endpoints({ TROOP_GMAIL_API: 'http://127.0.0.1:9/' }), { api: 'http://127.0.0.1:9/gmail/v1/users/me', token: 'http://127.0.0.1:9/token' });
+  assert.equal(endpoints({ TROOP_GMAIL_API: 'http://[::1]:9' }).token, 'http://[::1]:9/token');
+  for (const bad of ['https://evil.example', 'http://10.0.0.1', 'http://localhost:9', 'http://127.0.0.1.evil.example']) {
+    assert.throws(() => endpoints({ TROOP_GMAIL_API: bad }), /must be a loopback address/, bad);
+  }
+});
+
 const whisper = process.env.TROOP_WHISPER || join(process.env.LOCALAPPDATA ?? '', 'whisper.cpp', 'Release', 'whisper-cli.exe');
+
+test('M3-01 clips-to-scheduled-posts cuts only the picked moments and schedules nothing before approve', { skip: !existsSync(whisper) && 'whisper.cpp is not installed' }, async () => {
+  const calls: string[] = [];
+  const postiz = http.createServer((req, res) => {
+    calls.push(`${req.method} ${req.url}`);
+    req.resume();
+    const body = req.url?.endsWith('/integrations') ? [{ id: 'tt1', identifier: 'tiktok', disabled: false }]
+      : req.url?.endsWith('/upload') ? { id: `u${calls.length}`, path: `https://cdn.test/u${calls.length}.mp4` }
+      : [{ postId: `p${calls.length}` }];
+    req.on('end', () => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); });
+  });
+  await new Promise<void>((r) => postiz.listen(0, '127.0.0.1', () => r()));
+  const h = await revisionHarness(undefined, capturingEngine);
+  try {
+    for (const [name, value] of [['POSTIZ_URL', `http://127.0.0.1:${(postiz.address() as any).port}/api/public/v1`], ['POSTIZ_API_KEY', 'test-key']]) {
+      assert.deepEqual((await h.pipe.request('plugin.secret.set', { plugin_id: 'social-scheduler', name, value })).result, {});
+    }
+    const video = join(h.project, 'take-01.mp4');
+    copyFileSync(join(root, 'tests/fixtures/footage-to-edit/input/takes/take-01.mp4'), video);
+    const moments = [
+      { id: 'intro', title: 'Meet Sam', preview: 'from Crumb Bakery', reason: 'hook', status: 'pending', src_start: 0.1, src_end: 3.1 },
+      { id: 'restart', title: 'Take two', preview: 'start again', reason: 'blooper', status: 'pending', src_start: 7.5, src_end: 11.0 },
+      { id: 'shape', title: 'Shape a loaf', preview: 'step by step', reason: 'how-to', status: 'pending', src_start: 11.0, src_end: 18.0 },
+    ];
+    const posts = [{ clip: 'styled/shape.mp4', platform: 'tiktok', title: 'Shape a loaf', caption: 'Sourdough shaping in one go', hashtags: ['sourdough'], slot: '2030-01-07T09:00:00+11:00' }];
+    const def = builtin('clips-to-scheduled-posts', {
+      moments: { outputs: { items: 'moments.json' }, run_files: { 'moments.json': JSON.stringify(moments) } },
+      copy: { outputs: { posts: 'posts.json' }, run_files: { 'posts.json': JSON.stringify(posts) } },
+      check: { outputs: { passed: true, flags: 'none' } },
+    });
+    const runId = await h.pipeline(def, { video, week_start: '2030-01-07', platforms: 'tiktok', max_clips: 4, tiktok_privacy: 'SELF_ONLY' });
+    const pick: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'pick' AND status = 'waiting'").get(runId) ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 120000);
+    const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
+    assert.equal(existsSync(join(runDir, 'clips')), false);
+    writeFileSync(join(runDir, 'moments.json'), JSON.stringify(moments.map((m) => ({ ...m, status: m.id === 'shape' ? 'approved' : 'dropped' }))));
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: pick.id, decision: 'approve' })).result, {});
+    const approve: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 120000);
+    assert.equal(approve.guards_step, 'schedule');
+    assert.deepEqual(readdirSync(join(runDir, 'clips')).filter((f) => f.endsWith('.mp4')), ['shape.mp4']);
+    assert.deepEqual(readdirSync(join(runDir, 'styled')).filter((f) => f.endsWith('.mp4')), ['shape.mp4']);
+    assert.deepEqual(calls, []);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: approve.id, decision: 'approve', action_hash: approve.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 60000);
+    assert.deepEqual(calls, ['GET /api/public/v1/integrations', 'POST /api/public/v1/upload', 'POST /api/public/v1/posts']);
+  } finally { postiz.close(); await close(h); }
+});
 
 test('M3-01 footage-to-edit probes and transcribes the fixture takes, then stops at the plan and final gates', { skip: !existsSync(whisper) && 'whisper.cpp is not installed' }, async () => {
   const h = await revisionHarness(undefined, capturingEngine);

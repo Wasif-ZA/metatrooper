@@ -58,6 +58,17 @@ export function pluginAction(db: DatabaseSync, pluginId: string, actionId: strin
   return (loadPlugin(db, pluginId)?.manifest.actions ?? []).find((a) => a.id === actionId) ?? null;
 }
 
+/** The template gallery: every `pipelines/templates/*.json`, ready only when each plugin it requires is installed and enabled. */
+export function listTemplates(db: DatabaseSync) {
+  const enabled = new Set(listPlugins(db).filter((p) => p.enabled).map((p) => p.id));
+  return jsonFiles(path.join(repoDir, 'pipelines', 'templates')).map((file) => {
+    const json = readJson(file) as Pipeline | null;
+    const requires = json?.requires ?? [];
+    const missing = requires.filter((id) => !enabled.has(id));
+    return { id: json?.id ?? path.basename(file, '.json'), title: json?.title ?? '', lane: json?.lane ?? '', requires, missing, ready: missing.length === 0 };
+  });
+}
+
 /** Scans every source and upserts `pipeline` rows with their validation result. */
 export function syncPipelines(db: DatabaseSync): Map<string, Found> {
   syncBuiltinPlugins(db);

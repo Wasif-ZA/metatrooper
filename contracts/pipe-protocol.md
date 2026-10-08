@@ -115,6 +115,7 @@ Every other interaction is a database read.
 
 | Method | Params | Result |
 |---|---|---|
+| `account.state` | `{}` | `{state: "signed_out"}`: the only state until the cloud milestone; nothing prompts for sign-in |
 | `project.open` | `{path}` | `{project_id}`; error -32001 for ACU paths. `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
 | `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it |
 | `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once |
@@ -141,6 +142,7 @@ Every other interaction is a database read.
 | `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
 | `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
 | `pipeline.validate` | `{json}` | `{valid, errors}` |
+| `template.list` | `{}` | `{templates: [{id, title, lane, requires, missing, ready}]}`: every `pipelines/templates/*.json`; `ready` only when each plugin in `requires` is installed and enabled, `missing` names the rest |
 | `comment.deliver` | `{comment_id}` | `{clipboard_at, typed}`: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it |
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |

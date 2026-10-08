@@ -175,6 +175,8 @@ export class Runner {
     if (errors.length) throw new RpcError(E.VALIDATION, `pipeline ${params.pipeline_id} is invalid`, { errors });
     const pipe = entry.json as Pipeline;
     if (pipe.run_in === 'cloud') throw new RpcError(E.CLOUD_UNAVAILABLE, 'cloud runs are not available yet');
+    const gateway = pipe.steps.find((s) => typeof s.engine === 'string' && getEngine(this.db, s.engine)?.provider === 'gateway');
+    if (gateway) throw new RpcError(E.CLOUD_UNAVAILABLE, `step ${gateway.id}: gateway engine ${gateway.engine} is not available yet`);
     const project = this.project(params.project_id);
     const inputs = this.inputsFor(pipe, params.inputs ?? {});
 

@@ -21,7 +21,7 @@ import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
 import type { Runner } from './pipelines/runner.ts';
-import { syncPipelines, validationContext } from './pipelines/store.ts';
+import { listTemplates, syncPipelines, validationContext } from './pipelines/store.ts';
 import { validatePipeline } from './pipelines/validate.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
@@ -51,6 +51,8 @@ function int(p: Record<string, unknown>, key: string): number {
 
 export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, MethodSpec> {
   const m = new Map<string, MethodSpec>();
+
+  m.set('account.state', { handler: () => ({ state: 'signed_out' }) });
 
   m.set('core.ping', {
     handler: () => {
@@ -90,6 +92,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (host !== 'pty') throw new RpcError(E.ENGINE_UNAVAILABLE, `host ${host} is not installed`);
       const engine = getEngine(db, str(p, 'engine_id'));
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
+      if (engine.provider === 'gateway') throw new RpcError(E.CLOUD_UNAVAILABLE, `gateway engine ${engine.id} is not available yet`);
       const check = db
         .prepare('SELECT installed FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1')
         .get(engine.id) as { installed: number } | undefined;
@@ -357,6 +360,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return {};
     },
   });
+
+  m.set('template.list', { handler: () => ({ templates: listTemplates(db) }) });
 
   m.set('pipeline.validate', {
     handler: (p) => {

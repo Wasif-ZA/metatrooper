@@ -55,7 +55,7 @@
       "kind": "action",
       "fanout": 4,
       "uses": "plugin:media/cut",
-      "with": { "video": "{{steps.ingest.outputs.path}}", "moments": "{{steps.moments.outputs.items}}", "index": "{{index}}", "aspect": "9:16", "out": "{{run.dir}}/clips" }
+      "with": { "video": "{{steps.ingest.outputs.path}}", "moments": "{{run.dir}}/moments.json", "index": "{{index}}", "aspect": "9:16", "out": "{{run.dir}}/clips" }
     },
     {
       "id": "style",

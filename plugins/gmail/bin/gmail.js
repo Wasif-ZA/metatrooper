@@ -15,11 +15,20 @@ export class ApiError extends Error {
   }
 }
 
-async function accessToken(env) {
+/** Gmail and token URLs; TROOP_GMAIL_API swaps both for a fake server, and only a loopback one. */
+export function endpoints(env = process.env) {
+  const base = env.TROOP_GMAIL_API?.replace(/\/+$/, '');
+  if (!base) return { api: API, token: 'https://oauth2.googleapis.com/token' };
+  const host = new URL(base).hostname.replace(/^\[|\]$/g, '');
+  if (!/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) && host !== '::1') throw new ApiError(`TROOP_GMAIL_API must be a loopback address, not ${host}`, false);
+  return { api: `${base}/gmail/v1/users/me`, token: `${base}/token` };
+}
+
+async function accessToken(env, url) {
   for (const k of ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN']) {
     if (!env[k]) throw new ApiError(`${k} is not set: run troop plugin secret gmail ${k}`, false);
   }
-  const r = await fetch('https://oauth2.googleapis.com/token', {
+  const r = await fetch(url, {
     method: 'POST',
     body: new URLSearchParams({ client_id: env.GMAIL_CLIENT_ID, client_secret: env.GMAIL_CLIENT_SECRET, refresh_token: env.GMAIL_REFRESH_TOKEN, grant_type: 'refresh_token' }),
   });
@@ -29,12 +38,13 @@ async function accessToken(env) {
 }
 
 export function realApi(env = process.env) {
+  const urls = endpoints(env);
   let token = null;
   return async (method, route, body) => {
-    token ??= await accessToken(env);
+    token ??= await accessToken(env, urls.token);
     let r;
     try {
-      r = await fetch(`${API}/${route}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      r = await fetch(`${urls.api}/${route}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     } catch (e) {
       throw new ApiError(`Gmail could not be reached: ${e.message}`, true);
     }
