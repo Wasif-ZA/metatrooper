@@ -3,13 +3,18 @@
 Branch m3-harden, from main at 4752228 (2026-10-08). Status values as in M1-STATUS.md. Unfinished criteria first,
 then each issue (#32 to #42) is re-read and hardened one at a time.
 
-M3-01 is met the M2-01 way: each built-in runs on a fake engine with its real plugin actions, reaches every gate
-with the guarded step not run, and finishes on approve. A real-engine run of each is dogfooding, listed under
-"Real runs", not claimed here.
+M3-01 is checked in two halves, and only both together tick it:
+
+- Wiring: the built-in runs on a fake engine with its real plugin actions on its real fixture input, reaches every
+  gate with the guarded step not run, and finishes on approve. This proves the runner, gates and plugin actions fit,
+  not that an agent does the job.
+- Real run: the same fixture through real engines, with Wasif on screen. Listed under "Real runs".
+
+Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them is only screen mock data.
 
 | Criterion | Status | Evidence / notes |
 |---|---|---|
-| M3-01 | IN PROGRESS | core/test/m3-e2e.test.ts (by Claude). data-to-dashboard VERIFIED-WINDOWS 2026-10-08T22:48+11:00: real `data/load` on a 4-row CSV (one duplicate, mixed dates and prices) into raw, every agent step done in order, pauses at the signoff handoff gate, done on approve. Dev command swapped for a node server so the test needs no `npx` download. Left: footage-to-edit, clips-to-scheduled-posts, seo-audit-fix, deep-research-cited, prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf, form-fill-batch. |
+| M3-01 | IN PROGRESS | Wiring tests in core/test/m3-e2e.test.ts (by Claude). data-to-dashboard WIRING 2026-10-08T23:00+11:00: real `data/load` on input/orders.csv (20 orders over two weeks with a duplicate, DD/MM dates, `$` prices, a blank region and a blank qty) into raw, row count and columns checked against the file, every agent step done in order, pauses at the signoff handoff gate, done on approve. Dev command swapped for a node server so the test needs no `npx` download. seo-audit-fix WIRING 2026-10-08T23:00+11:00: five audit lanes, fix in a worktree, speed loop, pauses at approve with guards_step deploy and an action hash, vercel never called before approve and called once with `--prod` after. Crawl is a fake step because `seo/crawl` refuses loopback hosts, so there is no local fixture site to crawl. Left: footage-to-edit, clips-to-scheduled-posts, deep-research-cited, prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf, form-fill-batch. |
 | M3-02 | VERIFIED-WINDOWS | c271cff: core/test/m3-plugins.test.ts cite-check planted-quote and curly-quote cases. |
 | M3-03 | TODO | form-fill-batch handoff on the captcha stand-in. tests/fixtures/form-fill-batch holds only the UI mock (run.js); the local test form is not built. |
 | M3-04 | TODO | No templates exist yet (catalog 3, 4, 5, 9, 15, 16, 18 to 22, 24, 25 and A1 to A4). Where they live is Wasif's call: `store.ts` seeds every `pipelines/*.json` as a runnable builtin. |
