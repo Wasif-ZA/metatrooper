@@ -19,6 +19,86 @@ function listen(body: string): Promise<{ server: Server; port: number }> {
   });
 }
 
+function listenFixture(): Promise<{ server: Server; port: number }> {
+  return new Promise((res) => {
+    const fixture = join(resolve(import.meta.dirname, '../..'), 'tests', 'fixtures', 'e2e-browser-qa');
+    const server = createServer((req, r) => {
+      const name = req.url === '/' ? 'index.html' : decodeURIComponent(req.url!.slice(1));
+      try {
+        r.setHeader('content-type', name.endsWith('.js') ? 'text/javascript' : 'text/html');
+        r.end(readFileSync(join(fixture, name)));
+      } catch { r.statusCode = 404; r.end('not found'); }
+    });
+    server.listen(0, '127.0.0.1', () => res({ server, port: (server.address() as { port: number }).port }));
+  });
+}
+
+test('M4-23 snapshot interactive filtering and unchanged since_last snapshots', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 (Windows, or Linux with xvfb)', timeout: 150_000 }, async () => {
+  await buildGenerated();
+  const iso = isolation();
+  const registry = join(iso.home, 'engines.json');
+  writeFileSync(registry, JSON.stringify([{ id: 'fake-a', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, version_cmd: [process.execPath, '--version'] }]));
+  const env = { ...iso.env, METATROOPER_ENGINES: registry };
+  const site = await listenFixture();
+  const core = await startCore({ ...iso, env });
+  let wb: ChildProcess | null = null;
+  try {
+    const pipe = await client(iso.prefix);
+    await uiHello(pipe, iso.home);
+    const project = join(iso.home, 'project');
+    mkdirSync(project);
+    const projectId = (await pipe.request('project.open', { path: project })).result.project_id as string;
+    const launched = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake-a', prompt: join(workbench, 'test', 'fixtures', 'browser-engine.cjs') });
+    const sessionId = launched.result.session_id as string;
+    const opened = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, url: `http://127.0.0.1:${site.port}/` });
+    const paneId = opened.result.pane_id as string;
+    { const db = new DatabaseSync(join(iso.home, 'troop.db')); try { db.prepare('UPDATE browser_pane SET dev_port = ? WHERE id = ?').run(site.port, paneId); } finally { db.close(); } }
+    pipe.close();
+    wb = spawn(process.platform === 'win32' ? electron : 'xvfb-run', process.platform === 'win32'
+      ? [workbench]
+      : ['-a', '-s', '-screen 0 1400x900x24', electron, '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', workbench],
+    { env, stdio: ['ignore', 'ignore', openSync(join(iso.home, 'workbench.err'), 'w')], detached: process.platform !== 'win32' });
+    await until(() => {
+      const db = new DatabaseSync(join(iso.home, 'troop.db'));
+      try { return (db.prepare('SELECT pid FROM session WHERE id = ?').get(sessionId) as { pid: number | null } | undefined)?.pid ?? null; }
+      finally { db.close(); }
+    }, 15_000);
+    const job = join(iso.home, `browser-job-${sessionId}.json`);
+    const out = join(iso.home, `browser-out-${sessionId}.json`);
+    const writeJob = (steps: unknown[]) => writeFileSync(job, JSON.stringify({ steps }));
+    const collect = async () => {
+      const prior = existsSync(out) ? readFileSync(out, 'utf8') : '';
+      return until(() => {
+        if (!existsSync(out)) return null;
+        const current = readFileSync(out, 'utf8');
+        return current !== prior ? JSON.parse(current) : null;
+      }, 30_000);
+    };
+    writeJob([
+      ['navigate', 'browser.navigate', { pane_id: paneId, url: `http://127.0.0.1:${site.port}/` }],
+      ['loaded', 'browser.wait_for', { pane_id: paneId, text: 'Shopping list', timeout_ms: 10000 }],
+      ['full', 'browser.snapshot', { pane_id: paneId }],
+      ['interactive', 'browser.snapshot', { pane_id: paneId, interactive: true }],
+      ['baseline', 'browser.snapshot', { pane_id: paneId }],
+      ['unchanged', 'browser.snapshot', { pane_id: paneId, since_last: true }],
+    ]);
+    const first = await collect();
+    assert.equal(first.steps.navigate.result?.url, `http://127.0.0.1:${site.port}/`, JSON.stringify(first.steps.navigate));
+    assert.equal(first.steps.loaded.result?.found, true, JSON.stringify(first.steps.loaded));
+    const allText = first.steps.full.result.text as string;
+    const interactiveText = first.steps.interactive.result.text as string;
+    assert.ok(interactiveText.split('\n').length < allText.split('\n').length, `interactive snapshot should be shorter\nfull: ${allText}\ninteractive: ${interactiveText}`);
+
+    const incrementalText = first.steps.unchanged.result.text as string;
+    assert.equal(incrementalText.trim(), '', incrementalText);
+  } finally {
+    if (wb?.pid) try { if (process.platform === 'win32') spawnSync('taskkill', ['/T', '/F', '/PID', String(wb.pid)]); else process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    site.server.close();
+    await sleep(300);
+    await teardownCore(core, iso);
+  }
+});
+
 test('M1-22 three panes from three sessions: each session drives only its own pane, found through its own process ancestry', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 (Windows, or Linux with xvfb)', timeout: 150_000 }, async () => {
   await buildGenerated();
   const iso = isolation();

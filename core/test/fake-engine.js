@@ -84,7 +84,33 @@ async function main() {
   }
   const spec = directive();
   if (Number.isFinite(spec.delay_ms) && spec.delay_ms > 0) await sleep(spec.delay_ms);
+  if (spec.waiting_for_you_ms > 0 && process.env.TROOP_SESSION_ID) {
+    spawnSync(process.execPath, [join(import.meta.dirname, '..', 'event.js'), 'claude.Notification'], {
+      env: process.env,
+      input: JSON.stringify({ notification_type: 'permission_prompt', message: 'waiting' }),
+      stdio: ['pipe', 'ignore', 'ignore'],
+      windowsHide: true,
+    });
+    await sleep(spec.waiting_for_you_ms);
+  }
+  if (spec.exit_without_output) return;
   mkdirSync(dirname(out), { recursive: true });
+  if (spec.activity_waiting_ms > 0 && process.env.TROOP_SESSION_ID) {
+    spawnSync(process.execPath, [join(import.meta.dirname, '..', 'event.js'), 'core.activity'], {
+      env: process.env,
+      input: JSON.stringify({ state: 'working' }),
+      stdio: ['pipe', 'ignore', 'ignore'],
+      windowsHide: true,
+    });
+    await sleep(30);
+    spawnSync(process.execPath, [join(import.meta.dirname, '..', 'event.js'), 'core.activity'], {
+      env: process.env,
+      input: JSON.stringify({ state: 'blocked' }),
+      stdio: ['pipe', 'ignore', 'ignore'],
+      windowsHide: true,
+    });
+    await sleep(spec.activity_waiting_ms);
+  }
   for (const [rel, text] of Object.entries(spec.files ?? {})) {
     mkdirSync(dirname(join(process.cwd(), rel)), { recursive: true });
     writeFileSync(join(process.cwd(), rel), String(text));

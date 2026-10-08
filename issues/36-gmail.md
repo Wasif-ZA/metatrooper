@@ -56,3 +56,49 @@ Background: the 36px wall bar, no thumbnail. Spam and injected messages never op
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8) for `prospect-list-to-drafts`
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| crawl4ai | unclecode/crawl4ai | Apache-2.0 | OK | not checked (fetches the pages you point it at) | sources |
+| gws | googleworkspace/cli | Apache-2.0 | OK | requests go to Google APIs under the user's own auth | drafts |
+| reacher | reacherhq/check-if-email-exists | AGPL-3.0 or commercial (dual) | caution: AGPL for open-source use; commercial use needs a paid licence; Docker HTTP backend, no Windows asset | SMTP probes to each address's mail server; needs outbound port 25 | check |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Helper tools (M4-8) for `inbox-triage-drafts`
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| gws | googleworkspace/cli | Apache-2.0 | OK | requests go to Google APIs under the user's own auth | fetch and drafts |
+| google_workspace_mcp | taylorwilsdon/google_workspace_mcp | MIT | OK | requests go to Google APIs under the user's own auth | fetch and drafts |
+| himalaya | pimalaya/himalaya | Apache-2.0 | OK | mail goes to the user's own IMAP server | fetch |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+- `prospect-list-to-drafts` `check`: add an address column (`safe`, `risky`, `invalid`, `unknown`, disposable, role account, catch-all) to the coverage map and drop `invalid` and disposable leads before `write`; without reacher, an MX lookup plus disposable and role lists fill most of it (reacherhq/check-if-email-exists).
+- `inbox-triage-drafts` `drafts`: store each draft's id and text; next run, replace an unchanged draft on the same thread and leave an edited one alone, noting it (elie222/inbox-zero).
+- `inbox-triage-drafts` `rules`: match from, to, subject and label conditions in code; `classify` sees only unmatched mail (elie222/inbox-zero).
+- `inbox-triage-drafts` `classify`: the session that reads untrusted mail has read-only Gmail tools; draft tools exist only in `draft` (taylorwilsdon/google_workspace_mcp).
+
+### Notes
+
+- `prospect-list-to-drafts` `check`: if outbound port 25 is blocked every result is `unknown`; say so in one red line (reacherhq/check-if-email-exists). Medium, S.
+- `prospect-list-to-drafts` `hook`: give it query-filtered Markdown of each prospect's site, not raw pages (unclecode/crawl4ai, janreges/siteone-crawler). Medium, S.
+- Both pipelines `drafts`: replies set `threadId` and subject `Re: ...`; a reply that would start a new thread is refused at `check` (Zie619/n8n-workflows). Medium, S.
+- `inbox-triage-drafts`: a `dry: true` run input classifies the last N messages with no drafts written (elie222/inbox-zero). Medium, S.
+- `inbox-triage-drafts`: each card shows why it landed in its pile, rule or model reason (elie222/inbox-zero). Medium, S.
+- `inbox-triage-drafts` `approve`: when the user re-files a message, offer a one-line static rule, never silent (elie222/inbox-zero). Medium, M.
+- `inbox-triage-drafts` plugin setup: request only read, label and compose scopes; unverified apps are limited to about 25 scopes (googleworkspace/cli). Medium, S.
+- Gate card before `drafts` shows the request body from a dry-run render (googleworkspace/cli). Medium, S.
+- `inbox-triage-drafts` `drafts`: with himalaya configured, stage a draft over IMAP for a non-Gmail account (pimalaya/himalaya). Low, S.
+- `inbox-triage-drafts` `classify`: a strict boolean `needs_reply`, and `draft` runs only on true (Zie619/n8n-workflows). Low, S.
+
+## Added requirement (M4-8)
+
+The issue text says the email-check helper is thin. Only reacher met the helper bar and it is AGPL or paid (caution). AfterShip/email-verifier (MIT) is a Go library with no binary and needs a wrapper the user builds. The `check` step must therefore work without any helper (MX lookup plus disposable and role lists).

@@ -38,3 +38,33 @@ Background. The run folds to the 36px wall bar with a live clip thumbnail and it
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8)
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| OpenMontage Clip Factory | calesthio/OpenMontage | AGPL-3.0 | caution: AGPL plus Remotion's company tier; separate user-installed clone only | not checked | moments and cut |
+| AI-Youtube-Shorts-Generator | Anil-matcha/AI-Youtube-Shorts-Generator | MIT | OK | not checked | moments and cut |
+| FunClip | modelscope/FunClip | MIT | OK | not checked | moments |
+| Remotion | remotion-dev/remotion | Remotion licence (source-available) | caution: free only for individuals, companies up to 3 staff, non-profits and evaluation | not checked | style |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+- Flag low-confidence words: words under about 0.6 probability are listed per clip as flags before captions burn (SYSTRAN/faster-whisper, remotion-dev/remotion).
+- Five-part moment score plus a standalone test: `moments` items carry `hook`, `coherence`, `value`, `energy`, `platform_fit` and a `standalone` pass or fail; rejected candidates are kept with their reason (calesthio/OpenMontage).
+- Captions as data, checked in code: `transcribe` writes `Caption[]` JSON once; `style` renders from it and `check` verifies each page's text equals the transcript words in its window (remotion-dev/remotion).
+
+### Notes
+
+- Source coverage strip on the pick screen showing where each candidate sits in the source (calesthio/OpenMontage). Medium, S.
+- Dedupe overlapping moments in code: over 50% overlap keeps the higher score (Anil-matcha/AI-Youtube-Shorts-Generator). Medium, S.
+- Chunk long sources: above 30 min, run `moments` per 20-min chunk with 60 s overlap (Anil-matcha/AI-Youtube-Shorts-Generator). Medium, S.
+- Pick by selecting transcript words, snapped to word timestamps (modelscope/FunClip). Medium, M.
+- Aspect per clip with a crop-viability note; `check` fails a 9:16 clip that loses the speaker (calesthio/OpenMontage). Medium, S.
+- Cheap caption stills with `npx remotion still --frame`; pass props as a file on Windows (remotion-dev/remotion). Medium, S.
+- One failed clip does not sink the batch: a failed fan-out index goes `failed` with its error and `approve` shows it excluded (calesthio/OpenMontage). Medium, M.
+- Gate card before `schedule` shows the exact request body, from a dry-run render (googleworkspace/cli). Medium, S.

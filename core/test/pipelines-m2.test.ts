@@ -70,6 +70,7 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
     });
     mkdirSync(join(t.project, '.troop', 'pipelines'), { recursive: true });
     writeFileSync(join(t.project, '.troop', 'pipelines', 'spec-to-pr.json'), JSON.stringify(def));
+    cpSync(join(root, 'pipelines', 'spec-to-pr'), join(t.project, '.troop', 'pipelines', 'spec-to-pr'), { recursive: true });
     const pipe = await client(t.iso.prefix);
     try {
       await uiHello(pipe, t.iso.home);
@@ -79,6 +80,7 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
       const runId = started.result.run_id as string;
 
       const specGate = await waitingGate(t.db, runId, 'approve-spec');
+      assert.match(specGate.summary, /Acceptance checks section is missing or empty\./);
       assert.deepEqual((await pipe.request('gate.resolve', { gate_id: specGate.id, decision: 'approve', action_hash: specGate.action_hash ?? undefined }, { timeout: 5000 })).result, {});
 
       const prGate = await waitingGate(t.db, runId, 'approve-pr');
@@ -86,7 +88,8 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
       assert.match(prGate.action_hash ?? '', /^[0-9a-f]{64}$/);
       const openPr = t.db.prepare("SELECT status FROM run_step WHERE run_id = ? AND step_id = 'open-pr'").get(runId) as { status: string } | undefined;
       assert.ok(!openPr || openPr.status === 'pending', JSON.stringify(openPr));
-      assert.equal(existsSync(t.ghLog), false, 'gh ran before approval');
+      const ghCalls = existsSync(t.ghLog) ? readFileSync(t.ghLog, 'utf8').trim().split(/\r?\n/).filter(Boolean) : [];
+      assert.deepEqual(ghCalls.filter((call) => call !== '--version'), [], 'gh ran before approval');
       const build = JSON.parse((t.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'build'").get(runId) as { outputs: string }).outputs);
       assert.match(build.branch, /^troop\//);
       const verify = JSON.parse((t.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'verify'").get(runId) as { outputs: string }).outputs);
@@ -100,12 +103,54 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
       const log = readFileSync(join(t.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId).run_dir as string, 'log.jsonl'), 'utf8');
       assert.equal(status, 'done', log.slice(-1500));
       const calls = readFileSync(t.ghLog, 'utf8').trim().split(/\r?\n/);
-      assert.equal(calls.length, 1);
-      assert.match(calls[0], /^pr create --repo fake\/repo --head troop\/\S+ --base main --title "?Add greet"? --body-file /);
+      const prCalls = calls.filter((call) => call !== '--version');
+      assert.equal(prCalls.length, 1);
+      assert.match(prCalls[0], /^pr create --repo fake\/repo --head troop\/\S+ --base main --title "?Add greet"? --body-file /);
       assert.equal(git(t.origin, 'branch', '--list', build.branch).trim(), build.branch);
       assert.ok(git(t.origin, 'show', `${build.branch}:greet.js`).includes('Hello'));
       const pr = JSON.parse((t.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'open-pr'").get(runId) as { outputs: string }).outputs);
       assert.equal(pr.url, 'https://github.com/fake/repo/pull/7');
+    } finally { pipe.close(); }
+  } finally {
+    t.db.close();
+    await teardownCore(t.core, t.iso);
+  }
+});
+
+test('M4-21 spec-to-pr gate reports only new test failures', async () => {
+  const t = await setup('spec-to-pr');
+  try {
+    writeFileSync(join(t.project, 'package.json'), JSON.stringify({ scripts: { test: 'node tests/run.js' } }, null, 2));
+    mkdirSync(join(t.project, 'tests'), { recursive: true });
+    writeFileSync(join(t.project, 'tests', 'run.js'), [
+      "console.log('TAP version 13');",
+      "console.log('not ok 1 - legacy failure');",
+      "console.log('not ok 2 - another legacy failure');",
+      "console.log('1..2');",
+      'process.exitCode = 1;',
+    ].join('\n'));
+    git(t.project, 'add', '-A');
+    git(t.project, 'commit', '-qm', 'add failing test fixture');
+    git(t.project, 'push', '-q', 'origin', 'main');
+
+    const def = pipelineWith('spec-to-pr', {
+      spec: { outputs: { title: 'Keep tests unchanged' } },
+      build: { outputs: { summary: 'No code changes.' } },
+    });
+    mkdirSync(join(t.project, '.troop', 'pipelines'), { recursive: true });
+    writeFileSync(join(t.project, '.troop', 'pipelines', 'spec-to-pr.json'), JSON.stringify(def));
+    cpSync(join(root, 'pipelines', 'spec-to-pr'), join(t.project, '.troop', 'pipelines', 'spec-to-pr'), { recursive: true });
+    const pipe = await client(t.iso.prefix);
+    try {
+      await uiHello(pipe, t.iso.home);
+      const projectId = (await pipe.request('project.open', { path: t.project })).result.project_id;
+      const started = await pipe.request('run.start', { pipeline_id: 'spec-to-pr', project_id: projectId, inputs: { idea: readFileSync(join(t.project, 'idea.md'), 'utf8'), repo: 'fake/repo' } }, { timeout: 5000 });
+      assert.ok(started.result?.run_id, JSON.stringify(started));
+      const runId = started.result.run_id as string;
+      const specGate = await waitingGate(t.db, runId, 'approve-spec');
+      await pipe.request('gate.resolve', { gate_id: specGate.id, decision: 'approve', action_hash: specGate.action_hash ?? undefined }, { timeout: 5000 });
+      const prGate = await waitingGate(t.db, runId, 'approve-pr');
+      assert.match(prGate.summary, /0 new failures \(2 old\)/);
     } finally { pipe.close(); }
   } finally {
     t.db.close();

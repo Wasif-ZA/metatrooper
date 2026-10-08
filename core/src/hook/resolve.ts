@@ -22,8 +22,8 @@ export function resolveCommand(name: string): string[] | null {
   if (!found) return null;
   if (!/\.(cmd|bat)$/i.test(found)) return [found];
   const text = fs.readFileSync(found, 'utf8');
-  const targets = [...text.matchAll(/"%dp0%\\([^"]+\.(?:js|cjs|mjs|exe))"/gi)]
-    .map((m) => m[1])
+  const targets = [...text.matchAll(/"%dp0%\\([^"]+\.(?:js|cjs|mjs|exe))"|%~dp0\\([^"]+\.(?:js|cjs|mjs))"/gi)]
+    .map((m) => m[1] ?? m[2])
     .filter((t) => !/(^|\\)node\.exe$/i.test(t));
   if (targets.length === 0) return null;
   const target = path.join(path.dirname(found), targets[targets.length - 1].split(BS).join(path.sep));

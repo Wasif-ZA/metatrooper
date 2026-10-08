@@ -4,7 +4,8 @@ Child of Milestone 4 in `spec.md` (Milestones and child issues). Decisions M4-D1
 verified current state are there; this file is what to build.
 
 ## What to build
-- `pipelines/assists.json` (MIT, with the pipelines) is the one registry:
+- `pipelines/assists/registry.json` (MIT, with the pipelines) is the one registry. Moved from `pipelines/assists.json`
+  on 2026-10-08: every `.json` directly in `pipelines/` is loaded as a pipeline.
   ```json
   {"<tool id>": {"name": "...", "repo": "owner/name", "licence": "...", "risk": "ok" | "caution",
                  "risk_note": "...", "egress": "none" | "<what leaves the machine, and where>",

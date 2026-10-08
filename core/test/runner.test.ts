@@ -231,6 +231,48 @@ test('M1-18a runs a child pipeline with remaining budget, parent-visible gates, 
   } finally { await h.teardown(); }
 });
 
+test('M4-07 F5a records one resolved needs-you row for a waiting agent session', async () => {
+  const h = await fakeHarness();
+  try {
+    const { project, projectId } = await openProject(h, 'm4-f5a');
+    writePipeline(project, {
+      schema: 1, id: 'm4-f5a-pipeline', title: 'Waiting pipeline',
+      steps: [{ id: 'answer', kind: 'agent', engine: 'fake', prompt: 'FAKE {"activity_waiting_ms":250,"outputs":{"answer":"done"}}', outputs: ['answer'] }],
+    });
+    const runId = await startRun(h, 'm4-f5a-pipeline', projectId);
+    const store = db(h.home);
+    try {
+      await until(() => store.prepare("SELECT status FROM run WHERE id = ?").get(runId)?.status === 'done', 8000);
+      const notice = store.prepare("SELECT id, ref, text, resolved_at FROM needs_you WHERE kind = 'other' AND ref IN (SELECT session_id FROM run_step WHERE run_id = ?)").get(runId) as { id: string; ref: string; text: string; resolved_at: string | null } | undefined;
+      const session = store.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND step_id = 'answer'").get(runId) as { session_id: string };
+      assert.equal(notice.ref, session.session_id);
+      assert.equal(notice.text, 'Waiting pipeline / answer: fake is waiting for an answer');
+      assert.ok(notice.resolved_at);
+      assert.equal(store.prepare("SELECT count(*) AS n FROM needs_you WHERE kind = 'other' AND ref = ?").get(session.session_id)?.n, 1);
+    } finally { store.close(); }
+  } finally { await h.teardown(); }
+});
+
+test('M4-07 F6 reports the last held session state when the engine exits without output', async () => {
+  const h = await fakeHarness();
+  try {
+    const { project, projectId } = await openProject(h, 'm4-f6');
+    writePipeline(project, {
+      schema: 1, id: 'm4-f6-pipeline', title: 'Exit pipeline',
+      steps: [{ id: 'answer', kind: 'agent', engine: 'fake', prompt: 'FAKE {"exit_without_output":true}', outputs: ['answer'] }],
+    });
+    const runId = await startRun(h, 'm4-f6-pipeline', projectId);
+    const store = db(h.home);
+    try {
+      await until(() => store.prepare("SELECT status FROM run WHERE id = ?").get(runId)?.status === 'failed', 8000);
+      const log = readFileSync(join(project, '.troop', 'runs', runId, 'log.jsonl'), 'utf8');
+      const events = log.trim().split('\n').map((line) => JSON.parse(line));
+      const failure = events.find((event: { event: string; step?: string }) => event.event === 'step failed' && event.step === 'answer');
+      assert.match(failure?.why ?? '', /^answer: the session exited \(last state (?:starting|working|waiting_for_you) for \d+ s\) without writing .+$/);
+    } finally { store.close(); }
+  } finally { await h.teardown(); }
+});
+
 test('M1-19 marks changed approvals stale and refuses non-UI or code gate resolution', async () => {
   const h = await fakeHarness();
   try {

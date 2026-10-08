@@ -33,6 +33,7 @@ const USAGE = `usage: troop <command> [--json]
   run wait <run> [--timeout <s>]
                                 block until the run pauses (gate, budget, loop-max, breaker, handoff) or ends
   run status <run>              show a run's state and open gates
+  run cancel <run>              cancel a run and its sub-pipeline runs
   stop                          stop the core
   gate [--since <date>] [--until <date>]
                                 adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
@@ -254,7 +255,7 @@ function withDb<T>(fn: (db: NonNullable<ReturnType<typeof openReaderDb>>) => T):
 }
 
 function resolveSession(prefix: string): string | null {
-  const rows = withDb((db) => db.prepare('SELECT id FROM session WHERE id LIKE ? ORDER BY started_at DESC').all(`${prefix}%`) as Array<{ id: string }>) ?? [];
+  const rows = withDb((db) => db.prepare('SELECT id FROM session WHERE id LIKE ? ORDER BY julianday(started_at) DESC').all(`${prefix}%`) as Array<{ id: string }>) ?? [];
   if (rows.length === 1) return rows[0].id;
   console.error(rows.length ? `${prefix} matches ${rows.length} sessions; give more of the id` : `no session matches ${prefix}`);
   return null;
@@ -375,6 +376,11 @@ async function runCmd(a: Args, json: boolean): Promise<number> {
     if (r.result) emit(json, r.result, String(r.result.run_id));
     return r.code;
   }
+  if (sub === 'cancel' && target) {
+    const r = await rpc('run.cancel', { run_id: target }, json);
+    if (r.result) emit(json, r.result, `cancelled ${target}`);
+    return r.code;
+  }
   if ((sub === 'wait' || sub === 'status') && target) {
     const timeout = Number(a.opts.get('--timeout') ?? 0) * 1000;
     const started = Date.now();
@@ -391,7 +397,7 @@ async function runCmd(a: Args, json: boolean): Promise<number> {
       await new Promise((r) => setTimeout(r, 250));
     }
   }
-  console.error('usage: troop run start <pipeline> [--project <path>] [--input k=v] | wait <run> [--timeout <s>] | status <run>');
+  console.error('usage: troop run start <pipeline> [--project <path>] [--input k=v] | wait <run> [--timeout <s>] | status <run> | cancel <run>');
   return 2;
 }
 
@@ -472,7 +478,7 @@ async function main(): Promise<number> {
         db.prepare(
           `SELECT s.id, s.engine_id AS engine, s.state, s.state_at, p.name AS project
            FROM session s JOIN project p ON p.id = s.project_id
-           WHERE (? = 1 OR s.hidden = 0) ORDER BY s.started_at DESC`,
+           WHERE (? = 1 OR s.hidden = 0) ORDER BY julianday(s.started_at) DESC`,
         ).all(a.flags.has('--all') ? 1 : 0) as Array<Record<string, unknown>>,
       ) ?? [];
       if (json) console.log(JSON.stringify(rows));

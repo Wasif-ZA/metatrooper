@@ -53,9 +53,9 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
     };
-    const key = async (key: string, code: string) => {
-      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code });
-      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code });
+    const key = async (key: string, code: string, modifiers = 0) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers });
     };
     const wait = async (expression: string, timeout = 20000) => until(() => evaluate(expression), timeout);
     await wait('typeof ui !== "undefined" && ui.snap && ui.snap.core.online');
@@ -63,12 +63,29 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
   } catch (e) { ws?.close(); await stop(); throw e; }
 }
 
-async function waitingRun(h: Awaited<ReturnType<typeof revisionHarness>>, title = 'Runbox fixture') {
+async function waitingRun(h: Awaited<ReturnType<typeof revisionHarness>>, title = 'Runbox fixture', withAgent = false) {
   const id = `runbox-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   const dir = join(h.project, '.troop/pipelines');
   const { mkdirSync, writeFileSync } = await import('node:fs');
+  const plugin = join(h.project, '.troop/plugins/runbox-test');
+  if (!h.db.prepare("SELECT 1 FROM plugin WHERE id = 'runbox-test'").get()) {
+    mkdirSync(join(plugin, 'bin'), { recursive: true });
+    writeFileSync(join(plugin, 'troop-plugin.json'), JSON.stringify({
+      schema: 1, id: 'runbox-test', name: 'Runbox test', version: '1.0.0', engines: [],
+      actions: [{ id: 'noop', title: 'No-op', run: ['bin/noop.mjs'] }],
+    }));
+    writeFileSync(join(plugin, 'bin/noop.mjs'), `
+#!/usr/bin/env node
+let input = '';
+for await (const chunk of process.stdin) input += chunk;
+process.stdout.write(JSON.stringify({ ok: true, outputs: {} }));
+`);
+    const installed = await h.pipe.request('plugin.install', { source: plugin, approved_permissions: [] });
+    assert.ok(installed.result, JSON.stringify(installed));
+  }
   mkdirSync(dir, { recursive: true });
   const definition = { schema: 1, id, title, requires: ['runbox-test'], steps: [
+    ...(withAgent ? [{ id: 'work', kind: 'agent', engine: 'fake', prompt: 'FAKE {"outputs":{}}' }] : []),
     { id: 'approve', kind: 'gate', gate: 'approve', gate_summary: `Approve ${title}` },
     { id: 'publish', kind: 'action', uses: 'plugin:runbox-test/noop' },
   ] };
@@ -114,7 +131,7 @@ test('nothing selected shows the waiting run with Needs you label, run-open, and
 test('selected session owning a run shows that run without Needs you while another run waits', options, async () => {
   const f = await fixture(true);
   try {
-    const mine = await waitingRun(f.h, 'Second owned run');
+    const mine = await waitingRun(f.h, 'Second owned run', true);
     const ownerSession = mine.session;
     assert.ok(ownerSession, 'the run step should own an agent session');
     await f.h.pipe.request('session.focus', { session_id: ownerSession });
@@ -192,7 +209,7 @@ test('done or cancelled runs never show in runbox', options, async () => {
 test('grid mode shows nothing in runbox', options, async () => {
   const f = await fixture();
   try {
-    await f.w.key('g', 'KeyG');
+    await f.w.key('g', 'KeyG', 2);
     await f.w.wait('ui.mode === "grid" && document.querySelector("#runbox").innerHTML === ""');
   } finally { await cleanup(f); }
 });

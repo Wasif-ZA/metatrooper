@@ -186,7 +186,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    projects: db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY last_opened DESC').all() as Snapshot['projects'],
+    projects: db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects'],
     engines,
     sessions,
     pipelines,

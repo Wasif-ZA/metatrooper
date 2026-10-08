@@ -298,3 +298,10 @@
 .runscreen .fd .dt { flex-basis: 100%; color: var(--body); font-size: 12px; }
 .L-coverage-map .fg { padding: 0 0 8px; }
 .L-run-log .list, .L-preview-stage :is(.rail, .stage), .L-before-after .after { overflow-x: hidden; }
+.runscreen .rs-helpers { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; font-size: 11px; }
+.runscreen .rs-helpers .helper { display: inline-flex; gap: 6px; align-items: baseline; max-width: 100%; }
+.runscreen .rs-helpers .helper.off { opacity: .6; }
+.runscreen .rs-helpers .helper .hv { color: var(--muted); }
+.runscreen .rs-helpers .helper .hn { color: var(--muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch; }
+.runscreen .rs-helpers .helper.egress { color: var(--amber); border-color: var(--amber); }
+.runscreen .rs-outside { flex: none; font-size: 11px; color: var(--muted); padding: 2px 0; }

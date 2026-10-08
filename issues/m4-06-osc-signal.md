@@ -14,6 +14,19 @@ verified current state are there; this file is what to build.
   `{"code": 9|99|777}` and maps it exactly like `term.bell` (same `terminal.bell_silent_ms` rule).
 - If no engine emits any code, no terminal code changes and the child closes with the probe results.
 
+## Probe results, 2026-10-08T23:26+11:00
+
+`node tests/windows/m4-osc-probe.ts` on Windows, `ask` profile, prompt "create a file named probe.txt containing ok":
+
+| Engine | OSC 9 / 99 / 777 seen in 120 s |
+|---|---|
+| claude | none |
+| codex | none |
+| agy | none |
+
+No engine emitted a code, so no terminal code changes (bullet 3 above) and `core/test/terminal-osc.test.ts` is
+not kept. The probe does not check that each engine reached its approval prompt before the 120 s ran out.
+
 ## Acceptance criteria
 
 - M4-10. The probe results for all three engines are in M4-6. If any emitted, a fake engine that writes

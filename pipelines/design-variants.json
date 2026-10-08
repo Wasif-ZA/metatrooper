@@ -10,6 +10,12 @@
   "budget": { "max_usd": 25, "max_minutes": 90, "max_parallel": 3 },
   "background": true,
   "layout": "variants-grid",
+  "assists": [
+    {"tool": "screenshot-to-code", "steps": ["variants"], "use": "turn a board reference into a starting variant"},
+    {"tool": "storybook", "steps": ["variants"], "use": "component-level variants as stories, shown side by side"},
+    {"tool": "talk-to-figma", "steps": ["directions"], "use": "read or write Figma frames when the brief starts in Figma"},
+    {"tool": "odiff", "steps": ["polish"], "use": "pixel diff of the picked variant before and after polish"}
+  ],
   "steps": [
     {
       "id": "board",

@@ -1,0 +1,21 @@
+diff --git a/lib/helpers/combineURLs.js b/lib/helpers/combineURLs.js
+index 9f04f02..dd3884d 100644
+--- a/lib/helpers/combineURLs.js
++++ b/lib/helpers/combineURLs.js
+@@ -9,7 +9,13 @@
+  * @returns {string} The combined URL
+  */
+ export default function combineURLs(baseURL, relativeURL) {
+-  return relativeURL
+-    ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+-    : baseURL;
++  if (!relativeURL) {
++    return baseURL;
++  }
++  const base = baseURL.replace(/\/+$/, '');
++  const rel = relativeURL.replace(/^\/+/, '');
++  if (!rel) {
++    return base + '/';
++  }
++  return base + '/' + rel;
+ }
