@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { search } from '../../plugins/agent-reach/bin/search.js';
 import { check } from '../../plugins/cite-check/bin/cite-check.js';
+import { crawl } from '../../plugins/seo/bin/seo.js';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'research-plugins-'));
@@ -40,4 +41,17 @@ test('deep-research draft prompt asks for the source id form search writes', () 
   const draft = pipe.steps.find((s) => s.id === 'draft').prompt;
   assert.doesNotMatch(draft, /\[s#\]/);
   assert.match(draft, /\[s01\]/);
+});
+
+test('seo crawl follows a start URL that redirects to another origin', async () => {
+  const pages = {
+    'https://a.example/': ['https://www.a.example/', '<a href="/about">About</a>'],
+    'https://www.a.example/about': ['https://www.a.example/about', '<h1>About</h1>'],
+  };
+  const get = async (url) => {
+    const [final, body] = pages[url] ?? [url, ''];
+    return { res: { ok: Boolean(pages[url]), status: pages[url] ? 200 : 404, url: final, headers: new Headers({ 'content-type': 'text/html' }) }, body, ms: 1 };
+  };
+  const result = await crawl({ url: 'https://a.example/' }, null, get);
+  assert.deepEqual(result.data.pages.map((p) => p.url), ['https://a.example/', 'https://www.a.example/about']);
 });

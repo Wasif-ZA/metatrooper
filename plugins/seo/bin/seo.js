@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { safeFetch } from './safe-fetch.js';
 
 const UA = 'MetaTrooper-SEO/0.1';
@@ -14,9 +15,9 @@ async function fetchText(url, ms = 15000) {
   return { res, body, ms: Date.now() - started };
 }
 
-async function robotsRules(origin) {
+async function robotsRules(origin, get) {
   try {
-    const { res, body } = await fetchText(`${origin}/robots.txt`, 5000);
+    const { res, body } = await get(`${origin}/robots.txt`, 5000);
     if (!res.ok) return [];
     const rules = [];
     let agents = [];
@@ -74,12 +75,12 @@ function analyse(html, url, origin) {
   };
 }
 
-async function crawl(input, runDir) {
+export async function crawl(input, runDir, get = fetchText) {
   const start = new URL(input.url);
   start.hash = '';
-  const origin = start.origin;
+  let origin = start.origin;
   const limit = input.limit ?? 50;
-  const disallow = await robotsRules(origin);
+  let disallow = await robotsRules(origin, get);
   const blocked = (u) => { const p = new URL(u).pathname; return disallow.some((d) => p.startsWith(d)); };
   const queue = [start.href];
   const seen = new Set(queue);
@@ -90,9 +91,13 @@ async function crawl(input, runDir) {
     if (blocked(url)) { skipped.push(url); continue; }
     const page = { url, status: 0, response_ms: 0 };
     try {
-      const { res, body, ms } = await fetchText(url);
+      const { res, body, ms } = await get(url);
       Object.assign(page, { status: res.status, response_ms: ms, content_type: res.headers.get('content-type') ?? '' });
       if (res.url && res.url !== url) page.final_url = res.url;
+      if (!pages.length && page.final_url && new URL(page.final_url).origin !== origin) {
+        origin = new URL(page.final_url).origin;
+        disallow = await robotsRules(origin, get);
+      }
       if (res.ok && /html/i.test(page.content_type)) Object.assign(page, analyse(body, res.url || url, origin));
     } catch (e) {
       page.error = e instanceof Error ? e.message : String(e);
@@ -120,11 +125,13 @@ async function crawl(input, runDir) {
   return { crawl: out, ...summary };
 }
 
-try {
-  const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
-  if (process.argv[2] !== 'crawl') throw new Error(`unknown action ${process.argv[2]}`);
-  const outputs = await crawl(req.input || {}, process.env.TROOP_RUN_DIR || req.run?.dir);
-  process.stdout.write(JSON.stringify({ ok: true, outputs }));
-} catch (e) {
-  process.stdout.write(JSON.stringify({ ok: false, error: { message: e instanceof Error ? e.message : String(e), retryable: false } }));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+    if (process.argv[2] !== 'crawl') throw new Error(`unknown action ${process.argv[2]}`);
+    const outputs = await crawl(req.input || {}, process.env.TROOP_RUN_DIR || req.run?.dir);
+    process.stdout.write(JSON.stringify({ ok: true, outputs }));
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ ok: false, error: { message: e instanceof Error ? e.message : String(e), retryable: false } }));
+  }
 }
