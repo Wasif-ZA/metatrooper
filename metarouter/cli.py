@@ -13,7 +13,7 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from metarouter import calls, filters, hints, log, shrink, snapshot, tldr
+from metarouter import calls, filters, hints, log, policy, shield, shrink, snapshot, tldr, versions
 from metarouter import recipes as store
 from metarouter.log import config, private
 from metarouter.result import Result, mode, render
@@ -25,7 +25,7 @@ VERBS = {
     "search": "search <words>          find a recipe by plain words",
     "list": "list                    every recipe, one line each",
     "add": "add <name> -- <cmd>     keep a command that worked as a recipe; {1} {2} mark arguments",
-    "check": "check                   run every recipe's example",
+    "check": "check [--changed]       run every recipe's example; --changed: only those whose tool version moved",
     "undo": "undo [snapshot]         put back the files the last write changed",
     "jobs": "jobs [id] [--wait]      list background jobs, or wait for one and show its result",
     "browse": "browse open <url> | look | click @n | type @n <text> | read | shot | close",
@@ -37,6 +37,7 @@ VERBS = {
     "stats": "stats [--days N] [--here]  recipe runs, failures, and hints followed by a success",
     "export": "export [file]           write your saved recipes to one JSON file to share",
     "import": "import <file>           add recipes from an export; existing names are kept",
+    "policy": "policy                  the refuse and warn rules in force and the files they come from",
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
@@ -118,8 +119,12 @@ def fill(body, args):
     return re.sub(r"\{(\d)\}", lambda m: shlex.quote(args[int(m.group(1)) - 1]), body)
 
 
-def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None, whole=False, want=None,
-           is_shell=False):
+def finish(*args, **kw):
+    return shield.guard(build(*args, **kw))
+
+
+def build(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None, whole=False, want=None,
+          is_shell=False):
     text = shrink.clean(raw.decode("utf-8", errors="replace"))
     shown = shrink.clip(label)
     try:
@@ -209,17 +214,26 @@ def exec_lane(args):
         why = hints.stuck(calls.read(), calls.shape(cmd), calls.project(), datetime.datetime.now().astimezone())
         if why:
             return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(cmd), note=why)
+    refused, warns = policy.verdict(cmd)
+    if refused:
+        return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(cmd), note=refused)
     try:
         code, raw, secs = run_shell(cmd)
     except OSError as e:
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
                       note=f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash path")
     if whole:
-        return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
-                      whole=True)
-    r = finish("exec", cmd, raw, code, secs, want=want)
-    if not r.whole and not r.note:
-        r.note = "shrunk; --no-trunc for all"
+        r = finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
+                   whole=True)
+    else:
+        r = finish("exec", cmd, raw, code, secs, want=want)
+        if not r.whole and not r.note:
+            r.note = "shrunk; --no-trunc for all"
+    return add_note(r, *warns)
+
+
+def add_note(r, *notes):
+    r.note = "; ".join(filter(None, [r.note, *notes])) or None
     return r
 
 
@@ -261,6 +275,9 @@ def run_lane(args):
     if kind == "shell":
         try:
             cmd = fill(r["body"], rest)
+            refused, warns = policy.verdict(cmd)
+            if refused:
+                return Result(ok=False, lane="run", exit=3, recipe=name, cmd=shrink.clip(cmd), note=refused)
             code, raw, secs = run_shell(cmd)
         except ValueError as e:
             if "needs" in str(e):
@@ -286,7 +303,7 @@ def run_lane(args):
                     val_str = ", ".join(lines[:10])
                     note_line = f"valid values for {{1}}: {val_str}"
                     res.note = f"{res.note.rstrip()}\n{note_line}" if res.note else note_line
-        return res
+        return add_note(res, *warns)
     return Result(ok=False, lane="run", exit=2, recipe=name, note=f'recipe kind "{kind}" is not built yet')
 
 
@@ -303,6 +320,17 @@ def run_engine(r, args):
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     except OSError as e:
         return Result(ok=False, lane="run", exit=127, recipe=name, note=f"could not start {cmd[0]}: {e}")
+    marker = None
+    why = engines.limit_hit(r.get("engine"), proc.returncode, (proc.stdout + proc.stderr).decode("utf-8", "replace"))
+    if why:
+        for alt, alt_cmd in engines.fallbacks(r["engine"], args, shell()):
+            try:
+                proc = subprocess.run(alt_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+            except OSError:
+                continue
+            marker = {"requested": r["engine"], "ran": alt, "why": why}
+            if proc.returncode == 0 or not engines.LIMIT.search((proc.stdout + proc.stderr).decode("utf-8", "replace")):
+                break
     secs = round(time.monotonic() - start, 1)
     answer = proc.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n")
     stems = "|".join(re.escape(Path(n).stem) for n in engines.scripts())
@@ -319,7 +347,10 @@ def run_engine(r, args):
         compact = answer
     raw = proc.stdout + (b"\n--- stderr ---\n" + proc.stderr if proc.stderr else b"")
     label = " ".join([name, *(a for a in args if a.startswith("--"))])
-    return finish("run", label, raw, proc.returncode, secs, recipe=name, compact=compact, log_label=name)
+    res = finish("run", label, raw, proc.returncode, secs, recipe=name, compact=compact, log_label=name)
+    if marker:
+        res.fallback, res.marker = marker["ran"], marker
+    return res
 
 
 def jobs_lane(args):
@@ -535,6 +566,12 @@ def check(args):
     recipes = store.load()
     rows = calls.read()
     lines, failed = [], 0
+    changed = "--changed" in args
+    tool = {n: versions.binary(r) for n, r in recipes.items()}
+    old = versions.recorded()
+    now = {b: versions.current(b) for b in set(tool.values()) if b}
+    if changed:
+        recipes = {n: r for n, r in recipes.items() if now.get(tool[n]) and now[tool[n]] != old.get(tool[n])}
     real_home, real_cwd = os.environ.get("METAROUTER_HOME"), os.getcwd()
     with tempfile.TemporaryDirectory() as tmp:
         os.environ["METAROUTER_HOME"] = str(Path(tmp) / "home")
@@ -574,13 +611,19 @@ def check(args):
                     lines.append(f"pass  {name}")
                 else:
                     failed += 1
+                    b = tool[name]
+                    moved = f" [{b}: {old.get(b) or 'not recorded'} -> {now[b]}]" if changed else ""
                     lines.append(f"FAIL  {name}: exit {code} (wanted {want_exit}), "
-                                 f"output {'has' if want_out in text else 'lacks'} {want_out!r}")
+                                 f"output {'has' if want_out in text else 'lacks'} {want_out!r}{moved}")
         finally:
             if real_home is None:
                 os.environ.pop("METAROUTER_HOME", None)
             else:
                 os.environ["METAROUTER_HOME"] = real_home
+    versions.record({b: v for b, v in now.items() if v})
+    if changed:
+        return Result(ok=failed == 0, lane="check", exit=1 if failed else 0,
+                      out="\n".join(lines) or "no recipe's tool version changed since the last check")
     for flt in filters.load():
         name = flt.get("name", "")
         for t in flt.get("tests", []):
@@ -873,6 +916,10 @@ def export_lane(args):
     mine = [r for r in store.load().values() if r.get("source") not in ("seed", "catalog")]
     if not mine:
         return Result(ok=False, lane="export", exit=1, note='no saved recipes yet. Save one: metarouter add <name> -- "<command>"')
+    secret = [r["name"] for r in mine if shield.leaks(r)]
+    if secret:
+        return Result(ok=False, lane="export", exit=2, note=f"export refused: {', '.join(secret)} looks like it holds "
+                                                            f"a secret in its body or example. Remove it, then export")
     flagged = [r["name"] for r in mine if any(private(x) for x in strings(r))]
     keep = [r for r in mine if r["name"] not in flagged]
     path = Path(args[0]) if args else Path("metarouter-recipes.json")
@@ -915,6 +962,13 @@ def import_lane(args):
                   out={k: v for k, v in out.items() if v} or "nothing to import")
 
 
+def policy_lane(args):
+    rows = [f"{r['kind']:6}  {r['pattern']}  ({r['file']})" + (f"  ignored: {r['bad']}" if r["bad"] else "")
+            for r in policy.rules()]
+    return Result(ok=True, lane="policy", out=rows or 'no rules. Add {"refuse": ["<regex>"], "warn": ["<regex>"]} '
+                                                    'to .metarouter/policy.json in the repo or ~/.metarouter/policy.json')
+
+
 def undo(args):
     try:
         restored = snapshot.restore(args[0] if args else None)
@@ -945,7 +999,7 @@ def unknown(verb):
 LANES = {"run": run_lane, "exec": exec_lane, "search": search_lane, "list": list_lane, "add": add_lane,
          "check": check, "undo": undo, "jobs": jobs_lane, "learn": learn_lane, "browse": browse_lane,
          "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane, "log": log_lane, "stats": stats_lane,
-         "export": export_lane, "import": import_lane}
+         "export": export_lane, "import": import_lane, "policy": policy_lane}
 
 
 def log_call(rec):

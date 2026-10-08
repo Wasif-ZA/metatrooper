@@ -338,7 +338,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 ## Commands
 
 <details>
-<summary>Open: 25 commands, one per goal, and the two modes</summary>
+<summary>Open: 29 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|
@@ -353,6 +353,10 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Keep a command that worked | `metarouter add count-lines -- 'wc -l < {1}'` |
 | Share your recipes | `metarouter export recipes.json`, then on the other machine `metarouter import recipes.json` |
 | Check every recipe still works | `metarouter check` |
+| Re-check only recipes whose CLI was upgraded | `metarouter check --changed` |
+| Refuse or flag commands in a repo | `.metarouter/policy.json` with `{"refuse": ["git push --force"], "warn": ["rm -rf"]}`, then `metarouter policy` lists the rules |
+| Try another engine when Codex or Gemini hits a usage limit | `"fallback": ["gemini", "local"]` in config |
+| Hide tokens and keys in output (on by default) | `"shield": false` in config turns it off; the log keeps the raw text |
 | Put back the last edit | `metarouter undo` |
 | Ask Codex, wait or not | `metarouter run codex "write tests for X" --background` |
 | Collect a background job | `metarouter jobs <id> --wait` |

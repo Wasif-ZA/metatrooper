@@ -229,7 +229,7 @@ def test_check_writes_no_call_log_and_creates_no_cwd_files(
 
     files_after = {path.relative_to(home) for path in home.rglob("*") if path.is_file()}
     assert exit_code == 0
-    assert files_after == files_before == {Path("recipes/checked.json")}
+    assert files_after - {Path("versions.json")} == files_before == {Path("recipes/checked.json")}
     assert not (home / "calls.jsonl").exists()
     assert not (home / "logs").exists()
     assert list(work.iterdir()) == []

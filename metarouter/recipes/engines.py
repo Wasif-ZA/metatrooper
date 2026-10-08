@@ -8,7 +8,10 @@ LOCAL_LANES = {"extract", "audit", "commit", "edit", "work", "look", "ask", "mod
 LOCAL_MODEL = "gemma4:12b"
 CODEX_VALUE_FLAGS = {"--model", "--effort", "--resume"}
 CODEX_BARE_FLAGS = {"--write", "--fresh", "--resume-last"}
-FILE_WORD = re.compile(r"[\w./\\-]+\.(?:pdf|png|jpe?g|webp|md|py|txt|json|csv|html?|docx?|pptx?|xlsx?)\b", re.I)
+VALUE_FLAGS = ("--model", "--effort", "--resume", "--add-dir", "--dir", "--lane", "--timeout", "--base", "--scope")
+FALLS_BACK = {"codex", "gemini"}
+LIMIT = re.compile(r"usage limit|rate limit|\b429\b|quota|RESOURCE_EXHAUSTED|too many requests|limit reached", re.I)
+FILE_WORD =re.compile(r"[\w./\\-]+\.(?:pdf|png|jpe?g|webp|md|py|txt|json|csv|html?|docx?|pptx?|xlsx?)\b", re.I)
 
 RECIPES = [
     {"name": "codex", "summary": "ask Codex to do a task and wait for its answer",
@@ -124,3 +127,33 @@ def argv(recipe, args, shell):
             raise ValueError('local needs a prompt: metarouter run local "<prompt>"')
         return [shell, script("local"), "ask", (models or [config().get("local_model") or LOCAL_MODEL])[-1], prompt]
     raise ValueError(f"unknown engine {engine}")
+
+
+def limit_hit(engine, code, output):
+    """The limit text that makes a failed codex or gemini call worth retrying elsewhere, else None."""
+    if code == 0 or engine not in FALLS_BACK:
+        return None
+    m = LIMIT.search(output)
+    return m.group(0) if m else None
+
+
+def prompt_of(args):
+    """The bare prompt from an engine call, without any engine's flags."""
+    files, args = take(args, "--prompt-file")
+    if files:
+        args = [*args, Path(files[-1]).read_text(encoding="utf-8")]
+    for flag in VALUE_FLAGS:
+        _, args = take(args, flag)
+    return " ".join(a for a in args if a not in CODEX_BARE_FLAGS)
+
+
+def fallbacks(failed, args, shell):
+    """Yield (engine, argv) for each engine in config "fallback" that is set up, skipping the one that failed."""
+    prompt = prompt_of(args)
+    for engine in config().get("fallback") or []:
+        if engine == failed or engine not in ("codex", "gemini", "local"):
+            continue
+        try:
+            yield engine, argv({"engine": engine}, [prompt], shell)
+        except (ValueError, FileNotFoundError):
+            continue
