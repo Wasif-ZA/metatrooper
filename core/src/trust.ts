@@ -56,9 +56,9 @@ function applyTomlTable(file: string, spec: TrustSpec, key: string): void {
   const text = fs.readFileSync(file, 'utf8');
   const header = `[${spec.at.join('.')}.'${key}']`;
   const basic = `[${spec.at.join('.')}.${JSON.stringify(key)}]`;
-  if (text.includes(header) || text.includes(basic)) return;
+  if (text.split(/\r?\n/).some((l) => l.trim() === header || l.trim() === basic)) return;
   const body = Object.entries(spec.set ?? {}).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join('\n');
-  fs.writeFileSync(file, `${text}${text.endsWith('\n') ? '' : '\n'}\n${header}\n${body}\n`);
+  writeAtomic(file, `${text}${text.endsWith('\n') ? '' : '\n'}\n${header}\n${body}\n`);
 }
 
 /** Marks a folder as trusted for every engine that declares a trust store; returns the engine ids it updated. */

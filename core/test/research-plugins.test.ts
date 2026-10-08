@@ -130,3 +130,20 @@ test('agent-reach sources writes index.json as pages arrive', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Codex trust adds the table when the only matching header is commented out', async () => {
+  const { trustFolder } = await import('../src/trust.ts');
+  const { canonicalPath } = await import('../src/project.ts');
+  const dir = tempDir();
+  try {
+    const toml = join(dir, 'config.toml');
+    const header = `[projects.'${canonicalPath(dir)}']`;
+    writeFileSync(toml, `# ${header}\n# trust_level = "trusted"\n`);
+    const engines = [{ id: 'codex', trust: { kind: 'toml-table', file: toml, at: ['projects'], set: { trust_level: 'trusted' }, path_style: 'posix' } }];
+    assert.deepEqual(trustFolder(dir, engines as never), ['codex']);
+    assert.ok(readFileSync(toml, 'utf8').split('\n').includes(header));
+    assert.equal(existsSync(`${toml}.troop-tmp`), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
