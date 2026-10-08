@@ -150,6 +150,41 @@ test('usage rows carry the session run_id and step_id so run budgets count them;
   }
 });
 
+test('H10 hook events from another conversation or for an exited session are not charged and do not relink', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-meter6-'));
+  const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  process.env.METATROOPER_HOME = path.join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { readMeters } = await import('../src/meter.ts');
+  const { processEvents } = await import('../src/events/processor.ts');
+  const db = openCoreDb();
+  try {
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, state, state_at, started_at) VALUES ('live6', 'p', 'claude', 'pty', 'conv-a', 'working', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, state, state_at, started_at) VALUES ('dead6', 'p', 'claude', 'pty', 'conv-c', 'exited', 'x', 'x')").run();
+    const file = path.join(home, 'child.jsonl');
+    fs.writeFileSync(file, JSON.stringify({ message: { id: 'h10', model: 'claude-sonnet-5-5', usage: { input_tokens: 10, output_tokens: 1 } } }) + '\n');
+    const add = db.prepare("INSERT INTO event (at, source, session_id, kind, payload) VALUES ('x', 'claude-hook', ?, ?, ?)");
+    add.run('live6', 'claude.Stop', JSON.stringify({ session_id: 'conv-b', transcript_path: file }));
+    add.run('dead6', 'claude.PreToolUse', JSON.stringify({ session_id: 'conv-c', tool_name: 'Bash', transcript_path: file }));
+    processEvents(db);
+    readMeters(db);
+    assert.equal((db.prepare('SELECT count(*) AS n FROM usage').get() as { n: number }).n, 0);
+    const rows = db.prepare("SELECT id, native_id, state, last_tool FROM session WHERE id IN ('live6', 'dead6') ORDER BY id").all();
+    assert.deepEqual(rows.map((r: any) => ({ ...r })), [
+      { id: 'dead6', native_id: 'conv-c', state: 'exited', last_tool: null },
+      { id: 'live6', native_id: 'conv-a', state: 'working', last_tool: null },
+    ]);
+  } finally {
+    db.close();
+    for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});
+
 test('H9 a gpt- model without its own price gets the gpt-* fallback, and agy transcript steps are metered once per step_index', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-meter5-'));
   const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
