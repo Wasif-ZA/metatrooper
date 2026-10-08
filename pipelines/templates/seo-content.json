@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "id": "seo-content",
+  "title": "SEO content: keyword to published post",
+  "lane": "seo",
+  "requires": ["seo", "agent-reach", "cms"],
+  "inputs": {
+    "keywords": { "type": "text", "label": "One keyword, or a path to a keyword list", "required": true },
+    "site": { "type": "url", "label": "Your site", "required": true },
+    "min_score": { "type": "number", "label": "Audit score needed before you are asked to publish", "required": false, "default": 80 }
+  },
+  "budget": { "max_minutes": 90 },
+  "background": true,
+  "layout": "artifact-columns",
+  "steps": [
+    {
+      "id": "crawl",
+      "title": "Crawl your site",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:seo/crawl",
+      "with": { "url": "{{inputs.site}}", "out": "{{run.dir}}/site-crawl.json" }
+    },
+    {
+      "id": "pick",
+      "title": "Pick the keyword",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Keywords: {{inputs.keywords}}. Site pages: {{run.dir}}/site-crawl.json. Pick the one keyword the site has no page for yet and can rank for. Write {{run.dir}}/plan.md with four lines starting search: that read the top results for it. Set keyword to the pick.",
+      "outputs": ["keyword"]
+    },
+    {
+      "id": "serp",
+      "title": "Read the top results",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/search",
+      "with": { "plan": "{{run.dir}}/plan.md", "out": "{{run.dir}}/serp" }
+    },
+    {
+      "id": "brief",
+      "title": "Write the SERP brief",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Keyword: {{steps.pick.outputs.keyword}}. Top results: {{run.dir}}/serp/. Write {{run.dir}}/brief.md: the format that wins, typical length and headings, and what none of them cover.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "outline",
+      "title": "Outline the post",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{run.dir}}/brief.md write {{run.dir}}/outline.md in the winning format plus the gap nobody covers.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "draft",
+      "title": "Draft the post",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Write {{run.dir}}/post.md from {{run.dir}}/outline.md in the voice of the pages in {{run.dir}}/site-crawl.json: first-hand detail, real numbers with their source, short stories. No filler.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "enrich",
+      "title": "Add links, images and FAQ",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Edit {{run.dir}}/post.md in place: add 3 to 6 internal links to real pages from {{run.dir}}/site-crawl.json, an image brief with alt text for each image, and an FAQ of the questions the top results leave open.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "audit",
+      "title": "Score the post",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "document",
+      "prompt": "Score {{run.dir}}/post.md from 0 to 100 on intent match, originality, experience signals and on-page SEO for {{steps.pick.outputs.keyword}}. Write the reasons in {{run.dir}}/audit.md. Set document to the post path, score to an object with score (the total), threshold ({{inputs.min_score}}) and parts (points per part), and passed to true when the total reaches the threshold.",
+      "outputs": ["document", "score", "passed"]
+    },
+    {
+      "id": "schema-ld",
+      "title": "Write the JSON-LD",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Write {{run.dir}}/schema.json: Article and FAQPage JSON-LD for {{run.dir}}/post.md, with only facts the post states.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve publishing",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Post: {{run.dir}}/post.md for {{steps.pick.outputs.keyword}}. Audit passed: {{steps.audit.outputs.passed}} (see {{run.dir}}/audit.md). Approve to publish it on {{inputs.site}} and request indexing."
+    },
+    {
+      "id": "publish",
+      "title": "Publish and request indexing",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.site}}",
+      "approval": "edits",
+      "prompt": "Publish {{run.dir}}/post.md with {{run.dir}}/schema.json on {{inputs.site}} through its CMS, then request indexing for the new URL. Set url to the live URL.",
+      "outputs": ["url"]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+order_id,date,region,product,qty,unit_price,currency,status
+T-1001,2026-09-14,north,sencha 100 g,2,14.50,AUD,paid
+T-1002,2026-09-14,south,oolong 50 g,1,18.00,AUD,paid
+T-1003,2026-09-15,east,chai blend 200 g,3,9.80,AUD,paid
+T-1004,2026-09-15,west,earl grey 100 g,2,11.20,AUD,refunded
+T-1005,2026-09-16,north,matcha 30 g,1,23.80,AUD,paid
+T-1006,2026-09-17,south,sencha 100 g,4,14.50,AUD,paid
+T-1007,2026-09-18,east,oolong 50 g,2,18.00,AUD,paid
+T-1008,2026-09-19,west,chai blend 200 g,1,9.80,AUD,paid
+T-1009,2026-09-20,north,earl grey 100 g,3,11.20,AUD,paid
+T-1010,2026-09-21,north,sencha 100 g,2,14.50,AUD,paid
+T-1011,21/09/2026,South,oolong 50 g,1,$18.00,AUD,paid
+T-1011,21/09/2026,South,oolong 50 g,1,$18.00,AUD,paid
+T-1012,2026-09-21,,chai blend 200 g,3,9.80,AUD,refunded
+T-1013,2026-09-22,east,matcha 30 g,,23.80,AUD,paid
+T-1014,2026-09-22,west,earl grey 100 g,2,11.20,AUD,paid
+T-1015,2026-09-23,north,matcha 30 g,2,23.80,AUD,paid
+T-1016,23/09/2026,south,sencha 100 g,5,14.50,AUD,paid
+T-1017,2026-09-24,east,oolong 50 g,3,$18.00,AUD,paid
+T-1018,2026-09-25,west,chai blend 200 g,2,9.80,AUD,paid
+T-1019,2026-09-26,North,earl grey 100 g,1,11.20,AUD,paid
+T-1020,2026-09-27,south,matcha 30 g,3,23.80,AUD,paid

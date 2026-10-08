@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "id": "ai-shorts-factory",
+  "title": "Topic to AI short video to posts",
+  "lane": "video-social",
+  "requires": ["agent-reach", "tts", "video-gen", "social-scheduler"],
+  "inputs": {
+    "niche": { "type": "text", "label": "Niche or product URL", "required": true },
+    "budget_usd": { "type": "number", "label": "Most to spend on voice and video generation (USD)", "required": false, "default": 10 },
+    "week_start": { "type": "text", "label": "First posting day (ISO date)", "required": true },
+    "tiktok_privacy": { "type": "text", "label": "TikTok privacy: PUBLIC_TO_EVERYONE, or SELF_ONLY until TikTok audits your app", "required": false, "default": "SELF_ONLY" }
+  },
+  "budget": { "max_usd": 15, "max_minutes": 90 },
+  "background": true,
+  "layout": "variants-grid",
+  "steps": [
+    {
+      "id": "angles",
+      "title": "Plan the topic search",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Niche: {{inputs.niche}}\n\nWrite {{run.dir}}/plan.md with six search angles for rising topics in this niche, each on its own line as search: <query>. Do not search yet.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "trends",
+      "title": "Search for rising topics",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/search",
+      "with": { "plan": "{{run.dir}}/plan.md", "out": "{{run.dir}}/sources" }
+    },
+    {
+      "id": "topics",
+      "title": "Pick three topics",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Sources: {{run.dir}}/sources/. Pick three topics for this niche: {{inputs.niche}}. Each needs a saved source and an angle nobody in the sources has taken. Write {{run.dir}}/topics.md.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "script",
+      "title": "Write the scripts",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "For each topic in {{run.dir}}/topics.md write a 30 to 45 second script: hook in the first 2 seconds, one idea, a call to action. Split each into beats with a visual prompt per beat. Write {{run.dir}}/script-0.md to script-2.md and an estimate of the voice and video generation cost in {{run.dir}}/cost.md. Set cost_usd to the total.",
+      "outputs": ["cost_usd"]
+    },
+    {
+      "id": "approve-voice",
+      "title": "Approve the voiceover spend",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Scripts: {{run.dir}}/script-0.md to script-2.md. Estimated total cost {{steps.script.outputs.cost_usd}} USD against a cap of {{inputs.budget_usd}}. Approve to generate the three voiceovers."
+    },
+    {
+      "id": "voice",
+      "title": "Generate the voiceovers",
+      "role": "worker",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "text to speech service",
+      "approval": "edits",
+      "prompt": "Generate a voiceover for each of {{run.dir}}/script-0.md to script-2.md with the text to speech service. Save {{run.dir}}/audio/voice-0.mp3 to voice-2.mp3. Set spent_usd to what it cost.",
+      "outputs": ["spent_usd"]
+    },
+    {
+      "id": "approve-clips",
+      "title": "Approve the video spend",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Voiceovers cost {{steps.voice.outputs.spent_usd}} USD. Approve to generate the scene clips for every beat in the three scripts, within {{inputs.budget_usd}} USD in total."
+    },
+    {
+      "id": "visuals",
+      "title": "Generate the scene clips",
+      "role": "worker",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "video generation service",
+      "approval": "edits",
+      "prompt": "For every beat in {{run.dir}}/script-0.md to script-2.md, generate a 9:16 scene clip from its visual prompt with the video generation service. Save them in {{run.dir}}/clips/<script>-<beat>.mp4. Set spent_usd to what it cost.",
+      "outputs": ["spent_usd"]
+    },
+    {
+      "id": "composite",
+      "title": "Assemble the videos",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "With ffmpeg, assemble three 9:16 videos from {{run.dir}}/clips/ and {{run.dir}}/audio/: clips in beat order, the voiceover on top, captions burned in from the script, the hook as an overlay in the first 2 seconds. Save {{run.dir}}/videos/short-0.mp4 to short-2.mp4.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "copy",
+      "title": "Write the posts",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "For each video in {{run.dir}}/videos/ and each of tiktok, youtube-shorts and instagram-reels, write a title, caption and hashtags, and a posting slot in the week from {{inputs.week_start}} as ISO with the Sydney offset. Write {{run.dir}}/posts.json as a list of {clip (the mp4 path), platform, title (2 to 100 characters), caption, hashtags (list, no #), slot} and set the output key posts to that path.",
+      "outputs": ["posts"]
+    },
+    {
+      "id": "check",
+      "title": "Check the videos",
+      "role": "visual-check",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Sample frames from every video in {{run.dir}}/videos/. Check captions sit inside each platform's safe zone and match the audio, no blank or broken frames, and the hook lands in the first 2 seconds. Write {{run.dir}}/check.md. Set passed to true when nothing is wrong, and list each problem with video and time under flags.",
+      "outputs": ["passed", "flags"]
+    },
+    {
+      "id": "approve-post",
+      "title": "Approve the posts",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Watch {{run.dir}}/videos/. Posts: {{steps.copy.outputs.posts}}. Check flags: {{steps.check.outputs.flags}}. Approve to schedule every post in one batch."
+    },
+    {
+      "id": "post",
+      "title": "Schedule the posts",
+      "role": "publish",
+      "kind": "action",
+      "external": true,
+      "uses": "plugin:social-scheduler/schedule-post",
+      "with": { "posts": "{{steps.copy.outputs.posts}}", "tiktok_privacy": "{{inputs.tiktok_privacy}}" }
+    }
+  ]
+}

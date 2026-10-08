@@ -16,21 +16,38 @@ export function isPrivate(ip) {
   return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6);
 }
 
-export async function checkUrl(raw, lookup = dns.lookup) {
+export function isLoopback(ip) {
+  if (net.isIPv4(ip)) return ip.split('.')[0] === '127';
+  const v6 = ip.toLowerCase();
+  const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  return mapped ? isLoopback(mapped[1]) : v6 === '::1';
+}
+
+async function addresses(u, lookup) {
+  const host = u.hostname.replace(/^\[|\]$/g, '');
+  return net.isIP(host) ? [{ address: host }] : lookup(host, { all: true });
+}
+
+/** True when every address the URL's host resolves to is loopback. */
+export async function loopbackStart(raw, lookup = dns.lookup) {
+  const addrs = await addresses(new URL(raw), lookup);
+  return addrs.length > 0 && addrs.every((a) => isLoopback(a.address));
+}
+
+export async function checkUrl(raw, lookup = dns.lookup, { loopback = false } = {}) {
   const u = new URL(raw);
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error(`refused ${u.protocol} URL`);
-  const host = u.hostname.replace(/^\[|\]$/g, '');
-  const addrs = net.isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
-  const bad = addrs.find((a) => isPrivate(a.address));
+  const addrs = await addresses(u, lookup);
+  const bad = addrs.find((a) => isPrivate(a.address) && !(loopback && isLoopback(a.address)));
   if (bad) throw new Error(`refused ${u.hostname}: resolves to private address ${bad.address}`);
   return u;
 }
 
 // ponytail: checks DNS before each hop, so a host that re-resolves between check and connect slips through.
-export async function safeFetch(url, opts = {}, lookup = dns.lookup) {
+export async function safeFetch(url, opts = {}, lookup = dns.lookup, { loopback = false } = {}) {
   let current = url;
   for (let hop = 0; hop <= 5; hop++) {
-    await checkUrl(current, lookup);
+    await checkUrl(current, lookup, { loopback });
     const res = await fetch(current, { ...opts, redirect: 'manual' });
     const next = res.status >= 300 && res.status < 400 && res.headers.get('location');
     if (!next) {

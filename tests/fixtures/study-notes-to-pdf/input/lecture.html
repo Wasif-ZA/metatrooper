@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Week 3: Hash tables</title>
+<style>
+  @page { size: A4 landscape; margin: 2cm; }
+  section { page-break-after: always; font: 20pt sans-serif; }
+  section:last-child { page-break-after: auto; }
+</style>
+<section>
+  <h1>Week 3: Hash tables</h1>
+  <p>A hash table maps keys to values through a hash function.</p>
+  <p>Average lookup, insert and delete take constant time.</p>
+</section>
+<section>
+  <h1>Collisions</h1>
+  <p>Two keys collide when they hash to the same bucket.</p>
+  <p>Chaining keeps a list per bucket. Open addressing probes for the next free slot.</p>
+</section>
+<section>
+  <h1>Load factor</h1>
+  <p>Load factor is entries divided by buckets.</p>
+  <p>Example: 6 entries in 8 buckets gives a load factor of 0.75, so the table doubles to 16 buckets.</p>
+</section>

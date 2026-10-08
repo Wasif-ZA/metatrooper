@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "id": "ralph-loop",
+  "title": "Overnight backlog loop",
+  "lane": "coding",
+  "requires": ["repo", "github"],
+  "inputs": {
+    "idea": { "type": "text", "label": "What to build, or a path to an existing prd.json", "required": true },
+    "repo": { "type": "text", "label": "GitHub repository (owner/name)", "required": true },
+    "base_branch": { "type": "text", "label": "Base branch", "required": false, "default": "main" }
+  },
+  "budget": { "max_usd": 25, "max_minutes": 480, "max_parallel": 1 },
+  "background": true,
+  "layout": "agent-split",
+  "steps": [
+    {
+      "id": "prd",
+      "title": "Write the story list",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Read this repository. From {{inputs.idea}} write {{run.dir}}/prd.json: a list of small stories, each with id, priority, what done looks like, a check command, and passes false. Split any story one session cannot finish. Do not edit the repository. Give the work a short pull request title.",
+      "outputs": ["title", "stories"]
+    },
+    {
+      "id": "approve-run",
+      "title": "Approve the overnight run",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/prd.json ({{steps.prd.outputs.stories}} stories). Approve to work through them on a new branch, at most 20 rounds, within this run's budget."
+    },
+    {
+      "id": "branch",
+      "title": "Create the feature branch",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Copy {{run.dir}}/prd.json into this worktree as prd.json and create an empty progress.txt. Install dependencies and run the tests once; note the baseline in progress.txt. Commit on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "pick",
+      "title": "Pick the next story",
+      "role": "plan",
+      "kind": "agent",
+      "cwd": "{{steps.branch.outputs.worktree}}",
+      "approval": "edits",
+      "prompt": "Read prd.json and progress.txt in this folder. Pick the highest-priority story with passes false that is not marked blocked. Write its id and done check to {{run.dir}}/current.md. Set story to its id, or none when no story is left.",
+      "outputs": ["story"]
+    },
+    {
+      "id": "build",
+      "title": "Build that one story",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.branch.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Read progress.txt first. Implement only the story in {{run.dir}}/current.md in this folder. If it says none, change nothing. Do not commit yet.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "check",
+      "title": "Typecheck and test",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.branch.outputs.worktree}}" }
+    },
+    {
+      "id": "commit",
+      "title": "Commit and record",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.branch.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Tests passed: {{steps.check.outputs.passed}}. If they passed, commit the change for the story in {{run.dir}}/current.md and set its passes to true in prd.json. If the same story failed the same way twice, mark it blocked in prd.json and revert its changes. Append one line of what you learned to progress.txt and commit. Do not push. Set remaining to how many stories still have passes false and are not blocked.",
+      "outputs": ["remaining"],
+      "loop": { "steps": ["pick", "build", "check", "commit"], "until": "steps.commit.outputs.remaining == \"0\"", "max": 20 }
+    },
+    {
+      "id": "approve-pr",
+      "title": "Morning review",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read progress.txt and prd.json in {{steps.branch.outputs.worktree}}. Approve to push {{steps.branch.outputs.branch}} and open a pull request on {{inputs.repo}} into {{inputs.base_branch}}."
+    },
+    {
+      "id": "open-pr",
+      "title": "Push and open the pull request",
+      "role": "publish",
+      "kind": "action",
+      "uses": "plugin:github/create-pr",
+      "with": {
+        "repo": "{{inputs.repo}}",
+        "branch": "{{steps.branch.outputs.branch}}",
+        "base": "{{inputs.base_branch}}",
+        "title": "{{steps.prd.outputs.title}}",
+        "body": "Stories left: {{steps.commit.outputs.remaining}}. See progress.txt on the branch.",
+        "path": "{{steps.branch.outputs.worktree}}"
+      }
+    }
+  ]
+}

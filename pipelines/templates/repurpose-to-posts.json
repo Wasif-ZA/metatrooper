@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "id": "repurpose-to-posts",
+  "title": "One source to multi-platform posts",
+  "lane": "video-social",
+  "requires": ["media", "social-posts"],
+  "inputs": {
+    "source": { "type": "text", "label": "Video or podcast URL or file", "required": true },
+    "brand_dir": { "type": "path", "label": "Brand folder: voice notes and past top posts", "required": false, "default": "brand" },
+    "platforms": { "type": "text", "label": "Platforms, comma separated", "required": false, "default": "linkedin, x, instagram" },
+    "week_start": { "type": "text", "label": "First posting day (ISO date)", "required": true }
+  },
+  "budget": { "max_minutes": 60 },
+  "background": true,
+  "layout": "artifact-columns",
+  "steps": [
+    {
+      "id": "ingest",
+      "title": "Fetch the source",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:media/download",
+      "with": { "source": "{{inputs.source}}", "out": "{{run.dir}}/source" }
+    },
+    {
+      "id": "transcribe",
+      "title": "Transcribe it",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:media/transcribe",
+      "with": { "path": "{{steps.ingest.outputs.path}}", "out": "{{run.dir}}/words.json" }
+    },
+    {
+      "id": "voice",
+      "title": "Read the brand voice",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Read {{inputs.brand_dir}}. Write {{run.dir}}/voice.md: the voice rules in short lines, words to avoid, and the three past posts that did best with why. Do not edit the brand folder.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "angles",
+      "title": "Pick the angles",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Transcript: {{run.dir}}/words.json. Voice: {{run.dir}}/voice.md. Pick 3 to 5 angles, each with a hook and the concrete detail from the source that carries it. Drop any angle with no concrete detail. Write {{run.dir}}/angles.md.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "draft",
+      "title": "Draft per platform",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Using {{run.dir}}/angles.md and {{run.dir}}/voice.md, write one post per angle for each of {{inputs.platforms}} in that platform's own format: a LinkedIn post, an X thread, an Instagram carousel as slide texts. Write {{run.dir}}/drafts/<platform>-<angle>.md, one file per post.",
+      "outputs": ["count"]
+    },
+    {
+      "id": "visuals",
+      "title": "Make the visuals",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "For each post in {{run.dir}}/drafts/, make its visual at the platform's size: carousel slides or a quote card. Build each as a small HTML page and render it to PNG with a headless browser. Save the images in {{run.dir}}/visuals/ named after the post file.",
+      "outputs": ["count"]
+    },
+    {
+      "id": "humanise",
+      "title": "Cut AI tells",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "Edit every post in {{run.dir}}/drafts/ in place against {{run.dir}}/voice.md: cut AI tells, generic claims and filler, keep numbers and specifics. Then give each post a posting slot in the week from {{inputs.week_start}}, ISO with the Sydney offset. Write {{run.dir}}/posts.json as a list of items with id, title (platform and hook), preview (first line), reason, status pending, plus platform, text_file, image and slot. Set the output key items to that path.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve the posts",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Approve or drop each post in {{run.dir}}/posts.json, then approve to schedule every approved post. Dropped posts are not sent."
+    },
+    {
+      "id": "schedule",
+      "title": "Schedule the approved posts",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.platforms}}",
+      "approval": "edits",
+      "prompt": "Schedule every post in {{run.dir}}/posts.json whose status is approved, with its text and image, at its slot, on its platform. Skip every other post. Record each scheduled post and its link in {{run.dir}}/scheduled.md and set count to how many were scheduled.",
+      "outputs": ["count"]
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "id": "clone-site",
+  "title": "Clone a website",
+  "lane": "design",
+  "requires": [],
+  "inputs": {
+    "url": { "type": "url", "label": "Site to rebuild (yours, or you have permission)", "required": true },
+    "stack": { "type": "text", "label": "Stack to build it in", "required": false, "default": "nextjs" }
+  },
+  "budget": { "max_minutes": 180, "max_parallel": 4 },
+  "background": true,
+  "layout": "pipe",
+  "steps": [
+    {
+      "id": "permission",
+      "title": "Confirm you may rebuild it",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Approve only if you own {{inputs.url}} or have permission to rebuild it. Reject cancels the run."
+    },
+    {
+      "id": "recon",
+      "title": "Capture the original",
+      "role": "research",
+      "kind": "agent",
+      "browser": true,
+      "approval": "edits",
+      "prompt": "Open {{inputs.url}} in your browser pane. Screenshot every page section at 390, 768 and 1280 px wide into {{run.dir}}/original/. Record computed styles and the hover, scroll and click states in {{run.dir}}/capture.md. Name the page sections in order.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "foundation",
+      "title": "Extract tokens and assets",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{run.dir}}/capture.md write {{run.dir}}/tokens.md: fonts, colours, spacing scale and global styles. Download the images, icons and fonts the page uses into {{run.dir}}/assets/.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "specs",
+      "title": "Write one spec per section",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Group the sections in {{run.dir}}/capture.md into four parts in page order. Write {{run.dir}}/section-0.md to section-3.md, one per part, with exact CSS values from {{run.dir}}/tokens.md, every state, and each breakpoint.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "sections",
+      "title": "Build each part",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 4,
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Build the part described in {{run.dir}}/section-{{index}}.md as {{inputs.stack}} components in this worktree, using {{run.dir}}/tokens.md and the files in {{run.dir}}/assets/. Touch only that part's own files. Commit on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "assemble",
+      "title": "Merge and wire the page",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "browser": true,
+      "dev_command": "npm run dev -- --port {{port}}",
+      "approval": "contained",
+      "prompt": "Merge these branches into the current branch in order: {{steps.sections.outputs.branch}}. Resolve conflicts, wire the four parts into one page, and make `npm run dev -- --port <n>` serve it. Stop any server you start before you finish; the workbench serves it. Commit. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "fix",
+      "title": "Fix the drift",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.assemble.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "If {{run.dir}}/diff.md exists, fix every region it lists in this folder and commit. If it does not exist yet, change nothing. Set fixed to how many regions you fixed.",
+      "outputs": ["fixed"]
+    },
+    {
+      "id": "diff",
+      "title": "Pixel-diff against the original",
+      "role": "visual-check",
+      "kind": "agent",
+      "cwd": "{{steps.assemble.outputs.worktree}}",
+      "browser": true,
+      "approval": "edits",
+      "prompt": "The rebuilt page is open in your browser pane. Screenshot it at 390, 768 and 1280 px and pixel-diff each against {{run.dir}}/original/. Write {{run.dir}}/diff.md listing every region more than 2% different, with breakpoint and position. Set verdict to pass when no region is listed, otherwise drift.",
+      "outputs": ["verdict"],
+      "loop": { "steps": ["fix", "diff"], "until": "steps.diff.outputs.verdict == \"pass\"", "max": 3 }
+    }
+  ]
+}

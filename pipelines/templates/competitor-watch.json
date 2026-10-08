@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "id": "competitor-watch",
+  "title": "Competitor monitoring",
+  "lane": "research",
+  "requires": ["chat"],
+  "inputs": {
+    "brief": { "type": "text", "label": "Competitors and the pages to watch", "required": true },
+    "rules": { "type": "text", "label": "What matters", "required": false, "default": "pricing, features, launches, messaging" },
+    "deliver_to": { "type": "text", "label": "Where to send the brief (your Slack or Telegram channel)", "required": true }
+  },
+  "budget": { "max_minutes": 30 },
+  "background": true,
+  "layout": "artifact-columns",
+  "steps": [
+    {
+      "id": "watchlist",
+      "title": "Write the watch list",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From this brief: {{inputs.brief}}\n\nWrite {{run.dir}}/watch.json: each competitor with the URLs of its pricing, product, changelog and ad library pages. If {{project.path}}/.troop/competitor-watch/watch.json exists, start from it and keep its URLs.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "snapshot",
+      "title": "Snapshot every page",
+      "role": "ingest",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Fetch every URL in {{run.dir}}/watch.json and save each as markdown in {{run.dir}}/snapshots/, one file per URL named after it. List every page that failed to fetch under failed.",
+      "outputs": ["failed"]
+    },
+    {
+      "id": "diff",
+      "title": "Diff against last time",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Compare each file in {{run.dir}}/snapshots/ with the file of the same name in {{project.path}}/.troop/competitor-watch/last/. Ignore layout-only changes. Write {{run.dir}}/changes.md: each change with page, before and after. Then copy {{run.dir}}/snapshots/ over {{project.path}}/.troop/competitor-watch/last/ and {{run.dir}}/watch.json to {{project.path}}/.troop/competitor-watch/watch.json for next time.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "filter",
+      "title": "Keep the signals",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "Keep the changes in {{run.dir}}/changes.md that match these rules: {{inputs.rules}}. Drop the rest. Write {{run.dir}}/signals.json as a list of items with id, title (competitor and change), preview (before and after), reason (the rule it matched) and status pending. Set the output key items to that path.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "brief",
+      "title": "Write the brief",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "document",
+      "prompt": "Write {{run.dir}}/brief.md from {{run.dir}}/signals.json: one line per signal with what changed, the page link, and what it means for us. End with the pages that failed to fetch: {{steps.snapshot.outputs.failed}}. Set document to the brief path.",
+      "outputs": ["document"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve sending",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/brief.md. Approve to send it to {{inputs.deliver_to}}."
+    },
+    {
+      "id": "send",
+      "title": "Send the brief",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.deliver_to}}",
+      "approval": "edits",
+      "prompt": "Post the text of {{run.dir}}/brief.md to {{inputs.deliver_to}} as one message. Send nothing else. Set sent to true once it is delivered.",
+      "outputs": ["sent"]
+    }
+  ]
+}
