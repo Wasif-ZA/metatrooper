@@ -561,12 +561,12 @@ function renderDiff() {
 
 async function gitDo(op, arg) {
   const id = ui.projectId;
-  if (!id) return;
+  if (!id) { ui.gitBusy = null; return; }
   ui.gitBusy = op;
   render();
-  const r = await api.git(id, op, arg);
-  ui.gitBusy = null;
-  if (ui.projectId !== id) return;
+  let r;
+  try { r = await api.git(id, op, arg); } catch (e) { r = { error: e.message }; } finally { ui.gitBusy = null; }
+  if (ui.projectId !== id) return render();
   if (r && r.error) toast(r.error, true);
   if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
   if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; toast('Committed.'); }
@@ -576,7 +576,7 @@ async function gitDo(op, arg) {
 
 function renderGit() {
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
-  if (!ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
+  if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
   if (!g) return `<div class="panel"><p class="empty">${ui.projectId ? 'Loading.' : 'Pick a project first.'}</p></div>`;
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
   const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
@@ -831,7 +831,8 @@ async function resolveGate(id, decision) {
   delete ui.drafts[`note:${id}`];
   (ui.decided ||= {})[id] = { g, ok: decision === 'approve', i: ui.snap.gates.indexOf(g) };
   for (const card of document.querySelectorAll(`.gate[data-g="${CSS.escape(id)}"]`)) wall.verdict(card, decision === 'approve');
-  const r = await rpc('gate.resolve', params);
+  let r;
+  try { r = await rpc('gate.resolve', params); } catch (e) { r = { error: e }; toast(e.message, true); }
   setTimeout(() => { delete ui.decided[id]; render(); }, r.error ? 0 : 900);
 }
 

@@ -37,7 +37,7 @@ const termView = (() => {
     term.loadAddon(fit);
     term.open(body);
     const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
-    term.onData((data) => troop.termInput(sessionId, data));
+    term.onData((data) => { if (!t.closed) troop.termInput(sessionId, data); });
     const copy = () => { const s = term.getSelection(); if (!s) return false; void troop.copyText(s); term.clearSelection(); return true; };
     const paste = () => troop.readText().then((s) => { if (s) term.paste(s); });
     const copyOnRelease = () => { const s = term.getSelection(); if (s) void troop.copyText(s); };
@@ -74,6 +74,8 @@ const termView = (() => {
     try { t.fit.fit(); } catch {}
     t.attachAt = performance.now();
     t.attachMs = null;
+    t.closed = false;
+    t.el.classList.remove('closed');
     void troop.termAttach(t.id, t.term.cols, t.term.rows);
   }
 
@@ -94,6 +96,7 @@ const termView = (() => {
     else if (m.op === 'exit') { t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
     else if (m.op === 'error' && m.code === 'slow-viewer') attach(t);
     else if (m.op === 'error' && m.code === 'no-session') t.term.write('\r\n[this session is not running]\r\n');
+    else if (m.op === 'closed' && !t.closed) { t.closed = true; t.el.classList.add('closed'); t.term.write('\r\n[disconnected from the core]\r\n'); }
   });
 
   function label(t, x) {
