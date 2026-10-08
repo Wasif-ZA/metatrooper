@@ -129,6 +129,52 @@ test('M3-01 study-notes-to-pdf reads the fixture lecture, exports a real PDF and
 
 const whisper = process.env.TROOP_WHISPER || join(process.env.LOCALAPPDATA ?? '', 'whisper.cpp', 'Release', 'whisper-cli.exe');
 
+test('M3-01 clips-to-scheduled-posts cuts only the picked moments and schedules nothing before approve', { skip: !existsSync(whisper) && 'whisper.cpp is not installed' }, async () => {
+  const calls: string[] = [];
+  const postiz = http.createServer((req, res) => {
+    calls.push(`${req.method} ${req.url}`);
+    req.resume();
+    const body = req.url?.endsWith('/integrations') ? [{ id: 'tt1', identifier: 'tiktok', disabled: false }]
+      : req.url?.endsWith('/upload') ? { id: `u${calls.length}`, path: `https://cdn.test/u${calls.length}.mp4` }
+      : [{ postId: `p${calls.length}` }];
+    req.on('end', () => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); });
+  });
+  await new Promise<void>((r) => postiz.listen(0, '127.0.0.1', () => r()));
+  const h = await revisionHarness(undefined, capturingEngine);
+  try {
+    for (const [name, value] of [['POSTIZ_URL', `http://127.0.0.1:${(postiz.address() as any).port}/api/public/v1`], ['POSTIZ_API_KEY', 'test-key']]) {
+      assert.deepEqual((await h.pipe.request('plugin.secret.set', { plugin_id: 'social-scheduler', name, value })).result, {});
+    }
+    const video = join(h.project, 'take-01.mp4');
+    copyFileSync(join(root, 'tests/fixtures/footage-to-edit/input/takes/take-01.mp4'), video);
+    const moments = [
+      { id: 'intro', title: 'Meet Sam', preview: 'from Crumb Bakery', reason: 'hook', status: 'pending', src_start: 0.1, src_end: 3.1 },
+      { id: 'restart', title: 'Take two', preview: 'start again', reason: 'blooper', status: 'pending', src_start: 7.5, src_end: 11.0 },
+      { id: 'shape', title: 'Shape a loaf', preview: 'step by step', reason: 'how-to', status: 'pending', src_start: 11.0, src_end: 18.0 },
+    ];
+    const posts = [{ clip: 'styled/shape.mp4', platform: 'tiktok', title: 'Shape a loaf', caption: 'Sourdough shaping in one go', hashtags: ['sourdough'], slot: '2030-01-07T09:00:00+11:00' }];
+    const def = builtin('clips-to-scheduled-posts', {
+      moments: { outputs: { items: 'moments.json' }, run_files: { 'moments.json': JSON.stringify(moments) } },
+      copy: { outputs: { posts: 'posts.json' }, run_files: { 'posts.json': JSON.stringify(posts) } },
+      check: { outputs: { passed: true, flags: 'none' } },
+    });
+    const runId = await h.pipeline(def, { video, week_start: '2030-01-07', platforms: 'tiktok', max_clips: 4, tiktok_privacy: 'SELF_ONLY' });
+    const pick: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'pick' AND status = 'waiting'").get(runId) ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 120000);
+    const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
+    assert.equal(existsSync(join(runDir, 'clips')), false);
+    writeFileSync(join(runDir, 'moments.json'), JSON.stringify(moments.map((m) => ({ ...m, status: m.id === 'shape' ? 'approved' : 'dropped' }))));
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: pick.id, decision: 'approve' })).result, {});
+    const approve: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 120000);
+    assert.equal(approve.guards_step, 'schedule');
+    assert.deepEqual(readdirSync(join(runDir, 'clips')).filter((f) => f.endsWith('.mp4')), ['shape.mp4']);
+    assert.deepEqual(readdirSync(join(runDir, 'styled')).filter((f) => f.endsWith('.mp4')), ['shape.mp4']);
+    assert.deepEqual(calls, []);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: approve.id, decision: 'approve', action_hash: approve.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 60000);
+    assert.deepEqual(calls, ['GET /api/public/v1/integrations', 'POST /api/public/v1/upload', 'POST /api/public/v1/posts']);
+  } finally { postiz.close(); await close(h); }
+});
+
 test('M3-01 footage-to-edit probes and transcribes the fixture takes, then stops at the plan and final gates', { skip: !existsSync(whisper) && 'whisper.cpp is not installed' }, async () => {
   const h = await revisionHarness(undefined, capturingEngine);
   try {
