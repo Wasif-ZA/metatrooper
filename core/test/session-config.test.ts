@@ -59,6 +59,29 @@ test('uninstallClaude with no install record removes only MetaTrooper hook entri
   assert.ok(!JSON.stringify(after).includes('event.js'));
 }));
 
+test('untrustFolder removes only the folder trustFolder added from each store', () => withHome(async (home) => {
+  const { trustFolder, untrustFolder } = await import('../src/trust.ts');
+  const json = path.join(home, 'state.json');
+  const list = path.join(home, 'settings.json');
+  const toml = path.join(home, 'config.toml');
+  const files = {
+    [json]: JSON.stringify({ oauth: 'keep', projects: { 'c:/other': { hasTrustDialogAccepted: true } } }, null, 2),
+    [list]: JSON.stringify({ trustedWorkspaces: ['c:\\other'] }, null, 2),
+    [toml]: 'model = "x"\n\n[projects.\'c:\\other\']\ntrust_level = "trusted"\n',
+  };
+  for (const [f, t] of Object.entries(files)) fs.writeFileSync(f, t);
+  const engines = [
+    { id: 'a', trust: { kind: 'json-map', file: json, at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' } },
+    { id: 'b', trust: { kind: 'json-list', file: list, at: ['trustedWorkspaces'], path_style: 'windows' } },
+    { id: 'c', trust: { kind: 'toml-table', file: toml, at: ['projects'], set: { trust_level: 'trusted' }, path_style: 'windows-lower' } },
+  ] as any[];
+  const wt = 'C:\\Work\\Tree';
+  trustFolder(wt, engines);
+  assert.ok(Object.keys(files).every((f) => fs.readFileSync(f, 'utf8') !== files[f]));
+  assert.deepEqual(untrustFolder(wt, engines), ['a', 'b', 'c']);
+  for (const [f, t] of Object.entries(files)) assert.equal(fs.readFileSync(f, 'utf8'), t, f);
+}));
+
 test('Codex gets MCP servers and the notify wrapper as -c overrides and config.toml is not written', () => withHome(async () => {
   const { sessionHookArgs } = await import('../src/hooks/install.ts');
   const { mcpAttachArgs } = await import('../src/plugins/mcp.ts');
