@@ -5,6 +5,7 @@ import { homeDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import { rebuildPayload, spoolKind } from '../redact.ts';
 import { sourceOf } from '../events/append.ts';
+import { removeContainer } from './launch.ts';
 
 const MAX_LINE = 64 * 1024;
 const MAX_SPOOL = 10 * 1024 * 1024;
@@ -56,6 +57,7 @@ function ingestOne(db: DatabaseSync, id: string, exited: boolean): void {
     }
   }
   if (exited) {
+    removeContainer(id);
     fs.rmSync(dir, { recursive: true, force: true });
     db.prepare('DELETE FROM meta WHERE key = ?').run(key);
   }

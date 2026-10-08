@@ -105,9 +105,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (host === 'sandbox') {
         const refusal = sandboxRefusal(engine, project.path);
         if (refusal) throw new RpcError(E.VALIDATION, refusal);
-        throw new RpcError(E.ENGINE_UNAVAILABLE, 'the sandbox launch path is not built yet');
       }
       return launchSession(db, {
+        host,
         approval,
         projectId: project.id,
         projectPath: project.path,

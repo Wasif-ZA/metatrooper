@@ -10,6 +10,9 @@ import { settings } from '../settings.ts';
 import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
 import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
 import { E, RpcError } from '../pipe/errors.ts';
+import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
+import { spoolDir } from '../sandbox/spool.ts';
+import fs from 'node:fs';
 
 export interface LaunchPlan {
   argv: string[];
@@ -41,21 +44,38 @@ const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox' },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
+  const host = opts.host ?? 'pty';
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
-  try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
-  try { sweepSessionFiles(db); } catch {}
-  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser)]);
+  let argv: string[];
+  let promptDelivered: boolean;
+  if (host === 'sandbox') {
+    const layout = gitLayout(opts.cwd ?? opts.projectPath);
+    if ('refusal' in layout) throw new RpcError(E.VALIDATION, layout.refusal);
+    const proxy = ensureProxy();
+    if (proxy) throw new RpcError(E.VALIDATION, proxy);
+    fs.mkdirSync(spoolDir(id), { recursive: true });
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sandboxHookArgs(opts.engine, id)], 'sandbox');
+    argv = dockerArgv(id, opts.engine, opts.cwd ?? opts.projectPath, layout, plan.argv);
+    promptDelivered = plan.promptDelivered;
+  } else {
+    try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
+    try { sweepSessionFiles(db); } catch {}
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser)]);
+    argv = plan.argv;
+    promptDelivered = plan.promptDelivered;
+  }
+  const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(
     `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, state, state_at, started_at)
-     VALUES (?, ?, ?, 'pty', ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
   const cwd = opts.cwd ?? opts.projectPath;
   try {
     term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, process.env);
