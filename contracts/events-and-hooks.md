@@ -98,7 +98,12 @@ The core processes events in `seq` order and sets `session.state`:
 Claude Code's settings keep hooks in an object keyed by event name, each holding an array of matcher groups;
 this is the shape already used in the vault's `.claude/settings.json`.
 
-`troop hooks install` merges these entries into `~/.claude/settings.json` under `hooks`, one per
+A Claude session launched by MetaTrooper gets these hooks per session: the core writes
+`~/.metatrooper/mcp/<session id>.settings.json` holding only the entries below and adds `--settings=<file>`.
+Launching never edits `~/.claude/settings.json`. When the user's settings already hold MetaTrooper's entries
+(from `troop hooks install`), no `--settings` is added, so no hook fires twice.
+
+`troop hooks install` is optional, for users who want the hooks in every Claude session. It merges these entries into `~/.claude/settings.json` under `hooks`, one per
 event name. It prints a unified diff and asks before writing. It never removes or reorders an existing entry.
 
 ```json
@@ -120,7 +125,8 @@ Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notific
 `SessionEnd`. The entry is identified for uninstall by the exact command string containing
 `<core>/event.js`. `hooks uninstall` removes only entries whose command matches, and deletes an event name's
 array only if it becomes empty and was absent before install (recorded in
-`~/.metatrooper/hooks-install.json`).
+`~/.metatrooper/hooks-install.json`). With no install record (hooks written by an older first launch),
+`hooks uninstall` still removes exactly the matching entries and leaves every user hook.
 
 Hooks do nothing outside a MetaTrooper session: when `TROOP_SESSION_ID` is not set, `event.js` exits 0
 immediately without opening the database.

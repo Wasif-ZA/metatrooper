@@ -7,7 +7,7 @@ import { mcpAttachArgs } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
-import { ensureEngineSetup } from '../hooks/install.ts';
+import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
 import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
 
 export interface LaunchPlan {
@@ -46,7 +46,7 @@ export function launchSession(
   const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
   try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
-  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...mcpAttachArgs(db, opts.engine, id)]);
+  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id)]);
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(

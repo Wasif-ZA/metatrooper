@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { claudeSettingsFile, codexConfigFile, coreDir, hooksStateFile } from '../paths.ts';
+import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile } from '../paths.ts';
 import { removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { expandHome } from '../trust.ts';
@@ -65,6 +65,11 @@ export interface Plan {
   after: string;
 }
 
+function ourGroup(ev: string): Json {
+  const hooks = [{ type: 'command', command: hookCommand(ev), timeout: 5 }];
+  return TOOL_EVENTS.has(ev) ? { matcher: '*', hooks } : { hooks };
+}
+
 export function planClaudeInstall(): Plan {
   const file = claudeSettingsFile();
   const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
@@ -73,12 +78,27 @@ export function planClaudeInstall(): Plan {
   if (!next.hooks) next.hooks = {};
   for (const ev of EVENTS) {
     const groups: Json[] = Array.isArray(next.hooks[ev]) ? next.hooks[ev].filter((g: Json) => !isOurs(g)) : [];
-    const group: Json = { hooks: [{ type: 'command', command: hookCommand(ev), timeout: 5 }] };
-    if (TOOL_EVENTS.has(ev)) group.matcher = '*';
-    const ordered = TOOL_EVENTS.has(ev) ? { matcher: group.matcher, hooks: group.hooks } : group;
-    next.hooks[ev] = [...groups, ordered];
+    next.hooks[ev] = [...groups, ourGroup(ev)];
   }
   return { file, before: original ?? '', after: JSON.stringify(next, null, 2) + '\n' };
+}
+
+function globalClaudeHooks(): boolean {
+  try {
+    const settings: Json = JSON.parse(fs.readFileSync(claudeSettingsFile(), 'utf8'));
+    return EVENTS.some((ev) => Array.isArray(settings.hooks?.[ev]) && settings.hooks[ev].some(isOurs));
+  } catch {
+    return false;
+  }
+}
+
+/** Per-session arguments carrying MetaTrooper's Claude hooks, so no global file is edited; none when `troop hooks install` already put them in the user's settings. */
+export function sessionHookArgs(engine: EngineSpec, sessionId: string): string[] {
+  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag' || globalClaudeHooks()) return [];
+  const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ hooks: Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]])) }, null, 2) + '\n');
+  return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
 
 export function installClaude(): Plan {
@@ -226,11 +246,10 @@ export function uninstallEngineSettings(): Plan[] {
   return plans;
 }
 
-/** First launch of an engine from the app: installs its hooks or notify wrapper and its settings once; null when already done. */
+/** First launch of an engine from the app: applies its declared settings once; null when already done. Hooks and notify travel per session. */
 export function ensureEngineSetup(engine: EngineSpec, at: string): string[] | null {
   if (readState().setup?.[engine.id]) return null;
   const files: string[] = [];
-  if (engine.state_source === 'hooks') files.push(installClaude().file);
   if (engine.state_source === 'notify') {
     const p = installCodex();
     if (p) files.push(p.file);
