@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, root, sleep, startCore, teardownCore, uiHello, until, withEnv } from './helpers.ts';
 import { validate } from '../src/jsonschema.ts';
 import { validateManifest } from '../src/plugins/manifest.ts';
-import { BASE_ENV, runAction } from '../src/plugins/actions.ts';
+import { actionEnv, BASE_ENV, runAction } from '../src/plugins/actions.ts';
 import { checkPaneMessage, paneCsp, resolvePaneFile } from '../src/plugins/bridge.ts';
 import { importClaude, importCodex, parseToml } from '../src/plugins/importers.ts';
 import { bindRole } from '../src/engines/registry.ts';
@@ -233,6 +233,52 @@ test('M1-16 an action sees only the base variables, the TROOP_ paths and approve
     assert.equal(env.TROOP_TEST_LEAK, undefined);
     const log = readFileSync(join(runDir, 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     assert.deepEqual(log.map((l) => l.line), ['line one', 'line two']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an action receives the TROOP_ tool path overrides its plugin reads', () => {
+  const dir = fixtureDir();
+  try {
+    const env = withEnv({ TROOP_CHROME: 'C:/edge.exe', TROOP_PDFTOTEXT: 'C:/pdftotext.exe' }, () => actionEnv({
+      plugin: pluginRecord(dir, []), actionId: 'x', input: {}, projectDir: dir, run: { id: 'r', dir }, secret: () => null,
+    }).env);
+    assert.equal(env.TROOP_CHROME, 'C:/edge.exe');
+    assert.equal(env.TROOP_PDFTOTEXT, 'C:/pdftotext.exe');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an action\'s stderr reaches log.jsonl with its secret values redacted', async () => {
+  const dir = fixtureDir();
+  try {
+    script(dir, 'bin/leak.js', `process.stdin.resume(); process.stdin.on('end', () => { console.error('token=' + process.env.API_TOKEN); process.stderr.write('tail ' + process.env.API_TOKEN); process.stdout.write('{"ok":true,"outputs":{}}'); });`);
+    const lines: string[] = [];
+    const r = await runAction({
+      plugin: pluginRecord(dir, [{ id: 'leak', run: ['bin/leak.js'] }], ['secrets:API_TOKEN']),
+      actionId: 'leak', input: {}, projectDir: dir, run: { id: 'r', dir: join(dir, 'run') }, secret: () => 'sekrit-991',
+    }, (l) => lines.push(l));
+    assert.equal(r.ok, true);
+    assert.ok(!readFileSync(join(dir, 'run', 'log.jsonl'), 'utf8').includes('sekrit-991'));
+    assert.deepEqual(lines, ['token=[redacted]', 'tail [redacted]']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a timed-out action resolves while an orphaned grandchild still holds its stdout', { skip: process.platform !== 'win32', timeout: 15000 }, async () => {
+  const dir = fixtureDir();
+  try {
+    script(dir, 'bin/orphan.cmd', '@start /b ping -n 8 127.0.0.1\r\n');
+    const started = Date.now();
+    const r = await runAction({
+      plugin: pluginRecord(dir, [{ id: 'orphan', run: ['bin/orphan.cmd'], timeout_seconds: 1 }]),
+      actionId: 'orphan', input: {}, projectDir: tmpdir(), run: { id: 'r', dir: join(dir, 'run') }, secret: () => null,
+    });
+    assert.deepEqual(r, { ok: false, error: { message: 'action timed out after 1 s', retryable: true } });
+    assert.ok(Date.now() - started < 5000);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

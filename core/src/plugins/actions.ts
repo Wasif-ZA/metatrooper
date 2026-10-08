@@ -7,7 +7,7 @@ import { nowIso } from '../time.ts';
 import { insideDir, type ActionSpec } from './manifest.ts';
 import type { InstalledPlugin } from './store.ts';
 
-export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA'];
+export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TROOP_CHROME', 'TROOP_PDFTOTEXT', 'TROOP_WHISPER', 'TROOP_WHISPER_MODEL'];
 export const LOG_CAP_BYTES = 1024 * 1024;
 const STDOUT_CAP_BYTES = 16 * 1024 * 1024;
 
@@ -131,6 +131,8 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
   const plan = planCommand(action.run, req.plugin.path, env);
   if (!plan) return Promise.resolve(fail(`command not found: ${action.run[0]}`));
   const log = new RunLog(req.run.dir);
+  const secrets = req.plugin.permissions.filter((p) => p.startsWith('secrets:')).map((p) => env[p.slice(8)]).filter(Boolean);
+  const redact = (line: string) => secrets.reduce((l, v) => l.split(v).join('[redacted]'), line);
   const timeoutMs = (action.timeout_seconds ?? 600) * 1000;
 
   return new Promise((resolve) => {
@@ -163,6 +165,7 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
       timedOut = true;
       log.write({ stream: 'core', plugin: req.plugin.id, action: action.id, line: `timed out after ${action.timeout_seconds ?? 600} s; process tree killed` });
       killTree(child);
+      finish(fail(`action timed out after ${action.timeout_seconds ?? 600} s`, true));
     }, timeoutMs);
 
     child.stdout!.on('data', (c: Buffer) => {
@@ -174,7 +177,7 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
       stderrTail += c;
       const lines = stderrTail.split(/\r?\n/);
       stderrTail = lines.pop() ?? '';
-      for (const line of lines) {
+      for (const line of lines.map(redact)) {
         log.write({ stream: 'stderr', plugin: req.plugin.id, action: action.id, line });
         onStderr?.(line);
       }
@@ -182,6 +185,7 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
     child.on('error', (e) => finish(fail(`could not start ${action.run[0]}: ${e.message}`)));
     child.on('close', (code) => {
       if (stderrTail) {
+        stderrTail = redact(stderrTail);
         log.write({ stream: 'stderr', plugin: req.plugin.id, action: action.id, line: stderrTail });
         onStderr?.(stderrTail);
       }

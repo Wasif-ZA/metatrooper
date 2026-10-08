@@ -1,15 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { isPrivate, checkUrl, safeFetch } from '../../plugins/agent-reach/bin/safe-fetch.js';
 import { check, normalise } from '../../plugins/cite-check/bin/cite-check.js';
 import { search, queriesOf } from '../../plugins/agent-reach/bin/search.js';
 import { parseCsv, load, query, render, kpiBlocks } from '../../plugins/data/bin/data.js';
-import { cut, captions } from '../../plugins/media/bin/media.js';
+import { cut, captions, transcribe } from '../../plugins/media/bin/media.js';
 import { listDeps, licenceReport } from '../../plugins/security/bin/security.js';
+import { exportPdf } from '../../plugins/docs-export/bin/docs-export.js';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'm3-plugins-'));
@@ -237,6 +240,50 @@ test('media validates cut and caption moment ids before invoking ffmpeg or writi
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+function testClip(file, size, audio = false) {
+  const lavfi = ['-f', 'lavfi', '-i', `testsrc=size=${size}:duration=0.5`, ...(audio ? ['-f', 'lavfi', '-i', 'sine=duration=0.5'] : [])];
+  spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...lavfi, '-pix_fmt', 'yuv420p', '-shortest', file]);
+}
+
+test('media cut crops 9:16 and 1:1 from portrait and landscape footage', () => {
+  const dir = tempDir();
+  try {
+    const sizeOf = (file) => spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file], { encoding: 'utf8' }).stdout.trim();
+    const got = {};
+    for (const size of ['90x200', '320x180']) {
+      const video = join(dir, `${size}.mp4`);
+      testClip(video, size);
+      for (const aspect of ['9:16', '1:1']) {
+        const id = `${size}-${aspect.replace(':', '-')}`;
+        got[id] = sizeOf(cut({ moments: [{ id, src_start: 0, src_end: 0.4 }], video, aspect, out: dir }).path);
+      }
+    }
+    assert.deepEqual(got, { '90x200-9-16': '90,160', '90x200-1-1': '90,90', '320x180-9-16': '100,180', '320x180-1-1': '180,180' });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('clips-to-scheduled-posts defaults max_clips to the number of clips it cuts', () => {
+  const pipe = JSON.parse(readFileSync(fileURLToPath(new URL('../../pipelines/clips-to-scheduled-posts.json', import.meta.url)), 'utf8'));
+  const fanout = (id) => pipe.steps.find((s) => s.id === id).fanout;
+  assert.equal(pipe.inputs.max_clips.default, fanout('cut'));
+  assert.equal(fanout('style'), fanout('cut'));
+});
+
+test('media transcribe skips and reports a file with no audio track', (t) => {
+  const dir = tempDir();
+  try {
+    testClip(join(dir, 'silent.mp4'), '64x64');
+    let r;
+    try {
+      r = transcribe({ path: dir, out: join(dir, 'words.json') });
+    } catch (e) {
+      if (/whisper.* not found at/.test(e.message)) return t.skip(e.message);
+      throw e;
+    }
+    assert.deepEqual({ words: r.words, skipped: r.skipped }, { words: 0, skipped: ['silent.mp4'] });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('data load and empty query preserve duplicate case-insensitive column names', () => {
   const dir = tempDir();
   try {
@@ -274,3 +321,52 @@ test('GitHub release tag pattern rejects command text and accepts semver tags', 
 });
 
 test.skip('docs-export exportPdf fake Chrome receives Chrome flags', () => {}); // exportPdf receives Chrome flags, so fake Chrome cannot test it.
+
+test('docs-export keeps a written PDF when the browser profile cannot be removed', { skip: process.platform !== 'win32' }, () => {
+  const dir = tempDir();
+  const rmSync = fs.rmSync;
+  try {
+    write(join(dir, 'a.md'), '# A\n');
+    write(join(dir, 'a.pdf'), '%PDF /Type /Page');
+    fs.rmSync = (p, o) => {
+      if (String(p).includes('troop-pdf-')) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+      return rmSync(p, o);
+    };
+    const r = exportPdf({ path: join(dir, 'a.md'), out: join(dir, 'a.pdf') }, () => process.env.COMSPEC);
+    assert.equal(r.pages, 1);
+  } finally {
+    fs.rmSync = rmSync;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function desktop(action, input) {
+  const script = fileURLToPath(new URL('../../plugins/desktop/bin/desktop.js', import.meta.url));
+  return JSON.parse(spawnSync(process.execPath, [script, action], { input: JSON.stringify({ input }), encoding: 'utf8' }).stdout);
+}
+
+test('desktop picks the window by recorded handle, and distinct same-title windows without one', { skip: process.platform !== 'win32' }, () => {
+  const ps1 = fileURLToPath(new URL('../../plugins/desktop/bin/desktop.ps1', import.meta.url));
+  const command = `. '${ps1}'
+    $w = { param($n, $h) [pscustomobject]@{ Current = [pscustomobject]@{ Name = $n; NativeWindowHandle = $h } } }
+    $all = @((& $w 'Form' 101), (& $w 'Form' 202))
+    @((Select-Window $all 'Form' '202'), (Select-Window $all 'Form' '' @(101)), (Select-Window $all 'Form' '')) | ForEach-Object { $_.Current.NativeWindowHandle }`;
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command], { encoding: 'utf8', env: { ...process.env, TROOP_DESKTOP_INPUT: '{}' } });
+  assert.deepEqual(r.stdout.trim().split(/\r?\n/), ['202', '202', '101'], r.stderr);
+});
+
+test('desktop returns non-ASCII window titles intact and writes confirmations without a BOM', { skip: process.platform !== 'win32' }, () => {
+  const dir = tempDir();
+  try {
+    const title = `troop-test-Ωé-${Date.now()}`;
+    assert.equal(desktop('screenshot', { window: title, out: dir }).error.message, `no window titled '${title}'`);
+    writeJson(join(dir, 'rows.json'), [{ window: title }]);
+    const r = desktop('read', { rows: join(dir, 'rows.json'), out: join(dir, 'confirmations.json') });
+    assert.equal(r.outputs.failed, 1);
+    const bytes = readFileSync(join(dir, 'confirmations.json'));
+    assert.notEqual(bytes[0], 0xef);
+    assert.equal(JSON.parse(bytes.toString('utf8'))[0].window, title);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

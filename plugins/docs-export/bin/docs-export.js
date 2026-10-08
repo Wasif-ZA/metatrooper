@@ -76,6 +76,7 @@ function browser() {
     process.env.TROOP_CHROME,
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/usr/bin/google-chrome',
     '/usr/bin/chromium',
@@ -104,7 +105,7 @@ export function exportPdf(input, chrome = browser) {
     const bytes = fs.readFileSync(out).toString('latin1');
     return { out: input.out, pages: (bytes.match(/\/Type\s*\/Page\b/g) || []).length, bytes: fs.statSync(out).size };
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch {}
   }
 }
 

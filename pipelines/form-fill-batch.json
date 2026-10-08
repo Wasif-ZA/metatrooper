@@ -27,8 +27,8 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Take the first unfilled row in {{run.dir}}/rows.json. Open a fresh {{inputs.window}} window for it, type its values and leave it open and unsent. Never touch the captcha panel and never press Submit. Mark the row filled in rows.json and save the window title on it as window. Set window to that window's title, values to what you typed, captcha to shown or none, and rows_left to the number of rows still unfilled.",
-      "outputs": ["window", "values", "captcha", "rows_left"]
+      "prompt": "Take the first unfilled row in {{run.dir}}/rows.json. Open a fresh {{inputs.window}} window for it, type its values and leave it open and unsent. Never touch the captcha panel and never press Submit. Mark the row filled in rows.json and save on it the window title as window and its UI Automation NativeWindowHandle as handle. Set window to that window's title, handle to that handle, values to what you typed, captcha to shown or none, and rows_left to the number of rows still unfilled.",
+      "outputs": ["window", "handle", "values", "captcha", "rows_left"]
     },
     {
       "id": "captcha",
@@ -43,7 +43,7 @@
       "role": "visual-check",
       "kind": "action",
       "uses": "plugin:desktop/screenshot",
-      "with": { "window": "{{steps.fill.outputs.window}}", "out": "{{run.dir}}/shots" },
+      "with": { "window": "{{steps.fill.outputs.window}}", "handle": "{{steps.fill.outputs.handle}}", "out": "{{run.dir}}/shots" },
       "loop": { "steps": ["fill", "captcha", "shot"], "until": "steps.fill.outputs.rows_left == \"0\"", "max": 20 }
     },
     {
@@ -51,7 +51,7 @@
       "title": "Approve the whole batch",
       "kind": "gate",
       "gate": "approve",
-      "gate_summary": "Press Submit in every filled window listed in {{run.dir}}/rows.json, in row order. Screenshots are in {{run.dir}}/shots."
+      "gate_summary": "Press Submit in every filled window listed in {{run.dir}}/rows.json, in row order, each by its recorded handle. Screenshots are in {{run.dir}}/shots."
     },
     {
       "id": "submit",
