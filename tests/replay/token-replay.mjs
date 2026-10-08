@@ -71,10 +71,12 @@ async function reviewContext(repo, files) {
     const { tools } = await rpc.send('tools/list', {});
     const tool = tools.find((t) => t.name === 'get_review_context_tool');
     if (!tool) throw new Error('code-review-graph has no get_review_context_tool');
-    const extra = (tool.inputSchema?.required ?? []).filter((k) => k !== 'files');
-    if (extra.length) throw new Error(`get_review_context_tool also requires ${extra.join(', ')}`);
-    const result = await rpc.send('tools/call', { name: tool.name, arguments: { files } });
-    return (result.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+    const props = tool.inputSchema?.properties ?? {};
+    if (!('changed_files' in props) || !('base' in props)) throw new Error(`get_review_context_tool takes ${Object.keys(props).join(', ')}, not changed_files and base`);
+    const result = await rpc.send('tools/call', { name: tool.name, arguments: { changed_files: files, base: 'HEAD', detail_level: 'minimal' } });
+    const text = (result.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+    if (result.isError) throw new Error(`get_review_context_tool failed: ${text.slice(0, 300)}`);
+    return text;
   } finally {
     child.kill();
   }
