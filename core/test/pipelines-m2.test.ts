@@ -86,7 +86,8 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
       assert.match(prGate.action_hash ?? '', /^[0-9a-f]{64}$/);
       const openPr = t.db.prepare("SELECT status FROM run_step WHERE run_id = ? AND step_id = 'open-pr'").get(runId) as { status: string } | undefined;
       assert.ok(!openPr || openPr.status === 'pending', JSON.stringify(openPr));
-      assert.equal(existsSync(t.ghLog), false, 'gh ran before approval');
+      const ghCalls = existsSync(t.ghLog) ? readFileSync(t.ghLog, 'utf8').trim().split(/\r?\n/).filter(Boolean) : [];
+      assert.deepEqual(ghCalls.filter((call) => call !== '--version'), [], 'gh ran before approval');
       const build = JSON.parse((t.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'build'").get(runId) as { outputs: string }).outputs);
       assert.match(build.branch, /^troop\//);
       const verify = JSON.parse((t.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'verify'").get(runId) as { outputs: string }).outputs);
@@ -100,8 +101,9 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
       const log = readFileSync(join(t.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId).run_dir as string, 'log.jsonl'), 'utf8');
       assert.equal(status, 'done', log.slice(-1500));
       const calls = readFileSync(t.ghLog, 'utf8').trim().split(/\r?\n/);
-      assert.equal(calls.length, 1);
-      assert.match(calls[0], /^pr create --repo fake\/repo --head troop\/\S+ --base main --title "?Add greet"? --body-file /);
+      const prCalls = calls.filter((call) => call !== '--version');
+      assert.equal(prCalls.length, 1);
+      assert.match(prCalls[0], /^pr create --repo fake\/repo --head troop\/\S+ --base main --title "?Add greet"? --body-file /);
       assert.equal(git(t.origin, 'branch', '--list', build.branch).trim(), build.branch);
       assert.ok(git(t.origin, 'show', `${build.branch}:greet.js`).includes('Hello'));
       const pr = JSON.parse((t.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'open-pr'").get(runId) as { outputs: string }).outputs);

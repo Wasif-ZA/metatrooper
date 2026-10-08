@@ -40,6 +40,18 @@
       "description": "Plugin ids this pipeline needs. The gallery shows 'ready' only when all are installed and enabled.",
       "type": "array", "items": { "type": "string" }
     },
+    "assists": {
+      "description": "Optional helper tools from pipelines/assists/registry.json that the listed steps may use when installed. A pipeline never depends on one.",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["tool", "steps", "use"],
+        "properties": {
+          "tool": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$" },
+          "steps": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "use": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    },
     "layout": { "$ref": "#/$defs/layout", "description": "Fallback screen layout, used only when the pipeline's pick rule matches nothing." },
     "background": { "type": "boolean", "default": false, "description": "True: the run folds to the 36px wall bar and opens only when it needs the user. False: the run holds the big slot." },
     "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } }

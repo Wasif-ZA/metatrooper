@@ -24,6 +24,12 @@
   "requires": [
     "repo"
   ],
+  "assists": [
+    {"tool": "semgrep", "steps": ["codex-review"], "use": "run rule checks on the diff and treat each finding as a fact to confirm or reject"},
+    {"tool": "difftastic", "steps": ["diff"], "use": "a syntax-aware diff with less whitespace and reflow noise"},
+    {"tool": "ast-grep", "steps": ["codex-review"], "use": "structural search to check whether a finding's pattern recurs elsewhere"},
+    {"tool": "reviewdog", "steps": ["bucket"], "use": "turns findings into line-pinned review comments"}
+  ],
   "steps": [
     {
       "id": "diff",

@@ -10,6 +10,12 @@
   "budget": { "max_minutes": 90 },
   "background": true,
   "layout": "timeline",
+  "assists": [
+    {"tool": "playwright", "steps": ["fix"], "use": "write each finding as a Playwright test that fails before the fix and passes after"},
+    {"tool": "agent-browser", "steps": ["qa"], "use": "compact element refs so walking flows costs fewer tokens than full DOM dumps"},
+    {"tool": "chrome-devtools-mcp", "steps": ["qa"], "use": "console errors, network failures and performance traces per flow"},
+    {"tool": "backstopjs", "steps": ["fix"], "use": "screenshot diff with a threshold to confirm a fix changed only what it should"}
+  ],
   "steps": [
     {
       "id": "flows",

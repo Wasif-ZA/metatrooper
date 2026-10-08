@@ -11,6 +11,12 @@
   },
   "budget": { "max_minutes": 120 },
   "layout": "pr-first",
+  "assists": [
+    {"tool": "gh", "steps": ["spec"], "use": "read the repo's issues, PRs and CI status"},
+    {"tool": "act", "steps": ["build"], "use": "run the repo's GitHub Actions locally before handing over"},
+    {"tool": "openspec", "steps": ["spec"], "use": "write a proposal, spec deltas and a task list in a fixed folder shape the build step can follow"},
+    {"tool": "context7", "steps": ["build"], "use": "pull current library docs so the code does not use stale APIs"}
+  ],
   "steps": [
     {
       "id": "spec",

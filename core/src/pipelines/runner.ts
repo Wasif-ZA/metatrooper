@@ -16,6 +16,7 @@ import { loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
+import { detectAssists, helperBlock } from './assists.ts';
 import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
 import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
@@ -316,6 +317,8 @@ export class Runner {
     if (this.active.has(runId)) return;
     this.active.add(runId);
     try {
+      const first = this.run(runId);
+      if (first && !fs.existsSync(path.join(first.run_dir, 'assists.json'))) await detectAssists(this.pipelineOf(first), first.run_dir, this.project(first.project_id).path);
       for (;;) {
         const run = this.run(runId);
         if (!run || run.status !== 'running') return;
@@ -669,8 +672,12 @@ export class Runner {
     return slash(path.join(run.run_dir, fanout ? `${stepId}-${idx}.md` : `${stepId}.md`));
   }
 
-  private promptFor(run: RunRow, idx: number, outPath: string, template: string, outputs: string[], raw = false): string {
-    const body = raw ? template : resolveString(template, this.scope(run, idx));
+  private promptFor(run: RunRow, stepId: string, idx: number, outPath: string, template: string, outputs: string[], raw = false): string {
+    const resolved = raw ? template : resolveString(template, this.scope(run, idx));
+    const helpers = helperBlock(this.pipelineOf(run), run.run_dir, stepId);
+    const body = helpers ? `${resolved}
+
+${helpers}` : resolved;
     const earlier = new Set<string>();
     for (const m of template.matchAll(/\{\{\s*steps\.([a-z0-9-]+)\./g)) {
       for (const r of this.rows(run.id, m[1])) if (r.output_path) earlier.add(r.output_path);
@@ -735,7 +742,7 @@ export class Runner {
       const engine = a.engine();
       if (!engine) return { ok: false, error: `no installed engine for step ${a.stepId}` };
       if (fs.existsSync(a.outPath)) fs.renameSync(a.outPath, a.outPath.replace(/\.md$/, `.iter${a.row.iteration}-${Date.now()}.md`));
-      const prompt = this.promptFor(run, a.index, a.outPath, a.template, a.outputs, a.raw);
+      const prompt = this.promptFor(run, a.stepId, a.index, a.outPath, a.template, a.outputs, a.raw);
       const project = this.project(run.project_id);
       const printArgs = engine.print_args;
       if (printArgs) fs.writeFileSync(a.outPath.replace(/\.md$/, '.prompt.md'), prompt);
@@ -884,7 +891,7 @@ export class Runner {
         const engine = typeof step.engine === 'string' ? step.engine : null;
         if (!engine) return null;
         const outPath = this.outputPath(run, step.id, 0, false);
-        const prompt = this.promptFor(run, 0, outPath, step.prompt as string, step.outputs ?? []);
+        const prompt = this.promptFor(run, step.id, 0, outPath, step.prompt as string, step.outputs ?? []);
         const destination = step.destination ? resolveString(step.destination, scope) : null;
         return {
           hash: actionHash({ step: step.id, engine, prompt_sha256: sha256(prompt), destination }),

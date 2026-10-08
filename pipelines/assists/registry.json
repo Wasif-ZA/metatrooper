@@ -1,0 +1,96 @@
+{
+  "semgrep": {
+    "name": "Semgrep", "repo": "semgrep/semgrep", "licence": "LGPL-2.1", "risk": "caution",
+    "risk_note": "LGPL-2.1: fine to run as an external CLI, do not bundle or link it",
+    "egress": "usage metrics to semgrep.dev when registry rules are used, unless --metrics=off",
+    "detect": ["semgrep", "--version"], "install": "pipx install semgrep", "reached_by": "pip"
+  },
+  "difftastic": {
+    "name": "difftastic", "repo": "Wilfred/difftastic", "licence": "MIT", "risk": "ok",
+    "egress": "none",
+    "detect": ["difft", "--version"], "install": "winget install Wilfred.difftastic", "reached_by": "cli"
+  },
+  "ast-grep": {
+    "name": "ast-grep", "repo": "ast-grep/ast-grep", "licence": "MIT", "risk": "ok",
+    "egress": "none",
+    "detect": ["ast-grep", "--version"], "install": "npm install -g @ast-grep/cli", "reached_by": "cli"
+  },
+  "reviewdog": {
+    "name": "reviewdog", "repo": "reviewdog/reviewdog", "licence": "MIT", "risk": "ok",
+    "egress": "review comments to GitHub when a github-* reporter is used",
+    "detect": ["reviewdog", "-version"], "install": "download the Windows release from github.com/reviewdog/reviewdog/releases", "reached_by": "cli"
+  },
+  "gh": {
+    "name": "GitHub CLI", "repo": "cli/cli", "licence": "MIT", "risk": "ok",
+    "egress": "repository data and requests to github.com",
+    "detect": ["gh", "--version"], "install": "winget install GitHub.cli", "reached_by": "cli"
+  },
+  "act": {
+    "name": "act", "repo": "nektos/act", "licence": "MIT", "risk": "ok",
+    "egress": "none (pulls Docker images and action code)",
+    "detect": ["act", "--version"], "install": "winget install nektos.act (needs Docker)", "reached_by": "cli"
+  },
+  "openspec": {
+    "name": "OpenSpec", "repo": "Fission-AI/OpenSpec", "licence": "MIT", "risk": "ok",
+    "egress": "none",
+    "detect": ["openspec", "--version"], "install": "npm install -g @fission-ai/openspec", "reached_by": "npm"
+  },
+  "context7": {
+    "name": "Context7", "repo": "upstash/context7", "licence": "MIT", "risk": "ok",
+    "egress": "library names and doc queries to context7.com (Upstash)",
+    "detect": ["node", "{repo}/pipelines/assists/check.mjs", "mcp", "context7"], "install": "claude mcp add context7 -- npx -y @upstash/context7-mcp", "reached_by": "mcp"
+  },
+  "playwright": {
+    "name": "Playwright", "repo": "microsoft/playwright", "licence": "Apache-2.0", "risk": "ok",
+    "egress": "none",
+    "detect": ["npx", "--no-install", "playwright", "--version"], "install": "npm install -D @playwright/test && npx playwright install", "reached_by": "npm"
+  },
+  "agent-browser": {
+    "name": "agent-browser", "repo": "vercel-labs/agent-browser", "licence": "Apache-2.0", "risk": "ok",
+    "egress": "none",
+    "detect": ["agent-browser", "--version"], "install": "npm install -g agent-browser", "reached_by": "npm"
+  },
+  "chrome-devtools-mcp": {
+    "name": "Chrome DevTools MCP", "repo": "ChromeDevTools/chrome-devtools-mcp", "licence": "Apache-2.0", "risk": "caution",
+    "risk_note": "egress not checked; read its README for usage statistics before use",
+    "egress": "not checked",
+    "detect": ["node", "{repo}/pipelines/assists/check.mjs", "mcp", "chrome-devtools"], "install": "claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest", "reached_by": "mcp"
+  },
+  "backstopjs": {
+    "name": "BackstopJS", "repo": "garris/BackstopJS", "licence": "MIT", "risk": "ok",
+    "egress": "none",
+    "detect": ["backstop", "--version"], "install": "npm install -g backstopjs", "reached_by": "npm"
+  },
+  "lighthouse": {
+    "name": "Lighthouse", "repo": "GoogleChrome/lighthouse", "licence": "Apache-2.0", "risk": "ok",
+    "egress": "none",
+    "detect": ["lighthouse", "--version"], "install": "npm install -g lighthouse", "reached_by": "npm"
+  },
+  "shadcn": {
+    "name": "shadcn CLI", "repo": "shadcn-ui/ui", "licence": "MIT", "risk": "ok",
+    "egress": "component requests to ui.shadcn.com",
+    "detect": ["npx", "--no-install", "shadcn", "--version"], "install": "npm install -D shadcn", "reached_by": "npm"
+  },
+  "screenshot-to-code": {
+    "name": "screenshot-to-code", "repo": "abi/screenshot-to-code", "licence": "MIT", "risk": "caution",
+    "risk_note": "a cloned app, not a package; set SCREENSHOT_TO_CODE_DIR to the clone",
+    "egress": "screenshots to the LLM API you configure (OpenAI, Anthropic or Gemini)",
+    "detect": ["node", "{repo}/pipelines/assists/check.mjs", "dir-env", "SCREENSHOT_TO_CODE_DIR"], "install": "clone github.com/abi/screenshot-to-code and set SCREENSHOT_TO_CODE_DIR", "reached_by": "cli"
+  },
+  "storybook": {
+    "name": "Storybook", "repo": "storybookjs/storybook", "licence": "MIT", "risk": "ok",
+    "egress": "anonymous telemetry to storybook.js.org unless STORYBOOK_DISABLE_TELEMETRY=1",
+    "detect": ["npx", "--no-install", "storybook", "--version"], "install": "npx storybook@latest init", "reached_by": "npm"
+  },
+  "talk-to-figma": {
+    "name": "Talk to Figma MCP", "repo": "grab/cursor-talk-to-figma-mcp", "licence": "MIT", "risk": "caution",
+    "risk_note": "needs bun and the Figma desktop plugin; the README's Windows guide uses WSL",
+    "egress": "frame data to and from Figma through its plugin",
+    "detect": ["node", "{repo}/pipelines/assists/check.mjs", "mcp", "TalkToFigma"], "install": "follow the setup in github.com/grab/cursor-talk-to-figma-mcp", "reached_by": "mcp"
+  },
+  "odiff": {
+    "name": "odiff", "repo": "dmtrKovalenko/odiff", "licence": "MIT", "risk": "ok",
+    "egress": "none",
+    "detect": ["npx", "--no-install", "odiff", "--help"], "install": "npm install -D odiff-bin", "reached_by": "npm"
+  }
+}
