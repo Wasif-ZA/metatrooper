@@ -153,6 +153,10 @@ both print the same comment for the same reason; that is the accepted cost of ne
 
 ## Codex notify wrapper
 
+A Codex session launched by MetaTrooper gets the wrapper per session as `-c notify=[...]`, wrapping the
+user's own `notify` with any MetaTrooper wrapper peeled off; launching never edits `config.toml`. The install
+below is optional, for users who want the wrapper in every Codex run.
+
 `troop hooks install --codex` backs up `~/.codex/config.toml` to `config.toml.troop-bak`, then sets
 `notify` to `["node", "<core>/codex-notify.js", <the previous notify array as JSON>]`.
 

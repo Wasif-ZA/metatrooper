@@ -933,9 +933,11 @@ Out of scope:
 - M1-35. Installing the Codex notify hook over a config whose `notify` already runs MetaTrooper's
   `codex-notify.js` (even wrapped several times, with no hooks state) leaves exactly one MetaTrooper wrapper
   around the user's original notify. Added 2026-10-05: Wasif's config had the wrapper nested twice.
-- M1-36. A Codex session launched by MetaTrooper gets no `-c` arguments; its MCP servers live in one
-  MetaTrooper block in `config.toml`, and `troop hooks uninstall` removes the block. Added 2026-10-05: `-c`
-  forced Codex into embedded mode ("Running without the shared background server").
+- M1-36. A Codex session launched by MetaTrooper gets its MCP servers and its notify wrapper as `-c`
+  overrides, and launching never edits `config.toml`; `troop hooks uninstall --codex` removes the MetaTrooper
+  block older versions wrote there. Changed 2026-10-08 (H8): the global block started `metatrooper-browser` in
+  every Codex run on the laptop. On 2026-10-05 `-c` was seen to put Codex in embedded mode ("Running without
+  the shared background server"); that is the accepted cost of not touching the global config.
 - M1-37. `session.launch` with no `approval` in an ordinary project starts claude with `--permission-mode auto`
   and codex with `--approve-for-me` (the `contained` profile); with `sessions.approval` set to `ask` it adds
   neither; an engine without a `contained` profile starts in `ask` instead of failing.

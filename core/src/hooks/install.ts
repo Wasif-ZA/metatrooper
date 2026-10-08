@@ -92,8 +92,9 @@ function globalClaudeHooks(): boolean {
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks, so no global file is edited; none when `troop hooks install` already put them in the user's settings. */
+/** Per-session arguments carrying MetaTrooper's Claude hooks or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
 export function sessionHookArgs(engine: EngineSpec, sessionId: string): string[] {
+  if (engine.mcp_attach?.kind === 'codex-config') return codexNotifyArgs();
   if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag' || globalClaudeHooks()) return [];
   const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -146,17 +147,30 @@ function tomlArray(values: string[]): string {
   return `[${values.map((v) => JSON.stringify(v)).join(', ')}]`;
 }
 
+/** The notify array in a config.toml with every MetaTrooper wrapper peeled off; null when there is none. */
+function userNotify(text: string): string[] | null {
+  const m = text.match(NOTIFY_RE);
+  let previous: string[] | null = m ? JSON.parse(m[1]) : null;
+  while (previous && previous[1] === codexScript()) {
+    const inner: string[] = JSON.parse(previous[2] ?? '[]');
+    previous = inner.length ? inner : null;
+  }
+  return previous;
+}
+
+function codexNotifyArgs(): string[] {
+  let previous: string[] | null = null;
+  try { previous = userNotify(fs.readFileSync(codexConfigFile(), 'utf8')); } catch {}
+  return ['-c', `notify=${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`];
+}
+
 export function installCodex(): Plan | null {
   const file = codexConfigFile();
   const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const state = readState();
   if (state.codex) return { file, before: original, after: original };
   const m = original.match(NOTIFY_RE);
-  let previous: string[] | null = m ? JSON.parse(m[1]) : null;
-  while (previous && previous[1] === codexScript()) {
-    const inner: string[] = JSON.parse(previous[2] ?? '[]');
-    previous = inner.length ? inner : null;
-  }
+  const previous = userNotify(original);
   const line = `notify = ${tomlArray(['node', codexScript(), JSON.stringify(previous ?? [])])}`;
   const after = m ? original.replace(NOTIFY_RE, line) : `${line}\n${original}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.troop-bak`);
@@ -250,10 +264,6 @@ export function uninstallEngineSettings(): Plan[] {
 export function ensureEngineSetup(engine: EngineSpec, at: string): string[] | null {
   if (readState().setup?.[engine.id]) return null;
   const files: string[] = [];
-  if (engine.state_source === 'notify') {
-    const p = installCodex();
-    if (p) files.push(p.file);
-  }
   for (const p of installEngineSettings([engine])) files.push(p.file);
   const state = readState();
   state.setup = { ...(state.setup ?? {}), [engine.id]: at };

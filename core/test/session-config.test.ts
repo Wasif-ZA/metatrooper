@@ -58,3 +58,30 @@ test('uninstallClaude with no install record removes only MetaTrooper hook entri
   assert.equal(after.theme, 'dark');
   assert.ok(!JSON.stringify(after).includes('event.js'));
 }));
+
+test('Codex gets MCP servers and the notify wrapper as -c overrides and config.toml is not written', () => withHome(async () => {
+  const { sessionHookArgs } = await import('../src/hooks/install.ts');
+  const { mcpAttachArgs } = await import('../src/plugins/mcp.ts');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { coreDir } = await import('../src/paths.ts');
+  const script = path.join(coreDir, 'codex-notify.js').split(path.sep).join('/');
+  const config = process.env.METATROOPER_CODEX_CONFIG!;
+  fs.mkdirSync(path.dirname(config), { recursive: true });
+  const inner = JSON.stringify(['orig.exe', 'turn-ended']);
+  const text = `notify = ${JSON.stringify(['node', script, inner])}\n[mcp_servers.metatrooper-browser]\ncommand = "user"\n`;
+  fs.writeFileSync(config, text);
+  const codex = { ...claude, id: 'codex', state_source: 'notify' as const, mcp_attach: { kind: 'codex-config' } };
+  assert.deepEqual(sessionHookArgs(codex, 'C1'), ['-c', `notify=[${['node', script, inner].map((v) => JSON.stringify(v)).join(', ')}]`]);
+  const db = openCoreDb();
+  try {
+    assert.deepEqual(mcpAttachArgs(db, codex, 'C1'), []);
+    fs.writeFileSync(config, '');
+    const args = mcpAttachArgs(db, codex, 'C2');
+    assert.equal(args.length, 4);
+    assert.match(args[1], /^mcp_servers\.metatrooper-browser\.command=".+"$/);
+    assert.match(args[3], /^mcp_servers\.metatrooper-browser\.args=\[".+metatrooper-browser\.js"\]$/);
+  } finally {
+    db.close();
+  }
+  assert.equal(fs.readFileSync(config, 'utf8'), '');
+}));

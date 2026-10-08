@@ -85,31 +85,20 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
       return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`];
     }
-    case 'codex-config':
-      syncCodexMcp(node, servers);
-      return [];
+    case 'codex-config': {
+      const file = codexConfigFile();
+      const user = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(CODEX_BLOCK, '') : '';
+      return servers
+        .filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(user))
+        .flatMap((s) => ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`]);
+    }
     default:
       return [];
   }
 }
 
-const CODEX_BEGIN = '# metatrooper mcp: begin (written by MetaTrooper; troop hooks uninstall removes it)';
-const CODEX_END = '# metatrooper mcp: end';
+/** The block older versions wrote into Codex's config.toml; only removeCodexMcp still looks for it. */
 const CODEX_BLOCK = /^# metatrooper mcp: begin[^\n]*\n[\s\S]*?^# metatrooper mcp: end[^\n]*(\n|$)/m;
-
-/** Keeps one MetaTrooper block of mcp_servers tables in Codex's config.toml; a name the user already defines is left to the user. */
-export function syncCodexMcp(node: string, servers: Array<{ name: string; args: string[] }>): void {
-  const file = codexConfigFile();
-  const current = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const left = current.replace(CODEX_BLOCK, '');
-  const rest = left.trim() ? left.replace(/\n*$/, '\n') : '';
-  const own = servers.filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(rest));
-  const tables = own.flatMap((s) => [`[mcp_servers.${s.name}]`, `command = ${JSON.stringify(node)}`, `args = ${JSON.stringify(s.args)}`, '']);
-  const after = own.length ? `${rest}${rest ? '\n' : ''}${[CODEX_BEGIN, ...tables, CODEX_END].join('\n')}\n` : rest;
-  if (after === current) return;
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, after);
-}
 
 export function removeCodexMcp(): void {
   const file = codexConfigFile();

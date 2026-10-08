@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { syncCodexMcp, removeCodexMcp } from '../src/plugins/mcp.ts';
+import { removeCodexMcp } from '../src/plugins/mcp.ts';
 import { uninstallCodex } from '../src/hooks/install.ts';
 
 const BEGIN = '# metatrooper mcp: begin (written by MetaTrooper; troop hooks uninstall removes it)';
@@ -30,50 +30,18 @@ function withConfig(fn: (file: string) => void): void {
   }
 }
 
-const server = (name: string, args: string[] = ['server.js']) => ({ name, args });
-
-test('Codex MCP sync preserves existing user content and is byte stable on repeated sync', () => withConfig((file) => {
-  const user = 'model = "fixture"\n\n[mcp_servers.user-server]\ncommand = "user"\nargs = []\n';
-  writeFileSync(file, user);
-  syncCodexMcp('node', [server('metatrooper-browser'), server('plugin-server')]);
-  const first = readFileSync(file);
-  assert.ok(first.subarray(0, Buffer.byteLength(user)).equals(Buffer.from(user)));
-  const mtime = statSync(file).mtimeMs;
-  syncCodexMcp('node', [server('metatrooper-browser'), server('plugin-server')]);
-  assert.deepEqual(readFileSync(file), first);
-  assert.equal(statSync(file).mtimeMs, mtime);
-}));
-
-test('Codex MCP sync does not duplicate a server defined by the user outside the block', () => withConfig((file) => {
-  const user = '[mcp_servers.metatrooper-browser]\ncommand = "user-browser"\nargs = []\n';
-  writeFileSync(file, user);
-  syncCodexMcp('node', [server('metatrooper-browser'), server('plugin-server')]);
-  const config = readFileSync(file, 'utf8');
-  assert.equal((config.match(/\[mcp_servers\.metatrooper-browser\]/g) ?? []).length, 1);
-  assert.match(config, /command = "user-browser"/);
-  assert.match(config, /\[mcp_servers\.plugin-server\]/);
-}));
-
-test('Codex MCP sync drops a removed plugin server on the next sync', () => withConfig((file) => {
-  syncCodexMcp('node', [server('metatrooper-browser'), server('plugin-server')]);
-  syncCodexMcp('node', [server('metatrooper-browser')]);
-  const config = readFileSync(file, 'utf8');
-  assert.doesNotMatch(config, /\[mcp_servers\.plugin-server\]/);
-  assert.match(config, /\[mcp_servers\.metatrooper-browser\]/);
-}));
+const block = (name: string) => `${BEGIN}\n[mcp_servers.${name}]\ncommand = "node"\nargs = ["server.js"]\n\n${END}\n`;
 
 test('removeCodexMcp leaves exactly the user content', () => withConfig((file) => {
   const user = 'model = "fixture"\n\n[mcp_servers.user-server]\ncommand = "user"\nargs = []\n';
-  writeFileSync(file, user);
-  syncCodexMcp('node', [server('metatrooper-browser')]);
+  writeFileSync(file, `${user}\n${block('metatrooper-browser')}`);
   removeCodexMcp();
   assert.equal(readFileSync(file, 'utf8'), user);
 }));
 
 test('uninstallCodex removes the MetaTrooper MCP block', () => withConfig((file) => {
   const user = 'model = "fixture"\n';
-  writeFileSync(file, user);
-  syncCodexMcp('node', [server('metatrooper-browser')]);
+  writeFileSync(file, `${user}\n${block('metatrooper-browser')}`);
   uninstallCodex();
   const config = readFileSync(file, 'utf8');
   assert.equal(config, user);

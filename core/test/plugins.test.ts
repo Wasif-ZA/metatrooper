@@ -513,13 +513,11 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           assert.match(config, /metatrooper-browser\.js/);
           assert.ok(!config.includes(literal));
           const codex = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2'));
-          const codexToml = readFileSync(codexConfig, 'utf8');
-          assert.deepEqual(codex, []);
-          assert.match(codexToml, /# metatrooper mcp: begin/);
-          assert.match(codexToml, /\[mcp_servers\.metatrooper-browser\]/);
-          assert.ok(!codexToml.includes('[mcp_servers.claude-fixture-tools-tools]'));
-          assert.ok(!codexToml.includes('[mcp_servers.claude-fixture-tools-needs]'));
-          assert.ok(!codexToml.includes(literal));
+          assert.ok(!existsSync(codexConfig));
+          assert.equal(codex.filter((a) => a === '-c').length, 2);
+          assert.match(codex[1], /^mcp_servers\.metatrooper-browser\.command=".*"$/);
+          assert.match(codex[3], /^mcp_servers\.metatrooper-browser\.args=\[".*metatrooper-browser\.js"\]$/);
+          assert.ok(!codex.join(' ').includes(literal));
         } finally {
           if (previousCodexPath === undefined) delete process.env.METATROOPER_CODEX_CONFIG;
           else process.env.METATROOPER_CODEX_CONFIG = previousCodexPath;
