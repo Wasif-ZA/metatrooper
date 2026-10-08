@@ -1284,7 +1284,7 @@ function editorChanged() {
     if (ui.editor !== ed) return;
     ed.errors = r.result ? r.result.errors : [r.error ? r.error.message : 'the core is offline, so the pipeline was not checked'];
     render();
-  }, 300);
+  }, 400);
   render();
 }
 

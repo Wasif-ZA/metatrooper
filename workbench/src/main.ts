@@ -15,7 +15,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, readRunFile, snapshot, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
-import { gitAct, gitView, runIn } from './gitpane.ts';
+import { gitAct, gitView, runIn, type GitView } from './gitpane.ts';
 import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
@@ -397,23 +397,35 @@ function handlers(): void {
     }
   });
 
-  on('git', (projectId: unknown, op: unknown, arg: unknown) => {
+  const gitViews = new Map<string, { at: number; view: Promise<GitView> }>();
+  const viewOf = (dir: string) => {
+    const hit = gitViews.get(dir);
+    if (hit && Date.now() - hit.at < 3000) return hit.view;
+    const view = gitView(runIn(dir));
+    gitViews.set(dir, { at: Date.now(), view });
+    view.catch(() => gitViews.delete(dir));
+    return view;
+  };
+
+  on('git', async (projectId: unknown, op: unknown, arg: unknown) => {
     const d = db();
     const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
     if (!project) return { error: 'pick a project first' };
     const git = runIn(project.path);
     const why = (e: unknown) => { const err = e as Error & { stderr?: string }; return (err.stderr || err.message).trim().split(String.fromCharCode(10)).slice(-3).join(' '); };
     if ((op === 'diff' || op === 'diff-staged') && typeof arg === 'string') {
-      try { return git(['diff', ...(op === 'diff-staged' ? ['--cached'] : []), '--', arg]); } catch { return null; }
+      try { return await git(['diff', ...(op === 'diff-staged' ? ['--cached'] : []), '--', arg]); } catch { return null; }
     }
     let error: string | undefined;
     try {
-      if (typeof op === 'string' && op !== 'view') gitAct(git, op, arg);
+      if (typeof op === 'string' && op !== 'view') await gitAct(git, op, arg);
     } catch (e) {
       error = why(e);
+    } finally {
+      if (op !== 'view') gitViews.delete(project.path);
     }
     try {
-      return { ...gitView(git), error };
+      return { ...(await viewOf(project.path)), error };
     } catch (e) {
       return { error: why(e) };
     }
