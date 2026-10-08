@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { spawnSync } from 'node:child_process';
 import { readLimits, windowName } from '../src/limits.ts';
 import { nowIso } from '../src/time.ts';
 
@@ -59,6 +60,15 @@ test('M2-05 Claude windows come from the statusline wrapper file; a file without
   fs.writeFileSync(path.join(t.home, 'claude-limits.json'), JSON.stringify({ at: 'x', rate_limits: null }));
   readLimits(t.db, t.home, t.home);
   assert.deepEqual(t.rows().filter((r) => r.provider === 'claude').map((r) => [r.window, r.used_pct, r.status]), [['5h', null, 'unavailable']]);
+});
+
+test('statusline wrapper keeps the last Claude reading when a tick has no rate_limits', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-sl-'));
+  const run = (d: object) => spawnSync(process.execPath, [path.join(import.meta.dirname, '..', 'statusline.js')], { input: JSON.stringify(d), env: { ...process.env, METATROOPER_HOME: home } });
+  const file = path.join(home, 'claude-limits.json');
+  run({ rate_limits: { five_hour: { used_percentage: 12, resets_at: 1 } } });
+  run({ model: { display_name: 'x' } });
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).rate_limits.five_hour.used_percentage, 12);
 });
 
 test('window names follow the minutes', () => {

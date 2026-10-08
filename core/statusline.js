@@ -7,11 +7,14 @@ import { spawnSync } from 'node:child_process';
 const input = fs.readFileSync(0);
 try {
   const d = JSON.parse(input.toString('utf8'));
-  const home = process.env.METATROOPER_HOME || path.join(os.homedir(), '.metatrooper');
-  fs.mkdirSync(home, { recursive: true });
-  const out = { at: new Date().toISOString(), rate_limits: d.rate_limits ?? null, keys: Object.keys(d) };
-  fs.writeFileSync(path.join(home, 'claude-limits.json.tmp'), JSON.stringify(out));
-  fs.renameSync(path.join(home, 'claude-limits.json.tmp'), path.join(home, 'claude-limits.json'));
+  // A session's first ticks come before any API reply and carry no rate_limits; keep the last good reading.
+  if (d.rate_limits) {
+    const home = process.env.METATROOPER_HOME || path.join(os.homedir(), '.metatrooper');
+    fs.mkdirSync(home, { recursive: true });
+    const out = { at: new Date().toISOString(), rate_limits: d.rate_limits, keys: Object.keys(d) };
+    fs.writeFileSync(path.join(home, 'claude-limits.json.tmp'), JSON.stringify(out));
+    fs.renameSync(path.join(home, 'claude-limits.json.tmp'), path.join(home, 'claude-limits.json'));
+  }
 } catch {}
 const next = process.argv.slice(2).join(' ');
 if (next) {
