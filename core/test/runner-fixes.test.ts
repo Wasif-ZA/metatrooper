@@ -51,6 +51,15 @@ test('F7 the minutes budget leaves out time waiting at a gate, its own or a sub-
   assert.ok(Math.abs(runner.minutesUsed(run) - 75) < 1, String(runner.minutesUsed(run)));
 });
 
+test('H21 the minutes budget leaves out time the run stood paused for budget or failed', () => {
+  insertRun('m2', 3 * H);
+  db.prepare("INSERT INTO needs_you (id, at, kind, ref, text, resolved_at) VALUES ('n-m2a', ?, 'budget', 'm2', 's', ?)").run(iso(2.5 * H), iso(2 * H));
+  db.prepare("INSERT INTO needs_you (id, at, kind, ref, text, resolved_at) VALUES ('n-m2b', ?, 'run-failed', 'm2', 's', ?)").run(iso(1.5 * H), iso(0.5 * H));
+  const runner = priv(new Runner(db));
+  const run = db.prepare("SELECT * FROM run WHERE id = 'm2'").get();
+  assert.ok(Math.abs(runner.minutesUsed(run) - 90) < 1, String(runner.minutesUsed(run)));
+});
+
 test('resuming with a raised budget gives a sub-pipeline run only the raise, not the parent\'s whole cap', () => {
   for (const id of ['rb', 'rbc']) {
     const dir = path.join(home, id);

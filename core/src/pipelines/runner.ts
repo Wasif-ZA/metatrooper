@@ -411,12 +411,14 @@ export class Runner {
     return null;
   }
 
-  /** Wall-clock minutes since the run started, less the time it or its sub-pipeline runs waited at a gate. */
+  /** Wall-clock minutes since the run started, less the time it or its sub-pipeline runs waited at a gate, stood paused or stood failed. */
   private minutesUsed(run: RunRow): number {
     const ids = this.runTree(run.id);
+    const marks = ids.map(() => '?').join(',');
     const waits = this.db.prepare(
-      `SELECT at, resolved_at FROM needs_you WHERE kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${ids.map(() => '?').join(',')})) ORDER BY at`,
-    ).all(...ids) as Array<{ at: string; resolved_at: string | null }>;
+      `SELECT at, resolved_at FROM needs_you WHERE (kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))
+       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY at`,
+    ).all(...ids, ...ids) as Array<{ at: string; resolved_at: string | null }>;
     const now = Date.now();
     const start = Date.parse(run.started_at);
     let ms = now - start;
