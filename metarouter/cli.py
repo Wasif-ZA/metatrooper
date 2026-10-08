@@ -20,7 +20,7 @@ from metarouter.result import Result, mode, render
 
 VERBS = {
     "run": "run <recipe> [args]      run a recipe: json, replace, find, img, codex, gemini, local...",
-    "exec": "exec [--no-trunc] [--strict] -- <command>  run a shell command, print a short result, keep the full log",
+    "exec": "exec [--no-trunc] [--strict] [--shell powershell] -- <command>  run a shell command, print a short result, keep the full log",
     "log": "log [last|n] [--grep P] [--tail N]  read part of a saved full output",
     "search": "search <words>          find a recipe by plain words",
     "list": "list                    every recipe, one line each",
@@ -48,17 +48,31 @@ HELP_LINES = 60
 EXE_EXT = {".exe", ".cmd", ".bat"} if os.name == "nt" else {""}
 
 
-def shell():
-    """Return the bash to run commands with. On Windows, skip WSL's System32 bash."""
-    if os.environ.get("METAROUTER_SHELL"):
-        return os.environ["METAROUTER_SHELL"]
+def bash():
+    """Return a bash path, or None. On Windows, skip WSL's System32 bash."""
     found = shutil.which("bash")
     if os.name == "nt":
         if found and "system32" not in found.lower():
             return found
-        if GIT_BASH.exists():
-            return str(GIT_BASH)
-    return found or "sh"
+        return str(GIT_BASH) if GIT_BASH.exists() else None
+    return found or shutil.which("sh")
+
+
+def powershell():
+    return shutil.which("pwsh") or shutil.which("powershell")
+
+
+def is_powershell(path):
+    return Path(path).stem.lower() in ("pwsh", "powershell")
+
+
+def shell(force=None):
+    """Return the shell to run commands with: METAROUTER_SHELL, config "shell", bash, then PowerShell."""
+    if os.environ.get("METAROUTER_SHELL") and not force:
+        return os.environ["METAROUTER_SHELL"]
+    if (force or config().get("shell")) == "powershell":
+        return powershell() or bash() or "sh"
+    return bash() or powershell() or "sh"
 
 
 def command_text(args):
@@ -69,10 +83,12 @@ def command_text(args):
     return shlex.join(args)
 
 
-def run_shell(cmd):
+def run_shell(cmd, force=None):
     """Return (exit, raw bytes, secs). Raises OSError when no shell can start."""
+    sh = shell(force)
+    argv = [sh, "-NoProfile", "-Command", cmd] if is_powershell(sh) else [sh, "-c", cmd]
     start = time.monotonic()
-    proc = subprocess.run([shell(), "-c", cmd], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return proc.returncode, proc.stdout or b"", round(time.monotonic() - start, 1)
 
 
@@ -200,7 +216,10 @@ def exec_lane(args):
     whole = "--no-trunc" in head
     strict = "--strict" in head or bool(config().get("strict"))
     want = head[head.index("--want") + 1] if "--want" in head[:-1] else None
-    drop = {"--no-trunc", "--strict", "--want", want}
+    force = head[head.index("--shell") + 1] if "--shell" in head[:-1] else None
+    if force not in (None, "bash", "powershell"):
+        return Result(ok=False, lane="exec", exit=2, note=f"--shell is bash or powershell, not {force}")
+    drop = {"--no-trunc", "--strict", "--want", want, "--shell", force}
     args = [a for a in head if a not in drop] + tail
     cmd = command_text(args)
     if not cmd.strip():
@@ -210,10 +229,10 @@ def exec_lane(args):
         if why:
             return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(cmd), note=why)
     try:
-        code, raw, secs = run_shell(cmd)
+        code, raw, secs = run_shell(cmd, force) if force else run_shell(cmd)
     except OSError as e:
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
-                      note=f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash path")
+                      note=f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash or PowerShell path")
     if whole:
         return finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
                       whole=True)
@@ -259,6 +278,8 @@ def run_lane(args):
         code, text, raw, secs, whole = run_python(r, rest)
         return finish("run", label, raw, code, secs, recipe=name, compact=text, log_label=name, whole=whole)
     if kind == "shell":
+        if r.get("shell") == "bash" and is_powershell(shell()):
+            return Result(ok=False, lane="run", exit=2, recipe=name, note=bash_only(name))
         try:
             cmd = fill(r["body"], rest)
             code, raw, secs = run_shell(cmd)
@@ -290,11 +311,17 @@ def run_lane(args):
     return Result(ok=False, lane="run", exit=2, recipe=name, note=f'recipe kind "{kind}" is not built yet')
 
 
+def bash_only(name):
+    return (f"{name} uses bash syntax and this machine runs PowerShell. Install Git Bash, "
+            f"or set METAROUTER_SHELL to a bash path")
+
+
 def run_engine(r, args):
     from metarouter.recipes import engines
     name = r["name"]
     try:
-        cmd = engines.argv(r, args, shell())
+        sh = shell()
+        cmd = engines.argv(r, args, (bash() or "bash") if is_powershell(sh) else sh)
     except (ValueError, FileNotFoundError) as e:
         return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e))
     env = {**os.environ, "NODE_NO_WARNINGS": "1"}
@@ -544,6 +571,9 @@ def check(args):
                 ex = r.get("example")
                 if r.get("needs") and not shutil.which(r["needs"]):
                     lines.append(f"skip  {name}: {r['needs']} is not installed")
+                    continue
+                if r.get("shell") == "bash" and is_powershell(shell()):
+                    lines.append(f"skip  {name}: needs bash, this machine runs PowerShell")
                     continue
                 if not ex:
                     why = {"engine": "engine, calls an outside model",

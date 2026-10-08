@@ -1,0 +1,27 @@
+{
+    "version": "0.1.0",
+    "description": "Tool memory for coding agents. Keep the commands that worked, run them by name, get short results.",
+    "homepage": "https://github.com/Wasif-ZA/metarouter",
+    "license": "LICENCE-NOT-CHOSEN",
+    "depends": "python",
+    "url": "https://files.pythonhosted.org/packages/source/m/metarouter/metarouter-0.1.0.tar.gz",
+    "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "extract_dir": "metarouter-0.1.0",
+    "installer": {
+        "script": "python -m venv \"$dir\\venv\"; & \"$dir\\venv\\Scripts\\python.exe\" -m pip install --quiet \"$dir\""
+    },
+    "bin": [
+        [
+            "venv\\Scripts\\metarouter.exe",
+            "metarouter"
+        ]
+    ],
+    "checkver": {
+        "url": "https://pypi.org/pypi/metarouter/json",
+        "jsonpath": "$.info.version"
+    },
+    "autoupdate": {
+        "url": "https://files.pythonhosted.org/packages/source/m/metarouter/metarouter-$version.tar.gz",
+        "extract_dir": "metarouter-$version"
+    }
+}

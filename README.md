@@ -347,6 +347,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Read the whole output | `metarouter exec --no-trunc -- "<command>"` |
 | Read part of the last saved output | `metarouter log --grep "Error"`, `metarouter log --tail 40`, `metarouter log 2` |
 | Keep only the parts about a topic | `metarouter exec --want "timeout" -- "cat app.log"` |
+| Run one command through PowerShell | `metarouter exec --shell powershell -- "Get-ChildItem"` |
 | Find a recipe in plain words | `metarouter search resize image` |
 | See every recipe | `metarouter list` |
 | Run a recipe | `metarouter run json package.json .version` |
@@ -441,8 +442,10 @@ the shorter path.
 <details>
 <summary>Open: Windows tested, macOS and Linux untested</summary>
 
-- **Windows**: built and tested here, through Git Bash.
-- **macOS and Linux**: untested. `exec` needs `bash`. `browse` looks for Chrome or Chromium in the
+- **Windows**: built and tested here, through Git Bash. With no bash, commands run through PowerShell
+  (`pwsh`, then `powershell`). Force it with `"shell": "powershell"` in config, or one call with
+  `exec --shell powershell`. Recipes marked `"shell": "bash"` say so instead of failing oddly.
+- **macOS and Linux**: untested. `exec` uses `bash`, else `sh`, else PowerShell. `browse` looks for Chrome or Chromium in the
   usual places, or `METAROUTER_CHROME`.
 - **Engines**: `codex` needs the Codex plugin for Claude Code. `gemini` and `local` call a runner
   script you name in `~/.metarouter/config.json`: `"engines": {"gemini": "<path>", "local": "<path>"}`.

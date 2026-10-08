@@ -73,7 +73,8 @@
     "notes.txt": "one\ntwo\nthree\nfour\n"
    }
   },
-  "whole": true
+  "whole": true,
+  "shell": "bash"
  },
  {
   "name": "outline",
@@ -94,7 +95,8 @@
     "m.py": "import os\nclass Job:\n    def run(self):\n        return 1\n"
    }
   },
-  "whole": true
+  "whole": true,
+  "shell": "bash"
  },
  {
   "name": "git-staged",
@@ -130,7 +132,8 @@
    "regex"
   ],
   "purity": "read",
-  "whole": true
+  "whole": true,
+  "shell": "bash"
  },
  {
   "name": "gh-pr",
@@ -164,7 +167,8 @@
   "args": [
    "[run-id]"
   ],
-  "purity": "external"
+  "purity": "external",
+  "shell": "bash"
  },
  {
   "name": "gh-pr-comments",
@@ -185,7 +189,8 @@
   "args": [
    "[base]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "shell": "bash"
  },
  {
   "name": "http-json",
@@ -284,7 +289,8 @@
   "args": [
    "file.tex"
   ],
-  "purity": "write"
+  "purity": "write",
+  "shell": "bash"
  },
  {
   "name": "pytest-list",
@@ -429,7 +435,8 @@
   "args": [
    "[n-commits]"
   ],
-  "purity": "read"
+  "purity": "read",
+  "shell": "bash"
  },
  {
   "name": "todos",
@@ -448,7 +455,8 @@
   "needs": "git",
   "body": "git ls-files -z | xargs -0 wc -l 2>/dev/null | grep -v ' total$' | sort -rn | head -25",
   "args": [],
-  "purity": "read"
+  "purity": "read",
+  "shell": "bash"
  },
  {
   "name": "ruff-check",
@@ -528,7 +536,8 @@
   "args": [
    "port"
   ],
-  "purity": "read"
+  "purity": "read",
+  "shell": "bash"
  },
  {
   "name": "npm-info",
@@ -581,6 +590,7 @@
    "archive"
   ],
   "purity": "read",
-  "whole": true
+  "whole": true,
+  "shell": "bash"
  }
 ]
