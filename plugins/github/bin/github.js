@@ -34,22 +34,23 @@ function checks(input) {
   return { state: checkState(rows), checks: rows };
 }
 
-function sinceDate(repo, since) {
+function sinceDate(repo, since, gh_) {
   if (/^\d{4}-\d{2}-\d{2}/.test(since)) return { tag: null, date: since.slice(0, 10) };
   const args = since && since !== 'last tag' ? ['release', 'view', since] : ['release', 'view'];
   try {
-    const r = JSON.parse(gh([...args, '--repo', repo, '--json', 'tagName,publishedAt,createdAt']));
+    const r = JSON.parse(gh_([...args, '--repo', repo, '--json', 'tagName,publishedAt,createdAt']));
     return { tag: r.tagName, date: (r.publishedAt || r.createdAt || '').slice(0, 10) || null };
-  } catch (e) {
-    if (since && since !== 'last tag') throw e;
-    return { tag: null, date: null };
+  } catch {
+    if (!since || since === 'last tag') return { tag: null, date: null };
+    const date = gh_(['api', `repos/${repo}/commits/${encodeURIComponent(since)}`, '--jq', '.commit.committer.date']).trim().slice(0, 10);
+    return { tag: since, date };
   }
 }
 
-function listPrs(input) {
-  const { tag, date } = sinceDate(input.repo, input.since);
+export function listPrs(input, gh_ = gh) {
+  const { tag, date } = sinceDate(input.repo, input.since, gh_);
   const search = date ? ['--search', `merged:>=${date}`] : [];
-  const prs = JSON.parse(gh(['pr', 'list', '--repo', input.repo, '--state', 'merged', '--base', input.base || 'main', ...search,
+  const prs = JSON.parse(gh_(['pr', 'list', '--repo', input.repo, '--state', 'merged', '--base', input.base || 'main', ...search,
     '--json', 'number,title,labels,mergedAt,url,author,body', '--limit', String(input.limit ?? 200)]) || '[]');
   return {
     since_tag: tag, since_date: date, count: prs.length,

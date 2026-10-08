@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { search } from '../../plugins/agent-reach/bin/search.js';
 import { check } from '../../plugins/cite-check/bin/cite-check.js';
 import { crawl } from '../../plugins/seo/bin/seo.js';
-import { run, checkState } from '../../plugins/github/bin/github.js';
+import { run, checkState, listPrs } from '../../plugins/github/bin/github.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -80,4 +80,17 @@ test('github checks treat skipped as done and cancelled as failing', () => {
   assert.equal(checkState([{ state: 'SUCCESS', bucket: 'pass' }, { state: 'CANCELLED', bucket: 'cancel' }]), 'failing');
   assert.equal(checkState([{ state: 'TIMED_OUT', bucket: 'fail' }]), 'failing');
   assert.equal(checkState([{ state: 'IN_PROGRESS', bucket: 'pending' }, { state: 'SKIPPED', bucket: 'skipping' }]), 'pending');
+});
+
+test('github list-prs accepts a tag that has no release', () => {
+  const calls = [];
+  const result = listPrs({ repo: 'o/r', since: 'v1.2.0' }, (args) => {
+    calls.push(args.slice(0, 2).join(' '));
+    if (args[0] === 'release') throw new Error('gh release failed: release not found');
+    if (args[0] === 'api') return '2026-09-01T10:00:00Z\n';
+    return '[]';
+  });
+  assert.deepEqual(calls, ['release view', 'api repos/o/r/commits/v1.2.0', 'pr list']);
+  assert.equal(result.since_tag, 'v1.2.0');
+  assert.equal(result.since_date, '2026-09-01');
 });
