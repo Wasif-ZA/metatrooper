@@ -102,3 +102,11 @@ test('docs-and-release-notes release tag is valid whether the agent answers v1.4
   const tag = pipe.steps.find((s) => s.id === 'release').with.tag;
   for (const version of ['v1.4.0', '1.4.0']) assert.match(tag.replace('{{steps.changelog.outputs.version}}', version), pattern);
 });
+
+test('data-to-dashboard serves the dashboard folder so the pane root is the page', () => {
+  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/data-to-dashboard.json', import.meta.url), 'utf8'));
+  const build = pipe.steps.find((s) => s.id === 'build');
+  assert.match(build.dev_command, /http-server "\{\{run\.dir\}\}\/dashboard"/);
+  assert.match(build.prompt, /\{\{run\.dir\}\}\/dashboard\/index\.html/);
+  assert.deepEqual(pipe.steps.filter((s) => s.kind === 'agent' && s.uses).map((s) => s.id), []);
+});

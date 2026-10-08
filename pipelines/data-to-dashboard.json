@@ -34,7 +34,6 @@
       "title": "Check against the source",
       "role": "verify",
       "kind": "agent",
-      "uses": "plugin:data/query",
       "approval": "edits",
       "prompt": "Compare table {{steps.clean.outputs.table}} in {{run.dir}}/data.sqlite with table raw and {{inputs.csv}}: row counts, column totals, nulls. Set passed to false when any total is more than 0.5% off. Write the comparison to {{run.dir}}/QA.md.",
       "outputs": ["passed"]
@@ -53,10 +52,9 @@
       "title": "Build the dashboard",
       "role": "worker",
       "kind": "agent",
-      "uses": "plugin:data/render",
       "approval": "edits",
-      "dev_command": "npx --yes http-server \"{{run.dir}}\" -p {{port}} -c-1",
-      "prompt": "Build {{run.dir}}/dashboard.html from {{run.dir}}/DASHBOARD.md and {{run.dir}}/data.sqlite: one self-contained page, every headline and chart from the SQL in DASHBOARD.md. If {{run.dir}}/READBACK.md lists wrong headlines, fix those.",
+      "dev_command": "npx --yes http-server \"{{run.dir}}/dashboard\" -p {{port}} -c-1",
+      "prompt": "Build {{run.dir}}/dashboard/index.html from {{run.dir}}/DASHBOARD.md and {{run.dir}}/data.sqlite: one self-contained page, every headline and chart from the SQL in DASHBOARD.md. If {{run.dir}}/READBACK.md lists wrong headlines, fix those.",
       "outputs": ["summary"]
     },
     {
@@ -66,7 +64,7 @@
       "kind": "agent",
       "browser": true,
       "approval": "edits",
-      "prompt": "dashboard.html is open in your browser pane. Read each headline off the page and compare it with the expected value in {{run.dir}}/DASHBOARD.md. Write {{run.dir}}/READBACK.md listing each headline, page value, expected value, match or not. Set verdict to pass when every headline matches, otherwise wrong.",
+      "prompt": "The dashboard ({{run.dir}}/dashboard/index.html) is open in your browser pane. Read each headline off the page and compare it with the expected value in {{run.dir}}/DASHBOARD.md. Write {{run.dir}}/READBACK.md listing each headline, page value, expected value, match or not. Set verdict to pass when every headline matches, otherwise wrong.",
       "outputs": ["verdict"],
       "loop": { "steps": ["build", "readback"], "until": "steps.readback.outputs.verdict == \"pass\"", "max": 2 }
     },
@@ -84,7 +82,7 @@
       "title": "Check the numbers, then Continue",
       "kind": "gate",
       "gate": "handoff",
-      "gate_summary": "Read {{run.dir}}/SUMMARY.md and {{run.dir}}/dashboard.html. Continue signs off; reject cancels the run. Sending the summary is yours."
+      "gate_summary": "Read {{run.dir}}/SUMMARY.md and {{run.dir}}/dashboard/index.html. Continue signs off; reject cancels the run. Sending the summary is yours."
     }
   ]
 }
