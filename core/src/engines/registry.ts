@@ -68,7 +68,8 @@ export const BUILT_IN: EngineSpec[] = [
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
     activity_waiting: { file: 'transcript.jsonl', last_line_regex: '"type":"PLANNER_RESPONSE".*"tool_calls":\\[\\{' },
     mcp_attach: { kind: 'agy-config' },
-    roles: ['research', 'worker', 'review', 'visual-check'], cost_rank: 1, usage_source: 'none',
+    // agy --print auto-denies shell commands, so it only takes read-only roles.
+    roles: ['review', 'visual-check'], cost_rank: 1, usage_source: 'none',
     print_args: ['--print', '{prompt}', '--print-timeout', '0', '--output-format', 'text'],
     trust: { kind: 'json-list', file: '~/.gemini/antigravity-cli/settings.json', at: ['trustedWorkspaces'], path_style: 'windows' },
     settings: { file: '~/.gemini/antigravity-cli/settings.json', set: { toolPermission: 'proceed-in-sandbox' } },
@@ -105,7 +106,7 @@ export function activeEngines(db: DatabaseSync): EngineSpec[] {
 /** The engine for a role: the pin when it is usable, else the lowest cost_rank that lists the role, is installed and is not red. */
 export function bindRole(db: DatabaseSync, role: string, pinned?: string): EngineSpec | null {
   const usable = (e: EngineSpec) => {
-    const c = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(e.id) as
+    const c = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(e.id) as
       | { installed: number; auth: string }
       | undefined;
     return Boolean(c && c.installed && c.auth !== 'missing');

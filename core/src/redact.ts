@@ -84,8 +84,6 @@ export function buildPayload(kind: string, raw: object): Obj {
         input_length: lengthOf(r['input-messages']),
         reply_length: lengthOf(r['last-assistant-message']),
       };
-    case 'term.title':
-      return pick(r, ['title']);
     case 'core.activity':
       return pick(r, ['state']);
     case 'core.process-gone':

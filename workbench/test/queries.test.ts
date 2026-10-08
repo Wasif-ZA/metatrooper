@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { light, OFFLINE_AFTER_MS, snapshot } from '../src/queries.ts';
+import { light, OFFLINE_AFTER_MS, snapshot, withLiveText, type Snapshot } from '../src/queries.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
 
@@ -126,6 +126,44 @@ test('snapshot lists running and paused top-level runs from every project, so ap
     const s = snapshot(d, 'p1', null);
     assert.deepEqual(s.runs.map((x) => x.id), ['r1']);
     assert.deepEqual(s.live_runs.map((x) => [x.id, x.project_id]).sort(), [['r1', 'p1'], ['r2', 'p2']]);
+  } finally {
+    f.close();
+  }
+});
+
+test('M1-05 withLiveText fills last_line and title from core memory and blanks sessions it does not know', () => {
+  const row = (id: string) => ({ id, title: 'stale', last_line: 'stale' });
+  const s = { sessions: [row('a'), row('b')], live: [row('a')] } as unknown as Snapshot;
+  const out = withLiveText(s, { a: { line: 'ls', title: 'Fix bug' } });
+  assert.deepEqual(out.sessions.map((x) => [x.last_line, x.title]), [['ls', 'Fix bug'], [null, null]]);
+  assert.deepEqual(out.live.map((x) => [x.last_line, x.title]), [['ls', 'Fix bug']]);
+});
+
+test('M1-06 every query the window runs per snapshot has p95 under 1 ms (3 live sessions, a running run, 2,000 events)', () => {
+  const f = fixture();
+  try {
+    const at = iso(Date.now());
+    f.db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p', f.dir, 'p', at, at);
+    f.db.prepare("INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES ('e', '{}', 1, 'local-cli')").run();
+    f.db.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x.json', 1, 1)").run();
+    f.db.prepare("INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at) VALUES ('r', 'pl', 'p', '{}', 'd', 'running', 'manual', 1000, 1, 10, ?)").run(at);
+    for (let i = 0; i < 3; i++) f.db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, run_id) VALUES (?, 'p', 'e', 'pty', 'working', ?, ?, 'r')").run(`s${i}`, at, at);
+    const ev = f.db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', 's0', 'term.output', '{}', 1)");
+    for (let i = 0; i < 2000; i++) ev.run(at);
+    const times = new Map<string, number[]>();
+    const prepare = f.db.prepare.bind(f.db);
+    (f.db as { prepare: typeof prepare }).prepare = (sql: string) => {
+      const stmt = prepare(sql);
+      const timed = (fn: (...a: unknown[]) => unknown) => (...a: unknown[]) => {
+        const t = performance.now();
+        try { return fn.apply(stmt, a); } finally { (times.get(sql) ?? times.set(sql, []).get(sql)!).push(performance.now() - t); }
+      };
+      return Object.assign(Object.create(stmt), { all: timed(stmt.all), get: timed(stmt.get) });
+    };
+    for (let i = 0; i < 200; i++) snapshot(f.db, 'p', 'r');
+    const slow = [...times].map(([sql, ms]) => [sql.replace(/\s+/g, ' ').slice(0, 80), ms.sort((a, b) => a - b)[Math.floor(ms.length * 0.95)]] as const).filter(([, p]) => p >= 1);
+    assert.ok(times.size > 5, `only ${times.size} queries timed`);
+    assert.deepEqual(slow, []);
   } finally {
     f.close();
   }

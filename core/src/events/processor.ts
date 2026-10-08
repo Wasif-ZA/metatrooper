@@ -33,7 +33,6 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const relinkNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ?');
   const convEnded = db.prepare("SELECT 1 FROM event WHERE kind = 'claude.SessionEnd' AND session_id = ? AND json_extract(payload, '$.session_id') = ? AND seq < ? LIMIT 1");
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
-  const setTitle = db.prepare('UPDATE session SET title = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
@@ -58,7 +57,6 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
         }
-        if (ev.kind === 'term.title' && typeof payload.title === 'string') setTitle.run(payload.title, ev.session_id);
         const next = ev.kind === 'launch' || foreign ? null : nextState(s.state, { kind: ev.kind, payload });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);

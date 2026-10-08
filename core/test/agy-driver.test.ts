@@ -67,8 +67,9 @@ async function harness(mode: Mode, options: { plain?: boolean } = {}) {
 
 type Harness = Awaited<ReturnType<typeof harness>>;
 
-async function openProject(h: Harness, name: string, acu = false) {
-  const project = join(h.home, name);
+async function openProject(h: Harness, name: string, acu = false, near = false) {
+  const project = near ? join(h.home, 'vault', 'projects', name) : join(h.home, name);
+  if (near) mkdirSync(join(h.home, 'vault', 'work', 'ACU'), { recursive: true });
   mkdirSync(acu ? join(project, 'work', 'ACU') : project, { recursive: true });
   const pipe = await client(h.prefix);
   try {
@@ -112,9 +113,9 @@ async function awaitRun(h: Harness, runId: string, status: string) {
   } finally { store.close(); }
 }
 
-async function runCase(mode: Mode, outputs = ['answer'], options: { plain?: boolean; acu?: boolean } = {}) {
+async function runCase(mode: Mode, outputs = ['answer'], options: { plain?: boolean; acu?: boolean; near?: boolean } = {}) {
   const h = await harness(mode, options);
-  const { project, projectId } = await openProject(h, `case-${mode}`, options.acu);
+  const { project, projectId } = await openProject(h, `case-${mode}`, options.acu, options.near);
   writePipeline(project, `agy-${mode}`, outputs);
   return { h, runId: await startRun(h, `agy-${mode}`, projectId) };
 }
@@ -147,6 +148,16 @@ test('agy print steps use ask approval in a work/ACU folder', async () => {
     const argv = JSON.parse(readFileSync(h.agyArgv, 'utf8')) as string[];
     assert.ok(argv.includes('--print'));
     assert.ok(!argv.includes('--mode') && !argv.includes('--sandbox'));
+  } finally { await h.teardown(); }
+});
+
+test('M1-39 agy print steps use ask approval in a project beside work/ACU', async () => {
+  const { h, runId } = await runCase('never', ['answer'], { near: true });
+  try {
+    await awaitRun(h, runId, 'failed');
+    const argv = JSON.parse(readFileSync(h.agyArgv, 'utf8')) as string[];
+    assert.ok(argv.includes('--print'));
+    assert.ok(!argv.includes('--mode') && !argv.includes('--sandbox'), argv.join(' '));
   } finally { await h.teardown(); }
 });
 

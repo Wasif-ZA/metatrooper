@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "id": "gmail",
+  "version": "0.1.0",
+  "name": "Gmail",
+  "description": "Reads mail and saves drafts through the Gmail API with your own OAuth client. Nothing is ever sent. Saving drafts is external.",
+  "platforms": ["windows"],
+  "permissions": ["network", "run:write", "secrets:GMAIL_CLIENT_ID", "secrets:GMAIL_CLIENT_SECRET", "secrets:GMAIL_REFRESH_TOKEN"],
+  "actions": [
+    {
+      "id": "read",
+      "title": "Read mail matching a query, plus sent threads with no reply",
+      "run": ["bin/gmail.js", "read"],
+      "timeout_seconds": 180,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["out"],
+        "properties": {
+          "query": { "type": "string" },
+          "since": { "type": "string", "description": "'last-run' (the last day), or a YYYY-MM-DD date." },
+          "unanswered_sent_days": { "type": "integer", "minimum": 1, "maximum": 60 },
+          "max": { "type": "integer", "minimum": 1, "maximum": 200 },
+          "out": { "type": "string", "minLength": 1 }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["count"], "properties": { "count": { "type": "integer" }, "followups": { "type": "integer" }, "path": { "type": "string" } } }
+    },
+    {
+      "id": "draft",
+      "title": "Save emails as Gmail drafts",
+      "run": ["bin/gmail.js", "draft"],
+      "external": true,
+      "destination_field": "drafts",
+      "timeout_seconds": 180,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["drafts"],
+        "properties": {
+          "drafts": { "type": "string", "minLength": 1, "description": "Path to a JSON list of {id, to, subject, body}, with thread for replies." },
+          "reply": { "type": "boolean", "description": "True: each id is a Gmail message id and the draft is a reply in its thread." }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["count"], "properties": { "count": { "type": "integer" }, "drafts": { "type": "array" } } }
+    }
+  ]
+}

@@ -7,7 +7,7 @@
   "inputs": {
     "brief": { "type": "text", "label": "What the site is for", "required": true }
   },
-  "budget": { "max_minutes": 180 },
+  "budget": { "max_usd": 20, "max_minutes": 180 },
   "background": true,
   "layout": "pipe",
   "steps": [
@@ -21,6 +21,8 @@
     },
     {
       "id": "build",
+      "engine": "claude",
+      "approval": "contained",
       "title": "Build the site",
       "role": "worker",
       "kind": "agent",
@@ -32,6 +34,8 @@
     },
     {
       "id": "critique",
+      "engine": "claude",
+      "approval": "contained",
       "title": "Critique and fix",
       "role": "visual-check",
       "kind": "agent",

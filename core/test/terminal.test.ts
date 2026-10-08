@@ -376,19 +376,19 @@ test('a session core kills raises no failed notice; one that exits non-zero on i
   }
 });
 
-test('H11 spinner frames in the terminal title (Claude glyphs, Codex braille) write one term.title per real title', async () => {
+test('H11 spinner frames in the terminal title (Claude glyphs, Codex braille) keep the first frame of each real title, in memory only', async () => {
   const { openCoreDb } = await import('../src/store/db.ts');
   const db = openCoreDb();
   const id = `title-${randomUUID()}`;
   termEvents.wireTermEvents(db);
-  const titles = ['✳ claude task', '✶ claude task', '✻ claude task', '⠋ codex', '⠙ codex', '⠹ codex', 'done'];
+  const titles = ['✳ claude task', '✶ claude task', '✻ claude task', '⠋ codex', '⠙ codex', '⠹ codex'];
   const code = `const t=${JSON.stringify(titles)};t.forEach((x,i)=>setTimeout(()=>process.stdout.write('\\x1b]0;'+x+'\\x1b\\\\'),100*i));setTimeout(()=>process.stdout.write('TITLES-SENT\\r\\n'),100*t.length);setInterval(()=>{},1000)`;
   term.open(id, [process.execPath, '-e', code], moduleHome.home, process.env);
   try {
     await until(async () => (await term.snapshot(id))?.includes('TITLES-SENT'));
     await sleep(100);
-    const rows = db.prepare("SELECT json_extract(payload, '$.title') AS t FROM event WHERE session_id = ? AND kind = 'term.title' ORDER BY seq").all(id).map((r: any) => r.t);
-    assert.deepEqual(rows, ['✳ claude task', '⠋ codex', 'done']);
+    assert.equal(termEvents.liveText()[id]?.title, '⠋ codex');
+    assert.equal(db.prepare("SELECT count(*) AS n FROM event WHERE session_id = ? AND kind = 'term.title'").get(id).n, 0);
   } finally {
     term.kill(id);
     await until(() => !term.has(id));
@@ -508,5 +508,22 @@ test('12 settings returns defaults for no file, preserves defaults for wrong typ
     assert.deepEqual(invalid.value, invalid.defaults);
   } finally {
     for (const isolated of [noFile, wrongType, broken]) rmSync(isolated.home, { recursive: true, force: true });
+  }
+});
+
+test('7 lastLine joins a line the terminal wrapped across rows', async () => {
+  const id = `wrap-${randomUUID()}`;
+  const code = "process.stdout.write('HEAD-'+'x'.repeat(100)+'-TAIL\\r\\n');setInterval(()=>{},1000)";
+  term.open(id, [process.execPath, '-e', code], moduleHome.home, process.env, 40, 10);
+  try {
+    const line = await until(async () => {
+      const value = await term.lastLine(id, 500);
+      return value?.endsWith('-TAIL') ? value : null;
+    });
+    assert.equal(line, `HEAD-${'x'.repeat(100)}-TAIL`);
+    assert.equal(await term.lastLine(id, 8), 'HEAD-xxx');
+  } finally {
+    term.kill(id);
+    await until(() => !term.has(id));
   }
 });

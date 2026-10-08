@@ -5,9 +5,13 @@ import { nowIso } from './time.ts';
 const FIRST = 3001;
 const LAST = 3999;
 
-function listening(port: number): Promise<boolean> {
+async function listening(port: number): Promise<boolean> {
+  return (await listeningOn('127.0.0.1', port)) || listeningOn('::1', port);
+}
+
+function listeningOn(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const sock = net.connect({ host: '127.0.0.1', port });
+    const sock = net.connect({ host, port });
     const done = (v: boolean) => {
       sock.destroy();
       resolve(v);

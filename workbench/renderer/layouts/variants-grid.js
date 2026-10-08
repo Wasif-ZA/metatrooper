@@ -5,7 +5,7 @@ runLayouts['variants-grid'] = {
     const tiles = m.variants.map((v) => {
       const live = v.status !== 'discarded';
       const s = v.session_id && m.sessions.find((x) => x.id === v.session_id);
-      const url = v.dev_port && (v.status === 'ready' || v.status === 'picked') ? `http://127.0.0.1:${v.dev_port}/` : '';
+      const url = v.dev_port && (v.status === 'ready' || v.status === 'picked') ? `http://localhost:${v.dev_port}/` : '';
       const open = v.pane_id && url ? ` data-action="variant-pane" data-id="${h.esc(v.pane_id)}" title="Open this variant's live preview"` : '';
       return `<section class="vt s-${h.esc(v.status)}${v.status === 'failed' ? ' halo' : ''}${open ? ' open' : ''}"${open}>${v.status === 'failed' ? '<span class="edge"></span>' : ''}
         <div class="vth"><b>${String.fromCharCode(65 + v.idx)}</b><span class="badge ${h.esc(v.status)}">${h.esc(v.status)}</span><span class="sp"></span><span class="mt">${h.esc(v.engine_id || '')}</span></div>
