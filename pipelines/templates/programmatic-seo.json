@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "id": "programmatic-seo",
+  "title": "Programmatic SEO pages",
+  "lane": "seo",
+  "requires": ["keyword-data", "data", "repo", "deploy", "search-console"],
+  "inputs": {
+    "pattern": { "type": "text", "label": "Page pattern, like service in city", "required": true },
+    "rows": { "type": "path", "label": "CSV with one row of real data per page", "required": true },
+    "last_batch": { "type": "text", "label": "URLs of the batch shipped about 14 days ago, or blank on the first run", "required": false, "default": "" }
+  },
+  "budget": { "max_minutes": 180, "max_parallel": 4 },
+  "background": true,
+  "layout": "coverage-map",
+  "steps": [
+    {
+      "id": "demand",
+      "title": "Check search demand",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Pattern: {{inputs.pattern}}. Using the keyword data service, check search volume for the pattern with each modifier in {{inputs.rows}}. Write {{run.dir}}/demand.md: each modifier with its volume, and which have none.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "template",
+      "title": "Design the page template",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Read this repository and {{run.dir}}/demand.md. Design a page template for {{inputs.pattern}} where at least half of each page comes from that row's own data. Write {{run.dir}}/template.md: sections, which column fills each, and the URL pattern. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "load",
+      "title": "Load the page data",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:data/load",
+      "with": { "path": "{{inputs.rows}}", "db": "{{run.dir}}/data.sqlite", "table": "rows" }
+    },
+    {
+      "id": "generate",
+      "title": "Generate the pages",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 4,
+      "approval": "edits",
+      "prompt": "From table rows in {{run.dir}}/data.sqlite, take the rows with demand in {{run.dir}}/demand.md whose rowid modulo 4 is {{index}}. Write one page per row following {{run.dir}}/template.md into {{run.dir}}/pages/. Use only that row's data and facts it supports.",
+      "outputs": ["count"]
+    },
+    {
+      "id": "thin",
+      "title": "Reject thin pages",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "Compare every page in {{run.dir}}/pages/ with the others. Score how much of each is unique to its row. Write {{run.dir}}/pages.json as a list of items with id, title (the URL), preview (first line), score (uniqueness 0 to 1), reason and status: dropped below 0.5, otherwise pending. Set the output key items to that path.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "build",
+      "title": "Add the first batch to the site",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Add the first 20 pages in {{run.dir}}/pages.json with status approved (or pending if none are approved) to the site in this worktree, following {{run.dir}}/template.md, and add them to the sitemap. Commit on the current branch. Do not push. Set urls to the 20 page URLs.",
+      "outputs": ["urls"]
+    },
+    {
+      "id": "preview",
+      "title": "Deploy a preview",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:deploy/preview",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "approve",
+      "title": "Approve the batch",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Preview: {{steps.preview.outputs.url}}. Batch: {{steps.build.outputs.urls}}. Approve to deploy these 20 pages and the sitemap to production."
+    },
+    {
+      "id": "deploy",
+      "title": "Deploy the batch",
+      "role": "publish",
+      "kind": "action",
+      "external": true,
+      "uses": "plugin:deploy/production",
+      "with": { "path": "{{steps.build.outputs.worktree}}" }
+    },
+    {
+      "id": "index-check",
+      "title": "Check the last batch is indexed",
+      "role": "verify",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Read Search Console indexing status for the previous batch: {{inputs.last_batch}}. If blank, write that there is no previous batch. Write {{run.dir}}/indexing.md: each URL and its status. Set passed to false when fewer than 80% are indexed, so the next batch waits. Put this run's batch in the file too for next time: {{steps.build.outputs.urls}}.",
+      "outputs": ["passed"]
+    }
+  ]
+}

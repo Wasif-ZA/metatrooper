@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "id": "meeting-to-tasks",
+  "title": "Meeting notes to tasks",
+  "lane": "personal-ops",
+  "requires": ["media", "tasks", "gmail"],
+  "inputs": {
+    "recording": { "type": "path", "label": "Meeting recording or transcript file", "required": true },
+    "task_tool": { "type": "choice", "label": "Where tasks go", "required": false, "default": "linear", "choices": ["linear", "asana", "notion"] },
+    "attendees": { "type": "text", "label": "Attendee emails, comma separated", "required": true }
+  },
+  "budget": { "max_minutes": 30 },
+  "background": true,
+  "layout": "triage",
+  "steps": [
+    {
+      "id": "transcript",
+      "title": "Transcribe the meeting",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:media/transcribe",
+      "with": { "path": "{{inputs.recording}}", "out": "{{run.dir}}/words.json" }
+    },
+    {
+      "id": "notes",
+      "title": "Summary and decisions",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{run.dir}}/words.json write {{run.dir}}/notes.md: a 5 line summary, then the decisions made as a separate list, each with who made it.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "actions",
+      "title": "List the action items",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "From {{run.dir}}/words.json list every action item as a task that starts with a verb, with one owner and a due date quoted from the transcript. Write {{run.dir}}/tasks.json as a list of items with id, title (the task), preview (owner and due date), reason (the quote) and status pending. Set the output key items to that path.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "gaps",
+      "title": "Flag missing owners and dates",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Check every task in {{run.dir}}/tasks.json. Where the owner or due date is missing or was not said in the meeting, set the item's reason to say so instead of guessing. Set gaps to how many tasks are missing something.",
+      "outputs": ["gaps"]
+    },
+    {
+      "id": "approve-tasks",
+      "title": "Approve the tasks",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Approve or drop each task in {{run.dir}}/tasks.json ({{steps.gaps.outputs.gaps}} are missing an owner or date). Approve to create the approved tasks in {{inputs.task_tool}}."
+    },
+    {
+      "id": "create",
+      "title": "Create the tasks",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.task_tool}}",
+      "approval": "edits",
+      "prompt": "Create each task in {{run.dir}}/tasks.json whose status is approved in {{inputs.task_tool}}, with its owner and due date. Skip every other task. Record each created task and its link in {{run.dir}}/created.md. Set count to how many were created.",
+      "outputs": ["count"]
+    },
+    {
+      "id": "approve-recap",
+      "title": "Approve the recap draft",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "{{steps.create.outputs.count}} tasks created. Approve to save a recap email to {{inputs.attendees}} as a Gmail draft from {{run.dir}}/notes.md and {{run.dir}}/created.md. Nothing is sent."
+    },
+    {
+      "id": "recap",
+      "title": "Draft the recap email",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.attendees}}",
+      "approval": "edits",
+      "prompt": "Save one Gmail draft to {{inputs.attendees}}: the summary and decisions from {{run.dir}}/notes.md and the tasks with links from {{run.dir}}/created.md. Save it as a draft only; never send. Set draft to the draft id.",
+      "outputs": ["draft"]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "id": "scrape-to-sheet",
+  "title": "Scrape web pages to a sheet",
+  "lane": "data",
+  "requires": ["sheets"],
+  "inputs": {
+    "goal": { "type": "text", "label": "What to collect, one row per what", "required": true },
+    "seed": { "type": "text", "label": "Start URL, sitemap or search query", "required": true },
+    "sheet": { "type": "text", "label": "Google Sheet id to append to", "required": true }
+  },
+  "budget": { "max_minutes": 90 },
+  "background": true,
+  "layout": "coverage-map",
+  "steps": [
+    {
+      "id": "schema",
+      "title": "Define the columns",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Goal: {{inputs.goal}}\n\nWrite {{run.dir}}/schema.json: the columns and their types for one row, plus source_url and fetched_at. Keep it to what the goal needs.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "discover",
+      "title": "Find the pages",
+      "role": "ingest",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Turn {{inputs.seed}} into a list of page URLs that hold rows for {{run.dir}}/schema.json: read the sitemap, follow the site's own links, or search. Write {{run.dir}}/urls.json as a list of URLs, no duplicates. Set count to how many.",
+      "outputs": ["count"]
+    },
+    {
+      "id": "extract",
+      "title": "Fetch and extract",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 4,
+      "browser": true,
+      "approval": "edits",
+      "prompt": "Take every fourth URL in {{run.dir}}/urls.json starting at position {{index}} (counting from 0). Fetch each page; open it in your browser pane when it needs JavaScript. Stop and note the URL on a CAPTCHA or login wall. Extract rows matching {{run.dir}}/schema.json; leave unknown fields empty, never guess. Write {{run.dir}}/rows-{{index}}.json and list failed URLs under failed.",
+      "outputs": ["rows", "failed"]
+    },
+    {
+      "id": "validate",
+      "title": "Clean and spot-check",
+      "role": "verify",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Merge {{run.dir}}/rows-*.json into {{run.dir}}/rows.csv: check types against {{run.dir}}/schema.json and remove duplicates. Re-open 5 random rows' source pages and confirm the values. Write {{run.dir}}/validate.md. Set passed to false when a spot-checked value is wrong. Set rows to how many rows the CSV has.",
+      "outputs": ["passed", "rows"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve writing the sheet",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "{{steps.validate.outputs.rows}} rows in {{run.dir}}/rows.csv, spot-check passed: {{steps.validate.outputs.passed}}. Approve to append them to sheet {{inputs.sheet}}."
+    },
+    {
+      "id": "write",
+      "title": "Append to the sheet",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.sheet}}",
+      "approval": "edits",
+      "prompt": "Append every row in {{run.dir}}/rows.csv to Google Sheet {{inputs.sheet}}, matching columns by name. Do not change rows already there. Set appended to how many rows were added.",
+      "outputs": ["appended"]
+    }
+  ]
+}

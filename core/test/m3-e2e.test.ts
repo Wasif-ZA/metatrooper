@@ -1,6 +1,6 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, root, until } from './helpers.ts';
@@ -52,6 +52,51 @@ test('M3-01 data-to-dashboard loads the CSV, runs every step and stops at the si
     try { assert.equal((data.prepare('SELECT COUNT(*) n FROM raw').get() as any).n, body.length); } finally { data.close(); }
     assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
     await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+  } finally { await close(h); }
+});
+
+async function research(report: string) {
+  const h = await revisionHarness(undefined, capturingEngine);
+  const def = builtin('deep-research-cited', {
+    decompose: { outputs: { summary: 'six items' }, run_files: { 'plan.md': 'search: green roof indoor temperature' } },
+    draft: { outputs: { document: 'report.md', sources: '[]' }, run_files: { 'report.md': report } },
+    critics: { outputs: { findings: 'critics.json' } },
+  });
+  // The search action needs Exa over the network, so a fake step stands in; the fixture sources are copied in at the plan gate.
+  def.steps[def.steps.findIndex((s: any) => s.id === 'sweep')] = { id: 'sweep', title: 'Search and save sources', role: 'research', kind: 'agent', engine: 'fake', approval: 'edits', outputs: ['count'], prompt: 'FAKE {"outputs":{"count":2}}\nSearch.' };
+  try {
+    const question = readFileSync(join(root, 'tests/fixtures/deep-research-cited/input/question.md'), 'utf8').trim();
+    const runId = await h.pipeline(def, { question });
+    const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-plan' AND status = 'waiting'").get(runId), 60000);
+    const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
+    assert.equal(gate.kind, 'approve');
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'sweep' AND status <> 'pending'").get(runId) as any).n, 0);
+    cpSync(join(root, 'tests/fixtures/deep-research-cited/input/sources'), join(runDir, 'sources'), { recursive: true });
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
+    return { h, runId, runDir };
+  } catch (error) { await close(h); throw error; }
+}
+
+const realQuotes = '# Green roofs\n\nIn one trial "the green roof reduced peak indoor temperature by 2.1 degrees on the top floor" [s01]. A review found "the largest effects in buildings that had little or no roof insulation" [s02].\n';
+
+test('M3-01 deep-research-cited stops at the plan gate, then cite-check passes a report quoting the fixture sources', async () => {
+  const { h, runId } = await research(realQuotes);
+  try {
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 60000);
+    const check = JSON.parse((h.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'cite-check' ORDER BY iteration DESC").get(runId) as any).outputs);
+    assert.deepEqual([check.passed, check.claims_total, check.bound], [true, 2, 2]);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'depth' AND status = 'done'").get(runId) as any).n, 4);
+  } finally { await close(h); }
+});
+
+test('M3-01 deep-research-cited pauses at loop-max when a planted quote is not in its source', async () => {
+  const { h, runId } = await research(realQuotes.replace('by 2.1 degrees', 'by 6 degrees'));
+  try {
+    await until(() => h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'paused' AND paused_why = 'loop-max'").get(runId), 60000);
+    const check = JSON.parse((h.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'cite-check' ORDER BY iteration DESC").get(runId) as any).outputs);
+    assert.equal(check.passed, false);
+    assert.deepEqual(check.unbound.map((u: any) => u.reason.split(':')[0]), ['quote not found in s01']);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'cite-check'").get(runId) as any).n, 2);
   } finally { await close(h); }
 });
 
