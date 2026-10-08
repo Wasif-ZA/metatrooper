@@ -104,6 +104,18 @@ test('H18 an agent step whose session settled minutes ago without writing its re
   assert.match(r.error, /stopped without writing/);
 });
 
+test('H9 an agent that runs the run over its budget is stopped and the run pauses for budget', async () => {
+  const { run, args } = agentRun('h9');
+  db.prepare("INSERT INTO usage (at, session_id, run_id, engine_id, provider, tokens_in, source, dedupe_key) VALUES ('x', 's-h9', 'h9', 'claude', 'local-cli', 5000, 'transcript', 'h9')").run();
+  const runner = priv(new Runner(db));
+  const killed: string[] = [];
+  runner.killSession = (id: string) => killed.push(id);
+  const r = await runner.runAgent(run, { title: 'pl' }, { ...args, timeoutMinutes: 0.05 });
+  assert.deepEqual(r, { paused: 'budget' });
+  assert.deepEqual(killed, ['s-h9']);
+  assert.deepEqual({ ...runOf('h9') }, { status: 'paused', paused_why: 'budget' });
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
