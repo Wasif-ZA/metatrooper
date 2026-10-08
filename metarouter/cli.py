@@ -33,9 +33,9 @@ VERBS = {
     "mcp": "mcp [server] [tool] [json]  list MCP servers, a server's tools, or call one",
     "tools": "tools [name]            CLI tools used here, and each MCP tool in one line",
     "mode": "mode [learn|auto]       learn: approved recipes only; auto: catalogue, PATH CLIs, MCP registry",
-    "learn": "learn [--review] [--scan [--days N]]  find recipe and hint candidates; --scan shows what repeats",
-    "ingest": "ingest [--since T]      where tool-result tokens go, from the transcripts",
-    "stats": "stats [--days N] [--here]  recipe runs, failures, and hints followed by a success",
+    "learn": "learn [--review] [--scan [--days N]] [--from A,B]  find recipe and hint candidates in agent sessions",
+    "ingest": "ingest [--since T] [--from A,B]  where tool-result tokens go, from the transcripts",
+    "stats": "stats [--days N] [--here] [--adoption]  recipe runs, failures, hints; --adoption: share of shell calls via metarouter",
     "export": "export [file]           write your saved recipes to one JSON file to share",
     "import": "import <file>           add recipes from an export; existing names are kept",
     "ab": 'ab --task "<prompt>" --check "<cmd>" [--agent claude|codex] [--runs 3]  measure an agent with and without metarouter',
@@ -869,8 +869,10 @@ def learn_lane(args):
             return Result(ok=True, lane="learn", out=learn.review())
         if "--scan" in args:
             return setup.scan(args)
+        from metarouter import transcripts
         root = args[args.index("--root") + 1] if "--root" in args else learn.TRANSCRIPTS
-        return Result(ok=True, lane="learn", out=learn.learn(root, taken=store.load()),
+        agents = None if "--root" in args else transcripts.parse_from(flag_value(args, "--from")) or transcripts.found()
+        return Result(ok=True, lane="learn", out=learn.learn(root, taken=store.load(), agents=agents),
                       note=log.no_private_warning())
     except PermissionError as e:
         return Result(ok=False, lane="learn", exit=2, note=str(e))
@@ -927,11 +929,18 @@ RECOVER_WITHIN = 3
 
 
 def stats_lane(args):
-    rows = [r for r in calls.read() if not private(str(r.get("project") or "")) and not private(r.get("recipe") or "")]
     days = flag_value(args, "--days")
+    if days and not days.isdigit():
+        return Result(ok=False, lane="stats", exit=2, note="--days needs a number")
+    if "--adoption" in args:
+        from metarouter import transcripts
+        try:
+            agents = transcripts.parse_from(flag_value(args, "--from")) or None
+        except ValueError as e:
+            return Result(ok=False, lane="stats", exit=2, note=str(e))
+        return Result(ok=True, lane="stats", out=transcripts.adoption(int(days or 7), agents))
+    rows = [r for r in calls.read() if not private(str(r.get("project") or "")) and not private(r.get("recipe") or "")]
     if days:
-        if not days.isdigit():
-            return Result(ok=False, lane="stats", exit=2, note="--days needs a number")
         cutoff = (datetime.datetime.now().astimezone() - datetime.timedelta(days=int(days))).isoformat()
         rows = [r for r in rows if r.get("time", "") >= cutoff]
     if "--here" in args:
@@ -962,6 +971,7 @@ def stats_lane(args):
         "recipes": [f"{n}: {c} runs, {b} failed" for n, (c, b) in sorted(per.items(), key=lambda x: -x[1][0])[:LIST_ROWS]],
         "hints": f"{hinted} shown in {tracked} calls that record hints, {recovered} followed by a success of the "
                  f"same tool within {RECOVER_WITHIN} calls",
+        "hint_sources": hints.by_source(),
         "breaker": f"{sum(bool(r.get('breaker')) for r in rows)} warnings",
         "output_kept_out": f"about {kept:,} tokens of output not printed (bytes / 4). This is not money saved: "
                            f"cached reads are cheap and an extra turn can cost more",

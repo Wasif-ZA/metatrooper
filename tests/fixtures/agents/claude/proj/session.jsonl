@@ -1,0 +1,4 @@
+{"cwd":"/work/open","timestamp":"2026-10-08T09:00:00+11:00","message":{"content":[{"type":"tool_use","id":"u1","name":"Bash","input":{"command":"doohickey run"}}]}}
+{"cwd":"/work/open","timestamp":"2026-10-08T09:00:01+11:00","message":{"content":[{"type":"tool_result","tool_use_id":"u1","content":"ran","is_error":false}]}}
+{"cwd":"/work/open","timestamp":"2026-10-08T09:00:02+11:00","message":{"content":[{"type":"tool_use","id":"u2","name":"PowerShell","input":{"command":"doohickey stop"}}]}}
+{"cwd":"/work/open","timestamp":"2026-10-08T09:00:03+11:00","message":{"content":[{"type":"tool_result","tool_use_id":"u2","content":[{"type":"text","text":"stuck"}],"is_error":true}]}}

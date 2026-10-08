@@ -2,6 +2,7 @@ import datetime
 import json
 import re
 
+from metarouter import calls
 from metarouter.log import home
 
 BREAKER_RUN = 3
@@ -68,6 +69,8 @@ def match(cmd, output=None, failed=False):
     for h in load():
         try:
             if h.get("when") == "before" and re.search(h["match"], cmd or ""):
+                if h.get("shape") and h["shape"] != calls.shape(cmd or ""):
+                    continue
                 return h["hint"]
             if failed and h.get("when") == "fail" and re.search(h["match"], output or ""):
                 if h.get("binary") and h["binary"] != first_word(cmd):
@@ -76,6 +79,16 @@ def match(cmd, output=None, failed=False):
         except re.error:
             continue
     return None
+
+
+def by_source():
+    """Hint count per source: seed, learned, pack, user."""
+    seeds = {h["id"] for h in SEED}
+    out = {}
+    for h in load():
+        src = (h.get("source") or ("seed" if h.get("id") in seeds else "user")).split(":")[0]
+        out[src] = out.get(src, 0) + 1
+    return out
 
 
 def first_word(cmd):

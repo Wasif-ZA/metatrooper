@@ -186,7 +186,8 @@ def main(argv=None, how="human"):
     ap = argparse.ArgumentParser(prog="metarouter")
     sub = ap.add_subparsers(dest="cmd", required=True)
     ing = sub.add_parser("ingest", help="measure where tool-result tokens go")
-    ing.add_argument("--root", default=str(DEFAULT_ROOT))
+    ing.add_argument("--root", help="a Claude Code transcripts folder; reads only that")
+    ing.add_argument("--from", dest="agents", help="claude,codex,gemini,opencode (default: every agent found)")
     ing.add_argument("--since", help="ISO timestamp, e.g. 2026-09-27T00:00")
     ing.add_argument("--until", help="ISO timestamp, exclusive; no offset means UTC")
     ing.add_argument("--no-save", action="store_true")
@@ -195,7 +196,18 @@ def main(argv=None, how="human"):
         if getattr(args, flag) and when(getattr(args, flag)) is None:
             ap.error(f"--{flag} is not an ISO timestamp: {getattr(args, flag)}")
 
-    n_files, calls_, results = scan(args.root, args.since, args.until)
+    from metarouter import transcripts
+    try:
+        agents = ["claude"] if args.root else transcripts.parse_from(args.agents) or transcripts.found()
+    except ValueError as e:
+        ap.error(str(e))
+    n_files, calls_, results = scan(args.root or DEFAULT_ROOT, args.since, args.until) if "claude" in agents else (0, {}, {})
+    others = [a for a in agents if a != "claude"]
+    for i, (agent, sess) in enumerate(transcripts.sessions(others, args.since) if others else []):
+        n_files += 1
+        for j, (cmd, failed, out) in enumerate(sess):
+            calls_[f"{agent}-{i}-{j}"] = ("Bash", {"command": cmd}, agent)
+            results[f"{agent}-{i}-{j}"] = (len(out) // 4, 0, failed)
     s = summarise(calls_, results)
     s["saved_tokens"] = saved_tokens(calls.read(), args.since, args.until)
     out = None

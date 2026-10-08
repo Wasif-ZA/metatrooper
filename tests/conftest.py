@@ -7,6 +7,13 @@ def no_mcp_keepalive(monkeypatch):
     monkeypatch.setenv("METAROUTER_MCP_KEEP", "0")
 
 
+@pytest.fixture(autouse=True)
+def no_real_sessions(tmp_path_factory, monkeypatch):
+    from metarouter import transcripts
+    empty = tmp_path_factory.mktemp("no-sessions")
+    monkeypatch.setattr(transcripts, "ROOTS", {k: empty / k for k in transcripts.ROOTS})
+
+
 def agent_result(text):
     """Parse agent-mode output: a JSON result line, or plain text for a whole successful output."""
     try:

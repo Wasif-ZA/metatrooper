@@ -17,6 +17,8 @@ def isolated(tmp_path, monkeypatch):
     (work / ".git").mkdir(parents=True)
     monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "mr-home"))
     monkeypatch.setattr(Path, "home", lambda: fake_home)
+    from metarouter import transcripts
+    monkeypatch.setattr(transcripts, "ROOTS", {k: fake_home / k for k in transcripts.ROOTS})
     monkeypatch.setattr(setup.shutil, "which", lambda name: None)
     for name in ("CLAUDECODE", "AI_AGENT", "CLAUDE_CODE_SESSION_ID", "METAROUTER_OUTPUT"):
         monkeypatch.delenv(name, raising=False)

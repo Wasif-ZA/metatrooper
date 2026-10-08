@@ -254,7 +254,7 @@ metarouter is one command with eight parts, all in the Python standard library:
 </td>
 <td width="50%" valign="top">
 
-**learn**: Reads your Claude Code transcripts, turns repeated commands into placeholder shapes, and queues them for <code>learn --review</code>.
+**learn**: Reads your Claude Code, Codex, Gemini (Antigravity) and OpenCode sessions, turns repeated commands into placeholder shapes, and queues them for <code>learn --review</code>.
 
 </td>
 </tr>
@@ -379,13 +379,15 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | See where your tokens go | `metarouter ingest --since 2026-09-27` |
 | See what recipes and hints did | `metarouter stats --days 7 --here` |
 | Prove metarouter helps on your repo | `metarouter ab --task "fix the failing test" --check "pytest -q" --runs 5` |
+| Learn from Codex, Gemini (Antigravity) or OpenCode sessions too | `metarouter learn --from codex,gemini` (default: every agent found) |
+| See how often your agent uses metarouter | `metarouter stats --adoption --days 7` |
 
 ### Two modes
 
 - **learn** (default): only recipes you approved. `learn --review` asks yes or no for each one.
 - **auto**: `metarouter mode auto` adds a catalogue of 49 popular CLI recipes, `--help` lookup
   for anything on your PATH, and live search of the MCP registry. In this mode `learn` keeps
-  candidates without asking.
+  read-only recipe candidates without asking, and hints seen 3+ times across 2+ sessions.
 
 </details>
 
