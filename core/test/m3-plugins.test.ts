@@ -345,6 +345,16 @@ function desktop(action, input) {
   return JSON.parse(spawnSync(process.execPath, [script, action], { input: JSON.stringify({ input }), encoding: 'utf8' }).stdout);
 }
 
+test('desktop picks the window by recorded handle, and distinct same-title windows without one', { skip: process.platform !== 'win32' }, () => {
+  const ps1 = fileURLToPath(new URL('../../plugins/desktop/bin/desktop.ps1', import.meta.url));
+  const command = `. '${ps1}'
+    $w = { param($n, $h) [pscustomobject]@{ Current = [pscustomobject]@{ Name = $n; NativeWindowHandle = $h } } }
+    $all = @((& $w 'Form' 101), (& $w 'Form' 202))
+    @((Select-Window $all 'Form' '202'), (Select-Window $all 'Form' '' @(101)), (Select-Window $all 'Form' '')) | ForEach-Object { $_.Current.NativeWindowHandle }`;
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command], { encoding: 'utf8', env: { ...process.env, TROOP_DESKTOP_INPUT: '{}' } });
+  assert.deepEqual(r.stdout.trim().split(/\r?\n/), ['202', '202', '101'], r.stderr);
+});
+
 test('desktop returns non-ASCII window titles intact and writes confirmations without a BOM', { skip: process.platform !== 'win32' }, () => {
   const dir = tempDir();
   try {

@@ -16,7 +16,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["window", "out"],
-        "properties": { "window": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 } }
+        "properties": { "window": { "type": "string", "minLength": 1 }, "out": { "type": "string", "minLength": 1 }, "handle": { "type": "string", "description": "Native window handle; picks this window when several share the title." } }
       },
       "output_schema": { "type": "object", "required": ["path"], "properties": { "path": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" } } }
     },
@@ -31,7 +31,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["rows"],
-        "properties": { "rows": { "type": "string", "minLength": 1, "description": "rows.json; each row with a window title is submitted." } }
+        "properties": { "rows": { "type": "string", "minLength": 1, "description": "rows.json; each row with a window title is submitted, in the window named by its handle when it has one." } }
       },
       "output_schema": { "type": "object", "required": ["submitted"], "properties": { "submitted": { "type": "integer" }, "windows": { "type": "array" }, "failed": { "type": "array" } } }
     },
