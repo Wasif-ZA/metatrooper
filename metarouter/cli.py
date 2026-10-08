@@ -13,7 +13,7 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from metarouter import calls, filters, hints, log, policy, setup, shield, shrink, snapshot, tldr, versions
+from metarouter import calls, digest, filters, hints, log, packs, policy, setup, shield, shrink, snapshot, tldr, versions
 from metarouter.ab import ab_lane
 from metarouter import recipes as store
 from metarouter.log import config, private
@@ -25,8 +25,8 @@ VERBS = {
     "log": "log [last|n] [--grep P] [--tail N]  read part of a saved full output",
     "search": "search <words>          find a recipe by plain words",
     "list": "list                    every recipe, one line each",
-    "add": "add <name> -- <cmd>     keep a command that worked as a recipe; {1} {2} mark arguments",
-    "check": "check [--changed]       run every recipe's example; --changed: only those whose tool version moved",
+    "add": "add <name> [--project] -- <cmd>  keep a command that worked as a recipe; {1} {2} mark arguments",
+    "check": "check [--changed] [--project]  run every recipe's example; --changed: tool version moved; --project: this repo's, for CI",
     "undo": "undo [snapshot]         put back the files the last write changed",
     "jobs": "jobs [id] [--wait]      list background jobs, or wait for one and show its result",
     "browse": "browse open <url> | look | click @n | type @n <text> | read | shot | close",
@@ -43,6 +43,8 @@ VERBS = {
     "uninstall": "uninstall               remove every block init wrote",
     "doctor": "doctor                  check the setup, one line each with the fix",
     "policy": "policy                  the refuse and warn rules in force and the files they come from",
+    "pack": "pack list | add <name> | remove <name>  recipes and hints for a stack",
+    "digest": "digest [--days 7]       calls, top failures, candidates waiting, recipes that broke",
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
@@ -279,6 +281,12 @@ def run_lane(args):
     r = recipes.get(name)
     if not r:
         return no_recipe(name, recipes)
+    if store.needs_trust(r):
+        if not yes:
+            return Result(ok=False, lane="run", exit=2, recipe=name,
+                          note=f"{name} is a {r.get('purity', 'read')} recipe from this repo's .metarouter/recipes. Read it with "
+                               f"metarouter list, then run again with --yes once to trust it here")
+        store.trust(r)
     if r.get("purity") == "destructive" and not yes:
         return Result(ok=False, lane="run", exit=2, recipe=name,
                       note=f"{name} is destructive. Run again with --yes to go ahead")
@@ -480,6 +488,8 @@ def mode_lane(args):
 
 def add_flow(args):
     opts = {"summary": None, "purity": "read"}
+    project = "--project" in args
+    args = [a for a in args if a != "--project"]
     steps, name, i = [], None, 0
     while i < len(args):
         if args[i] in ("--step", "--summary", "--purity") and i + 1 < len(args):
@@ -495,7 +505,9 @@ def add_flow(args):
         return Result(ok=False, lane="add", exit=2,
                       note='usage: metarouter add <name> --step "<command>" --step "<command>" ...')
     try:
-        r = store.save(name, steps, summary=opts["summary"], kind="flow", purity=opts["purity"])
+        r = store.save(name, steps, summary=opts["summary"], kind="flow", purity=opts["purity"], project=project)
+        if project:
+            store.trust(r)
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
     return Result(ok=True, lane="add", recipe=name,
@@ -545,6 +557,8 @@ def add_lane(args):
         return Result(ok=False, lane="add", exit=2, note='usage: metarouter add <name> [--summary S] -- "<command>"')
     cut = args.index("--")
     head, cmd = args[:cut], command_text(args[cut:])
+    project = "--project" in head
+    head = [a for a in head if a != "--project"]
     opts = {"summary": None, "purity": "read"}
     name = None
     i = 0
@@ -558,7 +572,9 @@ def add_lane(args):
     if not name or not cmd.strip():
         return Result(ok=False, lane="add", exit=2, note='usage: metarouter add <name> [--summary S] -- "<command>"')
     try:
-        r = store.save(name, cmd, summary=opts["summary"], purity=opts["purity"])
+        r = store.save(name, cmd, summary=opts["summary"], purity=opts["purity"], project=project)
+        if project:
+            store.trust(r)
     except ValueError as e:
         return Result(ok=False, lane="add", exit=2, note=str(e))
     return Result(ok=True, lane="add", recipe=name, out=f"saved. Run it: metarouter run {store.signature(r)}")
@@ -596,6 +612,12 @@ def execute_quiet(r, args):
 
 def check(args):
     recipes = store.load()
+    project_only = "--project" in args
+    if project_only:
+        recipes = {n: r for n, r in recipes.items() if r.get("source") == "project"}
+        if not recipes:
+            return Result(ok=True, lane="check", out="no recipes in this repo's .metarouter/recipes")
+    untrusted = set() if project_only else {n for n, r in recipes.items() if store.needs_trust(r)}
     rows = calls.read()
     lines, failed = [], 0
     changed = "--changed" in args
@@ -625,6 +647,9 @@ def check(args):
                 if r.get("purity") == "destructive":
                     lines.append(f"skip  {name}: destructive, not run by check")
                     continue
+                if name in untrusted:
+                    lines.append(f"skip  {name}: repo recipe not trusted yet; check --project runs it")
+                    continue
                 work = Path(tmp) / name
                 work.mkdir()
                 bad = [fn for fn in ex.get("setup", {}) if not (work / fn).resolve().is_relative_to(work.resolve())]
@@ -634,6 +659,13 @@ def check(args):
                     continue
                 for fn, content in ex.get("setup", {}).items():
                     (work / fn).write_text(content, encoding="utf-8")
+                if ex.get("repo"):
+                    git = ["git", "-c", "user.name=check", "-c", "user.email=check@example.invalid",
+                           "-c", "commit.gpgsign=false"]
+                    subprocess.run(["git", "-c", "init.defaultBranch=main", "init", "-q"], cwd=work,
+                                   capture_output=True)
+                    subprocess.run([*git, "commit", "-q", "--no-verify", "--allow-empty", "-m", "check"], cwd=work,
+                                   capture_output=True)
                 os.chdir(work)
                 try:
                     code, text = execute_quiet(r, ex.get("args", []))
@@ -659,7 +691,7 @@ def check(args):
     if changed:
         return Result(ok=failed == 0, lane="check", exit=1 if failed else 0,
                       out="\n".join(lines) or "no recipe's tool version changed since the last check")
-    for flt in filters.load():
+    for flt in [] if project_only else filters.load():
         name = flt.get("name", "")
         for t in flt.get("tests", []):
             cmd = t.get("command", "")
@@ -677,7 +709,7 @@ def check(args):
                 lines.append(f"FAIL  filter:{name}: got {got}")
     cutoff = (datetime.datetime.now().astimezone() - datetime.timedelta(days=STALE_DAYS)).isoformat()
     for name, r in sorted(recipes.items()):
-        if r.get("source") in ("seed", "catalog"):
+        if project_only or r.get("source") in ("seed", "catalog") or str(r.get("source")).startswith("pack:"):
             continue
         last = max((row["time"] for row in rows if row.get("recipe") == name), default=None)
         if last is None or last < cutoff:
@@ -1039,7 +1071,7 @@ LANES = {"run": run_lane, "exec": exec_lane, "search": search_lane, "list": list
          "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane, "log": log_lane, "stats": stats_lane,
          "export": export_lane, "import": import_lane, "init": setup.init, "uninstall": setup.uninstall,
          "doctor": setup.doctor, "ab": ab_lane,
-         "policy": policy_lane}
+         "policy": policy_lane, "pack": packs.lane, "digest": digest.lane}
 
 
 def log_call(rec):

@@ -1,0 +1,203 @@
+{
+ "pack": "docker",
+ "version": "2026.10",
+ "tier": "free",
+ "recipes": [
+  {
+   "name": "dc-services",
+   "summary": "service names in compose file {1}",
+   "args": [
+    "file"
+   ],
+   "kind": "shell",
+   "body": "docker compose -f {1} config --services",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {
+     "compose.yaml": "services:\n  web:\n    image: nginx:alpine\n"
+    },
+    "args": [
+     "compose.yaml"
+    ],
+    "expect_exit": 0,
+    "expect_out": "web"
+   }
+  },
+  {
+   "name": "dc-valid",
+   "summary": "check compose file {1}; quiet when it is valid",
+   "args": [
+    "file"
+   ],
+   "kind": "shell",
+   "body": "docker compose -f {1} config --quiet",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {
+     "compose.yaml": "services:\n  web:\n    image: nginx:alpine\n"
+    },
+    "args": [
+     "compose.yaml"
+    ],
+    "expect_exit": 0,
+    "expect_out": ""
+   }
+  },
+  {
+   "name": "dk-contexts",
+   "summary": "docker contexts and which daemon each points at",
+   "args": [],
+   "kind": "shell",
+   "body": "docker context ls --format \"{{.Name}} {{.DockerEndpoint}}\"",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "default"
+   }
+  },
+  {
+   "name": "dk-ps",
+   "summary": "running containers: name, status, ports",
+   "args": [],
+   "kind": "shell",
+   "body": "docker ps --format \"table {{.Names}}\\t{{.Status}}\\t{{.Ports}}\"",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "NAMES"
+   }
+  },
+  {
+   "name": "dk-logs",
+   "summary": "last 100 log lines of container {1}",
+   "args": [
+    "container"
+   ],
+   "kind": "shell",
+   "body": "docker logs --tail 100 {1}",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {},
+    "args": [
+     "metarouter-no-such-container"
+    ],
+    "expect_exit": 1,
+    "expect_out": "No such container"
+   }
+  },
+  {
+   "name": "dk-run-in",
+   "summary": "run a command in container {1} with no TTY",
+   "args": [
+    "container",
+    "command"
+   ],
+   "kind": "shell",
+   "body": "docker exec {1} sh -c {2}",
+   "purity": "write",
+   "needs": "docker",
+   "example": {
+    "setup": {},
+    "args": [
+     "metarouter-no-such-container",
+     "true"
+    ],
+    "expect_exit": 1,
+    "expect_out": "No such container"
+   }
+  },
+  {
+   "name": "dk-port",
+   "summary": "containers publishing port {1}",
+   "args": [
+    "port"
+   ],
+   "kind": "shell",
+   "body": "docker ps --filter publish={1} --format \"{{.Names}}\"",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {},
+    "args": [
+     "1"
+    ],
+    "expect_exit": 0,
+    "expect_out": ""
+   }
+  },
+  {
+   "name": "dk-disk",
+   "summary": "disk used by images, containers, volumes and build cache",
+   "args": [],
+   "kind": "shell",
+   "body": "docker system df",
+   "purity": "read",
+   "needs": "docker",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "TYPE"
+   }
+  }
+ ],
+ "hints": [
+  {
+   "id": "docker-no-tty",
+   "when": "fail",
+   "match": "the input device is not a TTY",
+   "hint": "There is no terminal here. Drop -t (and -i unless you pipe input): docker exec <container> <command>"
+  },
+  {
+   "id": "docker-daemon-down",
+   "when": "fail",
+   "match": "Cannot connect to the Docker daemon|failed to connect to the docker API|error during connect",
+   "hint": "The docker daemon is not running. Start Docker Desktop or the docker service; docker info checks it"
+  },
+  {
+   "id": "docker-port-taken",
+   "when": "fail",
+   "match": "port is already allocated|address already in use",
+   "hint": "Another container or process holds that port. Find it: docker ps --filter publish=<port>"
+  },
+  {
+   "id": "docker-git-bash-path",
+   "when": "fail",
+   "match": "Program Files/Git/",
+   "hint": "Git Bash rewrote a /path argument into a Windows path. Prefix the command with MSYS_NO_PATHCONV=1"
+  },
+  {
+   "id": "docker-compose-v1",
+   "when": "before",
+   "match": "(^|[;&|]\\s*)docker-compose\\s",
+   "hint": "docker-compose (v1) is retired. Use docker compose"
+  },
+  {
+   "id": "docker-disk-full",
+   "when": "fail",
+   "match": "no space left on device",
+   "hint": "Docker's disk is full. See what holds it: docker system df; free build cache: docker builder prune"
+  },
+  {
+   "id": "docker-pull-denied",
+   "when": "fail",
+   "match": "pull access denied|manifest unknown",
+   "hint": "The image name or tag is wrong, or the image is private (docker login first)"
+  },
+  {
+   "id": "docker-exec-format",
+   "when": "fail",
+   "match": "exec format error",
+   "hint": "The image was built for another CPU. Pull or build with --platform linux/amd64 or linux/arm64"
+  }
+ ]
+}

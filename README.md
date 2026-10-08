@@ -358,6 +358,9 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Refuse or flag commands in a repo | `.metarouter/policy.json` with `{"refuse": ["git push --force"], "warn": ["rm -rf"]}`, then `metarouter policy` lists the rules |
 | Try another engine when Codex or Gemini hits a usage limit | `"fallback": ["gemini", "local"]` in config |
 | Hide tokens and keys in output (on by default) | `"shield": false` in config turns it off; the log keeps the raw text |
+| Keep a recipe in the repo for the whole team | `metarouter add --project test-all -- "pytest -q"`; CI runs `metarouter check --project` |
+| Add recipes and hints for a stack | `metarouter pack list`, `metarouter pack add git-worktrees`, `metarouter pack remove git-worktrees` |
+| See the week in one screen | `metarouter digest --days 7` |
 | Put back the last edit | `metarouter undo` |
 | Ask Codex, wait or not | `metarouter run codex "write tests for X" --background` |
 | Collect a background job | `metarouter jobs <id> --wait` |
