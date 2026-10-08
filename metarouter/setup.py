@@ -46,6 +46,13 @@ def target(agent, project=False):
     return Path.home() / user if user and not project else repo_root() / proj
 
 
+def mentions(path):
+    try:
+        return "metarouter exec" in path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+
+
 def detected():
     return [a for a, (_, _, d) in AGENTS.items() if shutil.which(a) or (Path.home() / d).is_dir()]
 
@@ -84,9 +91,14 @@ def write_block(agent, path):
 
 def remove_block(row):
     path = Path(row["path"])
+    names = {Path(f).name for u, p_, _ in AGENTS.values() for f in (u, p_) if f}
+    if path.name not in names:
+        return f"{row.get('agent')}: skipped {path.as_posix()}, not an agent instruction file"
     if not path.is_file():
         return f"{row['agent']}: {path.as_posix()} is gone already"
     data = path.read_bytes()
+    if not REGION.search(data):
+        return f"{row['agent']}: no metarouter block in {path.as_posix()}"
     left = data.replace(CHUNK, b"", 1) if CHUNK in data else REGION.sub(b"", data, count=1)
     if row.get("created") and not left.strip():
         path.unlink()
@@ -204,8 +216,10 @@ def check_lines():
          'no private patterns: add "private": ["<regex>"] to ~/.metarouter/config.json')
     set_up = sorted({r["agent"] for r in installed() if Path(r["path"]).is_file()
                      and START.encode() in Path(r["path"]).read_bytes()})
-    if set_up:
-        line(True, f"init block in: {', '.join(set_up)}")
+    by_hand = sorted(a for a in AGENTS if a not in set_up and (mentions(target(a)) or mentions(target(a, True))))
+    if set_up or by_hand:
+        line(True, "; ".join(filter(None, [set_up and f"init block in: {', '.join(set_up)}",
+                                           by_hand and f"instructions mention metarouter: {', '.join(by_hand)}"])))
     else:
         near = detected()
         line(False, f"no agent set up: run metarouter init {near[0] if near else '<agent>'}")

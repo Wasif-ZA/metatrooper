@@ -198,3 +198,11 @@ def test_adoption_share_and_missed_recipes(capsys, isolated, tmp_path):
     assert a["missed_recipes"] == [{"shape": "git status", "recipe": "git-status", "count": 2}]
     _, r = invoke(capsys, "stats", "--adoption", "--days", "7")
     assert r["out"]["share"] == "33%"
+
+
+def test_adoption_counts_inline_python_a_seed_recipe_covers(isolated, tmp_path):
+    isolated["claude"] = tmp_path / "claude"
+    cmds = ["python -c \"import json; print(json.load(open('a.json'))['v'])\""] * 3
+    write_claude(tmp_path / "claude" / "p" / "s.jsonl", [(c, False, "") for c in cmds])
+    a = transcripts.adoption(7)
+    assert a["missed_recipes"] == [{"shape": "inline python: json read", "recipe": "json", "count": 3}]

@@ -1113,6 +1113,7 @@ def main(argv=None):
             r = Result(ok=False, lane=verb, exit=1, note=f"{verb} crashed: {type(e).__name__}: {e}")
     else:
         r = unknown(verb)
+    r = shield.guard(r)
     out = render(r, how_)
     if r.rec:
         log_call({**r.rec, "shown_bytes": len(out.encode("utf-8"))})

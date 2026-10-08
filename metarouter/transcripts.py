@@ -239,7 +239,7 @@ def shape_words(s):
 
 def adoption(days=7, agents=None, roots=None):
     """Shell calls that went through metarouter against raw ones, and raw shapes a saved recipe already covers."""
-    from metarouter import recipes as store
+    from metarouter import learn, recipes as store
     since = datetime.datetime.now().astimezone() - datetime.timedelta(days=days)
     total = via = 0
     raw = Counter()
@@ -248,15 +248,18 @@ def adoption(days=7, agents=None, roots=None):
             total += 1
             if through(cmd):
                 via += 1
+            elif learn.INLINE_PY.search(cmd):
+                raw["inline python: " + learn.py_group(cmd)] += 1
             else:
                 raw[calls.shape(cmd)] += 1
-    covers = {}
-    for r in store.load().values():
+    recipes = store.load()
+    covers = {"inline python: " + g: rec for g, _, rec in learn.PY_GROUPS if rec in recipes}
+    for r in recipes.values():
         if r.get("kind") == "shell" and isinstance(r.get("body"), str) and r["body"].strip() and not private(r["body"]):
             covers.setdefault(recipe_words(r["body"]), r["name"])
     missed = []
     for s, n in raw.most_common():
-        name = covers.get(shape_words(s)) if s else None
+        name = (covers.get(s) or covers.get(shape_words(s))) if s else None
         if name:
             missed.append({"shape": s, "recipe": name, "count": n})
             if len(missed) == TOP_MISSED:

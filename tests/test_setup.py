@@ -127,3 +127,20 @@ def test_doctor_sees_init_block(capsys):
     _, r = invoke(capsys, "doctor")
     assert "init block in: claude" in r["out"]
     assert "1 private patterns" in r["out"]
+
+
+def test_doctor_counts_hand_written_instructions(capsys, isolated):
+    configure(private=["x"])
+    (isolated / ".claude").mkdir()
+    (isolated / ".claude" / "CLAUDE.md").write_text('Run commands with `metarouter exec -- "<cmd>"`.\n')
+    _, r = invoke(capsys, "doctor")
+    assert "instructions mention metarouter: claude" in r["out"]
+    assert "no agent set up" not in r["out"]
+
+
+def test_undo_skips_a_tampered_path_that_is_not_an_instruction_file(capsys, isolated, tmp_path):
+    victim = tmp_path / "notes.txt"
+    victim.write_text("")
+    setup.save_installed([{"agent": "claude", "path": victim.as_posix(), "created": True}])
+    _, r = invoke(capsys, "uninstall")
+    assert victim.exists()

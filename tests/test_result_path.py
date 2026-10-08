@@ -167,3 +167,15 @@ def test_check_changed_selects_only_recipes_whose_tool_moved(capsys, tmp_path, m
     assert "movingtool 1.0 -> movingtool 2.0" in r["out"]
     code, r = invoke(capsys, "check", "--changed")
     assert code == 0 and "no recipe" in r["out"]
+
+
+def test_log_lane_output_is_masked(tmp_path, monkeypatch, capsys):
+    import json as _json
+    from metarouter import cli
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "home"))
+    tok = "ghp_" + "a" * 36
+    cli.main(["--json", "exec", "--", f"echo {tok}"])
+    capsys.readouterr()
+    cli.main(["--json", "log", "--grep", "ghp_"])
+    out = capsys.readouterr().out
+    assert tok not in out and "ghp_****" in out
