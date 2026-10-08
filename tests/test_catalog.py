@@ -697,8 +697,9 @@ def test_learn_check_gated_auto_save(tmp_path):
         "git --version",
         "git -C . status --short",
         "rm -rf build",
-        'git log --grep "private"',
     ])
+    fake_transcripts(tmp_path / "other", ['git log --grep "private"'])
+    (tmp_path / "other" / "s.jsonl").rename(root / "private-session.jsonl")
     res = learn.learn(root)
     assert "git-version" in res["added"]
     assert "git-status-short" not in res["added"]

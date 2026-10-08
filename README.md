@@ -338,7 +338,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 ## Commands
 
 <details>
-<summary>Open: 26 commands, one per goal, and the two modes</summary>
+<summary>Open: 25 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|

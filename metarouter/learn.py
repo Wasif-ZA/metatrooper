@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from metarouter import calls, tldr
+from metarouter.ingest import touches_private
 from metarouter.recipes import engines
 from metarouter.log import home, private
 
@@ -57,11 +58,14 @@ def result_text(content):
 
 
 def sessions(root):
-    """Yield, per transcript, the shell calls in order: (command, failed, output)."""
+    """Yield, per transcript, the shell calls in order: (command, failed, output). Private sessions are skipped."""
     for f in sorted(Path(root).rglob("*.jsonl")):
         uses, order, results = {}, [], {}
         with f.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
+                if touches_private(line):
+                    order = []
+                    break
                 for b in blocks(line):
                     if b.get("type") == "tool_use" and b.get("name") in ("Bash", "PowerShell"):
                         cmd = (b.get("input") or {}).get("command")

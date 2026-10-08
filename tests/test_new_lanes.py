@@ -221,3 +221,18 @@ def test_export_matches_private_patterns_against_raw_text(capsys, tmp_path):
     assert code == 0
     names = [r["name"] for r in json.loads(out.read_text(encoding="utf-8"))["recipes"]]
     assert names == ["plain-one"]
+
+
+def test_learn_skips_whole_sessions_that_touch_a_private_pattern(tmp_path):
+    from metarouter import learn
+    configure(private=["secret-client"])
+    root = tmp_path / "transcripts" / "p"
+    root.mkdir(parents=True)
+    for name, cwd in (("open.jsonl", "/work/open"), ("closed.jsonl", "/work/secret-client")):
+        lines = [{"cwd": cwd, "message": {"content": [{"type": "tool_use", "id": "u1", "name": "Bash",
+                                                       "input": {"command": "git status"}}]}},
+                 {"cwd": cwd, "message": {"content": [{"type": "tool_result", "tool_use_id": "u1", "content": "ok"}]}}]
+        (root / name).write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    found = [s for s in learn.sessions(tmp_path / "transcripts") if s]
+    assert found == [("git status", False, "ok")] or found == [[("git status", False, "ok")]]
+    assert len(found) == 1
