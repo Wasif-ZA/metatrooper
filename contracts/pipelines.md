@@ -11,7 +11,8 @@ Version 1. The file format is `pipeline.schema.json`. This file says how a run e
    step marked `external` by its plugin action's manifest counts, even if the pipeline file does not say so.
 4. `continue` names an earlier `kind: "agent"` step.
 5. `loop.steps` are consecutive and end with the step that carries the loop.
-6. `requires` lists every plugin used by `uses: plugin:...`.
+6. `requires` lists every plugin used by `uses: plugin:...`. A `kind: "action"` step's plugin must be
+   installed and enabled and must declare that action.
 7. No step with `role: "publish"` or `external: true` may use `fanout`. Several external actions need
    several steps, each with its own gate and hash.
 8. An agent step with `role: "publish"` or `external: true` must pin `engine` to one engine id, so the
