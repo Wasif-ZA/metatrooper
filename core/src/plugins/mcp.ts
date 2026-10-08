@@ -103,7 +103,9 @@ const CODEX_BLOCK = /^# metatrooper mcp: begin[^\n]*\n[\s\S]*?^# metatrooper mcp
 
 /** Deletes a session's per-session MCP and settings files. */
 export function removeSessionFiles(sessionId: string): void {
-  for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`]) fs.rmSync(path.join(homeDir(), 'mcp', name), { force: true });
+  for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`]) {
+    try { fs.rmSync(path.join(homeDir(), 'mcp', name), { force: true }); } catch {}
+  }
 }
 
 /** Deletes per-session files whose session has exited or no longer exists. */
