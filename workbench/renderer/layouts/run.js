@@ -49,6 +49,7 @@ const runScreen = (() => {
     document.addEventListener('pointerdown', touch, true);
     document.addEventListener('keydown', touch, true);
     el.addEventListener('click', onClick);
+    el.addEventListener('pointerdown', () => { S.deliberate = true; });
   }
 
   function pipeMeta(id) {
@@ -150,9 +151,12 @@ const runScreen = (() => {
     return step && step.session && step.status === 'running' ? Date.parse(step.session.started_at) : null;
   }
 
-  function open(runId) {
-    if (S.runId !== runId) Object.assign(S, { runId, cur: null, manual: null, sel: null, focused: null, html: '' });
-    if (document.activeElement) document.activeElement.blur();
+  function open(runId, auto) {
+    if (S.runId !== runId) Object.assign(S, { runId, cur: null, manual: null, sel: null, focused: null, html: '', deliberate: false });
+    if (!auto) {
+      S.deliberate = true;
+      if (document.activeElement) document.activeElement.blur();
+    }
     render();
   }
   function close() {
@@ -270,7 +274,7 @@ const runScreen = (() => {
 
   /** Handles the run screen's own keys; returns true when it used the key. */
   function key(e) {
-    if (!S.runId || e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (!S.runId || !S.deliberate || e.ctrlKey || e.metaKey || e.altKey) return false;
     if (e.key === 'Escape') { close(); return true; }
     if (e.key === '0') { auto(); return true; }
     const m = /^[1-5]$/.test(e.key) && model();

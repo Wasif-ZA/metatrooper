@@ -2026,8 +2026,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   const live = ui.snap ? ui.snap.gates.filter((g) => !(ui.decided || {})[g.id]) : [];
-  if (e.key === 'a' || e.key === 'A') { if (!wall.sheetOpen()) wall.setSheet(true); else if (live[0]) void resolveGate(live[0].id, 'approve'); return; }
-  if ((e.key === 'r' || e.key === 'R') && wall.sheetOpen() && live[0] && live[0].kind !== 'handoff') { void resolveGate(live[0].id, 'reject'); return; }
+  if (e.key === 'a' || e.key === 'A') { if (!wall.sheetOpen()) wall.setSheet(true, true); else if (wall.sheetByHand() && live[0]) void resolveGate(live[0].id, 'approve'); return; }
+  if ((e.key === 'r' || e.key === 'R') && wall.sheetByHand() && live[0] && live[0].kind !== 'handoff') { void resolveGate(live[0].id, 'reject'); return; }
   if (ui.tab !== 'browser' || !ui.split) return;
   if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
   if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {
@@ -2057,7 +2057,7 @@ document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
 runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton, onClose: () => render() });
-runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id); reportPaneBounds(); } });
+runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id, auto) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id, auto); reportPaneBounds(); } });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;
   applyLook(look);

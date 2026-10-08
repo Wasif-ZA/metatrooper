@@ -248,7 +248,7 @@ const wall = (() => {
   }
 
   const T = (open, d) => (RM ? 0.15 : open ? d : d * 0.6);
-  let listOpen = false, sheetOpen = false;
+  let listOpen = false, sheetOpen = false, sheetByKey = false;
   function setList(open) {
     listOpen = open;
     const l = $('#list');
@@ -260,8 +260,9 @@ const wall = (() => {
     } else gsap.to(l, RM ? { opacity: 0, duration: T(0), onComplete: () => gsap.set(l, { visibility: 'hidden', x: -310 }) } : { x: -310, duration: T(0, 0.26), ease: 'power2.in', onComplete: () => gsap.set(l, { visibility: 'hidden' }) });
     gsap.to('.scrim', { autoAlpha: open ? 1 : 0, duration: T(open, 0.22) });
   }
-  function setSheet(open) {
+  function setSheet(open, byKey) {
     sheetOpen = open;
+    sheetByKey = open && Boolean(byKey);
     const sh = $('#sheet');
     sh.classList.toggle('up', open);
     sh.querySelector('.tab').setAttribute('aria-expanded', open);
@@ -318,5 +319,6 @@ const wall = (() => {
     isFolded: (id) => Boolean(S[id]) && folded(S[id]) && !BIG.includes(id),
     listOpen: () => listOpen,
     sheetOpen: () => sheetOpen,
+    sheetByHand: () => sheetOpen && !sheetByKey,
   };
 })();
