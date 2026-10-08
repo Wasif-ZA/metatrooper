@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -10,6 +11,7 @@ import { search, queriesOf } from '../../plugins/agent-reach/bin/search.js';
 import { parseCsv, load, query, render, kpiBlocks } from '../../plugins/data/bin/data.js';
 import { cut, captions } from '../../plugins/media/bin/media.js';
 import { listDeps, licenceReport } from '../../plugins/security/bin/security.js';
+import { exportPdf } from '../../plugins/docs-export/bin/docs-export.js';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'm3-plugins-'));
@@ -274,3 +276,21 @@ test('GitHub release tag pattern rejects command text and accepts semver tags', 
 });
 
 test.skip('docs-export exportPdf fake Chrome receives Chrome flags', () => {}); // exportPdf receives Chrome flags, so fake Chrome cannot test it.
+
+test('docs-export keeps a written PDF when the browser profile cannot be removed', { skip: process.platform !== 'win32' }, () => {
+  const dir = tempDir();
+  const rmSync = fs.rmSync;
+  try {
+    write(join(dir, 'a.md'), '# A\n');
+    write(join(dir, 'a.pdf'), '%PDF /Type /Page');
+    fs.rmSync = (p, o) => {
+      if (String(p).includes('troop-pdf-')) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+      return rmSync(p, o);
+    };
+    const r = exportPdf({ path: join(dir, 'a.md'), out: join(dir, 'a.pdf') }, () => process.env.COMSPEC);
+    assert.equal(r.pages, 1);
+  } finally {
+    fs.rmSync = rmSync;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
