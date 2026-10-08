@@ -42,7 +42,11 @@ const server = http.createServer((req, res) => {
   res.end('only CONNECT is proxied\n');
 });
 
+server.on('clientError', (_e, socket) => socket.destroy());
+
 server.on('connect', async (req, client, head) => {
+  let upstream = null;
+  client.on('error', () => upstream?.destroy());
   const t = parseTarget(req.url);
   const addr = t && t.port === 443 ? await resolveAllowed(t.host) : null;
   if (!addr) {
@@ -50,14 +54,14 @@ server.on('connect', async (req, client, head) => {
     client.end('HTTP/1.1 403 Forbidden\r\n\r\n');
     return;
   }
-  const upstream = net.connect(t.port, addr, () => {
+  if (client.destroyed) return;
+  upstream = net.connect(t.port, addr, () => {
     client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
     if (head.length) upstream.write(head);
     upstream.pipe(client);
     client.pipe(upstream);
   });
   upstream.on('error', () => client.destroy());
-  client.on('error', () => upstream.destroy());
 });
 
 if (process.env.TROOP_PROXY === '1') server.listen(PORT, '0.0.0.0');
