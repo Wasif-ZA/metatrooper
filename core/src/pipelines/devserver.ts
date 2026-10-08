@@ -20,15 +20,22 @@ function key(runId: string, idx: number): string {
   return `${runId}/${idx}`;
 }
 
-function answers(port: number): Promise<boolean> {
+function answersOn(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const req = http.get({ host: '127.0.0.1', port, path: '/', timeout: 1000 }, (res) => {
+    const req = http.get({ host, port, path: '/', timeout: 1000 }, (res) => {
       res.resume();
       resolve(true);
     });
     req.on('timeout', () => { req.destroy(); resolve(false); });
     req.on('error', () => resolve(false));
   });
+}
+
+/** The URL host of the loopback address that answers on the port: Vite on Windows binds `localhost` to ::1 only. */
+async function answers(port: number): Promise<string | null> {
+  if (await answersOn('127.0.0.1', port)) return '127.0.0.1';
+  if (await answersOn('::1', port)) return '[::1]';
+  return null;
 }
 
 /** Starts a project's dev command through the system shell with the user's environment, and records it in `dev_server`. */
@@ -62,13 +69,14 @@ export function startDevServer(db: DatabaseSync, runId: string, idx: number, por
 }
 
 /** Polls the port until any HTTP response arrives; on timeout stops the server and returns its last output lines. */
-export async function waitReady(db: DatabaseSync, runId: string, idx: number, port: number, cancelled: () => boolean): Promise<{ ok: true } | { ok: false; tail: string }> {
+export async function waitReady(db: DatabaseSync, runId: string, idx: number, port: number, cancelled: () => boolean): Promise<{ ok: true; host: string } | { ok: false; tail: string }> {
   const end = Date.now() + READY_TIMEOUT_MS;
   const run = servers.get(key(runId, idx));
   while (Date.now() < end && !cancelled()) {
-    if (await answers(port)) {
+    const host = await answers(port);
+    if (host) {
       db.prepare("UPDATE dev_server SET status = 'ready' WHERE run_id = ? AND idx = ?").run(runId, idx);
-      return { ok: true };
+      return { ok: true, host };
     }
     if (run && run.child.exitCode !== null) break;
     await new Promise((r) => setTimeout(r, POLL_MS));

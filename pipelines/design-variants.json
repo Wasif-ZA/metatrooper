@@ -7,7 +7,7 @@
   "inputs": {
     "brief": { "type": "text", "label": "Design brief", "required": true }
   },
-  "budget": { "max_minutes": 90, "max_parallel": 3 },
+  "budget": { "max_usd": 25, "max_minutes": 90, "max_parallel": 3 },
   "background": true,
   "layout": "variants-grid",
   "steps": [
@@ -40,6 +40,7 @@
       "title": "Build each direction",
       "role": "worker",
       "kind": "agent",
+      "engine": "claude",
       "fanout": 3,
       "worktree": true,
       "browser": true,
@@ -60,6 +61,7 @@
       "title": "Polish the picked variant",
       "role": "worker",
       "kind": "agent",
+      "engine": "claude",
       "cwd": "{{variants.picked.worktree}}",
       "prompt": "This worktree holds the picked design for: {{inputs.brief}}\n\nPolish it: fix spacing, contrast and alignment, make it work at 390 px wide, and keep the direction. Commit on the current branch ({{variants.picked.branch}}). Do not push.",
       "outputs": ["summary"]

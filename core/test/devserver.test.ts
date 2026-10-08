@@ -35,3 +35,25 @@ test('starting a dev server again on the same run and index stops the previous o
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+test('waitReady sees a dev server that listens on ::1 only and reports its host', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-devserver-'));
+  const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  process.env.METATROOPER_HOME = path.join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { startDevServer, stopDevServer, waitReady } = await import('../src/pipelines/devserver.ts');
+  const db = openCoreDb();
+  try {
+    reservePortBand(db, 3002, 'r2');
+    const command = `"${process.execPath}" -e "require('http').createServer((q,s)=>s.end('ok')).listen(3001,'::1')"`;
+    startDevServer(db, 'r2', 0, 3001, command, home);
+    const ready = await waitReady(db, 'r2', 0, 3001, () => false);
+    assert.deepEqual(ready, { ok: true, host: '[::1]' });
+    stopDevServer(db, 'r2', 0);
+  } finally {
+    db.close();
+    for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});
