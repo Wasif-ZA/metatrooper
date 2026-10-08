@@ -37,6 +37,7 @@ const USAGE = `usage: troop <command> [--json]
   gate [--since <date>] [--until <date>]
                                 adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
   hooks install|uninstall [--codex] [--yes]
+  sandbox build                 build the trooper image, the internal network and the egress proxy
   plugin list                   installed plugins, their source and original file
   plugin install <source> [--yes]
                                 show the install screen, then install on approval; <source> is a folder,
@@ -406,6 +407,12 @@ async function main(): Promise<number> {
 
     case 'hooks':
       return hooks(a.pos[0] ?? '', a.flags);
+
+    case 'sandbox': {
+      if (a.pos[0] !== 'build') { console.error('usage: troop sandbox build'); return 2; }
+      const { buildSandbox } = await import('./src/sandbox/build.ts');
+      return buildSandbox(loadEngines());
+    }
 
     case 'plugin':
       return plugin(a, json);
