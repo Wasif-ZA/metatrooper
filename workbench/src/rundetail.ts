@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { paneFile } from '../../core/src/pipelines/panes.ts';
+import { assistRegistry, type AssistResult } from '../../core/src/pipelines/assists.ts';
 
 const DOC_CAP = 200 * 1024;
 
@@ -10,6 +12,7 @@ export interface RunDetail {
   docs: { spec: string | null; diff: string | null };
   pr: { number: number | null; url: string } | null;
   findings: unknown[] | null;
+  assists: Array<{ tool: string; name: string; steps: string[]; installed: boolean; version: string | null; install: string; risk: string; risk_note: string | null; egress: string }>;
 }
 
 const parse = (text: string | null | undefined): Record<string, unknown> => {
@@ -20,6 +23,23 @@ const parse = (text: string | null | undefined): Record<string, unknown> => {
     return {};
   }
 };
+
+/** One entry per helper the run's pipeline lists, with what `<run_dir>/assists.json` found. */
+function runAssists(runDir: string): RunDetail['assists'] {
+  try {
+    const pipe = JSON.parse(fs.readFileSync(path.join(runDir, 'pipeline.json'), 'utf8')) as { assists?: Array<{ tool: string; steps: string[] }> };
+    if (!pipe.assists?.length) return [];
+    const found = fs.existsSync(path.join(runDir, 'assists.json')) ? JSON.parse(fs.readFileSync(path.join(runDir, 'assists.json'), 'utf8')) as AssistResult[] : [];
+    const registry = assistRegistry();
+    return pipe.assists.filter((a) => registry[a.tool]).map((a) => {
+      const t = registry[a.tool];
+      const r = found.find((x) => x.tool === a.tool);
+      return { tool: a.tool, name: t.name, steps: a.steps, installed: Boolean(r?.installed), version: r?.version ?? null, install: t.install, risk: t.risk, risk_note: t.risk_note ?? null, egress: t.egress };
+    });
+  } catch {
+    return [];
+  }
+}
 
 /** Inputs, each step's latest outputs, spec.md, review.diff and findings.json from the run folder, and the PR a step output names. */
 export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error: string } {
@@ -54,5 +74,5 @@ export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error:
     const v = JSON.parse(doc('findings.json') ?? 'null');
     if (Array.isArray(v)) findings = v;
   } catch {}
-  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings };
+  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings, assists: runAssists(run.run_dir) };
 }
