@@ -1,4 +1,4 @@
-param([string]$Title = 'Troop test form', [int]$X = 40, [int]$Y = 40)
+param([string]$Title = 'Troop test form', [int]$X = 40, [int]$Y = 40, [switch]$NoCaptcha)
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 
 [xml]$xaml = @'
@@ -12,7 +12,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
     <TextBox x:Name="FieldEmail" AutomationProperties.Name="Email"/>
     <TextBlock Text="Postcode"/>
     <TextBox x:Name="FieldPostcode" AutomationProperties.Name="Postcode"/>
-    <GroupBox Header="Captcha" Margin="0,10,0,0">
+    <GroupBox x:Name="Captcha" Header="Captcha" Margin="0,10,0,0">
       <StackPanel Orientation="Horizontal">
         <TextBlock Text="Type the word: harbour" Margin="0,0,8,0"/>
         <TextBox x:Name="Answer" Width="120" AutomationProperties.Name="Captcha answer"/>
@@ -26,11 +26,12 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 
 $window = [Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 $window.Title = $Title
+if ($NoCaptcha) { $window.FindName('Captcha').Visibility = 'Collapsed' }
 $window.Left = $X
 $window.Top = $Y
 $find = { param($n) $window.FindName($n) }
 (& $find 'Send').Add_Click({
-  if ((& $find 'Answer').Text -ne 'harbour') { (& $find 'Status').Text = 'Captcha wrong'; return }
+  if (-not $NoCaptcha -and (& $find 'Answer').Text -ne 'harbour') { (& $find 'Status').Text = 'Captcha wrong'; return }
   (& $find 'Status').Text = "Received: $((& $find 'FieldName').Text)"
 })
 $window.Add_SourceInitialized({

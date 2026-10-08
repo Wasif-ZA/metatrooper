@@ -881,6 +881,11 @@ export class Runner {
 
   private gateStep(run: RunRow, pipe: Pipeline, step: Step, iteration: number): StepOutcome {
     const waiting = this.db.prepare("SELECT id FROM gate WHERE run_id = ? AND step_id = ? AND status = 'waiting'").get(run.id, step.id);
+    if (!waiting && step.when && !this.evalUntil(run, step.when)) {
+      this.db.prepare("UPDATE run_step SET status = 'skipped', ended_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ?").run(nowIso(), run.id, step.id, iteration);
+      this.log(run, { event: 'gate skipped', step: step.id, when: step.when });
+      return 'done';
+    }
     if (!waiting) {
       const guarded = step.gate === 'approve' ? this.guardedAfter(pipe, step) : null;
       const h = guarded ? this.hashFor(run, guarded) : null;

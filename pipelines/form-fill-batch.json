@@ -35,6 +35,7 @@
       "title": "Hand the captcha to you",
       "kind": "gate",
       "gate": "handoff",
+      "when": "steps.fill.outputs.captcha == \"shown\"",
       "gate_summary": "Window {{steps.fill.outputs.window}}: captcha {{steps.fill.outputs.captcha}}. Solve it in that window, then Continue. This does not submit anything."
     },
     {

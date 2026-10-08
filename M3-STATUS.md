@@ -45,8 +45,11 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
   per refusal path; making loopback always allowed fails 3 of its 6 tests.
 - FIXED 2026-10-09T00:10+11:00, #38: the `outline` prompt said the slides folder held "one page image per slide", but `ingest` writes
   text only. It now says one text file per slide and points at the lecture PDF itself for figures.
-- #39: the captcha handoff gate pauses on every row, also when fill reports `captcha: none`. Gates have no condition
-  field, so a batch of 20 rows with no captcha still stops 20 times.
+- FIXED 2026-10-09T00:14+11:00, #39, Wasif's pick: the captcha handoff paused on every row, also with `captcha: none`. Gate steps now
+  take an optional `when` (loop `until` grammar, earlier step only; schema, validator, runner, pipelines.md); false marks
+  the gate `skipped` and logs `gate skipped`, and a skipped approve gate authorises nothing. form-fill-batch's captcha
+  gate has `when: steps.fill.outputs.captcha == "shown"`. Tests: core/test/gate-when.test.ts (skip, pause, four
+  validator refusals) and the M3-03 desktop test now runs row B on a form with no captcha and checks its gate is skipped.
 - #39: `desktop.ps1` loads managed UI Automation only. A classic WinForms or Win32 form then shows every control as
   `Pane` with no patterns: edit boxes are indistinguishable from labels in `read`, and Submit is pressed by a mouse click
   at its position. The first fixture form was WinForms and hit this; it is WPF now. Apps with native UIA (WPF, browsers,
