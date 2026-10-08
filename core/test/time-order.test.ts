@@ -34,9 +34,9 @@ test('M4-07 F4 session launch uses the latest engine check across the Sydney DST
       await until(() => store.prepare("SELECT 1 FROM engine WHERE id = 'fake'").get());
       store.prepare('DELETE FROM engine_check WHERE engine_id = ?').run('fake');
       store.prepare('INSERT INTO engine_check (engine_id, checked_at, installed, version, auth, detail) VALUES (?, ?, ?, ?, ?, ?)')
-        .run('fake', '2026-04-05T02:30:00.000+11:00', 1, 'old', 'ok', null);
+        .run('fake', '2030-04-07T02:30:00.000+11:00', 1, 'old', 'ok', null);
       store.prepare('INSERT INTO engine_check (engine_id, checked_at, installed, version, auth, detail) VALUES (?, ?, ?, ?, ?, ?)')
-        .run('fake', '2026-04-05T02:10:00.000+10:00', 0, null, 'missing', null);
+        .run('fake', '2030-04-07T02:10:00.000+10:00', 0, null, 'missing', null);
       const launched = await pipe.request('session.launch', {
         project_id: opened.result.project_id,
         engine_id: 'fake',
