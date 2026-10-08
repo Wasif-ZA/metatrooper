@@ -14,7 +14,7 @@ build-backend = "setuptools.build_meta"
 packages = ["metarouter", "metarouter.recipes", "metarouter.browse"]
 
 [tool.setuptools.package-data]
-metarouter = ["mcp_catalog.json", "filters/*.json"]
+metarouter = ["mcp_catalog.json", "filters/*.json", "packs/*.json"]
 "metarouter.recipes" = ["catalog.json"]
 
 [tool.pytest.ini_options]

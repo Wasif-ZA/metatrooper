@@ -338,7 +338,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 ## Commands
 
 <details>
-<summary>Open: 25 commands, one per goal, and the two modes</summary>
+<summary>Open: 28 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|
@@ -353,6 +353,9 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Keep a command that worked | `metarouter add count-lines -- 'wc -l < {1}'` |
 | Share your recipes | `metarouter export recipes.json`, then on the other machine `metarouter import recipes.json` |
 | Check every recipe still works | `metarouter check` |
+| Keep a recipe in the repo for the whole team | `metarouter add --project test-all -- "pytest -q"`; CI runs `metarouter check --project` |
+| Add recipes and hints for a stack | `metarouter pack list`, `metarouter pack add git-worktrees`, `metarouter pack remove git-worktrees` |
+| See the week in one screen | `metarouter digest --days 7` |
 | Put back the last edit | `metarouter undo` |
 | Ask Codex, wait or not | `metarouter run codex "write tests for X" --background` |
 | Collect a background job | `metarouter jobs <id> --wait` |

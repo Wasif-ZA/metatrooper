@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import json
 import math
@@ -18,6 +19,20 @@ MODES = ("learn", "auto")
 
 def user_dir():
     return home() / "recipes"
+
+
+def project_root(cwd=None):
+    """The nearest folder at or above cwd holding .git, or None."""
+    here = Path(cwd or os.getcwd()).resolve()
+    for d in (here, *here.parents):
+        if (d / ".git").exists():
+            return d
+    return None
+
+
+def project_dir():
+    root = project_root()
+    return root / ".metarouter" / "recipes" if root else None
 
 
 def mode():
@@ -68,15 +83,55 @@ def load():
                 continue
             if isinstance(r, dict) and r.get("name"):
                 recipes[r["name"]] = r
+    proj = project_dir()
+    if proj and proj.is_dir() and proj.resolve() != folder.resolve():
+        for f in sorted(proj.glob("*.json")):
+            try:
+                r = json.loads(f.read_text(encoding="utf-8"))
+            except ValueError:
+                continue
+            if isinstance(r, dict) and r.get("name"):
+                recipes[r["name"]] = {**r, "source": "project"}
     return recipes
 
 
-def save(name, body, summary=None, kind="shell", purity="read", source="saved", example=None):
+def recipe_hash(r):
+    return hashlib.sha256(json.dumps({k: v for k, v in r.items() if k != "source"}, sort_keys=True).encode()).hexdigest()
+
+
+def needs_trust(r):
+    """True for a repo's external or destructive recipe not yet approved with --yes in this repo."""
+    if r.get("source") != "project" or r.get("purity") not in ("external", "destructive"):
+        return False
+    try:
+        seen = json.loads((home() / "trusted.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        seen = {}
+    return recipe_hash(r) not in seen.get(str(project_root()), [])
+
+
+def trust(r):
+    path = home() / "trusted.json"
+    try:
+        seen = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        seen = {}
+    key = str(project_root())
+    seen[key] = sorted({*seen.get(key, []), recipe_hash(r)})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(seen, indent=1), encoding="utf-8")
+
+
+def save(name, body, summary=None, kind="shell", purity="read", source="saved", example=None, project=False):
     if not NAME.match(name):
         raise ValueError(f'bad recipe name "{name}": use lowercase letters, digits and dashes')
     if purity not in PURITY:
         raise ValueError(f"purity must be one of {sorted(PURITY)}")
-    folder = user_dir()
+    folder = project_dir() if project else user_dir()
+    if folder is None:
+        raise ValueError("--project needs a git repo: no .git found here or above")
+    if project:
+        source = "project"
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{name}.json"
     if path.exists():
