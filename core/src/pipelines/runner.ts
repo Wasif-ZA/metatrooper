@@ -740,11 +740,6 @@ export class Runner {
         const fresh = this.run(run.id);
         const status = fresh?.status;
         if (status === 'cancelled' || status === 'failed') return { paused: status };
-        const over = fresh && status === 'running' ? this.budgetReason(fresh) : null;
-        if (fresh && over) {
-          this.pause(fresh, 'budget', { kind: 'budget', ref: run.id, text: `${pipe.title}: ${over} during ${a.stepId}; raise the budget and resume` });
-          return { paused: 'budget' };
-        }
         const session = this.db.prepare('SELECT state, state_at, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; state_at: string; driven_engine: string | null } | undefined;
         const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
         let fm: Record<string, unknown> | null = null;
@@ -769,6 +764,11 @@ export class Runner {
           return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
         } else if (settled && Date.now() - Date.parse(session.state_at) >= SETTLED_GRACE_MS) {
           return { ok: false, error: `${a.stepId}: the session stopped without writing ${a.outPath}` };
+        }
+        const over = fresh && status === 'running' && fm?.status !== 'done' ? this.budgetReason(fresh) : null;
+        if (fresh && over) {
+          this.pause(fresh, 'budget', { kind: 'budget', ref: run.id, text: `${pipe.title}: ${over} during ${a.stepId}; raise the budget and resume` });
+          return { paused: 'budget' };
         }
         if (Date.now() > deadline) {
           return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes` };
