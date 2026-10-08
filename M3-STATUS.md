@@ -70,3 +70,12 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
   So loopback, 10.0.0.1 (`[::ffff:a00:1]`) and the cloud metadata address 169.254.169.254 (`[::ffff:a9fe:a9fe]`) passed
   the guard. `isPrivate` and `isLoopback` now use `net.BlockList`, which judges a mapped address by its IPv4 rules, and
   IPv4-compatible `::/96` is refused too. core/test/seo-loopback.test.ts covers the hex forms; the old file fails it.
+- FIXED 2026-10-09T03:06+11:00, #36: a draft batch that failed part way (a 503 on draft 2 of 3) saved draft 1, and a resume re-ran the
+  whole batch, so draft 1 was saved twice. `gmail/draft` now keeps `<drafts file>.saved.json` in the run folder, keyed
+  by each draft's content and reply mode, and skips what it already saved; an edited draft is saved again. Output gains
+  `skipped`. core/test/m3-plugins.test.ts; the old file fails it.
+- FIXED 2026-10-09T03:06+11:00, #36: the follow-up check counted a thread as mine when the last sender's address only contained mine
+  (`some.me@x.example` for `me@x.example`), so a reply from someone else read as an unanswered send. It now compares
+  the bare addresses, case-insensitive (`addressOf`). core/test/m3-plugins.test.ts; the old line fails it.
+- CHECKED 2026-10-09T03:06+11:00, #37: `data` query and render open the database read-only, and a read-only connection cannot ATTACH a
+  new file, so agent SQL cannot create or change files. No change.
