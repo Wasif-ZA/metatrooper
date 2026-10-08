@@ -22,6 +22,7 @@ export interface ActionRequest {
   projectDir: string;
   run: { id: string; dir: string };
   secret: (name: string) => string | null;
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 /** The environment an action gets: the base variables that are set, the TROOP_ paths, and approved secrets only. */
@@ -150,6 +151,7 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
       resolve(fail(`could not start ${action.run[0]}: ${(e as Error).message}`));
       return;
     }
+    req.onSpawn?.(child);
     let settled = false;
     let timedOut = false;
     const chunks: Buffer[] = [];

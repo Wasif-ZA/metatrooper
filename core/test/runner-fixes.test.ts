@@ -171,6 +171,29 @@ test('H13 a sub-pipeline child that already finished is reused, and Resume resum
   assert.equal(runOf('h13b').status, 'running');
 });
 
+test('H12 Cancel kills a running plugin action process', async () => {
+  const pdir = path.join(home, 'hangplug');
+  fs.mkdirSync(pdir, { recursive: true });
+  fs.writeFileSync(path.join(pdir, 'hang.js'), 'setInterval(() => {}, 1000);');
+  const manifest = { schema: 1, id: 'hangplug', version: '1.0.0', name: 'Hang', permissions: [], actions: [{ id: 'hang', run: ['./hang.js'], timeout_seconds: 60 }] };
+  db.prepare("INSERT INTO plugin (id, version, path, manifest, source, permissions, installed_at) VALUES ('hangplug', '1.0.0', ?, ?, 'native', '[]', 'x')").run(pdir, JSON.stringify(manifest));
+  const dir = path.join(home, 'h12');
+  fs.mkdirSync(dir, { recursive: true });
+  insertRun('h12', 0, { dir });
+  db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status) VALUES ('h12', 'act', 0, 0, 'running')").run();
+  const runner = priv(new Runner(db));
+  const run = db.prepare("SELECT * FROM run WHERE id = 'h12'").get();
+  const row = db.prepare("SELECT * FROM run_step WHERE run_id = 'h12'").get();
+  const started = Date.now();
+  const pending = runner.actionIndex(run, { id: 'act', kind: 'action', uses: 'plugin:hangplug/hang' }, row, false);
+  await until(() => runner.children.has('h12/act/0'));
+  runner.cancel('h12');
+  const r = await pending;
+  assert.equal(r.ok, false);
+  assert.ok(Date.now() - started < 10_000);
+  assert.equal(runner.children.size, 0);
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 

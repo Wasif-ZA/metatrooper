@@ -792,10 +792,12 @@ export class Runner {
     if (!plugin) return { ok: false, error: `plugin ${u.plugin} is not installed or not enabled` };
     const input = resolveValue(step.with ?? {}, this.scope(run, row.fanout_index)) as Record<string, unknown>;
     const project = this.project(run.project_id);
+    const key = `${run.id}/${step.id}/${row.fanout_index}`;
     const r = await runAction({
       plugin, actionId: u.action, input, projectDir: project.path, run: { id: run.id, dir: run.run_dir },
       secret: (name) => getSecret(plugin.id, name),
-    });
+      onSpawn: (child) => this.children.set(key, child),
+    }).finally(() => this.children.delete(key));
     const file = path.join(run.run_dir, fanout ? `${step.id}-${row.fanout_index}.json` : `${step.id}.json`);
     fs.writeFileSync(file, JSON.stringify(r, null, 2) + '\n');
     this.markRunning(run, row, { output_path: slash(file) });
