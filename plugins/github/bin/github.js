@@ -25,10 +25,13 @@ function createPr(input, project) {
   return { url };
 }
 
+export function checkState(rows) {
+  return rows.some((r) => r.bucket === 'fail' || r.bucket === 'cancel') ? 'failing' : rows.some((r) => r.bucket === 'pending') ? 'pending' : 'passing';
+}
+
 function checks(input) {
-  const rows = JSON.parse(gh(['pr', 'checks', input.pr, '--repo', input.repo, '--json', 'name,state,link']) || '[]');
-  const state = rows.some((r) => r.state === 'FAILURE') ? 'failing' : rows.every((r) => r.state === 'SUCCESS') ? 'passing' : 'pending';
-  return { state, checks: rows };
+  const rows = JSON.parse(gh(['pr', 'checks', input.pr, '--repo', input.repo, '--json', 'name,state,bucket,link']) || '[]');
+  return { state: checkState(rows), checks: rows };
 }
 
 function sinceDate(repo, since) {

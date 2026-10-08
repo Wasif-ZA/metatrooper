@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { search } from '../../plugins/agent-reach/bin/search.js';
 import { check } from '../../plugins/cite-check/bin/cite-check.js';
 import { crawl } from '../../plugins/seo/bin/seo.js';
-import { run } from '../../plugins/github/bin/github.js';
+import { run, checkState } from '../../plugins/github/bin/github.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -73,4 +73,11 @@ test('github and deploy errors keep the end of a long error', { skip: process.pl
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('github checks treat skipped as done and cancelled as failing', () => {
+  assert.equal(checkState([{ state: 'SUCCESS', bucket: 'pass' }, { state: 'SKIPPED', bucket: 'skipping' }, { state: 'NEUTRAL', bucket: 'pass' }]), 'passing');
+  assert.equal(checkState([{ state: 'SUCCESS', bucket: 'pass' }, { state: 'CANCELLED', bucket: 'cancel' }]), 'failing');
+  assert.equal(checkState([{ state: 'TIMED_OUT', bucket: 'fail' }]), 'failing');
+  assert.equal(checkState([{ state: 'IN_PROGRESS', bucket: 'pending' }, { state: 'SKIPPED', bucket: 'skipping' }]), 'pending');
 });
