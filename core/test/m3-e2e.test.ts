@@ -100,6 +100,29 @@ test('M3-01 deep-research-cited pauses at loop-max when a planted quote is not i
   } finally { await close(h); }
 });
 
+test('M3-01 study-notes-to-pdf reads the fixture lecture, exports a real PDF and stops at the signoff gate', async () => {
+  const h = await revisionHarness(undefined, capturingEngine);
+  try {
+    const lecture = join(h.project, 'lecture.pdf');
+    copyFileSync(join(root, 'tests/fixtures/study-notes-to-pdf/input/lecture.pdf'), lecture);
+    const def = builtin('study-notes-to-pdf', {
+      notes: { outputs: { summary: 'notes' }, run_files: { 'notes.md': '# Hash tables\n\n- Load factor is entries over buckets (p.3).\n', 'print.css': 'body { font: 11pt serif; }' } },
+      check: { outputs: { passed: true, unsourced: 0 } },
+      proof: { outputs: { passed: true } },
+    });
+    const runId = await h.pipeline(def, { lecture, name: 'week-3' });
+    const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'signoff' AND status = 'waiting'").get(runId), 90000);
+    assert.equal(gate.kind, 'handoff');
+    const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
+    const ingest = JSON.parse((h.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'ingest'").get(runId) as any).outputs);
+    assert.deepEqual([ingest.pages, ingest.empty], [3, []]);
+    assert.match(readFileSync(join(runDir, 'slides', ingest.files[2]), 'utf8'), /6 entries in 8 buckets/);
+    assert.equal(readFileSync(join(runDir, 'out/week-3.pdf')).subarray(0, 5).toString(), '%PDF-');
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+  } finally { await close(h); }
+});
+
 function fakeVercel(h: Harness) {
   const log = join(h.iso.home, 'vercel.log');
   writeFileSync(join(h.iso.home, 'bin', process.platform === 'win32' ? 'vercel.cmd' : 'vercel'), process.platform === 'win32'
