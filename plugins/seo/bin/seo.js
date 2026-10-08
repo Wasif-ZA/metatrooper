@@ -1,16 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { safeFetch } from './safe-fetch.js';
+import { loopbackStart, safeFetch } from './safe-fetch.js';
 
 const UA = 'MetaTrooper-SEO/0.1';
 
 const attr = (tag, name) => tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'))?.slice(1).find((v) => v !== undefined);
 const decode = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
 
-async function fetchText(url, ms = 15000) {
+async function fetchText(url, ms = 15000, loopback = false) {
   const started = Date.now();
-  const res = await safeFetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(ms) });
+  const res = await safeFetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(ms) }, undefined, { loopback });
   const body = await res.text();
   return { res, body, ms: Date.now() - started };
 }
@@ -75,7 +75,11 @@ function analyse(html, url, origin) {
   };
 }
 
-export async function crawl(input, runDir, get = fetchText) {
+export async function crawl(input, runDir, get) {
+  if (!get) {
+    const loopback = await loopbackStart(input.url);
+    get = (url, ms) => fetchText(url, ms, loopback);
+  }
   const start = new URL(input.url);
   start.hash = '';
   let origin = start.origin;
@@ -118,7 +122,7 @@ export async function crawl(input, runDir, get = fetchText) {
     pages, broken: broken.map((p) => ({ url: p.url, status: p.status, error: p.error, linked_from: pages.filter((q) => q.internal_links?.includes(p.url)).map((q) => q.url) })),
   };
   const summary = { pages: pages.length, broken: broken.length, key_pages };
-  const out = input.out ?? (runDir ? path.join(runDir, 'crawl.json') : null);
+  const out = input.out ?? (runDir ? path.join(runDir, 'site-crawl.json') : null);
   if (!out) return { ...summary, data };
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, JSON.stringify(data, null, 2));

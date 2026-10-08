@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "id": "yt-packaging",
+  "title": "YouTube title, thumbnail, description and captions",
+  "lane": "video-social",
+  "requires": ["media", "youtube", "image-gen"],
+  "inputs": {
+    "video": { "type": "path", "label": "Video file", "required": true },
+    "video_id": { "type": "text", "label": "YouTube video id (uploaded, not yet public)", "required": true },
+    "face": { "type": "path", "label": "Real photo of your face for the thumbnail", "required": true },
+    "niche": { "type": "text", "label": "Channel niche", "required": true }
+  },
+  "budget": { "max_usd": 5, "max_minutes": 60 },
+  "background": true,
+  "layout": "variants-grid",
+  "steps": [
+    {
+      "id": "transcript",
+      "title": "Transcribe the video",
+      "role": "ingest",
+      "kind": "action",
+      "uses": "plugin:media/transcribe",
+      "with": { "path": "{{inputs.video}}", "out": "{{run.dir}}/words.json", "scenes": true }
+    },
+    {
+      "id": "outliers",
+      "title": "Find outlier videos",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Search YouTube for videos in this niche: {{inputs.niche}}. Find 10 outliers, videos with far more views than their channel's usual. Write {{run.dir}}/outliers.md: each title, views, channel median, and the title and thumbnail pattern it uses.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "titles",
+      "title": "Write ten titles",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "From {{run.dir}}/words.json and the patterns in {{run.dir}}/outliers.md, write 10 titles under 60 characters that the video delivers on. Write {{run.dir}}/titles.json as a list of items with id, title, reason (the pattern it uses) and status pending. Set the output key items to that path.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "approve-thumbs",
+      "title": "Approve thumbnail generation",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Approve sending {{inputs.face}} to the image generation service to make four thumbnail concepts for the titles in {{run.dir}}/titles.json."
+    },
+    {
+      "id": "thumbs",
+      "title": "Make four thumbnail concepts",
+      "role": "worker",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "image generation service",
+      "approval": "edits",
+      "prompt": "Make four different thumbnail concepts at 1280 by 720 with the image generation service, each using the real face in {{inputs.face}} and at most four words of text, following the patterns in {{run.dir}}/outliers.md. Save {{run.dir}}/thumbs/thumb-0.png to thumb-3.png. Set spent_usd to what it cost.",
+      "outputs": ["spent_usd"]
+    },
+    {
+      "id": "legible",
+      "title": "Check them at 160 px",
+      "role": "visual-check",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Shrink each image in {{run.dir}}/thumbs/ to 160 px wide and look at it. Is the text readable, the face clear, the idea obvious? Write {{run.dir}}/legible.md with pass or the problem per thumbnail. Set passed to true when at least two pass.",
+      "outputs": ["passed"]
+    },
+    {
+      "id": "pick",
+      "title": "Pick the title and thumbnails",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Approve one title in {{run.dir}}/titles.json and drop the rest. Write the two thumbnail file names you want to A/B test into {{run.dir}}/pick.md (see {{run.dir}}/legible.md), then Continue."
+    },
+    {
+      "id": "describe",
+      "title": "Write description and captions",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{run.dir}}/words.json write {{run.dir}}/description.md: two plain lines on what the video gives, then chapters with timestamps at the scene changes. Write {{run.dir}}/captions.srt from the word times.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-upload",
+      "title": "Approve the update",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Approve to set the approved title in {{run.dir}}/titles.json, the two thumbnails in {{run.dir}}/pick.md as an A/B test, {{run.dir}}/description.md and {{run.dir}}/captions.srt on video {{inputs.video_id}}."
+    },
+    {
+      "id": "upload",
+      "title": "Update the video",
+      "role": "publish",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.video_id}}",
+      "approval": "edits",
+      "prompt": "On YouTube video {{inputs.video_id}}, set the title whose status is approved in {{run.dir}}/titles.json, start a thumbnail A/B test with the two files named in {{run.dir}}/pick.md, set the description from {{run.dir}}/description.md and upload {{run.dir}}/captions.srt. Change nothing else, including visibility. Set url to the video link.",
+      "outputs": ["url"]
+    }
+  ]
+}

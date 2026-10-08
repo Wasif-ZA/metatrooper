@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "id": "lit-review",
+  "title": "Literature review",
+  "lane": "research",
+  "requires": ["agent-reach", "cite-check"],
+  "inputs": {
+    "question": { "type": "text", "label": "Research question", "required": true },
+    "years": { "type": "text", "label": "Years to cover", "required": false, "default": "2020-2026" }
+  },
+  "budget": { "max_usd": 8, "max_minutes": 120, "max_parallel": 4 },
+  "background": true,
+  "layout": "artifact-columns",
+  "steps": [
+    {
+      "id": "protocol",
+      "title": "Write the protocol",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Question: {{inputs.question}}. Years: {{inputs.years}}.\n\nWrite {{run.dir}}/protocol.md: inclusion and exclusion rules, and the fields to extract from each study (method, sample, findings, limits). Write {{run.dir}}/plan.md with eight search angles aimed at PubMed, Semantic Scholar and arXiv, each on its own line as search: <query>. Do not search yet.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-protocol",
+      "title": "Approve the protocol",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/protocol.md and {{run.dir}}/plan.md. Approve to start searching; reject cancels the run."
+    },
+    {
+      "id": "search",
+      "title": "Search and save every hit",
+      "role": "research",
+      "kind": "action",
+      "uses": "plugin:agent-reach/search",
+      "with": { "plan": "{{run.dir}}/plan.md", "out": "{{run.dir}}/sources", "per_query": 5 }
+    },
+    {
+      "id": "screen",
+      "title": "Screen the abstracts",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 4,
+      "approval": "edits",
+      "prompt": "Screen every fourth source in {{run.dir}}/sources/sources.json starting at position {{index}} (counting from 0) against the rules in {{run.dir}}/protocol.md. Write {{run.dir}}/screen-{{index}}.md: source id, include or exclude, and the rule that decided it.",
+      "outputs": ["included"]
+    },
+    {
+      "id": "extract",
+      "title": "Extract into the evidence table",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 4,
+      "approval": "edits",
+      "prompt": "For each source marked include in {{run.dir}}/screen-{{index}}.md, read its full text (the saved page in {{run.dir}}/sources/, or the open-access PDF it links to). Extract the fields in {{run.dir}}/protocol.md with a verbatim quote for each. Write {{run.dir}}/evidence-{{index}}.md, one row per study with its source id.",
+      "outputs": ["rows"]
+    },
+    {
+      "id": "check",
+      "title": "Re-check the extractions",
+      "role": "review",
+      "kind": "agent",
+      "engine": "codex",
+      "approval": "edits",
+      "view": "findings",
+      "prompt": "Re-check a random 20% of rows in {{run.dir}}/evidence-*.md against their sources in {{run.dir}}/sources/. Write {{run.dir}}/check.json as a list of findings with severity, title and detail for each wrong or unsupported value. Set the output key findings to that path. Do not edit the evidence files.",
+      "outputs": ["findings"]
+    },
+    {
+      "id": "synthesise",
+      "title": "Write the review by theme",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "document",
+      "prompt": "Write {{run.dir}}/review.md answering {{inputs.question}} by theme, from {{run.dir}}/evidence-*.md only, with the fixes in {{run.dir}}/check.json applied. Every claim carries a verbatim quote in double quotes and its source id in brackets, like [s01]. If {{run.dir}}/cite-check.json exists, fix each failure it lists by editing in place. Set the output key document to the review path and sources to a list of title and url for each cited source.",
+      "outputs": ["document", "sources"]
+    },
+    {
+      "id": "cite-check",
+      "title": "Check every citation",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:cite-check/check",
+      "with": { "report": "{{run.dir}}/review.md", "sources": "{{run.dir}}/sources" },
+      "loop": { "steps": ["synthesise", "cite-check"], "until": "steps.cite-check.passed", "max": 2 }
+    }
+  ]
+}

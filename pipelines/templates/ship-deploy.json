@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "id": "ship-deploy",
+  "title": "Ship and deploy with canary",
+  "lane": "coding",
+  "requires": ["repo", "github", "deploy"],
+  "inputs": {
+    "branch": { "type": "text", "label": "Branch to ship", "required": true },
+    "repo": { "type": "text", "label": "GitHub repository (owner/name)", "required": true },
+    "base_branch": { "type": "text", "label": "Base branch", "required": false, "default": "main" }
+  },
+  "budget": { "max_minutes": 120 },
+  "layout": "pr-first",
+  "steps": [
+    {
+      "id": "sync",
+      "title": "Sync with the base branch",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Merge {{inputs.branch}} into the current branch, then merge the latest {{inputs.base_branch}} into it and resolve any conflicts, keeping both sides' intent. Commit. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "test",
+      "title": "Run the tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.sync.outputs.worktree}}" }
+    },
+    {
+      "id": "review",
+      "title": "Pre-landing review",
+      "role": "review",
+      "kind": "agent",
+      "cwd": "{{steps.sync.outputs.worktree}}",
+      "approval": "edits",
+      "view": "findings",
+      "prompt": "Tests passed: {{steps.test.outputs.passed}}. Review the full diff of this folder against {{inputs.base_branch}}: bugs, missed call sites, untested paths, secrets, and a local production build. Write {{run.dir}}/review.json as a list of findings with severity, title, file, line and detail. Set the output key findings to that path. Do not edit the code.",
+      "outputs": ["findings"]
+    },
+    {
+      "id": "release-notes",
+      "title": "Bump version and changelog",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.sync.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Bump the version for what the diff against {{inputs.base_branch}} changed, add a CHANGELOG entry in plain words, and fix any doc the diff made wrong. Commit. Do not push. Set title to a short pull request title and summary to the changelog entry.",
+      "outputs": ["title", "summary"]
+    },
+    {
+      "id": "approve-pr",
+      "title": "Approve opening the pull request",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Review findings: {{steps.review.outputs.findings}}. Approve to push {{steps.sync.outputs.branch}} and open a pull request on {{inputs.repo}} into {{inputs.base_branch}}."
+    },
+    {
+      "id": "open-pr",
+      "title": "Push and open the pull request",
+      "role": "publish",
+      "kind": "action",
+      "uses": "plugin:github/create-pr",
+      "with": {
+        "repo": "{{inputs.repo}}",
+        "branch": "{{steps.sync.outputs.branch}}",
+        "base": "{{inputs.base_branch}}",
+        "title": "{{steps.release-notes.outputs.title}}",
+        "body": "{{steps.release-notes.outputs.summary}}\n\nTests passed: {{steps.test.outputs.passed}}",
+        "path": "{{steps.sync.outputs.worktree}}"
+      }
+    },
+    {
+      "id": "ci",
+      "title": "Wait for CI",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:github/checks",
+      "with": { "repo": "{{inputs.repo}}", "pr": "{{steps.open-pr.outputs.url}}" }
+    },
+    {
+      "id": "approve-deploy",
+      "title": "Approve the deploy",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Pull request: {{steps.open-pr.outputs.url}}. CI: {{steps.ci.outputs.state}}. Approve to deploy {{steps.sync.outputs.branch}} to production. Merging the pull request stays yours."
+    },
+    {
+      "id": "deploy",
+      "title": "Deploy to production",
+      "role": "publish",
+      "kind": "action",
+      "external": true,
+      "uses": "plugin:deploy/production",
+      "with": { "path": "{{steps.sync.outputs.worktree}}" }
+    },
+    {
+      "id": "canary",
+      "title": "Watch production",
+      "role": "verify",
+      "kind": "agent",
+      "browser": true,
+      "approval": "edits",
+      "view": "findings",
+      "prompt": "Open {{steps.deploy.outputs.url}} in your browser pane and watch it for 10 minutes: console errors, failed pages and requests, and load speed on the main pages. Write {{run.dir}}/canary.json as a list of findings with severity, title and detail. Set the output key findings to that path, and healthy to true or false.",
+      "outputs": ["findings", "healthy"]
+    },
+    {
+      "id": "keep",
+      "title": "Keep or roll back",
+      "kind": "gate",
+      "gate": "handoff",
+      "gate_summary": "Production healthy: {{steps.canary.outputs.healthy}}. Read {{run.dir}}/canary.json. Continue keeps the deploy. To roll back, redeploy the previous version yourself, then Continue."
+    }
+  ]
+}

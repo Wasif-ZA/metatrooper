@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "id": "legacy-migration",
+  "title": "Legacy refactor or migration",
+  "lane": "coding",
+  "requires": ["repo"],
+  "inputs": {
+    "goal": { "type": "text", "label": "What to change and why", "required": true },
+    "target_stack": { "type": "text", "label": "Target stack", "required": true },
+    "slice": { "type": "text", "label": "Slice to migrate (a module or folder), or whole", "required": false, "default": "whole" }
+  },
+  "budget": { "max_minutes": 240, "max_parallel": 3 },
+  "layout": "agent-split",
+  "steps": [
+    {
+      "id": "intent",
+      "title": "Write the intent",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Write {{run.dir}}/INTENT.md: the goal ({{inputs.goal}}), the target stack ({{inputs.target_stack}}), the slice ({{inputs.slice}}), and what must not change for users. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "preflight",
+      "title": "Check it builds and tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{project.path}}" }
+    },
+    {
+      "id": "assess",
+      "title": "Assess the slice",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Tests passed before any change: {{steps.preflight.outputs.passed}}. For the slice in {{run.dir}}/INTENT.md, write {{run.dir}}/assessment.md: file inventory, complexity, debt, security risks, and whether there is a way to capture the old code's outputs. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "map",
+      "title": "Map dependencies and data flow",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "For the slice in {{run.dir}}/INTENT.md, write {{run.dir}}/map.md: entry points, dependencies in and out, and how data flows through it. Split the slice into three modules that can move one at a time and name them in order. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "rules",
+      "title": "Extract the business rules",
+      "role": "research",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "items",
+      "prompt": "Read the code in {{run.dir}}/map.md. Write every business rule as Given, When, Then with its file and line. Write {{run.dir}}/rules.json as a list of items with id, title (the rule), preview (file and line), reason and status pending. Set the output key items to that path. Do not edit the repository.",
+      "outputs": ["items"]
+    },
+    {
+      "id": "rules-check",
+      "title": "Re-check each rule",
+      "role": "review",
+      "kind": "agent",
+      "engine": "codex",
+      "approval": "edits",
+      "prompt": "Re-check every rule in {{run.dir}}/rules.json against the code at its file and line. Add a reason to any rule that is wrong, vague or missing a case, and add rules that were missed. Write {{run.dir}}/rules-check.md. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "confirm-rules",
+      "title": "Confirm the rules",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Approve or drop each rule in {{run.dir}}/rules.json, reading {{run.dir}}/rules-check.md. Approve to plan the migration against the approved rules."
+    },
+    {
+      "id": "brief",
+      "title": "Write the phased plan",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Write {{run.dir}}/plan.md: one phase per module named in {{run.dir}}/map.md, the approved rules from {{run.dir}}/rules.json each phase must keep, and how old and new outputs will be compared. Write {{run.dir}}/module-0.md to module-2.md, one per phase. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "approve-plan",
+      "title": "Approve the plan",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Read {{run.dir}}/plan.md. Approve to rebuild the three modules in their own worktrees."
+    },
+    {
+      "id": "transform",
+      "title": "Rebuild one module",
+      "role": "worker",
+      "kind": "agent",
+      "fanout": 3,
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "Rebuild the module in {{run.dir}}/module-{{index}}.md in {{inputs.target_stack}} in this worktree, keeping every approved rule in {{run.dir}}/rules.json. Commit on the current branch. Do not push.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "prove",
+      "title": "Prove old and new match",
+      "role": "verify",
+      "kind": "agent",
+      "fanout": 3,
+      "cwd": "{{steps.transform.outputs.worktree[i]}}",
+      "approval": "contained",
+      "prompt": "Run the old module from {{project.path}} and the new one in this folder on the same inputs, covering each rule in {{run.dir}}/rules.json that {{run.dir}}/module-{{index}}.md names. Write {{run.dir}}/prove-{{index}}.md with each input, both outputs and match or not. Set passed to true only when every output matches.",
+      "outputs": ["passed"]
+    }
+  ]
+}
