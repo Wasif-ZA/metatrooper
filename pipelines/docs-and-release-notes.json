@@ -46,7 +46,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "From {{steps.diff.output_path}} and {{run.dir}}/map.md, write {{run.dir}}/release-notes.md and a new CHANGELOG.md section grouped Added, Changed, Fixed. Pick the semver bump from the PR labels. Every line names its PR and doc. Skip chores and say why. Stage CHANGELOG.md; never commit.",
+      "prompt": "From {{steps.diff.output_path}} and {{run.dir}}/map.md, write {{run.dir}}/release-notes.md and a new CHANGELOG.md section grouped Added, Changed, Fixed. Pick the semver bump from the PR labels. Every line names its PR and doc. Skip chores and say why. Stage CHANGELOG.md; never commit. Set version to the new tag as the repository writes its tags, for example v1.4.0.",
       "outputs": ["bump", "version"]
     },
     {
@@ -74,7 +74,7 @@
       "uses": "plugin:github/release",
       "with": {
         "repo": "{{inputs.repo}}",
-        "tag": "v{{steps.changelog.outputs.version}}",
+        "tag": "{{steps.changelog.outputs.version}}",
         "target": "{{inputs.base_branch}}",
         "notes": "{{run.dir}}/release-notes.md",
         "path": "{{project.path}}"

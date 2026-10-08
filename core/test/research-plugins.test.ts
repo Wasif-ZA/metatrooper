@@ -94,3 +94,11 @@ test('github list-prs accepts a tag that has no release', () => {
   assert.equal(result.since_tag, 'v1.2.0');
   assert.equal(result.since_date, '2026-09-01');
 });
+
+test('docs-and-release-notes release tag is valid whether the agent answers v1.4.0 or 1.4.0', () => {
+  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/docs-and-release-notes.json', import.meta.url), 'utf8'));
+  const manifest = JSON.parse(readFileSync(new URL('../../plugins/github/troop-plugin.json', import.meta.url), 'utf8'));
+  const pattern = new RegExp(manifest.actions.find((a) => a.id === 'release').input_schema.properties.tag.pattern);
+  const tag = pipe.steps.find((s) => s.id === 'release').with.tag;
+  for (const version of ['v1.4.0', '1.4.0']) assert.match(tag.replace('{{steps.changelog.outputs.version}}', version), pattern);
+});
