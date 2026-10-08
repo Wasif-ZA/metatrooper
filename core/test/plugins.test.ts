@@ -268,6 +268,22 @@ test('an action\'s stderr reaches log.jsonl with its secret values redacted', as
   }
 });
 
+test('a timed-out action resolves while an orphaned grandchild still holds its stdout', { skip: process.platform !== 'win32', timeout: 15000 }, async () => {
+  const dir = fixtureDir();
+  try {
+    script(dir, 'bin/orphan.cmd', '@start /b ping -n 8 127.0.0.1\r\n');
+    const started = Date.now();
+    const r = await runAction({
+      plugin: pluginRecord(dir, [{ id: 'orphan', run: ['bin/orphan.cmd'], timeout_seconds: 1 }]),
+      actionId: 'orphan', input: {}, projectDir: tmpdir(), run: { id: 'r', dir: join(dir, 'run') }, secret: () => null,
+    });
+    assert.deepEqual(r, { ok: false, error: { message: 'action timed out after 1 s', retryable: true } });
+    assert.ok(Date.now() - started < 5000);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('M1-16 a hung action is killed with its child processes at its timeout', async () => {
   const dir = fixtureDir();
   try {

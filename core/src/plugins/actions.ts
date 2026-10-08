@@ -165,6 +165,7 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
       timedOut = true;
       log.write({ stream: 'core', plugin: req.plugin.id, action: action.id, line: `timed out after ${action.timeout_seconds ?? 600} s; process tree killed` });
       killTree(child);
+      finish(fail(`action timed out after ${action.timeout_seconds ?? 600} s`, true));
     }, timeoutMs);
 
     child.stdout!.on('data', (c: Buffer) => {
