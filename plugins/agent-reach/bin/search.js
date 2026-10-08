@@ -59,6 +59,7 @@ export async function search(input, search_ = exaSearch, save_ = save) {
       sources.push(src);
     }
   }
+  if (!sources.length) throw new Error(`no sources found${failed.length ? `: ${failed.map((f) => `${f.query}: ${f.error}`).join('; ')}` : ''}`);
   fs.writeFileSync(path.join(input.out, 'sources.json'), JSON.stringify(sources, null, 2));
   return { sources: path.join(input.out, 'sources.json'), count: sources.length, saved: sources.filter((s) => s.path && !s.excerpt_only).length, excerpts: sources.filter((s) => s.excerpt_only).length, failed };
 }
