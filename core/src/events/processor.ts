@@ -16,6 +16,7 @@ interface SessionRow {
   engine_id: string;
   native_id: string | null;
   pid: number | null;
+  run_id: string | null;
 }
 
 /** Applies unprocessed events in seq order: links sessions, records pids, and moves session state. */
@@ -24,7 +25,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     .prepare('SELECT seq, session_id, kind, payload FROM event WHERE processed = 0 ORDER BY seq LIMIT ?')
     .all(limit) as unknown as EventRow[];
   if (rows.length === 0) return 0;
-  const getSession = db.prepare('SELECT state, engine_id, native_id, pid FROM session WHERE id = ?');
+  const getSession = db.prepare('SELECT state, engine_id, native_id, pid, run_id FROM session WHERE id = ?');
   const setState = db.prepare('UPDATE session SET state = ?, state_at = ? WHERE id = ?');
   const setPid = db.prepare('UPDATE session SET pid = ? WHERE id = ?');
   const setNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL');
@@ -55,7 +56,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
           if (next === 'exited') setEnded.run(nowIso(), ev.session_id);
-          if (next === 'done') note('done', ev.session_id, s.engine_id, 'finished');
+          if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turnStarts.push(ev.session_id);
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
