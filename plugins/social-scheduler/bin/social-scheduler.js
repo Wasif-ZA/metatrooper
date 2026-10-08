@@ -12,8 +12,8 @@ export class ApiError extends Error {
 export const PLATFORMS = {
   tiktok: {
     identifiers: ['tiktok'],
-    settings: () => ({
-      __type: 'tiktok', title: '', privacy_level: 'PUBLIC_TO_EVERYONE', duet: false, stitch: false, comment: true, autoAddMusic: 'no',
+    settings: (p, identifier, input) => ({
+      __type: 'tiktok', title: '', privacy_level: input.tiktok_privacy || 'PUBLIC_TO_EVERYONE', duet: false, stitch: false, comment: true, autoAddMusic: 'no',
       brand_content_toggle: false, brand_organic_toggle: false, video_made_with_ai: false, content_posting_method: 'DIRECT_POST',
     }),
   },
@@ -94,7 +94,7 @@ export async function schedulePost(input, api, runDir = process.env.TROOP_RUN_DI
       const integration = target(p);
       const r = await api('POST', 'posts', {
         type: 'schedule', date: new Date(p.slot).toISOString(), shortLink: false, tags: [],
-        posts: [{ integration: { id: integration.id }, value: [{ content: content(p), image: [uploads.get(clip)] }], settings: PLATFORMS[p.platform].settings(p, integration.identifier) }],
+        posts: [{ integration: { id: integration.id }, value: [{ content: content(p), image: [uploads.get(clip)] }], settings: PLATFORMS[p.platform].settings(p, integration.identifier, input) }],
       });
       scheduled.push({ clip: p.clip, platform: p.platform, slot: p.slot, post_id: r?.[0]?.postId ?? null });
       process.stderr.write(`scheduled ${p.clip} on ${p.platform} for ${p.slot}\n`);
