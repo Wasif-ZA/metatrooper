@@ -98,5 +98,5 @@ export function ensureProxy(): string | null {
 
 /** Removes a session's container without waiting; a missing container is not an error. */
 export function removeContainer(sessionId: string): void {
-  try { spawn('docker', ['rm', '-f', containerName(sessionId)], { stdio: 'ignore', windowsHide: true, detached: false }).on('error', () => {}); } catch {}
+  try { spawn(containerRuntime() ?? 'docker', ['rm', '-f', containerName(sessionId)], { stdio: 'ignore', windowsHide: true }).on('error', () => {}); } catch {}
 }
