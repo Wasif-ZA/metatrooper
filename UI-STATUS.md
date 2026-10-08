@@ -43,7 +43,7 @@ or step that should is noted in its row. 2026-10-07T21:10+11:00: flags now reach
 | docs-and-release-notes (#26) | done | done | done | pass | github list-prs: done, checked live; release: done, not run (external); breaking_no_doc flag from map | TODO |
 | form-fill-batch (#39) | done | done | done | pass | desktop screenshot, submit, read (UI Automation, click fallback): done; checked on a test form | TODO |
 | security-review-and-upgrade (#27) | done | done | done | pass | security list-deps (npm only), licence-report (sets licence_conflict): done; high_reachable from plan. review-prompts and upgrade are on agent steps, not built | TODO |
-| template gallery (#40) | n/a | n/a | n/a | n/a | n/a | TODO |
+| template gallery (#40) | n/a | n/a | n/a | n/a | n/a | Pipelines tab Templates panel on `template.list` (2026-10-09T03:00+11:00); real-window look owed on Windows |
 
 | Child | Status | Notes |
 |---|---|---|
