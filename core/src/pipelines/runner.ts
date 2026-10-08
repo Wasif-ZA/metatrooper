@@ -16,12 +16,13 @@ import { loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
-import { startDevServer, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
+import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
 import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
 
 const POLL_MS = 500;
 const STABLE_MS = 10_000;
+const SETTLED_GRACE_MS = 120_000;
 const BREAKER = 3;
 
 interface RunRow {
@@ -212,9 +213,12 @@ export class Runner {
       this.db.prepare("UPDATE run_step SET fail_count = 0 WHERE run_id = ? AND status = 'failed'").run(runId);
       this.log(run, { event: 'breaker reset', detail: 'failure counts cleared by resume' });
     }
+    if (!this.active.has(runId)) {
+      for (const s of this.db.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND status IN ('failed','running') AND session_id IS NOT NULL").all(runId) as Array<{ session_id: string }>) this.killSession(s.session_id);
+    }
     this.db.prepare("UPDATE run_step SET status = 'pending', session_id = NULL WHERE run_id = ? AND status IN ('failed','running')").run(runId);
     const raised = this.run(runId) as RunRow;
-    for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as unknown as RunRow[]) {
+    for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed')").all(runId) as unknown as RunRow[]) {
       if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) continue;
       this.resume(c.id, {
         max_tokens: c.max_tokens + raised.max_tokens - run.max_tokens,
@@ -237,23 +241,41 @@ export class Runner {
 
   private fail(run: RunRow, text: string, breaker = false): StepOutcome {
     this.db.prepare("UPDATE run SET status = 'failed', paused_why = ?, ended_at = ? WHERE id = ?").run(breaker ? 'breaker' : null, nowIso(), run.id);
+    const tree = this.runTree(run.id);
+    this.db.prepare(`UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND kind IN ('run-failed','budget','other') AND ref IN (${tree.map(() => '?').join(',')})`).run(nowIso(), ...tree);
     this.needsYou('run-failed', run.id, text);
     this.log(run, { event: 'run failed', why: text });
+    this.stopProcesses(run);
+    this.tidy(run, 'failed', ['running']);
     stopRunServers(this.db, run.id);
     return 'failed';
   }
 
   private end(run: RunRow, status: 'done' | 'cancelled'): void {
     this.db.prepare('UPDATE run SET status = ?, paused_why = NULL, ended_at = ? WHERE id = ?').run(status, nowIso(), run.id);
+    const tree = this.runTree(run.id);
+    const marks = tree.map(() => '?').join(',');
     if (status === 'cancelled') {
       this.db.prepare("UPDATE gate SET status = 'rejected', decided_at = ?, note = 'run cancelled' WHERE run_id = ? AND status = 'waiting'").run(nowIso(), run.id);
-      this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND (ref = ? OR ref IN (SELECT id FROM gate WHERE run_id = ?))").run(nowIso(), run.id, run.id);
-      for (const [k, child] of this.children) if (k.startsWith(`${run.id}/`)) killTree(child);
-      for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) term.kill(s.id);
+      this.stopProcesses(run);
     }
+    this.db.prepare(`UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND (ref IN (${marks}) OR ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))`).run(nowIso(), ...tree, ...tree);
+    this.tidy(run, 'skipped', ['pending', 'running', 'waiting']);
     stopRunServers(this.db, run.id);
     this.removeWorktrees(run);
     this.log(run, { event: `run ${status}` });
+  }
+
+  private stopProcesses(run: RunRow): void {
+    for (const [k, child] of this.children) if (k.startsWith(`${run.id}/`)) killTree(child);
+    for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) this.killSession(s.id);
+  }
+
+  /** Moves the run's live step rows to a terminal status, discards variants still building and closes its panes. */
+  private tidy(run: RunRow, stepStatus: 'failed' | 'skipped', from: string[]): void {
+    this.db.prepare(`UPDATE run_step SET status = ?, ended_at = COALESCE(ended_at, ?) WHERE run_id = ? AND status IN (${from.map(() => '?').join(',')})`).run(stepStatus, nowIso(), run.id, ...from);
+    this.db.prepare("UPDATE variant SET status = 'discarded' WHERE run_id = ? AND status = 'building'").run(run.id);
+    this.db.prepare('UPDATE browser_pane SET open = 0 WHERE run_id = ?').run(run.id);
   }
 
   /** Removes the run's clean worktrees, and each troop branch that has no commits beyond the project's HEAD. */
@@ -387,12 +409,14 @@ export class Runner {
     return null;
   }
 
-  /** Wall-clock minutes since the run started, less the time it or its sub-pipeline runs waited at a gate. */
+  /** Wall-clock minutes since the run started, less the time it or its sub-pipeline runs waited at a gate, stood paused or stood failed. */
   private minutesUsed(run: RunRow): number {
     const ids = this.runTree(run.id);
+    const marks = ids.map(() => '?').join(',');
     const waits = this.db.prepare(
-      `SELECT at, resolved_at FROM needs_you WHERE kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${ids.map(() => '?').join(',')})) ORDER BY at`,
-    ).all(...ids) as Array<{ at: string; resolved_at: string | null }>;
+      `SELECT at, resolved_at FROM needs_you WHERE (kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))
+       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY at`,
+    ).all(...ids, ...ids) as Array<{ at: string; resolved_at: string | null }>;
     const now = Date.now();
     const start = Date.parse(run.started_at);
     let ms = now - start;
@@ -455,17 +479,21 @@ export class Runner {
     const rows = this.rows(run.id, step.id, iteration);
     const limit = new Semaphore(step.kind === 'agent' ? pipe.budget?.max_parallel ?? 3 : n);
     let budgetHit = false;
+    let lost = false;
     const results = await Promise.all(rows.map(async (row): Promise<IndexResult | null> => {
       if (row.status === 'done' || row.status === 'skipped') return null;
       const release = await limit.take();
       try {
+        if (lost) return null;
         const fresh = this.run(run.id) as RunRow;
         if (fresh.status !== 'running') return { paused: fresh.status };
         if (!row.session_id && step.kind === 'agent' && this.budgetReason(fresh)) {
           budgetHit = true;
           return { paused: 'budget' };
         }
-        return await this.execIndex(fresh, pipe, step, row);
+        const r = await this.execIndex(fresh, pipe, step, row);
+        if ('ok' in r && !r.ok) lost = true;
+        return r;
       } finally {
         release();
       }
@@ -580,7 +608,7 @@ export class Runner {
     if (step.fanout && step.worktree) {
       this.db.prepare(
         `INSERT INTO variant (run_id, idx, worktree, branch, dev_port, status) VALUES (?, ?, ?, ?, ?, 'building')
-         ON CONFLICT(run_id, idx) DO UPDATE SET worktree = excluded.worktree, branch = excluded.branch, dev_port = excluded.dev_port`,
+         ON CONFLICT(run_id, idx) DO UPDATE SET worktree = excluded.worktree, branch = excluded.branch, dev_port = excluded.dev_port, status = 'building'`,
       ).run(run.id, idx, cwd, branch ?? '', port ?? 0);
     }
     let paneId: string | undefined;
@@ -718,37 +746,53 @@ export class Runner {
     const deadline = started + a.timeoutMinutes * 60_000;
     const sessionEngine = (this.db.prepare('SELECT engine_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string } | undefined)?.engine_id;
     const print = Boolean(sessionEngine && getEngine(this.db, sessionEngine)?.print_args);
-    for (;;) {
-      const status = this.run(run.id)?.status;
-      if (status === 'cancelled' || status === 'failed') return { paused: status };
-      const session = this.db.prepare('SELECT state FROM session WHERE id = ?').get(sessionId) as { state: string } | undefined;
-      const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
-      let fm: Record<string, unknown> | null = null;
-      let mtime = 0;
-      if (fs.existsSync(a.outPath)) {
-        mtime = fs.statSync(a.outPath).mtimeMs;
-        fm = parseFrontMatter(fs.readFileSync(a.outPath, 'utf8'));
-      }
-      if (fm?.status === 'failed') {
-        return { ok: false, error: `${a.stepId} wrote status: failed; session left open` };
-      }
-      if (fm?.status === 'done') {
-        const missing = a.outputs.filter((k) => !(k in fm));
-        if (missing.length && (settled || !print)) {
-          return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}; session left open` };
+    try {
+      for (;;) {
+        const fresh = this.run(run.id);
+        const status = fresh?.status;
+        if (status === 'cancelled' || status === 'failed') return { paused: status };
+        const session = this.db.prepare('SELECT state, state_at FROM session WHERE id = ?').get(sessionId) as { state: string; state_at: string } | undefined;
+        const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
+        let fm: Record<string, unknown> | null = null;
+        let mtime = 0;
+        if (fs.existsSync(a.outPath)) {
+          mtime = fs.statSync(a.outPath).mtimeMs;
+          fm = parseFrontMatter(fs.readFileSync(a.outPath, 'utf8'));
         }
-        if (!missing.length && (settled || Date.now() - mtime >= STABLE_MS)) {
-          const { status: _s, ...outputs } = fm;
-          return { ok: true, outputs };
+        if (fm?.status === 'failed') {
+          return { ok: false, error: `${a.stepId} wrote status: failed` };
         }
-      } else if (session?.state === 'exited') {
-        return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+        if (fm?.status === 'done') {
+          const missing = a.outputs.filter((k) => !(k in fm));
+          if (missing.length && (settled || !print)) {
+            return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}` };
+          }
+          if (!missing.length && (settled || Date.now() - mtime >= STABLE_MS)) {
+            const { status: _s, ...outputs } = fm;
+            return { ok: true, outputs };
+          }
+        } else if (session?.state === 'exited') {
+          return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+        } else if (settled && Date.now() - Date.parse(session.state_at) >= SETTLED_GRACE_MS) {
+          return { ok: false, error: `${a.stepId}: the session stopped without writing ${a.outPath}` };
+        }
+        const over = fresh && status === 'running' && fm?.status !== 'done' ? this.budgetReason(fresh) : null;
+        if (fresh && over) {
+          this.pause(fresh, 'budget', { kind: 'budget', ref: run.id, text: `${pipe.title}: ${over} during ${a.stepId}; raise the budget and resume` });
+          return { paused: 'budget' };
+        }
+        if (Date.now() > deadline) {
+          return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes` };
+        }
+        await sleep(POLL_MS);
       }
-      if (Date.now() > deadline) {
-        return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes; session left open` };
-      }
-      await sleep(POLL_MS);
+    } finally {
+      this.killSession(sessionId);
     }
+  }
+
+  private killSession(id: string | null): void {
+    if (id) term.kill(id);
   }
 
 
@@ -759,10 +803,12 @@ export class Runner {
     if (!plugin) return { ok: false, error: `plugin ${u.plugin} is not installed or not enabled` };
     const input = resolveValue(step.with ?? {}, this.scope(run, row.fanout_index)) as Record<string, unknown>;
     const project = this.project(run.project_id);
+    const key = `${run.id}/${step.id}/${row.fanout_index}`;
     const r = await runAction({
       plugin, actionId: u.action, input, projectDir: project.path, run: { id: run.id, dir: run.run_dir },
       secret: (name) => getSecret(plugin.id, name),
-    });
+      onSpawn: (child) => this.children.set(key, child),
+    }).finally(() => this.children.delete(key));
     const file = path.join(run.run_dir, fanout ? `${step.id}-${row.fanout_index}.json` : `${step.id}.json`);
     fs.writeFileSync(file, JSON.stringify(r, null, 2) + '\n');
     this.markRunning(run, row, { output_path: slash(file) });
@@ -876,7 +922,7 @@ export class Runner {
     const u = parseUses(step.uses as string);
     if (u?.kind !== 'pipeline') return { ok: false, error: `bad uses ${step.uses}` };
     const prior = row.output_path ? this.run(path.basename(row.output_path)) : undefined;
-    let child = prior && (prior.status === 'running' || prior.status === 'paused') ? { id: prior.id } : undefined;
+    let child = prior && ['running', 'paused', 'done'].includes(prior.status) ? { id: prior.id } : undefined;
     if (!child) {
       const inputs = resolveValue(step.with ?? {}, this.scope(run, row.fanout_index)) as Record<string, unknown>;
       const id = this.start({ pipeline_id: u.id, project_id: run.project_id, inputs, trigger: 'manual' }, { run, step: step.id, budget: this.remaining(run) });
@@ -1039,7 +1085,14 @@ export class Runner {
     ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null; output_path: string | null }>;
     for (const r of rows) {
       const run = this.run(r.run_id) as RunRow;
-      const step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);
+      if (run.status !== 'running') continue;
+      let step: Step | undefined;
+      try {
+        step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);
+      } catch (e) {
+        this.fail(run, `its run folder could not be read after a core restart: ${(e as Error).message}`);
+        continue;
+      }
       if (step?.kind === 'agent') {
         const s = r.session_id ? (this.db.prepare('SELECT state, pid FROM session WHERE id = ?').get(r.session_id) as { state: string; pid: number | null } | undefined) : undefined;
         if (s && s.state !== 'exited' && s.pid && pidAlive(s.pid)) continue;
@@ -1058,9 +1111,10 @@ export class Runner {
         .run(nowIso(), r.run_id, r.step_id, r.iteration, r.fanout_index);
       this.fail(run, `step ${r.step_id} was interrupted by a core restart; resume to run it again`);
     }
-    for (const d of this.db.prepare("SELECT pid FROM dev_server WHERE status IN ('starting','ready') AND pid IS NOT NULL").all() as Array<{ pid: number }>) {
-      if (pidAlive(d.pid)) killPid(d.pid);
+    for (const d of this.db.prepare("SELECT pid, started_at FROM dev_server WHERE status IN ('starting','ready') AND pid IS NOT NULL").all() as Array<{ pid: number; started_at: string }>) {
+      if (pidAlive(d.pid) && startedNear(d.pid, d.started_at)) killPid(d.pid);
     }
+    this.db.prepare('UPDATE browser_pane SET url = NULL WHERE EXISTS (SELECT 1 FROM dev_server d WHERE d.run_id = browser_pane.run_id AND d.idx = browser_pane.variant)').run();
     this.db.prepare("DELETE FROM dev_server WHERE status IN ('starting','ready','failed','stopped')").run();
     this.db.prepare("DELETE FROM port_lease WHERE run_id IN (SELECT id FROM run WHERE status IN ('done','failed','cancelled'))").run();
   }
