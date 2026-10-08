@@ -29,6 +29,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const setState = db.prepare('UPDATE session SET state = ?, state_at = ? WHERE id = ?');
   const setPid = db.prepare('UPDATE session SET pid = ? WHERE id = ?');
   const setNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL');
+  const relinkNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ?');
+  const convEnded = db.prepare("SELECT 1 FROM event WHERE kind = 'claude.SessionEnd' AND session_id = ? AND json_extract(payload, '$.session_id') = ? AND seq < ? LIMIT 1");
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
   const setTitle = db.prepare('UPDATE session SET title = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
@@ -44,7 +46,11 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       const s = ev.session_id ? (getSession.get(ev.session_id) as SessionRow | undefined) : undefined;
       if (s && ev.session_id && s.state !== 'exited') {
         const conv = ev.kind.startsWith('claude.') ? payload.session_id : ev.kind === 'codex.turn' ? payload['thread-id'] : undefined;
-        const foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
+        let foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
+        if (foreign && ev.kind.startsWith('claude.') && ev.kind !== 'claude.SessionEnd' && convEnded.get(ev.session_id, s.native_id, ev.seq)) {
+          relinkNative.run(conv, ev.session_id);
+          foreign = false;
+        }
         if (ev.kind === 'launch' && typeof payload.pid === 'number') setPid.run(payload.pid, ev.session_id);
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
