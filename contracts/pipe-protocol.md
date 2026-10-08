@@ -115,6 +115,7 @@ Every other interaction is a database read.
 
 | Method | Params | Result |
 |---|---|---|
+| `account.state` | `{}` | `{state: "signed_out"}`: the only state until the cloud milestone; nothing prompts for sign-in |
 | `project.open` | `{path}` | `{project_id}`; error -32001 for ACU paths. `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
 | `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it |
 | `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once |

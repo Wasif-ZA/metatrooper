@@ -102,7 +102,7 @@ export function bindRole(db: DatabaseSync, role: string, pinned?: string): Engin
       | undefined;
     return Boolean(c && c.installed && c.auth !== 'missing');
   };
-  const engines = activeEngines(db);
+  const engines = activeEngines(db).filter((e) => e.provider !== 'gateway');
   if (pinned) {
     const e = engines.find((x) => x.id === pinned);
     return e && usable(e) ? e : null;
