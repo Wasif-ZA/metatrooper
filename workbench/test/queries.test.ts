@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { light, OFFLINE_AFTER_MS, snapshot } from '../src/queries.ts';
+import { light, OFFLINE_AFTER_MS, snapshot, withLiveText, type Snapshot } from '../src/queries.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
 
@@ -129,4 +129,12 @@ test('snapshot lists running and paused top-level runs from every project, so ap
   } finally {
     f.close();
   }
+});
+
+test('M1-05 withLiveText fills last_line and title from core memory and blanks sessions it does not know', () => {
+  const row = (id: string) => ({ id, title: 'stale', last_line: 'stale' });
+  const s = { sessions: [row('a'), row('b')], live: [row('a')] } as unknown as Snapshot;
+  const out = withLiveText(s, { a: { line: 'ls', title: 'Fix bug' } });
+  assert.deepEqual(out.sessions.map((x) => [x.last_line, x.title]), [['ls', 'Fix bug'], [null, null]]);
+  assert.deepEqual(out.live.map((x) => [x.last_line, x.title]), [['ls', 'Fix bug']]);
 });
