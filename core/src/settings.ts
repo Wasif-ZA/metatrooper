@@ -14,6 +14,9 @@ export const DEFAULTS = {
   sessions: {
     approval: 'contained',
   },
+  worktree: {
+    npm_ci: true,
+  },
   terminal: {
     cols: 120,
     rows: 30,

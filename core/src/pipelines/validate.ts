@@ -23,6 +23,7 @@ export interface Step {
   destination?: string;
   fanout?: number;
   worktree?: boolean;
+  baseline_tests?: boolean;
   cwd?: string;
   browser?: boolean;
   dev_command?: string;

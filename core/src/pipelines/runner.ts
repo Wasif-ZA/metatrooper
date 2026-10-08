@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync, fork, type ChildProcess } from 'node:child_process';
+import { execFile, execFileSync, fork, type ChildProcess } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import { coreDir, homeDir } from '../paths.ts';
+import { settings } from '../settings.ts';
+import { resolveCommand } from '../hook/resolve.ts';
 import { nowIso, ulid } from '../time.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
@@ -101,6 +104,23 @@ class Semaphore {
 function sameError(a: string, b: unknown): boolean {
   const strip = (e: string) => e.replace(/ for \d+ s\)/, ')');
   return typeof b === 'string' && strip(a) === strip(b);
+}
+
+const execFileAsync = promisify(execFile);
+const BASELINE_TIMEOUT_MS = 600_000;
+
+/** Runs `npm ci` in a worktree that has a package-lock.json and no node_modules, unless settings turn it off. */
+async function npmCiIfNeeded(dir: string): Promise<void> {
+  if (!settings().worktree.npm_ci) return;
+  if (!fs.existsSync(path.join(dir, 'package-lock.json')) || fs.existsSync(path.join(dir, 'node_modules'))) return;
+  const npm = resolveCommand('npm') ?? ['npm'];
+  try {
+    await execFileAsync(npm[0], [...npm.slice(1), 'ci', '--prefer-offline', '--no-audit', '--no-fund'], { cwd: dir, timeout: 600_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string; message: string };
+    const tail = `${err.stdout ?? ''}${err.stderr ?? ''}`.trim().split(/\r?\n/).slice(-20).join('\n');
+    throw new Error(`npm ci failed in ${slash(dir)}: ${tail || err.message}`);
+  }
 }
 
 export class Runner {
@@ -580,6 +600,26 @@ export class Runner {
   }
 
 
+  /** Runs the repo plugin's run-tests in a fresh worktree and writes `<run_dir>/<step>-<idx>.baseline.json`; never fails the step. */
+  private async testBaseline(run: RunRow, stepId: string, idx: number, dir: string): Promise<void> {
+    const file = path.join(run.run_dir, `${stepId}-${idx}.baseline.json`);
+    const plugin = loadPlugin(this.db, 'repo');
+    let result: Record<string, unknown> = { failing: 'unknown' };
+    if (plugin) {
+      let child: ChildProcess | undefined;
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), BASELINE_TIMEOUT_MS); });
+      const r = await Promise.race([
+        runAction({ plugin, actionId: 'run-tests', input: { path: dir }, projectDir: dir, run: { id: run.id, dir: run.run_dir }, secret: () => null, onSpawn: (c) => { child = c; } }),
+        timeout,
+      ]);
+      clearTimeout(timer);
+      if (r === null) { if (child) killTree(child); }
+      else if (r.ok) result = { passed: r.outputs.passed, exit_code: r.outputs.exit_code, failing: r.outputs.failing ?? 'unknown' };
+    }
+    fs.writeFileSync(file, JSON.stringify(result, null, 2) + '\n');
+  }
+
   private async placeIndex(run: RunRow, step: Step, idx: number): Promise<{ cwd: string; port?: number; paneId?: string; branch?: string }> {
     const project = this.project(run.project_id);
     let cwd = project.path;
@@ -609,6 +649,8 @@ export class Runner {
           throw new Error(`git worktree add failed: ${gitError(e)}`);
         }
       }
+      await npmCiIfNeeded(dir);
+      if (step.baseline_tests) await this.testBaseline(run, step.id, idx, dir);
       cwd = slash(dir);
     } else if (step.cwd) {
       cwd = slash(resolveString(step.cwd, this.scope(run, idx)));
