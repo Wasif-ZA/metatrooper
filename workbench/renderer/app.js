@@ -34,6 +34,7 @@ const ui = {
   lastBounds: '',
   log: [],
   rendered: {},
+  drafts: {},
 };
 
 function load(key) {
@@ -98,6 +99,7 @@ function setHtml(id, html) {
   const key = focused && focused.dataset ? focused.dataset.key : null;
   const pos = focused && 'selectionStart' in focused ? [focused.selectionStart, focused.selectionEnd] : null;
   el.innerHTML = html;
+  for (const d of el.querySelectorAll('[data-key]')) if (d.dataset.key in ui.drafts) d[d.type === 'checkbox' ? 'checked' : 'value'] = ui.drafts[d.dataset.key];
   if (key) {
     const again = el.querySelector(`[data-key="${CSS.escape(key)}"]`);
     if (again) {
@@ -105,6 +107,10 @@ function setHtml(id, html) {
       if (pos && 'setSelectionRange' in again) try { again.setSelectionRange(pos[0], pos[1]); } catch {}
     }
   }
+}
+
+function clearInputDrafts() {
+  for (const k of Object.keys(ui.drafts)) if (k.startsWith('input:')) delete ui.drafts[k];
 }
 
 function project() {
@@ -131,8 +137,8 @@ function meter(x) {
 function inputField(name, spec) {
   const key = `input:${name}`;
   const label = esc(spec.label || name);
-  if (spec.type === 'boolean') return `<label>${label}</label><input type="checkbox" data-input="${esc(name)}" data-key="${esc(key)}">`;
-  if (spec.type === 'choice') return `<label>${label}</label><select data-input="${esc(name)}" data-key="${esc(key)}">${(spec.choices || []).map((c) => `<option>${esc(c)}</option>`).join('')}</select>`;
+  if (spec.type === 'boolean') return `<label>${label}</label><input type="checkbox" data-input="${esc(name)}" data-key="${esc(key)}" ${spec.default ? 'checked' : ''}>`;
+  if (spec.type === 'choice') return `<label>${label}</label><select data-input="${esc(name)}" data-key="${esc(key)}">${(spec.choices || []).map((c) => `<option ${c === spec.default ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`;
   const type = spec.type === 'number' ? 'number' : 'text';
   return `<label>${label}</label><input type="${type}" data-input="${esc(name)}" data-key="${esc(key)}" value="${esc(spec.default ?? '')}">`;
 }
@@ -816,6 +822,7 @@ async function resolveGate(id, decision) {
   const note = document.querySelector(`[data-note="${CSS.escape(id)}"]`);
   const params = { gate_id: id, decision, action_hash: g.action_hash };
   if (note && note.value) params.note = note.value;
+  delete ui.drafts[`note:${id}`];
   (ui.decided ||= {})[id] = { g, ok: decision === 'approve', i: ui.snap.gates.indexOf(g) };
   for (const card of document.querySelectorAll(`.gate[data-g="${CSS.escape(id)}"]`)) wall.verdict(card, decision === 'approve');
   const r = await rpc('gate.resolve', params);
@@ -1035,7 +1042,9 @@ function paletteItems() {
   const sel = selectedSession();
   if (sel) items.push({ group: 'Actions', label: 'Paste the held prompt into this terminal', run: async () => { const r = await rpc('session.paste-prompt', { session_id: sel.id }); if (r.result && !r.result.written) toast(r.result.reason); } });
   for (const k of ui.shellKinds) if (project()) items.push({ group: 'Start', label: `New ${k.label} tab`, run: () => openShell(k.kind) });
-  for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
+  for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: Object.keys(p.inputs || {}).length
+    ? () => { if (ui.pipelineId !== p.id) clearInputDrafts(); ui.pipelineId = p.id; openTab('runs'); }
+    : async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
   for (const r of s.runs.filter((x) => !x.parent_run).slice(0, 8)) items.push({ group: 'Runs', label: `Open run: ${pipeName(r.pipeline_id)}`, meta: r.status, run: () => runBars.open(r.id) });
   for (const r of s.runs.filter((x) => !x.parent_run && ['running', 'paused'].includes(x.status))) {
     const title = (s.pipelines.find((p) => p.id === r.pipeline_id) || {}).title || r.pipeline_id;
@@ -1478,6 +1487,7 @@ async function onClick(e) {
       render();
       return;
     case 'pick-card':
+      if (ui.pipelineId !== id) clearInputDrafts();
       ui.pipelineId = ui.pipelineId === id ? null : id;
       render();
       return;
@@ -1491,10 +1501,12 @@ async function onClick(e) {
       const inputs = {};
       for (const input of document.querySelectorAll('[data-input]')) {
         const spec = chosen.inputs[input.dataset.input] || {};
+        if (spec.type === 'number' && input.value === '') continue;
         inputs[input.dataset.input] = spec.type === 'boolean' ? input.checked : spec.type === 'number' ? Number(input.value) : input.value;
       }
       const r = await rpc('run.start', { pipeline_id: chosen.id, project_id: ui.projectId, inputs });
       if (r.result) {
+        clearInputDrafts();
         ui.runId = r.result.run_id;
         setView();
       }
@@ -1601,7 +1613,7 @@ async function onClick(e) {
       const note = (document.getElementById('combine-note') || {}).value || '';
       if (!note.trim()) { toast('Write a note saying what to take from each variant.', true); return; }
       const r = await rpc('variant.combine', { run_id: ui.runId, indices: ui.combine, note });
-      if (r.result) { ui.combine = []; toast(`Combine started as ${r.result.step_id}.`); }
+      if (r.result) { ui.combine = []; delete ui.drafts['combine-note']; toast(`Combine started as ${r.result.step_id}.`); }
       return;
     }
     case 'resume-run': {
@@ -1812,6 +1824,7 @@ function onInput(e) {
     void api.paneAct(ui.paneId, 'find', { text: el.value });
     return;
   }
+  if (/^(input:|note:|combine-note$|raise-tokens$)/.test(el.dataset.key || '')) ui.drafts[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value;
   if (!ui.editor) {
     if (el.dataset.action === 'pick-pipeline') {
       ui.pipelineId = el.value;
