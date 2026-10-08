@@ -1,6 +1,6 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, root, until } from './helpers.ts';
@@ -52,5 +52,39 @@ test('M3-01 data-to-dashboard loads the CSV, runs every step and stops at the si
     assert.equal(readFileSync(csv, 'utf8').split('\n').length, 6);
     assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
     await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+  } finally { await close(h); }
+});
+
+function fakeVercel(h: Harness) {
+  const log = join(h.iso.home, 'vercel.log');
+  writeFileSync(join(h.iso.home, 'bin', process.platform === 'win32' ? 'vercel.cmd' : 'vercel'), process.platform === 'win32'
+    ? `@echo off\r\necho %*>>"${log}"\r\necho https://prod.test/site\r\n`
+    : `#!/bin/sh\necho "$@" >> '${log}'\necho https://prod.test/site\n`, { mode: 0o755 });
+  return () => existsSync(log) ? readFileSync(log, 'utf8').trim().split(/\r?\n/) : [];
+}
+
+test('M3-01 seo-audit-fix audits five areas, fixes in a worktree and deploys only after approve', async () => {
+  const h = await revisionHarness(undefined, capturingEngine);
+  try {
+    mkdirSync(join(h.project, '.vercel'), { recursive: true }); writeFileSync(join(h.project, '.vercel/project.json'), '{}');
+    const calls = fakeVercel(h);
+    const def = builtin('seo-audit-fix', {
+      audit: { outputs: { findings: 'audit.json' } },
+      prioritise: { outputs: { summary: 'ranked', key_pages: '/, /menu, /contact' } },
+      fix: { outputs: { summary: 'titles and alt text fixed' } },
+      speed: { outputs: { passed: true, scores: '/ 96, /menu 93, /contact 98' } },
+    });
+    // The crawl action refuses loopback hosts, so a fake step stands in for it; plugin unit tests cover crawl.
+    def.steps[0] = { id: 'crawl', title: 'Crawl the site', role: 'ingest', kind: 'agent', engine: 'fake', approval: 'edits', outputs: ['pages'], prompt: 'FAKE {"outputs":{"pages":3},"run_files":{"crawl.json":"[]"}}\nCrawl.' };
+    const runId = await h.pipeline(def, { url: 'https://bakery.example', market: 'bakery' });
+    const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 60000);
+    assert.equal(gate.guards_step, 'deploy'); assert.match(gate.action_hash, /^[0-9a-f]{64}$/);
+    assert.match(gate.summary, /titles and alt text fixed/); assert.match(gate.summary, /\/menu 93/);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'audit' AND status = 'done'").get(runId) as any).n, 5);
+    assert.deepEqual(calls(), []);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'deploy' AND status = 'done'").get(runId) as any).n, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+    assert.deepEqual(calls(), ['deploy --yes --prod']);
   } finally { await close(h); }
 });
