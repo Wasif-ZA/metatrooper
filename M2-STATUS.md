@@ -23,6 +23,7 @@ Waiting on Wasif: #28 (herdr not installed), #31 (SignPath account), sandbox-hos
 | M2-12 | VERIFIED-WINDOWS | 2026-10-08T23:30+11:00: core/test/sandbox-refusals.test.ts (Codex, 6 tests): isolated on pty, sandbox without isolated, ACU path, not a worktree, no runtime, image missing, Claude login under 60 minutes; no session row or terminal on refusal. Each refusal removed in turn makes a test fail. |
 
 ## Decisions
+- 2026-10-09T00:01+11:00: m2-harden merged to main on Codex review plus tests (Wasif's call). Codex review of 103bff8..m2-harden: 3 findings, none held against the code (engine-on-host claim contradicted by the selftest and e2e; partial spool line dropped by contract; schema has no triggers). Gemini review missing: blocked by its safety filter once, empty answer twice. Full core suite at c8abe1a: 314 pass, 0 fail, 5 skipped.
 - 2026-10-02: Combine starts a fresh worktree from the project HEAD; the agent gets the note, each chosen variant's
   diff (against its merge-base with HEAD, new files included) and its pane capture (Wasif's call).
 - 2026-10-02: Claude limits come from the statusline input (Wasif's call). core/statusline.js saves its rate_limits
