@@ -149,7 +149,8 @@ function inputField(name, spec) {
   return `<label>${label}</label><input type="${type}" data-input="${esc(name)}" data-key="${esc(key)}" value="${esc(spec.default ?? '')}">`;
 }
 
-const THUMBS = new Set(['design-variants', 'e2e-browser-qa', 'spec-build-review-handback', 'spec-to-pr', 'two-engine-review', 'website-build']);
+const THUMBS = new Set(['clips-to-scheduled-posts', 'data-to-dashboard', 'deep-research-cited', 'design-variants', 'docs-and-release-notes', 'e2e-browser-qa', 'footage-to-edit', 'form-fill-batch', 'inspiration-board',
+  'inbox-triage-drafts', 'prospect-list-to-drafts', 'security-review-and-upgrade', 'seo-audit-fix', 'spec-build-review-handback', 'spec-to-pr', 'study-notes-to-pdf', 'two-engine-review', 'website-build']);
 
 function ringHtml(defs, st) {
   const n = defs.length;
