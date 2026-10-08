@@ -25,3 +25,14 @@ test('setHtml puts typed drafts back after a re-render', () => {
   assert.equal(box.checked, true);
   assert.equal(other.value, 'kept');
 });
+
+test('changing a step kind drops the fields the new kind never reads', () => {
+  const resetForKind = new Function(`${fn('resetForKind')}; return resetForKind;`)();
+  const loop = { steps: ['build'], until: 'steps.build.passed', max: 2 };
+  const st: any = { id: 'build', kind: 'gate', role: 'worker', prompt: 'x', fanout: 3, worktree: true, cwd: 'a', continue: 'spec', loop };
+  resetForKind(st, 'gate');
+  assert.deepEqual(st, { id: 'build', kind: 'gate', role: 'worker', gate: 'approve', loop });
+  const code: any = { id: 'c', kind: 'code', fanout: 2, worktree: true, continue: 'spec', approval: 'ask', timeout_minutes: 5 };
+  resetForKind(code, 'code');
+  assert.deepEqual(code, { id: 'c', kind: 'code', fanout: 2, worktree: true, timeout_minutes: 5 });
+});

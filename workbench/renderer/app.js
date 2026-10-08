@@ -1802,6 +1802,14 @@ async function onClick(e) {
   }
 }
 
+function resetForKind(st, kind) {
+  for (const k of ['prompt', 'engine', 'outputs', 'uses', 'with', 'code', 'gate', 'gate_summary', 'destination']) delete st[k];
+  if (kind !== 'agent') for (const k of ['continue', 'approval']) delete st[k];
+  if (kind === 'gate') for (const k of ['fanout', 'worktree', 'cwd', 'browser', 'dev_command', 'serve', 'external', 'timeout_minutes']) delete st[k];
+  if (kind === 'agent') st.prompt = '';
+  if (kind === 'gate') st.gate = 'approve';
+}
+
 function onInput(e) {
   const el = e.target;
   if (el.id === 'palette-input') {
@@ -1860,11 +1868,7 @@ function onInput(e) {
     }
   } else if (v === '' && f !== 'prompt') delete st[f];
   else st[f] = v;
-  if (f === 'kind') {
-    for (const k of ['prompt', 'engine', 'outputs', 'uses', 'with', 'code', 'gate', 'gate_summary', 'destination']) delete st[k];
-    if (v === 'agent') st.prompt = '';
-    if (v === 'gate') st.gate = 'approve';
-  }
+  if (f === 'kind') resetForKind(st, v);
   editorChanged();
 }
 
