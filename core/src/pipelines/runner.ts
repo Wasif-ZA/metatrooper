@@ -95,6 +95,12 @@ class Semaphore {
   }
 }
 
+/** Compares two step errors with the held-for seconds of an exit error left out. */
+function sameError(a: string, b: unknown): boolean {
+  const strip = (e: string) => e.replace(/ for \d+ s\)/, ')');
+  return typeof b === 'string' && strip(a) === strip(b);
+}
+
 export class Runner {
   private db: DatabaseSync;
   private active = new Set<string>();
@@ -418,7 +424,7 @@ export class Runner {
     const marks = ids.map(() => '?').join(',');
     const waits = this.db.prepare(
       `SELECT at, resolved_at FROM needs_you WHERE (kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))
-       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY at`,
+       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY julianday(at)`,
     ).all(...ids, ...ids) as Array<{ at: string; resolved_at: string | null }>;
     const now = Date.now();
     const start = Date.parse(run.started_at);
@@ -642,7 +648,7 @@ export class Runner {
   private usableEngine(id: string): EngineSpec | null {
     const e = getEngine(this.db, id);
     if (!e) return null;
-    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
+    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
     return c && (!c.installed || c.auth === 'missing') ? null : e;
   }
 
@@ -703,7 +709,7 @@ export class Runner {
     let r = await this.agentAttempt(run, pipe, a);
     let error = this.printFailure(run, a.row, r);
     if (error === null) return r;
-    if (error !== prior && !error.includes('auto-denied')) {
+    if (!sameError(error, prior) && !error.includes('auto-denied')) {
       r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running' } });
       const again = this.printFailure(run, a.row, r);
       if (again === null) return r;
@@ -749,6 +755,8 @@ export class Runner {
     const deadline = started + a.timeoutMinutes * 60_000;
     const sessionEngine = (this.db.prepare('SELECT engine_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string } | undefined)?.engine_id;
     const print = Boolean(sessionEngine && getEngine(this.db, sessionEngine)?.print_args);
+    let held = { state: 'starting', at: started };
+    let asking = false;
     try {
       for (;;) {
         const fresh = this.run(run.id);
@@ -756,6 +764,14 @@ export class Runner {
         if (status === 'cancelled' || status === 'failed') return { paused: status };
         const session = this.db.prepare('SELECT state, state_at FROM session WHERE id = ?').get(sessionId) as { state: string; state_at: string } | undefined;
         const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
+        if (session && session.state !== 'exited' && session.state !== held.state) held = { state: session.state, at: Date.parse(session.state_at) };
+        if (session?.state === 'waiting_for_you' && !asking) {
+          this.needsYou('other', sessionId!, `${pipe.title} / ${a.stepId}: ${sessionEngine ?? 'the agent'} is waiting for an answer`);
+          asking = true;
+        } else if (session?.state !== 'waiting_for_you' && asking) {
+          this.resolveAsk(sessionId!);
+          asking = false;
+        }
         let fm: Record<string, unknown> | null = null;
         let mtime = 0;
         if (fs.existsSync(a.outPath)) {
@@ -775,7 +791,8 @@ export class Runner {
             return { ok: true, outputs };
           }
         } else if (session?.state === 'exited') {
-          return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+          const secs = Math.max(0, Math.round((Date.parse(session.state_at) - held.at) / 1000));
+          return { ok: false, error: `${a.stepId}: the session exited (last state ${held.state} for ${secs} s) without writing ${a.outPath}` };
         } else if (settled && Date.now() - Date.parse(session.state_at) >= SETTLED_GRACE_MS) {
           return { ok: false, error: `${a.stepId}: the session stopped without writing ${a.outPath}` };
         }
@@ -790,8 +807,13 @@ export class Runner {
         await sleep(POLL_MS);
       }
     } finally {
+      if (asking) this.resolveAsk(sessionId!);
       this.killSession(sessionId);
     }
+  }
+
+  private resolveAsk(sessionId: string): void {
+    this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'other' AND ref = ? AND resolved_at IS NULL").run(nowIso(), sessionId);
   }
 
   private killSession(id: string | null): void {
@@ -900,7 +922,7 @@ export class Runner {
     const h = this.hashFor(run, step);
     if (!h) return this.fail(run, `step ${step.id}: its arguments could not be resolved for the approval check`);
     const approved = this.db.prepare(
-      "SELECT id, action_hash FROM gate WHERE run_id = ? AND guards_step = ? AND status = 'approved' ORDER BY decided_at DESC LIMIT 1",
+      "SELECT id, action_hash FROM gate WHERE run_id = ? AND guards_step = ? AND status = 'approved' ORDER BY julianday(decided_at) DESC LIMIT 1",
     ).get(run.id, step.id) as { id: string; action_hash: string | null } | undefined;
     if (approved && approved.action_hash === h.hash) {
       this.db.prepare("UPDATE gate SET status = 'stale', note = ? WHERE id = ?").run(`approval used by ${step.id}`, approved.id);
@@ -1063,7 +1085,7 @@ export class Runner {
       if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(run.id)) continue;
       const child = this.db.prepare("SELECT 1 FROM run WHERE parent_run = ? AND status = 'paused'").get(run.id);
       if (child) continue;
-      const last = this.db.prepare("SELECT status FROM gate WHERE run_id = ? AND decided_at IS NOT NULL AND (note IS NULL OR note != 'output arrived') ORDER BY decided_at DESC LIMIT 1").get(run.id) as
+      const last = this.db.prepare("SELECT status FROM gate WHERE run_id = ? AND decided_at IS NOT NULL AND (note IS NULL OR note != 'output arrived') ORDER BY julianday(decided_at) DESC LIMIT 1").get(run.id) as
         | { status: string }
         | undefined;
       if (last?.status === 'rejected') {

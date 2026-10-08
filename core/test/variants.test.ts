@@ -269,6 +269,28 @@ test('M2-03 discard removes the worktree and branch, releases its port, closes i
   }
 });
 
+test('M4-07 F2 discard reports a worktree removal failure and keeps the variant status', async () => {
+  const h = await fakeHarness();
+  try {
+    const { project, runId, variants } = await fanoutFixture(h, 'm4-f2-discard');
+    const target = variants[0];
+    git(project, ['worktree', 'lock', target.worktree]);
+    const pipe = await client(h.prefix);
+    const store = db(h.home);
+    try {
+      const discarded = await pipe.request('variant.discard', { run_id: runId, idx: target.idx }, { timeout: 8000 });
+      assert.ok(discarded.error, JSON.stringify(discarded));
+      assert.equal(store.prepare('SELECT status FROM variant WHERE run_id = ? AND idx = ?').get(runId, target.idx)?.status, target.status);
+    } finally {
+      store.close();
+      pipe.close();
+      execFileSync('git', ['worktree', 'unlock', target.worktree], { cwd: project, stdio: 'ignore' });
+    }
+  } finally {
+    await h.teardown();
+  }
+});
+
 test('M2-03 combine records variant diffs and note, launches from HEAD with the raw note, and allocates successive ids', async () => {
   const h = await fakeHarness();
   try {

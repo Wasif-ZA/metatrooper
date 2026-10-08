@@ -67,8 +67,25 @@ async function waitingRun(h: Awaited<ReturnType<typeof revisionHarness>>, title 
   const id = `runbox-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   const dir = join(h.project, '.troop/pipelines');
   const { mkdirSync, writeFileSync } = await import('node:fs');
+  const plugin = join(h.project, '.troop/plugins/runbox-test');
+  if (!h.db.prepare("SELECT 1 FROM plugin WHERE id = 'runbox-test'").get()) {
+    mkdirSync(join(plugin, 'bin'), { recursive: true });
+    writeFileSync(join(plugin, 'troop-plugin.json'), JSON.stringify({
+      schema: 1, id: 'runbox-test', name: 'Runbox test', version: '1.0.0', engines: [],
+      actions: [{ id: 'noop', title: 'No-op', run: ['bin/noop.mjs'] }],
+    }));
+    writeFileSync(join(plugin, 'bin/noop.mjs'), `
+#!/usr/bin/env node
+let input = '';
+for await (const chunk of process.stdin) input += chunk;
+process.stdout.write(JSON.stringify({ ok: true, outputs: {} }));
+`);
+    const installed = await h.pipe.request('plugin.install', { source: plugin, approved_permissions: [] });
+    assert.ok(installed.result, JSON.stringify(installed));
+  }
   mkdirSync(dir, { recursive: true });
   const definition = { schema: 1, id, title, requires: ['runbox-test'], steps: [
+    { id: 'work', kind: 'agent', engine: 'fake', prompt: 'FAKE {"outputs":{}}' },
     { id: 'approve', kind: 'gate', gate: 'approve', gate_summary: `Approve ${title}` },
     { id: 'publish', kind: 'action', uses: 'plugin:runbox-test/noop' },
   ] };

@@ -90,7 +90,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const engine = getEngine(db, str(p, 'engine_id'));
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
       const check = db
-        .prepare('SELECT installed FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1')
+        .prepare('SELECT installed FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1')
         .get(engine.id) as { installed: number } | undefined;
       if (check && !check.installed) throw new RpcError(E.ENGINE_UNAVAILABLE, `${engine.id} is not installed`);
       const worktreesRoot = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
