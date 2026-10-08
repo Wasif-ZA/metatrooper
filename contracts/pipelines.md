@@ -61,6 +61,9 @@ Done when, in this order of preference:
 2. the session reports `done` (Claude Stop hook, Codex notify, terminal bell when silent), or the output file has not
    changed for 10 s.
 
+Front matter values are `key: value` scalars, `- item` lists, and `|` (lines kept) or `>` (folded to one
+line) blocks. A ` # comment` after a one-word value is dropped, so `status: done  # ok` reads as `done`.
+
 `status: failed` in the file, a missing required output key, the session exiting without the file, or
 `timeout_minutes` passing, fails the step. The session is never killed by the runner; on failure its card
 says "step failed, session left open".

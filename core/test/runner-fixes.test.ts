@@ -12,7 +12,14 @@ const db = openCoreDb();
 db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
 db.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x', 1, 1)").run();
 
-const priv = (r: InstanceType<typeof Runner>) => r as any;
+const { parseFrontMatter } = await import('../src/pipelines/template.ts');
+
+test('front matter: a trailing # comment is dropped and a | block keeps its text', () => {
+  const fm = parseFrontMatter('---\nstatus: done  # ok\npassed: true # all green\nref: PR #204\nsummary: |\n  line one\n\n  line two\nnote: >\n  folded\n  text\n---\nbody');
+  assert.deepEqual(fm, { status: 'done', passed: true, ref: 'PR #204', summary: 'line one\n\nline two', note: 'folded text' });
+});
+
+const priv =(r: InstanceType<typeof Runner>) => r as any;
 
 test('F12 a blank optional input gets its default', () => {
   const pipe = { inputs: { base_branch: { type: 'text', required: false, default: 'main' }, note: { type: 'text', required: false } } };
