@@ -583,12 +583,15 @@ docker run --rm -it --name troop-<id8> --network troop-egress --user 1000:1000 -
 
 A host path `C:\a\b` maps to `/host/c/a/b`. Worktrees are created with `git worktree add --relative-paths`, so
 the worktree's `.git` file and the main repo's `.git/worktrees/<name>/gitdir` resolve inside the container
-when both are mounted at their mapped paths. The main repo's working tree is not mounted. The terminal owns
-the container (`--rm -it`): closing the window removes it, and the core never starts or stops one.
+when both are mounted at their mapped paths. The main repo's working tree is not mounted, so `isolated` is
+refused outside a MetaTrooper worktree. The main repo's `.git/hooks` and `.git/config` are mounted read-only over
+the writable `.git`, so nothing written inside runs on the host at its next git command. The terminal owns the
+container (`--rm -it`); when the session ends the core also runs `docker rm -f troop-<id8>`, since killing the
+docker client leaves its container running (2026-10-08).
 
 **Logins.** Each engine's registry `sandbox.logins` lists read-only file mounts,
-for example `~/.claude/.credentials.json` and `~/.codex/auth.json`, mounted `:ro` at the same place under
-`/home/trooper`. Read-only means an engine cannot rotate a refresh token and log the host out. Before
+for example `~/.claude/.credentials.json` and `~/.codex/auth.json`, mounted `:ro` under `/troop/logins/<engine>/`;
+`entry.sh` links each into its place under `/home/trooper`, which stays writable (2026-10-08). Read-only means an engine cannot rotate a refresh token and log the host out. Before
 launching, the launcher checks `claudeAiOauth.expiresAt` in the Claude file and refuses with "run claude once
 on the host to refresh its login" if it expires within 60 minutes; for Codex it runs `codex login status` on
 the host. agy keeps its login in a Linux keyring, so its entry declares a named volume instead
@@ -993,7 +996,8 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
   trust prompts, and each session reaching `done` from spool events alone.
 - M2-09. Escape self-test (`troop sandbox selftest`, same flags as a trooper, no engine): each of these fails
   from inside the container, and each positive check passes. Fails: writing any host path outside the mounted
-  worktree, `.git` and spool; reading the host home folder; writing a read-only login file (EROFS); an HTTPS
+  worktree, `.git` and spool; writing `.git/hooks` or `.git/config`; reading the host home folder; writing a
+  read-only login file (EROFS); an HTTPS
   request to a host not on the allow-list (proxy 403); any request that bypasses the proxy (no route); reaching
   the Docker socket; gaining root. Passes: writing in the worktree; `git commit` on the worktree's branch;
   an HTTPS request to one allow-listed host.

@@ -92,3 +92,49 @@ export function buildPayload(kind: string, raw: object): Obj {
       return {};
   }
 }
+
+const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.SessionEnd', 'codex.turn']);
+const CLASSES = new Set(['permission', 'input', 'idle', 'other']);
+
+export function spoolKind(kind: string): boolean {
+  return SPOOL_KINDS.has(kind);
+}
+
+function redactedToolInput(toolName: string, input: unknown): Obj {
+  const o = asObject(input);
+  const s = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  if (SHELL_TOOLS.has(toolName)) return { first_word: s(o.first_word, 200).split(/\s/)[0], length: n(o.length) };
+  if (FILE_TOOLS.has(toolName)) return typeof o.file_path === 'string' ? { file_path: s(o.file_path, 4096) } : {};
+  if (PATH_TOOLS.has(toolName)) return typeof o.path === 'string' ? { path: s(o.path, 4096) } : {};
+  if (toolName === 'WebFetch') return { host: s(o.host, 253).split(/[/\s]/)[0] };
+  const lengths: Record<string, number> = {};
+  for (const k of Object.keys(o).slice(0, 50)) lengths[k.slice(0, 100)] = n(o[k]);
+  return lengths;
+}
+
+/** Re-checks a payload a sandboxed writer already built: same fields as buildPayload's output, typed and capped, tool_input in its redacted shape. */
+export function rebuildPayload(kind: string, built: object): Obj {
+  const b = asObject(built);
+  const strs = (keys: string[]): Obj => Object.fromEntries(keys.filter((k) => typeof b[k] === 'string').map((k) => [k, (b[k] as string).slice(0, 4096)]));
+  const n = (k: string) => (typeof b[k] === 'number' && Number.isFinite(b[k]) ? b[k] : 0);
+  const tool = (): Obj => ({ ...strs(['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']), tool_input: redactedToolInput(String(b.tool_name ?? ''), b.tool_input) });
+  switch (kind) {
+    case 'claude.PreToolUse':
+      return tool();
+    case 'claude.PostToolUse':
+      return { ...tool(), response_length: n('response_length') };
+    case 'claude.UserPromptSubmit':
+      return { ...strs(['session_id', 'cwd']), prompt_length: n('prompt_length') };
+    case 'claude.Notification':
+      return { ...strs(['session_id', 'cwd', 'notification_type']), class: CLASSES.has(b.class as string) ? b.class : 'other', message_length: n('message_length') };
+    case 'claude.Stop':
+      return { ...strs(['session_id', 'cwd']), stop_hook_active: b.stop_hook_active === true };
+    case 'claude.SessionEnd':
+      return strs(['session_id', 'cwd', 'reason']);
+    case 'codex.turn':
+      return { ...strs(['type', 'thread-id', 'turn-id', 'cwd']), input_length: n('input_length'), reply_length: n('reply_length') };
+    default:
+      return {};
+  }
+}

@@ -23,14 +23,38 @@ export function fakeGh(bin: string): string {
     writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> '${join(bin, 'gh.log')}'\necho https://github.com/fake/repo/pull/7\n`, { mode: 0o755 });
     return join(bin, 'gh.log');
   }
-  const cache = join(tmpdir(), `metatrooper-fake-gh-${createHash('sha256').update(FAKE_GH_CS).digest('hex').slice(0, 12)}.exe`);
+  copyFileSync(compileExe(FAKE_GH_CS), join(bin, 'gh.exe'));
+  return join(bin, 'gh.log');
+}
+
+const NODE_SHIM_CS = [
+  'public static class P { public static int Main(string[] a) {',
+  '  var dir = System.AppDomain.CurrentDomain.BaseDirectory;',
+  '  var name = System.IO.Path.GetFileNameWithoutExtension(System.Environment.GetCommandLineArgs()[0]);',
+  '  var args = "\\"" + dir + name + ".mjs\\"";',
+  '  foreach (var x in a) args += " \\"" + x.Replace("\\"", "\\\\\\"") + "\\"";',
+  '  var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("node", args) { UseShellExecute = false });',
+  '  p.WaitForExit(); return p.ExitCode; } }',
+].join('\n');
+
+/** Puts a gh in `bin` that runs `script` (an ES module) with node on the same arguments; Windows gets a gh.exe shim, since plugins spawn gh with no shell. */
+export function scriptedGh(bin: string, script: string): void {
+  writeFileSync(join(bin, 'gh.mjs'), script);
+  if (process.platform !== 'win32') {
+    writeFileSync(join(bin, 'gh'), `#!/bin/sh\nexec node '${join(bin, 'gh.mjs')}' "$@"\n`, { mode: 0o755 });
+    return;
+  }
+  copyFileSync(compileExe(NODE_SHIM_CS), join(bin, 'gh.exe'));
+}
+
+function compileExe(source: string): string {
+  const cache = join(tmpdir(), `metatrooper-fake-gh-${createHash('sha256').update(source).digest('hex').slice(0, 12)}.exe`);
   if (!existsSync(cache)) {
     const src = `${cache}.cs`;
-    writeFileSync(src, FAKE_GH_CS);
+    writeFileSync(src, source);
     execFileSync('powershell', ['-NoProfile', '-Command', `Add-Type -OutputType ConsoleApplication -OutputAssembly '${cache}' -Path '${src}'`], { stdio: 'pipe' });
   }
-  copyFileSync(cache, join(bin, 'gh.exe'));
-  return join(bin, 'gh.log');
+  return cache;
 }
 
 export function isolation() {
