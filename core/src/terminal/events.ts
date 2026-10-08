@@ -32,7 +32,7 @@ export function wireTermEvents(db: DatabaseSync): void {
       safe(() => appendEvent('term.output', id, {}, db));
     },
     onTitle: (id, title) => {
-      const key = title.replace(/^[◐◑◒◓]/u, '◐');
+      const key = title.replace(/^[\p{S}\p{P}\s]+/u, '');
       if (titles.get(id) === key) return;
       titles.set(id, key);
       safe(() => appendEvent('term.title', id, { title }, db));
