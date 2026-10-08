@@ -7,8 +7,7 @@ import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from metarouter import calls, tldr
-from metarouter.ingest import touches_private
+from metarouter import calls, tldr, transcripts
 from metarouter.recipes import engines
 from metarouter.log import home, private
 
@@ -17,6 +16,9 @@ MIN_USES = 5
 MIN_SUCCESS = 0.8
 MIN_RUN_USES = 3
 FIX_WINDOW = 3
+MIN_BEFORE = 2
+AUTO_HINT_COUNT = 3
+AUTO_HINT_SESSIONS = 2
 MAX_PLACEHOLDERS = 9
 PLUMBING = {"ls", "cat", "echo", "cd", "grep", "sed", "head", "tail", "wc", "pwd", "mkdir", "rm", "cp",
             "mv", "touch", "printf", "true", "false", "test", "[", "sleep", "find", "awk", "sort", "uniq",
@@ -42,39 +44,9 @@ ERROR_KIND = re.compile(r"([A-Z]\w+(Error|Exception)\b|command not found|No such
                         r"Permission denied|not recognized as|fatal: [a-z ]{3,40}|error: [a-z ]{3,40})")
 
 
-def blocks(line):
-    try:
-        entry = json.loads(line)
-    except ValueError:
-        return []
-    content = (entry.get("message") or {}).get("content") if isinstance(entry, dict) else None
-    return content if isinstance(content, list) else []
-
-
-def result_text(content):
-    if isinstance(content, str):
-        return content
-    return "\n".join(b.get("text", "") for b in content or [] if isinstance(b, dict) and b.get("type") == "text")
-
-
-def sessions(root):
-    """Yield, per transcript, the shell calls in order: (command, failed, output). Private sessions are skipped."""
-    for f in sorted(Path(root).rglob("*.jsonl")):
-        uses, order, results = {}, [], {}
-        with f.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                if touches_private(line):
-                    order = []
-                    break
-                for b in blocks(line):
-                    if b.get("type") == "tool_use" and b.get("name") in ("Bash", "PowerShell"):
-                        cmd = (b.get("input") or {}).get("command")
-                        if isinstance(cmd, str):
-                            uses[b.get("id")] = cmd
-                            order.append(b.get("id"))
-                    elif b.get("type") == "tool_result" and b.get("tool_use_id") in uses:
-                        results[b["tool_use_id"]] = (bool(b.get("is_error")), result_text(b.get("content")))
-        yield [(uses[i], *results.get(i, (False, ""))) for i in order]
+def sessions(root, since=None):
+    """Yield, per Claude Code transcript, the shell calls in order: (command, failed, output). Private sessions are skipped."""
+    return transcripts.claude(root, since)
 
 
 def py_group(cmd):
@@ -161,15 +133,18 @@ def flow_candidates(pairs):
     return sorted(out, key=lambda c: -c["uses"])
 
 
-def mine(root=TRANSCRIPTS):
+def mine(root=TRANSCRIPTS, since=None, agents=None):
+    """Count shapes, flows and fail-then-fix pairs. root reads Claude Code only; agents reads those agents' folders."""
     groups = Counter()
     shapes = defaultdict(lambda: [0, 0])
     fixes = {}
     samples = {}
     pairs = Counter()
+    befores = {}
     runners = engines.scripts()
     n_sessions = n_cmds = 0
-    for sess in sessions(root):
+    source = (s for _, s in transcripts.sessions(agents, since)) if agents is not None else sessions(root, since)
+    for sess in source:
         n_sessions += 1
         shaped = []
         for cmd, failed, out in sess:
@@ -207,14 +182,15 @@ def mine(root=TRANSCRIPTS):
                 continue
             s, _, out = item
             kind = error_kind(out)
-            if not kind:
-                continue
             for later in shaped[i + 1:i + 1 + FIX_WINDOW]:
                 if later and not later[1] and binary(later[0]) == binary(s) and later[0] != s:
-                    key = (binary(s), kind, later[0])
-                    fixes.setdefault(key, {"failed_shape": s, "count": 0})["count"] += 1
+                    keys = [(befores, (s, later[0]))] + ([(fixes, (binary(s), kind, later[0]))] if kind else [])
+                    for d, key in keys:
+                        v = d.setdefault(key, {"failed_shape": s, "count": 0, "sessions": set()})
+                        v["count"] += 1
+                        v["sessions"].add(n_sessions)
                     break
-    return n_sessions, n_cmds, groups, shapes, fixes, samples, pairs
+    return n_sessions, n_cmds, groups, shapes, fixes, samples, pairs, befores
 
 
 def name_of(body):
@@ -255,15 +231,42 @@ def recipe_candidates(shapes, taken, samples=None):
     return sorted(out, key=lambda c: -c["uses"])
 
 
-def hint_candidates(fixes):
+def hint_candidates(fixes, befores=None):
     out = []
     for (b, kind, fixed), v in fixes.items():
         text = f"{b} failed with {kind}. A call that worked right after: {fixed}"
         out.append({"id": cid("hint", b + kind + fixed), "type": "hint", "binary": b, "error": kind,
                     "failed_shape": v["failed_shape"], "fixed_shape": fixed, "count": v["count"],
+                    "sessions": len(v.get("sessions", ())),
                     "hint": {"id": f"learned-{b}-{kind}"[:60], "when": "fail", "binary": b,
-                             "match": re.escape(kind), "hint": text}})
+                             "match": re.escape(kind), "hint": text, "source": "learned"}})
+    for (failed, fixed), v in (befores or {}).items():
+        if v["count"] < MIN_BEFORE or not candidate_shape(failed):
+            continue
+        b = binary(failed)
+        out.append({"id": cid("hint", "before" + failed + fixed), "type": "hint", "binary": b, "error": None,
+                    "failed_shape": failed, "fixed_shape": fixed, "count": v["count"],
+                    "sessions": len(v["sessions"]),
+                    "hint": {"id": "learned-before-" + cid("hint", failed + fixed), "when": "before",
+                             "match": re.escape(b), "shape": failed,
+                             "hint": f"this shape failed {v['count']} times; this worked: {fixed}",
+                             "source": "learned"}})
     return sorted(out, key=lambda c: -c["count"])
+
+
+def save_hint(hint):
+    """Add a hint to hints.json unless its id is already there. Returns True when added."""
+    hp = home() / "hints.json"
+    try:
+        current = json.loads(hp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        current = []
+    if any(h.get("id") == hint["id"] for h in current):
+        return False
+    current.append({**hint, "source": "learned"})
+    hp.parent.mkdir(parents=True, exist_ok=True)
+    hp.write_text(json.dumps(current, indent=1, ensure_ascii=False), encoding="utf-8")
+    return True
 
 
 def run_log_candidates(rows, taken):
@@ -303,15 +306,15 @@ def example_exit(cli, cand, ex):
             os.chdir(here)
 
 
-def learn(root=TRANSCRIPTS, taken=None):
+def learn(root=TRANSCRIPTS, taken=None, agents=None):
     """Mine candidates, write them to candidates/, return counts only."""
-    n_sessions, n_cmds, groups, shapes, fixes, samples, pairs = mine(root)
+    n_sessions, n_cmds, groups, shapes, fixes, samples, pairs, befores = mine(root, agents=agents)
     taken = set(taken or [])
     skip = rejected()
     recs = [c for c in recipe_candidates(shapes, taken, samples) if c["id"] not in skip]
     recs += [c for c in run_log_candidates(calls.read(), taken) if c["id"] not in skip]
     flows = [c for c in flow_candidates(pairs) if c["id"] not in skip]
-    hints_ = [c for c in hint_candidates(fixes) if c["id"] not in skip]
+    hints_ = [c for c in hint_candidates(fixes, befores) if c["id"] not in skip]
     added = []
     queued_unsafe = 0
     from metarouter import recipes as store
@@ -331,6 +334,11 @@ def learn(root=TRANSCRIPTS, taken=None):
                            purity=purity, source="learned", example=ex)
                 added.append(c["name"])
         recs = [c for c in recs if c["name"] not in added]
+        for c in hints_:
+            if (c["count"] >= AUTO_HINT_COUNT and c["sessions"] >= AUTO_HINT_SESSIONS
+                    and not private(c["failed_shape"] + " " + c["fixed_shape"]) and save_hint(c["hint"])):
+                added.append(c["hint"]["id"])
+        hints_ = [c for c in hints_ if c["hint"]["id"] not in added]
     cand_dir().mkdir(parents=True, exist_ok=True)
     (cand_dir() / "candidates.json").write_text(json.dumps(recs + flows + hints_, indent=1, ensure_ascii=False),
                                                 encoding="utf-8")
@@ -375,7 +383,8 @@ def review(ask=input, show=print):
             show(f"\n[{i + 1}/{len(cands)}] flow  ({c['uses']} uses)")
             show(f"    flow: {c['steps'][0]} then {c['steps'][1]}")
         else:
-            show(f"\n[{i + 1}/{len(cands)}] hint for {c['binary']} on {c['error']}  ({c['count']} times)")
+            on = f"on {c['error']}" if c.get("error") else "before it runs"
+            show(f"\n[{i + 1}/{len(cands)}] hint for {c['binary']} {on}  ({c['count']} times)")
             show(f"    failed: {c['failed_shape']}\n    worked: {c['fixed_shape']}")
         a = ask("    keep? [y]es / [n]o / [s]kip for now / [q]uit: ").strip().lower()
         if a == "q":
@@ -397,13 +406,7 @@ def review(ask=input, show=print):
                     left.append(c)
                     continue
             else:
-                hp = home() / "hints.json"
-                try:
-                    current = json.loads(hp.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    current = []
-                current.append(c["hint"])
-                hp.write_text(json.dumps(current, indent=1, ensure_ascii=False), encoding="utf-8")
+                save_hint(c["hint"])
             approved += 1
         elif a == "n":
             skip.add(c["id"])
