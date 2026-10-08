@@ -75,7 +75,7 @@ Built on branch m2-harden. Today `session.launch` refuses every host but `pty` (
 
 Each slice is one commit on m2-harden and one M2-STATUS.md update. Done when M2-08 to M2-12 are VERIFIED-WINDOWS,
 each with a test that fails when its behaviour breaks. Rollback: revert the branch; `pty` sessions are unchanged,
-and the only shared change is `--relative-paths` on new worktrees.
+and nothing in a host repo changes (D9).
 
 ## Out of scope
 

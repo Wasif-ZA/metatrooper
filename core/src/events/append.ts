@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { dbFile } from '../paths.ts';
 import { nowIso } from '../time.ts';
@@ -20,6 +21,11 @@ export function openWriterDb(busyMs = 200): DatabaseSync | null {
 }
 
 export function appendEvent(kind: string, sessionId: string | null, payload: object, db?: DatabaseSync): DatabaseSync | null {
+  const spool = process.env.METATROOPER_SPOOL;
+  if (spool && !db) {
+    fs.appendFileSync(path.join(spool, 'events.ndjson'), JSON.stringify({ kind, at: nowIso(), payload }) + '\n');
+    return null;
+  }
   const conn = db ?? openWriterDb(200);
   if (!conn) return null;
   conn

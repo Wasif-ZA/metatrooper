@@ -47,7 +47,7 @@ CREATE TABLE session (
   project_id    TEXT NOT NULL REFERENCES project(id),
   engine_id     TEXT NOT NULL REFERENCES engine(id),
   driven_engine TEXT,                          -- no longer written (D51); older rows: engine a claude driver ran (claude > agy)
-  host          TEXT NOT NULL CHECK (host IN ('pty')),  -- a terminal owned by the core
+  host          TEXT NOT NULL CHECK (host IN ('pty','sandbox')),  -- a terminal owned by the core; sandbox runs the engine in a container
   pid           INTEGER,                       -- launcher pid from launch.js
   native_id     TEXT,                          -- claude session_id, codex thread-id, agy conversation id
   run_id        TEXT REFERENCES run(id),
@@ -108,7 +108,7 @@ CREATE INDEX comment_prompt_idx ON comment (session_id, prompt_at);
 CREATE TABLE needs_you (
   id           TEXT PRIMARY KEY,
   at           TEXT NOT NULL,
-  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','other')),
+  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','spool-too-large','other')),
   ref          TEXT,                           -- gate id, command id, schedule id, run id, plugin id, or session id
   text         TEXT NOT NULL,
   resolved_at  TEXT,

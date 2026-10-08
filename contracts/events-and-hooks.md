@@ -183,9 +183,11 @@ The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
 1. Reads `~/.metatrooper/spool/<session id>/events.ndjson` from the byte offset stored in `meta` under
    `spool_offset:<session id>`, and only whole lines.
 2. Per line: drops it if it is over 64 KiB, not JSON, or its `kind` is not in the table above; otherwise
-   runs `buildPayload(kind, payload)` again on the host, forces `session_id` to the spool's session (any id in
+   runs `rebuildPayload(kind, payload)` on the host (the fields `buildPayload` emits for that kind, typed and
+   capped, `tool_input` in its redacted shape; `buildPayload` itself would zero every length), forces `session_id` to the spool's session (any id in
    the line is ignored), and inserts the `event` row with `source` as for that kind.
 3. Stores the new offset in the same transaction as the inserts.
 4. Stops ingesting a spool that passes 10 MiB and adds one `needs_you` row (`kind` `spool-too-large`).
 
-Once a session is `exited` and its spool is fully ingested, the core deletes the spool folder.
+Once a session is `exited`, the core reads its spool a last time, drops any unfinished last line, and deletes the
+spool folder. Only the claude hook kinds and `codex.turn` are accepted from a spool.
