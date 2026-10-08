@@ -49,8 +49,10 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
   `Pane` with no patterns: edit boxes are indistinguishable from labels in `read`, and Submit is pressed by a mouse click
   at its position. The first fixture form was WinForms and hit this; it is WPF now. Apps with native UIA (WPF, browsers,
   UWP) work.
-- Runner: a loop `until: steps.X.passed` treats a missing `passed` as passed (`o.passed !== false`), so an agent that
-  forgets the key ends its check loop as if it passed. Used by deep-research-cited, footage-to-edit,
+- FIXED 2026-10-09T00:08+11:00, Wasif's pick: a loop `until: steps.X.passed` treated a missing `passed` as passed, so an agent that
+  forgot the key ended its check loop as if it passed. Now only `passed: true` (or "true") passes; a missing one repeats
+  the loop and pauses at loop-max (runner.ts evalUntil, pipelines.md amended, core/test/loop-passed.test.ts; the old
+  line fails it). Used by deep-research-cited, footage-to-edit,
   security-review-and-upgrade, seo-audit-fix and study-notes-to-pdf.
 - FIXED, #33: `cut` read the moments file from `{{steps.moments.outputs.items}}`. An agent that sets it to a relative
   `moments.json` (the test's first fake did) made every cut fail with ENOENT, because actions resolve paths from the

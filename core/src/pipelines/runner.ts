@@ -382,7 +382,7 @@ export class Runner {
     const rows = this.rows(run.id, id);
     if (!rows.length || rows.some((r) => r.status !== 'done')) return false;
     const outs = rows.map((r) => (r.outputs ? JSON.parse(r.outputs) : {}) as Record<string, unknown>);
-    if (passed) return outs.every((o) => o.passed !== false);
+    if (passed) return outs.every((o) => o.passed === true || o.passed === 'true');
     return outs.every((o) => String(o[(equals as RegExpExecArray)[2]]) === (equals as RegExpExecArray)[3]);
   }
 

@@ -145,8 +145,9 @@ variant is discarded:
 
 ## Loops, resume, breaker
 
-- `steps.<id>.passed` is true when that step's latest iteration has `status = 'done'` and its outputs do not
-  contain `passed: false`. `verify` steps should write `passed: true` or `passed: false` explicitly.
+- `steps.<id>.passed` is true when that step's latest iteration has `status = 'done'` and its outputs contain
+  `passed: true`. A missing `passed` counts as not passed, so the loop repeats and pauses at `loop-max`.
+  `verify` steps write `passed: true` or `passed: false` explicitly.
 - `loop`: after the last step of the group, evaluate `until`. True: continue. False: rerun the group with
   `iteration + 1`. At `max`: pause with `paused_why = 'loop-max'`.
 - Resume: `run.resume` restarts from the first step whose status is not `done`, keeping every finished
