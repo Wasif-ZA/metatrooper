@@ -357,14 +357,33 @@ export class Runner {
     const u = this.used(run.id);
     if (u.tokens >= run.max_tokens) return `token budget reached (${u.tokens} of ${run.max_tokens})`;
     if (u.usd >= run.max_usd) return `dollar budget reached ($${u.usd.toFixed(2)} of $${run.max_usd.toFixed(2)})`;
-    const minutes = (Date.now() - Date.parse(run.started_at)) / 60_000;
+    const minutes = this.minutesUsed(run);
     if (minutes >= run.max_minutes) return `time budget reached (${Math.floor(minutes)} of ${run.max_minutes} minutes)`;
     return null;
   }
 
+  /** Wall-clock minutes since the run started, less the time it or its sub-pipeline runs waited at a gate. */
+  private minutesUsed(run: RunRow): number {
+    const ids = this.runTree(run.id);
+    const waits = this.db.prepare(
+      `SELECT at, resolved_at FROM needs_you WHERE kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${ids.map(() => '?').join(',')})) ORDER BY at`,
+    ).all(...ids) as Array<{ at: string; resolved_at: string | null }>;
+    const now = Date.now();
+    const start = Date.parse(run.started_at);
+    let ms = now - start;
+    let edge = start;
+    for (const w of waits) {
+      const from = Math.max(Date.parse(w.at), edge);
+      const to = w.resolved_at ? Date.parse(w.resolved_at) : now;
+      if (to > from) ms -= to - from;
+      edge = Math.max(edge, to);
+    }
+    return ms / 60_000;
+  }
+
   private remaining(run: RunRow): { tokens: number; usd: number; minutes: number } {
     const u = this.used(run.id);
-    const minutes = (Date.now() - Date.parse(run.started_at)) / 60_000;
+    const minutes = this.minutesUsed(run);
     return { tokens: Math.max(0, run.max_tokens - u.tokens), usd: Math.max(0, run.max_usd - u.usd), minutes: Math.max(1, run.max_minutes - minutes) };
   }
 
@@ -431,10 +450,8 @@ export class Runner {
     const failures = results.filter((r): r is { ok: false; error: string } => r !== null && 'ok' in r && r.ok === false);
     if (failures.length) {
       const tripped = this.rows(run.id, step.id, iteration).some((r) => r.fail_count >= BREAKER);
-      if (current.status === 'running' || current.status === 'paused') {
-        return this.fail(current, `step ${step.id} failed: ${failures.map((f) => f.error).join('; ')}`, tripped);
-      }
-      return 'failed';
+      if (current.status !== 'running') return 'failed';
+      if (!budgetHit || tripped) return this.fail(current, `step ${step.id} failed: ${failures.map((f) => f.error).join('; ')}`, tripped);
     }
     if (current.status !== 'running') return 'stopped';
     if (budgetHit) return this.pause(current, 'budget', { kind: 'budget', ref: run.id, text: `${pipe.title}: budget reached during ${step.id}; raise the budget and resume` });

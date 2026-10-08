@@ -153,7 +153,10 @@ variant is discarded:
   limit was reached. To keep that small, a run with a budget runs at most `max_parallel` agent steps at once
   (default 3, pipeline field `budget.max_parallel`); further fan-out indexes wait.
 - `max_minutes`: wall-clock limit for the whole run, the only limit that applies to engines whose usage is
-  `unknown`.
+  `unknown`. Time the run or any of its sub-pipeline runs spends waiting at a gate does not count.
+- A step that fails while the run is paused leaves the run paused, and a step that fails in the same pass as
+  a budget stop pauses the run for budget unless the breaker tripped; resume runs the failed step again.
+- Raise and Resume in the workbench takes new limits for tokens, dollars and minutes, whichever stopped the run.
 
 ## Schedules
 
