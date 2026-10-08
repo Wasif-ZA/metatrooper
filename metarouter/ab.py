@@ -81,9 +81,20 @@ def parse_codex(stdout):
     return {"turns": tools + 1 if tokens is not None else None, "tokens": tokens, "cost": None, "error": error}
 
 
-def agent_env(agent, run_dir):
-    env = {**os.environ, "METAROUTER_HOME": str(run_dir / "metarouter-home")}
-    (run_dir / "metarouter-home").mkdir()
+MEMORY = ("recipes", "hints.json", "config.json")
+
+
+def agent_env(agent, run_dir, memory=False):
+    mhome = run_dir / "metarouter-home"
+    mhome.mkdir()
+    if memory:
+        for name in MEMORY:
+            src = log.home() / name
+            if src.is_dir():
+                shutil.copytree(src, mhome / name, ignore=shutil.ignore_patterns("archive"))
+            elif src.is_file():
+                shutil.copy2(src, mhome / name)
+    env = {**os.environ, "METAROUTER_HOME": str(mhome)}
     if agent == "codex":
         real = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
         home = run_dir / "codex-home"
@@ -106,7 +117,7 @@ def one_run(repo, arm, agent, argv, task, check, shell):
         set_block(tree, AGENTS[agent][0], arm == "A")
         start = time.monotonic()
         try:
-            proc = subprocess.run(argv, input=task, cwd=tree, env=agent_env(agent, run_dir), capture_output=True,
+            proc = subprocess.run(argv, input=task, cwd=tree, env=agent_env(agent, run_dir, memory=arm == "A"), capture_output=True,
                                   text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
             stdout, row["exit"] = proc.stdout or "", proc.returncode
         except subprocess.TimeoutExpired:
@@ -142,9 +153,14 @@ def ab_lane(args):
     task, check = flag_value(args, "--task"), flag_value(args, "--check")
     agent = flag_value(args, "--agent") or "claude"
     runs, repo = flag_value(args, "--runs") or "3", Path(flag_value(args, "--repo") or ".").resolve()
-    usage = 'usage: metarouter ab --task "<prompt>" --check "<command>" [--agent claude|codex] [--runs 3] [--repo .]'
+    usage = 'usage: metarouter ab --task "<prompt>" --check "<command>" --yes [--agent claude|codex] [--runs 3] [--repo .]'
     if not task or not check or agent not in AGENTS or not runs.isdigit() or int(runs) < 1:
         return Result(ok=False, lane="ab", exit=2, note=usage)
+    if "--yes" not in args:
+        return Result(ok=False, lane="ab", exit=2,
+                      note=f"ab runs {agent} {int(runs) * 2} times unattended with its permission prompts off, in temporary "
+                           f"worktrees of {repo.as_posix()}. It can still reach files outside them and spends your plan's "
+                           f"usage. Add --yes to go ahead")
     top = git(repo, "rev-parse", "--show-toplevel")
     if top.returncode or git(repo, "rev-parse", "--verify", "HEAD").returncode:
         return Result(ok=False, lane="ab", exit=2, note=f"{repo.as_posix()} is not a git repo with a commit")
@@ -159,7 +175,7 @@ def ab_lane(args):
         for arm in ("A", "B"):
             rows.append({"run": n, **one_run(repo, arm, agent, argv, task, check, sh)})
     a, b = summary([r for r in rows if r["arm"] == "A"]), summary([r for r in rows if r["arm"] == "B"])
-    out = {"A (metarouter block)": a, "B (no block, empty home)": b, "A minus B": diff(a, b)}
+    out = {"A (block and your recipes, hints, config)": a, "B (no block, empty home)": b, "A minus B": diff(a, b)}
     now = datetime.datetime.now().astimezone()
     report = log.home() / "ab" / f"{now:%Y%m%dT%H%M%S}.json"
     report.parent.mkdir(parents=True, exist_ok=True)

@@ -37,7 +37,7 @@ def run_ab(tmp_path, monkeypatch, capsys, runs="2"):
     seen = tmp_path / "seen.txt"
     check = f'pwd >> "{seen.as_posix()}"; test -f done.txt'
     code = cli.main(["--json", "ab", "--task", "make done.txt", "--check", check, "--repo", str(repo),
-                     "--runs", runs, "--agent-cmd", f'"{sys.executable}" "{fake.as_posix()}"'])
+                     "--runs", runs, "--yes", "--agent-cmd", f'"{sys.executable}" "{fake.as_posix()}"'])
     return code, json.loads(capsys.readouterr().out), repo, seen
 
 
@@ -49,7 +49,7 @@ def worktrees(repo):
 def test_ab_runs_both_arms_checks_each_tree_and_removes_worktrees(tmp_path, monkeypatch, capsys):
     code, r, repo, seen = run_ab(tmp_path, monkeypatch, capsys)
     assert code == 0 and r["ok"]
-    a, b = r["out"]["A (metarouter block)"], r["out"]["B (no block, empty home)"]
+    a, b = r["out"]["A (block and your recipes, hints, config)"], r["out"]["B (no block, empty home)"]
     assert (a["pass_rate"], b["pass_rate"]) == (1.0, 0.0)
     assert (a["median_turns"], b["median_turns"]) == (3, 7)
     assert a["tokens_per_pass"] == 175 and b["tokens_per_pass"] is None
@@ -66,7 +66,7 @@ def test_ab_runs_both_arms_checks_each_tree_and_removes_worktrees(tmp_path, monk
 def test_ab_removes_worktrees_when_agent_fails(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("FAKE_CRASH", "1")
     code, r, repo, seen = run_ab(tmp_path, monkeypatch, capsys, runs="1")
-    assert r["out"]["A (metarouter block)"]["median_turns"] is None
+    assert r["out"]["A (block and your recipes, hints, config)"]["median_turns"] is None
     assert len(worktrees(repo)) == 1
 
 
@@ -101,3 +101,28 @@ def test_parse_codex_events():
 def test_parse_claude_pretty_printed():
     text = json.dumps({"num_turns": 4, "total_cost_usd": 0.2, "usage": {"input_tokens": 10, "output_tokens": 5}}, indent=2)
     assert ab.parse_claude(text) == {"turns": 4, "tokens": 15, "cost": 0.2, "error": None}
+
+
+def test_ab_refuses_without_yes(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "home"))
+    repo = make_repo(tmp_path)
+    code = cli.main(["--json", "ab", "--task", "t", "--check", "true", "--repo", str(repo)])
+    r = json.loads(capsys.readouterr().out)
+    assert code == 2 and "--yes" in r["note"] and "permission prompts off" in r["note"]
+    assert len(worktrees(repo)) == 1
+
+
+def test_memory_arm_copies_recipes_hints_and_config_only(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    (home / "recipes" / "archive").mkdir(parents=True)
+    (home / "recipes" / "mine.json").write_text("{}")
+    (home / "recipes" / "archive" / "old@1.json").write_text("{}")
+    (home / "hints.json").write_text("[]")
+    (home / "calls.jsonl").write_text("{}")
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
+    run_a, run_b = tmp_path / "a", tmp_path / "b"
+    run_a.mkdir(); run_b.mkdir()
+    env_a, env_b = ab.agent_env("claude", run_a, memory=True), ab.agent_env("claude", run_b)
+    got = sorted(p.relative_to(env_a["METAROUTER_HOME"]).as_posix() for p in (run_a / "metarouter-home").rglob("*"))
+    assert got == ["hints.json", "recipes", "recipes/mine.json"]
+    assert not any((run_b / "metarouter-home").iterdir())
