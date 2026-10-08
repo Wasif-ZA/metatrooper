@@ -17,7 +17,7 @@
       "role": "ingest",
       "kind": "action",
       "uses": "plugin:security/list-deps",
-      "with": { "path": "{{project.path}}", "out": "{{run.dir}}/inventory.json" }
+      "with": { "path": "{{project.path}}", "out": "{{run.dir}}/deps.json" }
     },
     {
       "id": "notes",
@@ -25,7 +25,7 @@
       "role": "research",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "For each outdated package in {{run.dir}}/inventory.json, read its release notes between the installed and latest versions. Write {{run.dir}}/NOTES.md: breaking changes and migration steps per package.",
+      "prompt": "For each outdated package in {{run.dir}}/deps.json, read its release notes between the installed and latest versions. Write {{run.dir}}/NOTES.md: breaking changes and migration steps per package.",
       "outputs": ["summary"]
     },
     {
@@ -34,7 +34,7 @@
       "role": "plan",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Review this repository for security issues, using {{run.dir}}/inventory.json and {{run.dir}}/NOTES.md. Do not edit the repository. Write {{run.dir}}/security-report.md: each finding with severity, file, line, and reachable or not. Then plan one major upgrade at a time, starting with {{inputs.package}} if given, and name the findings each upgrade closes. Set package to the first package to upgrade. Set high_reachable to true when any high or critical finding is reachable, otherwise false.",
+      "prompt": "Review this repository for security issues, using {{run.dir}}/deps.json and {{run.dir}}/NOTES.md. Do not edit the repository. Write {{run.dir}}/security-report.md: each finding with severity, file, line, and reachable or not. Then plan one major upgrade at a time, starting with {{inputs.package}} if given, and name the findings each upgrade closes. Set package to the first package to upgrade. Set high_reachable to true when any high or critical finding is reachable, otherwise false.",
       "outputs": ["package", "high_reachable"]
     },
     {

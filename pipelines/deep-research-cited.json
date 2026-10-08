@@ -81,7 +81,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Apply the findings in {{run.dir}}/critics-*.json and, if it exists, the failures in {{run.dir}}/cite-check.json to {{run.dir}}/report.md. Edit in place; never regenerate the report.",
+      "prompt": "Apply the findings in {{run.dir}}/critics-*.json and, if it exists, the failures in {{run.dir}}/quote-check.json to {{run.dir}}/report.md. Edit in place; never regenerate the report.",
       "outputs": ["summary"]
     },
     {

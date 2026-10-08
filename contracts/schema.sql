@@ -56,8 +56,8 @@ CREATE TABLE session (
   state_at      TEXT NOT NULL,
   last_tool     TEXT,
   cwd           TEXT,                          -- folder the pty started in
-  title         TEXT,                          -- last terminal title the engine set (term.title)
-  last_line     TEXT,                          -- last non-empty terminal row, first 200 characters, at most once a second
+  title         TEXT,                          -- unused since M1-05 fix; the terminal title lives in core memory (session.live-text)
+  last_line     TEXT,                          -- unused since M1-05 fix; the last terminal row lives in core memory (session.live-text)
   turn_base     TEXT,                          -- git stash-create commit (or HEAD) of cwd when the current turn started
   hidden        INTEGER NOT NULL DEFAULT 0,
   started_at    TEXT NOT NULL,

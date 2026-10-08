@@ -93,7 +93,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
   const engines = (db.prepare(
     `SELECT e.id, e.plugin_id, e.spec_json, c.installed, c.version, c.auth, c.checked_at
      FROM engine e LEFT JOIN plugin p ON p.id = e.plugin_id
-     LEFT JOIN engine_check c ON c.engine_id = e.id AND c.checked_at = (SELECT MAX(checked_at) FROM engine_check WHERE engine_id = e.id)
+     LEFT JOIN engine_check c ON c.engine_id = e.id AND c.rowid = (SELECT rowid FROM engine_check WHERE engine_id = e.id ORDER BY julianday(checked_at) DESC LIMIT 1)
      WHERE e.plugin_id IS NULL OR p.enabled = 1
      ORDER BY e.cost_rank, e.id`,
   ).all() as Array<Record<string, unknown>>).map((r) => ({
@@ -208,4 +208,12 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
 
 export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
+}
+
+export type LiveText = Record<string, { line?: string; title?: string }>;
+
+/** Fills each session's last_line and title from the core's in-memory live text (session.live-text); the database never holds them. */
+export function withLiveText(s: Snapshot, live: LiveText): Snapshot {
+  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null });
+  return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill) };
 }

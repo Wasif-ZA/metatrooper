@@ -36,7 +36,6 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
 | `term.bell` | core | `{}` (terminal bell, used only when the session has been silent 30 s) |
 | `term.output` | core | `{}` (first output after a counted bell) |
-| `term.title` | core | `{"title": str}` (first 200 characters) |
 | `core.prompt-written` | core | `{}` (the held prompt was typed into the pty) |
 | `core.status-cleared` | core | `{}` (Clear status from the session menu) |
 | `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
@@ -76,7 +75,8 @@ The core processes events in `seq` order and sets `session.state`:
 | Event | New state |
 |---|---|
 | `launch` | `starting` |
-| `claude.UserPromptSubmit`, `claude.PreToolUse`, `claude.PostToolUse` | `working` |
+| `claude.UserPromptSubmit`, `claude.PostToolUse` | `working` |
+| `claude.PreToolUse` | `working`, except from `done` or `idle`: Claude Code can fire one after `Stop` for a call that never runs (no PostToolUse, not in the transcript), so a finished session moves on PostToolUse or a prompt instead |
 | `claude.Notification` with `class` `permission` or `input` | `waiting_for_you` |
 | `claude.Notification` with `class` `other` | no change |
 | `claude.Stop` | `done` |

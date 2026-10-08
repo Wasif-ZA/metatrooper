@@ -44,7 +44,7 @@ test('cite-check rejects a planted quote and accepts a curly quote with extra sp
     const good = await check({ report, sources: join(dir, 'sources.json') }, out);
     assert.equal(good.passed, true);
     assert.equal(good.bound, 1);
-    assert.deepEqual(JSON.parse(readFileSync(join(out, 'cite-check.json'), 'utf8')), { passed: true, claims_total: 1, bound: 1, unbound: [], dead_links: [] });
+    assert.deepEqual(JSON.parse(readFileSync(join(out, 'quote-check.json'), 'utf8')), { passed: true, claims_total: 1, bound: 1, unbound: [], dead_links: [] });
     assert.equal(normalise('“A  real quote.”'), '"a real quote."');
   } finally {
     rmSync(dir, { recursive: true, force: true });

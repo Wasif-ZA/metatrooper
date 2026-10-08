@@ -18,7 +18,7 @@
       "role": "ingest",
       "kind": "action",
       "uses": "plugin:seo/crawl",
-      "with": { "url": "{{inputs.url}}", "out": "{{run.dir}}/crawl.json" }
+      "with": { "url": "{{inputs.url}}", "out": "{{run.dir}}/site-crawl.json" }
     },
     {
       "id": "audit",
@@ -28,7 +28,7 @@
       "fanout": 5,
       "approval": "edits",
       "view": "findings",
-      "prompt": "Crawl data: {{run.dir}}/crawl.json. Market: {{inputs.market}}. You are audit lane {{index}} of 0 to 4: 0 technical, 1 on-page, 2 schema, 3 content, 4 images. Audit only your area from the crawl data. Write {{run.dir}}/audit-{{index}}.json as a list of findings with severity, title, page and detail. Set the output key findings to that path. Do not edit the repository.",
+      "prompt": "Crawl data: {{run.dir}}/site-crawl.json. Market: {{inputs.market}}. You are audit lane {{index}} of 0 to 4: 0 technical, 1 on-page, 2 schema, 3 content, 4 images. Audit only your area from the crawl data. Write {{run.dir}}/audit-{{index}}.json as a list of findings with severity, title, page and detail. Set the output key findings to that path. Do not edit the repository.",
       "outputs": ["findings"]
     },
     {

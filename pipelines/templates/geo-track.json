@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "id": "geo-track",
+  "title": "AI citation tracking",
+  "lane": "seo",
+  "requires": ["answer-engines"],
+  "inputs": {
+    "brand": { "type": "text", "label": "Your brand", "required": true },
+    "rivals": { "type": "text", "label": "Rivals, comma separated", "required": false, "default": "" },
+    "buyer": { "type": "text", "label": "Who buys and what they want", "required": true },
+    "engines": { "type": "text", "label": "Answer engines, comma separated", "required": false, "default": "chatgpt, perplexity, gemini, google ai overviews" }
+  },
+  "budget": { "max_usd": 5, "max_minutes": 45 },
+  "background": true,
+  "layout": "artifact-columns",
+  "steps": [
+    {
+      "id": "prompts",
+      "title": "Write the prompt set",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Buyer: {{inputs.buyer}}. Write {{run.dir}}/prompts.md: 15 questions this buyer asks an AI assistant before choosing, in their words. If {{project.path}}/.troop/geo-track/prompts.md exists, use it unchanged so runs stay comparable. Estimate the cost of asking all of them on {{inputs.engines}} and set cost_usd.",
+      "outputs": ["cost_usd"]
+    },
+    {
+      "id": "approve",
+      "title": "Approve the queries",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "Ask the prompts in {{run.dir}}/prompts.md on {{inputs.engines}}, about {{steps.prompts.outputs.cost_usd}} USD. Approve to run the paid queries."
+    },
+    {
+      "id": "ask",
+      "title": "Ask every engine",
+      "role": "worker",
+      "kind": "agent",
+      "external": true,
+      "engine": "claude",
+      "destination": "{{inputs.engines}}",
+      "approval": "edits",
+      "prompt": "Ask every prompt in {{run.dir}}/prompts.md on each of {{inputs.engines}}. Save each answer with its cited URLs to {{run.dir}}/answers/<engine>-<n>.md. Set spent_usd to what it cost.",
+      "outputs": ["spent_usd"]
+    },
+    {
+      "id": "score",
+      "title": "Score mentions and sources",
+      "role": "review",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "For each answer in {{run.dir}}/answers/, record whether {{inputs.brand}} and each of {{inputs.rivals}} is mentioned, its position, the sentiment, and the cited domains. Write {{run.dir}}/scores.json and a short summary table in {{run.dir}}/scores.md, one row per prompt and one column per engine.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "trend",
+      "title": "Compare with last run",
+      "role": "verify",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Compare {{run.dir}}/scores.json with {{project.path}}/.troop/geo-track/last-scores.json if it exists. Flag every move of more than 2 positions and every cited source that appeared or vanished. Write {{run.dir}}/trend.md, then copy {{run.dir}}/scores.json to {{project.path}}/.troop/geo-track/last-scores.json and {{run.dir}}/prompts.md to {{project.path}}/.troop/geo-track/prompts.md.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "gaps",
+      "title": "List the gaps",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "From {{run.dir}}/scores.json and {{run.dir}}/trend.md, write {{run.dir}}/gaps.md: pages on our site to create or fix, and outside sources the engines cite that we should earn a mention on, each with the prompts it would move.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "report",
+      "title": "Write the weekly report",
+      "role": "worker",
+      "kind": "agent",
+      "approval": "edits",
+      "view": "document",
+      "prompt": "Write {{run.dir}}/report.md: where {{inputs.brand}} shows up and where it does not, what moved since last run from {{run.dir}}/trend.md, and the top five actions from {{run.dir}}/gaps.md. Set document to the report path.",
+      "outputs": ["document"]
+    }
+  ]
+}

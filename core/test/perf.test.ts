@@ -70,7 +70,7 @@ test('M1-06 window reads p95 < 1 ms and pipe commands p95 < 20 ms with 3 live se
     const sid = db.prepare("SELECT id FROM session WHERE state != 'exited' LIMIT 1").get().id;
     const hookMs: number[] = [];
     for (let i = 0; i < 5; i++) {
-      const kind = i % 2 === 0 ? 'PreToolUse' : 'Stop';
+      const kind = i % 2 === 0 ? 'PostToolUse' : 'Stop';
       const want = i % 2 === 0 ? 'working' : 'done';
       const r = spawnSync(process.execPath, ['core/event.js', `claude.${kind}`], { cwd: root, env: { ...env, TROOP_SESSION_ID: sid }, input: JSON.stringify({ session_id: 'n1', cwd: isolated.home, tool_name: 'Read', tool_input: { file_path: '/x' } }) });
       assert.equal(r.status, 0);

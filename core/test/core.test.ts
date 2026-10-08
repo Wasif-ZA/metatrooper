@@ -116,14 +116,19 @@ test('event writer without TROOP_SESSION_ID produces no output or row', async ()
   } finally { await h.teardown(); }
 });
 
-test('all Claude hooks exit silently when no database or core exists', async () => {
+test('all Claude hooks and the Codex notify hook exit silently when no database or core exists', async () => {
   const isolated = isolation();
   try {
     for (const kind of ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd']) {
       const result = await runNode(['core/event.js', `claude.${kind}`], { ...isolated.env, TROOP_SESSION_ID: 'offline' }, '{}');
       assert.equal(result.code, 0, kind);
       assert.equal(result.stdout, '', kind);
+      assert.equal(result.stderr, '', kind);
     }
+    const notify = await runNode(['core/codex-notify.js', JSON.stringify({ type: 'agent-turn-complete', 'turn-id': 't1' })], { ...isolated.env, TROOP_SESSION_ID: 'offline' });
+    assert.equal(notify.code, 0);
+    assert.equal(notify.stdout + notify.stderr, '');
+    assert.ok(!existsSync(join(isolated.home, 'troop.db')), 'an offline hook created the database');
   } finally { rmSync(isolated.home, { recursive: true, force: true }); }
 });
 

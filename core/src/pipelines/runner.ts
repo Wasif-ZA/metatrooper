@@ -19,6 +19,7 @@ import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type
 import { detectAssists, helperBlock } from './assists.ts';
 import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
+import { liveText } from '../terminal/events.ts';
 import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
 
 const POLL_MS = 500;
@@ -729,10 +730,11 @@ ${helpers}` : resolved;
   /** The error text of a failed attempt whose print-mode session has exited, else null. */
   private printFailure(run: RunRow, row: StepRow, r: IndexResult): string | null {
     if ('paused' in r || r.ok) return null;
-    const s = this.db.prepare('SELECT s.engine_id, s.state, s.last_line FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ? AND r.iteration = ? AND r.fanout_index = ?')
-      .get(run.id, row.step_id, row.iteration, row.fanout_index) as { engine_id: string; state: string; last_line: string | null } | undefined;
+    const s = this.db.prepare('SELECT s.id, s.engine_id, s.state FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ? AND r.iteration = ? AND r.fanout_index = ?')
+      .get(run.id, row.step_id, row.iteration, row.fanout_index) as { id: string; engine_id: string; state: string } | undefined;
     if (s?.state !== 'exited' || !getEngine(this.db, s.engine_id)?.print_args) return null;
-    return s.last_line ? `${r.error} (${s.last_line})` : r.error;
+    const line = liveText()[s.id]?.line;
+    return line ? `${r.error} (${line})` : r.error;
   }
 
   private async agentAttempt(run: RunRow, pipe: Pipeline, a: AgentArgs): Promise<IndexResult> {

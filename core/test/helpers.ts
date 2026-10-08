@@ -241,7 +241,7 @@ export function runNode(args, env, input = '') {
     child.stdout.on('data', chunk => { stdout += chunk; });
     child.stderr.on('data', chunk => { stderr += chunk; });
     child.on('error', reject);
-    child.on('exit', code => resolve({ code, stdout, stderr, ms: performance.now() - started }));
+    child.on('close', code => resolve({ code, stdout, stderr, ms: performance.now() - started }));
     child.stdin.end(input);
   });
 }

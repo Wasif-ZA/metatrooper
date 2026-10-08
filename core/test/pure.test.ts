@@ -79,7 +79,7 @@ test('nextState follows every event row in the state mapping', () => {
   const cases = [
     ['launch', {}, 'starting'],
     ['claude.UserPromptSubmit', {}, 'working'],
-    ['claude.PreToolUse', {}, 'working'],
+    ['claude.PreToolUse', {}, null],
     ['claude.PostToolUse', {}, 'working'],
     ['claude.Notification', { class: 'permission' }, 'waiting_for_you'],
     ['claude.Notification', { class: 'input' }, 'waiting_for_you'],
@@ -94,6 +94,9 @@ test('nextState follows every event row in the state mapping', () => {
   assert.equal(nextState('working', { kind: 'claude.Notification', payload: { class: 'other' } }), null);
   assert.equal(nextState('starting', { kind: 'claude.Notification', payload: { class: 'idle' } }), 'idle');
   assert.equal(nextState('done', { kind: 'claude.Notification', payload: { class: 'idle' } }), null);
+  assert.equal(nextState('done', { kind: 'claude.PreToolUse', payload: {} }), null);
+  assert.equal(nextState('done', { kind: 'claude.PostToolUse', payload: {} }), 'working');
+  for (const current of ['starting', 'waiting_for_you', 'unknown']) assert.equal(nextState(current, { kind: 'claude.PreToolUse', payload: {} }), 'working', current);
   assert.equal(nextState('idle', { kind: 'claude.SessionEnd', payload: {} }), null);
   assert.equal(nextState('working', { kind: 'claude.SessionEnd', payload: {} }), 'idle');
   for (const current of ['starting', 'working', 'waiting_for_you', 'done', 'idle', 'unknown']) {

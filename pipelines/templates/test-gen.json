@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "id": "test-gen",
+  "title": "Test generation and coverage push",
+  "lane": "coding",
+  "requires": ["repo"],
+  "inputs": {
+    "target": { "type": "path", "label": "Folder to cover", "required": true },
+    "min_kill_rate": { "type": "number", "label": "Share of code breaks the tests must catch (0 to 1)", "required": false, "default": 0.6 }
+  },
+  "budget": { "max_minutes": 120, "max_parallel": 4 },
+  "background": true,
+  "layout": "coverage-map",
+  "steps": [
+    {
+      "id": "coverage",
+      "title": "Find uncovered lines",
+      "role": "ingest",
+      "kind": "agent",
+      "approval": "contained",
+      "prompt": "Run this repository's tests with coverage for {{inputs.target}}. Write {{run.dir}}/coverage.md listing each file under {{inputs.target}} with its uncovered lines. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "rank",
+      "title": "Rank files by risk",
+      "role": "plan",
+      "kind": "agent",
+      "approval": "edits",
+      "prompt": "Rank the files in {{run.dir}}/coverage.md by how often they change (git log) times how complex they are. Write {{run.dir}}/targets.md with the top four as target 0 to target 3, each with its uncovered lines.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "behaviours",
+      "title": "List behaviours and edge cases",
+      "role": "research",
+      "kind": "agent",
+      "fanout": 4,
+      "approval": "edits",
+      "prompt": "Read target {{index}} in {{run.dir}}/targets.md. List in plain words every behaviour and edge case that file has, one per line. Write {{run.dir}}/behaviours-{{index}}.md. Do not edit the repository.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "write",
+      "title": "Write the tests",
+      "role": "worker",
+      "kind": "agent",
+      "worktree": true,
+      "approval": "contained",
+      "prompt": "For each of {{run.dir}}/behaviours-0.md to behaviours-3.md, write one test per behaviour in this worktree. Mock only input and output boundaries. Assert on outputs, not on calls. Do not change the code under test and do not commit yet.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "run",
+      "title": "Run the tests",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:repo/run-tests",
+      "with": { "path": "{{steps.write.outputs.worktree}}" }
+    },
+    {
+      "id": "mutate",
+      "title": "Break the code",
+      "role": "verify",
+      "kind": "agent",
+      "cwd": "{{steps.write.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Tests passed: {{steps.run.outputs.passed}}. For each target file, make small breaks one at a time (flip a condition, change a bound, drop a line), run the new tests, then undo the break. Write {{run.dir}}/mutate.md: each break, which tests caught it, and each test that caught none. Set kill_rate to the share of breaks caught, and passed to true when it is at least {{inputs.min_kill_rate}}.",
+      "outputs": ["kill_rate", "passed"]
+    },
+    {
+      "id": "prune",
+      "title": "Delete tests that assert nothing",
+      "role": "review",
+      "kind": "agent",
+      "cwd": "{{steps.write.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Using {{run.dir}}/mutate.md, delete the new tests that caught no break or only check a status code. Write the kept and deleted tests to {{run.dir}}/prune.md.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "commit",
+      "title": "Commit per file",
+      "role": "worker",
+      "kind": "agent",
+      "cwd": "{{steps.write.outputs.worktree}}",
+      "approval": "contained",
+      "prompt": "Commit the kept tests one commit per target file on the current branch. Do not push. Kill rate: {{steps.mutate.outputs.kill_rate}}.",
+      "outputs": ["summary"]
+    }
+  ]
+}
