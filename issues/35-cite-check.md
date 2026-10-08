@@ -30,7 +30,7 @@ Background. The run folds to the 36px wall bar with no live extra.
 ## Acceptance criteria
 
 - [ ] M3-01. Each milestone-3 built-in runs end to end on its fixture and stops at every gate before a publish step.
-- [ ] M3-02. `cite-check` fails a report with one planted quote absent from its source and passes the same report with curly quotes and extra whitespace in a real quote.
+- [x] M3-02. `cite-check` fails a report with one planted quote absent from its source and passes the same report with curly quotes and extra whitespace in a real quote.
 
 ## Rules that bind every child
 
