@@ -1,6 +1,9 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -122,6 +125,90 @@ test('M3-01 study-notes-to-pdf reads the fixture lecture, exports a real PDF and
     assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
     await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
   } finally { await close(h); }
+});
+
+const typeInto = `param([string]$Handle, [string]$Json)
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$w = @([System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { [string]$_.Current.NativeWindowHandle -eq $Handle })[0]
+$values = $Json | ConvertFrom-Json
+foreach ($p in $values.PSObject.Properties) {
+  $box = @($w.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { $_.Current.Name -eq $p.Name -and $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit })[0]
+  $box.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue([string]$p.Value)
+}
+`;
+
+// Fill: each run takes the next entry of FAKE.sequence, types its values into that window and reports it.
+const sequenceEngine = (typer: string) => `
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+const prompt = process.argv[2] ?? '';
+const line = prompt.split(/\\r?\\n/).find((s) => s.startsWith('FAKE '));
+const out = /^When you are done, write your result to:\\s*(.+)$/m.exec(prompt)?.[1]?.trim();
+if (line) {
+  const spec = JSON.parse(line.slice(5));
+  for (const [name, value] of Object.entries(spec.run_files ?? {})) writeFileSync(join(dirname(out), name), String(value));
+  if (spec.sequence) {
+    const counter = join(process.env.METATROOPER_HOME, 'sequence-count.json');
+    const n = existsSync(counter) ? JSON.parse(readFileSync(counter, 'utf8')) : 0;
+    writeFileSync(counter, JSON.stringify(n + 1));
+    const item = spec.sequence[Math.min(n, spec.sequence.length - 1)];
+    spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ${JSON.stringify(typer)}, item.outputs.handle, JSON.stringify(item.type)], { windowsHide: true });
+    process.argv[2] = prompt.replace(line, 'FAKE ' + JSON.stringify({ outputs: item.outputs }));
+  }
+}
+await import(${JSON.stringify(pathToFileURL(join(root, 'core/test/fake-engine.js')).href)});
+`;
+
+test('M3-03 form-fill-batch hands each captcha to the user, then submits every row only after approve', { skip: process.platform !== 'win32' || process.env.METATROOPER_DESKTOP_E2E !== '1' }, async () => {
+  const forms: ChildProcess[] = [];
+  const open = (title: string, x: number) => new Promise<string>((resolve, reject) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', join(root, 'tests/fixtures/form-fill-batch/input/form.ps1'), '-Title', title, '-X', String(x), '-Y', '40']);
+    forms.push(child);
+    child.stdout.on('data', (d) => { const m = /handle=(\d+)/.exec(String(d)); if (m) resolve(m[1]); });
+    child.on('exit', () => reject(new Error(`${title} closed before showing`)));
+  });
+  const typer = join(tmpdir(), `troop-type-${process.pid}.ps1`);
+  writeFileSync(typer, typeInto);
+  const type = (handle: string, values: object) => spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', typer, handle, JSON.stringify(values)], { windowsHide: true });
+  const h = await revisionHarness(undefined, sequenceEngine(typer));
+  try {
+    const [rowA, rowB] = readFileSync(join(root, 'tests/fixtures/form-fill-batch/input/rows.csv'), 'utf8').trim().split(/\r?\n/).slice(1).map((l) => l.split(','));
+    const a = await open('Troop test form A', 40); const b = await open('Troop test form B', 420);
+    const row = (r: string[], handle: string, window: string) => ({ window, handle, values: r.join(' '), filled: true });
+    const rowsJson = JSON.stringify([row(rowA, a, 'Troop test form A'), row(rowB, b, 'Troop test form B')]);
+    const def = builtin('form-fill-batch', {
+      map: { outputs: { rows: 2 }, run_files: { 'rows.json': rowsJson } },
+      fill: { sequence: [
+        { type: { Name: rowA[0], Email: rowA[1], Postcode: rowA[2] }, outputs: { window: 'Troop test form A', handle: a, values: rowA.join(' '), captcha: 'shown', rows_left: 1 } },
+        { type: { Name: rowB[0], Email: rowB[1], Postcode: rowB[2] }, outputs: { window: 'Troop test form B', handle: b, values: rowB.join(' '), captcha: 'shown', rows_left: 0 } },
+      ] },
+    });
+    const sheet = join(h.project, 'rows.csv');
+    copyFileSync(join(root, 'tests/fixtures/form-fill-batch/input/rows.csv'), sheet);
+    const runId = await h.pipeline(def, { sheet, window: 'Troop test form' });
+    for (const handle of [a, b]) {
+      const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'captcha' AND status = 'waiting'").get(runId), 60000);
+      assert.equal(gate.kind, 'handoff');
+      assert.match(gate.summary, /captcha shown/);
+      assert.equal((h.db.prepare('SELECT paused_why FROM run WHERE id = ?').get(runId) as any).paused_why, 'handoff');
+      type(handle, { 'Captcha answer': 'harbour' });
+      assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve' })).result, {});
+      await until(() => !h.db.prepare("SELECT 1 FROM gate WHERE id = ? AND status = 'waiting'").get(gate.id));
+    }
+    const approve: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 60000);
+    assert.equal(approve.guards_step, 'submit');
+    const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
+    assert.equal(readdirSync(join(runDir, 'shots')).filter((f) => f.endsWith('.png')).length, 2);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'submit' AND status <> 'pending'").get(runId) as any).n, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: approve.id, decision: 'approve', action_hash: approve.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 60000);
+    const confirmations = JSON.parse(readFileSync(join(runDir, 'confirmations.json'), 'utf8'));
+    assert.deepEqual(confirmations.map((c: any) => c.text.find((t: string) => t.startsWith('Received'))), [`Received: ${rowA[0]}`, `Received: ${rowB[0]}`], JSON.stringify(confirmations));
+  } finally {
+    for (const f of forms) f.kill();
+    await close(h);
+  }
 });
 
 function fakeVercel(h: Harness) {
