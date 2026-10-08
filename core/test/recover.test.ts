@@ -20,23 +20,30 @@ test('core restart relaunches agent steps whose session died, re-registers built
     db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
     db.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x', 1, 1)").run();
     fs.writeFileSync(path.join(home, 'pipeline.json'), JSON.stringify({
-      schema: 1, id: 'pl', title: 'pl', steps: [{ id: 'build', title: 'build', kind: 'agent', fanout: 2, prompt: 'x' }],
+      schema: 1, id: 'pl', title: 'pl', steps: [{ id: 'build', title: 'build', kind: 'agent', fanout: 3, prompt: 'x' }],
     }));
     db.prepare(`INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at)
       VALUES ('r1', 'pl', 'p', '{}', ?, 'running', 'manual', 1000, 10, 60, 'x')`).run(home);
     const session = db.prepare("INSERT INTO session (id, project_id, engine_id, host, pid, run_id, step_id, state, state_at, started_at) VALUES (?, 'p', 'claude', 'pty', ?, 'r1', 'build', 'working', 'x', 'x')");
     session.run('dead', 2 ** 30);
     session.run('alive', process.pid);
+    session.run('finished', 2 ** 30);
+    const out = path.join(home, 'build-2.md');
+    fs.writeFileSync(out, '---\nstatus: done\n---\n');
     const step = db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status, engine_id, session_id, started_at) VALUES ('r1', 'build', 0, ?, 'running', 'claude', ?, 'x')");
     step.run(0, 'dead');
     step.run(1, 'alive');
+    db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status, engine_id, session_id, output_path, started_at) VALUES ('r1', 'build', 0, 2, 'running', 'claude', 'finished', ?, 'x')").run(out);
 
     new Runner(db).recover();
     const rows = db.prepare("SELECT fanout_index, status, session_id FROM run_step WHERE run_id = 'r1' ORDER BY fanout_index").all().map((r) => ({ ...r }));
     assert.deepEqual(rows, [
       { fanout_index: 0, status: 'running', session_id: null },
       { fanout_index: 1, status: 'running', session_id: 'alive' },
+      { fanout_index: 2, status: 'running', session_id: 'finished' },
     ]);
+    assert.equal((db.prepare("SELECT state FROM session WHERE id = 'finished'").get() as { state: string }).state, 'exited');
+    assert.ok(fs.existsSync(out));
     assert.equal((db.prepare("SELECT status FROM run WHERE id = 'r1'").get() as { status: string }).status, 'running');
 
     new Runner(db).recover();

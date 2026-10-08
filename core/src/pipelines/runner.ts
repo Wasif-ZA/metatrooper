@@ -12,7 +12,7 @@ import { pidAlive } from '../sessions/watch.ts';
 import { trustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
-import { BASE_ENV, killTree, runAction } from '../plugins/actions.ts';
+import { BASE_ENV, killPid, killTree, runAction } from '../plugins/actions.ts';
 import { loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
@@ -969,14 +969,19 @@ export class Runner {
   /** At core start: steps that were mid-way through an action, code or sub-pipeline fail; agent steps reattach. */
   recover(): void {
     const rows = this.db.prepare(
-      "SELECT s.run_id, s.step_id, s.iteration, s.fanout_index, s.session_id FROM run_step s JOIN run r ON r.id = s.run_id WHERE r.status = 'running' AND s.status = 'running'",
-    ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null }>;
+      "SELECT s.run_id, s.step_id, s.iteration, s.fanout_index, s.session_id, s.output_path FROM run_step s JOIN run r ON r.id = s.run_id WHERE r.status = 'running' AND s.status = 'running'",
+    ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null; output_path: string | null }>;
     for (const r of rows) {
       const run = this.run(r.run_id) as RunRow;
       const step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);
       if (step?.kind === 'agent') {
         const s = r.session_id ? (this.db.prepare('SELECT state, pid FROM session WHERE id = ?').get(r.session_id) as { state: string; pid: number | null } | undefined) : undefined;
         if (s && s.state !== 'exited' && s.pid && pidAlive(s.pid)) continue;
+        const fm = r.output_path && fs.existsSync(r.output_path) ? parseFrontMatter(fs.readFileSync(r.output_path, 'utf8')) : null;
+        if (r.session_id && (fm?.status === 'done' || fm?.status === 'failed')) {
+          this.db.prepare("UPDATE session SET state = 'exited' WHERE id = ?").run(r.session_id);
+          continue;
+        }
         this.db.prepare('UPDATE run_step SET session_id = NULL, started_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ? AND fanout_index = ?')
           .run(nowIso(), r.run_id, r.step_id, r.iteration, r.fanout_index);
         this.log(run, { event: 'step relaunched', step: r.step_id, detail: 'its session ended with the last core; started again' });
@@ -986,6 +991,9 @@ export class Runner {
       this.db.prepare("UPDATE run_step SET status = 'failed', fail_count = fail_count + 1, ended_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ? AND fanout_index = ?")
         .run(nowIso(), r.run_id, r.step_id, r.iteration, r.fanout_index);
       this.fail(run, `step ${r.step_id} was interrupted by a core restart; resume to run it again`);
+    }
+    for (const d of this.db.prepare("SELECT pid FROM dev_server WHERE status IN ('starting','ready') AND pid IS NOT NULL").all() as Array<{ pid: number }>) {
+      if (pidAlive(d.pid)) killPid(d.pid);
     }
     this.db.prepare("DELETE FROM dev_server WHERE status IN ('starting','ready','failed','stopped')").run();
     this.db.prepare("DELETE FROM port_lease WHERE run_id IN (SELECT id FROM run WHERE status IN ('done','failed','cancelled'))").run();
