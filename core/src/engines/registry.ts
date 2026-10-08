@@ -47,7 +47,8 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 export const BUILT_IN: EngineSpec[] = [
   {
     id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], version_cmd: ['claude', '--version'],
-    approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'] },
+    approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
+    sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },
     state_source: 'hooks', mcp_attach: { kind: 'claude-mcp-config-flag' },
     roles: ['research', 'plan', 'worker', 'review', 'verify', 'visual-check'], cost_rank: 3, usage_source: 'claude-transcript',
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
