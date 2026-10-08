@@ -1,6 +1,7 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, root, until } from './helpers.ts';
@@ -142,17 +143,29 @@ test('M3-01 seo-audit-fix audits five areas, fixes in a worktree and deploys onl
       fix: { outputs: { summary: 'titles and alt text fixed' } },
       speed: { outputs: { passed: true, scores: '/ 96, /menu 93, /contact 98' } },
     });
-    // The crawl action refuses loopback hosts, so a fake step stands in for it; plugin unit tests cover crawl.
-    def.steps[0] = { id: 'crawl', title: 'Crawl the site', role: 'ingest', kind: 'agent', engine: 'fake', approval: 'edits', outputs: ['pages'], prompt: 'FAKE {"outputs":{"pages":3},"run_files":{"crawl.json":"[]"}}\nCrawl.' };
-    const runId = await h.pipeline(def, { url: 'https://bakery.example', market: 'bakery' });
-    const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 60000);
-    assert.equal(gate.guards_step, 'deploy'); assert.match(gate.action_hash, /^[0-9a-f]{64}$/);
-    assert.match(gate.summary, /titles and alt text fixed/); assert.match(gate.summary, /\/menu 93/);
-    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'audit' AND status = 'done'").get(runId) as any).n, 5);
-    assert.deepEqual(calls(), []);
-    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'deploy' AND status = 'done'").get(runId) as any).n, 0);
-    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash })).result, {});
-    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
-    assert.deepEqual(calls(), ['deploy --yes --prod']);
+    const siteDir = join(root, 'tests/fixtures/seo-audit-fix/input/site');
+    const site = http.createServer((req, res) => {
+      const file = join(siteDir, req.url === '/' ? 'index.html' : (req.url ?? '').slice(1));
+      if (!/^\/[a-z-]*(\.html)?$/.test(req.url ?? '') || !existsSync(file)) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'content-type': 'text/html' }); res.end(readFileSync(file));
+    });
+    await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
+    const url = `http://127.0.0.1:${(site.address() as any).port}/`;
+    try {
+      const runId = await h.pipeline(def, { url, market: 'bakery' });
+      const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 60000);
+      const crawled = JSON.parse(readFileSync(JSON.parse((h.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'crawl'").get(runId) as any).outputs).crawl, 'utf8'));
+      assert.deepEqual(crawled.broken.map((b: any) => [new URL(b.url).pathname, b.status]), [['/old-specials.html', 404]]);
+      const home = crawled.pages.find((p: any) => p.url === url);
+      assert.ok(home && home.status === 200, JSON.stringify(crawled.pages));
+      assert.equal(gate.guards_step, 'deploy'); assert.match(gate.action_hash, /^[0-9a-f]{64}$/);
+      assert.match(gate.summary, /titles and alt text fixed/); assert.match(gate.summary, /\/menu 93/);
+      assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'audit' AND status = 'done'").get(runId) as any).n, 5);
+      assert.deepEqual(calls(), []);
+      assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'deploy' AND status = 'done'").get(runId) as any).n, 0);
+      assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash })).result, {});
+      await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+      assert.deepEqual(calls(), ['deploy --yes --prod']);
+    } finally { site.close(); }
   } finally { await close(h); }
 });

@@ -167,6 +167,17 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
     if (s.kind === 'action' && u?.kind === 'plugin' && !ctx.action(u.plugin, u.action)) errors.push(`${at(i, s)}/uses: plugin ${u.plugin} is not installed or has no action ${u.action}`);
   });
 
+  const resultSteps = p.steps.filter((t) => t.kind === 'action' || t.kind === 'code').map((t) => t.id);
+  p.steps.forEach((s, i) => {
+    for (const text of templateStrings(s.with ?? {})) {
+      for (const id of resultSteps) {
+        if (new RegExp(`^\\{\\{\\s*run\\.dir\\s*\\}\\}/${id}(-\\d+)?\\.json$`).test(text.trim())) {
+          errors.push(`${at(i, s)}/with: ${text.trim()} is step ${id}'s result file and the runner overwrites it; use another name`);
+        }
+      }
+    }
+  });
+
   p.steps.forEach((s, i) => {
     if (s.kind === 'code' && s.code && ctx.dir) {
       const abs = path.resolve(ctx.dir, s.code);

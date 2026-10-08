@@ -19,7 +19,7 @@
       "role": "ingest",
       "kind": "action",
       "uses": "plugin:seo/crawl",
-      "with": { "url": "{{inputs.site}}", "out": "{{run.dir}}/crawl.json" }
+      "with": { "url": "{{inputs.site}}", "out": "{{run.dir}}/site-crawl.json" }
     },
     {
       "id": "pick",
@@ -27,7 +27,7 @@
       "role": "research",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Keywords: {{inputs.keywords}}. Site pages: {{run.dir}}/crawl.json. Pick the one keyword the site has no page for yet and can rank for. Write {{run.dir}}/plan.md with four lines starting search: that read the top results for it. Set keyword to the pick.",
+      "prompt": "Keywords: {{inputs.keywords}}. Site pages: {{run.dir}}/site-crawl.json. Pick the one keyword the site has no page for yet and can rank for. Write {{run.dir}}/plan.md with four lines starting search: that read the top results for it. Set keyword to the pick.",
       "outputs": ["keyword"]
     },
     {
@@ -62,7 +62,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Write {{run.dir}}/post.md from {{run.dir}}/outline.md in the voice of the pages in {{run.dir}}/crawl.json: first-hand detail, real numbers with their source, short stories. No filler.",
+      "prompt": "Write {{run.dir}}/post.md from {{run.dir}}/outline.md in the voice of the pages in {{run.dir}}/site-crawl.json: first-hand detail, real numbers with their source, short stories. No filler.",
       "outputs": ["summary"]
     },
     {
@@ -71,7 +71,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Edit {{run.dir}}/post.md in place: add 3 to 6 internal links to real pages from {{run.dir}}/crawl.json, an image brief with alt text for each image, and an FAQ of the questions the top results leave open.",
+      "prompt": "Edit {{run.dir}}/post.md in place: add 3 to 6 internal links to real pages from {{run.dir}}/site-crawl.json, an image brief with alt text for each image, and an FAQ of the questions the top results leave open.",
       "outputs": ["summary"]
     },
     {
