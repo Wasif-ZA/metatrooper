@@ -142,6 +142,7 @@ Every other interaction is a database read.
 | `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
 | `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
 | `pipeline.validate` | `{json}` | `{valid, errors}` |
+| `template.list` | `{}` | `{templates: [{id, title, lane, requires, missing, ready}]}`: every `pipelines/templates/*.json`; `ready` only when each plugin in `requires` is installed and enabled, `missing` names the rest |
 | `comment.deliver` | `{comment_id}` | `{clipboard_at, typed}`: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it |
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |

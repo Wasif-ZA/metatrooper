@@ -21,7 +21,7 @@ import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
 import type { Runner } from './pipelines/runner.ts';
-import { syncPipelines, validationContext } from './pipelines/store.ts';
+import { listTemplates, syncPipelines, validationContext } from './pipelines/store.ts';
 import { validatePipeline } from './pipelines/validate.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
@@ -360,6 +360,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return {};
     },
   });
+
+  m.set('template.list', { handler: () => ({ templates: listTemplates(db) }) });
 
   m.set('pipeline.validate', {
     handler: (p) => {
