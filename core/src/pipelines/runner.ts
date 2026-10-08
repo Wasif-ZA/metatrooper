@@ -23,6 +23,7 @@ import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCaptur
 
 const POLL_MS = 500;
 const STABLE_MS = 10_000;
+const SETTLED_GRACE_MS = 120_000;
 const DRIVER_PROMPT = path.join(import.meta.dirname, 'driver-prompt.md');
 const DRIVER_TURNS = 3;
 const BREAKER = 3;
@@ -716,7 +717,7 @@ export class Runner {
       for (;;) {
         const status = this.run(run.id)?.status;
         if (status === 'cancelled' || status === 'failed') return { paused: status };
-        const session = this.db.prepare('SELECT state, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; driven_engine: string | null } | undefined;
+        const session = this.db.prepare('SELECT state, state_at, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; state_at: string; driven_engine: string | null } | undefined;
         const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
         let fm: Record<string, unknown> | null = null;
         let mtime = 0;
@@ -738,6 +739,8 @@ export class Runner {
           }
         } else if (session?.state === 'exited') {
           return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+        } else if (settled && Date.now() - Date.parse(session.state_at) >= SETTLED_GRACE_MS) {
+          return { ok: false, error: `${a.stepId}: the session stopped without writing ${a.outPath}` };
         }
         if (Date.now() > deadline) {
           return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes` };

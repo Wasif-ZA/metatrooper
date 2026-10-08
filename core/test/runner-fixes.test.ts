@@ -95,6 +95,15 @@ test('H4 the agent session is stopped when its step fails, and Resume stops a se
   assert.deepEqual(killed, ['s-h4', 's-h4']);
 });
 
+test('H18 an agent step whose session settled minutes ago without writing its result fails before the timeout', async () => {
+  const { run, args } = agentRun('h18', 'done', iso(3 * 60_000));
+  const runner = priv(new Runner(db));
+  runner.killSession = () => {};
+  const r = await runner.runAgent(run, {}, { ...args, timeoutMinutes: 0.05 });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /stopped without writing/);
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
