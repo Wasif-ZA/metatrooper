@@ -281,6 +281,10 @@ test('M3-01 clips-to-scheduled-posts cuts only the picked moments and schedules 
       copy: { outputs: { posts: 'posts.json' }, run_files: { 'posts.json': JSON.stringify(posts) } },
       check: { outputs: { passed: true, flags: 'none' } },
     });
+    mkdirSync(join(h.project, '.troop/pipelines'), { recursive: true });
+    writeFileSync(join(h.project, '.troop/pipelines', `${def.id}.json`), JSON.stringify(def));
+    const six = await h.pipe.request('run.start', { pipeline_id: def.id, project_id: h.projectId, inputs: { video, week_start: '2030-01-07', max_clips: 6 } });
+    assert.match(JSON.stringify(six.error), /max_clips must be one of 1, 2, 3, 4/);
     const runId = await h.pipeline(def, { video, week_start: '2030-01-07', platforms: 'tiktok', max_clips: 4, tiktok_privacy: 'SELF_ONLY' });
     const pick: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'pick' AND status = 'waiting'").get(runId) ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 120000);
     const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
@@ -357,10 +361,10 @@ if (line) {
 await import(${JSON.stringify(pathToFileURL(join(root, 'core/test/fake-engine.js')).href)});
 `;
 
-test('M3-03 form-fill-batch hands each captcha to the user, then submits every row only after approve', { skip: process.platform !== 'win32' || process.env.METATROOPER_DESKTOP_E2E !== '1' }, async () => {
+test('M3-03 form-fill-batch hands a shown captcha to the user, skips the gate when there is none, and submits only after approve', { skip: process.platform !== 'win32' || process.env.METATROOPER_DESKTOP_E2E !== '1' }, async () => {
   const forms: ChildProcess[] = [];
-  const open = (title: string, x: number) => new Promise<string>((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', join(root, 'tests/fixtures/form-fill-batch/input/form.ps1'), '-Title', title, '-X', String(x), '-Y', '40']);
+  const open = (title: string, x: number, noCaptcha = false) => new Promise<string>((resolve, reject) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', join(root, 'tests/fixtures/form-fill-batch/input/form.ps1'), '-Title', title, '-X', String(x), '-Y', '40', ...(noCaptcha ? ['-NoCaptcha'] : [])]);
     forms.push(child);
     child.stdout.on('data', (d) => { const m = /handle=(\d+)/.exec(String(d)); if (m) resolve(m[1]); });
     child.on('exit', () => reject(new Error(`${title} closed before showing`)));
@@ -371,20 +375,20 @@ test('M3-03 form-fill-batch hands each captcha to the user, then submits every r
   const h = await revisionHarness(undefined, sequenceEngine(typer));
   try {
     const [rowA, rowB] = readFileSync(join(root, 'tests/fixtures/form-fill-batch/input/rows.csv'), 'utf8').trim().split(/\r?\n/).slice(1).map((l) => l.split(','));
-    const a = await open('Troop test form A', 40); const b = await open('Troop test form B', 420);
+    const a = await open('Troop test form A', 40); const b = await open('Troop test form B', 420, true);
     const row = (r: string[], handle: string, window: string) => ({ window, handle, values: r.join(' '), filled: true });
     const rowsJson = JSON.stringify([row(rowA, a, 'Troop test form A'), row(rowB, b, 'Troop test form B')]);
     const def = builtin('form-fill-batch', {
       map: { outputs: { rows: 2 }, run_files: { 'rows.json': rowsJson } },
       fill: { sequence: [
         { type: { Name: rowA[0], Email: rowA[1], Postcode: rowA[2] }, outputs: { window: 'Troop test form A', handle: a, values: rowA.join(' '), captcha: 'shown', rows_left: 1 } },
-        { type: { Name: rowB[0], Email: rowB[1], Postcode: rowB[2] }, outputs: { window: 'Troop test form B', handle: b, values: rowB.join(' '), captcha: 'shown', rows_left: 0 } },
+        { type: { Name: rowB[0], Email: rowB[1], Postcode: rowB[2] }, outputs: { window: 'Troop test form B', handle: b, values: rowB.join(' '), captcha: 'none', rows_left: 0 } },
       ] },
     });
     const sheet = join(h.project, 'rows.csv');
     copyFileSync(join(root, 'tests/fixtures/form-fill-batch/input/rows.csv'), sheet);
     const runId = await h.pipeline(def, { sheet, window: 'Troop test form' });
-    for (const handle of [a, b]) {
+    for (const handle of [a]) {
       const gate: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'captcha' AND status = 'waiting'").get(runId), 60000);
       assert.equal(gate.kind, 'handoff');
       assert.match(gate.summary, /captcha shown/);
@@ -395,6 +399,8 @@ test('M3-03 form-fill-batch hands each captcha to the user, then submits every r
     }
     const approve: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve' AND status = 'waiting'").get(runId), 60000);
     assert.equal(approve.guards_step, 'submit');
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM gate WHERE run_id = ? AND step_id = 'captcha'").get(runId) as any).n, 1);
+    assert.equal((h.db.prepare("SELECT status FROM run_step WHERE run_id = ? AND step_id = 'captcha' AND iteration = 1").get(runId) as any).status, 'skipped');
     const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
     assert.equal(readdirSync(join(runDir, 'shots')).filter((f) => f.endsWith('.png')).length, 2);
     assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'submit' AND status <> 'pending'").get(runId) as any).n, 0);

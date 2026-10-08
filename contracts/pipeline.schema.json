@@ -97,6 +97,7 @@
         "code": { "type": "string", "description": "For kind=code: path relative to the pipeline file of an ES module exporting async run(ctx)." },
         "gate": { "enum": ["approve", "handoff"], "description": "For kind=gate." },
         "gate_summary": { "$ref": "#/$defs/template" },
+        "when": { "type": "string", "pattern": "^steps\\.[a-z0-9-]+\\.(passed|outputs\\.[a-z0-9_]+ == \"[^\"]*\")$", "description": "Gate steps only: pause only when this is true, same grammar as loop until; false skips the gate." },
         "external": { "type": "boolean", "default": false },
         "destination": { "$ref": "#/$defs/template", "description": "Where an agent publish step sends things (repo, account, recipient). Required for kind=agent with role=publish or external=true; part of the gate action_hash." },
         "fanout": { "type": "integer", "minimum": 2, "maximum": 8 },

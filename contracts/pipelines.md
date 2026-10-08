@@ -97,6 +97,9 @@ Its stdout JSON becomes the step outputs and is written to `<step_id>.json`.
   creates a new gate with the new summary, and pauses again. So an approval covers exactly one action with
   exactly those arguments.
 - `gate: handoff` pauses until the user presses Continue. It never authorises a publish.
+- `when` (gate steps only, same grammar as loop `until`, naming an earlier step): when it is false the gate is marked
+  `skipped`, the log records `gate skipped`, and the run goes on. A skipped approve gate authorises nothing, so a
+  guarded step after it still asks for approval.
 - After a fan-out worktree step, Pick on a tile marks that variant `picked` (one per run; picking another sets
   the old one back to `ready`). Later steps read it as `{{variants.picked.worktree}}` and
   `{{variants.picked.branch}}`, and `cwd: "{{variants.picked.worktree}}"` runs a step inside it. Validation
@@ -145,8 +148,9 @@ variant is discarded:
 
 ## Loops, resume, breaker
 
-- `steps.<id>.passed` is true when that step's latest iteration has `status = 'done'` and its outputs do not
-  contain `passed: false`. `verify` steps should write `passed: true` or `passed: false` explicitly.
+- `steps.<id>.passed` is true when that step's latest iteration has `status = 'done'` and its outputs contain
+  `passed: true`. A missing `passed` counts as not passed, so the loop repeats and pauses at `loop-max`.
+  `verify` steps write `passed: true` or `passed: false` explicitly.
 - `loop`: after the last step of the group, evaluate `until`. True: continue. False: rerun the group with
   `iteration + 1`. At `max`: pause with `paused_why = 'loop-max'`.
 - Resume: `run.resume` restarts from the first step whose status is not `done`, keeping every finished

@@ -18,7 +18,7 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
 | M3-02 | VERIFIED-WINDOWS | c271cff: core/test/m3-plugins.test.ts cite-check planted-quote and curly-quote cases. |
 | M3-03 | VERIFIED-WINDOWS | 2026-10-08T23:27+11:00: core/test/m3-e2e.test.ts, opt-in `METATROOPER_DESKTOP_E2E=1` because it opens two real windows for about 12 s. Fixture: input/form.ps1, a WPF form (Name, Email, Postcode, a Captcha group with an answer box, Submit, a status line) and input/rows.csv (2 rows). The fake fill agent types each row into its window by handle; the run pauses at the captcha handoff gate for each row (paused_why handoff, summary says captcha shown); the test types the captcha answer and continues; real `desktop/screenshot` saves both windows; the approve gate guards submit and submit has not run; after approve real `desktop/submit` presses Submit in both and real `desktop/read` returns "Received: Ada Byron" and "Received: Alan Turing". Also the form-fill-batch half of M3-01. |
 | M3-04 | IN PROGRESS | 2026-10-08T23:06+11:00: 17 templates in `pipelines/templates/` (Wasif's pick: a subfolder, so `store.ts`, which reads only `pipelines/*.json`, never seeds them as runnable). Catalog 3, 4, 5, 9, 15, 16, 18 to 22, 24, 25 and A1 to A4; all 17 pass `validatePipeline` against the real plugin manifests. 13 name future plugins in `requires` (tts, video-gen, social-posts, sheets, cms, chat, calendar, tasks, keyword-data, search-console, answer-engines, youtube, image-gen), so they never show ready until those exist. 2026-10-08T23:58+11:00: `template.list` (core/src/pipelines/store.ts `listTemplates`, pipe-protocol.md) returns all 17 with `requires`, `missing` and `ready`, ready only when every required plugin is installed and enabled. core/test/template-gallery.test.ts: the 17 ids match the files, missing and ready agree with the plugin table, disabling one required plugin flips that template to not ready, and no template becomes a runnable `pipeline` row. Left: the gallery in the workbench. |
-| M3-05 | TODO | Tauri tray. Needs a Rust toolchain; ask before installing. |
+| M3-05 | DEFERRED | 2026-10-09T00:03+11:00, Wasif's pick: no Rust or Tauri install now; the workbench already shows every session state and gate. Revisit with the signed installer (#31), which the tray ships with. The tray half of M3-06 waits with it. |
 | M3-06 | PARTIAL | 2026-10-08T23:57+11:00, core/test/open-core-seams.test.ts (by Claude). Refusals: `session.launch` of a gateway engine, and `run.start` of a pipeline with `run_in: cloud` or a step pinning a gateway engine, all return -32040 with the session, run, run_step and gate counts unchanged and no run folder; role binding skips gateway engines even at the lowest cost_rank. Removing the launch check and the bindRole filter fails both tests. Account state: new `account.state` method answers `{state: "signed_out"}` (pipe-protocol.md); nothing prompts for sign-in. No network, Wasif's pick: core/test/no-network-hook.mjs is loaded with --import into the core and every Node child (checked: main.ts, pty workers, launch.js, the engine, event.js all load it) and logs any TCP connect or DNS lookup to a non-loopback host; a full fake-engine spec-to-pr run through both gates logs nothing. Left: the workbench half (Electron main process) and the tray, which does not exist yet (M3-05). |
 
 ## Real runs
@@ -30,8 +30,9 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
 
 ## Hardening notes
 
-- #33: `max_clips` has `default: 4` and a "4 at most" label but no maximum, while `cut` and `caption` fan out to a
-  fixed 4. An input of 6 still drops clips 5 and 6. Check whether the pipeline schema can cap a number input.
+- FIXED 2026-10-09T00:09+11:00, #33: `max_clips` was a number with no maximum while `cut` and `style` fan out to a fixed 4, so 6 dropped
+  clips 5 and 6. It is now a `choice` of 1 to 4 (no schema change); run.start refuses 6 (m3-e2e clips test) and
+  m3-plugins checks the largest choice equals the fan-out.
 - FIXED 2026-10-08T23:15+11:00, #27 #34 #35: the runner writes an action step's result to `<run_dir>/<step id>.json` (contract,
   pipelines.md). Three built-ins wrote their own data to that same name, so the runner's `{ok, outputs}` file
   replaced it: seo `crawl.json` (the audit lanes got counts, not pages), security `inventory.json`, and cite-check's own
@@ -42,18 +43,30 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
   (all of 127.0.0.0/8, ::1, IPv4-mapped); a public start never reaches loopback, by link or redirect; other private
   ranges stay refused either way. Resolved addresses are checked, not names. core/test/seo-loopback.test.ts, one case
   per refusal path; making loopback always allowed fails 3 of its 6 tests.
-- #38: the `outline` prompt says the slides folder holds "one page image per slide", but `ingest` writes text only.
-- #39: the captcha handoff gate pauses on every row, also when fill reports `captcha: none`. Gates have no condition
-  field, so a batch of 20 rows with no captcha still stops 20 times.
+- FIXED 2026-10-09T00:10+11:00, #38: the `outline` prompt said the slides folder held "one page image per slide", but `ingest` writes
+  text only. It now says one text file per slide and points at the lecture PDF itself for figures.
+- FIXED 2026-10-09T00:14+11:00, #39, Wasif's pick: the captcha handoff paused on every row, also with `captcha: none`. Gate steps now
+  take an optional `when` (loop `until` grammar, earlier step only; schema, validator, runner, pipelines.md); false marks
+  the gate `skipped` and logs `gate skipped`, and a skipped approve gate authorises nothing. form-fill-batch's captcha
+  gate has `when: steps.fill.outputs.captcha == "shown"`. Tests: core/test/gate-when.test.ts (skip, pause, four
+  validator refusals) and the M3-03 desktop test now runs row B on a form with no captcha and checks its gate is skipped.
 - #39: `desktop.ps1` loads managed UI Automation only. A classic WinForms or Win32 form then shows every control as
   `Pane` with no patterns: edit boxes are indistinguishable from labels in `read`, and Submit is pressed by a mouse click
   at its position. The first fixture form was WinForms and hit this; it is WPF now. Apps with native UIA (WPF, browsers,
   UWP) work.
-- Runner: a loop `until: steps.X.passed` treats a missing `passed` as passed (`o.passed !== false`), so an agent that
-  forgets the key ends its check loop as if it passed. Used by deep-research-cited, footage-to-edit,
+- FIXED 2026-10-09T00:08+11:00, Wasif's pick: a loop `until: steps.X.passed` treated a missing `passed` as passed, so an agent that
+  forgot the key ended its check loop as if it passed. Now only `passed: true` (or "true") passes; a missing one repeats
+  the loop and pauses at loop-max (runner.ts evalUntil, pipelines.md amended, core/test/loop-passed.test.ts; the old
+  line fails it). Used by deep-research-cited, footage-to-edit,
   security-review-and-upgrade, seo-audit-fix and study-notes-to-pdf.
 - FIXED, #33: `cut` read the moments file from `{{steps.moments.outputs.items}}`. An agent that sets it to a relative
   `moments.json` (the test's first fake did) made every cut fail with ENOENT, because actions resolve paths from the
   project folder. `cut` now reads `{{run.dir}}/moments.json`, the path the prompt fixes.
-- #32 #33: `media` `pickMoment` falls back to all moments when none is marked approved, so a user who drops every moment
-  at the pick gate (or forgets to mark any) still gets the first 4 cut.
+- FIXED 2026-10-09T00:09+11:00, #32 #33: `media` `pickMoment` fell back to every moment when none was approved, so dropping all of them
+  at the pick gate still cut the first 4. A dropped moment is now never cut; with no approved moment the pending ones
+  are cut as before (core/test/pick-moment.test.ts; the old line fails it).
+- FIXED 2026-10-09T00:19+11:00, #32 #34 #35 and agent-reach (SSRF, found while checking a light Codex pass): every vendored `safe-fetch.js`
+  matched IPv4-mapped IPv6 only in dotted form, but the URL parser rewrites `[::ffff:127.0.0.1]` to `[::ffff:7f00:1]`.
+  So loopback, 10.0.0.1 (`[::ffff:a00:1]`) and the cloud metadata address 169.254.169.254 (`[::ffff:a9fe:a9fe]`) passed
+  the guard. `isPrivate` and `isLoopback` now use `net.BlockList`, which judges a mapped address by its IPv4 rules, and
+  IPv4-compatible `::/96` is refused too. core/test/seo-loopback.test.ts covers the hex forms; the old file fails it.

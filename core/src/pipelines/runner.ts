@@ -411,7 +411,7 @@ export class Runner {
     const rows = this.rows(run.id, id);
     if (!rows.length || rows.some((r) => r.status !== 'done')) return false;
     const outs = rows.map((r) => (r.outputs ? JSON.parse(r.outputs) : {}) as Record<string, unknown>);
-    if (passed) return outs.every((o) => o.passed !== false);
+    if (passed) return outs.every((o) => o.passed === true || o.passed === 'true');
     return outs.every((o) => String(o[(equals as RegExpExecArray)[2]]) === (equals as RegExpExecArray)[3]);
   }
 
@@ -952,6 +952,11 @@ ${helpers}` : resolved;
 
   private gateStep(run: RunRow, pipe: Pipeline, step: Step, iteration: number): StepOutcome {
     const waiting = this.db.prepare("SELECT id FROM gate WHERE run_id = ? AND step_id = ? AND status = 'waiting'").get(run.id, step.id);
+    if (!waiting && step.when && !this.evalUntil(run, step.when)) {
+      this.db.prepare("UPDATE run_step SET status = 'skipped', ended_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ?").run(nowIso(), run.id, step.id, iteration);
+      this.log(run, { event: 'gate skipped', step: step.id, when: step.when });
+      return 'done';
+    }
     if (!waiting) {
       const guarded = step.gate === 'approve' ? this.guardedAfter(pipe, step) : null;
       const h = guarded ? this.hashFor(run, guarded) : null;

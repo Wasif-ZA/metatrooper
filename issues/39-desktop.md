@@ -32,7 +32,7 @@ as a calm 36px wall bar.
 ## Acceptance criteria
 
 - [ ] M3-01. Each milestone-3 built-in runs end to end on its fixture and stops at every gate before a publish step.
-- [ ] M3-03. `form-fill-batch` pauses at a handoff gate when the fixture form shows its captcha stand-in and resumes on Continue.
+- [x] M3-03. `form-fill-batch` pauses at a handoff gate when the fixture form shows its captcha stand-in and resumes on Continue.
 
 ## Rules that bind every child
 

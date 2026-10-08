@@ -2,25 +2,24 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 
 const V4_BLOCKED = [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.168.0.0', 16], ['224.0.0.0', 3]];
+const V6_BLOCKED = [['::', 96], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]];
 
-const v4int = (ip) => ip.split('.').reduce((n, part) => n * 256 + Number(part), 0);
+const blocked = new net.BlockList();
+for (const [base, bits] of V4_BLOCKED) blocked.addSubnet(base, bits, 'ipv4');
+for (const [base, bits] of V6_BLOCKED) blocked.addSubnet(base, bits, 'ipv6');
+const loop = new net.BlockList();
+loop.addSubnet('127.0.0.0', 8, 'ipv4');
+loop.addAddress('::1', 'ipv6');
 
+/** True for private, loopback, link-local, multicast and unspecified addresses, IPv4-mapped IPv6 in any spelling included. */
 export function isPrivate(ip) {
-  if (net.isIPv4(ip)) {
-    const n = v4int(ip);
-    return V4_BLOCKED.some(([base, bits]) => Math.floor(n / 2 ** (32 - bits)) === Math.floor(v4int(base) / 2 ** (32 - bits)));
-  }
-  const v6 = ip.toLowerCase();
-  const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isPrivate(mapped[1]);
-  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6);
+  const type = net.isIP(ip);
+  return type === 0 || blocked.check(ip, type === 4 ? 'ipv4' : 'ipv6');
 }
 
 export function isLoopback(ip) {
-  if (net.isIPv4(ip)) return ip.split('.')[0] === '127';
-  const v6 = ip.toLowerCase();
-  const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  return mapped ? isLoopback(mapped[1]) : v6 === '::1';
+  const type = net.isIP(ip);
+  return type !== 0 && loop.check(ip, type === 4 ? 'ipv4' : 'ipv6');
 }
 
 async function addresses(u, lookup) {

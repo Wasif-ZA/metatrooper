@@ -7,7 +7,7 @@
   "inputs": {
     "video": { "type": "text", "label": "Video URL or file", "required": true },
     "platforms": { "type": "text", "label": "Platforms, comma separated", "required": false, "default": "tiktok, youtube-shorts, instagram-reels" },
-    "max_clips": { "type": "number", "label": "Most clips to make (4 at most)", "required": false, "default": 4 },
+    "max_clips": { "type": "choice", "label": "Most clips to make", "required": false, "default": "4", "choices": ["1", "2", "3", "4"] },
     "week_start": { "type": "text", "label": "First posting day (ISO date)", "required": true },
     "tiktok_privacy": { "type": "text", "label": "TikTok privacy: PUBLIC_TO_EVERYONE, or SELF_ONLY until TikTok audits your app", "required": false, "default": "PUBLIC_TO_EVERYONE" }
   },

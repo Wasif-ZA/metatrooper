@@ -19,6 +19,7 @@ export interface Step {
   code?: string;
   gate?: 'approve' | 'handoff';
   gate_summary?: string;
+  when?: string;
   external?: boolean;
   destination?: string;
   fanout?: number;
@@ -150,6 +151,11 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
     if (s.continue !== undefined) {
       const j = index.get(s.continue);
       if (j === undefined || j >= i || p.steps[j].kind !== 'agent') errors.push(`${at(i, s)}/continue: must name an earlier agent step`);
+    }
+    if (s.when !== undefined) {
+      const target = /^steps\.([a-z0-9-]+)\./.exec(s.when)?.[1];
+      if (s.kind !== 'gate') errors.push(`${at(i, s)}/when: only gate steps take when`);
+      else if (!target || (index.get(target) ?? i) >= i) errors.push(`${at(i, s)}/when: must name an earlier step`);
     }
     if (s.loop) {
       const ids = s.loop.steps;
