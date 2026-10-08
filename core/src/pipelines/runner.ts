@@ -1030,6 +1030,7 @@ export class Runner {
     ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null; output_path: string | null }>;
     for (const r of rows) {
       const run = this.run(r.run_id) as RunRow;
+      if (run.status !== 'running') continue;
       let step: Step | undefined;
       try {
         step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);

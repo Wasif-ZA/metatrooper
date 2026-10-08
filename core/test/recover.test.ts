@@ -81,3 +81,17 @@ test('core restart fails a running run whose folder is gone instead of crashing'
     db.close();
   }
 });
+
+test('core restart fails a run with several interrupted steps once', async () => {
+  const { home, db, Runner } = await recoverDb();
+  try {
+    fs.writeFileSync(path.join(home, 'pipeline.json'), JSON.stringify({ schema: 1, id: 'pl', title: 'pl', steps: [{ id: 'a', kind: 'code', code: 'x.mjs', fanout: 3 }] }));
+    db.prepare(`INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at)
+      VALUES ('many', 'pl', 'p', '{}', ?, 'running', 'manual', 1000, 10, 60, 'x')`).run(home);
+    for (const i of [0, 1, 2]) db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status) VALUES ('many', 'a', 0, ?, 'running')").run(i);
+    new Runner(db).recover();
+    assert.equal((db.prepare("SELECT count(*) AS n FROM needs_you WHERE ref = 'many' AND kind = 'run-failed'").get() as { n: number }).n, 1);
+  } finally {
+    db.close();
+  }
+});
