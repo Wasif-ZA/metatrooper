@@ -93,7 +93,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
   const engines = (db.prepare(
     `SELECT e.id, e.plugin_id, e.spec_json, c.installed, c.version, c.auth, c.checked_at
      FROM engine e LEFT JOIN plugin p ON p.id = e.plugin_id
-     LEFT JOIN engine_check c ON c.engine_id = e.id AND c.checked_at = (SELECT MAX(checked_at) FROM engine_check WHERE engine_id = e.id)
+     LEFT JOIN engine_check c ON c.engine_id = e.id AND c.rowid = (SELECT rowid FROM engine_check WHERE engine_id = e.id ORDER BY julianday(checked_at) DESC LIMIT 1)
      WHERE e.plugin_id IS NULL OR p.enabled = 1
      ORDER BY e.cost_rank, e.id`,
   ).all() as Array<Record<string, unknown>>).map((r) => ({
@@ -122,7 +122,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
         `SELECT s.id, s.engine_id, ${driven}, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at,
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd
-         FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY s.started_at DESC LIMIT 50`,
+         FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
       ).all(projectId) as Snapshot['sessions'])
     : [];
 
@@ -130,14 +130,14 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
   const runs = projectId
     ? (db.prepare(
         `SELECT id, pipeline_id, status, paused_why, started_at, ended_at, depth, parent_run FROM run
-         WHERE project_id = ? ${runHidden} ORDER BY started_at DESC LIMIT 30`,
+         WHERE project_id = ? ${runHidden} ORDER BY julianday(started_at) DESC LIMIT 30`,
       ).all(projectId) as Snapshot['runs'])
     : [];
 
   const steps = projectId
     ? (db.prepare(
         `WITH shown(id) AS (
-           SELECT id FROM run WHERE id = ? OR (project_id = ? AND (status IN ('running', 'paused') OR id IN (SELECT run_id FROM session WHERE project_id = ? AND run_id IS NOT NULL ORDER BY started_at DESC LIMIT 20)))
+           SELECT id FROM run WHERE id = ? OR (project_id = ? AND (status IN ('running', 'paused') OR id IN (SELECT run_id FROM session WHERE project_id = ? AND run_id IS NOT NULL ORDER BY julianday(started_at) DESC LIMIT 20)))
          )
          SELECT run_id, step_id, iteration, fanout_index, status, engine_id, session_id, fail_count, output_path FROM run_step
          WHERE run_id IN (SELECT id FROM shown) OR run_id IN (SELECT id FROM run WHERE parent_run IN (SELECT id FROM shown)) ORDER BY rowid`,
@@ -159,7 +159,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
   const snapshots = projectId
     ? (db.prepare(
         `SELECT s.id, s.pane_id, s.label, s.url, s.taken_at, s.w390_path, s.w1280_path FROM snapshot s JOIN browser_pane p ON p.id = s.pane_id
-         WHERE p.project_id = ? ORDER BY s.taken_at DESC LIMIT 40`,
+         WHERE p.project_id = ? ORDER BY julianday(s.taken_at) DESC LIMIT 40`,
       ).all(projectId) as Snapshot['snapshots'])
     : [];
 
@@ -181,7 +181,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
       ).all(runId) as Snapshot['variants'])
     : [];
 
-  const needs_you = db.prepare('SELECT id, at, kind, ref, text, read_at FROM needs_you WHERE resolved_at IS NULL ORDER BY at DESC LIMIT 100').all() as Snapshot['needs_you'];
+  const needs_you = db.prepare('SELECT id, at, kind, ref, text, read_at FROM needs_you WHERE resolved_at IS NULL ORDER BY julianday(at) DESC LIMIT 100').all() as Snapshot['needs_you'];
 
   return {
     at: now,
@@ -194,8 +194,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     steps,
     gates,
     needs_you,
-    live: db.prepare("SELECT id, project_id, engine_id, state, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY started_at DESC").all() as Snapshot['live'],
-    live_runs: db.prepare("SELECT id, project_id, pipeline_id, status, paused_why, started_at FROM run WHERE parent_run IS NULL AND status IN ('running', 'paused') ORDER BY started_at DESC").all() as Snapshot['live_runs'],
+    live: db.prepare("SELECT id, project_id, engine_id, state, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC").all() as Snapshot['live'],
+    live_runs: db.prepare("SELECT id, project_id, pipeline_id, status, paused_why, started_at FROM run WHERE parent_run IS NULL AND status IN ('running', 'paused') ORDER BY julianday(started_at) DESC").all() as Snapshot['live_runs'],
     panes,
     snapshots,
     board,

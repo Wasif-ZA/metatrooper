@@ -418,7 +418,7 @@ export class Runner {
     const marks = ids.map(() => '?').join(',');
     const waits = this.db.prepare(
       `SELECT at, resolved_at FROM needs_you WHERE (kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))
-       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY at`,
+       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY julianday(at)`,
     ).all(...ids, ...ids) as Array<{ at: string; resolved_at: string | null }>;
     const now = Date.now();
     const start = Date.parse(run.started_at);
@@ -642,7 +642,7 @@ export class Runner {
   private usableEngine(id: string): EngineSpec | null {
     const e = getEngine(this.db, id);
     if (!e) return null;
-    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
+    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
     return c && (!c.installed || c.auth === 'missing') ? null : e;
   }
 
@@ -900,7 +900,7 @@ export class Runner {
     const h = this.hashFor(run, step);
     if (!h) return this.fail(run, `step ${step.id}: its arguments could not be resolved for the approval check`);
     const approved = this.db.prepare(
-      "SELECT id, action_hash FROM gate WHERE run_id = ? AND guards_step = ? AND status = 'approved' ORDER BY decided_at DESC LIMIT 1",
+      "SELECT id, action_hash FROM gate WHERE run_id = ? AND guards_step = ? AND status = 'approved' ORDER BY julianday(decided_at) DESC LIMIT 1",
     ).get(run.id, step.id) as { id: string; action_hash: string | null } | undefined;
     if (approved && approved.action_hash === h.hash) {
       this.db.prepare("UPDATE gate SET status = 'stale', note = ? WHERE id = ?").run(`approval used by ${step.id}`, approved.id);
@@ -1063,7 +1063,7 @@ export class Runner {
       if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(run.id)) continue;
       const child = this.db.prepare("SELECT 1 FROM run WHERE parent_run = ? AND status = 'paused'").get(run.id);
       if (child) continue;
-      const last = this.db.prepare("SELECT status FROM gate WHERE run_id = ? AND decided_at IS NOT NULL AND (note IS NULL OR note != 'output arrived') ORDER BY decided_at DESC LIMIT 1").get(run.id) as
+      const last = this.db.prepare("SELECT status FROM gate WHERE run_id = ? AND decided_at IS NOT NULL AND (note IS NULL OR note != 'output arrived') ORDER BY julianday(decided_at) DESC LIMIT 1").get(run.id) as
         | { status: string }
         | undefined;
       if (last?.status === 'rejected') {

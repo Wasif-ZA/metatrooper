@@ -5,8 +5,8 @@ import { settings } from '../settings.ts';
 
 /** True when the session has had no event from any source but the terminal for terminal.bell_silent_ms. */
 export function silent(db: DatabaseSync, sessionId: string, now = Date.now()): boolean {
-  const r = db.prepare("SELECT max(at) AS at FROM event WHERE session_id = ? AND kind NOT LIKE 'term.%'").get(sessionId) as { at: string | null };
-  return !r.at || now - Date.parse(r.at) >= settings().terminal.bell_silent_ms;
+  const r = db.prepare("SELECT at FROM event WHERE session_id = ? AND kind NOT LIKE 'term.%' ORDER BY julianday(at) DESC LIMIT 1").get(sessionId) as { at: string } | undefined;
+  return !r || now - Date.parse(r.at) >= settings().terminal.bell_silent_ms;
 }
 
 export function wireTermEvents(db: DatabaseSync): void {
