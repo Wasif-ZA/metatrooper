@@ -1,0 +1,451 @@
+diff --git a/lib/core/Axios.js b/lib/core/Axios.js
+index 2765bbb..b57a9ba 100644
+--- a/lib/core/Axios.js
++++ b/lib/core/Axios.js
+@@ -98,6 +98,12 @@ class Axios {
+     }
+ 
+     // Set config.method
++    if (config.allowAbsoluteUrls !== undefined) {
++      validator.assertOptions({ allowAbsoluteUrls: config.allowAbsoluteUrls }, {
++        allowAbsoluteUrls: validators.boolean
++      }, true);
++    }
++
+     config.method = (config.method || this.defaults.method || 'get').toLowerCase();
+ 
+     // Flatten headers
+diff --git a/lib/core/buildFullPath.js b/lib/core/buildFullPath.js
+index b60927c..d7577f4 100644
+--- a/lib/core/buildFullPath.js
++++ b/lib/core/buildFullPath.js
+@@ -13,8 +13,9 @@ import combineURLs from '../helpers/combineURLs.js';
+  *
+  * @returns {string} The combined full path
+  */
+-export default function buildFullPath(baseURL, requestedURL) {
+-  if (baseURL && !isAbsoluteURL(requestedURL)) {
++export default function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls = true) {
++  const isRelativeUrl = !isAbsoluteURL(requestedURL);
++  if (baseURL && (isRelativeUrl || allowAbsoluteUrls === false)) {
+     return combineURLs(baseURL, requestedURL);
+   }
+   return requestedURL;
+diff --git a/lib/helpers/bind.js b/lib/helpers/bind.js
+index b3aa83b..ee0163d 100644
+--- a/lib/helpers/bind.js
++++ b/lib/helpers/bind.js
+@@ -5,3 +5,27 @@ export default function bind(fn, thisArg) {
+     return fn.apply(thisArg, arguments);
+   };
+ }
++
++/**
++ * Checks the bind argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertBindInput(value, label = 'bind') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/buildURL.js b/lib/helpers/buildURL.js
+index d769fdf..b72559b 100644
+--- a/lib/helpers/buildURL.js
++++ b/lib/helpers/buildURL.js
+@@ -61,3 +61,27 @@ export default function buildURL(url, params, options) {
+ 
+   return url;
+ }
++
++/**
++ * Checks the buildURL argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertBuildURLInput(value, label = 'buildURL') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/combineURLs.js b/lib/helpers/combineURLs.js
+index 9f04f02..dd3884d 100644
+--- a/lib/helpers/combineURLs.js
++++ b/lib/helpers/combineURLs.js
+@@ -9,7 +9,13 @@
+  * @returns {string} The combined URL
+  */
+ export default function combineURLs(baseURL, relativeURL) {
+-  return relativeURL
+-    ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+-    : baseURL;
++  if (!relativeURL) {
++    return baseURL;
++  }
++  const base = baseURL.replace(/\/+$/, '');
++  const rel = relativeURL.replace(/^\/+/, '');
++  if (!rel) {
++    return base + '/';
++  }
++  return base + '/' + rel;
+ }
+diff --git a/lib/helpers/cookies.js b/lib/helpers/cookies.js
+index d039ac4..9ef4d3b 100644
+--- a/lib/helpers/cookies.js
++++ b/lib/helpers/cookies.js
+@@ -40,3 +40,27 @@ export default platform.hasStandardBrowserEnv ?
+     remove() {}
+   };
+ 
++
++/**
++ * Checks the cookies argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertCookiesInput(value, label = 'cookies') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/formDataToJSON.js b/lib/helpers/formDataToJSON.js
+index 906ce60..5865c1a 100644
+--- a/lib/helpers/formDataToJSON.js
++++ b/lib/helpers/formDataToJSON.js
+@@ -93,3 +93,27 @@ function formDataToJSON(formData) {
+ }
+ 
+ export default formDataToJSON;
++
++/**
++ * Checks the formDataToJSON argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertFormDataToJSONInput(value, label = 'formDataToJSON') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/fromDataURI.js b/lib/helpers/fromDataURI.js
+index eb71d3f..e837b76 100644
+--- a/lib/helpers/fromDataURI.js
++++ b/lib/helpers/fromDataURI.js
+@@ -51,3 +51,27 @@ export default function fromDataURI(uri, asBlob, options) {
+ 
+   throw new AxiosError('Unsupported protocol ' + protocol, AxiosError.ERR_NOT_SUPPORT);
+ }
++
++/**
++ * Checks the fromDataURI argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertFromDataURIInput(value, label = 'fromDataURI') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/isAbsoluteURL.js b/lib/helpers/isAbsoluteURL.js
+index 4747a45..fabcb8f 100644
+--- a/lib/helpers/isAbsoluteURL.js
++++ b/lib/helpers/isAbsoluteURL.js
+@@ -11,5 +11,8 @@ export default function isAbsoluteURL(url) {
+   // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+   // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+   // by any combination of letters, digits, plus, period, or hyphen.
++  if (typeof url !== 'string') {
++    return false;
++  }
+   return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url);
+ }
+diff --git a/lib/helpers/isURLSameOrigin.js b/lib/helpers/isURLSameOrigin.js
+index a8678a4..1ab2f9a 100644
+--- a/lib/helpers/isURLSameOrigin.js
++++ b/lib/helpers/isURLSameOrigin.js
+@@ -65,3 +65,27 @@ export default platform.hasStandardBrowserEnv ?
+       return true;
+     };
+   })();
++
++/**
++ * Checks the isURLSameOrigin argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertIsURLSameOriginInput(value, label = 'isURLSameOrigin') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/parseHeaders.js b/lib/helpers/parseHeaders.js
+index 50af948..fb03ad5 100644
+--- a/lib/helpers/parseHeaders.js
++++ b/lib/helpers/parseHeaders.js
+@@ -53,3 +53,27 @@ export default rawHeaders => {
+ 
+   return parsed;
+ };
++
++/**
++ * Checks the parseHeaders argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertParseHeadersInput(value, label = 'parseHeaders') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/parseProtocol.js b/lib/helpers/parseProtocol.js
+index 586ec96..41a6db2 100644
+--- a/lib/helpers/parseProtocol.js
++++ b/lib/helpers/parseProtocol.js
+@@ -4,3 +4,27 @@ export default function parseProtocol(url) {
+   const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
+   return match && match[1] || '';
+ }
++
++/**
++ * Checks the parseProtocol argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertParseProtocolInput(value, label = 'parseProtocol') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/speedometer.js b/lib/helpers/speedometer.js
+index 3b3c666..760c5d1 100644
+--- a/lib/helpers/speedometer.js
++++ b/lib/helpers/speedometer.js
+@@ -53,3 +53,27 @@ function speedometer(samplesCount, min) {
+ }
+ 
+ export default speedometer;
++
++/**
++ * Checks the speedometer argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertSpeedometerInput(value, label = 'speedometer') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/spread.js b/lib/helpers/spread.js
+index 13479cb..412279c 100644
+--- a/lib/helpers/spread.js
++++ b/lib/helpers/spread.js
+@@ -26,3 +26,27 @@ export default function spread(callback) {
+     return callback.apply(null, arr);
+   };
+ }
++
++/**
++ * Checks the spread argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertSpreadInput(value, label = 'spread') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/throttle.js b/lib/helpers/throttle.js
+index a3204fd..b19d10f 100644
+--- a/lib/helpers/throttle.js
++++ b/lib/helpers/throttle.js
+@@ -33,3 +33,27 @@ function throttle(fn, freq) {
+ }
+ 
+ export default throttle;
++
++/**
++ * Checks the throttle argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertThrottleInput(value, label = 'throttle') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
+diff --git a/lib/helpers/toURLEncodedForm.js b/lib/helpers/toURLEncodedForm.js
+index 988a38a..708df84 100644
+--- a/lib/helpers/toURLEncodedForm.js
++++ b/lib/helpers/toURLEncodedForm.js
+@@ -16,3 +16,27 @@ export default function toURLEncodedForm(data, options) {
+     }
+   }, options));
+ }
++
++/**
++ * Checks the toURLEncodedForm argument before it is used.
++ *
++ * @param {*} value The value to check
++ * @param {string} [label] The name used in the error message
++ *
++ * @returns {*} The value, unchanged
++ */
++export function assertToURLEncodedFormInput(value, label = 'toURLEncodedForm') {
++  if (value === undefined) {
++    throw new TypeError(label + ' is required');
++  }
++  if (value === null) {
++    throw new TypeError(label + ' must not be null');
++  }
++  if (typeof value === 'number' && Number.isNaN(value)) {
++    throw new TypeError(label + ' must be a number');
++  }
++  if (typeof value === 'string' && value.length > 65536) {
++    throw new RangeError(label + ' is longer than 65536 characters');
++  }
++  return value;
++}
