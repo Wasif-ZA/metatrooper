@@ -44,9 +44,13 @@ export function redactToolInput(toolName: string, input: unknown): Obj {
   return lengths;
 }
 
-function classifyNotification(message: string): 'permission' | 'input' | 'other' {
+function classifyNotification(type: unknown, message: string): 'permission' | 'input' | 'idle' | 'other' {
+  if (type === 'permission_prompt') return 'permission';
+  if (type === 'idle_prompt') return 'idle';
+  if (type === 'agent_needs_input' || (typeof type === 'string' && /^elicitation_(url_)?dialog$/.test(type))) return 'input';
+  if (typeof type === 'string' && type) return 'other';
   if (/permission|allow|approve|wants to use/i.test(message)) return 'permission';
-  if (/waiting for (your )?input|waiting for you|idle/i.test(message)) return 'input';
+  if (/waiting for (your )?input|waiting for you|idle/i.test(message)) return 'idle';
   return 'other';
 }
 
@@ -68,7 +72,7 @@ export function buildPayload(kind: string, raw: object): Obj {
       return { ...pick(r, ['session_id', 'cwd']), prompt_length: lengthOf(r.prompt) };
     case 'claude.Notification': {
       const msg = typeof r.message === 'string' ? r.message : '';
-      return { ...pick(r, ['session_id', 'cwd']), class: classifyNotification(msg), message_length: msg.length };
+      return { ...pick(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
     }
     case 'claude.Stop':
       return pick(r, ['session_id', 'cwd', 'stop_hook_active']);

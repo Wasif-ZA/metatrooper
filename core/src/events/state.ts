@@ -14,11 +14,13 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
     case 'launch':
       return 'starting';
     case 'claude.Notification':
-      return p.class === 'permission' || p.class === 'input' ? 'waiting_for_you' : null;
+      if (p.class === 'permission' || p.class === 'input') return 'waiting_for_you';
+      return p.class === 'idle' && current === 'starting' ? 'idle' : null;
     case 'claude.Stop':
       return 'done';
+    // A Claude conversation can end (clear, resume) while its terminal lives on; core.process-gone marks the real exit.
     case 'claude.SessionEnd':
-      return 'exited';
+      return current === 'idle' ? null : 'idle';
     case 'codex.turn':
       return 'done';
     case 'core.activity':

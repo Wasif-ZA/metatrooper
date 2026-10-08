@@ -13,7 +13,7 @@ the pieces talk. Where they differ, the contract wins and this file is the bug.
 | `contracts/pipe-protocol.md` | named-pipe framing, JSON-RPC methods, error codes, queue fallback, access |
 | `contracts/pipeline.schema.json` and `contracts/pipelines.md` | pipeline file format and how a run executes it |
 | `contracts/plugin-manifest.schema.json` and `contracts/plugins.md` | plugin manifest, permissions, action process contract, pane bridge, importers |
-| `contracts/browser-tools.md` | the 12 `metatrooper-browser` tools, capture, and the browser safety rules |
+| `contracts/browser-tools.md` | the 13 `metatrooper-browser` tools, capture, and the browser safety rules |
 
 ## Context
 
@@ -889,7 +889,7 @@ Out of scope:
 - M1-19. Changing a publish step's arguments after approval marks the gate `stale` and pauses for a new
   approval; a `code` step and a non-TTY CLI cannot resolve a gate.
 - M1-20. A loop that never passes stops at `max`; a step failing 3 times trips the breaker; resume restarts
-  from the failed step with earlier outputs kept.
+  from the failed step with earlier outputs kept, and after the breaker it clears the failure counts.
 - M1-21. A run over `max_tokens` starts no new step; its overshoot is at most the usage of the steps running
   at that moment, and never more than `max_parallel` of them.
 - M1-22. Fan-out 3 on the fixture repo gives 3 worktrees, 3 leased ports starting at 3001 (skipping a port the

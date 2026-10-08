@@ -60,6 +60,7 @@ export function pluginAction(db: DatabaseSync, pluginId: string, actionId: strin
 
 /** Scans every source and upserts `pipeline` rows with their validation result. */
 export function syncPipelines(db: DatabaseSync): Map<string, Found> {
+  syncBuiltinPlugins(db);
   const found = scanPipelines(db);
   const up = db.prepare(
     `INSERT INTO pipeline (id, source, path, version, valid, errors) VALUES (?, ?, ?, ?, ?, ?)

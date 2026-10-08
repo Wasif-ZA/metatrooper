@@ -9,7 +9,7 @@ const STATE_WORDS = { starting: 'starting', working: 'working', waiting_for_you:
 const ui = {
   snap: null,
   projectId: load('projectId'),
-  tab: ['diff', 'handback', 'browser', 'runs', 'pipelines'].includes(load('tab')) ? load('tab') : 'diff',
+  tab: ['diff', 'git', 'handback', 'browser', 'runs', 'pipelines'].includes(load('tab')) ? load('tab') : 'diff',
   paneCache: {},
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
   split: false,
@@ -23,6 +23,10 @@ const ui = {
   pipelineId: null,
   editor: null,
   paneId: null,
+  paneState: {},
+  urlDraft: null,
+  find: null,
+  perms: [],
   browserMode: 'live',
   comment: null,
   swap: false,
@@ -42,6 +46,11 @@ function save(key, value) {
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+function pipeName(id) {
+  const p = ui.snap && ui.snap.pipelines.find((x) => x.id === id);
+  return (p && p.title) || id;
 }
 
 function ago(iso) {
@@ -128,26 +137,51 @@ function inputField(name, spec) {
   return `<label>${label}</label><input type="${type}" data-input="${esc(name)}" data-key="${esc(key)}" value="${esc(spec.default ?? '')}">`;
 }
 
+const THUMBS = new Set(['design-variants', 'e2e-browser-qa', 'spec-build-review-handback', 'spec-to-pr', 'two-engine-review', 'website-build']);
+
+function ringHtml(defs, st) {
+  const n = defs.length;
+  const asks = defs.filter((d) => d.kind === 'gate').length;
+  const done = st ? st.list.filter((x) => x.status === 'done' || x.status === 'skipped').length : 0;
+  const ask = asks ? ` · <em>asks you ${asks === 1 ? 'once' : asks === 2 ? 'twice' : `${asks} times`}</em>` : '';
+  return `<span class="ring"><i style="--p:${n ? done / n : 0}"></i><span>${st ? `step ${Math.min(st.at, n)} of ${n}` : `${n} steps`}${ask}</span></span>`;
+}
+
+function pipelineCard(p) {
+  const last = ui.snap.runs.filter((r) => !r.parent_run && r.pipeline_id === p.id).sort((a, b) => (a.started_at < b.started_at ? 1 : -1))[0];
+  const line = !p.valid ? `<span class="err">${esc(p.errors[0] || 'invalid')}</span>` : last ? `${esc(last.status)} · ${esc(ago(last.started_at))}` : 'never run';
+  return `<button class="pcard ${p.id === ui.pipelineId ? 'on' : ''} ${p.valid ? '' : 'bad'}" ${p.valid ? `data-action="pick-card" data-id="${esc(p.id)}"` : 'disabled'} title="${esc(p.id)}">
+    <span class="th">${THUMBS.has(p.id) ? `<img src="thumbs/${esc(p.id)}.jpg" alt="">` : 'no screen yet'}</span>
+    <span class="pb"><b>${esc(p.title)}</b>${ringHtml(p.step_defs, last ? stepsOf(last.id) : null)}<span class="meta">${line}</span></span></button>`;
+}
+
 function renderRuns() {
   const s = ui.snap;
-  const valid = s.pipelines.filter((p) => p.valid);
-  if (!ui.pipelineId || !valid.some((p) => p.id === ui.pipelineId)) ui.pipelineId = valid[0] ? valid[0].id : null;
-  const chosen = valid.find((p) => p.id === ui.pipelineId);
-  const start = `<div class="panel">
-    <h3>Start a run</h3>
-    ${valid.length ? `<div class="form">
-      <label>Pipeline</label><select data-action="pick-pipeline" data-key="pick-pipeline">${valid.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.pipelineId ? 'selected' : ''}>${esc(p.title)} (${esc(p.source)})</option>`).join('')}</select>
-      ${chosen ? Object.entries(chosen.inputs).map(([n, spec]) => inputField(n, spec)).join('') : ''}
-      <span></span><div><button class="primary" data-action="start-run">Start</button></div>
-    </div>` : '<p class="empty">No valid pipelines. Add one on the Pipelines tab.</p>'}
-  </div>`;
+  if (ui.pipelineId && !s.pipelines.some((p) => p.valid && p.id === ui.pipelineId)) ui.pipelineId = null;
+  const chosen = s.pipelines.find((p) => p.id === ui.pipelineId);
+  const cells = s.pipelines.map(pipelineCard);
+  if (chosen) {
+    const gal = document.querySelector('.pgal');
+    const cols = gal ? Math.max(1, Math.floor((gal.clientWidth + 10) / 180)) : 3;
+    const asks = chosen.step_defs.filter((d) => d.kind === 'gate').map((d) => (d.title || d.id).toLowerCase());
+    cells.splice(Math.min(cells.length, (Math.floor(s.pipelines.indexOf(chosen) / cols) + 1) * cols), 0, `<div class="pstart"><h3>Start ${esc(chosen.title)}</h3>
+      <div class="form">${Object.entries(chosen.inputs).map(([n, spec]) => inputField(n, spec)).join('')}
+      <span></span><div><button class="primary" data-action="start-run">Start</button> <span class="meta">${chosen.background ? 'runs in the background, opens when it needs you' : 'opens full screen'}${asks.length ? ` · asks you to: ${esc(asks.join(', '))}` : ''}</span></div></div></div>`);
+  }
+  const start = s.pipelines.length ? `<div class="pgal">${cells.join('')}</div>` : '<p class="empty">No pipelines yet. Add one on the Pipelines tab.</p>';
   const top = s.runs.filter((r) => !r.parent_run);
   const list = top.length
     ? `<div class="list">${top.map((r) => `<div class="item ${r.id === ui.runId ? 'on' : ''}" data-action="run" data-id="${esc(r.id)}">
-        <span class="grow">${esc(r.pipeline_id)} <span class="meta" data-ago="${esc(r.started_at)}">${esc(ago(r.started_at))}</span></span>
-        <span class="state ${esc(r.status)}">${esc(r.status)}${r.paused_why ? `: ${esc(r.paused_why)}` : ''}</span></div>`).join('')}</div>`
+        <span class="grow">${esc(pipeName(r.pipeline_id))} <span class="meta" data-ago="${esc(r.started_at)}">${esc(ago(r.started_at))}</span></span>
+        <span class="state ${esc(r.status)}">${esc(r.status)}${r.paused_why ? `: ${esc(r.paused_why)}` : ''}</span><button class="link" data-action="run-open" data-id="${esc(r.id)}" title="Open the run screen">Open</button></div>`).join('')}</div>`
     : '<p class="empty">No runs yet.</p>';
-  return `${start}<div class="split"><div class="panel"><h3>Runs</h3>${list}</div><div>${renderRunDetail()}</div></div>`;
+  const away = (s.live_runs || []).filter((r) => r.project_id !== ui.projectId);
+  const others = away.length
+    ? `<h3>In other projects</h3><div class="list">${away.map((r) => `<div class="item" data-action="run-away" data-id="${esc(r.id)}" data-project="${esc(r.project_id)}">
+        <span class="grow">${esc((s.projects.find((p) => p.id === r.project_id) || {}).name || 'other project')}: ${esc(pipeName(r.pipeline_id))} <span class="meta" data-ago="${esc(r.started_at)}">${esc(ago(r.started_at))}</span></span>
+        <span class="state ${esc(r.status)}">${esc(r.status)}${r.paused_why ? `: ${esc(r.paused_why)}` : ''}</span></div>`).join('')}</div>`
+    : '';
+  return `${start}<div class="split"><div class="panel"><h3>Runs</h3>${list}${others}</div><div>${renderRunDetail()}</div></div>`;
 }
 
 function renderRunDetail() {
@@ -156,9 +190,9 @@ function renderRunDetail() {
   if (!run) return '<div class="panel empty">Pick a run to see its steps.</div>';
   const children = new Set(s.runs.filter((r) => r.parent_run === run.id).map((r) => r.id));
   const steps = s.steps.filter((x) => x.run_id === run.id || children.has(x.run_id));
-  const actions = [];
+  const actions = [`<button class="primary" data-action="run-open" data-id="${esc(run.id)}">Open run screen</button>`];
   if (run.status === 'running' || run.status === 'paused') actions.push('<button class="danger" data-action="cancel-run">Cancel</button>');
-  if ((run.status === 'paused' && run.paused_why !== 'gate' && run.paused_why !== 'handoff') || (run.status === 'failed' && run.paused_why !== 'breaker')) {
+  if ((run.status === 'paused' && run.paused_why !== 'gate' && run.paused_why !== 'handoff') || run.status === 'failed') {
     actions.push(run.paused_why === 'budget'
       ? '<span class="label">Raise tokens to</span><input type="number" data-key="raise-tokens" id="raise-tokens" style="width:110px"><button data-action="resume-run">Resume</button>'
       : '<button data-action="resume-run">Resume</button>');
@@ -168,7 +202,7 @@ function renderRunDetail() {
     <td><span class="state ${esc(x.status)}">${esc(x.status)}</span></td><td>${esc(x.engine_id || '')}</td>
     <td>${x.fail_count || ''}</td><td>${x.session_id ? `<button class="link" data-action="focus" data-id="${esc(x.session_id)}">window</button>` : ''}</td></tr>`).join('');
   return `<div class="panel">
-    <div class="toolbar"><h3 style="margin:0">${esc(run.pipeline_id)}</h3><span class="state ${esc(run.status)}">${esc(run.status)}${run.paused_why ? `: ${esc(run.paused_why)}` : ''}</span>${actions.join('')}</div>
+    <div class="toolbar"><h3 style="margin:0">${esc(pipeName(run.pipeline_id))}</h3><span class="state ${esc(run.status)}">${esc(run.status)}${run.paused_why ? `: ${esc(run.paused_why)}` : ''}</span>${actions.join('')}</div>
     <table><thead><tr><th>Step</th><th>Loop</th><th>Index</th><th>Status</th><th>Engine</th><th>Fails</th><th></th></tr></thead><tbody>${rows}</tbody></table>
   </div>
   ${renderVariants()}
@@ -183,14 +217,15 @@ function renderVariants() {
   ui.combine = (ui.combine || []).filter((i) => vs.some((v) => v.idx === i && v.status !== 'discarded'));
   const tiles = vs.map((v) => {
     const live = v.status !== 'discarded';
+    const ready = v.pane_id && (v.status === 'ready' || v.status === 'picked');
     const where = [v.branch, v.dev_port ? `port ${v.dev_port}` : '', v.step_id && v.step_id.startsWith('combine-') ? v.step_id : ''].filter(Boolean).map(esc).join(' · ');
-    return `<div class="card ${v.status === 'picked' ? 'on' : ''} ${live ? '' : 'gone'}">
+    return `<div class="card ${v.status === 'picked' ? 'on' : ''} ${live ? '' : 'gone'}"${ready ? ` data-action="variant-pane" data-id="${esc(v.pane_id)}" title="Open this variant's live preview" style="cursor:pointer"` : ''}>
       <div class="toolbar"><b>Variant ${v.idx + 1}</b><span class="state ${esc(v.status)}">${esc(v.status)}</span>
         ${live ? `<label class="meta"><input type="checkbox" data-action="variant-toggle" data-idx="${v.idx}" ${ui.combine.includes(v.idx) ? 'checked' : ''}> combine</label>` : ''}</div>
       <div class="meta">${esc(v.engine_id || 'engine pending')} · ${esc(meter(v))}</div>
       ${where ? `<div class="meta">${where}</div>` : ''}
       <div class="actions">
-        ${v.pane_id && live ? `<button data-action="variant-pane" data-id="${esc(v.pane_id)}">Pane</button>` : ''}
+        ${ready ? `<button data-action="variant-pane" data-id="${esc(v.pane_id)}">Pane</button>` : ''}
         ${live && v.status !== 'picked' ? `<button class="primary" data-action="variant-pick" data-idx="${v.idx}">Pick</button>` : ''}
         ${live ? `<button class="danger" data-action="variant-discard" data-idx="${v.idx}">Discard</button>` : ''}
       </div></div>`;
@@ -268,29 +303,49 @@ function renderBrowser() {
   if (ui.paneId && !s.panes.some((p) => p.id === ui.paneId)) ui.paneId = null;
   if (!ui.paneId && s.panes[0]) ui.paneId = s.panes[0].id;
   const ownerOf = (sid) => { const x = s.sessions.find((y) => y.id === sid); return x ? sessionLabel(x) : 'closed session'; };
-  const chips = s.panes.map((p) => `<button class="chip ${p.id === ui.paneId ? 'on' : ''}" data-action="pane" data-id="${esc(p.id)}">${esc(hostOf(p.url))}${p.session_id ? ` · ${esc(ownerOf(p.session_id))}` : p.variant !== null ? ` · variant ${p.variant + 1}` : ''}</button>`).join('');
+  const runOf = (p) => s.runs.find((r) => r.id === p.run_id);
+  const dotOf = (p) => {
+    const owner = p.session_id && s.sessions.find((y) => y.id === p.session_id);
+    if (owner) return owner.state === 'waiting_for_you' ? 'waiting_for_you' : owner.state === 'working' || owner.state === 'starting' ? 'working' : 'idle';
+    const run = runOf(p);
+    if (run) return run.status === 'running' ? 'working' : run.status === 'paused' ? 'waiting_for_you' : 'idle';
+    return (ui.paneState[p.id] || {}).loading ? 'working' : 'idle';
+  };
+  const tabs = browserChrome.tabs(s.panes.map((p) => ({
+    id: p.id, url: (ui.paneState[p.id] || {}).url || p.url || '', title: paneTitle(p), dot: dotOf(p),
+    tag: p.session_id ? ownerOf(p.session_id) : p.variant !== null ? `variant ${p.variant + 1}` : runOf(p) ? `${pipeName(runOf(p).pipeline_id)} run` : '',
+  })), ui.paneId);
   const pane = s.panes.find((p) => p.id === ui.paneId);
   let body;
   if (ui.comment) body = renderCommentForm();
   else if (!pane) body = '<p class="empty">No browser pane. Open one, or run a pipeline step with browser: true.</p>';
   else if (ui.browserMode === 'compare') body = renderCompare(pane);
   else body = '<div id="pane-host" class="pane-host"></div>';
-  const controls = pane && !ui.comment ? `<div class="toolbar">
-      <input class="url" data-key="url" id="pane-url" value="${esc(pane.url || '')}" placeholder="https://example.com or http://localhost:3001">
-      <button data-action="pane-go">Go</button>
-      <button data-action="pane-comment" title="Point at an element and leave a comment for a session (C)">Comment</button>
-      <button data-action="pane-capture" data-label="before">Before</button>
-      <button data-action="pane-capture" data-label="after">After</button>
-      <button data-action="pane-mode">${ui.browserMode === 'compare' ? 'Live' : 'Compare'}</button>
-      <select data-action="pane-owner" data-key="pane-owner" title="The one session allowed to drive this pane">
-        <option value="">Driven by: you only</option>
-        ${s.sessions.map((x) => `<option value="${esc(x.id)}" ${x.id === pane.session_id ? 'selected' : ''}>Driven by: ${esc(sessionLabel(x))}</option>`).join('')}
-      </select>
-      <button class="danger" data-action="pane-close">Close</button>
+  const st = (pane && ui.paneState[pane.id]) || {};
+  const perms = pane ? ui.perms.filter((x) => x.pane_id === pane.id) : [];
+  const controls = pane && !ui.comment ? `<div class="baddr">
+      <button class="ib" data-action="pane-act" data-act="back" title="Back (Alt+Left)" ${st.can_back ? '' : 'disabled'}>&larr;</button>
+      <button class="ib" data-action="pane-act" data-act="forward" title="Forward (Alt+Right)" ${st.can_forward ? '' : 'disabled'}>&rarr;</button>
+      ${st.loading ? '<button class="ib" data-action="pane-act" data-act="stop" title="Stop">&times;</button>' : '<button class="ib" data-action="pane-act" data-act="reload" title="Reload (Ctrl+R)">&#8635;</button>'}
+      ${browserChrome.urlField(st.url || pane.url || '', ui.urlDraft, st.zoom)}
+      <button class="tb" data-action="pane-comment" title="Point at an element and leave a comment for a session (C)">Comment</button>
+      <button class="ib" data-action="pane-menu" title="Before, After, Compare, Find, Driven by, Close">&#8943;</button>
     </div>` : '';
+  const banner = browserChrome.banner(pane && pane.run_id && !ui.comment ? paneRun(pane) : null);
+  const find = pane && ui.find && !ui.comment ? `<div class="toolbar findbar">
+      <input id="pane-find" data-key="find" value="${esc(ui.find.text)}" placeholder="Find in page">
+      <span class="label">${ui.find.matches ? `${ui.find.active} of ${ui.find.matches}` : ui.find.text ? 'no matches' : ''}</span>
+      <button data-action="find-step" data-dir="back" title="Previous (Shift+Enter)">&uarr;</button>
+      <button data-action="find-step" data-dir="next" title="Next (Enter)">&darr;</button>
+      <button data-action="find-close" title="Close (Esc)">Close</button>
+    </div>` : '';
+  const asks = perms.map((x) => `<div class="toolbar permbar"><span><b>${esc(x.origin)}</b> wants ${esc(x.permission)}</span>
+      <button class="primary" data-action="perm" data-id="${esc(x.id)}" data-allow="1">Allow</button><button data-action="perm" data-id="${esc(x.id)}" data-allow="0">Block</button></div>`).join('');
   return `<div class="browser">
-    <div class="toolbar">${chips}<button data-action="pane-new">New pane</button></div>
+    ${tabs}
     ${controls}
+    <div class="loadbar ${st.loading ? 'on' : ''}"></div>
+    ${asks}${find}${banner}
     ${body}
   </div>`;
 }
@@ -309,18 +364,41 @@ function renderCommentForm() {
   </div>`;
 }
 
+function shotSrc(file) {
+  if (!file) return '';
+  if (ui.images[file] === undefined) {
+    ui.images[file] = null;
+    void api.snapshotImage(file).then((d) => { ui.images[file] = d || ''; render(); });
+  }
+  return ui.images[file];
+}
+
+function paneRun(pane) {
+  const s = ui.snap;
+  const m = stepsOf(pane.run_id);
+  if (!m) return null;
+  const pipe = s.pipelines.find((p) => p.id === m.run.pipeline_id);
+  // ponytail: #n counts only the runs in the snapshot (newest 30), so it drifts once older runs age out
+  const n = s.runs.filter((r) => r.pipeline_id === m.run.pipeline_id && r.started_at <= m.run.started_at).length;
+  let check = m.list.findIndex((x) => /check|verify|qa/i.test(x.id));
+  if (check < 0) check = m.list.findIndex((x) => x.def && x.def.loop);
+  if (check < 0) check = m.list.length - 1;
+  const shots = s.snapshots.filter((x) => x.pane_id === pane.id);
+  const shot = (label) => { const x = shots.find((y) => y.label === label); return x ? { id: x.id, src: shotSrc(x.w390_path) } : null; };
+  return {
+    id: m.run.id, name: `${pipe ? pipe.title || pipe.id : m.run.pipeline_id} #${n}`, check, before: shot('before'), after: shot('after'),
+    steps: m.list.map((x) => ({ id: x.id, title: x.id.charAt(0).toUpperCase() + x.id.slice(1).replace(/[-_]/g, ' '), status: x.status })),
+  };
+}
+
 function renderCompare(pane) {
   const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
   const before = shots.find((x) => x.label === 'before');
   const after = shots.find((x) => x.label === 'after');
   if (!before || !after) return '<p class="empty">Take a Before and an After capture to compare them.</p>';
   const img = (file) => {
-    if (!file) return '';
-    if (ui.images[file] === undefined) {
-      ui.images[file] = null;
-      void api.snapshotImage(file).then((d) => { ui.images[file] = d || ''; render(); });
-    }
-    return ui.images[file] ? `<img src="${esc(ui.images[file])}" alt="">` : '<p class="empty">loading</p>';
+    const src = shotSrc(file);
+    return src ? `<img src="${esc(src)}" alt="">` : file ? '<p class="empty">loading</p>' : '';
   };
   const side = (label, shot) => `<figure><figcaption>${label} · <span data-ago="${esc(shot.taken_at)}">${esc(ago(shot.taken_at))}</span></figcaption>`;
   const [left, right] = ui.swap ? [after, before] : [before, after];
@@ -332,7 +410,7 @@ function renderCompare(pane) {
 }
 
 function reportPaneBounds() {
-  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' ? document.getElementById('pane-host') : null;
+  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && !runScreen.isOpen() ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
   const key = r ? `${ui.paneId}:${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}` : 'none';
   if (key === ui.lastBounds) return;
@@ -469,6 +547,44 @@ function renderDiff() {
   return `<div class="diff">${rows}</div>${form}`;
 }
 
+async function gitDo(op, arg) {
+  const id = ui.projectId;
+  if (!id) return;
+  ui.gitBusy = op;
+  render();
+  const r = await api.git(id, op, arg);
+  ui.gitBusy = null;
+  if (ui.projectId !== id) return;
+  if (r && r.error) toast(r.error, true);
+  if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
+  if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; toast('Committed.'); }
+  if (op === 'push' && r && !r.error) toast('Pushed.');
+  render();
+}
+
+function renderGit() {
+  const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
+  if (!ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
+  if (!g) return `<div class="panel"><p class="empty">${ui.projectId ? 'Loading.' : 'Pick a project first.'}</p></div>`;
+  const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
+  const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
+    <span class="meta">${f.added === null ? '' : `+${f.added} -${f.deleted}`}</span>
+    <button data-action="${staged ? 'git-unstage' : 'git-stage'}" data-file="${esc(f.path)}" ${busy} title="${staged ? 'Unstage' : 'Stage'}">${staged ? '-' : '+'}</button></div>`;
+  const sync = [g.ahead ? `${g.ahead} to push` : '', g.behind ? `${g.behind} behind` : ''].filter(Boolean).join(', ');
+  return `<div class="panel">
+    <div class="toolbar"><h3 style="margin:0">${esc(g.branch)}</h3><span class="meta grow">${sync || 'up to date'}</span>
+      <button data-action="git-push" ${busy || (g.ahead ? '' : 'disabled')}>${ui.gitBusy === 'push' ? 'Pushing' : 'Push'}</button></div>
+    <textarea rows="3" id="git-msg" data-key="git-msg" placeholder="Commit message">${esc(ui.gitMsg || '')}</textarea>
+    <div class="actions"><button class="primary" data-action="git-commit" ${busy || (g.staged.length ? '' : 'disabled')}>${ui.gitBusy === 'commit' ? 'Committing' : `Commit${g.staged.length ? ` ${g.staged.length}` : ''}`}</button></div>
+    <div class="toolbar"><h3 style="margin:0" class="grow">Staged (${g.staged.length})</h3>${g.staged.length ? `<button data-action="git-unstage" data-file="" ${busy} title="Unstage all">-</button>` : ''}</div>
+    ${g.staged.map((f) => row(f, true)).join('')}
+    <div class="toolbar"><h3 style="margin:0" class="grow">Changes (${g.changes.length})</h3>${g.changes.length ? `<button data-action="git-stage" data-file="" ${busy} title="Stage all">+</button>` : ''}</div>
+    ${g.changes.map((f) => row(f, false)).join('')}
+    ${ui.hbFile && ui.gitFile ? renderDiff() : ''}
+    <h3>History</h3><div class="log git-log">${esc(g.log || 'No commits yet.')}</div>
+  </div>`;
+}
+
 function refreshHandback() {
   ui.handback = undefined;
   ui.hbFile = null;
@@ -477,7 +593,7 @@ function refreshHandback() {
 }
 
 
-const TABS = [['diff', 'Diff'], ['handback', 'Hand-back'], ['browser', 'Browser'], ['runs', 'Runs'], ['pipelines', 'Pipelines']];
+const TABS = [['diff', 'Diff'], ['git', 'Git'], ['handback', 'Hand-back'], ['browser', 'Browser'], ['runs', 'Runs'], ['pipelines', 'Pipelines']];
 const PANE_LABELS = { items: 'Review set', document: 'Document', table: 'Rows', findings: 'Findings' };
 const THEME_VARS = {
   bg: ['--canvas-deep'], panel: ['--canvas'], panel2: ['--canvas-soft'], line: ['--hairline', '--hairline-strong'], line_strong: ['--hairline-strong'],
@@ -595,7 +711,7 @@ function stepError(runId, stepId) {
 
 function stepListHtml(steps, label) {
   const dot = (st) => (st === 'running' ? 'working' : st === 'waiting' ? 'waiting_for_you' : st);
-  const head = label ? `<span class="needs-run">${esc(label)}</span> step` : `${esc(steps.run.pipeline_id)} step`;
+  const head = label ? `<span class="needs-run">${esc(label)}</span> step` : `${esc(pipeName(steps.run.pipeline_id))} step`;
   return `<div class="steps"><div class="s cur" data-action="run-open" data-id="${esc(steps.run.id)}" title="Open the run screen"><span class="dot ${esc(dot(steps.run.status === 'running' ? 'running' : steps.run.status))}"></span>${head} ${Math.min(steps.at, steps.list.length)} of ${steps.list.length}<span class="grow"></span>${cancelButton(steps.run)}</div>
     ${steps.list.map((st) => {
       const meta = [st.items ? `${st.items.done}/${st.items.total}` : '', st.loop ? `loop ${st.loop.at}${st.loop.max ? ` of ${st.loop.max}` : ''}` : '', st.fails ? `${st.fails} fail${st.fails === 1 ? '' : 's'}` : '', st.status].filter(Boolean).join(' · ');
@@ -624,26 +740,52 @@ function armCancel(id) {
 function cancelButton(run) {
   if (!run || !['running', 'paused'].includes(run.status)) return '';
   const armed = cancelArmed(run.id);
-  return `<button class="btn cancel${armed ? ' arm' : ''}" data-action="cancel-run" data-id="${esc(run.id)}" title="Cancel this run: its waiting gates are rejected and the agents it launched are closed">${armed ? 'Confirm cancel' : 'Cancel'}</button>`;
+  return `<button class="btn cancel${armed ? ' arm' : ''}" data-action="cancel-run" data-id="${esc(run.id)}" title="Cancel this run: anything waiting on you is rejected and the agents it launched are closed">${armed ? 'Confirm cancel' : 'Cancel'}</button>`;
+}
+
+function stepTitle(runId, stepId, offset = 0) {
+  const steps = stepsOf(runId);
+  const i = steps ? steps.list.findIndex((x) => x.id === stepId) : -1;
+  const x = i < 0 ? null : steps.list[i + offset];
+  return x && x.def && x.def.title ? x.def.title : null;
 }
 
 function gateButtons(g, keys) {
   const k = (x) => (keys ? ` <kbd>${x}</kbd>` : '');
   return g.kind === 'handoff'
     ? `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Continue${k('A')}</button>`
-    : `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Approve${k('A')}</button><button class="btn" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Reject${k('R')}</button>`;
+    : `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">${esc((g.guards_step && stepTitle(g.run_id, g.guards_step)) || stepTitle(g.run_id, g.step_id, 1) || 'Approve')}${k('A')}</button><button class="btn" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Stop the run${k('R')}</button>`;
+}
+
+function mdLite(text) {
+  const inline = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+  return text.replace(/^---\n[\s\S]*?\n---\n/, '').split('\n').map((l) => (/^# /.test(l) ? `<h1>${inline(l.slice(2))}</h1>` : /^#{2,} /.test(l) ? `<h2>${inline(l.replace(/^#+ /, ''))}</h2>` : /^[-*] /.test(l) ? `<li>${inline(l.slice(2))}</li>` : l.trim() ? `<p>${inline(l)}</p>` : '')).join('').replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>');
+}
+
+function peekHtml(g) {
+  const name = (g.summary.match(/([\w-][\w.-]*\.md)\b/) || [])[1];
+  if (!name) return '';
+  const peek = (ui.peek ||= {});
+  if (!(g.id in peek)) {
+    peek[g.id] = null;
+    void api.readRunFile(g.run_id, name).then((t) => { peek[g.id] = t || ''; render(); });
+  }
+  const text = peek[g.id];
+  if (!text) return '';
+  const open = (ui.peekOpen || {})[g.id];
+  return `<div class="peek ${open ? 'open' : 'fade'}">${mdLite(text)}</div>
+    <button class="lnk" data-action="peek-toggle" data-id="${esc(g.id)}">${open ? 'Show less' : `Read the whole ${esc(name.replace(/\.md$/, ''))} (${text.split('\n').length} lines)`}</button>`;
 }
 
 function gateHtml(g, i) {
   const d = (ui.decided || {})[g.id];
   const steps = stepsOf(g.run_id);
-  const at = steps ? steps.list.findIndex((x) => x.id === g.step_id) : -1;
-  const pipe = steps ? steps.list.map((x, j) => `<i class="nd${x.def && x.def.kind === 'gate' ? ' g' : ''}${j < at ? ' d' : j === at ? ' c' : ''}" title="${esc(x.id)}"></i>`).join('<b></b>') : '';
+  const pipe = steps && steps.run ? ui.snap.pipelines.find((p) => p.id === steps.run.pipeline_id) : null;
+  const peek = peekHtml(g);
   return `<div class="gate ${i === 0 ? 'cur' : ''}" data-g="${esc(g.id)}">
-    <div class="gt"><span class="dm"></span><b>${esc(g.pipeline_id)}</b><span>${steps ? `step ${at + 1} of ${steps.list.length}` : ''}${g.kind === 'auto-external' ? ' · external step' : ''}</span></div>
-    ${pipe ? `<div class="pipe" aria-hidden="true">${pipe}</div>` : ''}
-    <div class="gs">${esc(g.step_id)}${g.guards_step ? `<span>guards ${esc(g.guards_step)}</span>` : ''}</div>
-    <div class="gd">${esc(g.summary)}</div>
+    <div class="gt"><span class="dm"></span><b>${esc(pipe ? pipe.title : g.pipeline_id)}</b>${pipe ? ringHtml(pipe.step_defs, steps) : ''}${g.kind === 'auto-external' ? '<span>external step</span>' : ''}</div>
+    <div class="gs">${esc(stepTitle(g.run_id, g.step_id) || g.step_id)}</div>
+    ${peek || `<div class="gd">${esc(g.summary)}</div>`}
     <div class="ga">${d ? `<span class="verdict ${d.ok ? 'ok' : 'no'}">${d.ok ? 'Approved' : 'Rejected'}</span>` : `${g.kind === 'handoff' ? '' : `<input placeholder="Note" data-note="${esc(g.id)}" data-key="note:${esc(g.id)}">`}${gateButtons(g, i === 0)}<button class="lnk" data-action="run-open" data-id="${esc(g.run_id)}">Open run</button>`}</div></div>`;
 }
 
@@ -658,14 +800,14 @@ function renderSheet() {
   const gates = shownGates();
   const live = s.gates.filter((g) => !(ui.decided || {})[g.id]);
   wall.roll(document.getElementById('sheetN'), live.length);
-  document.getElementById('sheetT').textContent = live.length ? `${live.length === 1 ? '1 gate' : `${live.length} gates`} waiting` : 'No gates waiting';
+  document.getElementById('sheetT').textContent = live.length ? `${live.length} need${live.length === 1 ? 's' : ''} you` : 'Nothing needs you';
   const runs = s.runs.filter((r) => !r.parent_run && (r.status === 'running' || r.status === 'paused')).slice(0, 4);
   setHtml('sheetRuns', runs.map((r) => {
     const st = stepsOf(r.id);
-    return `<span><b>${esc(r.pipeline_id)}</b> step ${st ? `${Math.min(st.at, st.list.length)}/${st.list.length}` : '?'}, <span class="rs ${r.status === 'running' ? 'go' : ''}">${esc(r.status)}</span></span>`;
+    return `<span><b>${esc(pipeName(r.pipeline_id))}</b> step ${st ? `${Math.min(st.at, st.list.length)}/${st.list.length}` : '?'}, <span class="rs ${r.status === 'running' ? 'go' : ''}">${esc(r.status)}</span></span>`;
   }).join(''));
   setHtml('sheetAct', live[0] ? gateButtons(live[0], true) : '');
-  setHtml('gates', gates.length ? gates.map(gateHtml).join('') : '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">All gates cleared. Runs are moving.</div>');
+  setHtml('gates', gates.length ? gates.map(gateHtml).join('') : '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">Nothing needs you. Runs are moving.</div>');
 }
 
 async function resolveGate(id, decision) {
@@ -717,7 +859,7 @@ function renderTitle() {
   setHtml('core', s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
     : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`);
   setHtml('project-pick', s.projects.length
-    ? s.projects.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.projectId ? 'selected' : ''} title="${esc(p.path)}">${esc(p.name)}</option>`).join('')
+    ? s.projects.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.projectId ? 'selected' : ''} title="${esc(p.path)}">${esc(p.name)}${liveCounts(p.id)}</option>`).join('')
     : '<option value="">No project</option>');
   wall.roll(document.getElementById('needsN'), needsCount());
   const groups = limitGroups();
@@ -735,14 +877,26 @@ function renderTitle() {
 
 function needsCount() {
   const s = ui.snap;
-  return s.gates.length + s.sessions.filter((x) => x.state === 'waiting_for_you').length + s.needs_you.filter((n) => !n.read_at && !['gate', 'handoff'].includes(n.kind)).length;
+  return s.gates.length + waitingAll().length + s.needs_you.filter((n) => !n.read_at && !['gate', 'handoff'].includes(n.kind)).length;
+}
+
+function waitingAll() {
+  return (ui.snap.live || []).filter((x) => x.state === 'waiting_for_you');
+}
+
+function liveCounts(projectId) {
+  const mine = (ui.snap.live || []).filter((x) => x.project_id === projectId);
+  const working = mine.filter((x) => x.state === 'working').length;
+  const waiting = mine.length - working;
+  const parts = [working && `${working} working`, waiting && `${waiting} waiting`].filter(Boolean);
+  return parts.length ? ` · ${parts.join(', ')}` : '';
 }
 
 function renderList(sel) {
   const s = ui.snap;
   const shells = shellRows();
   const sessions = [...s.sessions].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${s.sessions.length} sessions</span><button class="ib" data-action="list" title="Close (Ctrl+B)">x</button></div>
+  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${s.sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session and run in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)">x</button></div>
     <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="Start ${esc(e.id)} in this project">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
     <div class="lbody" id="sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
@@ -750,7 +904,7 @@ function renderList(sel) {
         <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
       ${s.runs.some((r) => !r.parent_run) ? `<div class="lsec">Runs</div>${s.runs.filter((r) => !r.parent_run).slice(0, 8).map((r) => {
         const st = stepsOf(r.id);
-        return `<div class="run1" data-action="run-open" data-id="${esc(r.id)}">${esc(r.pipeline_id)} <span class="st">step ${st ? `${Math.min(st.at, st.list.length)}/${st.list.length}` : '?'}</span><span class="w ${r.status === 'running' ? 'go' : ''}">${esc(r.status)}</span></div>`;
+        return `<div class="run1" data-action="run-open" data-id="${esc(r.id)}">${esc(pipeName(r.pipeline_id))} <span class="st">step ${st ? `${Math.min(st.at, st.list.length)}/${st.list.length}` : '?'}</span><span class="w ${r.status === 'running' ? 'go' : ''}">${esc(r.status)}</span></div>`;
       }).join('')}` : ''}
     </div>
     <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
@@ -848,7 +1002,7 @@ function renderDiffTab(sel) {
 
 function renderStrip(sel) {
   const s = ui.snap;
-  const needs = s.needs_you.filter((n) => !n.read_at).length + s.sessions.filter((x) => x.state === 'waiting_for_you').length;
+  const needs = s.needs_you.filter((n) => !n.read_at).length + waitingAll().length;
   const working = s.sessions.filter((x) => x.state === 'working').length;
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
@@ -862,12 +1016,13 @@ function renderInbox() {
   const el = document.getElementById('inbox');
   if (el.hidden) return;
   const s = ui.snap;
-  const waiting = s.sessions.filter((x) => x.state === 'waiting_for_you');
+  const waiting = waitingAll();
+  const away = (x) => (x.project_id === ui.projectId ? '' : `${(s.projects.find((p) => p.id === x.project_id) || {}).name || 'other project'}: `);
   const rows = s.needs_you.map((n) => `<div class="item${n.read_at ? ' read' : ''}" data-action="inbox-open" data-id="${esc(n.id)}">
       <span class="dot ${n.kind === 'done' ? 'done unseen' : n.kind === 'failed' ? 'failed' : 'waiting_for_you'}"></span>
       <span class="grow">${esc(n.text)}<span class="meta"> · ${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></span></span>
       <button class="link" data-action="${n.read_at ? 'inbox-unread' : 'inbox-read'}" data-id="${esc(n.id)}">${n.read_at ? 'Mark unread' : 'Mark read'}</button></div>`).join('');
-  const asks = waiting.map((x) => `<div class="item" data-action="pick" data-id="${esc(x.id)}"><span class="dot waiting_for_you"></span><span class="grow">${esc(x.engine_id)} ${esc(taskOf(x))} is asking you<span class="meta"> · ${esc(x.last_line || '')}</span></span></div>`).join('');
+  const asks = waiting.map((x) => `<div class="item" data-action="pick" data-id="${esc(x.id)}"><span class="dot waiting_for_you"></span><span class="grow">${esc(away(x))}${esc(x.engine_id)} ${esc(taskOf(x))} is asking you<span class="meta"> · ${esc(x.last_line || '')}</span></span></div>`).join('');
   setHtml('inbox-list', asks + rows || '<p class="empty" style="padding:6px 14px">Nothing here.</p>');
 }
 
@@ -881,6 +1036,7 @@ function paletteItems() {
   if (sel) items.push({ group: 'Actions', label: 'Paste the held prompt into this terminal', run: async () => { const r = await rpc('session.paste-prompt', { session_id: sel.id }); if (r.result && !r.result.written) toast(r.result.reason); } });
   for (const k of ui.shellKinds) if (project()) items.push({ group: 'Start', label: `New ${k.label} tab`, run: () => openShell(k.kind) });
   for (const p of s.pipelines.filter((x) => x.valid)) items.push({ group: 'Run', label: `Run ${p.title}`, meta: p.id, run: async () => { const r = await rpc('run.start', { pipeline_id: p.id, project_id: ui.projectId, inputs: {} }); if (r.result) { ui.runId = r.result.run_id; setView(); openTab('runs'); } } });
+  for (const r of s.runs.filter((x) => !x.parent_run).slice(0, 8)) items.push({ group: 'Runs', label: `Open run: ${pipeName(r.pipeline_id)}`, meta: r.status, run: () => runBars.open(r.id) });
   for (const r of s.runs.filter((x) => !x.parent_run && ['running', 'paused'].includes(x.status))) {
     const title = (s.pipelines.find((p) => p.id === r.pipeline_id) || {}).title || r.pipeline_id;
     const label = `${cancelArmed(r.id) ? 'Confirm cancel' : 'Cancel'} run: ${title}`;
@@ -1036,12 +1192,14 @@ function render(focus = false) {
   else if (ui.tab === 'pipelines') html = renderPipelines();
   else if (ui.tab === 'browser') html = renderBrowser();
   else if (ui.tab === 'handback') html = renderHandback();
+  else if (ui.tab === 'git') html = renderGit();
   else if (ui.tab.startsWith('pane:')) {
     const p = paneTabs(sel).find((x) => x.tab === ui.tab);
     html = p ? panes.render(loadPane(p.run, p.step), p) : '<p class="empty">This result pane belongs to another session. Pick its session to see it.</p>';
   }
   else html = renderDiffTab(sel);
   setHtml('view', html);
+  if (ui.tab === 'browser') browserChrome.after(document.getElementById('view'));
   reportPaneBounds();
   renderStrip(sel);
   renderInbox();
@@ -1063,6 +1221,31 @@ async function refreshLog() {
 
 function setView() {
   void api.view({ projectId: ui.projectId, runId: ui.runId });
+  followRunPanes();
+}
+
+// Opens the browser split on the open run's panes: all of them when the run is opened, then each new one as it appears.
+function followRunPanes() {
+  const mine = ui.snap ? ui.snap.panes.filter((p) => p.run_id && p.run_id === ui.runId) : [];
+  const seen = ui.followRun === ui.runId ? ui.followSeen : new Set();
+  const fresh = mine.find((p) => !seen.has(p.id));
+  ui.followRun = ui.runId;
+  ui.followSeen = new Set(mine.map((p) => p.id));
+  if (!fresh) return;
+  ui.paneId = fresh.id;
+  ui.browserMode = 'live';
+  ui.tab = 'browser';
+  ui.split = true;
+  save('tab', ui.tab);
+}
+
+function switchProject(id) {
+  ui.projectId = id;
+  ui.runId = null;
+  ui.editor = null;
+  ui.handback = undefined;
+  save('projectId', id);
+  setView();
 }
 
 let validateTimer = null;
@@ -1139,6 +1322,7 @@ async function onClick(e) {
       setView();
       await refreshLog();
       runScreen.open(id);
+      reportPaneBounds();
       return;
     case 'launch-menu': {
       const menu = document.getElementById('menu');
@@ -1152,11 +1336,19 @@ async function onClick(e) {
     case 'open-folder':
       await openFolder();
       return;
-    case 'pick':
+    case 'pick': {
       wall.setList(false);
+      const other = (ui.snap.live || []).find((x) => x.id === id && x.project_id !== ui.projectId);
+      if (other) {
+        document.getElementById('inbox').hidden = true;
+        ui.pendingPick = id;
+        switchProject(other.project_id);
+        return;
+      }
       if (e.shiftKey && !wall.isBig(id)) { wall.pair(id); return; }
       await pick(id);
       return;
+    }
     case 'mode':
       setMode(ui.mode === 'grid' ? 'single' : 'grid');
       return;
@@ -1264,15 +1456,33 @@ async function onClick(e) {
     case 'hide':
       await rpc('session.hide', { session_id: id });
       return;
+    case 'clear-all':
+      await rpc('project.clear', { project_id: ui.projectId });
+      return;
     case 'seen': {
       const x = ui.snap.sessions.find((y) => y.id === id);
       if (x && x.state === 'done') await rpc('session.seen', { session_id: id }, true);
       return;
     }
+    case 'run-away':
+      switchProject(el.dataset.project);
+      ui.runId = id;
+      setView();
+      await refreshLog();
+      render();
+      return;
     case 'run':
       ui.runId = id;
       setView();
       await refreshLog();
+      render();
+      return;
+    case 'pick-card':
+      ui.pipelineId = ui.pipelineId === id ? null : id;
+      render();
+      return;
+    case 'peek-toggle':
+      (ui.peekOpen ||= {})[id] = !(ui.peekOpen || {})[id];
       render();
       return;
     case 'start-run': {
@@ -1297,8 +1507,30 @@ async function onClick(e) {
       render();
       return;
     }
+    case 'git-stage':
+    case 'git-unstage':
+      await gitDo(a.slice(4), el.dataset.file);
+      return;
+    case 'git-commit':
+      await gitDo('commit', ui.gitMsg || '');
+      return;
+    case 'git-push':
+      await gitDo('push');
+      return;
+    case 'git-file': {
+      const file = el.dataset.file;
+      ui.gitFile = true;
+      ui.hbFile = file;
+      ui.hbDiff = undefined;
+      ui.hbLine = null;
+      render();
+      const text = await api.git(ui.projectId, el.dataset.staged ? 'diff-staged' : 'diff', file);
+      if (ui.hbFile === file) { ui.hbDiff = typeof text === 'string' ? text : null; render(); }
+      return;
+    }
     case 'hb-file': {
       const file = el.dataset.file;
+      ui.gitFile = false;
       ui.hbFile = file;
       ui.hbDiff = undefined;
       ui.hbLine = null;
@@ -1346,6 +1578,7 @@ async function onClick(e) {
       return;
     }
     case 'variant-pane':
+      if (e.target.closest('a, input, label')) return;
       ui.paneId = id;
       ui.browserMode = 'live';
       ui.tab = 'browser';
@@ -1383,6 +1616,8 @@ async function onClick(e) {
       return;
     case 'pane':
       ui.paneId = id;
+      ui.urlDraft = null;
+      ui.find = null;
       ui.browserMode = 'live';
       render();
       return;
@@ -1391,17 +1626,47 @@ async function onClick(e) {
       if (r.result) ui.paneId = r.result.pane_id;
       return;
     }
-    case 'pane-close':
-      await rpc('pane.close', { pane_id: ui.paneId });
-      ui.paneId = null;
-      return;
-    case 'pane-go': {
-      const url = document.getElementById('pane-url').value.trim();
-      if (!url) return;
-      const r = await api.paneNavigate(ui.paneId, url);
-      if (!r.ok) toast(r.error, true);
+    case 'pane-close': {
+      const pid = id || ui.paneId;
+      await rpc('pane.close', { pane_id: pid });
+      if (pid === ui.paneId) ui.paneId = null;
       return;
     }
+    case 'pane-menu': {
+      const pane = ui.snap.panes.find((p) => p.id === ui.paneId);
+      if (!pane) return;
+      const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
+      const r = el.getBoundingClientRect();
+      const items = browserChrome.menuItems(pane, ui.snap.sessions.map((x) => ({ id: x.id, label: sessionLabel(x) })), ui.browserMode,
+        shots.some((x) => x.label === 'before') && shots.some((x) => x.label === 'after'));
+      const pick = await api.paneMenu(items, Math.max(0, r.right - 200), r.bottom + 4);
+      if (pick === 'before' || pick === 'after') {
+        toast(`Capturing ${pick} at 390 and 1280 px`);
+        await rpc('pane.capture', { pane_id: pane.id, label: pick });
+      } else if (pick === 'mode') {
+        ui.browserMode = ui.browserMode === 'compare' ? 'live' : 'compare';
+        render();
+      } else if (pick === 'find') openFind();
+      else if (pick === 'close') {
+        await rpc('pane.close', { pane_id: pane.id });
+        ui.paneId = null;
+      } else if (pick && pick.startsWith('own:')) await rpc('pane.assign', { pane_id: pane.id, session_id: pick.slice(4) || null });
+      return;
+    }
+    case 'pane-act':
+      void api.paneAct(ui.paneId, el.dataset.act);
+      return;
+    case 'find-step':
+      findStep(el.dataset.dir !== 'back');
+      return;
+    case 'find-close':
+      closeFind();
+      return;
+    case 'perm':
+      ui.perms = ui.perms.filter((x) => x.id !== el.dataset.id);
+      void api.paneAct(ui.paneId, 'permission', { id: el.dataset.id, allow: el.dataset.allow === '1' });
+      render();
+      return;
     case 'pane-comment':
       await startComment();
       return;
@@ -1534,16 +1799,17 @@ function onInput(e) {
   }
   if (el.dataset.action === 'project-pick') {
     if (e.type !== 'change' || !el.value) return;
-    ui.projectId = el.value;
-    ui.runId = null;
-    ui.editor = null;
-    ui.handback = undefined;
-    save('projectId', el.value);
-    setView();
+    switchProject(el.value);
     return;
   }
-  if (el.dataset.action === 'pane-owner') {
-    if (e.type === 'change') void rpc('pane.assign', { pane_id: ui.paneId, session_id: el.value || null });
+  if (el.dataset.key === 'url' && e.type === 'input') {
+    ui.urlDraft = el.value;
+    return;
+  }
+  if (el.dataset.key === 'find' && e.type === 'input' && ui.find) {
+    ui.find.text = el.value;
+    ui.find.matches = 0;
+    void api.paneAct(ui.paneId, 'find', { text: el.value });
     return;
   }
   if (!ui.editor) {
@@ -1636,12 +1902,22 @@ api.onSnapshot(async (s) => {
     ui.projectId = s.projects[0].id;
     setView();
   }
+  followRunPanes();
   if (ui.tab === 'runs' && ui.runId) await refreshLog();
+  if (ui.pendingPick && s.sessions.some((x) => x.id === ui.pendingPick)) {
+    const id = ui.pendingPick;
+    ui.pendingPick = null;
+    await pick(id);
+    return;
+  }
   render();
 });
 
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'git-msg') ui.gitMsg = e.target.value;
+});
 document.addEventListener('click', (e) => {
-  const item = e.target.closest && e.target.closest('[data-palette]');
+  const item =e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
   if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
   if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
@@ -1714,6 +1990,11 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't' && ui.tab === 'browser' && project()) {
+    e.preventDefault();
+    void rpc('pane.open', { project_id: ui.projectId }).then((r) => { if (r.result) ui.paneId = r.result.pane_id; });
+    return;
+  }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (runScreen.isOpen() && !wall.sheetOpen() && !wall.listOpen() && runScreen.key(e)) { e.preventDefault(); return; }
@@ -1756,7 +2037,7 @@ document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
 runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton, onClose: () => render() });
-runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id); } });
+runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id); reportPaneBounds(); } });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;
   applyLook(look);
@@ -1764,3 +2045,82 @@ void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
 });
 void rpc('shell.list', {}, true).then((r) => { if (r.result) { ui.shellKinds = r.result.shells; render(); } });
 setView();
+
+function paneTitle(p) {
+  const st = ui.paneState[p.id] || {};
+  const title = (st.title || '').trim();
+  const base = title && title !== st.url && title !== 'about:blank' ? title.slice(0, 40) : hostOf(st.url || p.url);
+  return `${st.loading ? '\u25CC ' : ''}${base}`;
+}
+
+async function paneGo() {
+  const input = document.getElementById('pane-url');
+  const url = (input ? input.value : ui.urlDraft || '').trim();
+  if (!url || !ui.paneId) return;
+  ui.urlDraft = null;
+  if (input) input.blur();
+  const r = await api.paneNavigate(ui.paneId, url);
+  if (!r.ok) toast(r.error, true);
+  render();
+}
+
+function openFind() {
+  if (!ui.paneId) return;
+  if (!ui.find) ui.find = { text: '', active: 0, matches: 0 };
+  render();
+  const input = document.getElementById('pane-find');
+  if (input) { input.focus(); input.select(); }
+}
+
+function findStep(forward) {
+  if (ui.find && ui.find.text) void api.paneAct(ui.paneId, 'find', { text: ui.find.text, forward, next: true });
+}
+
+function closeFind() {
+  ui.find = null;
+  void api.paneAct(ui.paneId, 'find-stop');
+  render();
+}
+
+function browserKeys(e) {
+  if (ui.tab !== 'browser' || !ui.paneId || ui.comment) return;
+  if (!(e.target && e.target.closest && e.target.closest('.browser'))) return;
+  const id = e.target && e.target.id;
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+  if (id === 'pane-url' && e.key === 'Enter') { e.preventDefault(); void paneGo(); return; }
+  if (id === 'pane-url' && e.key === 'Escape') { e.preventDefault(); ui.urlDraft = null; e.target.blur(); render(); return; }
+  if (id === 'pane-find' && e.key === 'Enter') { e.preventDefault(); findStep(!e.shiftKey); return; }
+  if (id === 'pane-find' && e.key === 'Escape') { e.preventDefault(); closeFind(); return; }
+  let act = null;
+  if (mod && key === 'l') { e.preventDefault(); const u = document.getElementById('pane-url'); if (u) { u.focus(); u.select(); } return; }
+  if (mod && key === 'f') { e.preventDefault(); openFind(); return; }
+  if ((mod && key === 'r') || key === 'f5') act = 'reload';
+  else if (e.altKey && key === 'arrowleft') act = 'back';
+  else if (e.altKey && key === 'arrowright') act = 'forward';
+  else if (mod && (key === '=' || key === '+')) act = 'zoom-in';
+  else if (mod && key === '-') act = 'zoom-out';
+  else if (mod && key === '0') act = 'zoom-reset';
+  else if (key === 'f12') act = 'devtools';
+  if (!act) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  void api.paneAct(ui.paneId, act);
+}
+document.addEventListener('keydown', browserKeys, true);
+
+api.onPaneEvent((ev) => {
+  if (!ev || typeof ev.pane_id !== 'string') return;
+  if (ev.kind === 'state') ui.paneState[ev.pane_id] = ev;
+  else if (ev.kind === 'found') { if (ui.find && ev.pane_id === ui.paneId) { ui.find.active = ev.active; ui.find.matches = ev.matches; } }
+  else if (ev.kind === 'key') {
+    if (ev.pane_id !== ui.paneId) return;
+    if (ev.action === 'find') { openFind(); return; }
+    const u = document.getElementById('pane-url');
+    if (u) { u.focus(); u.select(); }
+    return;
+  } else if (ev.kind === 'download') { toast(ev.state === 'completed' ? `Downloaded to ${ev.file}` : `Download ${ev.state}: ${ev.file}`, ev.state !== 'completed'); return; }
+  else if (ev.kind === 'permission') { ui.perms.push(ev); if (ev.pane_id !== ui.paneId) toast(`${ev.origin} wants ${ev.permission}; open its pane to answer.`); }
+  else if (ev.kind === 'opened') { ui.paneId = ev.pane_id; ui.urlDraft = null; ui.find = null; ui.tab = 'browser'; ui.split = true; save('tab', ui.tab); }
+  render();
+});

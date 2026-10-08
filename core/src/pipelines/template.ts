@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 export interface Ref {
   raw: string;
-  root: 'inputs' | 'steps' | 'run' | 'project' | 'port' | 'variants' | 'index';
+  root: 'inputs' | 'steps' | 'run' | 'project' | 'pipeline' | 'port' | 'variants' | 'index';
   name?: string;
   step?: string;
   field?: 'outputs' | 'output_path';
@@ -22,6 +22,7 @@ export function parseRef(expr: string): Ref | null {
   if (m) return { raw: expr, root: 'steps', step: m[1], field: 'outputs', key: m[2], index: m[3] === undefined ? undefined : m[3] === 'i' ? 'i' : Number(m[3]) };
   if (expr === 'run.dir' || expr === 'run.id') return { raw: expr, root: 'run', name: expr.slice(4) };
   if (expr === 'project.path') return { raw: expr, root: 'project', name: 'path' };
+  if (expr === 'pipeline.dir') return { raw: expr, root: 'pipeline', name: 'dir' };
   if (expr === 'port') return { raw: expr, root: 'port' };
   if (expr === 'index') return { raw: expr, root: 'index' };
   m = /^variants\.picked\.(worktree|branch)$/.exec(expr);
@@ -46,6 +47,7 @@ export interface Scope {
   steps: (id: string) => { outputs: unknown[]; outputPaths: string[]; fanout: boolean } | null;
   run: { id: string; dir: string };
   project: { path: string };
+  pipeline?: { dir: string };
   picked?: () => { worktree: string; branch: string } | null;
   index?: number;
   port?: number;
@@ -64,6 +66,9 @@ function lookup(ref: Ref, scope: Scope): unknown {
       return ref.name === 'id' ? scope.run.id : scope.run.dir;
     case 'project':
       return scope.project.path;
+    case 'pipeline':
+      if (!scope.pipeline) throw new Error('{{pipeline.dir}} needs a pipeline file on disk');
+      return scope.pipeline.dir;
     case 'port':
       if (scope.port === undefined) throw new Error('{{port}} is only available to dev_command');
       return scope.port;

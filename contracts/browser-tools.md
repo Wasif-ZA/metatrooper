@@ -6,23 +6,32 @@ Version 1. A stdio MCP server started per agent session through the engine's `mc
 
 Its session is found by process ancestry and bound with `browser.hello` (see `pipe-protocol.md`), so it
 needs no per-session configuration. Every tool takes `pane_id` (string). Call `panes` first. When the session owns exactly one pane, `pane_id` may
-be omitted and that pane is used.
+be omitted and that pane is used. When the session owns no pane, `navigate` opens one for it (`pane.open` with
+`agent: true`). That pane has an in-memory partition of its own, so it starts logged out and shares no cookies
+with the user's panes; its storage is cleared when it closes.
 
 | Tool | Input | Output |
 |---|---|---|
 | `panes` | `{}` | `[{pane_id, url, variant, dev_port}]` for panes this session may drive |
-| `navigate` | `{pane_id, url}` | `{url, title, status}` |
+| `navigate` | `{pane_id, url}` | `{url, title, status}`; opens an agent pane when the session has none |
 | `back` | `{pane_id}` | `{url}` |
 | `snapshot` | `{pane_id, max_nodes?: int = 400}` | accessibility tree as text, each actionable node tagged `[ref=e12]` |
-| `click` | `{pane_id, ref}` | `{ok}` |
-| `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}` |
+| `click` | `{pane_id, ref}` | `{ok}`; fails with -32033 and clicks nothing when the element is disabled, outside the viewport, or covered by another element |
+| `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}`; replaces the field's text (select all, then insert); same checks as `click` |
 | `select` | `{pane_id, ref, value}` | `{ok}`; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
 | `screenshot` | `{pane_id, full_page?: bool = false}` | PNG image content |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
-| `console` | `{pane_id, since_ms?: int}` | last 200 console messages |
-| `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes |
+| `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
+| `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
+| `dialog` | `{pane_id, accept: bool, prompt_text?}` | `{ok, handled: {type, message}}`; answers the open alert, confirm or beforeunload dialog; Electron does not implement `prompt()`, which returns null without a dialog |
+
+While a dialog is open, every tool except `dialog`, `console` and `network` fails with -32032 naming it. A tool
+that opens a dialog while it runs returns `{ok: true, dialog: {type, message}}` straight away.
+
+A ref whose element has left the page fails with "no longer on the page; call snapshot again"; one with no layout
+box fails with "not visible".
 
 ## How a tool runs
 
@@ -44,7 +53,7 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 ## Safety rules, enforced in the workbench
 
 1. Only panes listed by `panes` for that session can be driven. The workbench UI has no debugger attached.
-2. Navigation allowlist: `http:` and `https:` to public addresses, plus `http://localhost:<port>` and
+2. Navigation allowlist: `http:` and `https:` (and `ws:` and `wss:`, checked the same way) to public addresses, plus `http://localhost:<port>` and
    `http://127.0.0.1:<port>` only for ports owned by this project (`browser_pane.dev_port`, `variant.dev_port`).
    Blocked: `file:`, `chrome:`, `devtools:`, other loopback ports, and these ranges unless the project's
    `.troop/config.json` lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
@@ -79,6 +88,18 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
   agents run from other folders than the workbench.
 - Point-to-comment uses the pane debugger's inspect mode (`Overlay.setInspectMode`); the body is
   `[comment <id>] <note>`, then `Page:`, `Element:` (a CSS path), the outer HTML (2,000 characters) and `Crop:`.
+- Tool calls on a new pane wait until its debugger is attached and interception is on.
+- An error while deciding a paused request fails the request; it is never left paused.
+- Each partition's `webRequest.onBeforeRequest` also runs the safety rule 2 check on every request, so
+  cross-site iframes, workers and WebSockets are covered. `ws:` and `wss:` are checked as `http:` and `https:`,
+  so dev-server live reload works on owned ports.
+- User panes: `target=_blank` and "Open link in new pane" open a new user pane; downloads save to the
+  Downloads folder under a unique name; clipboard-read, notifications, media and geolocation ask the user once
+  per origin per app run. Agent and board panes load popups in place, cancel downloads and deny every
+  permission.
+- User panes take Ctrl+L, Ctrl+F, Ctrl+R / F5, Alt+Left / Right, Ctrl+= / - / 0 and F12, and have a
+  right-click menu. Typed URL box input: a scheme is kept, loopback and IPs get `http://`, a dotted host gets
+  `https://`, anything else is a DuckDuckGo search (`typedUrl` in `core/src/browser/policy.ts`).
 - `metatrooper-browser` is attached to Claude sessions through their `--mcp-config` file and to Codex sessions
   through `-c mcp_servers.metatrooper-browser.*`. agy sessions are not attached yet (its MCP config file is not
   verified), so M1-23 for agy waits on that.

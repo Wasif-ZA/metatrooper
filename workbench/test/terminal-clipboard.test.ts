@@ -246,7 +246,7 @@ test('Ctrl+V pastes clipboard text exactly once', options, async () => {
   } finally { await cleanup(f); }
 });
 
-test('right-click leaves the paste to a program that turned mouse tracking on', options, async () => {
+test('right-click pastes once and sends no mouse report to a program tracking the mouse', options, async () => {
   const f = await fixture("process.stdout.write('\\x1b[?1000h\\x1b[?1006h'); ");
   try {
     await prepareTerminal(f);
@@ -255,9 +255,12 @@ test('right-click leaves the paste to a program that turned mouse tracking on', 
     const point = await samplePoint(f);
     await f.w.mouse('mousePressed', point.x, point.y, 'right');
     await f.w.mouse('mouseReleased', point.x, point.y, 'right');
+    const hex = Buffer.from('mousemode').toString('hex');
+    await engineHas(f, hex);
     await sleep(1000);
     const seen = f.viewer.messages.filter(message => message.op === 'output').map(message => String(message.data)).join('');
-    assert.equal(seen.includes(Buffer.from('mousemode').toString('hex')), false, 'the terminal pasted on top of the program');
+    assert.equal(seen.split(hex).length - 1, 1, 'paste reached the engine more than once');
+    assert.equal(seen.includes(Buffer.from('\x1b[<2;').toString('hex')) || seen.includes(Buffer.from('\x1b[M"').toString('hex')), false, 'the right button reached the program');
   } finally { await cleanup(f); }
 });
 

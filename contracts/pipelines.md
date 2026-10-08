@@ -141,6 +141,7 @@ variant is discarded:
 - Resume: `run.resume` restarts from the first step whose status is not `done`, keeping every finished
   step's outputs and files.
 - Breaker: a step that fails 3 times across resumes sets the run to `failed` with `paused_why = 'breaker'`.
+  Resuming it clears the failed steps' failure counts and logs `breaker reset`.
 
 ## Budgets
 
@@ -199,8 +200,8 @@ Choices the sections above leave open, as built:
 - Budgets count `tokens_in + tokens_out + cache_write`; `cache_read` is left out because cached reads would
   trip a token budget long before cost matters. A sub-pipeline's budget is the parent's remainder at start.
 - `run.resume` takes optional `max_tokens`, `max_usd` and `max_minutes`, which can only raise the run's
-  limits. It refuses a run waiting at a gate (resolve the gate) and a run stopped by the breaker (start a new
-  run). After `loop-max`, resume carries on with the step after the loop. Resuming a parent resumes its paused
+  limits. It refuses a run waiting at a gate (resolve the gate); a run stopped by the breaker resumes with
+  its failure counts cleared. After `loop-max`, resume carries on with the step after the loop. Resuming a parent resumes its paused
   sub-pipeline runs.
 - Dev servers start after the agent index writes a `status: done` output, since the worktree has no app to
   serve before that. They are stopped (and their `dev_server` rows removed) on discard, run end, run failure

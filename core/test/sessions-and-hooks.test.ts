@@ -69,6 +69,46 @@ test('processed Claude events move a fake session through working, waiting, done
   } finally { await h.teardown(); }
 });
 
+test('SessionEnd preserves the Claude conversation id until the process exits', async () => {
+  const h = await fakeHarness();
+  try {
+    const sessionId = await launchFake(h);
+    const store = db(h.home);
+    try {
+      const state = () => store.prepare('SELECT state, ended_at, native_id FROM session WHERE id = ?').get(sessionId);
+      const event = async (kind, session_id, payload = {}) => {
+        const result = await runNode(['core/event.js', `claude.${kind}`], { ...h.env, TROOP_SESSION_ID: sessionId }, JSON.stringify({ session_id, cwd: h.home, ...payload }));
+        assert.equal(result.code, 0);
+        const row = store.prepare('SELECT seq FROM event WHERE session_id = ? AND kind = ? ORDER BY seq DESC LIMIT 1').get(sessionId, `claude.${kind}`);
+        await until(() => store.prepare('SELECT processed FROM event WHERE seq = ?').get(row.seq)?.processed === 1, 2000);
+      };
+
+      await event('UserPromptSubmit', 'conversation-A', { prompt: 'first' });
+      assert.equal(state().native_id, 'conversation-A');
+      await event('SessionEnd', 'conversation-A', { reason: 'ended A' });
+      assert.notEqual(state().state, 'exited');
+      assert.equal(state().ended_at, null);
+      assert.equal(state().native_id, 'conversation-A');
+
+      await event('UserPromptSubmit', 'conversation-B', { prompt: 'resumed' });
+      assert.equal(state().native_id, 'conversation-B');
+      assert.notEqual(state().state, 'exited');
+      assert.equal(state().ended_at, null);
+      await event('SessionEnd', 'conversation-B', { reason: 'ended B' });
+      assert.notEqual(state().state, 'exited');
+      assert.equal(state().ended_at, null);
+      assert.equal(state().native_id, 'conversation-B');
+
+      const { appendEvent } = await import('../src/events/append.ts');
+      const { processEvents } = await import('../src/events/processor.ts');
+      appendEvent('core.process-gone', sessionId, { pid: 42 }, store);
+      processEvents(store);
+      assert.equal(state().state, 'exited');
+      assert.ok(state().ended_at);
+    } finally { store.close(); }
+  } finally { await h.teardown(); }
+});
+
 test('a queued session.launch and the same pipe request create one session', async () => {
   const h = await fakeHarness();
   let restarted;

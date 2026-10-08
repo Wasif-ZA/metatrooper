@@ -262,3 +262,41 @@ td.wrap { white-space: normal; }
 .finding.sev-critical, h4.sev-critical { border-color: var(--red); color: var(--red); }
 .finding.sev-high { border-color: var(--amber); }
 h4[class^="sev-"] { text-transform: capitalize; }
+.browser .toolbar { margin-bottom: 8px; }
+.browser .toolbar button[disabled] { opacity: 0.4; cursor: default; }
+.loadbar { height: 2px; margin: -6px 0 6px; background: transparent; }
+.loadbar.on { background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: loadbar 1s linear infinite; }
+@keyframes loadbar { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) { .loadbar.on { animation: none; background: var(--accent); opacity: 0.5; } }
+.findbar input { width: 220px; }
+.permbar { padding: 6px 10px; border: 1px solid var(--accent); border-radius: 5px; }
+.git-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.git-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.git-row .on { font-weight: 600; }
+#git-msg { width: 100%; box-sizing: border-box; margin: 8px 0 6px; }
+.git-log { max-height: 360px; white-space: pre; }
+.pgal { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.pcard { display: flex; flex-direction: column; min-width: 0; padding: 0; text-align: left; background: var(--canvas-soft); border: 1px dotted var(--hairline-strong); border-radius: var(--r); cursor: pointer; color: inherit; }
+.pcard:hover { border-color: var(--body); }
+.pcard.on { border: 1px solid var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.pcard.bad { border-color: var(--del); cursor: default; }
+.pcard .th { aspect-ratio: 1080 / 675; overflow: hidden; background: var(--canvas-deep); border-bottom: 1px dotted var(--hairline-strong); display: flex; align-items: center; justify-content: center; color: var(--faint); font-family: var(--pix); font-size: 10px; text-transform: uppercase; }
+.pcard .th img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; }
+.pcard.bad .th img { filter: grayscale(1) brightness(.55); }
+.pcard .pb { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px 10px; min-width: 0; }
+.pcard .pb b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcard .pb .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pstart { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--canvas-deep); border: 1px solid var(--ink); border-radius: var(--r); }
+.pstart h3 { margin: 0; }
+.ring { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); min-width: 0; }
+.ring i { flex: none; width: 12px; height: 12px; border-radius: 50%; background: conic-gradient(var(--body) calc(var(--p) * 360deg), var(--hairline-strong) 0); -webkit-mask: radial-gradient(circle, transparent 3px, #000 3.5px); mask: radial-gradient(circle, transparent 3px, #000 3.5px); }
+.ring em { font-style: normal; color: var(--wait); }
+.peek { color: var(--body-strong); font-size: 11.5px; line-height: 18px; overflow-wrap: anywhere; }
+.peek.fade { position: relative; max-height: 140px; overflow: hidden; }
+.peek.fade::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(transparent, var(--pane)); }
+.peek.open { max-height: 50vh; overflow: auto; }
+.peek h1 { font-size: 13px; margin: 0 0 6px; color: var(--ink); }
+.peek h2 { font-family: var(--pix); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--mute); font-weight: 400; margin: 10px 0 4px; }
+.peek p { margin: 0 0 6px; } .peek ul { margin: 0 0 6px 16px; padding: 0; } .peek li { margin-bottom: 3px; }
+.peek code { font-family: var(--mono); font-size: 10.5px; background: var(--canvas-soft); padding: 0 3px; }
+.pcard .err { color: var(--del); }

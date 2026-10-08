@@ -1,0 +1,72 @@
+/* Browser pane: tab strip, address row, run banner. Motion is stepped keyframes on transform and clip-path only. */
+.browser { --tab-w: 196px; }
+.bstrip button, .bstrip .x, .baddr .ib { border: 0; background: none; padding: 0; border-radius: var(--r); }
+.bstrip { position: relative; display: flex; align-items: flex-end; flex: none; padding: 6px 6px 0; background: var(--canvas-deep); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.bstrip .ind { position: absolute; left: 6px; bottom: 0; width: var(--tab-w); height: 32px; background: var(--canvas); border: 1px solid var(--hairline); border-bottom: 0; border-radius: 7px 7px 0 0; transform: translateX(calc(var(--i) * var(--tab-w))); }
+.bstrip .ind.move { animation: b-tab 240ms steps(3) both; }
+@keyframes b-tab { from { transform: translateX(calc(var(--from) * var(--tab-w))); } }
+.bstrip .bt { position: relative; z-index: 1; flex: none; width: var(--tab-w); height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 12px; color: var(--mute); border-radius: 7px 7px 0 0; text-align: left; }
+.bstrip .bt + .bt::before { content: ''; position: absolute; left: 0; top: 9px; height: 14px; width: 1px; background: var(--hairline); }
+.bstrip .bt.on::before, .bstrip .bt.on + .bt::before { display: none; }
+.bstrip .bt.on { color: var(--ink); }
+.bstrip .bt:not(.on):hover { color: var(--body-strong); }
+.bstrip .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bstrip .tag { flex: none; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--faint); }
+.bstrip .x { flex: none; width: 18px; height: 18px; border-radius: 4px; display: grid; place-items: center; color: var(--faint); visibility: hidden; }
+.bstrip .bt.on .x, .bstrip .bt:hover .x { visibility: visible; }
+.bstrip .x:hover { background: var(--hairline); color: var(--ink); }
+.bstrip .plus { flex: none; width: 28px; height: 28px; margin: 0 0 2px 6px; color: var(--mute); border-radius: 6px; font-size: 15px; }
+.bstrip .plus:hover { background: var(--canvas-soft); color: var(--ink); }
+
+.baddr { display: flex; align-items: center; gap: 6px; flex: none; padding: 7px 8px; background: var(--canvas); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); margin-top: -1px; }
+.baddr .ib { height: 28px; min-width: 28px; display: inline-grid; place-items: center; border-radius: var(--r); color: var(--body); }
+.baddr .ib:hover:not(:disabled) { background: var(--canvas-soft); color: var(--ink); }
+.baddr .ib:disabled { color: var(--done); opacity: 1; }
+.baddr .tb { height: 28px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: var(--r); color: var(--body-strong); border: 1px solid var(--hairline); background: var(--canvas); white-space: nowrap; }
+.baddr .tb:hover { background: var(--canvas-soft); border-color: var(--hairline-strong); }
+.burl { position: relative; flex: 1; min-width: 0; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--pane); border: 1px solid var(--hairline-strong); border-radius: 6px; font-family: var(--mono); font-size: 12px; color: var(--body-strong); cursor: text; }
+.burl .shown { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+.burl .host-part { color: var(--mute); }
+.burl .path { color: var(--ink); }
+.burl input { position: absolute; inset: 0 auto 0 10px; width: calc(100% - 20px); background: none; border: 0; outline: 0; padding: 0; font: inherit; color: transparent; caret-color: var(--ink); }
+.burl:focus-within .shown, .burl.drafting .shown { visibility: hidden; }
+.burl:focus-within input, .burl.drafting input { color: var(--ink); }
+.burl:focus-within { border-color: var(--body); }
+.burl .zoom { position: relative; flex: none; font-size: 10.5px; color: var(--wait); border: 1px solid color-mix(in srgb, var(--wait) 40%, transparent); padding: 0 5px; border-radius: 3px; }
+.burl:has(.zoom) input { width: calc(100% - 70px); }
+
+.brun { flex: none; height: 46px; padding: 6px 8px 0; }
+.runb { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--canvas); overflow: hidden; white-space: nowrap; }
+.runb.wipe { animation: b-wipe 320ms steps(6) both; }
+@keyframes b-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.runb .who { color: var(--mute); font-size: 11px; }
+.runb .who b { color: var(--ink); font-weight: 400; }
+.runb .sep { width: 1px; height: 18px; background: var(--hairline); flex: none; }
+.runb .step { display: flex; align-items: center; gap: 8px; color: var(--body-strong); font-size: 12px; }
+.runb .step.pending { color: var(--mute); }
+.runb .num { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; border: 1px solid var(--hairline-strong); color: var(--mute); flex: none; }
+.runb .num > * { grid-area: 1 / 1; }
+.runb .ck { width: 10px; height: 10px; display: none; }
+.runb .ck path { stroke: currentColor; stroke-width: 2; fill: none; }
+.runb .step.done .num { background: var(--ink); color: var(--canvas-deep); border-color: var(--ink); }
+.runb .step.done .ck { display: block; }
+.runb .step.done .n { display: none; }
+.runb .step.tick .num { animation: b-tick 200ms steps(4) both; }
+@keyframes b-tick { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+.runb .step.run .num { border-color: var(--wait); color: var(--wait); animation: b-blink 1s steps(2) infinite; }
+@keyframes b-blink { 50% { border-color: var(--hairline-strong); color: var(--mute); } }
+body.doc-hidden .runb .step.run .num { animation-play-state: paused; }
+.runb .step.fail .num { border-color: var(--del); color: var(--del); }
+.runb .link { width: 18px; height: 1px; background: var(--hairline-strong); flex: none; }
+.runb .link.done { background: var(--ink); }
+.runb .thumb { width: 30px; height: 19px; border-radius: 3px; border: 1px solid var(--hairline-strong); background: var(--canvas-soft); object-fit: cover; object-position: top; flex: none; }
+.runb .thumb.empty { background: none; border-style: dashed; }
+.runb .thumb.dev { animation: b-wipe-down 200ms steps(4) both; }
+@keyframes b-wipe-down { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+
+.browser > .toolbar { margin: 6px 8px 0; }
+.browser > .pane-host, .browser > .compare-wrap, .browser > .empty, .browser > .comment-form { margin: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bstrip .ind.move, .runb.wipe, .runb .step.tick .num, .runb .step.run .num, .runb .thumb.dev { animation: none; }
+}

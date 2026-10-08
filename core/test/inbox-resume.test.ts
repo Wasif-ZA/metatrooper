@@ -279,3 +279,32 @@ test('18 session.resume substitutes native_id, falls back to a plain launch, pre
     } finally { pipe.close(); }
   } finally { await teardownCore(h.core, h); }
 });
+
+test('project.clear hides finished sessions and runs and keeps live ones', async () => {
+  const h = await harness();
+  try {
+    const projectPath = join(h.home, 'clear-project');
+    const projectId = await openProject(h.prefix, projectPath);
+    const db = database(h.home);
+    try {
+      insertSession(db, 'clear-done', projectId, 'claude', 'done', projectPath);
+      insertSession(db, 'clear-working', projectId, 'claude', 'working', projectPath);
+      db.prepare("INSERT OR IGNORE INTO pipeline (id, source, path, version, valid) VALUES ('clear-pl', 'project', 'x', 1, 1)").run();
+      const run = db.prepare("INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at) VALUES (?, 'clear-pl', ?, '{}', '', ?, 'manual', 1, 1, 1, 'x')");
+      run.run('clear-failed', projectId, 'failed');
+      run.run('clear-running', projectId, 'running');
+    } finally { db.close(); }
+
+    const pipe = await client(h.prefix);
+    try {
+      assert.deepEqual((await pipe.request('project.clear', { project_id: projectId })).result, {});
+    } finally { pipe.close(); }
+
+    const check = database(h.home, true);
+    try {
+      const hidden = (t: string) => Object.fromEntries((check.prepare(`SELECT id, hidden FROM ${t} WHERE id LIKE 'clear-%'`).all() as Array<{ id: string; hidden: number }>).map((r) => [r.id, r.hidden]));
+      assert.deepEqual(hidden('session'), { 'clear-done': 1, 'clear-working': 0 });
+      assert.deepEqual(hidden('run'), { 'clear-failed': 1, 'clear-running': 0 });
+    } finally { check.close(); }
+  } finally { await h.teardown(); }
+});
