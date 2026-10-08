@@ -20,12 +20,13 @@ interface Term {
   ser: InstanceType<typeof SerializeAddon>;
   viewers: Set<Viewer>;
   exitCode: number | null;
+  killed: boolean;
   written: number;
   parsed: number;
 }
 
 export interface TermHooks {
-  onExit?(id: string, code: number): void;
+  onExit?(id: string, code: number, killed: boolean): void;
   onBell?(id: string): void;
   onTitle?(id: string, title: string): void;
   onOutput?(id: string): void;
@@ -48,7 +49,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true });
   const ser = new SerializeAddon();
   head.loadAddon(ser);
-  const t: Term = { proc, head, ser, viewers: new Set(), exitCode: null, written: 0, parsed: 0 };
+  const t: Term = { proc, head, ser, viewers: new Set(), exitCode: null, killed: false, written: 0, parsed: 0 };
   terms.set(id, t);
   head.onBell(() => hooks.onBell?.(id));
   head.onTitleChange((title) => hooks.onTitle?.(id, title.slice(0, 200)));
@@ -62,7 +63,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     t.exitCode = exitCode;
     for (const v of t.viewers) v.exit(exitCode);
     t.viewers.clear();
-    hooks.onExit?.(id, exitCode);
+    hooks.onExit?.(id, exitCode, t.killed);
     // head.write is async; dispose after pending writes flush
     head.write('', () => { head.dispose(); terms.delete(id); });
   });
@@ -117,6 +118,7 @@ export function resize(id: string, cols: number, rows: number): void {
 export function kill(id: string): void {
   const t = terms.get(id);
   if (!t || t.exitCode !== null) return;
+  t.killed = true;
   try { t.proc.kill(); } catch {}
 }
 

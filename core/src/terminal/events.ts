@@ -37,14 +37,14 @@ export function wireTermEvents(db: DatabaseSync): void {
       titles.set(id, key);
       safe(() => appendEvent('term.title', id, { title }, db));
     },
-    onExit: (id, code) => {
+    onExit: (id, code, killed) => {
       belled.delete(id);
       titles.delete(id);
       clearTimeout(lineTimers.get(id));
       lineTimers.delete(id);
       void lastLine(id, settings().terminal.last_line_chars).then((line) => {
         safe(() => { if (line !== null) setLine.run(line, id); });
-        safe(() => appendEvent('core.process-gone', id, { pid: null, code }, db));
+        safe(() => appendEvent('core.process-gone', id, killed ? { pid: null } : { pid: null, code }, db));
       });
     },
   });

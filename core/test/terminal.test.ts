@@ -345,6 +345,37 @@ test('7 bells count only after non-terminal silence, then output returns waiting
   }
 });
 
+test('a session core kills raises no failed notice; one that exits non-zero on its own does', async () => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { processEvents } = await import('../src/events/processor.ts');
+  const { appendEvent } = await import('../src/events/append.ts');
+  const db = openCoreDb();
+  const at = new Date().toISOString();
+  db.prepare("INSERT OR IGNORE INTO project (id, path, name, opened_at, last_opened) VALUES ('kill-project', ?, 'kill', ?, ?)").run(join(moduleHome.home, 'kill'), at, at);
+  db.prepare("INSERT OR IGNORE INTO engine (id, spec_json, cost_rank, provider) VALUES ('kill-engine', '{}', 1, 'local-cli')").run();
+  termEvents.wireTermEvents(db);
+  const session = (id: string) => db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'kill-project', 'kill-engine', 'pty', 'working', ?, ?)").run(id, at, at);
+  const failed = (id: string) => db.prepare("SELECT count(*) AS n FROM needs_you WHERE kind = 'failed' AND ref = ?").get(id).n;
+  const exited = (id: string) => until(() => { processEvents(db); return db.prepare('SELECT state FROM session WHERE id = ?').get(id).state === 'exited'; }, 5000);
+  try {
+    const killed = `killed-${randomUUID()}`;
+    session(killed);
+    term.open(killed, [process.execPath, '-e', "process.stdout.write('KILL-READY\r\n');setInterval(()=>{},1000)"], moduleHome.home, process.env);
+    await until(async () => (await term.snapshot(killed))?.includes('KILL-READY'));
+    term.kill(killed);
+    await until(() => !term.has(killed));
+    await exited(killed);
+    assert.equal(failed(killed), 0);
+    const crashed = `crashed-${randomUUID()}`;
+    session(crashed);
+    appendEvent('core.process-gone', crashed, { pid: null, code: 3 }, db);
+    await exited(crashed);
+    assert.equal(failed(crashed), 1);
+  } finally {
+    db.close();
+  }
+});
+
 test('H11 spinner frames in the terminal title (Claude glyphs, Codex braille) write one term.title per real title', async () => {
   const { openCoreDb } = await import('../src/store/db.ts');
   const db = openCoreDb();
