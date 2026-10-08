@@ -3,7 +3,7 @@
   "id": "social-scheduler",
   "version": "0.1.0",
   "name": "Social scheduler",
-  "description": "Schedules short video posts through your own Postiz instance (self-hosted or cloud). Every post is external.",
+  "description": "Schedules short video posts through your own Postiz (self-hosted free, or Postiz cloud). Postiz posts at each slot, so self-host it on a machine that stays on. Needs POSTIZ_URL and POSTIZ_API_KEY. Every post is external.",
   "platforms": ["windows"],
   "permissions": ["network","secrets:POSTIZ_URL", "secrets:POSTIZ_API_KEY"],
   "actions": [

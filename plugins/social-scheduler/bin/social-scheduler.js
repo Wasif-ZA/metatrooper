@@ -30,8 +30,9 @@ export const PLATFORMS = {
 const SLOT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?[+-]\d{2}:\d{2}$/;
 
 export function realApi(env = process.env) {
-  for (const k of ['POSTIZ_URL', 'POSTIZ_API_KEY']) {
-    if (!env[k]) throw new ApiError(`${k} is not set: run troop plugin secret social-scheduler ${k}`, false);
+  const missing = ['POSTIZ_URL', 'POSTIZ_API_KEY'].filter((k) => !env[k]);
+  if (missing.length) {
+    throw new ApiError(`Posting needs your own Postiz (free to self-host on an always-on machine: https://docs.postiz.com/self-host/installation/docker-compose). Your clips and posts.json are kept in the run folder. Set ${missing.join(' and ')} with troop plugin secret social-scheduler <NAME> (POSTIZ_URL is your server plus /api/public/v1, or https://api.postiz.com/public/v1 for Postiz cloud), then Resume.`, false);
   }
   const base = env.POSTIZ_URL.replace(/\/+$/, '');
   return async (method, route, body) => {
