@@ -243,23 +243,41 @@ export class Runner {
 
   private fail(run: RunRow, text: string, breaker = false): StepOutcome {
     this.db.prepare("UPDATE run SET status = 'failed', paused_why = ?, ended_at = ? WHERE id = ?").run(breaker ? 'breaker' : null, nowIso(), run.id);
+    const tree = this.runTree(run.id);
+    this.db.prepare(`UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND kind IN ('run-failed','budget','other') AND ref IN (${tree.map(() => '?').join(',')})`).run(nowIso(), ...tree);
     this.needsYou('run-failed', run.id, text);
     this.log(run, { event: 'run failed', why: text });
+    this.stopProcesses(run);
+    this.tidy(run, 'failed', ['running']);
     stopRunServers(this.db, run.id);
     return 'failed';
   }
 
   private end(run: RunRow, status: 'done' | 'cancelled'): void {
     this.db.prepare('UPDATE run SET status = ?, paused_why = NULL, ended_at = ? WHERE id = ?').run(status, nowIso(), run.id);
+    const tree = this.runTree(run.id);
+    const marks = tree.map(() => '?').join(',');
     if (status === 'cancelled') {
       this.db.prepare("UPDATE gate SET status = 'rejected', decided_at = ?, note = 'run cancelled' WHERE run_id = ? AND status = 'waiting'").run(nowIso(), run.id);
-      this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND (ref = ? OR ref IN (SELECT id FROM gate WHERE run_id = ?))").run(nowIso(), run.id, run.id);
-      for (const [k, child] of this.children) if (k.startsWith(`${run.id}/`)) killTree(child);
-      for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) this.killSession(s.id);
+      this.stopProcesses(run);
     }
+    this.db.prepare(`UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND (ref IN (${marks}) OR ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))`).run(nowIso(), ...tree, ...tree);
+    this.tidy(run, 'skipped', ['pending', 'running', 'waiting']);
     stopRunServers(this.db, run.id);
     this.removeWorktrees(run);
     this.log(run, { event: `run ${status}` });
+  }
+
+  private stopProcesses(run: RunRow): void {
+    for (const [k, child] of this.children) if (k.startsWith(`${run.id}/`)) killTree(child);
+    for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) this.killSession(s.id);
+  }
+
+  /** Moves the run's live step rows to a terminal status, discards variants still building and closes its panes. */
+  private tidy(run: RunRow, stepStatus: 'failed' | 'skipped', from: string[]): void {
+    this.db.prepare(`UPDATE run_step SET status = ?, ended_at = COALESCE(ended_at, ?) WHERE run_id = ? AND status IN (${from.map(() => '?').join(',')})`).run(stepStatus, nowIso(), run.id, ...from);
+    this.db.prepare("UPDATE variant SET status = 'discarded' WHERE run_id = ? AND status = 'building'").run(run.id);
+    this.db.prepare('UPDATE browser_pane SET open = 0 WHERE run_id = ?').run(run.id);
   }
 
   /** Removes the run's clean worktrees, and each troop branch that has no commits beyond the project's HEAD. */
@@ -590,7 +608,7 @@ export class Runner {
     if (step.fanout && step.worktree) {
       this.db.prepare(
         `INSERT INTO variant (run_id, idx, worktree, branch, dev_port, status) VALUES (?, ?, ?, ?, ?, 'building')
-         ON CONFLICT(run_id, idx) DO UPDATE SET worktree = excluded.worktree, branch = excluded.branch, dev_port = excluded.dev_port`,
+         ON CONFLICT(run_id, idx) DO UPDATE SET worktree = excluded.worktree, branch = excluded.branch, dev_port = excluded.dev_port, status = 'building'`,
       ).run(run.id, idx, cwd, branch ?? '', port ?? 0);
     }
     let paneId: string | undefined;

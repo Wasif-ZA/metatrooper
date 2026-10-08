@@ -130,6 +130,27 @@ test('H5 a fan-out step launches no further indexes once one has failed', async 
   assert.deepEqual(launched, [0]);
 });
 
+test('H7 fail() and end() leave no live step rows, building variants, open panes or stale child notices', () => {
+  const { run } = agentRun('h7');
+  insertRun('h7c', 0, { parent: 'h7', status: 'failed' });
+  db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES ('n-h7c', 'x', 'run-failed', 'h7c', 'child failed')").run();
+  db.prepare("INSERT INTO variant (run_id, idx, worktree, branch, dev_port, status) VALUES ('h7', 0, '', '', 0, 'building')").run();
+  db.prepare("INSERT INTO browser_pane (id, project_id, run_id, variant, open) VALUES ('bp-h7', 'p', 'h7', 0, 1)").run();
+  db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status) VALUES ('h7', 'b', 0, 0, 'pending')").run();
+  const runner = priv(new Runner(db));
+  runner.killSession = () => {};
+  runner.fail(run, 'step a failed');
+  const steps = () => db.prepare("SELECT step_id, status FROM run_step WHERE run_id = 'h7' ORDER BY step_id").all().map((r) => ({ ...r }));
+  assert.deepEqual(steps(), [{ step_id: 'a', status: 'failed' }, { step_id: 'b', status: 'pending' }]);
+  assert.equal((db.prepare("SELECT status FROM variant WHERE run_id = 'h7'").get() as { status: string }).status, 'discarded');
+  assert.equal((db.prepare("SELECT open FROM browser_pane WHERE id = 'bp-h7'").get() as { open: number }).open, 0);
+  assert.ok((db.prepare("SELECT resolved_at FROM needs_you WHERE id = 'n-h7c'").get() as { resolved_at: string | null }).resolved_at);
+  assert.equal((db.prepare("SELECT count(*) AS n FROM needs_you WHERE ref = 'h7' AND resolved_at IS NULL").get() as { n: number }).n, 1);
+  runner.end(run, 'cancelled');
+  assert.deepEqual(steps(), [{ step_id: 'a', status: 'failed' }, { step_id: 'b', status: 'skipped' }]);
+  assert.equal((db.prepare("SELECT count(*) AS n FROM needs_you WHERE ref = 'h7' AND resolved_at IS NULL").get() as { n: number }).n, 0);
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
