@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('troop', {
   filePaths: (files) => Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean),
   stepPane: (runId, stepId) => ipcRenderer.invoke('stepPane', runId, stepId),
   runDetail: (runId) => ipcRenderer.invoke('runDetail', runId),
+  runShot: (runId, name) => ipcRenderer.invoke('runShot', runId, name),
   uiSettings: () => ipcRenderer.invoke('uiSettings'),
   setTheme: (name) => ipcRenderer.invoke('setTheme', name),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
