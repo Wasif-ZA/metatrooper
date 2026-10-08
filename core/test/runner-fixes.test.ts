@@ -87,3 +87,14 @@ test('F7 a step that fails while the run is paused for budget leaves it paused, 
   await until(() => !priv(runner).active.has(id));
   assert.deepEqual({ ...runOf(id) }, { status: 'paused', paused_why: 'budget' });
 });
+
+test('each index of a fan-out pipeline step gets its own sub-pipeline run', async () => {
+  codePipeline('fan-child', 'export async function run() { await new Promise((r) => setTimeout(r, 300)); return { ok: true }; }');
+  fs.writeFileSync(path.join(pipelinesDir, 'fan-parent.json'), JSON.stringify({
+    schema: 1, id: 'fan-parent', title: 'fan-parent', steps: [{ id: 'each', title: 'each', kind: 'pipeline', uses: 'pipeline:fan-child', fanout: 2 }],
+  }));
+  const id = new Runner(db).start({ pipeline_id: 'fan-parent', project_id: 'p' });
+  await until(() => ['done', 'failed'].includes(runOf(id).status));
+  assert.equal(runOf(id).status, 'done');
+  assert.equal((db.prepare('SELECT count(*) AS n FROM run WHERE parent_run = ?').get(id) as { n: number }).n, 2);
+});

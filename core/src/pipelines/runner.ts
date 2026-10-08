@@ -832,8 +832,8 @@ export class Runner {
   private async pipelineIndex(run: RunRow, step: Step, row: StepRow): Promise<IndexResult> {
     const u = parseUses(step.uses as string);
     if (u?.kind !== 'pipeline') return { ok: false, error: `bad uses ${step.uses}` };
-    let child = this.db.prepare("SELECT id FROM run WHERE parent_run = ? AND parent_step = ? AND status IN ('running','paused') ORDER BY started_at DESC LIMIT 1")
-      .get(run.id, step.id) as { id: string } | undefined;
+    const prior = row.output_path ? this.run(path.basename(row.output_path)) : undefined;
+    let child = prior && (prior.status === 'running' || prior.status === 'paused') ? { id: prior.id } : undefined;
     if (!child) {
       const inputs = resolveValue(step.with ?? {}, this.scope(run, row.fanout_index)) as Record<string, unknown>;
       const id = this.start({ pipeline_id: u.id, project_id: run.project_id, inputs, trigger: 'manual' }, { run, step: step.id, budget: this.remaining(run) });
