@@ -1,6 +1,6 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -263,6 +263,37 @@ test('M2-03 discard removes the worktree and branch, releases its port, closes i
       assert.deepEqual((await cleanup.request('variant.discard', { run_id: runId, idx: variants[1].idx }, { timeout: 8000 })).result, {});
     } finally {
       cleanup.close();
+    }
+  } finally {
+    await h.teardown();
+  }
+});
+
+test('M2-03 discard keeps status and reports a worktree removal error, then succeeds on retry after release', async () => {
+  const h = await fakeHarness();
+  try {
+    const { runId, variants } = await fanoutFixture(h, 'm2-discard-retry');
+    const target = variants[0];
+    const holder = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { cwd: target.worktree, stdio: 'ignore' });
+    await new Promise((r) => holder.once('spawn', r));
+    const pipe = await client(h.prefix);
+    const store = db(h.home);
+    try {
+      const failed = await pipe.request('variant.discard', { run_id: runId, idx: target.idx }, { timeout: 8000 });
+      assertRpcError(failed, -32003, /could not be removed/i);
+      assert.equal(store.prepare('SELECT status FROM variant WHERE run_id = ? AND idx = ?').get(runId, target.idx)?.status, target.status);
+      assert.notEqual(target.status, 'discarded');
+      assert.ok(existsSync(target.worktree));
+      holder.kill();
+      await new Promise((r) => holder.once('exit', r));
+      const retried = await pipe.request('variant.discard', { run_id: runId, idx: target.idx }, { timeout: 8000 });
+      assert.deepEqual(retried.result, {}, JSON.stringify(retried.error));
+      assert.equal(store.prepare('SELECT status FROM variant WHERE run_id = ? AND idx = ?').get(runId, target.idx)?.status, 'discarded');
+      assert.equal(existsSync(target.worktree), false);
+    } finally {
+      holder.kill();
+      store.close();
+      pipe.close();
     }
   } finally {
     await h.teardown();

@@ -15,6 +15,7 @@ import { checkAll } from './engines/health.ts';
 import { processEvents, resolveSpentNotices } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { tickSchedules } from './schedules.ts';
+import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters } from './meter.ts';
 import { readLimits } from './limits.ts';
 import { Runner } from './pipelines/runner.ts';
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
 
   every(50, () => processEvents(db));
   every(250, () => commands.drainQueued());
+  every(250, () => ingestSpools(db));
   every(500, () => runner.tick());
   every(500, () => deliverPrompts(db));
   every(1000, () => checkActivity(db));

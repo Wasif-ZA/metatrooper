@@ -28,6 +28,7 @@ import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { setBoardFlag } from './board.ts';
 import { setItemStatus } from './pipelines/panes.ts';
+import { sandboxRefusal } from './sandbox/checks.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -88,8 +89,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         | { id: string; path: string; name: string }
         | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
-      const host = str(p, 'host', false) || 'pty';
-      if (host !== 'pty') throw new RpcError(E.ENGINE_UNAVAILABLE, `host ${host} is not installed`);
+      const requested = str(p, 'approval', false);
+      const host = str(p, 'host', false) || (requested === 'isolated' ? 'sandbox' : 'pty');
+      if (host !== 'pty' && host !== 'sandbox') throw new RpcError(E.ENGINE_UNAVAILABLE, `host ${host} is not installed`);
+      if ((requested === 'isolated') !== (host === 'sandbox')) throw new RpcError(E.VALIDATION, 'isolated runs only on the sandbox host, and the sandbox host only runs isolated');
       const engine = getEngine(db, str(p, 'engine_id'));
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
       if (engine.provider === 'gateway') throw new RpcError(E.CLOUD_UNAVAILABLE, `gateway engine ${engine.id} is not available yet`);
@@ -99,11 +102,16 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (check && !check.installed) throw new RpcError(E.ENGINE_UNAVAILABLE, `${engine.id} is not installed`);
       const worktreesRoot = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
       const fallback = project.path.toLowerCase().startsWith(worktreesRoot) ? 'contained' : settings().sessions.approval;
-      const approval = str(p, 'approval', false) || (fallback === 'ask' || engine.approval_profiles?.[fallback] ? fallback : 'ask');
+      const approval = requested || (fallback !== 'isolated' && (fallback === 'ask' || engine.approval_profiles?.[fallback]) ? fallback : 'ask');
       if (approval !== 'ask' && !engine.approval_profiles?.[approval]) {
         throw new RpcError(E.INVALID_PARAMS, `${engine.id} has no approval profile ${approval}`);
       }
+      if (host === 'sandbox') {
+        const refusal = sandboxRefusal(engine, project.path);
+        if (refusal) throw new RpcError(E.VALIDATION, refusal);
+      }
       return launchSession(db, {
+        host,
         approval,
         projectId: project.id,
         projectPath: project.path,

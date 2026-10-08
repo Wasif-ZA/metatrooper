@@ -25,6 +25,13 @@ export interface EngineSpec {
   provider?: 'local-cli' | 'api-key' | 'gateway';
   usage_source?: 'claude-transcript' | 'codex-session' | 'none';
   print_args?: string[];
+  sandbox?: SandboxSpec;
+}
+
+export interface SandboxSpec {
+  install: string[];
+  logins: Array<{ file: string; mode: 'ro' } | { volume: string; at: string }>;
+  egress: string[];
 }
 
 export interface TrustSpec {
@@ -40,14 +47,16 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 export const BUILT_IN: EngineSpec[] = [
   {
     id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], version_cmd: ['claude', '--version'],
-    approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'] },
+    approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
+    sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },
     state_source: 'hooks', mcp_attach: { kind: 'claude-mcp-config-flag' },
     roles: ['research', 'plan', 'worker', 'review', 'verify', 'visual-check'], cost_rank: 3, usage_source: 'claude-transcript',
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
   },
   {
     id: 'codex', command: 'codex', ask_near_acu: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
-    approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'] },
+    approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
+    sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },
     auth_cmd: ['codex', 'login', 'status'], auth_ok: { exit_code: 0 },
     state_source: 'notify', mcp_attach: { kind: 'codex-config', path: '~/.codex/config.toml' },
     roles: ['plan', 'worker', 'review', 'verify'], cost_rank: 2, usage_source: 'codex-session',

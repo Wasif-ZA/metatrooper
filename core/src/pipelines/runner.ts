@@ -1174,6 +1174,9 @@ export class Runner {
     try {
       execFileSync('git', ['-C', project.path, 'worktree', 'remove', '--force', v.worktree], { stdio: 'pipe', timeout: 60_000, windowsHide: true });
     } catch {}
+    const ours = path.resolve(v.worktree).toLowerCase().startsWith(path.resolve(homeDir(), 'worktrees').toLowerCase() + path.sep);
+    // git unregisters the worktree even when deleting its folder fails, so a retry has only the folder left to remove.
+    if (v.worktree && ours && fs.existsSync(v.worktree)) try { fs.rmSync(v.worktree, { recursive: true, force: true }); } catch {}
     if (v.worktree && !fs.existsSync(v.worktree)) untrustFolder(real);
     if (v.worktree && fs.existsSync(v.worktree)) {
       throw new RpcError(E.VALIDATION, `the worktree at ${v.worktree} could not be removed; close anything using it and discard again`, { errors: ['worktree still on disk'] });
