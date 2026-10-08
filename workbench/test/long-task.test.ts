@@ -58,7 +58,7 @@ test(`M1-07 the renderer has no main-thread task over 50 ms across a ${seconds} 
         core = await startCore({ ...iso, env });
         killed++;
       }
-      const kind = n % 3 === 0 ? 'PreToolUse' : n % 3 === 1 ? 'Notification' : 'Stop';
+      const kind = n % 3 === 0 ? 'PostToolUse' : n % 3 === 1 ? 'Notification' : 'Stop';
       const body = kind === 'Notification' ? { class: 'permission', message: 'needs permission' } : { tool_name: 'Read', tool_input: { file_path: '/x' } };
       const r = await runNode(['core/event.js', `claude.${kind}`], { ...env, TROOP_SESSION_ID: ids[n % 3] }, JSON.stringify({ session_id: `n${n % 3}`, cwd: project, ...body }));
       assert.equal(r.code, 0);

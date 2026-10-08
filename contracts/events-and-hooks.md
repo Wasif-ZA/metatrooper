@@ -75,7 +75,8 @@ The core processes events in `seq` order and sets `session.state`:
 | Event | New state |
 |---|---|
 | `launch` | `starting` |
-| `claude.UserPromptSubmit`, `claude.PreToolUse`, `claude.PostToolUse` | `working` |
+| `claude.UserPromptSubmit`, `claude.PostToolUse` | `working` |
+| `claude.PreToolUse` | `working`, except from `done` or `idle`: Claude Code can fire one after `Stop` for a call that never runs (no PostToolUse, not in the transcript), so a finished session moves on PostToolUse or a prompt instead |
 | `claude.Notification` with `class` `permission` or `input` | `waiting_for_you` |
 | `claude.Notification` with `class` `other` | no change |
 | `claude.Stop` | `done` |

@@ -38,6 +38,9 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
       return current === 'working' || current === 'unknown' || current === 'starting' ? 'waiting_for_you' : null;
     case 'term.output':
       return current === 'waiting_for_you' || current === 'unknown' ? 'working' : null;
+    // Claude Code can fire a PreToolUse after Stop that never runs (no PostToolUse, not in the transcript); a finished session waits for PostToolUse or a prompt.
+    case 'claude.PreToolUse':
+      return current === 'done' || current === 'idle' ? null : 'working';
     default:
       if (WORKING_KINDS.has(event.kind)) return 'working';
       return null;
