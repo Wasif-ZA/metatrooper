@@ -72,12 +72,17 @@ function toast(text, error = false) {
   setTimeout(() => el.remove(), error ? (ui.look ? ui.look.ui.error_toast_ms : 7000) : (ui.look ? ui.look.ui.toast_ms : 3500));
 }
 
+const ONE_AT_A_TIME = new Set(['session.launch', 'session.resume', 'run.start', 'run.resume', 'variant.combine']);
+
 async function rpc(method, params, quiet = false) {
+  if (!ONE_AT_A_TIME.has(method)) return rpcOnce(method, params, quiet);
+  if ((ui.inFlight ||= {})[method]) { toast('Still working on the last click.'); return { error: { message: 'busy' } }; }
+  ui.inFlight[method] = true;
+  try { return await rpcOnce(method, params, quiet); } finally { delete ui.inFlight[method]; }
+}
+
+async function rpcOnce(method, params, quiet) {
   const out = await api.call(method, params);
-  if (out.kind === 'queued') {
-    toast('Queued: it runs when the core starts.');
-    return { queued: true };
-  }
   if (out.kind === 'offline') {
     toast('The core is offline.', true);
     return { error: { message: 'core offline' } };
@@ -88,6 +93,7 @@ async function rpc(method, params, quiet = false) {
     if (!quiet) toast(`${r.error.message}${detail}`, true);
     return { error: r.error };
   }
+  if (r.result && r.result.notice) toast(r.result.notice);
   return { result: r.result };
 }
 
@@ -555,12 +561,12 @@ function renderDiff() {
 
 async function gitDo(op, arg) {
   const id = ui.projectId;
-  if (!id) return;
+  if (!id) { ui.gitBusy = null; return; }
   ui.gitBusy = op;
   render();
-  const r = await api.git(id, op, arg);
-  ui.gitBusy = null;
-  if (ui.projectId !== id) return;
+  let r;
+  try { r = await api.git(id, op, arg); } catch (e) { r = { error: e.message }; } finally { ui.gitBusy = null; }
+  if (ui.projectId !== id) return render();
   if (r && r.error) toast(r.error, true);
   if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
   if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; toast('Committed.'); }
@@ -570,7 +576,7 @@ async function gitDo(op, arg) {
 
 function renderGit() {
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
-  if (!ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
+  if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
   if (!g) return `<div class="panel"><p class="empty">${ui.projectId ? 'Loading.' : 'Pick a project first.'}</p></div>`;
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
   const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
@@ -825,7 +831,8 @@ async function resolveGate(id, decision) {
   delete ui.drafts[`note:${id}`];
   (ui.decided ||= {})[id] = { g, ok: decision === 'approve', i: ui.snap.gates.indexOf(g) };
   for (const card of document.querySelectorAll(`.gate[data-g="${CSS.escape(id)}"]`)) wall.verdict(card, decision === 'approve');
-  const r = await rpc('gate.resolve', params);
+  let r;
+  try { r = await rpc('gate.resolve', params); } catch (e) { r = { error: e }; toast(e.message, true); }
   setTimeout(() => { delete ui.decided[id]; render(); }, r.error ? 0 : 900);
 }
 
@@ -1277,7 +1284,7 @@ function editorChanged() {
     if (ui.editor !== ed) return;
     ed.errors = r.result ? r.result.errors : [r.error ? r.error.message : 'the core is offline, so the pipeline was not checked'];
     render();
-  }, 300);
+  }, 400);
   render();
 }
 
@@ -2026,8 +2033,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   const live = ui.snap ? ui.snap.gates.filter((g) => !(ui.decided || {})[g.id]) : [];
-  if (e.key === 'a' || e.key === 'A') { if (!wall.sheetOpen()) wall.setSheet(true); else if (live[0]) void resolveGate(live[0].id, 'approve'); return; }
-  if ((e.key === 'r' || e.key === 'R') && wall.sheetOpen() && live[0] && live[0].kind !== 'handoff') { void resolveGate(live[0].id, 'reject'); return; }
+  if (e.key === 'a' || e.key === 'A') { if (!wall.sheetOpen()) wall.setSheet(true, true); else if (wall.sheetByHand() && live[0]) void resolveGate(live[0].id, 'approve'); return; }
+  if ((e.key === 'r' || e.key === 'R') && wall.sheetByHand() && live[0] && live[0].kind !== 'handoff') { void resolveGate(live[0].id, 'reject'); return; }
   if (ui.tab !== 'browser' || !ui.split) return;
   if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
   if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {
@@ -2057,7 +2064,7 @@ document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
 runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton, onClose: () => render() });
-runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id); reportPaneBounds(); } });
+runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id, auto) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id, auto); reportPaneBounds(); } });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;
   applyLook(look);

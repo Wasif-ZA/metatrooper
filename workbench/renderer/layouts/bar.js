@@ -88,7 +88,7 @@ const runBars = (() => {
       const key = needKey(run, st.list, d);
       if (key && seenKey[run.id] !== key && !ctx.isOpen()) {
         const quiet = Date.now() - lastTouch;
-        if (quiet >= rules.QUIET_MS) { seenKey[run.id] = key; setTimeout(() => ctx.openRun(run.id), 0); }
+        if (quiet >= rules.QUIET_MS) { seenKey[run.id] = key; setTimeout(() => ctx.openRun(run.id, true), 0); }
         else setTimeout(ctx.render, rules.QUIET_MS - quiet + 50);
       }
       const l = line(run, st, d);

@@ -172,10 +172,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     });
   }
 
+  const resumedAs = new Map<string, string>();
   m.set('session.resume', {
     handler: (p) => {
+      const oldId = str(p, 'session_id');
+      const prior = resumedAs.get(oldId);
+      const live = prior && db.prepare("SELECT 1 FROM session WHERE id = ? AND state != 'exited'").get(prior);
+      if (live) return { session_id: prior, resumed: false, existing: true, notice: 'Already started again; showing that session.' };
       const old = db.prepare('SELECT s.engine_id, s.native_id, s.cwd, s.state, p.id AS project_id, p.path, p.name FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?')
-        .get(str(p, 'session_id')) as { engine_id: string; native_id: string | null; cwd: string | null; state: string; project_id: string; path: string; name: string } | undefined;
+        .get(oldId) as { engine_id: string; native_id: string | null; cwd: string | null; state: string; project_id: string; path: string; name: string } | undefined;
       if (!old) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (old.state !== 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session is still running');
       const engine = getEngine(db, old.engine_id);
@@ -183,7 +188,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const resumed = Boolean(engine.resume_args && old.native_id);
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
-      return { ...r, resumed };
+      resumedAs.set(oldId, r.session_id);
+      return { ...r, resumed, ...(resumed ? {} : { notice: 'No saved conversation, starting fresh.' }) };
     },
   });
 

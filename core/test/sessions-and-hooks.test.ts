@@ -109,7 +109,7 @@ test('SessionEnd preserves the Claude conversation id until the process exits', 
   } finally { await h.teardown(); }
 });
 
-test('a queued session.launch and the same pipe request create one session', async () => {
+test('a queued session.launch is not replayed at boot', async () => {
   const h = await fakeHarness();
   let restarted;
   try {
@@ -128,12 +128,11 @@ test('a queued session.launch and the same pipe request create one session', asy
     restarted = await startCore(h);
     const pipe = await client(h.prefix);
     try {
-      const reply = await pipe.request('session.launch', params, { id });
-      assert.ok(reply.result?.session_id, JSON.stringify(reply));
+      await pipe.request('core.ping', {});
       const check = db(h.home);
       try {
-        assert.equal(check.prepare('SELECT count(*) AS n FROM session WHERE project_id = ?').get(projectId).n, 1);
-        assert.equal(check.prepare('SELECT status FROM command WHERE id = ?').get(id).status, 'ok');
+        assert.equal(check.prepare('SELECT count(*) AS n FROM session WHERE project_id = ?').get(projectId).n, 0);
+        assert.equal(check.prepare('SELECT status FROM command WHERE id = ?').get(id).status, 'error');
       } finally { check.close(); }
     } finally { pipe.close(); }
   } finally { await stopCore(restarted, h); await h.teardown(); }

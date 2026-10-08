@@ -285,6 +285,10 @@ test('18 session.resume substitutes native_id, falls back to a plain launch, pre
       const plain = await pipe.request('session.resume', { session_id: 'old-plain' });
       assert.equal(plain.result.resumed, false);
       assert.equal(plain.result.prompt_delivered, true);
+      assert.match(plain.result.notice, /starting fresh/);
+      const again = await pipe.request('session.resume', { session_id: 'old-plain' });
+      assert.equal(again.result.session_id, plain.result.session_id);
+      assert.equal(again.result.existing, true);
       await until(() => existsSync(plainArgs), 4000);
       assert.deepEqual(JSON.parse(readFileSync(plainArgs, 'utf8')), []);
 
