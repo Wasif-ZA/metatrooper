@@ -93,6 +93,7 @@ async function rpcOnce(method, params, quiet) {
     if (!quiet) toast(`${r.error.message}${detail}`, true);
     return { error: r.error };
   }
+  if (r.result && r.result.notice) toast(r.result.notice);
   return { result: r.result };
 }
 
