@@ -14,6 +14,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from metarouter import calls, filters, hints, log, shrink, snapshot, tldr
+from metarouter.ab import ab_lane
 from metarouter import recipes as store
 from metarouter.log import config, private
 from metarouter.result import Result, mode, render
@@ -37,6 +38,7 @@ VERBS = {
     "stats": "stats [--days N] [--here]  recipe runs, failures, and hints followed by a success",
     "export": "export [file]           write your saved recipes to one JSON file to share",
     "import": "import <file>           add recipes from an export; existing names are kept",
+    "ab": 'ab --task "<prompt>" --check "<cmd>" [--agent claude|codex] [--runs 3]  measure an agent with and without metarouter',
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
@@ -945,7 +947,7 @@ def unknown(verb):
 LANES = {"run": run_lane, "exec": exec_lane, "search": search_lane, "list": list_lane, "add": add_lane,
          "check": check, "undo": undo, "jobs": jobs_lane, "learn": learn_lane, "browse": browse_lane,
          "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane, "log": log_lane, "stats": stats_lane,
-         "export": export_lane, "import": import_lane}
+         "export": export_lane, "import": import_lane, "ab": ab_lane}
 
 
 def log_call(rec):

@@ -338,7 +338,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 ## Commands
 
 <details>
-<summary>Open: 25 commands, one per goal, and the two modes</summary>
+<summary>Open: 26 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|
@@ -366,6 +366,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Find recipe candidates | `metarouter learn`, then `metarouter learn --review` |
 | See where your tokens go | `metarouter ingest --since 2026-09-27` |
 | See what recipes and hints did | `metarouter stats --days 7 --here` |
+| Prove metarouter helps on your repo | `metarouter ab --task "fix the failing test" --check "pytest -q" --runs 5` |
 
 ### Two modes
 
