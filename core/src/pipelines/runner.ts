@@ -214,6 +214,9 @@ export class Runner {
       this.db.prepare("UPDATE run_step SET fail_count = 0 WHERE run_id = ? AND status = 'failed'").run(runId);
       this.log(run, { event: 'breaker reset', detail: 'failure counts cleared by resume' });
     }
+    if (!this.active.has(runId)) {
+      for (const s of this.db.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND status IN ('failed','running') AND session_id IS NOT NULL").all(runId) as Array<{ session_id: string }>) this.killSession(s.session_id);
+    }
     this.db.prepare("UPDATE run_step SET status = 'pending', session_id = NULL WHERE run_id = ? AND status IN ('failed','running')").run(runId);
     const raised = this.run(runId) as RunRow;
     for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as unknown as RunRow[]) {
@@ -251,7 +254,7 @@ export class Runner {
       this.db.prepare("UPDATE gate SET status = 'rejected', decided_at = ?, note = 'run cancelled' WHERE run_id = ? AND status = 'waiting'").run(nowIso(), run.id);
       this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE resolved_at IS NULL AND (ref = ? OR ref IN (SELECT id FROM gate WHERE run_id = ?))").run(nowIso(), run.id, run.id);
       for (const [k, child] of this.children) if (k.startsWith(`${run.id}/`)) killTree(child);
-      for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) term.kill(s.id);
+      for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) this.killSession(s.id);
     }
     stopRunServers(this.db, run.id);
     this.removeWorktrees(run);
@@ -709,37 +712,45 @@ export class Runner {
     }
     const started = Date.parse(a.row.started_at ?? nowIso());
     const deadline = started + a.timeoutMinutes * 60_000;
-    for (;;) {
-      const status = this.run(run.id)?.status;
-      if (status === 'cancelled' || status === 'failed') return { paused: status };
-      const session = this.db.prepare('SELECT state, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; driven_engine: string | null } | undefined;
-      const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
-      let fm: Record<string, unknown> | null = null;
-      let mtime = 0;
-      if (fs.existsSync(a.outPath)) {
-        mtime = fs.statSync(a.outPath).mtimeMs;
-        fm = parseFrontMatter(fs.readFileSync(a.outPath, 'utf8'));
-      }
-      if (fm?.status === 'failed') {
-        return { ok: false, error: `${a.stepId} wrote status: failed; session left open` };
-      }
-      if (fm?.status === 'done') {
-        const missing = a.outputs.filter((k) => !(k in fm));
-        if (missing.length && (settled || !session?.driven_engine)) {
-          return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}; session left open` };
+    try {
+      for (;;) {
+        const status = this.run(run.id)?.status;
+        if (status === 'cancelled' || status === 'failed') return { paused: status };
+        const session = this.db.prepare('SELECT state, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; driven_engine: string | null } | undefined;
+        const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
+        let fm: Record<string, unknown> | null = null;
+        let mtime = 0;
+        if (fs.existsSync(a.outPath)) {
+          mtime = fs.statSync(a.outPath).mtimeMs;
+          fm = parseFrontMatter(fs.readFileSync(a.outPath, 'utf8'));
         }
-        if (!missing.length && (settled || Date.now() - mtime >= STABLE_MS)) {
-          const { status: _s, ...outputs } = fm;
-          return { ok: true, outputs };
+        if (fm?.status === 'failed') {
+          return { ok: false, error: `${a.stepId} wrote status: failed` };
         }
-      } else if (session?.state === 'exited') {
-        return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+        if (fm?.status === 'done') {
+          const missing = a.outputs.filter((k) => !(k in fm));
+          if (missing.length && (settled || !session?.driven_engine)) {
+            return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}` };
+          }
+          if (!missing.length && (settled || Date.now() - mtime >= STABLE_MS)) {
+            const { status: _s, ...outputs } = fm;
+            return { ok: true, outputs };
+          }
+        } else if (session?.state === 'exited') {
+          return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+        }
+        if (Date.now() > deadline) {
+          return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes` };
+        }
+        await sleep(POLL_MS);
       }
-      if (Date.now() > deadline) {
-        return { ok: false, error: `${a.stepId} timed out after ${a.timeoutMinutes} minutes; session left open` };
-      }
-      await sleep(POLL_MS);
+    } finally {
+      this.killSession(sessionId);
     }
+  }
+
+  private killSession(id: string | null): void {
+    if (id) term.kill(id);
   }
 
 

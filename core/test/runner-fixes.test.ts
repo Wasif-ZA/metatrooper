@@ -64,6 +64,37 @@ test('resuming with a raised budget gives a sub-pipeline run only the raise, not
   assert.deepEqual(caps, [{ id: 'rb', max_tokens: 1500, max_minutes: 120 }, { id: 'rbc', max_tokens: 900, max_minutes: 120 }]);
 });
 
+const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+syncEngines(db, BUILT_IN);
+
+function agentRun(id: string, sessionState = 'working', stateAt = iso(0)) {
+  const dir = path.join(home, id);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'pipeline.json'), JSON.stringify({ schema: 1, id: 'pl', title: 'pl', steps: [{ id: 'a', kind: 'agent', prompt: 'x' }] }));
+  insertRun(id, 0, { dir });
+  db.prepare("INSERT INTO session (id, project_id, engine_id, host, run_id, step_id, state, state_at, started_at) VALUES (?, 'p', 'claude', 'pty', ?, 'a', ?, ?, 'x')").run(`s-${id}`, id, sessionState, stateAt);
+  db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status, session_id, started_at) VALUES (?, 'a', 0, 0, 'running', ?, ?)").run(id, `s-${id}`, iso(0));
+  const run = db.prepare('SELECT * FROM run WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM run_step WHERE run_id = ?').get(id);
+  const args = { stepId: 'a', row, template: 'x', outputs: [], engine: () => null, outPath: path.join(dir, 'a.md'), cwd: dir, timeoutMinutes: 30, index: 0 };
+  return { dir, run, args };
+}
+
+test('H4 the agent session is stopped when its step fails, and Resume stops a session it would orphan', async () => {
+  const { dir, run, args } = agentRun('h4');
+  fs.writeFileSync(path.join(dir, 'a.md'), '---\nstatus: failed\n---\n');
+  const runner = priv(new Runner(db));
+  const killed: string[] = [];
+  runner.killSession = (id: string) => killed.push(id);
+  const r = await runner.runAgent(run, {}, args);
+  assert.equal(r.ok, false);
+  assert.deepEqual(killed, ['s-h4']);
+  db.prepare("UPDATE run SET status = 'failed' WHERE id = 'h4'").run();
+  runner.drive = async () => {};
+  runner.resume('h4');
+  assert.deepEqual(killed, ['s-h4', 's-h4']);
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
