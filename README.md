@@ -378,7 +378,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Check the setup | `metarouter doctor` |
 | See where your tokens go | `metarouter ingest --since 2026-09-27` |
 | See what recipes and hints did | `metarouter stats --days 7 --here` |
-| Prove metarouter helps on your repo | `metarouter ab --task "fix the failing test" --check "pytest -q" --runs 5` |
+| Prove metarouter helps on your repo | `metarouter ab --task "fix the failing test" --check "pytest -q" --runs 5 --yes` (runs the agent unattended with prompts off, in temporary worktrees) |
 | Learn from Codex, Gemini (Antigravity) or OpenCode sessions too | `metarouter learn --from codex,gemini` (default: every agent found) |
 | See how often your agent uses metarouter | `metarouter stats --adoption --days 7` |
 

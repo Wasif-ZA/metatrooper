@@ -38,7 +38,7 @@ VERBS = {
     "stats": "stats [--days N] [--here] [--adoption]  recipe runs, failures, hints; --adoption: share of shell calls via metarouter",
     "export": "export [file]           write your saved recipes to one JSON file to share",
     "import": "import <file>           add recipes from an export; existing names are kept",
-    "ab": 'ab --task "<prompt>" --check "<cmd>" [--agent claude|codex] [--runs 3]  measure an agent with and without metarouter',
+    "ab": 'ab --task "<prompt>" --check "<cmd>" --yes [--agent claude|codex] [--runs 3]  measure an agent with and without metarouter',
     "init": "init [agent] [--project] [--undo]  add the instruction block to an agent's file; no agent lists them",
     "uninstall": "uninstall               remove every block init wrote",
     "doctor": "doctor                  check the setup, one line each with the fix",

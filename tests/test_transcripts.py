@@ -206,3 +206,25 @@ def test_adoption_counts_inline_python_a_seed_recipe_covers(isolated, tmp_path):
     write_claude(tmp_path / "claude" / "p" / "s.jsonl", [(c, False, "") for c in cmds])
     a = transcripts.adoption(7)
     assert a["missed_recipes"] == [{"shape": "inline python: json read", "recipe": "json", "count": 3}]
+
+
+def test_codex_reader_skips_a_session_whose_patch_touches_a_private_path(tmp_path):
+    configure(private=["secret-client"])
+    src = (FIX / "codex" / "2026" / "10" / "08" / "rollout-2026-10-08T11-00-00-legacy.jsonl").read_text(encoding="utf-8")
+    patch = {"timestamp": "2026-10-08T00:00:00Z", "type": "response_item",
+             "payload": {"type": "function_call", "name": "apply_patch", "call_id": "p1",
+                         "arguments": json.dumps({"input": "*** Update File: /work/secret-client/a.py"})}}
+    (tmp_path / "c").mkdir()
+    (tmp_path / "c" / "rollout-x.jsonl").write_text(src.rstrip("\n") + "\n" + json.dumps(patch) + "\n", encoding="utf-8")
+    assert flags(transcripts.codex, tmp_path / "c") == []
+
+
+def test_gemini_reader_skips_a_session_that_reads_a_private_file(tmp_path):
+    configure(private=["secret-client"])
+    src = next((FIX / "gemini").rglob("transcript.jsonl"))
+    dest = tmp_path / "g" / src.relative_to(FIX / "gemini")
+    dest.parent.mkdir(parents=True)
+    view = {"type": "PLANNER_RESPONSE", "created_at": "2026-10-08T00:00:00Z",
+            "tool_calls": [{"name": "view_file", "args": {"AbsolutePath": "/work/secret-client/notes.md"}}]}
+    dest.write_text(json.dumps(view) + "\n" + src.read_text(encoding="utf-8"), encoding="utf-8")
+    assert flags(transcripts.gemini, tmp_path / "g") == []

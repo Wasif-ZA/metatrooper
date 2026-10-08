@@ -98,7 +98,8 @@ def codex(root, since=None):
         events, uses, order, outs, skip = [], {}, [], {}, False
         for _, e in lines(f):
             p = e.get("payload") if isinstance(e.get("payload"), dict) else {}
-            if private(str(p.get("cwd") or "")):
+            if private(str(p.get("cwd") or "")) or (p.get("type") in ("function_call", "custom_tool_call")
+                                                     and private(str(p.get("arguments") or p.get("input") or ""))):
                 skip = True
                 break
             if not fresh(e.get("timestamp"), since):
@@ -143,6 +144,9 @@ def gemini(root, since=None):
             tcs = e.get("tool_calls") or []
             if tcs:
                 pending = None
+                if any(private(json.dumps(t.get("args") if isinstance(t, dict) else t, default=str)) for t in tcs):
+                    skip = True
+                    break
                 tc = tcs[0] if isinstance(tcs[0], dict) else {}
                 args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
                 if tc.get("name") == "run_command" and isinstance(args.get("CommandLine"), str):
