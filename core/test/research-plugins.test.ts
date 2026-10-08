@@ -101,6 +101,7 @@ test('docs-and-release-notes release tag is valid whether the agent answers v1.4
   const pattern = new RegExp(manifest.actions.find((a) => a.id === 'release').input_schema.properties.tag.pattern);
   const tag = pipe.steps.find((s) => s.id === 'release').with.tag;
   for (const version of ['v1.4.0', '1.4.0']) assert.match(tag.replace('{{steps.changelog.outputs.version}}', version), pattern);
+  assert.equal(pipe.inputs.base_branch.required, true);
 });
 
 test('data-to-dashboard serves the dashboard folder so the pane root is the page', () => {

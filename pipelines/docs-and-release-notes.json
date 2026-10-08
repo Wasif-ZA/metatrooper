@@ -7,7 +7,7 @@
   "inputs": {
     "repo": { "type": "text", "label": "GitHub repository (owner/name)", "required": true },
     "since": { "type": "text", "label": "Since (tag or date)", "required": false, "default": "last tag" },
-    "base_branch": { "type": "text", "label": "Base branch", "required": false, "default": "main" }
+    "base_branch": { "type": "text", "label": "Base branch", "required": true, "default": "main" }
   },
   "budget": { "max_minutes": 45 },
   "background": true,
