@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { search } from '../../plugins/agent-reach/bin/search.js';
+import { search, sources } from '../../plugins/agent-reach/bin/search.js';
 import { check } from '../../plugins/cite-check/bin/cite-check.js';
 import { crawl } from '../../plugins/seo/bin/seo.js';
 import { run, checkState, listPrs } from '../../plugins/github/bin/github.js';
@@ -109,4 +109,24 @@ test('data-to-dashboard serves the dashboard folder so the pane root is the page
   assert.match(build.dev_command, /http-server "\{\{run\.dir\}\}\/dashboard"/);
   assert.match(build.prompt, /\{\{run\.dir\}\}\/dashboard\/index\.html/);
   assert.deepEqual(pipe.steps.filter((s) => s.kind === 'agent' && s.uses).map((s) => s.id), []);
+});
+
+test('agent-reach sources writes index.json as pages arrive', async () => {
+  const dir = tempDir();
+  try {
+    const out = join(dir, 'out');
+    writeFileSync(join(dir, 'prospects.json'), JSON.stringify([{ name: 'A', site: 'https://a.example' }, { name: 'B', site: 'https://b.example' }]));
+    let seen = null;
+    const get = async (url) => {
+      if (url.includes('b.example')) {
+        seen = existsSync(join(out, 'index.json')) && JSON.parse(readFileSync(join(out, 'index.json'), 'utf8'));
+        throw new Error('timed out');
+      }
+      return { html: '<p>hello</p>', url };
+    };
+    await sources({ prospects: join(dir, 'prospects.json'), out, max_pages: 1 }, get);
+    assert.equal(seen && seen[0].pages.length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

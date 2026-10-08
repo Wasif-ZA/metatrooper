@@ -90,6 +90,7 @@ export async function sources(input, get = fetchHtml) {
   const max = Number(input.max_pages ?? 3);
   fs.mkdirSync(input.out, { recursive: true });
   const index = [];
+  const flush = () => fs.writeFileSync(path.join(input.out, 'index.json'), JSON.stringify(index, null, 2));
   for (const [i, p] of prospects.entries()) {
     const entry = { index: i, name: p.name ?? '', business: p.business ?? '', site: p.site ?? '', pages: [], errors: [] };
     index.push(entry);
@@ -112,9 +113,10 @@ export async function sources(input, get = fetchHtml) {
       } catch (e) {
         entry.errors.push(`${url}: ${e.message}`);
       }
+      flush();
     }
   }
-  fs.writeFileSync(path.join(input.out, 'index.json'), JSON.stringify(index, null, 2));
+  flush();
   return { out: input.out, prospects: index.length, with_pages: index.filter((e) => e.pages.length).length, pages: index.reduce((n, e) => n + e.pages.length, 0) };
 }
 
