@@ -1622,7 +1622,8 @@ async function onClick(e) {
         const raise = document.getElementById(`raise-${k}`);
         if (raise && raise.value) params[`max_${k}`] = Number(raise.value);
       }
-      await rpc('run.resume', params);
+      const r = await rpc('run.resume', params);
+      if (r.result) for (const k of ['tokens', 'usd', 'minutes']) delete ui.drafts[`raise-${k}`];
       return;
     }
     case 'gate':
@@ -1834,7 +1835,7 @@ function onInput(e) {
     void api.paneAct(ui.paneId, 'find', { text: el.value });
     return;
   }
-  if (/^(input:|note:|combine-note$|raise-tokens$)/.test(el.dataset.key || '')) ui.drafts[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value;
+  if (/^(input:|note:|combine-note$|raise-(tokens|usd|minutes)$)/.test(el.dataset.key || '')) ui.drafts[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value;
   if (!ui.editor) {
     if (el.dataset.action === 'pick-pipeline') {
       ui.pipelineId = el.value;
