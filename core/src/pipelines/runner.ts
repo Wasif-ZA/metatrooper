@@ -177,7 +177,7 @@ export class Runner {
     const out: Record<string, unknown> = {};
     const errors: string[] = [];
     for (const [name, spec] of Object.entries(pipe.inputs ?? {})) {
-      const v = given[name] ?? spec.default;
+      const v = given[name] === '' ? spec.default : given[name] ?? spec.default;
       if (v === undefined || v === '') {
         if (spec.required !== false) errors.push(`input ${name} is required`);
         continue;
