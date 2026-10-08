@@ -13,7 +13,7 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from metarouter import calls, filters, hints, log, shrink, snapshot, tldr
+from metarouter import calls, filters, hints, log, setup, shrink, snapshot, tldr
 from metarouter import recipes as store
 from metarouter.log import config, private
 from metarouter.result import Result, mode, render
@@ -32,11 +32,14 @@ VERBS = {
     "mcp": "mcp [server] [tool] [json]  list MCP servers, a server's tools, or call one",
     "tools": "tools [name]            CLI tools used here, and each MCP tool in one line",
     "mode": "mode [learn|auto]       learn: approved recipes only; auto: catalogue, PATH CLIs, MCP registry",
-    "learn": "learn [--review]        find recipe and hint candidates in the transcripts",
+    "learn": "learn [--review] [--scan [--days N]]  find recipe and hint candidates; --scan shows what repeats",
     "ingest": "ingest [--since T]      where tool-result tokens go, from the transcripts",
     "stats": "stats [--days N] [--here]  recipe runs, failures, and hints followed by a success",
     "export": "export [file]           write your saved recipes to one JSON file to share",
     "import": "import <file>           add recipes from an export; existing names are kept",
+    "init": "init [agent] [--project] [--undo]  add the instruction block to an agent's file; no agent lists them",
+    "uninstall": "uninstall               remove every block init wrote",
+    "doctor": "doctor                  check the setup, one line each with the fix",
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
@@ -757,6 +760,8 @@ def learn_lane(args):
     try:
         if "--review" in args:
             return Result(ok=True, lane="learn", out=learn.review())
+        if "--scan" in args:
+            return setup.scan(args)
         root = args[args.index("--root") + 1] if "--root" in args else learn.TRANSCRIPTS
         return Result(ok=True, lane="learn", out=learn.learn(root, taken=store.load()),
                       note=log.no_private_warning())
@@ -932,7 +937,8 @@ def menu():
         lines += ["", "recipes:"] + [f"  {store.signature(recipes[n])}" for n, _, _ in top]
     except Exception:
         pass
-    lines += ["", "  --json or --human forces the output style."]
+    tip = setup.first_run_tip()
+    lines += ["", "  --json or --human forces the output style."] + (["", tip] if tip else [])
     return Result(ok=True, lane="menu", out="\n".join(lines))
 
 
@@ -945,7 +951,8 @@ def unknown(verb):
 LANES = {"run": run_lane, "exec": exec_lane, "search": search_lane, "list": list_lane, "add": add_lane,
          "check": check, "undo": undo, "jobs": jobs_lane, "learn": learn_lane, "browse": browse_lane,
          "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane, "log": log_lane, "stats": stats_lane,
-         "export": export_lane, "import": import_lane}
+         "export": export_lane, "import": import_lane, "init": setup.init, "uninstall": setup.uninstall,
+         "doctor": setup.doctor}
 
 
 def log_call(rec):
