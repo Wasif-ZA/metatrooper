@@ -31,8 +31,48 @@ MetaTrooper controls. Built by MetaTrooper from the ideas of AIO Sandbox and Cub
 - [ ] M2-11. Closing the window removes the container; a core restart ingests spooled events in order.
 - [ ] M2-12. Each refusal case starts nothing and states its reason.
 
+## Build plan (agreed with Wasif 2026-10-08)
+
+Built on branch m2-harden. Today `session.launch` refuses every host but `pty` (`core/src/methods.ts:89`).
+
+### Decisions
+
+- D1. When a sandboxed session ends (window closed, step ended, process gone), the core runs
+  `docker rm -f troop-<id8>`. Killing the docker client does not stop its container, so `--rm -it` alone leaves it
+  running. Cost: a core crash ends the agent's turn; M2-11 keeps only "spooled events are ingested in order after
+  restart".
+- D2. Each login file is mounted read-only at `/troop/logins/<engine>/<file name>`, and `entry.sh` links it into
+  `~/.claude` or `~/.codex`. A bind mount at `~/.claude/...` would make Docker create `~/.claude` owned by root,
+  and the engine could not write its own settings.
+- D3. Claude and Codex first; agy is the last slice. M2-08 stays open until it lands.
+- D4. The code is a core module (`core/src/sandbox/`) plus a top-level `sandbox/` folder (Dockerfile, `entry.sh`,
+  `proxy.js`, `selftest.js`). The plugin manifest has no host extension point.
+- D5. `isolated` runs only in a MetaTrooper worktree (the project's working tree is never mounted); anywhere
+  else is refused.
+- D6. `.git/hooks` and `.git/config` of the main repo are mounted read-only over the writable `.git`, so nothing
+  an agent writes runs on the host at the next git command. Accepted risk: an agent can still move other refs in
+  the shared `.git`.
+
+### Slices
+
+| # | Slice | Criteria | Effort |
+|---|---|---|---|
+| S1 | Registry `sandbox` data and `isolated` profiles (claude `--dangerously-skip-permissions`, codex `--dangerously-bypass-approvals-and-sandbox`). `session.launch` refuses: `isolated` on `pty`, image not built, Claude login expiring within 60 minutes or `codex login status` failing, an ACU path, not a MetaTrooper worktree. Unit test: no bypass flag in any other profile. | M2-12 | 0.5 d |
+| S2 | Image (Debian 12 slim, node 24, git 2.48+, user `trooper` uid 1000, hook scripts in `/opt/troop`). `troop sandbox build` builds it, creates the `--internal` network `troop-egress`, and starts `troop-proxy` (allow-list CONNECT proxy, 403 otherwise, denied host names to `egress-denied.log`). | M2-09 part | 0.75 d |
+| S3 | Launch path: the core builds the `docker run` argv in spec.md (plus D2 and D6 mounts), maps `C:\a\b` to `/host/c/a/b`, creates worktrees with `--relative-paths`, points hook settings and the Codex notify line at `/opt/troop`, and runs D1 at session end. | M2-11 close half | 0.5 d |
+| S4 | Spool: the event writer appends to `$METATROOPER_SPOOL/events.ndjson` when set; the core ingests every 250 ms per the contract (64 KiB line cap, re-redaction, offset in `meta`, 10 MiB stop, folder deleted after exit). | M2-10, M2-11 | 0.5 d |
+| S5 | `troop sandbox selftest`, with the D6 checks (writing a hook and `.git/config` fail) added to M2-09's list. Codex writes the tests. | M2-09 | 0.5 d |
+| S6 | Fixture `tests/fixtures/tinyutils` (3 seeded bugs); hands-off `troop launch --jobs` with Claude and Codex. | M2-08, 2 of 3 | 0.25 d |
+| S7 | agy: keyring volume, `troop sandbox login agy`, its isolated flags. | M2-08 | 0.5 d |
+
+Each slice is one commit on m2-harden and one M2-STATUS.md update. Done when M2-08 to M2-12 are VERIFIED-WINDOWS,
+each with a test that fails when its behaviour breaks. Rollback: revert the branch; `pty` sessions are unchanged,
+and the only shared change is `--relative-paths` on new worktrees.
+
 ## Out of scope
 
+- An agent that keeps working while the core is down (D1).
+- Per-branch protection of refs in the shared `.git` (D6).
 - The browser inside the sandbox (child #17 owns the browser).
 - Snapshots and rollback, pause and resume, more than one image template.
 - A credential vault proxy (tokens kept out of the sandbox); read-only mounts plus the egress allow-list
