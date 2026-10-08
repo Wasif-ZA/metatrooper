@@ -61,7 +61,7 @@
       "kind": "agent",
       "approval": "edits",
       "view": "document",
-      "prompt": "Write {{run.dir}}/report.md from {{run.dir}}/digest.md only, answering {{run.dir}}/question.md. Every claim carries [s#] and a quote id. Set the output key document to the report path and sources to a list of title and url for each cited source.",
+      "prompt": "Write {{run.dir}}/report.md from {{run.dir}}/digest.md only, answering {{run.dir}}/question.md. Every claim carries a verbatim quote in double quotes and its source id from {{run.dir}}/sources/sources.json in brackets, like [s01]. Set the output key document to the report path and sources to a list of title and url for each cited source.",
       "outputs": ["document", "sources"]
     },
     {

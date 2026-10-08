@@ -16,7 +16,7 @@
         "additionalProperties": false,
         "required": ["report", "sources"],
         "properties": {
-          "report": { "type": "string", "minLength": 1, "description": "Markdown report; claims carry [s1] style markers." },
+          "report": { "type": "string", "minLength": 1, "description": "Markdown report; claims carry [s01] style markers." },
           "sources": { "type": "string", "minLength": 1, "description": "sources.json, or a folder holding it: a list of {id, url, title?, path?}; path is a saved copy relative to sources.json and is read instead of fetching url." },
           "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 120, "default": 15 }
         }
