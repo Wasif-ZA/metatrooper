@@ -254,7 +254,27 @@ export class Runner {
       for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) term.kill(s.id);
     }
     stopRunServers(this.db, run.id);
+    this.removeWorktrees(run);
     this.log(run, { event: `run ${status}` });
+  }
+
+  /** Removes the run's clean worktrees, and each troop branch that has no commits beyond the project's HEAD. */
+  private removeWorktrees(run: RunRow): void {
+    const project = this.project(run.project_id);
+    const root = path.join(homeDir(), 'worktrees', project.id);
+    if (!fs.existsSync(root)) return;
+    for (const name of fs.readdirSync(root).filter((n) => n.startsWith(`${run.id.toLowerCase()}-`))) {
+      const dir = path.join(root, name);
+      try {
+        git(project.path, ['worktree', 'remove', dir]);
+        this.db.prepare("UPDATE variant SET worktree = '' WHERE run_id = ? AND worktree = ?").run(run.id, slash(dir));
+      } catch (e) {
+        this.log(run, { event: 'worktree kept', path: slash(dir), why: gitError(e) });
+      }
+      try {
+        git(project.path, ['branch', '-d', `troop/${name}`]);
+      } catch {}
+    }
   }
 
   private live(runId: string): boolean {
@@ -529,12 +549,25 @@ export class Runner {
       const name = `${run.id.toLowerCase()}-${step.id}-${idx}`;
       const dir = path.join(homeDir(), 'worktrees', project.id, name);
       branch = `troop/${name}`;
-      if (!fs.existsSync(dir)) {
+      let listed = '';
+      try {
+        listed = git(project.path, ['worktree', 'list', '--porcelain']);
+      } catch {}
+      const registered = listed.split('\n').some((l) => l.startsWith('worktree ') && slash(l.slice(9).trim()).toLowerCase() === slash(dir).toLowerCase());
+      if (!registered) {
+        fs.rmSync(dir, { recursive: true, force: true });
         fs.mkdirSync(path.dirname(dir), { recursive: true });
         try {
-          execFileSync('git', ['-C', project.path, 'worktree', 'add', dir, '-b', branch, 'HEAD'], { stdio: 'pipe', timeout: 60_000, windowsHide: true });
+          git(project.path, ['worktree', 'prune']);
+          let kept = true;
+          try {
+            git(project.path, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
+          } catch {
+            kept = false;
+          }
+          git(project.path, ['worktree', 'add', dir, ...(kept ? [branch] : ['-b', branch, 'HEAD'])]);
         } catch (e) {
-          throw new Error(`git worktree add failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`);
+          throw new Error(`git worktree add failed: ${gitError(e)}`);
         }
       }
       cwd = slash(dir);
@@ -1138,6 +1171,14 @@ export class Runner {
     void this.execIndex(run, pipe, step, row, true).catch(() => {});
     return { step_id: stepId };
   }
+}
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe', timeout: 60_000, windowsHide: true });
+}
+
+function gitError(e: unknown): string {
+  return String((e as { stderr?: string }).stderr || e).trim();
 }
 
 /** Adds `.troop/` to the project's `.git/info/exclude` once, when the project is a git repository. */

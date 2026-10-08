@@ -107,6 +107,50 @@ test('a loop step that finishes while the run is paused still checks until, so r
   assert.ok(db.prepare("SELECT 1 FROM run_step WHERE run_id = ? AND step_id = 'work' AND iteration = 1 AND status = 'pending'").get(id));
 });
 
+const { execFileSync } = await import('node:child_process');
+const gp = path.join(home, 'gp');
+fs.mkdirSync(gp);
+const g = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe' }).trim();
+g(gp, 'init', '-q');
+fs.writeFileSync(path.join(gp, 'a.txt'), 'a\n');
+g(gp, 'add', 'a.txt');
+g(gp, 'commit', '-q', '-m', 'init');
+db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('gp', ?, 'gp', 'x', 'x')").run(gp);
+const wtRoot = path.join(process.env.METATROOPER_HOME as string, 'worktrees', 'gp');
+const branchExists = (b: string) => g(gp, 'branch', '--list', b) !== '';
+const gitRun = (id: string) => {
+  db.prepare(`INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at)
+    VALUES (?, 'pl', 'gp', '{}', ?, 'running', 'manual', 1000, 10, 120, ?)`).run(id, home, iso(0));
+  return db.prepare('SELECT * FROM run WHERE id = ?').get(id);
+};
+
+test('F14 placeIndex replaces a leftover folder that is not a worktree and reuses a surviving branch', async () => {
+  const run = gitRun('RWA');
+  const dir = path.join(wtRoot, 'rwa-build-0');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'junk.txt'), 'x');
+  g(gp, 'branch', 'troop/rwa-build-0');
+  const place = await priv(new Runner(db)).placeIndex(run, { id: 'build', worktree: true }, 0);
+  assert.equal(place.branch, 'troop/rwa-build-0');
+  assert.ok(g(gp, 'worktree', 'list', '--porcelain').toLowerCase().includes(place.cwd.toLowerCase()));
+  assert.ok(!fs.existsSync(path.join(dir, 'junk.txt')));
+  assert.ok(fs.existsSync(path.join(dir, 'a.txt')));
+});
+
+test('F14 a done run removes clean worktrees and branches without commits; committed branches and dirty worktrees stay', async () => {
+  const run = gitRun('RWB');
+  const runner = priv(new Runner(db));
+  const dirs = [];
+  for (const i of [0, 1, 2]) dirs.push((await runner.placeIndex(run, { id: 'build', worktree: true }, i)).cwd);
+  fs.writeFileSync(path.join(dirs[1], 'b.txt'), 'b\n');
+  g(dirs[1], 'add', 'b.txt');
+  g(dirs[1], 'commit', '-q', '-m', 'work');
+  fs.writeFileSync(path.join(dirs[2], 'a.txt'), 'changed\n');
+  runner.end(run, 'done');
+  assert.deepEqual(dirs.map((d) => fs.existsSync(d)), [false, false, true]);
+  assert.deepEqual([0, 1, 2].map((i) => branchExists(`troop/rwb-build-${i}`)), [false, true, true]);
+});
+
 test('each index of a fan-out pipeline step gets its own sub-pipeline run', async () => {
   codePipeline('fan-child', 'export async function run() { await new Promise((r) => setTimeout(r, 300)); return { ok: true }; }');
   fs.writeFileSync(path.join(pipelinesDir, 'fan-parent.json'), JSON.stringify({

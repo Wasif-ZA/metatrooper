@@ -111,7 +111,13 @@ Its stdout JSON becomes the step outputs and is written to `<step_id>.json`.
 ## Fan-out, worktrees, ports
 
 - `fanout: N` runs the step N times in parallel. With `worktree: true`, each index gets
-  `git worktree add <~/.metatrooper/worktrees/<project_id>/<run_id>-<i>> -b troop/<run_id>-<i>`.
+  `git worktree add <~/.metatrooper/worktrees/<project_id>/<run_id>-<i>> -b troop/<run_id>-<i>`. A folder at
+  that path that git does not list as a worktree is deleted and made again; a `troop/` branch that survived
+  is checked out as it is, without `-b`.
+- When a run ends `done` or `cancelled`, each of its worktrees with no uncommitted or untracked changes is
+  removed (`git worktree remove`, never forced), and each `troop/` branch with no commits beyond the project's
+  HEAD is deleted (`git branch -d`). A worktree with changes, or a branch with commits, is the run's work and
+  stays; the run log records each kept worktree. A `failed` run keeps everything for inspection.
 - Ports: the core is the only allocator. For each index it takes the lowest port at or above 3001 that has no
   `port_lease` row and is not currently listening (checked with `Get-NetTCPConnection -State Listen`), writes
   the lease in the same transaction, and passes it as `{{port}}` to `dev_command`. Because allocation is one
