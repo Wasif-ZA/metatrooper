@@ -167,7 +167,9 @@ below is optional, for users who want the wrapper in every Codex run.
 2. Append a `codex.turn` event.
 3. Exit 0.
 
-Uninstall restores `notify` to the previous array exactly, read from `hooks-install.json`.
+Uninstall puts back the file recorded in `hooks-install.json` when `config.toml` is unchanged since install.
+Otherwise it peels MetaTrooper's wrapper off the current `notify` only when that line still starts with it; a
+`notify` another tool has since replaced is left alone.
 
 ## Spool ingest (sandbox host, child sandbox-host)
 

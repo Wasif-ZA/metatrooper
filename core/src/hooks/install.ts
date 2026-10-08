@@ -185,16 +185,22 @@ export function uninstallCodex(): Plan | null {
   removeCodexMcp();
   const state = readState();
   const rec = state.codex;
-  if (!rec || !fs.existsSync(rec.file)) return null;
-  const current = fs.readFileSync(rec.file, 'utf8');
-  let after: string;
-  if (current === rec.installed) after = rec.original;
-  else if (rec.previous) after = current.replace(NOTIFY_RE, `notify = ${tomlArray(rec.previous)}`);
-  else after = current.replace(/^notify\s*=\s*\[.*\]\s*\r?\n/m, '');
-  fs.writeFileSync(rec.file, after);
+  const file = rec?.file ?? codexConfigFile();
+  if (!fs.existsSync(file)) return null;
+  const current = fs.readFileSync(file, 'utf8');
+  let ours = false;
+  try { ours = JSON.parse(current.match(NOTIFY_RE)?.[1] ?? '[]')[1] === codexScript(); } catch {}
+  if (!rec && !ours) return null;
+  let after = current;
+  if (rec && current === rec.installed) after = rec.original;
+  else if (ours) {
+    const previous = userNotify(current);
+    after = previous ? current.replace(NOTIFY_RE, `notify = ${tomlArray(previous)}`) : current.replace(/^notify\s*=\s*\[.*\]\s*\r?\n/m, '');
+  }
+  if (after !== current) fs.writeFileSync(file, after);
   delete state.codex;
   writeState(state);
-  return { file: rec.file, before: current, after };
+  return { file, before: current, after };
 }
 
 /** A minimal line diff for the confirm screen. */
