@@ -4,6 +4,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { buildGenerated, client, isolation, runNode, sleep, startCore, teardownCore, until } from '../../core/test/helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -20,8 +21,7 @@ function startWorkbench(env: NodeJS.ProcessEnv): ChildProcess {
 
 function stopWorkbench(child: ChildProcess): void {
   if (!child.pid) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  else try { process.kill(-child.pid, 'SIGKILL'); } catch {}
+  killTree(child.pid);
 }
 
 interface Probe { at: number; state: { sessions: Array<{ id: string; state: string }>; online: boolean } }

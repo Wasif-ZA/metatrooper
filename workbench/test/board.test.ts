@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, sleep, startCore, teardownCore, until, uiHello } from '../../core/test/helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const plugin = resolve(workbench, '..', 'plugins', 'agent-reach');
@@ -48,7 +49,7 @@ test('M2-02 the inspiration board returns at least 8 references with captures fo
       assert.ok(captured.length >= 8, `${captured.length} of ${items.length} captured`);
     } finally { db.close(); }
   } finally {
-    if (wb?.pid) try { spawnSync('taskkill', ['/T', '/F', '/PID', String(wb.pid)]); } catch {}
+    killTree(wb?.pid);
     await sleep(300);
     await teardownCore(core, iso);
   }

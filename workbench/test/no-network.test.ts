@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { isolation, root, sleep, until } from '../../core/test/helpers.ts';
 import { revisionHarness } from '../../core/test/ui-revision-helpers.ts';
 import { capturingEngine } from '../../core/test/pipeline-fixup-helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -62,7 +63,7 @@ test('M3-06 signed out, the workbench window and the core make no outbound conne
     await sleep(3000);
   } finally {
     if (wb.pid) spawnSync('taskkill', ['/PID', String(wb.pid), '/T'], { stdio: 'ignore' });
-    await until(() => wb.exitCode !== null, 10000).catch(() => { if (wb.pid) spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' }); });
+    await until(() => wb.exitCode !== null, 10000).catch(() => killTree(wb.pid));
     await h.close();
   }
   assert.equal(existsSync(nodeLog) ? readFileSync(nodeLog, 'utf8') : '', '');

@@ -6,6 +6,7 @@ import { createServer, type Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, sleep, startCore, teardownCore, until, uiHello } from '../../core/test/helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -122,7 +123,7 @@ test('browser hardening contract', { skip: !runnable && 'set METATROOPER_BROWSER
     assert.equal(containsFileNamed(join(iso.home, 'Downloads'), 'file'),false);
     assert.match(agent.steps.nav.result?.url??'',/agent/);
   } finally {
-    if(wb?.pid)try{if(process.platform==='win32')spawnSync('taskkill',['/T','/F','/PID',String(wb.pid)]);else process.kill(-wb.pid,'SIGKILL');}catch{}
+    killTree(wb?.pid);
     server.server.close(); unowned.server.close(); await sleep(300); await teardownCore(core,iso);
   }
 });

@@ -7,6 +7,7 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { killTreeAsync } from '../../tests/helpers/kill-tree.ts';
 
 export const root = resolve(import.meta.dirname, '../..');
 export const bs = String.fromCharCode(92);
@@ -238,11 +239,7 @@ export async function teardownCore(child, isolated) {
       for (const pid of [...pids]) if (!fresh.has(pid)) pids.delete(pid);
     } catch { pids.clear(); }
   }
-  await Promise.all([...pids].map(pid => new Promise(resolve => {
-    const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-    killer.once('error', resolve);
-    killer.once('exit', resolve);
-  })));
+  await Promise.all([...pids].map(killTreeAsync));
   for (const pid of pids) { try { process.kill(pid); } catch {} }
   await sleep(1200);
   rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

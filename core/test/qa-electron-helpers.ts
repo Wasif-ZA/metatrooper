@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { root, sleep, until } from './helpers.ts';
 import type { revisionHarness } from './ui-revision-helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 /** Drive the real workbench's QA WebContents through its local debugging port. */
 export async function qaWindow(h: Awaited<ReturnType<typeof revisionHarness>>, devPort: number) {
@@ -33,8 +34,7 @@ export async function qaWindow(h: Awaited<ReturnType<typeof revisionHarness>>, d
     for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error('Electron closed')); }
     pending.clear();
     if (wb.pid && wb.exitCode === null) {
-      if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-      else try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+      killTree(wb.pid);
       if (wb.exitCode === null) wb.kill();
     }
     await sleep(300);
