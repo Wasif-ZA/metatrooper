@@ -11,7 +11,6 @@ export interface Owner { id: string; title: string; state: string }
 export interface OwnedPath { path: string; owners: Owner[]; shared: boolean; unclaimed: boolean }
 
 const LIVE = "('starting','working','waiting_for_you','done','idle','unknown')";
-const CLAIM_SCAN = 2000;
 
 export const normPath = (p: string) => (process.platform === 'win32' ? p.split('\\').join('/').toLowerCase() : p);
 
@@ -68,10 +67,10 @@ export function dirtyPaths(repo: string): string[] {
   return out;
 }
 
-/** Claims of one repo, newest first. */
-export function claimsOf(db: DatabaseSync, repo: string, limit = CLAIM_SCAN): Array<Claim & { session_id: string; seq: number }> {
-  const rows = db.prepare("SELECT seq, session_id, payload FROM event WHERE kind = 'core.claim' ORDER BY seq DESC LIMIT ?").all(limit) as Array<{ seq: number; session_id: string; payload: string }>;
+/** Every claim of one repo, newest first. */
+export function claimsOf(db: DatabaseSync, repo: string): Array<Claim & { session_id: string; seq: number }> {
   const key = normPath(repo);
+  const rows = db.prepare(`SELECT seq, session_id, payload FROM event WHERE kind = 'core.claim' AND ${process.platform === 'win32' ? "lower(replace(json_extract(payload, '$.repo'), char(92), '/'))" : "json_extract(payload, '$.repo')"} = ? ORDER BY seq DESC`).all(key) as Array<{ seq: number; session_id: string; payload: string }>;
   const out: Array<Claim & { session_id: string; seq: number }> = [];
   for (const r of rows) {
     try {
@@ -128,7 +127,8 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
   const at = end?.at ?? nowIso();
   let changed: string[];
   try {
-    changed = turnChanges(repo, s.turn_base, Date.parse(from));
+    const dirty = new Set(dirtyPaths(repo));
+    changed = turnChanges(repo, s.turn_base, Date.parse(from)).filter((f) => dirty.has(f));
   } catch {
     return null;
   }
@@ -140,7 +140,7 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
   const hints = new Map<string, Set<string>>();
   const named = (id: string, file: string) => {
     if (!hints.has(id)) {
-      const rows = db.prepare("SELECT json_extract(payload, '$.tool_input.file_path') AS f FROM event WHERE session_id = ? AND kind IN ('claude.PreToolUse','claude.PostToolUse') AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?)").all(id, from, at) as Array<{ f: string | null }>;
+      const rows = db.prepare("SELECT json_extract(payload, '$.tool_input.file_path') AS f FROM event WHERE session_id = ? AND kind IN ('claude.PreToolUse','claude.PostToolUse') AND json_extract(payload, '$.tool_name') IN ('Edit','Write','MultiEdit') AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?)").all(id, from, at) as Array<{ f: string | null }>;
       hints.set(id, new Set(rows.filter((r) => typeof r.f === 'string').map((r) => normPath(path.resolve(repo, r.f!)))));
     }
     return hints.get(id)!.has(normPath(path.join(repo, file)));
@@ -196,7 +196,8 @@ export function owners(db: DatabaseSync, repo: string, titles: Record<string, st
 /** For the PreToolUse hook: the live session other than `sessionId` that holds `file` in its latest claim, read from claims only. */
 export function otherOwner(db: DatabaseSync, sessionId: string, file: string, cwd: string): { id: string; state: string; at: string } | null {
   const abs = normPath(path.resolve(cwd, file));
-  const rows = db.prepare("SELECT session_id, payload FROM event WHERE kind = 'core.claim' ORDER BY seq DESC LIMIT ?").all(CLAIM_SCAN) as Array<{ session_id: string; payload: string }>;
+  const like = `%${path.basename(abs).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const rows = db.prepare("SELECT session_id, payload FROM event WHERE kind = 'core.claim' AND payload LIKE ? ESCAPE '\\' ORDER BY seq DESC").all(like) as Array<{ session_id: string; payload: string }>;
   for (const r of rows) {
     let c: Claim;
     try { c = JSON.parse(r.payload); } catch { continue; }

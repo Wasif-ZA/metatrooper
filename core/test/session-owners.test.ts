@@ -254,3 +254,61 @@ test('M4-30 core half and M4-31: an exiting child leaves a Needs you row for its
     await until(() => !h.db.prepare("SELECT 1 FROM needs_you WHERE kind = 'uncommitted' AND ref = ? AND resolved_at IS NULL").get(c), 12_000);
   } finally { await h.teardown(); }
 });
+
+test('a file the session committed during its turn is not claimed, so later edits by someone else stay unclaimed', async () => {
+  const h = await ownersHarness();
+  try {
+    const a = await h.launch();
+    await h.turnStart(a, 'native-a');
+    await sleep(20);
+    writeFileSync(join(h.repo, 'a.txt'), 'committed by a\n');
+    writeFileSync(join(h.repo, 'x.ts'), 'let x = 4444;\n');
+    execFileSync('git', ['commit', '-qm', 'a commits a.txt', '--', 'a.txt'], { cwd: h.repo });
+    await h.hook('Stop', { session_id: 'native-a' }, a);
+    await until(() => h.claims(a).length === 1, 3000);
+    assert.deepEqual(h.claims(a)[0].files.map((f: { path: string }) => f.path), ['x.ts']);
+    writeFileSync(join(h.repo, 'a.txt'), 'a person edits it later\n');
+    const rows = await h.owners();
+    assert.equal(rows.find((r) => r.path === 'a.txt')!.unclaimed, true);
+    assert.deepEqual(rows.find((r) => r.path === 'x.ts')!.owners.map((o) => o.id), [a]);
+  } finally { await h.teardown(); }
+});
+
+test('a Read is not an ownership hint: one session reading while the other edits through the shell leaves the file shared', async () => {
+  const h = await ownersHarness();
+  try {
+    const a = await h.launch();
+    const b = await h.launch();
+    await h.turnStart(a, 'native-a');
+    await h.turnStart(b, 'native-b');
+    await sleep(20);
+    await h.hook('PostToolUse', { session_id: 'native-b', tool_name: 'Read', tool_input: { file_path: join(h.repo, 'x.ts') } }, b);
+    writeFileSync(join(h.repo, 'x.ts'), 'let x = 55555;\n');
+    await h.hook('Stop', { session_id: 'native-a' }, a);
+    await until(() => h.claims(a).length === 1, 3000);
+    assert.deepEqual(h.claims(a)[0].files.map((f: { path: string; shared: boolean }) => [f.path, f.shared]), [['x.ts', true]]);
+  } finally { await h.teardown(); }
+});
+
+test('claims from other repositories never push a still-dirty file out of the owners lookup or the edit warning', async () => {
+  const h = await ownersHarness();
+  try {
+    const a = await h.launch();
+    const b = await h.launch();
+    await h.turnStart(a, 'native-a');
+    await sleep(20);
+    writeFileSync(join(h.repo, 'a.txt'), 'owned by a\n');
+    await h.hook('Stop', { session_id: 'native-a' }, a);
+    await until(() => h.claims(a).length === 1, 3000);
+    const other = JSON.stringify({ repo: join(h.home, 'elsewhere'), turn_base: null, from: new Date().toISOString(), at: new Date().toISOString(), files: [{ path: 'a.txt', owners: [b], shared: false }] });
+    const insert = h.db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.claim', ?, 1)");
+    h.db.exec('BEGIN');
+    for (let i = 0; i < 2100; i++) insert.run(new Date().toISOString(), b, other);
+    h.db.exec('COMMIT');
+    assert.deepEqual((await h.owners('a.txt'))[0].owners.map((o) => o.id), [a]);
+    await h.turnStart(a, 'native-a');
+    const warned = await h.hook('PreToolUse', { session_id: 'native-b', tool_name: 'Edit', tool_input: { file_path: join(h.repo, 'a.txt') } }, b);
+    assert.match(JSON.parse(warned.stdout).hookSpecificOutput.additionalContext, new RegExp(`\\(${a.slice(0, 8)}\\)`));
+    assert.ok(warned.ms < 240, `hook took ${Math.round(warned.ms)} ms`);
+  } finally { await h.teardown(); }
+});
