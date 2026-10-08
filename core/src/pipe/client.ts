@@ -98,10 +98,10 @@ export interface CallOptions {
 
 export async function call(method: string, params: Record<string, unknown> = {}, opts: CallOptions = {}): Promise<CallOutcome> {
   const id = ulid();
-  const queueable = isQueueable(method);
+  const queueable = !opts.ui && isQueueable(method);
   let client: PipeClient;
   try {
-    client = await PipeClient.connect(corePipe(), QUEUE_AFTER_MS);
+    client = await PipeClient.connect(corePipe(), queueable ? QUEUE_AFTER_MS : undefined);
   } catch {
     if (!queueable) return { kind: 'offline' };
     enqueue(id, method, params);

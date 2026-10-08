@@ -25,6 +25,7 @@ export interface MethodSpec {
 export const NOT_QUEUED = new Set([
   'core.ping', 'core.stop', 'ui.hello', 'session.focus', 'engines.check', 'pipeline.validate',
   'plugin.preview', 'plugin.install', 'plugin.secret.set', 'mcp.resolve',
+  'session.launch', 'session.resume', 'run.start', 'variant.combine',
 ]);
 
 export function isQueueable(method: string): boolean {

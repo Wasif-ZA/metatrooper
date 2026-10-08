@@ -72,12 +72,17 @@ function toast(text, error = false) {
   setTimeout(() => el.remove(), error ? (ui.look ? ui.look.ui.error_toast_ms : 7000) : (ui.look ? ui.look.ui.toast_ms : 3500));
 }
 
+const ONE_AT_A_TIME = new Set(['session.launch', 'session.resume', 'run.start', 'run.resume', 'variant.combine']);
+
 async function rpc(method, params, quiet = false) {
+  if (!ONE_AT_A_TIME.has(method)) return rpcOnce(method, params, quiet);
+  if ((ui.inFlight ||= {})[method]) { toast('Still working on the last click.'); return { error: { message: 'busy' } }; }
+  ui.inFlight[method] = true;
+  try { return await rpcOnce(method, params, quiet); } finally { delete ui.inFlight[method]; }
+}
+
+async function rpcOnce(method, params, quiet) {
   const out = await api.call(method, params);
-  if (out.kind === 'queued') {
-    toast('Queued: it runs when the core starts.');
-    return { queued: true };
-  }
   if (out.kind === 'offline') {
     toast('The core is offline.', true);
     return { error: { message: 'core offline' } };
