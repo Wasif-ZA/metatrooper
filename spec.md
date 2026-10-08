@@ -632,7 +632,9 @@ A bypass flag is allowed only in `isolated`; a unit test keeps it out of every o
 
 Free, with no account: the whole local IDE, every lane and plugin, on the user's own CLI logins and keys.
 Signed out (the only state in this epic), the core, workbench and tray make no network connections of their
-own; plugins with `network` do, and are listed.
+own; plugins with `network` do, and are listed. One exception, Wasif's call on 2026-10-09: when Windows "Automatically
+detect settings" is on, the workbench window (Chromium) looks up the LAN host `wpad`, as Chrome and Edge do, so the
+browser pane keeps working behind auto-detected proxies.
 
 Metered later, in the cloud epic: a model gateway on Wasif's API keys for users without a subscription,
 cloud runs, hosted transcription and rendering, and sync. Users' own subscriptions are never metered or
