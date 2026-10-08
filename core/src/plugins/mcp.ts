@@ -68,16 +68,17 @@ function entriesFor(db: DatabaseSync, engineId: string): ShimEntry[] {
   return out;
 }
 
-/** Engine arguments that attach `metatrooper-browser` and point each plugin MCP server at the shim; no real command or secret appears. */
-export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: string): string[] {
+/** Engine arguments that point each plugin MCP server at the shim, plus `metatrooper-browser` when the session needs the browser; no real command or secret appears. */
+export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: string, browser = false): string[] {
   const node = process.execPath.split(String.fromCharCode(92)).join('/');
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
   const servers: Array<{ name: string; args: string[] }> = [
-    { name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] },
+    ...(browser ? [{ name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
     ...entriesFor(db, engine.id).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId] })),
   ];
   switch (engine.mcp_attach?.kind) {
     case 'claude-mcp-config-flag': {
+      if (!servers.length) return [];
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, { command: node, args: s.args }]));

@@ -39,7 +39,7 @@ const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; drivenEngine?: string },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; drivenEngine?: string; browser?: boolean },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
@@ -47,7 +47,7 @@ export function launchSession(
   let setup: string[] | null = null;
   try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
   try { sweepSessionFiles(db); } catch {}
-  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id)]);
+  const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser)]);
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(

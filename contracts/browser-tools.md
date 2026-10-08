@@ -1,6 +1,6 @@
 # metatrooper-browser MCP tools
 
-Version 1. A stdio MCP server started per agent session through the engine's `mcp_attach`. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
+Version 1. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: pipeline steps with `browser: true` and sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
 "browser not available: the MetaTrooper workbench is closed". It never hangs.
 

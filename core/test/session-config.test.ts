@@ -120,9 +120,11 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
   assert.deepEqual(sessionHookArgs(codex, 'C1'), ['-c', `notify=[${['node', script, inner].map((v) => JSON.stringify(v)).join(', ')}]`]);
   const db = openCoreDb();
   try {
-    assert.deepEqual(mcpAttachArgs(db, codex, 'C1'), []);
+    assert.deepEqual(mcpAttachArgs(db, codex, 'C1', true), []);
     fs.writeFileSync(config, '');
-    const args = mcpAttachArgs(db, codex, 'C2');
+    assert.deepEqual(mcpAttachArgs(db, codex, 'C2'), []);
+    assert.deepEqual(mcpAttachArgs(db, claude, 'K1'), []);
+    const args = mcpAttachArgs(db, codex, 'C2', true);
     assert.equal(args.length, 4);
     assert.match(args[1], /^mcp_servers\.metatrooper-browser\.command=".+"$/);
     assert.match(args[3], /^mcp_servers\.metatrooper-browser\.args=\[".+metatrooper-browser\.js"\]$/);
