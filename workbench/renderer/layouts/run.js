@@ -396,7 +396,7 @@ const runScreen = (() => {
       }
       if (s.kind === 'gate') {
         const card = s.status === 'waiting' ? helpers.gateCard(m, s) : `<div class="rec"><span class="verdict ${s.status === 'failed' ? 'no' : ''}">${s.status === 'done' ? 'Approved' : esc(s.status)}</span></div>`;
-        const before = m.list[m.list.indexOf(s) - 1];
+        const before = m.list.slice(0, m.list.indexOf(s)).reverse().find((x) => x.kind !== 'code');
         const what = before && before.role === 'plan' ? (helpers.spec(m) ? `<div class="sec">What you are approving</div>${helpers.spec(m)}` : '')
           : s.status === 'waiting' ? `<div class="sec">Changes</div><div class="files">${helpers.files(m)}</div>` : '';
         return `<div class="dec">${card}</div>${what}${log}`;
