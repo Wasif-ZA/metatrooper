@@ -4,6 +4,7 @@
   "models": {
     "claude-opus-5-5": { "in": 15, "out": 75, "cache_read": 1.5, "cache_write": 18.75 },
     "claude-sonnet-5-5": { "in": 3, "out": 15, "cache_read": 0.3, "cache_write": 3.75 },
-    "claude-haiku-4-5-20251001": { "in": 1, "out": 5, "cache_read": 0.1, "cache_write": 1.25 }
+    "claude-haiku-4-5-20251001": { "in": 1, "out": 5, "cache_read": 0.1, "cache_write": 1.25 },
+    "gpt-*": { "in": 1.25, "out": 10, "cache_read": 0.125, "cache_write": 1.25, "note": "fallback for any gpt- model without its own entry; placeholder rate, not from a published OpenAI price" }
   }
 }

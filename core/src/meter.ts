@@ -12,7 +12,7 @@ let prices: Record<string, Price> | null = null;
 function priceFor(model: string | null): Price | null {
   if (!model) return null;
   prices ??= (JSON.parse(fs.readFileSync(fileURLToPath(new URL('../prices.json', import.meta.url)), 'utf8')) as { models: Record<string, Price> }).models;
-  return prices[model] ?? null;
+  return prices[model] ?? Object.entries(prices).find(([k]) => k.endsWith('*') && model.startsWith(k.slice(0, -1)))?.[1] ?? null;
 }
 
 export function usdFor(model: string | null, inT: number, outT: number, cacheRead: number, cacheWrite: number): number | null {
@@ -103,6 +103,10 @@ export function readMeters(db: DatabaseSync): number {
     n += readCodexSession(db, sid, f);
     if (gone(sid)) { codexFiles.delete(sid); offsets.delete(f); codexTurns.delete(f); }
   }
+  for (const [sid, f] of agyFiles) {
+    n += readAgyTranscript(db, sid, f);
+    if (gone(sid)) { agyFiles.delete(sid); offsets.delete(f); }
+  }
   return n;
 }
 
@@ -150,6 +154,36 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
       upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), `codex:${sessionId}:${st.turn}`);
       n++;
     }
+  }
+  return n;
+}
+
+const agyFiles = new Map<string, string>();
+
+export function noteAgySession(sessionId: string, file: string): void {
+  agyFiles.set(sessionId, file);
+}
+
+/** Reads new lines of an agy transcript and upserts one usage row per step_index that carries token counts. agy logs no model id, so usd stays NULL. */
+export function readAgyTranscript(db: DatabaseSync, sessionId: string, file: string): number {
+  const lines = newLines(file);
+  if (!lines) return 0;
+  const session = db.prepare('SELECT engine_id, run_id, step_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null } | undefined;
+  if (!session) return 0;
+  const upsert = db.prepare(
+    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key)
+     VALUES (?, ?, ?, ?, ?, 'local-cli', NULL, ?, ?, ?, 0, NULL, 'transcript', ?)
+     ON CONFLICT(dedupe_key) DO UPDATE SET at = excluded.at, tokens_in = excluded.tokens_in, tokens_out = excluded.tokens_out, cache_read = excluded.cache_read`,
+  );
+  let n = 0;
+  for (const line of lines) {
+    if (!line) continue;
+    let rec: any;
+    try { rec = JSON.parse(line); } catch { continue; }
+    if (typeof rec?.input_tokens !== 'number' || rec.step_index === undefined) continue;
+    const cr = rec.cache_read_tokens ?? 0;
+    upsert.run(rec.created_at ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, Math.max(0, rec.input_tokens - cr), rec.output_tokens ?? 0, cr, `agy:${sessionId}:${rec.step_index}`);
+    n++;
   }
   return n;
 }

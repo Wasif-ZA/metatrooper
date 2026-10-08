@@ -95,3 +95,35 @@ test('M1-12 an agy session whose transcript ends on an unanswered tool call goes
     assert.deepEqual(states, ['working', 'blocked']);
   } finally { t.done(); }
 });
+
+test('H14 a session with no pid and no live terminal goes process-gone after STALL_MS; unlinked codex is not marked stalled', async () => {
+  const t = await setup();
+  try {
+    const { checkPids, checkStalled, STALL_MS } = await import('../src/sessions/watch.ts');
+    const old = Date.now() - STALL_MS - 1000;
+    t.addSession('nopid-old', 'claude', old);
+    t.addSession('nopid-new', 'claude', Date.now());
+    t.addSession('codex-unlinked', 'codex', old);
+    t.addSession('claude-starting', 'claude', old);
+    t.db.prepare("UPDATE session SET state = 'starting' WHERE id IN ('codex-unlinked', 'claude-starting')").run();
+    checkPids(t.db);
+    checkStalled(t.db);
+    const ev = (kind: string) => (t.db.prepare('SELECT session_id FROM event WHERE kind = ? ORDER BY session_id').all(kind) as Array<{ session_id: string }>).map((r) => r.session_id);
+    assert.deepEqual(ev('core.process-gone'), ['claude-starting', 'codex-unlinked', 'nopid-old']);
+    assert.deepEqual(ev('core.stalled'), ['claude-starting']);
+  } finally { t.done(); }
+});
+
+test('H9 a codex session started in a worktree links to the rollout whose cwd is its own cwd', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '08');
+    fs.mkdirSync(dir, { recursive: true });
+    const wt = path.join(t.home, 'proj', '.troop', 'worktrees', 'w1');
+    fs.writeFileSync(path.join(dir, `rollout-2026-10-08T10-00-00-${CODEX_ID}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: wt } }) + '\n');
+    t.addSession('c-wt', 'codex', Date.now() - 1000);
+    t.db.prepare("UPDATE session SET cwd = ? WHERE id = 'c-wt'").run(wt);
+    t.checkActivity(t.db);
+    assert.equal(t.native('c-wt'), CODEX_ID);
+  } finally { t.done(); }
+});

@@ -4,7 +4,8 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
 import { getEngine } from '../engines/registry.ts';
-import { noteCodexSession } from '../meter.ts';
+import { noteAgySession, noteCodexSession } from '../meter.ts';
+import { has as hasTerm } from '../terminal/index.ts';
 
 export function pidAlive(pid: number): boolean {
   try {
@@ -15,19 +16,22 @@ export function pidAlive(pid: number): boolean {
   }
 }
 
-/** Every 5 s: sessions whose launcher pid is gone get a core.process-gone event. */
-export function checkPids(db: DatabaseSync): void {
+/** Every 5 s: sessions whose launcher pid is gone, or that never reported a pid and have no live terminal after STALL_MS, get a core.process-gone event. */
+export function checkPids(db: DatabaseSync, now = Date.now()): void {
   const rows = db
-    .prepare("SELECT id, pid FROM session WHERE state != 'exited' AND pid IS NOT NULL")
-    .all() as Array<{ id: string; pid: number }>;
-  for (const r of rows) if (!pidAlive(r.pid)) appendEvent('core.process-gone', r.id, { pid: r.pid }, db);
+    .prepare("SELECT id, pid, started_at FROM session WHERE state != 'exited'")
+    .all() as Array<{ id: string; pid: number | null; started_at: string }>;
+  for (const r of rows) {
+    const gone = r.pid !== null ? !pidAlive(r.pid) : !hasTerm(r.id) && now - Date.parse(r.started_at) >= STALL_MS;
+    if (gone) appendEvent('core.process-gone', r.id, { pid: r.pid }, db);
+  }
 }
 
 export const STALL_MS = 15_000;
 
-/** Every 5 s: sessions still `starting` 15 s after launch get a core.stalled event. */
+/** Every 5 s: sessions still `starting` 15 s after launch get a core.stalled event, except codex and agy sessions not yet linked to their session files. */
 export function checkStalled(db: DatabaseSync, now = Date.now()): void {
-  const rows = db.prepare("SELECT id, started_at FROM session WHERE state = 'starting'").all() as Array<{ id: string; started_at: string }>;
+  const rows = db.prepare("SELECT id, started_at FROM session WHERE state = 'starting' AND NOT (engine_id IN ('codex','agy') AND native_id IS NULL)").all() as Array<{ id: string; started_at: string }>;
   for (const r of rows) if (now - Date.parse(r.started_at) >= STALL_MS) appendEvent('core.stalled', r.id, {}, db);
 }
 
@@ -101,7 +105,7 @@ function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
     try {
       const meta = JSON.parse(firstLine(p));
       const cwd = meta?.payload?.cwd ?? meta?.cwd;
-      return typeof cwd === 'string' && sameDir(cwd, s.project_path) && fs.statSync(p).birthtimeMs <= startMs + 30_000;
+      return typeof cwd === 'string' && (sameDir(cwd, s.project_path) || (s.cwd !== null && sameDir(cwd, s.cwd))) && fs.statSync(p).birthtimeMs <= startMs + 30_000;
     } catch {
       return false;
     }
@@ -180,6 +184,7 @@ interface SessionRow {
   native_id: string | null;
   started_at: string;
   project_path: string;
+  cwd: string | null;
   state: string;
 }
 
@@ -187,7 +192,7 @@ interface SessionRow {
 export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   const rows = db
     .prepare(
-      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.state
+      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.cwd, s.state
        FROM session s JOIN project p ON p.id = s.project_id
        WHERE s.state != 'exited' AND s.engine_id IN ('codex','agy')`,
     )
@@ -200,6 +205,7 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       const m = measure(file);
       a = { file, size: m.size, mtime: m.mtime, lastChange: 0, working: false };
       if (s.engine_id === 'codex') noteCodexSession(s.id, file);
+      else noteAgySession(s.id, path.join(file, 'transcript.jsonl'));
       activity.set(s.id, a);
       continue;
     }

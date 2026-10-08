@@ -101,6 +101,28 @@ test('13 repeated done transitions create one unread open done inbox row', () =>
   }
 });
 
+test('H20 a pipeline step session reaching done adds no finished notice', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'metatrooper-step-done-'));
+  const db = new DatabaseSync(join(dir, 'troop.db'));
+  try {
+    db.exec(readFileSync(join(root, 'contracts/schema.sql'), 'utf8'));
+    const at = new Date().toISOString();
+    db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p', dir, 'p', at, at);
+    db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('fake', '{}', 'local-cli');
+    db.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x', 1, 1)").run();
+    db.prepare("INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at) VALUES ('r1', 'pl', 'p', '{}', ?, 'running', 'manual', 1000, 10, 60, ?)").run(dir, at);
+    insertSession(db, 's', 'p', 'fake', 'working', dir);
+    db.prepare("UPDATE session SET run_id = 'r1', step_id = 'build' WHERE id = 's'").run();
+    db.prepare("INSERT INTO event (at, source, session_id, kind, payload) VALUES (?, 'claude-hook', 's', 'claude.Stop', '{}')").run(at);
+    processEvents(db);
+    assert.equal(db.prepare("SELECT state FROM session WHERE id = 's'").get().state, 'done');
+    assert.equal(db.prepare("SELECT count(*) AS n FROM needs_you WHERE ref = 's'").get().n, 0);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('14 a PTY exit with a non-zero code creates a failed row naming that code', async () => {
   const isolated = isolation();
   const exitScript = join(isolated.home, 'exit-23.mjs');
