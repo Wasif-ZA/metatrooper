@@ -36,3 +36,30 @@ Background. The run folds to the 36px wall bar with a small first-page thumbnail
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8)
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| markitdown | microsoft/markitdown | MIT | OK | not checked (the markitdown-ocr plugin sends page images to an LLM) | ingest |
+| docling | docling-project/docling | MIT | OK | not checked | ingest |
+| typst | typst/typst | Apache-2.0 | OK | none (local compiler) | build PDF |
+| pandoc | jgm/pandoc | GPL-2.0 | caution: GPL; fine as an external CLI, never bundled | none (local converter) | build PDF |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+- Slide is the unit, speaker notes included: split ingest output on the `<!-- Slide number: N -->` markers into one chunk per slide with its notes; that list is the coverage map's rows (microsoft/markitdown).
+- Page and box for every PDF line: keep each element's page and bounding box (`ProvenanceItem`); `before-after` highlights the exact box (docling-project/docling).
+- Unsourced lines found in code: each note line carries a hidden source tag (`data-src` for the printToPDF path, `#metadata` with typst); proof lists lines with no tag without a model (typst/typst).
+
+### Notes
+
+- Check links in notes before signoff; `--offline` checks only local references (lycheeverse/lychee). Low, S.
+
+## Added requirement (M4-8)
+
+The steps of `study-notes-to-pdf` are still unconfirmed (issue 22 fixes the UI only). Helper and idea step names use the assumed flow: ingest, write notes, build PDF, proof. Confirm the real steps before building.

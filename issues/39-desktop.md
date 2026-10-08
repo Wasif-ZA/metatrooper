@@ -39,3 +39,32 @@ as a calm 36px wall bar.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8)
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| Windows-MCP | CursorTouch/Windows-MCP | MIT | OK | `ANONYMIZED_TELEMETRY` defaults to `true`; set it to `false`. Show orange on the chip | map and fill |
+| pywinauto | pywinauto/pywinauto | BSD-3-Clause | OK | none (local GUI automation) | fill |
+| Playwright | microsoft/playwright | Apache-2.0 | OK | not checked (browser traffic goes to the sites it drives) | fill and submit |
+| UFO | microsoft/UFO | MIT | OK | not checked (an LLM agent; screenshots may reach the model it is set to use) | map |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+- Replay row 1 for rows 2 to N: the agent fills row 1 and saves the action list; code replays it for later rows, checking each control exists first; the coverage map marks rows as replayed or agent (microsoft/UFO, pywinauto/pywinauto).
+
+### Notes
+
+- User takeover pauses the loop: if the user moves the mouse mid-row, the row pauses as a handoff (CursorTouch/Windows-MCP). Medium, M.
+- Wait for state, not time: replace fixed sleeps in the PowerShell actions with poll-until-element, 10 s cap (CursorTouch/Windows-MCP). Medium, S.
+- Screenshot only the form window's rectangle, not the desktop (CursorTouch/Windows-MCP). Medium, S.
+- Stop a loop that repeats itself: the same action on the same control 3 times in a row ends the row as a handoff (microsoft/UFO). Medium, S.
+- Screenshot fallback only for blind spots: when UI Automation finds no control for a mapped field, fall back to a visual pick for that field only, flagged orange (microsoft/UFO). Low, M.
+
+## Added requirement (M4-8)
+
+Copy the selector patterns from pywinauto, Windows-MCP and UFO into the `desktop` plugin's PowerShell actions.

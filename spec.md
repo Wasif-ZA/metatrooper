@@ -1064,6 +1064,9 @@ built-in and template validates against `pipeline.schema.json`; every first-part
 | electron | MIT | 123,297 | workbench |
 | tauri | Apache-2.0 or MIT | 111,464 | tray |
 | @modelcontextprotocol/typescript-sdk | not declared in GitHub metadata | 13,485 | `metatrooper-browser`; its LICENSE file is read before install, and if it is not MIT or Apache-2.0 the server is written as plain JSON-RPC over stdio instead (about 200 lines) |
+| pdf.js | Apache-2.0 | not checked | `docs-export` plugin, PDF ingest. Accepted exception to the MIT rule |
+| Google Node client | Apache-2.0 | not checked | `gmail` plugin. Accepted exception to the MIT rule |
+| Postiz | AGPL-3.0 | 36,699 (2026-10-05) | `social-scheduler` schedule backend, reached over its HTTP API only; never bundled or linked. Accepted exception to the MIT rule |
 
 No terminal library, WebSocket library or native module is needed.
 

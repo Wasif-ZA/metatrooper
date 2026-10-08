@@ -23,3 +23,7 @@ Template gallery (17 templates)
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Added requirement (M4-8)
+
+Mine `Zie619/n8n-workflows` (MIT, 56,884 stars) for step shapes per lane. This row names no helpers and no ideas rows.

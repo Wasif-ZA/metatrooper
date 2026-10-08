@@ -38,3 +38,31 @@ extra.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8)
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| git-cliff | orhun/git-cliff | Apache-2.0 | OK | none (reads local git history) | changelog |
+| release-please | googleapis/release-please | Apache-2.0 | OK | not checked | release |
+| changesets | changesets/changesets | MIT | OK | none (reads local `.changeset/` files) | changelog |
+| vale | vale-cli/vale | MIT | OK | not checked (`vale sync` fetches style packs) | update |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+None.
+
+### Notes
+
+- Respect pending changesets: in a repo with `.changeset/`, run `changeset status --since=<base> --output` first; changed packages without a changeset become hand-back items (changesets/changesets). Medium, S.
+- Corrections through an override block: a changelog line edited at the gate is written as a `BEGIN_COMMIT_OVERRIDE` block in the release PR body (googleapis/release-please). Low, S.
+- Prose lint only on changed lines: run vale on edited docs and keep alerts on added lines only (vale-cli/vale, reviewdog/reviewdog). Medium, S.
+- The one High value row (version bump by rule) is the added requirement below.
+
+## Added requirement (M4-8)
+
+A code step after `map` computes the version bump from commit prefixes: `fix` patch, `feat` minor, `!` or a `BREAKING-CHANGE` footer major, `Release-As: x.x.x` overrides. If `map` lists removed or renamed exports (its output is not specified here), a removed export with no `!` commit is flagged as a breaking change without a breaking commit. The agent writes prose only (googleapis/release-please; High, S).
