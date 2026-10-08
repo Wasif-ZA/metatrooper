@@ -82,6 +82,29 @@ test('untrustFolder removes only the folder trustFolder added from each store', 
   for (const [f, t] of Object.entries(files)) assert.equal(fs.readFileSync(f, 'utf8'), t, f);
 }));
 
+test('per-session files of exited and unknown sessions are swept; a live session keeps its files', () => withHome(async (home) => {
+  const { sweepSessionFiles, removeSessionFiles } = await import('../src/plugins/mcp.ts');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const db = openCoreDb();
+  try {
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+    const add = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', 'claude', 'pty', ?, 'x', 'x')");
+    add.run('LIVE', 'working');
+    add.run('GONE', 'exited');
+    const dir = path.join(home, 'mt', 'mcp');
+    fs.mkdirSync(dir, { recursive: true });
+    for (const id of ['LIVE', 'GONE', 'ORPHAN']) for (const ext of ['.json', '.settings.json']) fs.writeFileSync(path.join(dir, id + ext), '{}');
+    sweepSessionFiles(db);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ['LIVE.json', 'LIVE.settings.json']);
+    removeSessionFiles('LIVE');
+    assert.deepEqual(fs.readdirSync(dir), []);
+  } finally {
+    db.close();
+  }
+}));
+
 test('Codex gets MCP servers and the notify wrapper as -c overrides and config.toml is not written', () => withHome(async () => {
   const { sessionHookArgs } = await import('../src/hooks/install.ts');
   const { mcpAttachArgs } = await import('../src/plugins/mcp.ts');

@@ -100,6 +100,22 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
 /** The block older versions wrote into Codex's config.toml; only removeCodexMcp still looks for it. */
 const CODEX_BLOCK = /^# metatrooper mcp: begin[^\n]*\n[\s\S]*?^# metatrooper mcp: end[^\n]*(\n|$)/m;
 
+/** Deletes a session's per-session MCP and settings files. */
+export function removeSessionFiles(sessionId: string): void {
+  for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`]) fs.rmSync(path.join(homeDir(), 'mcp', name), { force: true });
+}
+
+/** Deletes per-session files whose session has exited or no longer exists. */
+export function sweepSessionFiles(db: DatabaseSync): void {
+  const dir = path.join(homeDir(), 'mcp');
+  if (!fs.existsSync(dir)) return;
+  const get = db.prepare('SELECT state FROM session WHERE id = ?');
+  for (const name of fs.readdirSync(dir)) {
+    const s = get.get(name.split('.')[0]) as { state: string } | undefined;
+    if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { force: true });
+  }
+}
+
 export function removeCodexMcp(): void {
   const file = codexConfigFile();
   if (!fs.existsSync(file)) return;
