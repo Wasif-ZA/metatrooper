@@ -96,3 +96,8 @@ def test_parse_codex_events():
              {"type": "turn.completed", "usage": {"input_tokens": 300, "cached_input_tokens": 200, "output_tokens": 40}}]
     got = ab.parse_codex("\n".join(json.dumps(x) for x in lines))
     assert got == {"turns": 2, "tokens": 340, "cost": None, "error": None}
+
+
+def test_parse_claude_pretty_printed():
+    text = json.dumps({"num_turns": 4, "total_cost_usd": 0.2, "usage": {"input_tokens": 10, "output_tokens": 5}}, indent=2)
+    assert ab.parse_claude(text) == {"turns": 4, "tokens": 15, "cost": 0.2, "error": None}

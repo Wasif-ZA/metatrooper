@@ -47,8 +47,13 @@ def set_block(tree, filename, on):
 def parse_claude(stdout):
     """Fields of `claude -p --output-format json`: num_turns, total_cost_usd, usage, is_error."""
     try:
-        d = json.loads(stdout.strip().splitlines()[-1])
-    except (ValueError, IndexError):
+        d = json.loads(stdout)
+    except ValueError:
+        try:
+            d = json.loads(stdout.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            return {}
+    if not isinstance(d, dict):
         return {}
     u = d.get("usage") or {}
     keys = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
