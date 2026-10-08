@@ -203,6 +203,7 @@ Choices the sections above leave open, as built:
   not pause for it, and the gate settles itself when the output file arrives.
 - Budgets count `tokens_in + tokens_out + cache_write`; `cache_read` is left out because cached reads would
   trip a token budget long before cost matters. A sub-pipeline's budget is the parent's remainder at start.
+  Raising a parent's limits on resume raises each resumed sub-pipeline run's limits by the same amount.
 - `run.resume` takes optional `max_tokens`, `max_usd` and `max_minutes`, which can only raise the run's
   limits. It refuses a run waiting at a gate (resolve the gate); a run stopped by the breaker resumes with
   its failure counts cleared. After `loop-max`, resume carries on with the step after the loop. Resuming a parent resumes its paused

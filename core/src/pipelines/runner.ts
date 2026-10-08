@@ -215,8 +215,14 @@ export class Runner {
       this.log(run, { event: 'breaker reset', detail: 'failure counts cleared by resume' });
     }
     this.db.prepare("UPDATE run_step SET status = 'pending', session_id = NULL WHERE run_id = ? AND status IN ('failed','running')").run(runId);
-    for (const c of this.db.prepare("SELECT id FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as Array<{ id: string }>) {
-      if (!this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) this.resume(c.id, raise);
+    const raised = this.run(runId) as RunRow;
+    for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as unknown as RunRow[]) {
+      if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) continue;
+      this.resume(c.id, {
+        max_tokens: c.max_tokens + raised.max_tokens - run.max_tokens,
+        max_usd: c.max_usd + raised.max_usd - run.max_usd,
+        max_minutes: c.max_minutes + raised.max_minutes - run.max_minutes,
+      });
     }
     this.db.prepare("UPDATE run SET status = 'running', paused_why = NULL, ended_at = NULL WHERE id = ?").run(runId);
     this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE ref = ? AND kind IN ('run-failed','budget','other') AND resolved_at IS NULL").run(nowIso(), runId);

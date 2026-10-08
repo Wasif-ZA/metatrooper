@@ -44,7 +44,20 @@ test('F7 the minutes budget leaves out time waiting at a gate, its own or a sub-
   assert.ok(Math.abs(runner.minutesUsed(run) - 75) < 1, String(runner.minutesUsed(run)));
 });
 
-const pipelinesDir = path.join(home, '.troop', 'pipelines');
+test('resuming with a raised budget gives a sub-pipeline run only the raise, not the parent\'s whole cap', () => {
+  for (const id of ['rb', 'rbc']) {
+    const dir = path.join(home, id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pipeline.json'), JSON.stringify({ schema: 1, id: 'pl', title: 'pl', steps: [] }));
+    insertRun(id, 0, { parent: id === 'rbc' ? 'rb' : undefined, status: 'paused', dir });
+  }
+  db.prepare("UPDATE run SET max_tokens = 400, paused_why = 'budget' WHERE id = 'rbc'").run();
+  new Runner(db).resume('rb', { max_tokens: 1500 });
+  const caps = db.prepare("SELECT id, max_tokens, max_minutes FROM run WHERE id IN ('rb', 'rbc') ORDER BY id").all().map((r) => ({ ...r }));
+  assert.deepEqual(caps, [{ id: 'rb', max_tokens: 1500, max_minutes: 120 }, { id: 'rbc', max_tokens: 900, max_minutes: 120 }]);
+});
+
+const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
 function codePipeline(id: string, module: string, step: Record<string, unknown> = {}) {
