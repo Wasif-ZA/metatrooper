@@ -90,7 +90,8 @@ function messageRow(m) {
 }
 
 export function addressOf(value) {
-  return String(value).replace(/^.*<([^>]+)>\s*$/, '$1').trim().toLowerCase();
+  const angle = /<([^>]+)>/.exec(String(value));
+  return (angle ? angle[1] : String(value).replace(/\([^)]*\)/g, '')).trim().toLowerCase();
 }
 
 export function unanswered(thread, me) {

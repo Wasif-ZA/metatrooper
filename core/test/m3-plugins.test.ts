@@ -408,6 +408,8 @@ test('gmail follow-ups match my address exactly, not as part of a longer one', (
   assert.equal(addressOf('Me <ME@x.example> '), 'me@x.example');
   assert.ok(unanswered(thread('Me <me@x.example>'), 'me@x.example'));
   assert.ok(unanswered(thread('ME@X.example'), 'me@x.example'));
+  assert.ok(unanswered(thread('Me <me@x.example> (work)'), 'me@x.example'));
+  assert.ok(unanswered(thread('me@x.example (Me)'), 'me@x.example'));
   assert.equal(unanswered(thread('Jo <some.me@x.example>'), 'me@x.example'), null);
   assert.equal(unanswered(thread('me@x.example.evil'), 'me@x.example'), null);
 });
