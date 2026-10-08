@@ -29,12 +29,19 @@
       "outputs": ["title"]
     },
     {
+      "id": "spec-lint",
+      "title": "Check the spec",
+      "kind": "code",
+      "code": "spec-to-pr/spec-lint.mjs",
+      "outputs": ["flags", "count"]
+    },
+    {
       "id": "approve-spec",
       "layout": "artifact-columns",
       "title": "Approve the spec",
       "kind": "gate",
       "gate": "approve",
-      "gate_summary": "Read {{run.dir}}/spec.md. Approve to build it, reject to stop."
+      "gate_summary": "Read {{run.dir}}/spec.md. Approve to build it, reject to stop.\n{{steps.spec-lint.outputs.flags}}"
     },
     {
       "id": "build",

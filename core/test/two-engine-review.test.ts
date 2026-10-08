@@ -94,7 +94,7 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
       assert.deepEqual({ ...ran(geminiStep.id) }, { step_engine: 'fake-a', session_engine: 'fake-a' });
       const row = store.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'bucket'").get(runId) as { outputs: string };
       assert.deepEqual(JSON.parse(row.outputs), {
-        codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, buckets_path: 'review-buckets.json',
+        codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, outside_change: 0, buckets_path: 'review-buckets.json',
       });
     } finally { finished = true; store.close(); }
   } finally { await teardownCore(core, isolated); }

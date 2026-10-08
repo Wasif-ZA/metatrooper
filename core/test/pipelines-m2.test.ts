@@ -70,6 +70,7 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
     });
     mkdirSync(join(t.project, '.troop', 'pipelines'), { recursive: true });
     writeFileSync(join(t.project, '.troop', 'pipelines', 'spec-to-pr.json'), JSON.stringify(def));
+    cpSync(join(root, 'pipelines', 'spec-to-pr'), join(t.project, '.troop', 'pipelines', 'spec-to-pr'), { recursive: true });
     const pipe = await client(t.iso.prefix);
     try {
       await uiHello(pipe, t.iso.home);
@@ -79,6 +80,7 @@ test('M2-01 spec-to-pr runs on its fixture, stops at the gate before open-pr, an
       const runId = started.result.run_id as string;
 
       const specGate = await waitingGate(t.db, runId, 'approve-spec');
+      assert.match(specGate.summary, /Acceptance checks section is missing or empty\./);
       assert.deepEqual((await pipe.request('gate.resolve', { gate_id: specGate.id, decision: 'approve', action_hash: specGate.action_hash ?? undefined }, { timeout: 5000 })).result, {});
 
       const prGate = await waitingGate(t.db, runId, 'approve-pr');

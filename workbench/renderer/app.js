@@ -258,7 +258,7 @@ function finding(f) {
 function renderReview() {
   const r = ui.review;
   if (!r) return '';
-  const names = { both: 'Both found', codex_only: 'Only Codex', gemini_only: 'Only Gemini', disagree: 'Disagree (one approves)' };
+  const names = { both: 'Both found', codex_only: 'Only Codex', gemini_only: 'Only Gemini', disagree: 'Disagree (one approves)', outside_change: 'Outside the change' };
   const sections = Object.entries(names).map(([k, title]) => {
     const rows = (r[k] || []).map((x) => `<tr>${finding(x.codex)}${finding(x.gemini)}</tr>`).join('');
     return `<h3>${esc(title)} <span class="count">${(r[k] || []).length}</span></h3>

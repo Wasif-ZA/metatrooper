@@ -12,6 +12,7 @@ export interface RunDetail {
   docs: { spec: string | null; diff: string | null };
   pr: { number: number | null; url: string } | null;
   findings: unknown[] | null;
+  formatOnly: string[];
   assists: Array<{ tool: string; name: string; steps: string[]; installed: boolean; version: string | null; install: string; risk: string; risk_note: string | null; egress: string }>;
 }
 
@@ -74,5 +75,5 @@ export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error:
     const v = JSON.parse(doc('findings.json') ?? 'null');
     if (Array.isArray(v)) findings = v;
   } catch {}
-  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings, assists: runAssists(run.run_dir) };
+  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings, formatOnly: (doc('format-only.txt') ?? '').split(/\s+/).filter(Boolean), assists: runAssists(run.run_dir) };
 }

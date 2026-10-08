@@ -17,12 +17,39 @@ function overlaps(a, b) {
     && b.line_start - WIDEN <= a.line_end + WIDEN;
 }
 
-/** Sorts two engines' findings into both, codex_only, gemini_only and disagree; picks no winner. */
-export function bucketFindings(codex, gemini) {
-  const buckets = { both: [], codex_only: [], gemini_only: [], disagree: [] };
+/** New-side line ranges per file, from each `@@ -a,b +c,d @@` hunk of a unified diff. */
+export function hunkRanges(diff) {
+  const ranges = new Map();
+  let file = null;
+  for (const line of diff.split(/\r?\n/)) {
+    const f = /^\+\+\+ b\/(.+)$/.exec(line);
+    if (f) { file = f[1]; continue; }
+    if (line.startsWith('+++ ')) { file = null; continue; }
+    const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (h && file) {
+      const start = Number(h[1]);
+      const count = h[2] === undefined ? 1 : Number(h[2]);
+      if (!ranges.has(file)) ranges.set(file, []);
+      ranges.get(file).push([start, start + Math.max(count, 1) - 1]);
+    }
+  }
+  return ranges;
+}
+
+function insideChange(f, ranges) {
+  const list = ranges.get(f.file);
+  return Boolean(list) && list.some(([a, b]) => f.line_start - WIDEN <= b && a <= f.line_end + WIDEN);
+}
+
+/** Sorts two engines' findings into both, codex_only, gemini_only and disagree; picks no winner. With hunk ranges, findings outside the change go to outside_change unmatched. */
+export function bucketFindings(codex, gemini, ranges = null) {
+  const buckets = { both: [], codex_only: [], gemini_only: [], disagree: [], outside_change: [] };
   const used = new Set();
   const split = codex.verdict !== gemini.verdict && (codex.verdict === 'approve' || gemini.verdict === 'approve');
+  const inside = (f) => !ranges || insideChange(f, ranges);
+  asFindings(gemini.findings).forEach((g, i) => { if (!inside(g)) { used.add(i); buckets.outside_change.push({ gemini: g }); } });
   for (const c of asFindings(codex.findings)) {
+    if (!inside(c)) { buckets.outside_change.push({ codex: c }); continue; }
     const j = asFindings(gemini.findings).findIndex((g, i) => !used.has(i) && overlaps(c, g));
     if (j < 0) {
       buckets.codex_only.push({ codex: c });
@@ -64,7 +91,10 @@ function withFindings(ctx, stepId) {
 export async function run(ctx) {
   const codex = withFindings(ctx, 'codex-review');
   const gemini = withFindings(ctx, 'gemini-review');
-  const buckets = bucketFindings(codex, gemini);
+  let ranges = null;
+  try { ranges = hunkRanges(fs.readFileSync(String(ctx.steps.diff?.diff_file), 'utf8')); } catch {}
+  if (ranges && !ranges.size) ranges = null;
+  const buckets = bucketFindings(codex, gemini, ranges);
   await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...buckets }, null, 2));
   return {
     codex_verdict: String(codex.verdict ?? 'unknown'),
@@ -73,6 +103,7 @@ export async function run(ctx) {
     codex_only: buckets.codex_only.length,
     gemini_only: buckets.gemini_only.length,
     disagree: buckets.disagree.length,
+    outside_change: buckets.outside_change.length,
     buckets_path: 'review-buckets.json',
   };
 }

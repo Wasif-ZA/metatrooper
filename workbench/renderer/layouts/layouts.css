@@ -304,3 +304,4 @@
 .runscreen .rs-helpers .helper .hv { color: var(--muted); }
 .runscreen .rs-helpers .helper .hn { color: var(--muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch; }
 .runscreen .rs-helpers .helper.egress { color: var(--amber); border-color: var(--amber); }
+.runscreen .rs-outside { flex: none; font-size: 11px; color: var(--muted); padding: 2px 0; }
