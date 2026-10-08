@@ -282,9 +282,11 @@ test('planArgs inserts the approval profile args before the prompt', async () =>
   assert.deepEqual(planArgs(engine('agy'), 'task', 'contained').argv, ['agy', '--mode', 'accept-edits', '--sandbox', '--prompt-interactive', 'task']);
   assert.deepEqual(planArgs(engine('claude'), 'task').argv, ['claude', 'task']);
   for (const e of BUILT_IN) {
-    for (const args of Object.values(e.approval_profiles ?? {})) {
-      assert.equal(args.some((a) => /dangerous|bypass/i.test(a)), false, `${e.id} profile must not bypass all checks`);
+    for (const [name, args] of Object.entries(e.approval_profiles ?? {})) {
+      if (name === 'isolated') continue;
+      assert.equal(args.some((a) => /dangerous|bypass/i.test(a)), false, `${e.id} ${name} profile must not bypass all checks`);
     }
+    if (e.approval_profiles?.isolated) assert.throws(() => planArgs(e, 'task', 'isolated'), /only on the sandbox host/);
   }
 });
 

@@ -25,6 +25,13 @@ export interface EngineSpec {
   provider?: 'local-cli' | 'api-key' | 'gateway';
   usage_source?: 'claude-transcript' | 'codex-session' | 'none';
   print_args?: string[];
+  sandbox?: SandboxSpec;
+}
+
+export interface SandboxSpec {
+  install: string[];
+  logins: Array<{ file: string; mode: 'ro' } | { volume: string; at: string }>;
+  egress: string[];
 }
 
 export interface TrustSpec {
@@ -47,7 +54,8 @@ export const BUILT_IN: EngineSpec[] = [
   },
   {
     id: 'codex', command: 'codex', ask_near_acu: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
-    approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'] },
+    approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
+    sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },
     auth_cmd: ['codex', 'login', 'status'], auth_ok: { exit_code: 0 },
     state_source: 'notify', mcp_attach: { kind: 'codex-config', path: '~/.codex/config.toml' },
     roles: ['plan', 'worker', 'review', 'verify'], cost_rank: 2, usage_source: 'codex-session',

@@ -9,13 +9,15 @@ import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
 import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
 import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
+import { E, RpcError } from '../pipe/errors.ts';
 
 export interface LaunchPlan {
   argv: string[];
   promptDelivered: boolean;
 }
 
-export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', extra: string[] = []): LaunchPlan {
+export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', extra: string[] = [], host = 'pty'): LaunchPlan {
+  if (approval === 'isolated' && host !== 'sandbox') throw new RpcError(E.VALIDATION, 'isolated runs only on the sandbox host');
   const argv = [engine.command, ...(engine.args ?? []), ...(engine.approval_profiles?.[approval] ?? []), ...extra];
   if (!prompt) return { argv, promptDelivered: true };
   if (engine.prompt_arg === 'positional') return { argv: [...argv, prompt], promptDelivered: true };

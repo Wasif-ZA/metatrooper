@@ -52,14 +52,19 @@ Built on branch m2-harden. Today `session.launch` refuses every host but `pty` (
 - D6. `.git/hooks` and `.git/config` of the main repo are mounted read-only over the writable `.git`, so nothing
   an agent writes runs on the host at the next git command. Accepted risk: an agent can still move other refs in
   the shared `.git`.
+- D7 (Codex review 2026-10-08). The worktree's own `.git` pointer file is also mounted read-only, so an agent
+  cannot point the host's next `git -C <worktree>` at a gitdir whose config it wrote. With `.git/config`
+  read-only, `include`, `core.hooksPath`, `core.fsmonitor` and `extensions.worktreeConfig` cannot change.
+- D8 (Codex review). The spool writer (S4) lands before the launch path (S3): no sandboxed session runs while
+  its events would go nowhere.
 
 ### Slices
 
 | # | Slice | Criteria | Effort |
 |---|---|---|---|
 | S1 | Registry `sandbox` data and `isolated` profiles (claude `--dangerously-skip-permissions`, codex `--dangerously-bypass-approvals-and-sandbox`). `session.launch` refuses: `isolated` on `pty`, image not built, Claude login expiring within 60 minutes or `codex login status` failing, an ACU path, not a MetaTrooper worktree. Unit test: no bypass flag in any other profile. | M2-12 | 0.5 d |
-| S2 | Image (Debian 12 slim, node 24, git 2.48+, user `trooper` uid 1000, hook scripts in `/opt/troop`). `troop sandbox build` builds it, creates the `--internal` network `troop-egress`, and starts `troop-proxy` (allow-list CONNECT proxy, 403 otherwise, denied host names to `egress-denied.log`). | M2-09 part | 0.75 d |
-| S3 | Launch path: the core builds the `docker run` argv in spec.md (plus D2 and D6 mounts), maps `C:\a\b` to `/host/c/a/b`, creates worktrees with `--relative-paths`, points hook settings and the Codex notify line at `/opt/troop`, and runs D1 at session end. | M2-11 close half | 0.5 d |
+| S2 | Image (Debian 12 slim, node 24, git 2.48+, user `trooper` uid 1000, hook scripts in `/opt/troop`). `troop sandbox build` builds it, creates the `--internal` network `troop-egress`, and starts `troop-proxy` (allow-list CONNECT proxy, 403 otherwise, denied host names to `egress-denied.log`). The proxy refuses IP literals and any allowed name that resolves to a loopback, private or link-local address. | M2-09 part | 0.75 d |
+| S3 | Launch path: the core builds the `docker run` argv in spec.md (plus D2 and D6 mounts), maps `C:\a\b` to `/host/c/a/b`, creates worktrees with `--relative-paths`, points hook settings and the Codex notify line at `/opt/troop`, and runs D1 at session end. Before launch it refuses unless the worktree's `.git` pointer and its gitdir resolve inside the mapped mounts. At pty exit: session `exited`, final spool drain, `docker rm -f`, spool folder deleted, in that order. Runs after S4 (D8). | M2-11 close half | 0.5 d |
 | S4 | Spool: the event writer appends to `$METATROOPER_SPOOL/events.ndjson` when set; the core ingests every 250 ms per the contract (64 KiB line cap, re-redaction, offset in `meta`, 10 MiB stop, folder deleted after exit). | M2-10, M2-11 | 0.5 d |
 | S5 | `troop sandbox selftest`, with the D6 checks (writing a hook and `.git/config` fail) added to M2-09's list. Codex writes the tests. | M2-09 | 0.5 d |
 | S6 | Fixture `tests/fixtures/tinyutils` (3 seeded bugs); hands-off `troop launch --jobs` with Claude and Codex. | M2-08, 2 of 3 | 0.25 d |
