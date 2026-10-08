@@ -127,6 +127,34 @@ test('M3-01 study-notes-to-pdf reads the fixture lecture, exports a real PDF and
   } finally { await close(h); }
 });
 
+const whisper = process.env.TROOP_WHISPER || join(process.env.LOCALAPPDATA ?? '', 'whisper.cpp', 'Release', 'whisper-cli.exe');
+
+test('M3-01 footage-to-edit probes and transcribes the fixture takes, then stops at the plan and final gates', { skip: !existsSync(whisper) && 'whisper.cpp is not installed' }, async () => {
+  const h = await revisionHarness(undefined, capturingEngine);
+  try {
+    const footage = join(h.project, 'takes');
+    cpSync(join(root, 'tests/fixtures/footage-to-edit/input/takes'), footage, { recursive: true });
+    const def = builtin('footage-to-edit', {
+      edit: { outputs: { summary: 'rough cut', flags_left: 'none' } },
+      'visual-check': { outputs: { passed: true, flags: 0 } },
+    });
+    const runId = await h.pipeline(def, { footage, brief: 'how we shape a loaf' });
+    const plan: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-plan' AND status = 'waiting'").get(runId), 120000);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'edit' AND status <> 'pending'").get(runId) as any).n, 0);
+    const out = (id: string) => JSON.parse((h.db.prepare('SELECT outputs FROM run_step WHERE run_id = ? AND step_id = ?').get(runId, id) as any).outputs);
+    assert.equal(out('transcribe').files, 2);
+    const { words } = JSON.parse(readFileSync(out('transcribe').out, 'utf8'));
+    const said = (file: string) => words.filter((w: any) => w.file === file).map((w: any) => w.text).join(' ').toLowerCase();
+    assert.match(said('take-01.mp4'), /start that again/);
+    assert.match(said('take-02.mp4'), /(twenty|20) minutes/);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: plan.id, decision: 'approve' })).result, {});
+    const final: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-final' AND status = 'waiting'").get(runId), 60000);
+    assert.match(final.summary, /Flags left for you: none/);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: final.id, decision: 'approve' })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+  } finally { await close(h); }
+});
+
 const typeInto = `param([string]$Handle, [string]$Json)
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $w = @([System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object { [string]$_.Current.NativeWindowHandle -eq $Handle })[0]
