@@ -338,7 +338,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 ## Commands
 
 <details>
-<summary>Open: 26 commands, one per goal, and the two modes</summary>
+<summary>Open: 30 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|
@@ -365,6 +365,10 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | See a CLI's help or an MCP tool in one line | `metarouter tools <name>` |
 | Switch mode | `metarouter mode auto` |
 | Find recipe candidates | `metarouter learn`, then `metarouter learn --review` |
+| See what your agent keeps rewriting | `metarouter learn --scan --days 30` |
+| Add the instruction block to an agent | `metarouter init claude` (or codex, gemini, opencode, cursor, kiro, junie, copilot; `--project` for the repo file) |
+| Take the block out again | `metarouter init --undo claude`, or `metarouter uninstall` for every one |
+| Check the setup | `metarouter doctor` |
 | See where your tokens go | `metarouter ingest --since 2026-09-27` |
 | See what recipes and hints did | `metarouter stats --days 7 --here` |
 | Prove metarouter helps on your repo | `metarouter ab --task "fix the failing test" --check "pytest -q" --runs 5` |

@@ -57,9 +57,11 @@ def result_text(content):
     return "\n".join(b.get("text", "") for b in content or [] if isinstance(b, dict) and b.get("type") == "text")
 
 
-def sessions(root):
+def sessions(root, since=None):
     """Yield, per transcript, the shell calls in order: (command, failed, output). Private sessions are skipped."""
     for f in sorted(Path(root).rglob("*.jsonl")):
+        if since and f.stat().st_mtime < since:
+            continue
         uses, order, results = {}, [], {}
         with f.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -161,7 +163,7 @@ def flow_candidates(pairs):
     return sorted(out, key=lambda c: -c["uses"])
 
 
-def mine(root=TRANSCRIPTS):
+def mine(root=TRANSCRIPTS, since=None):
     groups = Counter()
     shapes = defaultdict(lambda: [0, 0])
     fixes = {}
@@ -169,7 +171,7 @@ def mine(root=TRANSCRIPTS):
     pairs = Counter()
     runners = engines.scripts()
     n_sessions = n_cmds = 0
-    for sess in sessions(root):
+    for sess in sessions(root, since):
         n_sessions += 1
         shaped = []
         for cmd, failed, out in sess:
