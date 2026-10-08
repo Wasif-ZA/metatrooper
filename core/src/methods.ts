@@ -12,6 +12,7 @@ import { checkAll } from './engines/health.ts';
 import { launchSession, writePrompt } from './sessions/launch.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
+import { liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
@@ -138,6 +139,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   };
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
+  m.set('session.live-text', { handler: () => liveText() });
 
   m.set('session.focus', {
     handler: (p) => {
