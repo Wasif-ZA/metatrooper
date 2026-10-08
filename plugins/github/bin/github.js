@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-function run(cmd, args, cwd) {
+export function run(cmd, args, cwd) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
   if (r.error) throw new Error(`${cmd} could not start: ${r.error.message}`);
-  if (r.status !== 0) throw new Error(`${cmd} ${args[0]} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 500)}`);
+  if (r.status !== 0) throw new Error(`${cmd} ${args[0]} failed: ${(r.stderr || r.stdout || '').trim().slice(-500)}`);
   return r.stdout;
 }
 
@@ -61,17 +62,19 @@ function release(input, project) {
   return { url, tag: input.tag };
 }
 
-try {
-  const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
-  const action = process.argv[2];
-  const project = process.env.TROOP_PROJECT_DIR || req.project;
-  const outputs = action === 'create-pr' ? createPr(req.input || {}, project)
-    : action === 'checks' ? checks(req.input || {})
-    : action === 'list-prs' ? listPrs(req.input || {})
-    : action === 'release' ? release(req.input || {}, project)
-    : null;
-  if (!outputs) throw new Error(`unknown action ${action}`);
-  process.stdout.write(JSON.stringify({ ok: true, outputs }));
-} catch (e) {
-  process.stdout.write(JSON.stringify({ ok: false, error: { message: e instanceof Error ? e.message : String(e), retryable: false } }));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+    const action = process.argv[2];
+    const project = process.env.TROOP_PROJECT_DIR || req.project;
+    const outputs = action === 'create-pr' ? createPr(req.input || {}, project)
+      : action === 'checks' ? checks(req.input || {})
+      : action === 'list-prs' ? listPrs(req.input || {})
+      : action === 'release' ? release(req.input || {}, project)
+      : null;
+    if (!outputs) throw new Error(`unknown action ${action}`);
+    process.stdout.write(JSON.stringify({ ok: true, outputs }));
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ ok: false, error: { message: e instanceof Error ? e.message : String(e), retryable: false } }));
+  }
 }

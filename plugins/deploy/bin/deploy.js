@@ -19,7 +19,7 @@ function deploy(input, project, prod) {
   const args = ['deploy', '--yes', ...(prod ? ['--prod'] : [])];
   const r = spawnSync('vercel', args, { cwd: dir, encoding: 'utf8', windowsHide: true, shell: win, maxBuffer: 16 * 1024 * 1024 });
   if (r.error) throw new Error(`vercel could not start: ${r.error.message}`);
-  if (r.status !== 0) throw new Error(`vercel deploy failed: ${(r.stderr || r.stdout || '').trim().slice(0, 500)}`);
+  if (r.status !== 0) throw new Error(`vercel deploy failed: ${(r.stderr || r.stdout || '').trim().slice(-500)}`);
   const url = r.stdout.replace(/\x1b\[[0-9;]*m/g, '').match(/https?:\/\/\S+/)?.[0];
   if (!url) throw new Error(`vercel did not print a deployment URL: ${r.stdout.trim().slice(0, 200)}`);
   return { url };

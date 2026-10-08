@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { search } from '../../plugins/agent-reach/bin/search.js';
 import { check } from '../../plugins/cite-check/bin/cite-check.js';
 import { crawl } from '../../plugins/seo/bin/seo.js';
+import { run } from '../../plugins/github/bin/github.js';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'research-plugins-'));
@@ -54,4 +57,20 @@ test('seo crawl follows a start URL that redirects to another origin', async () 
   };
   const result = await crawl({ url: 'https://a.example/' }, null, get);
   assert.deepEqual(result.data.pages.map((p) => p.url), ['https://a.example/', 'https://www.a.example/about']);
+});
+
+test('github and deploy errors keep the end of a long error', { skip: process.platform !== 'win32' }, () => {
+  assert.throws(() => run(process.execPath, ['-e', "process.stderr.write('x'.repeat(600) + 'REAL ERROR'); process.exit(1)"]), /x+REAL ERROR$/);
+  const dir = tempDir();
+  try {
+    mkdirSync(join(dir, 'site', '.vercel'), { recursive: true });
+    writeFileSync(join(dir, 'site', '.vercel', 'project.json'), '{}');
+    mkdirSync(join(dir, 'bin'));
+    writeFileSync(join(dir, 'bin', 'vercel.cmd'), `@"${process.execPath}" -e "process.stderr.write('x'.repeat(600) + 'REAL ERROR'); process.exit(1)"\r\n`);
+    const deploy = fileURLToPath(new URL('../../plugins/deploy/bin/deploy.js', import.meta.url));
+    const out = execFileSync(process.execPath, [deploy, 'preview'], { input: JSON.stringify({ input: { path: 'site' }, project: dir }), env: { ...process.env, TROOP_PROJECT_DIR: dir, PATH: `${join(dir, 'bin')};${process.env.PATH}` }, encoding: 'utf8' });
+    assert.match(JSON.parse(out).error.message, /REAL ERROR$/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
