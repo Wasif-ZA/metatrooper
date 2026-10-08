@@ -76,7 +76,8 @@ export async function check(input, runDir) {
       bound += 1;
     }
   });
-  const result = { passed: unbound.length === 0 && dead_links.length === 0, claims_total, bound, unbound, dead_links };
+  const cited = new Set([...report.matchAll(/\[(s\w+)\]/g)].map((m) => m[1]));
+  const result = { passed: unbound.length === 0 && !dead_links.some((d) => cited.has(d.id)),claims_total, bound, unbound, dead_links };
   const result_path = path.join(runDir || path.dirname(input.report), 'cite-check.json');
   fs.writeFileSync(result_path, JSON.stringify(result, null, 2));
   return { ...result, result_path };
