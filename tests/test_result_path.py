@@ -142,10 +142,9 @@ def test_no_policy_file_changes_nothing(capsys):
 def fake_tool(folder, name, version):
     if os.name == "nt":
         (folder / f"{name}.cmd").write_text(f"@echo {name} {version}\r\n", encoding="utf-8")
-    else:
-        p = folder / name
-        p.write_text(f"#!/bin/sh\necho '{name} {version}'\n", encoding="utf-8")
-        p.chmod(0o755)
+    p = folder / name
+    p.write_text(f"#!/bin/sh\necho '{name} {version}'\n", encoding="utf-8", newline="\n")
+    p.chmod(0o755)
 
 
 def test_check_changed_selects_only_recipes_whose_tool_moved(capsys, tmp_path, monkeypatch, isolated):
@@ -155,8 +154,8 @@ def test_check_changed_selects_only_recipes_whose_tool_moved(capsys, tmp_path, m
     fake_tool(bins, "steadytool", "3.0")
     monkeypatch.setenv("PATH", str(bins) + os.pathsep + os.environ["PATH"])
     ex = {"args": [], "expect_exit": 0}
-    store.save("moving", "movingtool run && false", example=ex)
-    store.save("steady", "steadytool run && false", example=ex)
+    store.save("moving", "movingtool run | grep -q 1.0", example=ex)
+    store.save("steady", "steadytool run | grep -q 3.0", example=ex)
     invoke(capsys, "check")
     versions = json.loads((isolated / "versions.json").read_text(encoding="utf-8"))
     assert versions["movingtool"] == "movingtool 1.0"
@@ -166,7 +165,27 @@ def test_check_changed_selects_only_recipes_whose_tool_moved(capsys, tmp_path, m
     assert "moving:" in r["out"] and "steady" not in r["out"]
     assert "movingtool 1.0 -> movingtool 2.0" in r["out"]
     code, r = invoke(capsys, "check", "--changed")
+    assert code == 1 and "moving:" in r["out"], "a recipe that broke on the new version stays selected"
+    store.save("moving", "movingtool run | grep -q 2.0", example=ex)
+    invoke(capsys, "check", "--changed")
+    code, r = invoke(capsys, "check", "--changed")
     assert code == 0 and "no recipe" in r["out"]
+
+
+def test_gemini_fallback_keeps_dir_flags_for_a_file_question(capsys, tmp_path, isolated, monkeypatch):
+    write_engines(tmp_path, isolated, LIMITED, monkeypatch=monkeypatch)
+    code, r = invoke(capsys, "run", "codex", "--dir", str(tmp_path), "explain notes.md")
+    assert code == 0 and r["fallback"] == "gemini"
+
+
+def test_scan_reads_other_agents_sessions(capsys, tmp_path, isolated, monkeypatch):
+    from metarouter import transcripts
+    seen = []
+    real = transcripts.sessions
+    monkeypatch.setattr(transcripts, "found", lambda: ["codex"])
+    monkeypatch.setattr(transcripts, "sessions", lambda agents, since=None, roots=None: seen.append(agents) or real(agents, since, roots))
+    invoke(capsys, "learn", "--scan", "--days", "7")
+    assert seen == [["codex"]]
 
 
 def test_log_lane_output_is_masked(tmp_path, monkeypatch, capsys):

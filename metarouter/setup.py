@@ -172,8 +172,10 @@ def scan(args):
     days = flag_value(args, "--days") or str(SCAN_DAYS)
     if not days.isdigit():
         return Result(ok=False, lane="learn", exit=2, note="--days needs a number")
+    from metarouter import transcripts
     root = flag_value(args, "--root") or learn.TRANSCRIPTS
-    n_sessions, n_cmds, groups, shapes, *_ = learn.mine(root, since=time.time() - int(days) * 86400)
+    agents = None if "--root" in args else transcripts.parse_from(flag_value(args, "--from")) or transcripts.found()
+    n_sessions, n_cmds, groups, shapes, *_ = learn.mine(root, since=time.time() - int(days) * 86400, agents=agents)
     counts = {s: v[0] for s, v in shapes.items() if learn.candidate_shape(s) and not private(s)}
     counts.update({f"inline python: {g}": n for g, n in groups.items()})
     top = sorted(((s, n) for s, n in counts.items() if n >= 2), key=lambda x: -x[1])[:SCAN_TOP]

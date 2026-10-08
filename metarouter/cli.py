@@ -351,7 +351,8 @@ def run_engine(r, args):
     name = r["name"]
     try:
         sh = shell()
-        cmd = engines.argv(r, args, (bash() or "bash") if is_powershell(sh) else sh)
+        sh = (bash() or "bash") if is_powershell(sh) else sh
+        cmd = engines.argv(r, args, sh)
     except (ValueError, FileNotFoundError) as e:
         return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e))
     env = {**os.environ, "NODE_NO_WARNINGS": "1"}
@@ -363,7 +364,7 @@ def run_engine(r, args):
     marker = None
     why = engines.limit_hit(r.get("engine"), proc.returncode, (proc.stdout + proc.stderr).decode("utf-8", "replace"))
     if why:
-        for alt, alt_cmd in engines.fallbacks(r["engine"], args, shell()):
+        for alt, alt_cmd in engines.fallbacks(r["engine"], args, sh):
             try:
                 proc = subprocess.run(alt_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
             except OSError:
@@ -619,7 +620,7 @@ def check(args):
             return Result(ok=True, lane="check", out="no recipes in this repo's .metarouter/recipes")
     untrusted = set() if project_only else {n for n, r in recipes.items() if store.needs_trust(r)}
     rows = calls.read()
-    lines, failed = [], 0
+    lines, failed, broke = [], 0, set()
     changed = "--changed" in args
     tool = {n: versions.binary(r) for n, r in recipes.items()}
     old = versions.recorded()
@@ -655,6 +656,7 @@ def check(args):
                 bad = [fn for fn in ex.get("setup", {}) if not (work / fn).resolve().is_relative_to(work.resolve())]
                 if bad:
                     failed += 1
+                    broke.add(tool[name])
                     lines.append(f"FAIL  {name}: setup file {bad[0]!r} is outside the example folder")
                     continue
                 for fn, content in ex.get("setup", {}).items():
@@ -678,6 +680,7 @@ def check(args):
                     lines.append(f"pass  {name}")
                 else:
                     failed += 1
+                    broke.add(tool[name])
                     b = tool[name]
                     moved = f" [{b}: {old.get(b) or 'not recorded'} -> {now[b]}]" if changed else ""
                     lines.append(f"FAIL  {name}: exit {code} (wanted {want_exit}), "
@@ -687,7 +690,7 @@ def check(args):
                 os.environ.pop("METAROUTER_HOME", None)
             else:
                 os.environ["METAROUTER_HOME"] = real_home
-    versions.record({b: v for b, v in now.items() if v})
+    versions.record({b: v for b, v in now.items() if v and b not in broke})
     if changed:
         return Result(ok=failed == 0, lane="check", exit=1 if failed else 0,
                       out="\n".join(lines) or "no recipe's tool version changed since the last check")

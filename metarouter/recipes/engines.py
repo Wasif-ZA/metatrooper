@@ -150,10 +150,11 @@ def prompt_of(args):
 def fallbacks(failed, args, shell):
     """Yield (engine, argv) for each engine in config "fallback" that is set up, skipping the one that failed."""
     prompt = prompt_of(args)
+    dirs = [x for flag in ("--dir", "--add-dir") for v in take(args, flag)[0] for x in (flag, v)]
     for engine in config().get("fallback") or []:
         if engine == failed or engine not in ("codex", "gemini", "local"):
             continue
         try:
-            yield engine, argv({"engine": engine}, [prompt], shell)
+            yield engine, argv({"engine": engine}, [*(dirs if engine == "gemini" else []), prompt], shell)
         except (ValueError, FileNotFoundError):
             continue
