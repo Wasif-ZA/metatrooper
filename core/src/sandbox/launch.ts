@@ -45,7 +45,7 @@ export function gitLayout(worktree: string): { gitdir: string; common: string } 
 const bind = (src: string, dst: string, ro = false) => ['--mount', `type=bind,source=${fwd(src)},target=${dst}${ro ? ',readonly' : ''}`];
 
 /** The docker run argv for a sandboxed session, per spec.md "Trooper sandbox host plugin" and the build plan's D2, D6, D7 and D9. */
-export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: string, layout: { gitdir: string; common: string }, inner: string[], runtime = 'docker'): string[] {
+export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: string, layout: { gitdir: string; common: string }, inner: string[], runtime = 'docker', env: Record<string, string> = {}): string[] {
   const home = os.homedir();
   const hooks = path.join(layout.common, 'hooks');
   fs.mkdirSync(hooks, { recursive: true });
@@ -68,6 +68,7 @@ export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: stri
     '-e', `TROOP_SESSION_ID=${sessionId}`, '-e', 'METATROOPER_SPOOL=/troop/spool',
     '-e', `HTTPS_PROXY=http://${PROXY}:3128`, '-e', `HTTP_PROXY=http://${PROXY}:3128`, '-e', 'NO_PROXY=',
     '-e', `GIT_DIR=${mapPath(layout.gitdir)}`, '-e', `GIT_WORK_TREE=${mapPath(worktree)}`,
+    ...Object.entries(env).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
     '-w', mapPath(worktree), imageTag(), '/opt/troop/entry.sh', ...inner,
   ];
 }
