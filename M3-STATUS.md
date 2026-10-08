@@ -9,7 +9,7 @@ with the guarded step not run, and finishes on approve. A real-engine run of eac
 
 | Criterion | Status | Evidence / notes |
 |---|---|---|
-| M3-01 | IN PROGRESS | core/test/m3-e2e.test.ts (by Claude). data-to-dashboard VERIFIED-WINDOWS 2026-10-08T23:05+11:00: real `data/load` on a 4-row CSV (one duplicate, mixed dates and prices) into raw, every agent step done in order, pauses at the signoff handoff gate, done on approve. Dev command swapped for a node server so the test needs no `npx` download. Left: footage-to-edit, clips-to-scheduled-posts, seo-audit-fix, deep-research-cited, prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf, form-fill-batch. |
+| M3-01 | IN PROGRESS | core/test/m3-e2e.test.ts (by Claude). data-to-dashboard VERIFIED-WINDOWS 2026-10-08T22:48+11:00: real `data/load` on a 4-row CSV (one duplicate, mixed dates and prices) into raw, every agent step done in order, pauses at the signoff handoff gate, done on approve. Dev command swapped for a node server so the test needs no `npx` download. Left: footage-to-edit, clips-to-scheduled-posts, seo-audit-fix, deep-research-cited, prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf, form-fill-batch. |
 | M3-02 | VERIFIED-WINDOWS | c271cff: core/test/m3-plugins.test.ts cite-check planted-quote and curly-quote cases. |
 | M3-03 | TODO | form-fill-batch handoff on the captcha stand-in. tests/fixtures/form-fill-batch holds only the UI mock (run.js); the local test form is not built. |
 | M3-04 | TODO | No templates exist yet (catalog 3, 4, 5, 9, 15, 16, 18 to 22, 24, 25 and A1 to A4). Where they live is Wasif's call: `store.ts` seeds every `pipelines/*.json` as a runnable builtin. |
