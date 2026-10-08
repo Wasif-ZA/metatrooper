@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { search } from '../../plugins/agent-reach/bin/search.js';
@@ -33,4 +33,11 @@ test('cite-check passes when only an uncited source is dead', async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('deep-research draft prompt asks for the source id form search writes', () => {
+  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/deep-research-cited.json', import.meta.url), 'utf8'));
+  const draft = pipe.steps.find((s) => s.id === 'draft').prompt;
+  assert.doesNotMatch(draft, /\[s#\]/);
+  assert.match(draft, /\[s01\]/);
 });
