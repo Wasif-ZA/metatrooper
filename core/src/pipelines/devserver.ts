@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso } from '../time.ts';
 import { killPid } from '../plugins/actions.ts';
@@ -93,6 +93,17 @@ export function stopRunServers(db: DatabaseSync, runId: string): void {
   const rows = db.prepare('SELECT idx FROM dev_server WHERE run_id = ?').all(runId) as Array<{ idx: number }>;
   for (const r of rows) stopDevServer(db, runId, r.idx);
   releasePorts(db, runId);
+}
+
+/** True when the process with this pid started within a minute of `startedAt`, so a reused pid is never mistaken for the server. */
+export function startedNear(pid: number, startedAt: string): boolean {
+  const at = Date.parse(startedAt);
+  if (!Number.isFinite(at)) return false;
+  const out = process.platform === 'win32'
+    ? spawnSync('powershell', ['-NoProfile', '-Command', `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout
+    : spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8', timeout: 15_000 }).stdout;
+  const started = Date.parse((out ?? '').trim());
+  return Number.isFinite(started) && Math.abs(started - at) < 60_000;
 }
 
 export function stopAllServers(db: DatabaseSync): void {

@@ -82,6 +82,33 @@ test('core restart fails a running run whose folder is gone instead of crashing'
   }
 });
 
+test('core restart kills a stored dev server only while its pid is the same process, and clears its pane preview', async () => {
+  const { home, db, Runner } = await recoverDb();
+  const { spawn } = await import('node:child_process');
+  const sleeper = () => spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  const ours = sleeper();
+  const reused = sleeper();
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  try {
+    db.prepare(`INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, paused_why, trigger, max_tokens, max_usd, max_minutes, started_at)
+      VALUES ('pk', 'pl', 'p', '{}', ?, 'paused', 'handoff', 'manual', 1000, 10, 60, 'x')`).run(home);
+    for (const [idx, port] of [[0, 3901], [1, 3902]]) db.prepare("INSERT INTO port_lease (port, run_id, idx, leased_at) VALUES (?, 'pk', ?, 'x')").run(port, idx);
+    const server = db.prepare("INSERT INTO dev_server (run_id, idx, port, pid, status, started_at) VALUES ('pk', ?, ?, ?, 'ready', ?)");
+    server.run(0, 3901, ours.pid, new Date().toISOString());
+    server.run(1, 3902, reused.pid, new Date(Date.now() - 2 * 3_600_000).toISOString());
+    db.prepare("INSERT INTO browser_pane (id, project_id, run_id, variant, url, open) VALUES ('bp-pk', 'p', 'pk', 0, 'http://127.0.0.1:3901/', 1)").run();
+    new Runner(db).recover();
+    for (let i = 0; i < 50 && alive(ours.pid as number); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.equal(alive(ours.pid as number), false);
+    assert.equal(alive(reused.pid as number), true);
+    assert.equal((db.prepare("SELECT url FROM browser_pane WHERE id = 'bp-pk'").get() as { url: string | null }).url, null);
+  } finally {
+    ours.kill();
+    reused.kill();
+    db.close();
+  }
+});
+
 test('core restart fails a run with several interrupted steps once', async () => {
   const { home, db, Runner } = await recoverDb();
   try {

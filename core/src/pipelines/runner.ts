@@ -17,7 +17,7 @@ import { loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
-import { startDevServer, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
+import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
 import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
 
@@ -1100,9 +1100,10 @@ export class Runner {
         .run(nowIso(), r.run_id, r.step_id, r.iteration, r.fanout_index);
       this.fail(run, `step ${r.step_id} was interrupted by a core restart; resume to run it again`);
     }
-    for (const d of this.db.prepare("SELECT pid FROM dev_server WHERE status IN ('starting','ready') AND pid IS NOT NULL").all() as Array<{ pid: number }>) {
-      if (pidAlive(d.pid)) killPid(d.pid);
+    for (const d of this.db.prepare("SELECT pid, started_at FROM dev_server WHERE status IN ('starting','ready') AND pid IS NOT NULL").all() as Array<{ pid: number; started_at: string }>) {
+      if (pidAlive(d.pid) && startedNear(d.pid, d.started_at)) killPid(d.pid);
     }
+    this.db.prepare('UPDATE browser_pane SET url = NULL WHERE EXISTS (SELECT 1 FROM dev_server d WHERE d.run_id = browser_pane.run_id AND d.idx = browser_pane.variant)').run();
     this.db.prepare("DELETE FROM dev_server WHERE status IN ('starting','ready','failed','stopped')").run();
     this.db.prepare("DELETE FROM port_lease WHERE run_id IN (SELECT id FROM run WHERE status IN ('done','failed','cancelled'))").run();
   }
