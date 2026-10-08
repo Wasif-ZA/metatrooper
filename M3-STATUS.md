@@ -65,3 +65,8 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
 - FIXED 2026-10-09T00:09+11:00, #32 #33: `media` `pickMoment` fell back to every moment when none was approved, so dropping all of them
   at the pick gate still cut the first 4. A dropped moment is now never cut; with no approved moment the pending ones
   are cut as before (core/test/pick-moment.test.ts; the old line fails it).
+- FIXED 2026-10-09T00:19+11:00, #32 #34 #35 and agent-reach (SSRF, found while checking a light Codex pass): every vendored `safe-fetch.js`
+  matched IPv4-mapped IPv6 only in dotted form, but the URL parser rewrites `[::ffff:127.0.0.1]` to `[::ffff:7f00:1]`.
+  So loopback, 10.0.0.1 (`[::ffff:a00:1]`) and the cloud metadata address 169.254.169.254 (`[::ffff:a9fe:a9fe]`) passed
+  the guard. `isPrivate` and `isLoopback` now use `net.BlockList`, which judges a mapped address by its IPv4 rules, and
+  IPv4-compatible `::/96` is refused too. core/test/seo-loopback.test.ts covers the hex forms; the old file fails it.

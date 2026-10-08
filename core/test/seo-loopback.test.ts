@@ -22,6 +22,17 @@ test('isLoopback covers all of 127.0.0.0/8, ::1 and IPv4-mapped loopback, and no
   for (const ip of ['10.0.0.1', '192.168.1.5', '169.254.1.1', '::', 'fc00::1', '::ffff:10.0.0.1', '128.0.0.1']) assert.equal(isLoopback(ip), false, ip);
 });
 
+test('IPv4-mapped and IPv4-compatible IPv6 in hex are judged by their IPv4 address', async () => {
+  for (const host of ['[::ffff:127.0.0.1]', '[::ffff:7f00:1]', '[0:0:0:0:0:ffff:7f00:1]', '[::ffff:a00:1]', '[::ffff:a9fe:a9fe]', '[::7f00:1]']) {
+    await assert.rejects(checkUrl(`http://${host}/`), /private address/, host);
+  }
+  assert.equal((await checkUrl('http://[::ffff:808:808]/')).hostname, '[::ffff:808:808]');
+  assert.equal(isLoopback('::ffff:7f00:1'), true);
+  assert.equal(isLoopback('::ffff:a00:1'), false);
+  assert.equal((await checkUrl('http://[::ffff:7f00:1]/', undefined, { loopback: true })).hostname, '[::ffff:7f00:1]');
+  await assert.rejects(checkUrl('http://[::ffff:a00:1]/', undefined, { loopback: true }), /private address/);
+});
+
 test('loopbackStart is true only when every resolved address is loopback', async () => {
   assert.equal(await loopbackStart('http://127.0.0.2:8080/'), true);
   assert.equal(await loopbackStart('http://[::1]/'), true);
