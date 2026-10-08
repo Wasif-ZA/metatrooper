@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { schedulePost, ApiError } from '../../plugins/social-scheduler/bin/social-scheduler.js';
 import { validateManifest } from '../src/plugins/manifest.ts';
+import { root } from './helpers.ts';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'social-scheduler-'));
@@ -170,7 +171,7 @@ test('preserves the original first post error and retryable flag', async () => {
 });
 
 test('social-scheduler manifest validates without warnings', () => {
-  const pluginDir = resolve(process.cwd(), 'plugins/social-scheduler');
+  const pluginDir = resolve(root, 'plugins/social-scheduler');
   const manifest = JSON.parse(readFileSync(join(pluginDir, 'troop-plugin.json'), 'utf8'));
   assert.deepEqual(validateManifest(manifest, pluginDir), []);
 });
