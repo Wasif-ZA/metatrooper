@@ -61,6 +61,9 @@ Done when, in this order of preference:
 2. the session reports `done` (Claude Stop hook, Codex notify, terminal bell when silent), or the output file has not
    changed for 10 s.
 
+Front matter values are `key: value` scalars, `- item` lists, and `|` (lines kept) or `>` (folded to one
+line) blocks. A ` # comment` after a one-word value is dropped, so `status: done  # ok` reads as `done`.
+
 `status: failed` in the file, a missing required output key, the session exiting without the file, or
 `timeout_minutes` passing, fails the step. The session is never killed by the runner; on failure its card
 says "step failed, session left open".
@@ -108,7 +111,13 @@ Its stdout JSON becomes the step outputs and is written to `<step_id>.json`.
 ## Fan-out, worktrees, ports
 
 - `fanout: N` runs the step N times in parallel. With `worktree: true`, each index gets
-  `git worktree add <~/.metatrooper/worktrees/<project_id>/<run_id>-<i>> -b troop/<run_id>-<i>`.
+  `git worktree add <~/.metatrooper/worktrees/<project_id>/<run_id>-<i>> -b troop/<run_id>-<i>`. A folder at
+  that path that git does not list as a worktree is deleted and made again; a `troop/` branch that survived
+  is checked out as it is, without `-b`.
+- When a run ends `done` or `cancelled`, each of its worktrees with no uncommitted or untracked changes is
+  removed (`git worktree remove`, never forced), and each `troop/` branch with no commits beyond the project's
+  HEAD is deleted (`git branch -d`). A worktree with changes, or a branch with commits, is the run's work and
+  stays; the run log records each kept worktree. A `failed` run keeps everything for inspection.
 - Ports: the core is the only allocator. For each index it takes the lowest port at or above 3001 that has no
   `port_lease` row and is not currently listening (checked with `Get-NetTCPConnection -State Listen`), writes
   the lease in the same transaction, and passes it as `{{port}}` to `dev_command`. Because allocation is one
@@ -153,7 +162,10 @@ variant is discarded:
   limit was reached. To keep that small, a run with a budget runs at most `max_parallel` agent steps at once
   (default 3, pipeline field `budget.max_parallel`); further fan-out indexes wait.
 - `max_minutes`: wall-clock limit for the whole run, the only limit that applies to engines whose usage is
-  `unknown`.
+  `unknown`. Time the run or any of its sub-pipeline runs spends waiting at a gate does not count.
+- A step that fails while the run is paused leaves the run paused, and a step that fails in the same pass as
+  a budget stop pauses the run for budget unless the breaker tripped; resume runs the failed step again.
+- Raise and Resume in the workbench takes new limits for tokens, dollars and minutes, whichever stopped the run.
 
 ## Schedules
 
@@ -200,6 +212,7 @@ Choices the sections above leave open, as built:
   not pause for it, and the gate settles itself when the output file arrives.
 - Budgets count `tokens_in + tokens_out + cache_write`; `cache_read` is left out because cached reads would
   trip a token budget long before cost matters. A sub-pipeline's budget is the parent's remainder at start.
+  Raising a parent's limits on resume raises each resumed sub-pipeline run's limits by the same amount.
 - `run.resume` takes optional `max_tokens`, `max_usd` and `max_minutes`, which can only raise the run's
   limits. It refuses a run waiting at a gate (resolve the gate); a run stopped by the breaker resumes with
   its failure counts cleared. After `loop-max`, resume carries on with the step after the loop. Resuming a parent resumes its paused

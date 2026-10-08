@@ -200,7 +200,7 @@ function renderRunDetail() {
   if (run.status === 'running' || run.status === 'paused') actions.push('<button class="danger" data-action="cancel-run">Cancel</button>');
   if ((run.status === 'paused' && run.paused_why !== 'gate' && run.paused_why !== 'handoff') || run.status === 'failed') {
     actions.push(run.paused_why === 'budget'
-      ? '<span class="label">Raise tokens to</span><input type="number" data-key="raise-tokens" id="raise-tokens" style="width:110px"><button data-action="resume-run">Resume</button>'
+      ? `<span class="label">Raise to</span>${[['tokens', 'tokens'], ['usd', 'dollars'], ['minutes', 'minutes']].map(([k, label]) => `<input type="number" data-key="raise-${k}" id="raise-${k}" placeholder="${label}" style="width:90px">`).join('')}<button data-action="resume-run">Resume</button>`
       : '<button data-action="resume-run">Resume</button>');
   }
   const rows = steps.map((x) => `<tr>
@@ -1617,9 +1617,11 @@ async function onClick(e) {
       return;
     }
     case 'resume-run': {
-      const raise = document.getElementById('raise-tokens');
       const params = { run_id: ui.runId };
-      if (raise && raise.value) params.max_tokens = Number(raise.value);
+      for (const k of ['tokens', 'usd', 'minutes']) {
+        const raise = document.getElementById(`raise-${k}`);
+        if (raise && raise.value) params[`max_${k}`] = Number(raise.value);
+      }
       await rpc('run.resume', params);
       return;
     }

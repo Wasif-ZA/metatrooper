@@ -144,7 +144,14 @@ export function parseFrontMatter(text: string): Record<string, unknown> | null {
     }
     const kv = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(line);
     if (!kv) continue;
-    if (kv[2] === '') {
+    if (/^[|>][-+]?$/.test(kv[2].trim())) {
+      const block: string[] = [];
+      while (n + 1 < lines.length && lines[n + 1].trim() !== '---' && (!lines[n + 1].trim() || /^\s/.test(lines[n + 1]))) block.push(lines[++n]);
+      const indent = Math.min(...block.filter((l) => l.trim()).map((l) => l.length - l.trimStart().length));
+      const body = block.map((l) => l.slice(indent)).join('\n').trim();
+      out[kv[1]] = kv[2].trim()[0] === '>' ? body.replace(/\s+/g, ' ') : body;
+      listKey = null;
+    } else if (kv[2] === '') {
       out[kv[1]] = [];
       listKey = kv[1];
     } else {
@@ -156,7 +163,7 @@ export function parseFrontMatter(text: string): Record<string, unknown> | null {
 }
 
 function scalar(s: string): unknown {
-  const t = s.trim();
+  const t = s.trim().replace(/^(\S+)\s+#\s.*$/, '$1');
   if (/^(true|false|null)$/.test(t) || /^-?\d+(\.\d+)?$/.test(t) || /^[[{"]/.test(t)) {
     try {
       return JSON.parse(t);

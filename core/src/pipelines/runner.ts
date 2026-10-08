@@ -177,7 +177,7 @@ export class Runner {
     const out: Record<string, unknown> = {};
     const errors: string[] = [];
     for (const [name, spec] of Object.entries(pipe.inputs ?? {})) {
-      const v = given[name] ?? spec.default;
+      const v = given[name] === '' ? spec.default : given[name] ?? spec.default;
       if (v === undefined || v === '') {
         if (spec.required !== false) errors.push(`input ${name} is required`);
         continue;
@@ -215,8 +215,14 @@ export class Runner {
       this.log(run, { event: 'breaker reset', detail: 'failure counts cleared by resume' });
     }
     this.db.prepare("UPDATE run_step SET status = 'pending', session_id = NULL WHERE run_id = ? AND status IN ('failed','running')").run(runId);
-    for (const c of this.db.prepare("SELECT id FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as Array<{ id: string }>) {
-      if (!this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) this.resume(c.id, raise);
+    const raised = this.run(runId) as RunRow;
+    for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as unknown as RunRow[]) {
+      if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) continue;
+      this.resume(c.id, {
+        max_tokens: c.max_tokens + raised.max_tokens - run.max_tokens,
+        max_usd: c.max_usd + raised.max_usd - run.max_usd,
+        max_minutes: c.max_minutes + raised.max_minutes - run.max_minutes,
+      });
     }
     this.db.prepare("UPDATE run SET status = 'running', paused_why = NULL, ended_at = NULL WHERE id = ?").run(runId);
     this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE ref = ? AND kind IN ('run-failed','budget','other') AND resolved_at IS NULL").run(nowIso(), runId);
@@ -248,7 +254,27 @@ export class Runner {
       for (const s of this.db.prepare('SELECT id FROM session WHERE run_id = ?').all(run.id) as Array<{ id: string }>) term.kill(s.id);
     }
     stopRunServers(this.db, run.id);
+    this.removeWorktrees(run);
     this.log(run, { event: `run ${status}` });
+  }
+
+  /** Removes the run's clean worktrees, and each troop branch that has no commits beyond the project's HEAD. */
+  private removeWorktrees(run: RunRow): void {
+    const project = this.project(run.project_id);
+    const root = path.join(homeDir(), 'worktrees', project.id);
+    if (!fs.existsSync(root)) return;
+    for (const name of fs.readdirSync(root).filter((n) => n.startsWith(`${run.id.toLowerCase()}-`))) {
+      const dir = path.join(root, name);
+      try {
+        git(project.path, ['worktree', 'remove', dir]);
+        this.db.prepare("UPDATE variant SET worktree = '' WHERE run_id = ? AND worktree = ?").run(run.id, slash(dir));
+      } catch (e) {
+        this.log(run, { event: 'worktree kept', path: slash(dir), why: gitError(e) });
+      }
+      try {
+        git(project.path, ['branch', '-d', `troop/${name}`]);
+      } catch {}
+    }
   }
 
   private live(runId: string): boolean {
@@ -276,8 +302,9 @@ export class Runner {
           return;
         }
         const outcome = await this.execStep(run, pipe, next.step, next.iteration);
+        const finished = outcome === 'done' || (outcome === 'stopped' && this.run(runId)?.status === 'paused');
+        if (next.step.loop && finished && this.rows(runId, next.step.id, next.iteration).every((r) => r.status === 'done')) this.afterLoop(run, pipe, next.step, next.iteration);
         if (outcome !== 'done') return;
-        if (next.step.loop) this.afterLoop(run, pipe, next.step, next.iteration);
       }
     } catch (e) {
       const run = this.run(runId);
@@ -357,14 +384,33 @@ export class Runner {
     const u = this.used(run.id);
     if (u.tokens >= run.max_tokens) return `token budget reached (${u.tokens} of ${run.max_tokens})`;
     if (u.usd >= run.max_usd) return `dollar budget reached ($${u.usd.toFixed(2)} of $${run.max_usd.toFixed(2)})`;
-    const minutes = (Date.now() - Date.parse(run.started_at)) / 60_000;
+    const minutes = this.minutesUsed(run);
     if (minutes >= run.max_minutes) return `time budget reached (${Math.floor(minutes)} of ${run.max_minutes} minutes)`;
     return null;
   }
 
+  /** Wall-clock minutes since the run started, less the time it or its sub-pipeline runs waited at a gate. */
+  private minutesUsed(run: RunRow): number {
+    const ids = this.runTree(run.id);
+    const waits = this.db.prepare(
+      `SELECT at, resolved_at FROM needs_you WHERE kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${ids.map(() => '?').join(',')})) ORDER BY at`,
+    ).all(...ids) as Array<{ at: string; resolved_at: string | null }>;
+    const now = Date.now();
+    const start = Date.parse(run.started_at);
+    let ms = now - start;
+    let edge = start;
+    for (const w of waits) {
+      const from = Math.max(Date.parse(w.at), edge);
+      const to = w.resolved_at ? Date.parse(w.resolved_at) : now;
+      if (to > from) ms -= to - from;
+      edge = Math.max(edge, to);
+    }
+    return ms / 60_000;
+  }
+
   private remaining(run: RunRow): { tokens: number; usd: number; minutes: number } {
     const u = this.used(run.id);
-    const minutes = (Date.now() - Date.parse(run.started_at)) / 60_000;
+    const minutes = this.minutesUsed(run);
     return { tokens: Math.max(0, run.max_tokens - u.tokens), usd: Math.max(0, run.max_usd - u.usd), minutes: Math.max(1, run.max_minutes - minutes) };
   }
 
@@ -431,10 +477,8 @@ export class Runner {
     const failures = results.filter((r): r is { ok: false; error: string } => r !== null && 'ok' in r && r.ok === false);
     if (failures.length) {
       const tripped = this.rows(run.id, step.id, iteration).some((r) => r.fail_count >= BREAKER);
-      if (current.status === 'running' || current.status === 'paused') {
-        return this.fail(current, `step ${step.id} failed: ${failures.map((f) => f.error).join('; ')}`, tripped);
-      }
-      return 'failed';
+      if (current.status !== 'running') return 'failed';
+      if (!budgetHit || tripped) return this.fail(current, `step ${step.id} failed: ${failures.map((f) => f.error).join('; ')}`, tripped);
     }
     if (current.status !== 'running') return 'stopped';
     if (budgetHit) return this.pause(current, 'budget', { kind: 'budget', ref: run.id, text: `${pipe.title}: budget reached during ${step.id}; raise the budget and resume` });
@@ -505,12 +549,25 @@ export class Runner {
       const name = `${run.id.toLowerCase()}-${step.id}-${idx}`;
       const dir = path.join(homeDir(), 'worktrees', project.id, name);
       branch = `troop/${name}`;
-      if (!fs.existsSync(dir)) {
+      let listed = '';
+      try {
+        listed = git(project.path, ['worktree', 'list', '--porcelain']);
+      } catch {}
+      const registered = listed.split('\n').some((l) => l.startsWith('worktree ') && slash(l.slice(9).trim()).toLowerCase() === slash(dir).toLowerCase());
+      if (!registered) {
+        fs.rmSync(dir, { recursive: true, force: true });
         fs.mkdirSync(path.dirname(dir), { recursive: true });
         try {
-          execFileSync('git', ['-C', project.path, 'worktree', 'add', dir, '-b', branch, 'HEAD'], { stdio: 'pipe', timeout: 60_000, windowsHide: true });
+          git(project.path, ['worktree', 'prune']);
+          let kept = true;
+          try {
+            git(project.path, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
+          } catch {
+            kept = false;
+          }
+          git(project.path, ['worktree', 'add', dir, ...(kept ? [branch] : ['-b', branch, 'HEAD'])]);
         } catch (e) {
-          throw new Error(`git worktree add failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`);
+          throw new Error(`git worktree add failed: ${gitError(e)}`);
         }
       }
       cwd = slash(dir);
@@ -809,8 +866,8 @@ export class Runner {
   private async pipelineIndex(run: RunRow, step: Step, row: StepRow): Promise<IndexResult> {
     const u = parseUses(step.uses as string);
     if (u?.kind !== 'pipeline') return { ok: false, error: `bad uses ${step.uses}` };
-    let child = this.db.prepare("SELECT id FROM run WHERE parent_run = ? AND parent_step = ? AND status IN ('running','paused') ORDER BY started_at DESC LIMIT 1")
-      .get(run.id, step.id) as { id: string } | undefined;
+    const prior = row.output_path ? this.run(path.basename(row.output_path)) : undefined;
+    let child = prior && (prior.status === 'running' || prior.status === 'paused') ? { id: prior.id } : undefined;
     if (!child) {
       const inputs = resolveValue(step.with ?? {}, this.scope(run, row.fanout_index)) as Record<string, unknown>;
       const id = this.start({ pipeline_id: u.id, project_id: run.project_id, inputs, trigger: 'manual' }, { run, step: step.id, budget: this.remaining(run) });
@@ -1114,6 +1171,14 @@ export class Runner {
     void this.execIndex(run, pipe, step, row, true).catch(() => {});
     return { step_id: stepId };
   }
+}
+
+function git(cwd: string, args: string[]): string {
+  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe', timeout: 60_000, windowsHide: true });
+}
+
+function gitError(e: unknown): string {
+  return String((e as { stderr?: string }).stderr || e).trim();
 }
 
 /** Adds `.troop/` to the project's `.git/info/exclude` once, when the project is a git repository. */
