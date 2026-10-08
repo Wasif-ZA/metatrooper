@@ -489,6 +489,7 @@ export class Runner {
         const ready = await this.serveIndex(run, step, idx, place);
         if (!ready.ok) result = { ok: false, error: `dev server on port ${place.port} gave no response in 90 s:\n${ready.tail}` };
       }
+      if ('ok' in result && result.ok && fanout && step.worktree) this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND idx = ? AND status = 'building'").run(run.id, idx);
       return this.finishRow(run, row, result);
     } catch (e) {
       return this.finishRow(run, row, { ok: false, error: (e as Error).message });
@@ -543,10 +544,9 @@ export class Runner {
     const port = place.port as number;
     const command = resolveString(step.dev_command as string, this.scope(run, idx, port));
     startDevServer(this.db, run.id, idx, port, command, place.cwd);
-    const ready = await waitReady(this.db, run.id, idx, port, () => !this.live(run.id));
+    const ready = await waitReady(this.db, run.id, idx, port, () => !['running', 'paused'].includes(this.run(run.id)?.status ?? ''));
     if (ready.ok) {
       if (place.paneId) this.db.prepare('UPDATE browser_pane SET url = ?, dev_port = ?, open = 1 WHERE id = ?').run(`http://127.0.0.1:${port}/`, port, place.paneId);
-      this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND idx = ? AND status = 'building'").run(run.id, idx);
     }
     return ready;
   }
@@ -1021,7 +1021,7 @@ export class Runner {
   pick(runId: string, idx: number): void {
     const v = this.db.prepare('SELECT status FROM variant WHERE run_id = ? AND idx = ?').get(runId, idx) as { status: string } | undefined;
     if (!v) throw new RpcError(E.NOT_FOUND, 'variant not found');
-    if (v.status === 'discarded') throw new RpcError(E.VALIDATION, 'variant was discarded', { errors: ['variant was discarded'] });
+    if (v.status !== 'ready' && v.status !== 'picked') throw new RpcError(E.VALIDATION, `variant is ${v.status}, not ready`, { errors: [`variant is ${v.status}`] });
     this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND status = 'picked'").run(runId);
     this.db.prepare("UPDATE variant SET status = 'picked' WHERE run_id = ? AND idx = ?").run(runId, idx);
   }
@@ -1063,6 +1063,7 @@ export class Runner {
         | undefined;
       if (!v) throw new RpcError(E.NOT_FOUND, `variant ${idx} not found`);
       if (v.status === 'discarded') throw invalid(`variant ${idx} was discarded`);
+      if (!v.worktree) throw invalid(`variant ${idx} has no worktree`);
       return v;
     });
     const pipe = this.pipelineOf(run);

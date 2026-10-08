@@ -221,7 +221,7 @@ function renderVariants() {
     const where = [v.branch, v.dev_port ? `port ${v.dev_port}` : '', v.step_id && v.step_id.startsWith('combine-') ? v.step_id : ''].filter(Boolean).map(esc).join(' · ');
     return `<div class="card ${v.status === 'picked' ? 'on' : ''} ${live ? '' : 'gone'}"${ready ? ` data-action="variant-pane" data-id="${esc(v.pane_id)}" title="Open this variant's live preview" style="cursor:pointer"` : ''}>
       <div class="toolbar"><b>Variant ${v.idx + 1}</b><span class="state ${esc(v.status)}">${esc(v.status)}</span>
-        ${live ? `<label class="meta"><input type="checkbox" data-action="variant-toggle" data-idx="${v.idx}" ${ui.combine.includes(v.idx) ? 'checked' : ''}> combine</label>` : ''}</div>
+        ${live && v.branch ? `<label class="meta"><input type="checkbox" data-action="variant-toggle" data-idx="${v.idx}" ${ui.combine.includes(v.idx) ? 'checked' : ''}> combine</label>` : ''}</div>
       <div class="meta">${esc(v.engine_id || 'engine pending')} · ${esc(meter(v))}</div>
       ${where ? `<div class="meta">${where}</div>` : ''}
       <div class="actions">
