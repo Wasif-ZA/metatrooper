@@ -282,8 +282,9 @@ export class Runner {
           return;
         }
         const outcome = await this.execStep(run, pipe, next.step, next.iteration);
+        const finished = outcome === 'done' || (outcome === 'stopped' && this.run(runId)?.status === 'paused');
+        if (next.step.loop && finished && this.rows(runId, next.step.id, next.iteration).every((r) => r.status === 'done')) this.afterLoop(run, pipe, next.step, next.iteration);
         if (outcome !== 'done') return;
-        if (next.step.loop) this.afterLoop(run, pipe, next.step, next.iteration);
       }
     } catch (e) {
       const run = this.run(runId);

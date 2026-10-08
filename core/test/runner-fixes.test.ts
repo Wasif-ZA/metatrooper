@@ -88,6 +88,18 @@ test('F7 a step that fails while the run is paused for budget leaves it paused, 
   assert.deepEqual({ ...runOf(id) }, { status: 'paused', paused_why: 'budget' });
 });
 
+test('a loop step that finishes while the run is paused still checks until, so resume runs the next round', async () => {
+  codePipeline('loop-pause', 'export async function run() { await new Promise((r) => setTimeout(r, 500)); return { passed: false }; }',
+    { loop: { steps: ['work'], until: 'steps.work.passed', max: 3 } });
+  const runner = new Runner(db);
+  const id = runner.start({ pipeline_id: 'loop-pause', project_id: 'p' });
+  await until(() => db.prepare("SELECT 1 FROM run_step WHERE run_id = ? AND status = 'running'").get(id));
+  db.prepare("UPDATE run SET status = 'paused', paused_why = 'budget' WHERE id = ?").run(id);
+  await until(() => db.prepare("SELECT 1 FROM run_step WHERE run_id = ? AND status = 'done'").get(id));
+  await until(() => !priv(runner).active.has(id));
+  assert.ok(db.prepare("SELECT 1 FROM run_step WHERE run_id = ? AND step_id = 'work' AND iteration = 1 AND status = 'pending'").get(id));
+});
+
 test('each index of a fan-out pipeline step gets its own sub-pipeline run', async () => {
   codePipeline('fan-child', 'export async function run() { await new Promise((r) => setTimeout(r, 300)); return { ok: true }; }');
   fs.writeFileSync(path.join(pipelinesDir, 'fan-parent.json'), JSON.stringify({
