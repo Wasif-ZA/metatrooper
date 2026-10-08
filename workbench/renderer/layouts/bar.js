@@ -64,7 +64,8 @@ const runBars = (() => {
   }
 
   function line(run, st, d) {
-    const id = run.pipeline_id === 'two-engine-review' ? 'review' : run.pipeline_id;
+    const p = ctx.snap().pipelines.find((x) => x.id === run.pipeline_id);
+    const id = (p && p.title) || run.pipeline_id;
     const secs = Math.round(((run.ended_at ? Date.parse(run.ended_at) : Date.now()) - Date.parse(run.started_at)) / 1000);
     const at = `${Math.min(st.at, st.list.length)}/${st.list.length}`;
     if (!ended(run)) {

@@ -42,8 +42,9 @@ const termView = (() => {
     const paste = () => troop.readText().then((s) => { if (s) term.paste(s); });
     const copyOnRelease = () => { const s = term.getSelection(); if (s) void troop.copyText(s); };
     body.addEventListener('mousedown', (e) => { if (e.button === 0) window.addEventListener('mouseup', copyOnRelease, { once: true }); });
-    // A program with mouse tracking on (Claude Code) gets the right-click and pastes it itself.
-    body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (term.modes.mouseTrackingMode === 'none') void paste(); });
+    // The right button never reaches the program: Claude Code would paste it a second, slower time.
+    for (const type of ['mousedown', 'mouseup']) body.addEventListener(type, (e) => { if (e.button === 2) e.stopPropagation(); }, true);
+    body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); void paste(); });
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
       const k = e.key.toLowerCase();

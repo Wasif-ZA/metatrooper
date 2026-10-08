@@ -164,6 +164,7 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
     if (s.kind === 'action' && u?.kind !== 'plugin') errors.push(`${at(i, s)}/uses: an action step uses plugin:<id>/<action>`);
     if (s.kind === 'pipeline' && u?.kind !== 'pipeline') errors.push(`${at(i, s)}/uses: a pipeline step uses pipeline:<id>`);
     if (u?.kind === 'plugin' && !requires.has(u.plugin)) errors.push(`${at(i, s)}/uses: requires must list plugin ${u.plugin}`);
+    if (s.kind === 'action' && u?.kind === 'plugin' && !ctx.action(u.plugin, u.action)) errors.push(`${at(i, s)}/uses: plugin ${u.plugin} is not installed or has no action ${u.action}`);
   });
 
   p.steps.forEach((s, i) => {

@@ -127,7 +127,8 @@ const runScreen = (() => {
     const now = Date.now();
     return {
       run, pipe, meta: m, list, at: st.at, sessions,
-      title: m.title,
+      title: (pipe && pipe.title) || m.title,
+      num: snap.runs.filter((r) => r.pipeline_id === run.pipeline_id && r.started_at <= run.started_at).length,
       done: list.filter((x) => x.status === 'done').length,
       waiting: list.filter((x) => x.status === 'waiting').length,
       tokens: sessions.reduce((n, x) => n + (x.tokens || 0), 0),
@@ -211,7 +212,7 @@ const runScreen = (() => {
       void ctx.promote(m.watch.session.id);
     }
     const head = `<header class="rs-head">
-      <span class="crumb"><button class="lnk0" data-rs="wall" title="Back to the wall (Esc)">Wall</button><span>/</span><span class="here">${esc(m.title)}</span><span>/</span><span class="rid">${esc(m.run.id)}</span></span>
+      <span class="crumb"><button class="lnk0" data-rs="wall" title="Back to the wall (Esc)">Wall</button><span>/</span><span class="here">${esc(m.title)}</span><span>/</span><span class="rid" title="${esc(m.run.id)}">#${m.num}</span></span>
       <span class="chip needs ${m.waiting ? 'on' : ''}"><span class="n">${m.waiting}</span>need you</span>
       <span class="sp"></span>
       ${ctx.cancelButton(m.run)}
@@ -232,6 +233,7 @@ const runScreen = (() => {
 
   function onClick(e) {
     if (e.target.closest('[data-action="focus"]')) return close();
+    if (e.target.closest('[data-action="variant-pane"]') && !e.target.closest('a, input, label')) return close();
     const b = e.target.closest('[data-rs]');
     if (!b) return;
     const what = b.dataset.rs;

@@ -33,6 +33,8 @@ function answers(port: number): Promise<boolean> {
 
 /** Starts a project's dev command through the system shell with the user's environment, and records it in `dev_server`. */
 export function startDevServer(db: DatabaseSync, runId: string, idx: number, port: number, command: string, cwd: string): void {
+  const old = servers.get(key(runId, idx));
+  if (old?.child.pid && old.child.exitCode === null) killPid(old.child.pid);
   const shell = process.platform === 'win32'
     ? { file: process.env.COMSPEC || 'cmd.exe', args: ['/d', '/s', '/c', `"${command}"`], verbatim: true }
     : { file: '/bin/sh', args: ['-c', command], verbatim: false };

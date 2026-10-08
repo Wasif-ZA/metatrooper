@@ -10,11 +10,11 @@ const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed'
 const pane = { pane_id: { type: 'string', description: 'From panes; may be omitted when this session owns exactly one pane.' } };
 const TOOLS: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> = [
   { name: 'panes', description: 'List the browser panes this session may drive.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'navigate', description: 'Load a URL in a pane.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
+  { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
   { name: 'back', description: 'Go back one page.', inputSchema: { type: 'object', properties: { ...pane } } },
   { name: 'snapshot', description: 'Accessibility tree as text; actionable nodes carry [ref=eN].', inputSchema: { type: 'object', properties: { ...pane, max_nodes: { type: 'integer', default: 400 } } } },
   { name: 'click', description: 'Click the node with this ref.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
-  { name: 'type', description: 'Type text into the node with this ref.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
+  { name: 'type', description: 'Replace the text of the node with this ref.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
   { name: 'select', description: 'Choose an option in a select element.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
   { name: 'scroll', description: 'Scroll the page, or a node into view.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['dy'] } },
   { name: 'wait_for', description: 'Wait until text or a ref appears.', inputSchema: { type: 'object', properties: { ...pane, text: { type: 'string' }, ref: { type: 'string' }, timeout_ms: { type: 'integer', default: 10000 } } } },
@@ -22,6 +22,7 @@ const TOOLS: Array<{ name: string; description: string; inputSchema: Record<stri
   { name: 'evaluate', description: 'Run a JavaScript expression in an isolated world; result capped at 20 KB.', inputSchema: { type: 'object', properties: { ...pane, expression: { type: 'string' } }, required: ['expression'] } },
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
+  { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ];
 
 /** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */

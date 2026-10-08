@@ -8,10 +8,11 @@ import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
 import { folderApproval, launchSession } from '../sessions/launch.ts';
 import { canonicalPath } from '../project.ts';
+import { pidAlive } from '../sessions/watch.ts';
 import { trustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
-import { BASE_ENV, killTree, runAction } from '../plugins/actions.ts';
+import { BASE_ENV, killPid, killTree, runAction } from '../plugins/actions.ts';
 import { loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
@@ -204,12 +205,15 @@ export class Runner {
     if (!run) throw new RpcError(E.NOT_FOUND, 'run not found');
     if (run.status === 'running') return;
     if (run.status === 'done' || run.status === 'cancelled') throw new RpcError(E.VALIDATION, `run is ${run.status}`, { errors: [`run is ${run.status}`] });
-    if (run.paused_why === 'breaker') throw new RpcError(E.VALIDATION, 'the breaker tripped: a step failed 3 times; start a new run', { errors: ['breaker tripped'] });
     if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(runId)) {
       throw new RpcError(E.VALIDATION, 'the run is waiting at a gate; resolve it instead', { errors: ['waiting at a gate'] });
     }
     const set = this.db.prepare('UPDATE run SET max_tokens = MAX(max_tokens, ?), max_usd = MAX(max_usd, ?), max_minutes = MAX(max_minutes, ?) WHERE id = ?');
     set.run(raise.max_tokens ?? 0, raise.max_usd ?? 0, raise.max_minutes ?? 0, runId);
+    if (run.paused_why === 'breaker') {
+      this.db.prepare("UPDATE run_step SET fail_count = 0 WHERE run_id = ? AND status = 'failed'").run(runId);
+      this.log(run, { event: 'breaker reset', detail: 'failure counts cleared by resume' });
+    }
     this.db.prepare("UPDATE run_step SET status = 'pending', session_id = NULL WHERE run_id = ? AND status IN ('failed','running')").run(runId);
     for (const c of this.db.prepare("SELECT id FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as Array<{ id: string }>) {
       if (!this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) this.resume(c.id, raise);
@@ -367,6 +371,7 @@ export class Runner {
 
   private scope(run: RunRow, index?: number, port?: number): Scope {
     const project = this.project(run.project_id);
+    const pipelineOf = (r: RunRow) => this.pipelineOf(r);
     return {
       inputs: JSON.parse(run.inputs),
       steps: (id) => {
@@ -380,6 +385,10 @@ export class Runner {
       },
       run: { id: run.id, dir: run.run_dir },
       project: { path: project.path },
+      get pipeline() {
+        const dir = (pipelineOf(run) as Pipeline & { source_dir?: string }).source_dir;
+        return dir ? { dir: slash(dir) } : undefined;
+      },
       picked: () => (this.db.prepare("SELECT worktree, branch FROM variant WHERE run_id = ? AND status = 'picked'").get(run.id) as { worktree: string; branch: string } | undefined) ?? null,
       index,
       port,
@@ -480,6 +489,7 @@ export class Runner {
         const ready = await this.serveIndex(run, step, idx, place);
         if (!ready.ok) result = { ok: false, error: `dev server on port ${place.port} gave no response in 90 s:\n${ready.tail}` };
       }
+      if ('ok' in result && result.ok && fanout && step.worktree) this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND idx = ? AND status = 'building'").run(run.id, idx);
       return this.finishRow(run, row, result);
     } catch (e) {
       return this.finishRow(run, row, { ok: false, error: (e as Error).message });
@@ -534,10 +544,9 @@ export class Runner {
     const port = place.port as number;
     const command = resolveString(step.dev_command as string, this.scope(run, idx, port));
     startDevServer(this.db, run.id, idx, port, command, place.cwd);
-    const ready = await waitReady(this.db, run.id, idx, port, () => !this.live(run.id));
+    const ready = await waitReady(this.db, run.id, idx, port, () => !['running', 'paused'].includes(this.run(run.id)?.status ?? ''));
     if (ready.ok) {
-      if (place.paneId) this.db.prepare('UPDATE browser_pane SET url = ?, dev_port = ? WHERE id = ?').run(`http://127.0.0.1:${port}/`, port, place.paneId);
-      this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND idx = ? AND status = 'building'").run(run.id, idx);
+      if (place.paneId) this.db.prepare('UPDATE browser_pane SET url = ?, dev_port = ?, open = 1 WHERE id = ?').run(`http://127.0.0.1:${port}/`, port, place.paneId);
     }
     return ready;
   }
@@ -588,7 +597,7 @@ export class Runner {
     fs.writeFileSync(promptFile, prompt);
     const q = (s: string) => `'${s.split("'").join(`'\\''`)}'`;
     const flags = engine.approval_profiles?.[folderApproval(canonicalPath(a.cwd), a.approval, engine)] ?? [];
-    const command = [engine.command, ...(engine.args ?? []), '--print', `"$(cat ${q(promptFile)})"`, '--print-timeout', '0', '--output-format', 'text', ...flags, '--add-dir', q(slash(a.cwd))].join(' ');
+    const command = [engine.command, ...(engine.args ?? []), '--print', `"$(cat ${q(promptFile)})"`, '--print-timeout', '0', '--output-format', 'text', ...flags, '--add-dir', q(slash(a.cwd)), '--add-dir', q(slash(path.dirname(a.outPath)))].join(' ');
     const fill: Record<string, string> = {
       engine: engine.id, prompt_file: promptFile, followup_file: a.outPath.replace(/\.md$/, '.followup.md'), output_path: a.outPath,
       outputs: a.outputs.length ? a.outputs.join(', ') : 'none', cwd: slash(a.cwd), command, max_turns: String(DRIVER_TURNS),
@@ -960,16 +969,31 @@ export class Runner {
   /** At core start: steps that were mid-way through an action, code or sub-pipeline fail; agent steps reattach. */
   recover(): void {
     const rows = this.db.prepare(
-      "SELECT s.run_id, s.step_id, s.iteration, s.fanout_index, s.session_id FROM run_step s JOIN run r ON r.id = s.run_id WHERE r.status = 'running' AND s.status = 'running'",
-    ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null }>;
+      "SELECT s.run_id, s.step_id, s.iteration, s.fanout_index, s.session_id, s.output_path FROM run_step s JOIN run r ON r.id = s.run_id WHERE r.status = 'running' AND s.status = 'running'",
+    ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null; output_path: string | null }>;
     for (const r of rows) {
       const run = this.run(r.run_id) as RunRow;
       const step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);
-      if (step?.kind === 'agent' && r.session_id) continue;
+      if (step?.kind === 'agent') {
+        const s = r.session_id ? (this.db.prepare('SELECT state, pid FROM session WHERE id = ?').get(r.session_id) as { state: string; pid: number | null } | undefined) : undefined;
+        if (s && s.state !== 'exited' && s.pid && pidAlive(s.pid)) continue;
+        const fm = r.output_path && fs.existsSync(r.output_path) ? parseFrontMatter(fs.readFileSync(r.output_path, 'utf8')) : null;
+        if (r.session_id && (fm?.status === 'done' || fm?.status === 'failed')) {
+          this.db.prepare("UPDATE session SET state = 'exited' WHERE id = ?").run(r.session_id);
+          continue;
+        }
+        this.db.prepare('UPDATE run_step SET session_id = NULL, started_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ? AND fanout_index = ?')
+          .run(nowIso(), r.run_id, r.step_id, r.iteration, r.fanout_index);
+        this.log(run, { event: 'step relaunched', step: r.step_id, detail: 'its session ended with the last core; started again' });
+        continue;
+      }
       if (step?.kind === 'pipeline') continue;
       this.db.prepare("UPDATE run_step SET status = 'failed', fail_count = fail_count + 1, ended_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ? AND fanout_index = ?")
         .run(nowIso(), r.run_id, r.step_id, r.iteration, r.fanout_index);
       this.fail(run, `step ${r.step_id} was interrupted by a core restart; resume to run it again`);
+    }
+    for (const d of this.db.prepare("SELECT pid FROM dev_server WHERE status IN ('starting','ready') AND pid IS NOT NULL").all() as Array<{ pid: number }>) {
+      if (pidAlive(d.pid)) killPid(d.pid);
     }
     this.db.prepare("DELETE FROM dev_server WHERE status IN ('starting','ready','failed','stopped')").run();
     this.db.prepare("DELETE FROM port_lease WHERE run_id IN (SELECT id FROM run WHERE status IN ('done','failed','cancelled'))").run();
@@ -997,7 +1021,7 @@ export class Runner {
   pick(runId: string, idx: number): void {
     const v = this.db.prepare('SELECT status FROM variant WHERE run_id = ? AND idx = ?').get(runId, idx) as { status: string } | undefined;
     if (!v) throw new RpcError(E.NOT_FOUND, 'variant not found');
-    if (v.status === 'discarded') throw new RpcError(E.VALIDATION, 'variant was discarded', { errors: ['variant was discarded'] });
+    if (v.status !== 'ready' && v.status !== 'picked') throw new RpcError(E.VALIDATION, `variant is ${v.status}, not ready`, { errors: [`variant is ${v.status}`] });
     this.db.prepare("UPDATE variant SET status = 'ready' WHERE run_id = ? AND status = 'picked'").run(runId);
     this.db.prepare("UPDATE variant SET status = 'picked' WHERE run_id = ? AND idx = ?").run(runId, idx);
   }
@@ -1039,6 +1063,7 @@ export class Runner {
         | undefined;
       if (!v) throw new RpcError(E.NOT_FOUND, `variant ${idx} not found`);
       if (v.status === 'discarded') throw invalid(`variant ${idx} was discarded`);
+      if (!v.worktree) throw invalid(`variant ${idx} has no worktree`);
       return v;
     });
     const pipe = this.pipelineOf(run);

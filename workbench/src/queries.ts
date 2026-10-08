@@ -16,6 +16,8 @@ export interface Snapshot {
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
   gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
+  live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
+  live_runs: Array<{ id: string; project_id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; run_id: string | null; variant: number | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   board: Array<{ id: string; run_id: string; source_url: string; capture_path: string | null; reason: string; pinned: number }>;
@@ -34,7 +36,7 @@ export function light(check: { installed: number; auth: string } | null | undefi
 
 const fileCache = new Map<string, PipelineFile>();
 
-type StepDef = { id: string; kind: string; gate?: string; fanout?: number; loop_max?: number; view?: string; layout: string | null };
+type StepDef = { id: string; kind: string; title: string | null; gate?: string; fanout?: number; loop_max?: number; view?: string; layout: string | null };
 type PipelineFile = { title: string; inputs: Record<string, unknown>; layout: string | null; background: boolean; step_defs: StepDef[] };
 
 function pipelineFile(path: string, version: number, id: string): PipelineFile {
@@ -54,11 +56,23 @@ function pipelineFile(path: string, version: number, id: string): PipelineFile {
       inputs: json.inputs && typeof json.inputs === 'object' ? (json.inputs as Record<string, unknown>) : {},
       layout: typeof json.layout === 'string' ? json.layout : null,
       background: json.background === true,
-      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max, view: s.view, layout: typeof s.layout === 'string' ? s.layout : null })),
+      step_defs: steps.filter((s) => s && typeof s.id === 'string').map((s) => ({ id: s.id, kind: String(s.kind ?? ''), title: typeof s.title === 'string' ? s.title : null, gate: s.gate, fanout: s.fanout, loop_max: s.loop?.max, view: s.view, layout: typeof s.layout === 'string' ? s.layout : null })),
     };
     fileCache.set(key, hit);
   }
   return hit;
+}
+
+/** A markdown file straight inside a run's folder, first 64 KB, or null. `name` is a bare file name. */
+export function readRunFile(db: DatabaseSync, runId: unknown, name: unknown): string | null {
+  if (typeof runId !== 'string' || typeof name !== 'string' || !/^[\w-][\w.-]*\.md$/.test(name)) return null;
+  const row = db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as { run_dir: string } | undefined;
+  if (!row) return null;
+  try {
+    return fs.readFileSync(`${row.run_dir}/${name}`).subarray(0, 65536).toString('utf8');
+  } catch {
+    return null;
+  }
 }
 
 function parse<T>(text: string | null, fallback: T): T {
@@ -112,10 +126,11 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
       ).all(projectId) as Snapshot['sessions'])
     : [];
 
+  const runHidden = (db.prepare('PRAGMA table_info(run)').all() as Array<{ name: string }>).some((c) => c.name === 'hidden') ? 'AND hidden = 0' : '';
   const runs = projectId
     ? (db.prepare(
         `SELECT id, pipeline_id, status, paused_why, started_at, ended_at, depth, parent_run FROM run
-         WHERE project_id = ? ORDER BY started_at DESC LIMIT 30`,
+         WHERE project_id = ? ${runHidden} ORDER BY started_at DESC LIMIT 30`,
       ).all(projectId) as Snapshot['runs'])
     : [];
 
@@ -179,6 +194,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     steps,
     gates,
     needs_you,
+    live: db.prepare("SELECT id, project_id, engine_id, state, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY started_at DESC").all() as Snapshot['live'],
+    live_runs: db.prepare("SELECT id, project_id, pipeline_id, status, paused_why, started_at FROM run WHERE parent_run IS NULL AND status IN ('running', 'paused') ORDER BY started_at DESC").all() as Snapshot['live_runs'],
     panes,
     snapshots,
     board,

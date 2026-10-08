@@ -27,8 +27,7 @@
       "worktree": true,
       "browser": true,
       "dev_command": "npm run dev -- --port {{port}}",
-      "serve": "before",
-      "prompt": "Build the site described in {{run.dir}}/DESIGN.md in this worktree. Keep `npm run dev -- --port <n>` serving it. Check it in your browser pane as you go. Commit your work on the current branch. Do not push.",
+      "prompt": "Build the site described in {{run.dir}}/DESIGN.md in this worktree. Make `npm run dev -- --port <n>` serve it, and stop any server you start before you finish; the workbench serves it and the critique step checks it in the browser. Commit your work on the current branch. Do not push.",
       "outputs": ["summary"]
     },
     {

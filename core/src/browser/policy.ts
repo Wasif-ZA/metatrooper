@@ -68,10 +68,11 @@ export async function checkUrl(raw: string, ctx: PolicyContext): Promise<Verdict
     return { allow: false, reason: 'not a valid URL' };
   }
   if (PASS_SCHEMES.has(url.protocol)) return url.protocol === 'about:' && url.href !== 'about:blank' ? { allow: false, reason: `${url.href} is blocked` } : { allow: true };
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { allow: false, reason: `${url.protocol} URLs are blocked` };
+  const scheme = url.protocol === 'ws:' ? 'http:' : url.protocol === 'wss:' ? 'https:' : url.protocol;
+  if (scheme !== 'http:' && scheme !== 'https:') return { allow: false, reason: `${url.protocol} URLs are blocked` };
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (ctx.allowHosts.has(host)) return { allow: true };
-  const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
+  const port = Number(url.port || (scheme === 'https:' ? 443 : 80));
   const literalLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1';
   let addrs: string[];
   if (net.isIP(host)) addrs = [host];
@@ -86,10 +87,22 @@ export async function checkUrl(raw: string, ctx: PolicyContext): Promise<Verdict
   }
   for (const a of addrs) {
     if (isLoopback(a)) {
-      if (literalLoopback && url.protocol === 'http:' && ctx.ownedPorts.has(port)) continue;
+      if (literalLoopback && scheme === 'http:' && ctx.ownedPorts.has(port)) continue;
       return { allow: false, reason: `${host}:${port} is a loopback address this project does not own` };
     }
     if (blockedAddress(a)) return { allow: false, reason: `${host} resolves to a private address (${a})` };
   }
   return { allow: true };
+}
+
+/** What the user typed in the URL box as a URL: kept when it has a scheme, http for loopback and IPs, https for a dotted host, otherwise a search. */
+export function typedUrl(input: string): string {
+  const t = input.trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t) || /^(about|data):/i.test(t)) return t;
+  if (t && !/\s/.test(t)) {
+    const host = t.split(/[/?#]/)[0];
+    if (/^(localhost|\[::1\]|\d{1,3}(\.\d{1,3}){3})(:\d+)?$/i.test(host)) return `http://${t}`;
+    if (/^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?$/i.test(host)) return `https://${t}`;
+  }
+  return `https://duckduckgo.com/?q=${encodeURIComponent(t)}`;
 }

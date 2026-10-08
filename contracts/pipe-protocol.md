@@ -123,6 +123,7 @@ Every other interaction is a database read.
 | `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
 | `session.hide` | `{session_id}` | `{}` |
+| `project.clear` | `{project_id}` | `{}`; hides the project's sessions that are not working or waiting, and its runs that are not running or paused |
 | `session.focus` | `{session_id}` | `{focused: bool}` |
 | `session.seen` | `{session_id}` | `{}`; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` |
 | `ui.hello` | `{ui_key}` | `{ok}`; marks this connection as a trusted UI connection (see Access) |
@@ -143,7 +144,7 @@ Every other interaction is a database read.
 | `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
 | `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
-| `pane.open` | `{project_id, url?, session_id?}` | `{pane_id}`; needs `ui.hello`; a browser pane the user opened |
+| `pane.open` | `{project_id, url?, session_id?, agent?: bool}` | `{pane_id}`; needs `ui.hello`; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>` |
 | `pane.close` | `{pane_id}` | `{}`; needs `ui.hello` |
 | `pane.url` | `{pane_id, url}` | `{}`; needs `ui.hello`; the workbench reports each navigation |
 | `pane.assign` | `{pane_id, session_id?}` | `{}`; needs `ui.hello`; sets or clears the one session allowed to drive the pane |

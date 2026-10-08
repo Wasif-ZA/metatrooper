@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('troop', {
   call: (method, params) => ipcRenderer.invoke('call', method, params),
   pickFolder: () => ipcRenderer.invoke('pickFolder'),
   readPipeline: (id) => ipcRenderer.invoke('readPipeline', id),
+  readRunFile: (runId, name) => ipcRenderer.invoke('readRunFile', runId, name),
   savePipeline: (projectId, text) => ipcRenderer.invoke('savePipeline', projectId, text),
   runLog: (runId) => ipcRenderer.invoke('runLog', runId),
   review: (runId) => ipcRenderer.invoke('review', runId),
@@ -17,11 +18,19 @@ contextBridge.exposeInMainWorld('troop', {
   probe: (state) => ipcRenderer.invoke('probe', state),
   paneShow: (paneId, bounds) => ipcRenderer.invoke('paneShow', paneId, bounds),
   paneNavigate: (paneId, url) => ipcRenderer.invoke('paneNavigate', paneId, url),
+  paneAct: (paneId, action, arg) => ipcRenderer.invoke('paneAct', paneId, action, arg),
+  onPaneEvent: (fn) => {
+    const listener = (_e, ev) => fn(ev);
+    ipcRenderer.on('pane-event', listener);
+    return () => ipcRenderer.removeListener('pane-event', listener);
+  },
+  paneMenu: (items, x, y) => ipcRenderer.invoke('paneMenu', items, x, y),
   panePick: (paneId) => ipcRenderer.invoke('panePick', paneId),
   panePickCancel: (paneId) => ipcRenderer.invoke('panePickCancel', paneId),
   commentSave: (c) => ipcRenderer.invoke('commentSave', c),
   commentDiffLine: (c) => ipcRenderer.invoke('commentDiffLine', c),
   commentFiles: (sessionId, files) => ipcRenderer.invoke('commentFiles', { session_id: sessionId, paths: Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean) }),
+  git: (projectId, op, arg) => ipcRenderer.invoke('git', projectId, op, arg),
   handbackFile: (projectId, runId, file) => ipcRenderer.invoke('handbackFile', projectId, runId, file),
   snapshotImage: (file) => ipcRenderer.invoke('snapshotImage', file),
   onCommentPicked: (fn) => {

@@ -33,6 +33,18 @@ const onData = (c) => {
     waiting.get(m.id)?.(m);
   }
 };
+let latestSnapshot = '';
+const resolveRefs = (method, params) => {
+  const resolved = JSON.parse(JSON.stringify(params));
+  for (const [key, value] of Object.entries(resolved)) {
+    if (typeof value !== 'string' || !value.startsWith('@')) continue;
+    const label = value.slice(1);
+    const line = latestSnapshot.split(/\r?\n/).find((entry) => entry.includes(`"${label}"`));
+    const matchedRef = line?.match(/\[ref=(e\d+)\]/)?.[1];
+    if (matchedRef) resolved[key] = matchedRef;
+  }
+  return resolved;
+};
 let n = 0;
 const call = (method, params = {}) => new Promise((resolve) => {
   const id = `r${++n}`;
@@ -53,7 +65,12 @@ const onConnect = async (c) => {
   const out = { steps: {} };
   const hello = await call('browser.hello', { session_id: process.env.TROOP_SESSION_ID, pid: process.pid });
   out.hello = hello;
-  for (const [name, method, params] of job.steps) out.steps[name] = await call(method, JSON.parse(JSON.stringify(params).replaceAll('"__PID__"', String(process.pid))));
+  for (const [name, method, params] of job.steps) {
+    const values = resolveRefs(method, params);
+    const response = await call(method, JSON.parse(JSON.stringify(values).replaceAll('"__PID__"', String(process.pid))));
+    out.steps[name] = response;
+    if (method === 'browser.snapshot' && response.result?.text) latestSnapshot = response.result.text;
+  }
   fs.writeFileSync(path.join(home, perSession ? `browser-out-${process.env.TROOP_SESSION_ID}.json` : 'browser-out.json'), JSON.stringify(out));
   setTimeout(() => process.exit(0), 100);
 };
