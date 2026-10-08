@@ -7,7 +7,7 @@ import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTable } from '../../../core/src/browser/ancestry.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['navigate', 'back', 'snapshot', 'click', 'type', 'select', 'scroll', 'wait_for', 'screenshot', 'evaluate', 'console', 'network']);
+const TOOLS = new Set(['navigate', 'back', 'snapshot', 'click', 'type', 'select', 'scroll', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
@@ -16,6 +16,8 @@ export interface ServerDeps {
   uiKey: () => string | null;
   panes: PaneManager;
   refreshPanes: () => void;
+  /** Opens a pane owned by the session through the core's `pane.open` and returns its id. */
+  openPane: (projectId: string, sessionId: string) => Promise<string>;
 }
 
 /** Panes a session may drive: those it owns, and those of its own run and fan-out index. */
@@ -107,6 +109,12 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       const owned = ownedPanes(db, bound.sessionId);
       let paneId = typeof params.pane_id === 'string' ? params.pane_id : null;
       if (!paneId && owned.length === 1) paneId = owned[0].id;
+      if (!paneId && !owned.length && tool === 'navigate') {
+        const s = db.prepare('SELECT project_id FROM session WHERE id = ?').get(bound.sessionId) as { project_id: string | null } | undefined;
+        if (!s?.project_id) return fail(id, -32002, 'this session has no project to open a browser pane in');
+        paneId = await deps.openPane(s.project_id, bound.sessionId);
+        owned.push({ id: paneId } as PaneRow);
+      }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
       if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, 'pane not owned by the calling session');
       if (!deps.panes.has(paneId)) {

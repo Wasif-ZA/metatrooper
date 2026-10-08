@@ -33,7 +33,6 @@
       "title": "Review and plan",
       "role": "plan",
       "kind": "agent",
-      "uses": "plugin:security/review-prompts",
       "approval": "edits",
       "prompt": "Review this repository for security issues, using {{run.dir}}/inventory.json and {{run.dir}}/NOTES.md. Do not edit the repository. Write {{run.dir}}/security-report.md: each finding with severity, file, line, and reachable or not. Then plan one major upgrade at a time, starting with {{inputs.package}} if given, and name the findings each upgrade closes. Set package to the first package to upgrade. Set high_reachable to true when any high or critical finding is reachable, otherwise false.",
       "outputs": ["package", "high_reachable"]
@@ -43,7 +42,6 @@
       "title": "Bump and run the codemod",
       "role": "worker",
       "kind": "agent",
-      "uses": "plugin:security/upgrade",
       "worktree": true,
       "approval": "contained",
       "prompt": "Upgrade {{steps.plan.outputs.package}} as {{run.dir}}/security-report.md plans, in this worktree: bump it, run its codemod if one exists, apply the migration steps in {{run.dir}}/NOTES.md. Commit on the current branch. Do not push.",

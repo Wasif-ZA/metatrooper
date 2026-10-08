@@ -4,16 +4,18 @@ import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, corePipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
 import { ulid } from '../../core/src/time.ts';
-import { PaneManager, type PaneRow } from './browser/panes.ts';
+import { PaneManager, ToolError, type PaneRow } from './browser/panes.ts';
 import { startBrowserServer } from './browser/server.ts';
+import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, snapshot, type Snapshot } from './queries.ts';
+import { dataVersion, readRunFile, snapshot, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
+import { gitAct, gitView, runIn } from './gitpane.ts';
 import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
@@ -27,7 +29,7 @@ const DEBOUNCE_MS = 50;
 const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
-  'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'engines.check',
+  'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
   'run.start', 'run.cancel', 'run.resume', 'gate.resolve', 'pipeline.validate', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
   'session.paste-prompt', 'run.item-set', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
 ]);
@@ -204,6 +206,11 @@ function handlers(): void {
     return r.canceled ? null : r.filePaths[0] ?? null;
   });
 
+  on('readRunFile', (runId: unknown, name: unknown) => {
+    const d = db();
+    return d ? readRunFile(d, runId, name) : null;
+  });
+
   on('readPipeline', (id: unknown) => {
     const d = db();
     const row = d && typeof id === 'string' ? (d.prepare('SELECT path FROM pipeline WHERE id = ?').get(id) as { path: string } | undefined) : undefined;
@@ -226,6 +233,12 @@ function handlers(): void {
       return { ok: false, error: `not valid JSON: ${(e as Error).message}` };
     }
     if (typeof json.id !== 'string' || !/^[a-z0-9][a-z0-9-]{1,62}$/.test(json.id)) return { ok: false, error: 'the pipeline id must be lower-case letters, digits and dashes' };
+    const shipped = d.prepare("SELECT path FROM pipeline WHERE id = ? AND source <> 'project'").get(json.id) as { path: string } | undefined;
+    if (shipped) {
+      try {
+        if (JSON.stringify(JSON.parse(fs.readFileSync(shipped.path, 'utf8'))) === JSON.stringify(json)) return { ok: true, unchanged: true, path: shipped.path.split(String.fromCharCode(92)).join('/') };
+      } catch {}
+    }
     const dir = path.join(project.path, '.troop', 'pipelines');
     const file = path.join(dir, `${json.id}.json`);
     if (!inside(dir, file)) return { ok: false, error: 'bad pipeline id' };
@@ -258,12 +271,26 @@ function handlers(): void {
   on('paneNavigate', async (paneId: unknown, url: unknown) => {
     if (typeof paneId !== 'string' || typeof url !== 'string' || !panes) return { ok: false, error: 'no pane' };
     try {
-      await panes.userNavigate(paneId, /^[a-z]+:/i.test(url) ? url : `https://${url}`);
+      await panes.userNavigate(paneId, typedUrl(url));
       return { ok: true };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }
   });
+
+  on('paneAct', (paneId: unknown, action: unknown, arg: unknown) => {
+    if (typeof paneId === 'string' && typeof action === 'string') panes?.act(paneId, action, arg);
+    return true;
+  });
+
+  on('paneMenu', (items: unknown, x: unknown, y: unknown) => new Promise<string | null>((resolve) => {
+    if (!win || !Array.isArray(items)) return resolve(null);
+    const tpl = (list: unknown[]): MenuItemConstructorOptions[] => list.map((i: any) => i?.type === 'separator' ? { type: 'separator' as const }
+      : Array.isArray(i?.submenu) ? { label: String(i.label ?? ''), submenu: tpl(i.submenu) }
+      : { label: String(i?.label ?? ''), enabled: i?.enabled !== false, type: i?.checked === undefined ? 'normal' as const : 'radio' as const, checked: !!i?.checked, click: () => resolve(String(i?.id)) });
+    // Windows fires the close callback before click, so let a click resolve first
+    Menu.buildFromTemplate(tpl(items)).popup({ window: win, x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0), callback: () => setTimeout(() => resolve(null), 0) });
+  }));
 
   on('panePick', async (paneId: unknown) => {
     if (typeof paneId !== 'string' || !panes) return false;
@@ -363,6 +390,28 @@ function handlers(): void {
       return gitIn(project.path)(['diff', '--cached', '--', file]);
     } catch {
       return null;
+    }
+  });
+
+  on('git', (projectId: unknown, op: unknown, arg: unknown) => {
+    const d = db();
+    const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
+    if (!project) return { error: 'pick a project first' };
+    const git = runIn(project.path);
+    const why = (e: unknown) => { const err = e as Error & { stderr?: string }; return (err.stderr || err.message).trim().split(String.fromCharCode(10)).slice(-3).join(' '); };
+    if ((op === 'diff' || op === 'diff-staged') && typeof arg === 'string') {
+      try { return git(['diff', ...(op === 'diff-staged' ? ['--cached'] : []), '--', arg]); } catch { return null; }
+    }
+    let error: string | undefined;
+    try {
+      if (typeof op === 'string' && op !== 'view') gitAct(git, op, arg);
+    } catch (e) {
+      error = why(e);
+    }
+    try {
+      return { ...gitView(git), error };
+    } catch (e) {
+      return { error: why(e) };
     }
   });
 
@@ -504,6 +553,14 @@ function createWindow(): void {
     probe: (entry) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state: entry }),
     urlChanged: (paneId, url) => { void call('pane.url', { pane_id: paneId, url }, { ui: true }); },
     commentPicked: (info) => win?.webContents.send('comment-picked', info),
+    paneEvent: (ev) => { if (win && !win.isDestroyed()) win.webContents.send('pane-event', ev); },
+    openPane: (projectId, url) => {
+      void call('pane.open', { project_id: projectId, url }, { ui: true }).then((out) => {
+        const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
+        if (paneId && win && !win.isDestroyed()) win.webContents.send('pane-event', { kind: 'opened', pane_id: paneId });
+        schedulePush();
+      });
+    },
   });
   void win.loadFile(INDEX, process.env.METATROOPER_WORKBENCH_PROBE ? { query: { probe: '1' } } : {});
 }
@@ -625,6 +682,13 @@ if (!app.requestSingleInstanceLock()) {
       },
       panes: panes as PaneManager,
       refreshPanes: syncPanes,
+      openPane: async (projectId, sessionId) => {
+        const out = await call('pane.open', { project_id: projectId, session_id: sessionId, agent: true }, { ui: true });
+        const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
+        if (!paneId) throw new ToolError(-32099, out.kind === 'reply' && out.reply.error ? `could not open a browser pane: ${out.reply.error.message}` : 'could not open a browser pane: the core is offline');
+        schedulePush();
+        return paneId;
+      },
     }).catch((e) => console.error(`browser pipe did not start: ${(e as Error).message}`));
   });
   app.on('window-all-closed', () => app.quit());

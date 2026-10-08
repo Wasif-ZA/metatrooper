@@ -335,11 +335,13 @@ test('M1-20 enforces loop max, resumes failed steps with prior outputs, and trip
           finally { again.close(); }
         }
       }
-      const refused = await client(h.prefix);
-      try {
-        const r = await refused.request('run.resume', { run_id: breakerRun });
-        assert.equal(r.error?.code, -32003);
-      } finally { refused.close(); }
+      const reset = await client(h.prefix);
+      try { assert.deepEqual((await reset.request('run.resume', { run_id: breakerRun })).result, {}); }
+      finally { reset.close(); }
+      await until(() => {
+        const row = store.prepare("SELECT status, paused_why FROM run WHERE id = ?").get(breakerRun) as { status: string; paused_why: string | null };
+        return row.status === 'failed' && row.paused_why === null;
+      }, 8000);
     } finally { store.close(); }
   } finally { await h.teardown(); }
 });

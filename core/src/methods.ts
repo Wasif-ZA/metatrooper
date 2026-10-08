@@ -118,6 +118,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('project.clear', {
+    handler: (p) => {
+      const id = str(p, 'project_id');
+      db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('working', 'waiting_for_you')").run(id);
+      db.prepare("UPDATE run SET hidden = 1 WHERE project_id = ? AND status NOT IN ('running', 'paused')").run(id);
+      return {};
+    },
+  });
+
   const markSeen = (id: string) => {
     const s = db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined;
     if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
@@ -409,7 +418,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(projectId)) throw new RpcError(E.NOT_FOUND, 'project not found');
       const sessionId = str(p, 'session_id', false) || null;
       if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, projectId)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
-      const id = `bp_${ulid()}`;
+      if (p.agent === true && !sessionId) throw new RpcError(E.INVALID_PARAMS, 'agent panes need a session_id');
+      const id = p.agent === true ? `bp_agent_${ulid()}` : `bp_${ulid()}`;
       db.prepare('INSERT INTO browser_pane (id, project_id, session_id, url, open) VALUES (?, ?, ?, ?, 1)').run(id, projectId, sessionId, str(p, 'url', false) || null);
       return { pane_id: id };
     },

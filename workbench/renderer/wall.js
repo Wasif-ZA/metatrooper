@@ -63,7 +63,7 @@ const wall = (() => {
     placed = true;
   }
 
-  const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : (W - 32) / 3.3 * 1.3);
+  const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : Math.max((W - 32) / 3.3 * 1.3, Math.min(460, W * 0.5)));
   function rects() {
     const nBars = document.querySelectorAll('#runbars .rbar').length;
     const W = innerWidth, H = innerHeight - TOP - 60 - nBars * (BAR + G);
@@ -88,10 +88,11 @@ const wall = (() => {
     const bars = rest.filter((id) => folded(S[id])).slice(0, Math.max(0, Math.floor((H * 0.5) / (BAR + G))));
     const A = H - bars.length * (BAR + G);
     const wh = !open.length ? A : !work.length ? 0 : (A - G) * 1.2 / 2.2;
-    const row = (list, y, hh) => list.forEach((id, i) => {
-      const w = (RW - G * (list.length - 1)) / list.length;
-      R[id] = { left: RX + i * (w + G), top: y, width: w, height: hh };
-    });
+    const row = (list, y, hh) => {
+      const cols = Math.min(list.length, Math.max(1, Math.floor((RW + G) / (200 + G)))), rows = Math.ceil(list.length / cols);
+      const w = (RW - G * (cols - 1)) / cols, rh = (hh - G * (rows - 1)) / rows;
+      list.forEach((id, i) => R[id] = { left: RX + (i % cols) * (w + G), top: y + Math.floor(i / cols) * (rh + G), width: w, height: rh });
+    };
     row(work, TOP, wh);
     row(open, work.length ? TOP + wh + G : TOP, work.length ? A - wh - G : A);
     bars.forEach((id, i) => R[id] = { left: RX, top: TOP + A + G + i * (BAR + G), width: RW, height: BAR });
@@ -115,7 +116,7 @@ const wall = (() => {
       if (el._r === key) continue;
       el._r = key;
       if (!animate || RM) {
-        gsap.set(el, r);
+        gsap.set(el, { ...r, overwrite: 'auto' });
         if (animate && RM) gsap.fromTo(el, { opacity: 0.4 }, { opacity: 1, duration: 0.4 });
         continue;
       }
@@ -134,6 +135,7 @@ const wall = (() => {
     to('#sheet', { left: 16 + C });
     to('#split', { left: RX });
     gsap.set('#runbox', { left: 8, top: TOP + H - box, width: C, height: box, display: box ? 'block' : 'none' });
+    fitSearch();
     const rb2 = document.getElementById('runbars');
     if (rb2) gsap.set(rb2, { left: 8, top: TOP + H + G, width: innerWidth - 16 });
   }
@@ -266,23 +268,47 @@ const wall = (() => {
     gsap.to(sh, RM ? { y: open ? 0 : 208, duration: 0 } : { y: open ? 0 : 208, duration: T(open, 0.28), ease: open ? 'back.out(1.2)' : 'power2.in' });
     gsap.to('.sheet .chev', { rotation: open ? 180 : 0, duration: T(open, 0.28) });
   }
+  /** Closed: the title bar's free gap, or a 34px icon when the gap is under 160px. Open: centred, up to 600px. */
+  function searchSpot(open) {
+    const W = innerWidth, l = $('.title .needs'), r = $('#usage');
+    const L = (l ? l.getBoundingClientRect().right : 0) + 12, Rt = (r ? r.getBoundingClientRect().left : W) - 12;
+    const mini = !open && Rt - L < 160;
+    const w = open ? Math.min(600, W - 16) : mini ? 34 : Math.min(300, Rt - L);
+    const left = open ? Math.min(Math.max(8, W / 2 - w / 2), W - 8 - w) : mini ? L : Math.min(Math.max(L, W / 2 - w / 2), Rt - w);
+    return { w, left, mini };
+  }
+  function fitSearch() {
+    const box = $('#search');
+    const { w, left, mini } = searchSpot(box.classList.contains('open'));
+    box.classList.toggle('icon-only', mini);
+    gsap.set(box, { left, xPercent: 0, x: 0, width: w, transform: 'none' });
+  }
   function openSearch() {
     const box = $('#search');
     if (box.classList.contains('open')) return;
     box.classList.add('open');
-    gsap.fromTo(box, { width: 300 }, { width: 600, duration: RM ? 0 : 0.24, ease: 'power3.out' });
+    box.classList.remove('icon-only');
+    const to = searchSpot(true);
+    gsap.fromTo(box, { width: box.offsetWidth }, { width: to.w, left: to.left, duration: RM ? 0 : 0.24, ease: 'power3.out' });
     gsap.fromTo(['#palette-list', '.sfoot'], { opacity: 0, y: RM ? 0 : -6 }, { opacity: 1, y: 0, duration: 0.22, ease: 'back.out(1.4)' });
   }
   function closeSearch() {
     const box = $('#search');
     if (!box.classList.contains('open')) return;
     box.classList.remove('open');
-    gsap.to(box, { width: 300, duration: RM ? 0 : 0.16, ease: 'power2.in' });
+    const to = searchSpot(false);
+    gsap.to(box, { width: to.w, left: to.left, duration: RM ? 0 : 0.16, ease: 'power2.in', onComplete: () => box.classList.toggle('icon-only', to.mini) });
   }
 
   gsap.set('#list', { x: -310, visibility: 'hidden' });
   gsap.set('#sheet', { y: 208 });
   addEventListener('resize', () => layout(false));
+  $('#search').addEventListener('click', (e) => {
+    const box = e.currentTarget;
+    if (!box.classList.contains('icon-only')) return;
+    box.classList.remove('icon-only');
+    $('#palette-input').focus();
+  });
 
   return {
     promote: setBig,

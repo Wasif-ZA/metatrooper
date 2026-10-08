@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -11,11 +11,33 @@ import { DatabaseSync } from 'node:sqlite';
 export const root = resolve(import.meta.dirname, '../..');
 export const bs = String.fromCharCode(92);
 
+const FAKE_GH_CS = [
+  'public static class P { public static void Main(string[] a) {',
+  '  System.IO.File.AppendAllText(System.AppDomain.CurrentDomain.BaseDirectory + "gh.log", string.Join(" ", a) + "\\r\\n");',
+  '  System.Console.WriteLine("https://github.com/fake/repo/pull/7"); } }',
+].join('\n');
+
+/** Puts a fake gh in `bin` that appends its arguments to `bin/gh.log` and prints a PR URL; returns the log path. Windows gets a real gh.exe, since plugins spawn gh with no shell. */
+export function fakeGh(bin: string): string {
+  if (process.platform !== 'win32') {
+    writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> '${join(bin, 'gh.log')}'\necho https://github.com/fake/repo/pull/7\n`, { mode: 0o755 });
+    return join(bin, 'gh.log');
+  }
+  const cache = join(tmpdir(), `metatrooper-fake-gh-${createHash('sha256').update(FAKE_GH_CS).digest('hex').slice(0, 12)}.exe`);
+  if (!existsSync(cache)) {
+    const src = `${cache}.cs`;
+    writeFileSync(src, FAKE_GH_CS);
+    execFileSync('powershell', ['-NoProfile', '-Command', `Add-Type -OutputType ConsoleApplication -OutputAssembly '${cache}' -Path '${src}'`], { stdio: 'pipe' });
+  }
+  copyFileSync(cache, join(bin, 'gh.exe'));
+  return join(bin, 'gh.log');
+}
+
 export function isolation() {
   const home = mkdtempSync(join(tmpdir(), 'metatrooper-test-'));
   const prefix = `troop-test-${randomUUID().replaceAll('-', '')}`;
   const recorder = pathToFileURL(join(root, 'core/test/server-pid-recorder.mjs')).href;
-  return { home, prefix, env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${recorder}`, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };
+  return { home, prefix, started: Date.now(), env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${recorder}`, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };
 }
 
 export function reservePortBand(db: DatabaseSync, firstAvailable: number, runId: string) {
@@ -182,6 +204,16 @@ export async function teardownCore(child, isolated) {
     sweep.once('error', resolve);
     sweep.once('exit', resolve);
   });
+  // Windows reuses pids, so only kill ones that started after this test's core.
+  if (pids.size) {
+    try {
+      const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command',
+        `Get-Process -Id ${[...pids].join(',')} -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) $([DateTimeOffset]::new($_.StartTime).ToUnixTimeMilliseconds())" }`],
+        { encoding: 'utf8', windowsHide: true });
+      const fresh = new Set(out.split(/\r?\n/).filter(Boolean).map(line => line.split(' ').map(Number)).filter(([, ms]) => ms >= (isolated.started ?? 0) - 1000).map(([pid]) => pid));
+      for (const pid of [...pids]) if (!fresh.has(pid)) pids.delete(pid);
+    } catch { pids.clear(); }
+  }
   await Promise.all([...pids].map(pid => new Promise(resolve => {
     const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
     killer.once('error', resolve);

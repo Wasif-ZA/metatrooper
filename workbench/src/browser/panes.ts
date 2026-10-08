@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { session as electronSession, WebContentsView, type BrowserWindow, type Debugger, type WebContents } from 'electron';
+import { app, clipboard, Menu, session as electronSession, WebContentsView, type BrowserWindow, type Debugger, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
@@ -15,6 +15,10 @@ const EVAL_CAP = 20 * 1024;
 const LOG_KEEP = 200;
 const PARKED_VIEWPORT = { width: 1280, height: 800 };
 const BOARD_PANE = 'board-';
+const AGENT_PANE = 'bp_agent_';
+const ASKABLE = new Set(['clipboard-read', 'notifications', 'media', 'geolocation']);
+const GRANTED = new Set(['clipboard-sanitized-write', 'fullscreen', 'mediaKeySystem']);
+const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 const BOARD_SETTLE_MS = 1500;
 const BOARD_LOAD_MS = 20_000;
 const ACTIONABLE = new Set(['button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option', 'slider', 'switch', 'listbox', 'spinbutton', 'treeitem']);
@@ -45,11 +49,19 @@ interface Pane {
   dbg: Debugger;
   refs: Map<string, number>;
   console: Array<{ at: number; level: string; text: string }>;
-  network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number }>;
+  network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
   status: number | null;
   overlayShownUntil: number;
   picking: ((node: number) => void) | null;
   parked: boolean;
+  ready: Promise<void>;
+  dialog: Dialog | null;
+  onDialog: ((d: Dialog) => void) | null;
+}
+
+interface Dialog {
+  type: string;
+  message: string;
 }
 
 export interface Hooks {
@@ -57,6 +69,10 @@ export interface Hooks {
   probe: (entry: Record<string, unknown>) => void;
   urlChanged: (paneId: string, url: string) => void;
   commentPicked: (info: { pane_id: string; url: string; selector: string; html: string; crop: string }) => void;
+  /** Sends a `pane-event` to the workbench UI: state, found, key, download, permission. */
+  paneEvent: (ev: Record<string, unknown>) => void;
+  /** Opens a user pane in the project at this URL. */
+  openPane: (projectId: string, url: string) => void;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -82,6 +98,8 @@ export class PaneManager {
   private bounds: { x: number; y: number; width: number; height: number } | null = null;
   private policyCache = new Map<string, { at: number; ctx: PolicyContext }>();
   private guarded = new Set<string>();
+  private allowed = new Map<string, boolean>();
+  private asking = new Map<string, { key: string; cb: (ok: boolean) => void }>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -121,17 +139,54 @@ export class PaneManager {
     return ctx;
   }
 
-  /** Blocks every non-web scheme on a project's partition, under the per-request Fetch check. */
-  private guardPartition(projectId: string): Electron.Session {
-    const ses = electronSession.fromPartition(`persist:troop-${projectId}`);
-    if (!this.guarded.has(projectId)) {
-      this.guarded.add(projectId);
-      ses.webRequest.onBeforeRequest((details, cb) => {
-        const ok = /^(https?|data|blob):/.test(details.url) || details.url === 'about:blank';
-        cb({ cancel: !ok });
-      });
-      ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
-    }
+  private byContents(wc: WebContents | null | undefined): Pane | undefined {
+    if (!wc) return undefined;
+    for (const pane of this.panes.values()) if (pane.view.webContents === wc) return pane;
+    return undefined;
+  }
+
+  private isUserPane(pane: Pane | undefined): pane is Pane {
+    return !!pane && !pane.row.id.startsWith(AGENT_PANE) && !pane.row.id.startsWith(BOARD_PANE);
+  }
+
+  /** The pane's partition: every request (frames, workers, WebSockets) passes the address policy, downloads and permissions follow the pane kind. Agent-opened panes get an in-memory partition of their own. */
+  private guardPartition(row: PaneRow): Electron.Session {
+    const agent = row.id.startsWith(AGENT_PANE);
+    const partition = agent ? `troop-${row.project_id}-${row.id}` : `persist:troop-${row.project_id}`;
+    const ses = electronSession.fromPartition(partition);
+    if (this.guarded.has(partition)) return ses;
+    this.guarded.add(partition);
+    ses.webRequest.onBeforeRequest((details, cb) => {
+      if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
+      if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
+      checkUrl(details.url, this.policy(row.project_id)).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
+    });
+    ses.on('will-download', (e, item, wc) => {
+      const pane = this.byContents(wc);
+      if (agent || !this.isUserPane(pane)) return e.preventDefault();
+      const dir = app.getPath('downloads');
+      const ext = path.extname(item.getFilename());
+      const base = path.basename(item.getFilename(), ext) || 'download';
+      let file = path.join(dir, base + ext);
+      for (let n = 1; fs.existsSync(file); n++) file = path.join(dir, `${base} (${n})${ext}`);
+      item.setSavePath(file);
+      item.once('done', (_e, state) => this.hooks.paneEvent({ kind: 'download', pane_id: pane.row.id, file, state }));
+    });
+    ses.setPermissionCheckHandler((wc, perm, origin) => GRANTED.has(perm) || (!agent && this.isUserPane(this.byContents(wc)) && this.allowed.get(`${origin} ${perm}`) === true));
+    ses.setPermissionRequestHandler((wc, perm, cb, details) => {
+      const pane = this.byContents(wc);
+      if (GRANTED.has(perm)) return cb(true);
+      if (agent || !this.isUserPane(pane) || !ASKABLE.has(perm)) return cb(false);
+      let origin = '';
+      try { origin = new URL(details.requestingUrl ?? wc.getURL()).origin; } catch { return cb(false); }
+      const key = `${origin} ${perm}`;
+      const known = this.allowed.get(key);
+      if (known !== undefined) return cb(known);
+      const id = `perm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      this.asking.set(id, { key, cb });
+      const kinds = (details as { mediaTypes?: string[] }).mediaTypes;
+      this.hooks.paneEvent({ kind: 'permission', pane_id: pane.row.id, id, origin, permission: perm === 'media' && kinds?.length ? kinds.join(' and ') : perm });
+    });
     return ses;
   }
 
@@ -143,25 +198,31 @@ export class PaneManager {
       if (!open.has(id)) this.destroy(id);
       else pane.row = open.get(id) as PaneRow;
     }
-    for (const row of open.values()) if (!this.panes.has(row.id)) void this.create(row);
+    for (const row of open.values()) if (!this.panes.has(row.id)) this.create(row).catch(() => {});
   }
 
   private async create(row: PaneRow): Promise<void> {
-    const ses = this.guardPartition(row.project_id);
+    const ses = this.guardPartition(row);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: new Map(), console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: new Map(), console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
+    pane.ready = this.setUp(pane);
+    await pane.ready;
+  }
+
+  private async setUp(pane: Pane): Promise<void> {
+    const { row, view } = pane;
     // A view with no navigation has no renderer yet; CDP commands would hang forever (seen under Linux/xvfb).
     await view.webContents.loadURL('about:blank').catch(() => {});
     try {
       pane.dbg.attach('1.3');
     } catch {}
-    pane.dbg.on('message', (_e, method, params) => void this.onDebuggerEvent(pane, method, params));
+    pane.dbg.on('message', (_e, method, params) => { this.onDebuggerEvent(pane, method, params).catch(() => {}); });
     await this.cmd(pane, 'Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
     await this.cmd(pane, 'Network.enable', {});
     await this.cmd(pane, 'Runtime.enable', {});
@@ -181,32 +242,133 @@ export class PaneManager {
     wc.on('will-redirect', stop);
     wc.on('will-frame-navigate', (e) => stop(e as unknown as Electron.Event, e.url));
     wc.setWindowOpenHandler(({ url }) => {
-      if (/^https?:/.test(url)) void this.load(pane, url).catch(() => {});
+      if (!/^https?:/.test(url)) return { action: 'deny' };
+      if (this.isUserPane(pane)) this.hooks.openPane(pane.row.project_id, url);
+      else void this.load(pane, url).catch(() => {});
       return { action: 'deny' };
     });
     wc.on('did-navigate', (_e, url, code) => {
       pane.status = code;
       pane.refs.clear();
-      this.hooks.urlChanged(pane.row.id, url);
+      if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
     wc.on('did-navigate-in-page', (_e, url) => this.hooks.urlChanged(pane.row.id, url));
+    const state = () => this.emitState(pane);
+    for (const ev of ['did-start-loading', 'did-stop-loading', 'page-title-updated', 'did-navigate', 'did-navigate-in-page'] as const) wc.on(ev as 'did-start-loading', state);
+    wc.on('found-in-page', (_e, r) => this.hooks.paneEvent({ kind: 'found', pane_id: pane.row.id, active: r.activeMatchOrdinal, matches: r.matches }));
+    if (!this.isUserPane(pane)) return;
+    wc.on('before-input-event', (e, input) => {
+      if (input.type !== 'keyDown') return;
+      const action = shortcut(input);
+      if (!action) return;
+      e.preventDefault();
+      if (action === 'focus-url' || action === 'find') {
+        this.win.webContents.focus();
+        this.hooks.paneEvent({ kind: 'key', pane_id: pane.row.id, action });
+      }
+      else this.act(pane.row.id, action);
+    });
+    wc.on('context-menu', (_e, p) => {
+      const items: MenuItemConstructorOptions[] = [];
+      if (p.linkURL && /^https?:/.test(p.linkURL)) {
+        items.push({ label: 'Open link in new pane', click: () => this.hooks.openPane(pane.row.project_id, p.linkURL) });
+        items.push({ label: 'Copy link', click: () => clipboard.writeText(p.linkURL) });
+        items.push({ type: 'separator' });
+      }
+      if (p.isEditable) items.push({ role: 'cut', enabled: p.editFlags.canCut }, { role: 'copy', enabled: p.editFlags.canCopy }, { role: 'paste', enabled: p.editFlags.canPaste }, { role: 'selectAll' });
+      else if (p.selectionText) items.push({ role: 'copy' });
+      else {
+        items.push({ label: 'Back', enabled: wc.navigationHistory.canGoBack(), click: () => this.act(pane.row.id, 'back') });
+        items.push({ label: 'Forward', enabled: wc.navigationHistory.canGoForward(), click: () => this.act(pane.row.id, 'forward') });
+        items.push({ label: 'Reload', click: () => this.act(pane.row.id, 'reload') });
+      }
+      items.push({ type: 'separator' }, { label: 'Inspect', click: () => { wc.inspectElement(p.x, p.y); } });
+      Menu.buildFromTemplate(items).popup({ window: this.win });
+    });
+  }
+
+  private emitState(pane: Pane): void {
+    const wc = pane.view.webContents;
+    if (wc.isDestroyed()) return;
+    this.hooks.paneEvent({
+      kind: 'state', pane_id: pane.row.id, url: wc.getURL(), title: wc.getTitle(), loading: wc.isLoading(),
+      can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(),
+    });
+  }
+
+  /** The user's own browser actions from the toolbar, shortcuts and context menu. */
+  act(id: string, action: string, arg?: unknown): void {
+    if (action === 'permission') {
+      const a = arg as { id?: unknown; allow?: unknown } | undefined;
+      const ask = typeof a?.id === 'string' ? this.asking.get(a.id) : undefined;
+      if (!ask) return;
+      this.asking.delete(a!.id as string);
+      this.allowed.set(ask.key, a!.allow === true);
+      ask.cb(a!.allow === true);
+      return;
+    }
+    const pane = this.panes.get(id);
+    if (!pane || pane.view.webContents.isDestroyed()) return;
+    const wc = pane.view.webContents;
+    const zoom = (dir: number) => {
+      const i = ZOOM_STEPS.findIndex((z) => z >= wc.getZoomFactor() - 0.001);
+      wc.setZoomFactor(ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, (i < 0 ? 4 : i) + dir))]);
+    };
+    switch (action) {
+      case 'back': if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); break;
+      case 'forward': if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); break;
+      case 'reload': wc.reload(); break;
+      case 'stop': wc.stop(); break;
+      case 'zoom-in': zoom(1); break;
+      case 'zoom-out': zoom(-1); break;
+      case 'zoom-reset': wc.setZoomFactor(1); break;
+      case 'devtools': if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'detach' }); break;
+      case 'find': {
+        const f = arg as { text?: unknown; forward?: unknown; next?: unknown } | undefined;
+        if (typeof f?.text === 'string' && f.text) wc.findInPage(f.text, { forward: f.forward !== false, findNext: f.next === true });
+        else wc.stopFindInPage('clearSelection');
+        break;
+      }
+      case 'find-stop': wc.stopFindInPage('keepSelection'); break;
+      default: return;
+    }
+    this.emitState(pane);
   }
 
   private async onDebuggerEvent(pane: Pane, method: string, params: Record<string, any>): Promise<void> {
     if (method === 'Fetch.requestPaused') {
-      const verdict = await checkUrl(params.request.url, this.policy(pane.row.project_id));
-      if (verdict.allow) await this.cmd(pane, 'Fetch.continueRequest', { requestId: params.requestId });
+      const verdict = await checkUrl(params.request.url, this.policy(pane.row.project_id)).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
+      if (verdict.allow) await this.cmd(pane, 'Fetch.continueRequest', { requestId: params.requestId }).catch(() => {});
       else {
-        await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' });
+        await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' }).catch(() => {});
         this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.request.url, reason: verdict.reason });
-        pane.console.push({ at: Date.now(), level: 'blocked', text: `MetaTrooper blocked ${params.request.url}: ${verdict.reason}` });
+        this.log(pane, 'blocked', `MetaTrooper blocked ${params.request.url}: ${verdict.reason}`);
       }
+      return;
+    }
+    if (method === 'Page.javascriptDialogOpening') {
+      pane.dialog = { type: params.type, message: String(params.message ?? '').slice(0, 2000) };
+      this.log(pane, 'dialog', `${params.type} dialog: ${pane.dialog.message}`);
+      pane.onDialog?.(pane.dialog);
+      return;
+    }
+    if (method === 'Page.javascriptDialogClosed') {
+      pane.dialog = null;
+      return;
+    }
+    if (method === 'Runtime.exceptionThrown') {
+      const d = params.exceptionDetails ?? {};
+      this.log(pane, 'error', String(d.exception?.description ?? d.text ?? 'uncaught exception'));
+      return;
+    }
+    if (method === 'Network.loadingFailed') {
+      const r = pane.network.get(params.requestId);
+      if (r) r.error = params.blockedReason ? `${params.errorText} (${params.blockedReason})` : params.errorText;
       return;
     }
     if (method === 'Runtime.consoleAPICalled') {
       const text = (params.args ?? []).map((a: any) => (a.value !== undefined ? String(a.value) : a.description ?? a.type)).join(' ');
-      pane.console.push({ at: Date.now(), level: params.type, text: text.slice(0, 2000) });
-      if (pane.console.length > LOG_KEEP) pane.console.splice(0, pane.console.length - LOG_KEEP);
+      this.log(pane, params.type, text);
       return;
     }
     if (method === 'Network.requestWillBeSent') {
@@ -223,7 +385,7 @@ export class PaneManager {
         if (!verdict.allow) {
           const reason = verdict.reason;
           this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });
-          pane.console.push({ at: Date.now(), level: 'blocked', text: `MetaTrooper blocked ${params.response.url}: ${reason}` });
+          this.log(pane, 'blocked', `MetaTrooper blocked ${params.response.url}: ${reason}`);
           await pane.view.webContents.loadURL('about:blank').catch(() => {});
         }
       }
@@ -241,6 +403,11 @@ export class PaneManager {
     }
   }
 
+  private log(pane: Pane, level: string, text: string): void {
+    pane.console.push({ at: Date.now(), level, text: text.slice(0, 2000) });
+    if (pane.console.length > LOG_KEEP) pane.console.splice(0, pane.console.length - LOG_KEEP);
+  }
+
   private cmd(pane: Pane, method: string, params: Record<string, unknown> = {}): Promise<any> {
     return pane.dbg.sendCommand(method, params).catch((e: Error) => {
       throw new ToolError(-32099, `${method} failed: ${e.message}`);
@@ -254,8 +421,10 @@ export class PaneManager {
     try { pane.dbg.detach(); } catch {}
     this.win.contentView.removeChildView(pane.view);
     try { this.win.contentView.removeChildView(pane.overlay); } catch {}
+    const ses = pane.view.webContents.session;
     pane.view.webContents.close();
     pane.overlay.webContents.close();
+    if (id.startsWith(AGENT_PANE)) void ses.clearStorageData().catch(() => {});
     if (this.shown === id) this.shown = null;
   }
 
@@ -309,11 +478,58 @@ export class PaneManager {
     return id;
   }
 
-  private async centre(pane: Pane, backendNodeId: number): Promise<{ x: number; y: number }> {
+  private async centre(pane: Pane, backendNodeId: number, ref?: unknown): Promise<{ x: number; y: number }> {
+    const gone = new ToolError(-32602, `ref ${String(ref)} is no longer on the page; call snapshot again`);
+    const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId, executionContextId: await this.isolated(pane) }).catch(() => { throw gone; });
+    const live = await this.cmd(pane, 'Runtime.callFunctionOn', { objectId: object.objectId, returnByValue: true, functionDeclaration: 'function () { return this.isConnected; }' });
+    if (live.result?.value !== true) throw gone;
     await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId }).catch(() => {});
-    const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId });
+    const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId }).catch(() => {
+      throw new ToolError(-32602, `ref ${String(ref)} is not visible (it has no layout box)`);
+    });
     const q: number[] = box.model.content;
     return { x: (q[0] + q[2] + q[4] + q[6]) / 4, y: (q[1] + q[3] + q[5] + q[7]) / 4 };
+  }
+
+  /** The point to click for a ref, after checking the element is enabled and is what a click there hits. */
+  private async target(pane: Pane, ref: unknown): Promise<{ node: number; x: number; y: number }> {
+    const node = this.node(pane, ref);
+    const p = await this.centre(pane, node, ref);
+    const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
+    const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
+      objectId: object.objectId,
+      returnByValue: true,
+      arguments: [{ value: p.x }, { value: p.y }],
+      functionDeclaration: `function (x, y) {
+        const el = this.nodeType === 1 ? this : this.parentElement;
+        if (!el) return null;
+        if (el.disabled || el.closest('[aria-disabled="true"], fieldset:disabled')) return 'is disabled';
+        const hits = (h) => !!h && (h === el || el.contains(h) || h.closest('label')?.control === el);
+        const hit = document.elementFromPoint(x, y);
+        if (hits(hit)) return null;
+        for (const label of el.labels || []) {
+          const b = label.getBoundingClientRect();
+          const lx = b.left + b.width / 2, ly = b.top + b.height / 2;
+          if (b.width && b.height && hits(document.elementFromPoint(lx, ly))) return { x: lx, y: ly };
+        }
+        if (!hit) return 'is outside the viewport';
+        return 'is covered by <' + hit.tagName.toLowerCase() + (hit.id ? '#' + hit.id : '') + '>';
+      }`,
+    });
+    const v = r.result?.value;
+    if (typeof v === 'string') throw new ToolError(-32033, `ref ${String(ref)} ${v}; nothing was clicked`);
+    return v && typeof v.x === 'number' ? { node, x: v.x, y: v.y } : { node, ...p };
+  }
+
+  /** Runs a tool action, returning early with the dialog if one opens while it runs. */
+  private async race<T>(pane: Pane, work: Promise<T>): Promise<T | { ok: true; dialog: Dialog }> {
+    work.catch(() => {});
+    const opened = new Promise<{ ok: true; dialog: Dialog }>((resolve) => { pane.onDialog = (dialog) => resolve({ ok: true, dialog }); });
+    try {
+      return await Promise.race([work, opened]);
+    } finally {
+      pane.onDialog = null;
+    }
   }
 
   /** Moves the overlay cursor to a CSS-pixel point of the pane and waits for its ease to finish. */
@@ -398,32 +614,55 @@ export class PaneManager {
   /** Runs one metatrooper-browser tool on a pane. */
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
+    await pane.ready;
+    if (name === 'dialog') {
+      if (!pane.dialog) throw new ToolError(-32002, 'no dialog is open');
+      const d = pane.dialog;
+      await this.cmd(pane, 'Page.handleJavaScriptDialog', { accept: a.accept === true, ...(typeof a.prompt_text === 'string' ? { promptText: a.prompt_text } : {}) });
+      pane.dialog = null;
+      return { ok: true, handled: d };
+    }
+    if (pane.dialog && name !== 'console' && name !== 'network') {
+      throw new ToolError(-32032, `a ${pane.dialog.type} dialog is open ("${pane.dialog.message.slice(0, 200)}"); call dialog first`);
+    }
+    return this.race(pane, this.run(pane, name, a));
+  }
+
+  private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
     switch (name) {
       case 'navigate': {
         if (typeof a.url !== 'string') throw new ToolError(-32602, 'url is required');
         await this.load(pane, a.url);
         return { url: pane.view.webContents.getURL(), title: pane.view.webContents.getTitle(), status: pane.status };
       }
-      case 'back':
-        if (pane.view.webContents.navigationHistory.canGoBack()) {
-          pane.view.webContents.navigationHistory.goBack();
-          await sleep(300);
+      case 'back': {
+        const wc = pane.view.webContents;
+        if (wc.navigationHistory.canGoBack()) {
+          const stopped = new Promise<void>((resolve) => { wc.once('did-stop-loading', () => resolve()); setTimeout(resolve, 10_000); });
+          wc.navigationHistory.goBack();
+          await stopped;
         }
-        return { url: pane.view.webContents.getURL() };
+        return { url: wc.getURL() };
+      }
       case 'snapshot':
         return { text: await this.snapshotText(pane, Math.max(10, Math.min(Number(a.max_nodes) || 400, 5000))) };
       case 'click': {
-        const p = await this.centre(pane, this.node(pane, a.ref));
+        const p = await this.target(pane, a.ref);
         await this.clickAt(pane, p.x, p.y);
         return { ok: true };
       }
       case 'type': {
         if (typeof a.text !== 'string') throw new ToolError(-32602, 'text is required');
-        const node = this.node(pane, a.ref);
-        const p = await this.centre(pane, node);
-        await this.clickAt(pane, p.x, p.y);
+        const { node, x, y } = await this.target(pane, a.ref);
+        await this.clickAt(pane, x, y);
         await this.cmd(pane, 'DOM.focus', { backendNodeId: node }).catch(() => {});
-        await this.cmd(pane, 'Input.insertText', { text: a.text });
+        for (const type of ['keyDown', 'keyUp']) {
+          await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
+        }
+        if (a.text) await this.cmd(pane, 'Input.insertText', { text: a.text });
+        else {
+          for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+        }
         if (a.submit) {
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
@@ -433,7 +672,7 @@ export class PaneManager {
       }
       case 'select': {
         const node = this.node(pane, a.ref);
-        const p = await this.centre(pane, node);
+        const p = await this.centre(pane, node, a.ref);
         await this.pointAt(pane, p.x, p.y);
         const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
         await this.cmd(pane, 'Runtime.callFunctionOn', {
@@ -515,7 +754,6 @@ export class PaneManager {
   /** Inspiration board: loads a URL in a parked pane with no database row, captures its first 1280 by 800 screen to outFile, then closes the pane. */
   async boardCapture(projectId: string, url: string, outFile: string): Promise<{ url: string; status: number | null }> {
     const id = `${BOARD_PANE}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    console.error('T1 create');
     await this.create({ id, project_id: projectId, run_id: null, variant: null, session_id: null, url: null, dev_port: null, open: 1 });
     try {
       const pane = this.pane(id);
@@ -594,4 +832,20 @@ export class PaneManager {
   contentsOf(id: string): WebContents | null {
     return this.panes.get(id)?.view.webContents ?? null;
   }
+}
+
+/** The browser action a key press in a user pane stands for, or null. */
+function shortcut(i: Electron.Input): string | null {
+  const mod = i.control || i.meta;
+  const key = i.key.toLowerCase();
+  if (mod && key === 'l') return 'focus-url';
+  if (mod && key === 'f') return 'find';
+  if ((mod && key === 'r') || key === 'f5') return 'reload';
+  if (i.alt && key === 'arrowleft') return 'back';
+  if (i.alt && key === 'arrowright') return 'forward';
+  if (mod && (key === '=' || key === '+')) return 'zoom-in';
+  if (mod && key === '-') return 'zoom-out';
+  if (mod && key === '0') return 'zoom-reset';
+  if (key === 'f12' || (mod && i.shift && key === 'i')) return 'devtools';
+  return null;
 }

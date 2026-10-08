@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { client, isolation, root, startCore, teardownCore, uiHello, until } from './helpers.ts';
+import { client, fakeGh, isolation, root, startCore, teardownCore, uiHello, until } from './helpers.ts';
 
 const win = process.platform === 'win32';
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe' });
@@ -21,9 +21,7 @@ async function setup(pipelineId: string) {
   }]));
   const bin = join(iso.home, 'fake-bin');
   mkdirSync(bin);
-  const ghLog = join(iso.home, 'gh.log');
-  if (win) writeFileSync(join(bin, 'gh.cmd'), `@echo off\r\necho %*>>"${ghLog}"\r\necho https://github.com/fake/repo/pull/7\r\n`);
-  else writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> '${ghLog}'\necho https://github.com/fake/repo/pull/7\n`, { mode: 0o755 });
+  const ghLog = fakeGh(bin);
 
   const project = join(iso.home, 'project');
   cpSync(join(root, 'tests', 'fixtures', pipelineId), project, { recursive: true });

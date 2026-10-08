@@ -85,13 +85,17 @@ test('nextState follows every event row in the state mapping', () => {
     ['claude.Notification', { class: 'input' }, 'waiting_for_you'],
     ['claude.Notification', { class: 'other' }, null],
     ['claude.Stop', {}, 'done'],
-    ['claude.SessionEnd', {}, 'exited'],
+    ['claude.SessionEnd', {}, null],
     ['codex.turn', {}, 'done'],
     ['core.activity', { state: 'working' }, 'working'],
     ['core.process-gone', { pid: 42 }, 'exited'],
   ];
   for (const [kind, payload, expected] of cases) assert.equal(nextState('idle', { kind, payload }), expected, kind);
   assert.equal(nextState('working', { kind: 'claude.Notification', payload: { class: 'other' } }), null);
+  assert.equal(nextState('starting', { kind: 'claude.Notification', payload: { class: 'idle' } }), 'idle');
+  assert.equal(nextState('done', { kind: 'claude.Notification', payload: { class: 'idle' } }), null);
+  assert.equal(nextState('idle', { kind: 'claude.SessionEnd', payload: {} }), null);
+  assert.equal(nextState('working', { kind: 'claude.SessionEnd', payload: {} }), 'idle');
   for (const current of ['starting', 'working', 'waiting_for_you', 'done', 'idle', 'unknown']) {
     assert.equal(nextState(current, { kind: 'core.activity', payload: { state: 'working' } }), 'working', current);
     assert.equal(nextState(current, { kind: 'core.process-gone', payload: { pid: 42 } }), 'exited', current);

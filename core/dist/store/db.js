@@ -32,6 +32,7 @@ export function openCoreDb()               {
   }
   db.exec('CREATE INDEX IF NOT EXISTS usage_session_idx ON usage (session_id)');
   if (!(db.prepare('PRAGMA table_info(session)').all()                           ).some((c) => c.name === 'driven_engine')) db.exec('ALTER TABLE session ADD COLUMN driven_engine TEXT');
+  if (!(db.prepare('PRAGMA table_info(run)').all()                           ).some((c) => c.name === 'hidden')) db.exec('ALTER TABLE run ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
   return db;
 }
 

@@ -94,3 +94,39 @@ test('pipeline snapshot defaults background to false and converts non-string lay
     f.close();
   }
 });
+
+test('snapshot lists working and waiting sessions from every project, so the picker and need-you chip see past the open one', () => {
+  const f = fixture();
+  try {
+    const d = f.db;
+    const now = iso(Date.now());
+    for (const p of ['p1', 'p2']) d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run(p, `/${p}`, p, now, now);
+    d.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('claude', '{}', 3)").run();
+    for (const [id, p, state, hidden] of [['a', 'p1', 'working', 0], ['b', 'p2', 'waiting_for_you', 0], ['c', 'p2', 'working', 0], ['d', 'p2', 'done', 0], ['e', 'p2', 'waiting_for_you', 1]] as const) {
+      d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES (?, ?, 'claude', 'pty', ?, ?, ?, ?)").run(id, p, state, now, now, hidden);
+    }
+    const s = snapshot(d, 'p1', null);
+    assert.deepEqual(s.sessions.map((x) => x.id), ['a']);
+    assert.deepEqual(s.live.map((x) => [x.id, x.project_id, x.state]).sort(), [['a', 'p1', 'working'], ['b', 'p2', 'waiting_for_you'], ['c', 'p2', 'working']]);
+  } finally {
+    f.close();
+  }
+});
+
+test('snapshot lists running and paused top-level runs from every project, so approved runs elsewhere stay findable', () => {
+  const f = fixture();
+  try {
+    const d = f.db;
+    const now = iso(Date.now());
+    for (const p of ['p1', 'p2']) d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run(p, `/${p}`, p, now, now);
+    d.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x', 1, 1)").run();
+    for (const [id, p, status, parent] of [['r1', 'p1', 'running', null], ['r2', 'p2', 'paused', null], ['r3', 'p2', 'done', null], ['r4', 'p2', 'running', 'r2']] as const) {
+      d.prepare("INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, parent_run, max_tokens, max_usd, max_minutes, started_at) VALUES (?, 'pl', ?, '{}', '/x', ?, 'manual', ?, 1, 1, 1, ?)").run(id, p, status, parent, now);
+    }
+    const s = snapshot(d, 'p1', null);
+    assert.deepEqual(s.runs.map((x) => x.id), ['r1']);
+    assert.deepEqual(s.live_runs.map((x) => [x.id, x.project_id]).sort(), [['r1', 'p1'], ['r2', 'p2']]);
+  } finally {
+    f.close();
+  }
+});

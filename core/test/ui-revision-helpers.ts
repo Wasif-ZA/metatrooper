@@ -4,7 +4,7 @@ import { connect } from 'node:net';
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, pipePath, root, startCore, teardownCore, uiHello, until } from './helpers.ts';
+import { buildGenerated, client, fakeGh, isolation, pipePath, root, startCore, teardownCore, uiHello, until } from './helpers.ts';
 
 export const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim();
 
@@ -23,9 +23,7 @@ export async function revisionHarness(fixture?: string, fakeWrapper?: string) {
   git(iso.home, 'init', '-q', '--bare', origin);
   git(project, 'remote', 'add', 'origin', origin); git(project, 'push', '-q', 'origin', 'main');
   const bin = join(iso.home, 'bin'); mkdirSync(bin);
-  writeFileSync(join(bin, process.platform === 'win32' ? 'gh.cmd' : 'gh'), process.platform === 'win32'
-    ? '@echo off\r\necho https://github.com/fake/repo/pull/7\r\n'
-    : '#!/bin/sh\necho https://github.com/fake/repo/pull/7\n', { mode: 0o755 });
+  fakeGh(bin);
   const registry = join(iso.home, 'engines.json');
   const fakeEngine = fakeWrapper ? join(iso.home, 'fake-wrapper.mjs') : join(root, 'core/test/fake-engine.js');
   if (fakeWrapper) writeFileSync(fakeEngine, fakeWrapper);
