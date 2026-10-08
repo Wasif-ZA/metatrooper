@@ -251,6 +251,23 @@ test('an action receives the TROOP_ tool path overrides its plugin reads', () =>
   }
 });
 
+test('an action\'s stderr reaches log.jsonl with its secret values redacted', async () => {
+  const dir = fixtureDir();
+  try {
+    script(dir, 'bin/leak.js', `process.stdin.resume(); process.stdin.on('end', () => { console.error('token=' + process.env.API_TOKEN); process.stderr.write('tail ' + process.env.API_TOKEN); process.stdout.write('{"ok":true,"outputs":{}}'); });`);
+    const lines: string[] = [];
+    const r = await runAction({
+      plugin: pluginRecord(dir, [{ id: 'leak', run: ['bin/leak.js'] }], ['secrets:API_TOKEN']),
+      actionId: 'leak', input: {}, projectDir: dir, run: { id: 'r', dir: join(dir, 'run') }, secret: () => 'sekrit-991',
+    }, (l) => lines.push(l));
+    assert.equal(r.ok, true);
+    assert.ok(!readFileSync(join(dir, 'run', 'log.jsonl'), 'utf8').includes('sekrit-991'));
+    assert.deepEqual(lines, ['token=[redacted]', 'tail [redacted]']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('M1-16 a hung action is killed with its child processes at its timeout', async () => {
   const dir = fixtureDir();
   try {
