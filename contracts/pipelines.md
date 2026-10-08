@@ -65,8 +65,9 @@ Front matter values are `key: value` scalars, `- item` lists, and `|` (lines kep
 line) blocks. A ` # comment` after a one-word value is dropped, so `status: done  # ok` reads as `done`.
 
 `status: failed` in the file, a missing required output key, the session exiting without the file, or
-`timeout_minutes` passing, fails the step. The session is never killed by the runner; on failure its card
-says "step failed, session left open".
+`timeout_minutes` passing, fails the step. So does a session that settles without writing the file for 2
+minutes. The runner closes the step's session when the step ends, whether it passed, failed, timed out or
+paused for budget; its transcript stays readable.
 
 ## Sub-pipeline steps (`kind: "pipeline"`)
 

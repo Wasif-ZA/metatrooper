@@ -1,23 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { runNode, until } from './helpers.ts';
 import { git, panePipeline, revisionHarness, runDone, terminalViewer } from './ui-revision-helpers.ts';
 
-test('#36 first launch installs hooks and declared settings exactly once and reports the files', async () => {
+test('#36 first launch writes declared engine settings exactly once and leaves the global Claude settings alone', async () => {
   const h = await revisionHarness();
   try {
     const first = await h.launch('fake');
-    assert.deepEqual(new Set(first.setup), new Set([h.env.METATROOPER_CLAUDE_SETTINGS, h.engineSettings]));
-    const hooks = JSON.parse(readFileSync(h.env.METATROOPER_CLAUDE_SETTINGS, 'utf8')).hooks;
-    for (const event of ['PreToolUse','PostToolUse','UserPromptSubmit','Notification','Stop','SessionEnd']) {
-      assert.equal(hooks[event].length, 1); assert.match(hooks[event][0].hooks[0].command, new RegExp(`claude.${event}`));
-    }
+    assert.deepEqual(new Set(first.setup), new Set([h.engineSettings]));
+    assert.equal(existsSync(h.env.METATROOPER_CLAUDE_SETTINGS), false);
     assert.deepEqual(JSON.parse(readFileSync(h.engineSettings, 'utf8')), { keep: 'original', enable: true });
     const stateFile = join(h.iso.home, 'hooks-install.json');
     const state = readFileSync(stateFile, 'utf8'); assert.ok(JSON.parse(state).setup.fake);
-    const files = [stateFile, h.engineSettings, h.env.METATROOPER_CLAUDE_SETTINGS];
+    const files = [stateFile, h.engineSettings];
     const before = files.map(f => ({ text: readFileSync(f, 'utf8'), mtime: statSync(f).mtimeMs }));
     const second = await h.launch('fake'); assert.equal(Object.hasOwn(second, 'setup'), false);
     assert.deepEqual(files.map(f => ({ text: readFileSync(f, 'utf8'), mtime: statSync(f).mtimeMs })), before);

@@ -8,7 +8,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
 import { launchSession } from '../sessions/launch.ts';
 import { pidAlive } from '../sessions/watch.ts';
-import { trustFolder } from '../trust.ts';
+import { trustFolder, untrustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
 import { BASE_ENV, killPid, killTree, runAction } from '../plugins/actions.ts';
@@ -285,8 +285,11 @@ export class Runner {
     if (!fs.existsSync(root)) return;
     for (const name of fs.readdirSync(root).filter((n) => n.startsWith(`${run.id.toLowerCase()}-`))) {
       const dir = path.join(root, name);
+      let real = dir;
+      try { real = fs.realpathSync.native(dir); } catch {}
       try {
         git(project.path, ['worktree', 'remove', dir]);
+        untrustFolder(real);
         this.db.prepare("UPDATE variant SET worktree = '' WHERE run_id = ? AND worktree = ?").run(run.id, slash(dir));
       } catch (e) {
         this.log(run, { event: 'worktree kept', path: slash(dir), why: gitError(e) });
@@ -733,7 +736,7 @@ export class Runner {
       const approval = printArgs ? a.approval ?? 'contained' : a.approval;
       trustFolder(fs.realpathSync.native(a.cwd), [engine]);
       const launched = launchSession(this.db, {
-        projectId: project.id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval,
+        projectId: project.id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval, browser: Boolean(a.paneId),
         ...(printArgs
           ? { extraArgs: [...printArgs.map((x) => (x === '{prompt}' ? prompt : x)), '--add-dir', slash(a.cwd), '--add-dir', slash(path.dirname(a.outPath))] }
           : { prompt }),
@@ -1157,9 +1160,12 @@ export class Runner {
     if (v.pane_id) this.db.prepare('UPDATE browser_pane SET open = 0 WHERE id = ?').run(v.pane_id);
     const run = this.run(runId) as RunRow;
     const project = this.project(run.project_id);
+    let real = v.worktree;
+    try { real = fs.realpathSync.native(v.worktree); } catch {}
     try {
       execFileSync('git', ['-C', project.path, 'worktree', 'remove', '--force', v.worktree], { stdio: 'pipe', timeout: 60_000, windowsHide: true });
     } catch {}
+    if (v.worktree && !fs.existsSync(v.worktree)) untrustFolder(real);
     if (v.worktree && fs.existsSync(v.worktree)) {
       throw new RpcError(E.VALIDATION, `the worktree at ${v.worktree} could not be removed; close anything using it and discard again`, { errors: ['worktree still on disk'] });
     }
