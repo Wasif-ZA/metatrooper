@@ -87,7 +87,7 @@ export async function checkUrl(raw: string, ctx: PolicyContext): Promise<Verdict
   }
   for (const a of addrs) {
     if (isLoopback(a)) {
-      if (literalLoopback && scheme === 'http:' && ctx.ownedPorts.has(port)) continue;
+      if (literalLoopback && (scheme === 'http:' || scheme === 'https:') && ctx.ownedPorts.has(port)) continue;
       return { allow: false, reason: `${host}:${port} is a loopback address this project does not own` };
     }
     if (blockedAddress(a)) return { allow: false, reason: `${host} resolves to a private address (${a})` };

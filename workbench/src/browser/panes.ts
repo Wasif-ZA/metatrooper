@@ -638,7 +638,7 @@ export class PaneManager {
       case 'back': {
         const wc = pane.view.webContents;
         if (wc.navigationHistory.canGoBack()) {
-          const stopped = new Promise<void>((resolve) => { wc.once('did-stop-loading', () => resolve()); setTimeout(resolve, 10_000); });
+          const stopped = new Promise<void>((resolve) => { wc.once('did-stop-loading', () => resolve()); wc.once('did-navigate-in-page', () => resolve()); setTimeout(resolve, 10_000); });
           wc.navigationHistory.goBack();
           await stopped;
         }
