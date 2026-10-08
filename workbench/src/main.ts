@@ -13,7 +13,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, readRunFile, snapshot, type Snapshot } from './queries.ts';
+import { dataVersion, readRunFile, snapshot, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
 import { gitAct, gitView, runIn, type GitView } from './gitpane.ts';
 import { diffLineBody, filesBody } from './comments.ts';
@@ -58,12 +58,25 @@ function emptySnapshot(): Snapshot {
 }
 
 let lastGood: Snapshot | null = null;
+let liveText: LiveText = {};
+let livePolling = false;
+
+/** Fetches the core's in-memory terminal lines and titles; pushes when they changed. */
+async function pollLiveText(): Promise<void> {
+  if (livePolling) return;
+  livePolling = true;
+  try {
+    const out = await call('session.live-text', {}, { waitMs: POLL_MS });
+    const next = out.kind === 'reply' && out.reply.result && typeof out.reply.result === 'object' ? out.reply.result as LiveText : {};
+    if (JSON.stringify(next) !== JSON.stringify(liveText)) { liveText = next; schedulePush(); }
+  } catch {} finally { livePolling = false; }
+}
 
 function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = { ...snapshot(d, view.projectId, view.runId), git: rowGit() };
+    lastGood = { ...withLiveText(snapshot(d, view.projectId, view.runId), liveText), git: rowGit() };
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
@@ -144,6 +157,7 @@ function watch(): void {
     }
     const s = read();
     if (changed || s.core.online !== lastOnline) schedulePush();
+    void pollLiveText();
   }, POLL_MS);
 }
 

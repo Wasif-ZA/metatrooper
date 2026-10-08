@@ -18,6 +18,7 @@ import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
 import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
+import { liveText } from '../terminal/events.ts';
 import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCapture } from '../board.ts';
 
 const POLL_MS = 500;
@@ -418,7 +419,7 @@ export class Runner {
     const marks = ids.map(() => '?').join(',');
     const waits = this.db.prepare(
       `SELECT at, resolved_at FROM needs_you WHERE (kind IN ('gate','handoff') AND ref IN (SELECT id FROM gate WHERE run_id IN (${marks})))
-       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY at`,
+       OR (kind IN ('budget','run-failed','other') AND ref IN (${marks})) ORDER BY julianday(at)`,
     ).all(...ids, ...ids) as Array<{ at: string; resolved_at: string | null }>;
     const now = Date.now();
     const start = Date.parse(run.started_at);
@@ -642,7 +643,7 @@ export class Runner {
   private usableEngine(id: string): EngineSpec | null {
     const e = getEngine(this.db, id);
     if (!e) return null;
-    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
+    const c = this.db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(id) as { installed: number; auth: string } | undefined;
     return c && (!c.installed || c.auth === 'missing') ? null : e;
   }
 
@@ -716,10 +717,11 @@ export class Runner {
   /** The error text of a failed attempt whose print-mode session has exited, else null. */
   private printFailure(run: RunRow, row: StepRow, r: IndexResult): string | null {
     if ('paused' in r || r.ok) return null;
-    const s = this.db.prepare('SELECT s.engine_id, s.state, s.last_line FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ? AND r.iteration = ? AND r.fanout_index = ?')
-      .get(run.id, row.step_id, row.iteration, row.fanout_index) as { engine_id: string; state: string; last_line: string | null } | undefined;
+    const s = this.db.prepare('SELECT s.id, s.engine_id, s.state FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ? AND r.iteration = ? AND r.fanout_index = ?')
+      .get(run.id, row.step_id, row.iteration, row.fanout_index) as { id: string; engine_id: string; state: string } | undefined;
     if (s?.state !== 'exited' || !getEngine(this.db, s.engine_id)?.print_args) return null;
-    return s.last_line ? `${r.error} (${s.last_line})` : r.error;
+    const line = liveText()[s.id]?.line;
+    return line ? `${r.error} (${line})` : r.error;
   }
 
   private async agentAttempt(run: RunRow, pipe: Pipeline, a: AgentArgs): Promise<IndexResult> {
@@ -900,7 +902,7 @@ export class Runner {
     const h = this.hashFor(run, step);
     if (!h) return this.fail(run, `step ${step.id}: its arguments could not be resolved for the approval check`);
     const approved = this.db.prepare(
-      "SELECT id, action_hash FROM gate WHERE run_id = ? AND guards_step = ? AND status = 'approved' ORDER BY decided_at DESC LIMIT 1",
+      "SELECT id, action_hash FROM gate WHERE run_id = ? AND guards_step = ? AND status = 'approved' ORDER BY julianday(decided_at) DESC LIMIT 1",
     ).get(run.id, step.id) as { id: string; action_hash: string | null } | undefined;
     if (approved && approved.action_hash === h.hash) {
       this.db.prepare("UPDATE gate SET status = 'stale', note = ? WHERE id = ?").run(`approval used by ${step.id}`, approved.id);
@@ -1063,7 +1065,7 @@ export class Runner {
       if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(run.id)) continue;
       const child = this.db.prepare("SELECT 1 FROM run WHERE parent_run = ? AND status = 'paused'").get(run.id);
       if (child) continue;
-      const last = this.db.prepare("SELECT status FROM gate WHERE run_id = ? AND decided_at IS NOT NULL AND (note IS NULL OR note != 'output arrived') ORDER BY decided_at DESC LIMIT 1").get(run.id) as
+      const last = this.db.prepare("SELECT status FROM gate WHERE run_id = ? AND decided_at IS NOT NULL AND (note IS NULL OR note != 'output arrived') ORDER BY julianday(decided_at) DESC LIMIT 1").get(run.id) as
         | { status: string }
         | undefined;
       if (last?.status === 'rejected') {

@@ -72,3 +72,22 @@ test('uninstallCodex leaves notify alone when another tool replaced the MetaTroo
     assert.equal(readFileSync(config, 'utf8'), replaced);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test('M1-13 the previous notify helper receives every notification, in a session or not, with no core running', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'metatrooper-codex-forward-'));
+  try {
+    const helper = join(home, 'helper.mjs');
+    const got = join(home, 'got.txt');
+    writeFileSync(helper, "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], process.argv[3] + String.fromCharCode(10));\n");
+    const [node, script, previous] = wrapper([process.execPath, helper, got]);
+    const sent = [0, 1, 2, 3, 4].map((i) => JSON.stringify({ type: 'agent-turn-complete', 'turn-id': `t${i}` }));
+    sent.forEach((n, i) => {
+      const env = { ...process.env, METATROOPER_HOME: home };
+      if (i % 2) env.TROOP_SESSION_ID = `s${i}`; else delete env.TROOP_SESSION_ID;
+      assert.equal(spawnSync(node, [script, previous, n], { env }).status, 0);
+    });
+    const lines = () => { try { return readFileSync(got, 'utf8').trim().split(String.fromCharCode(10)); } catch { return []; } };
+    for (let t = Date.now(); lines().length < sent.length && Date.now() - t < 5000;) await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(lines().sort(), [...sent].sort());
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});

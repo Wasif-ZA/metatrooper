@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, chmodSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, writeFileSync, readFileSync, readdirSync, chmodSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,19 +36,38 @@ test('M1-27 tray lists staged stat, binary by name, untracked separately', () =>
   assert.match(g('status', '--porcelain'), /\?\? new\.txt/);
 });
 
-test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', { skip: process.platform === 'win32' && 'the git stub is a sh script' }, () => {
+function stubGit(bin: string, log: string): Record<string, string> {
+  if (process.platform !== 'win32') {
+    const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    writeFileSync(join(bin, 'git'), `#!/bin/sh\necho "$1" >> ${log}\nexec ${real} "$@"\n`);
+    chmodSync(join(bin, 'git'), 0o755);
+    return { PATH: `${bin}:${process.env.PATH}` };
+  }
+  // execFileSync finds only .exe/.com without a shell, so git.exe is a copy of node that preloads the logger.
+  const real = execFileSync('where', ['git'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim();
+  copyFileSync(process.execPath, join(bin, 'git.exe'));
+  const stub = join(bin, 'stub.cjs');
+  writeFileSync(stub, `const { appendFileSync } = require('node:fs');
+const { spawnSync } = require('node:child_process');
+const args = [require('node:path').basename(process.argv[1]), ...process.argv.slice(2)];
+appendFileSync(${JSON.stringify(log)}, args[0] + String.fromCharCode(10));
+const r = spawnSync(${JSON.stringify(real)}, args, { stdio: 'inherit', env: { ...process.env, NODE_OPTIONS: '' } });
+process.exit(r.status ?? 1);
+`);
+  return { PATH: `${bin};${process.env.PATH}`, NODE_OPTIONS: `--require ${JSON.stringify(stub)}` };
+}
+
+test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', () => {
   const { d } = repo();
   const bin = mkdtempSync(join(tmpdir(), 'hb-bin-'));
   const log = join(bin, 'log');
-  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-  writeFileSync(join(bin, 'git'), `#!/bin/sh\necho "$1" >> ${log}\nexec ${real} "$@"\n`);
-  chmodSync(join(bin, 'git'), 0o755);
-  const old = process.env.PATH;
-  process.env.PATH = `${bin}:${old}`;
+  const vars = stubGit(bin, log);
+  const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, vars);
   try {
     handback(gitIn(d));
   } finally {
-    process.env.PATH = old;
+    for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
   const used = new Set(readFileSync(log, 'utf8').split('\n').filter(Boolean));
   assert.ok(used.size > 0);

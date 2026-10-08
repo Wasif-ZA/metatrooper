@@ -97,7 +97,7 @@ export function activeEngines(db: DatabaseSync): EngineSpec[] {
 /** The engine for a role: the pin when it is usable, else the lowest cost_rank that lists the role, is installed and is not red. */
 export function bindRole(db: DatabaseSync, role: string, pinned?: string): EngineSpec | null {
   const usable = (e: EngineSpec) => {
-    const c = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY checked_at DESC LIMIT 1').get(e.id) as
+    const c = db.prepare('SELECT installed, auth FROM engine_check WHERE engine_id = ? ORDER BY julianday(checked_at) DESC LIMIT 1').get(e.id) as
       | { installed: number; auth: string }
       | undefined;
     return Boolean(c && c.installed && c.auth !== 'missing');
