@@ -55,17 +55,19 @@ export function transcribe(input) {
   try {
     const words = [];
     const cuts = {};
-    for (const file of mediaFiles(input.path)) {
+    const skipped = [];
+    for (const { path: file, audio } of probe(input).files) {
+      if (!audio) { skipped.push(path.basename(file)); continue; }
       const wav = path.join(tmp, 'a.wav');
       run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', file, '-vn', '-ac', '1', '-ar', '16000', wav]);
       run(WHISPER, ['-m', MODEL, '-f', wav, '-ml', '1', '-sow', '-oj', '-of', path.join(tmp, 'a'), '-np']);
       words.push(...wordsFromWhisper(JSON.parse(fs.readFileSync(path.join(tmp, 'a.json'), 'utf8')), path.basename(file)));
       if (input.scenes) cuts[path.basename(file)] = scenes(file);
     }
-    const result = { model: path.basename(MODEL), words, ...(input.scenes ? { scenes: cuts } : {}) };
+    const result = { model: path.basename(MODEL), words, skipped, ...(input.scenes ? { scenes: cuts } : {}) };
     fs.mkdirSync(path.dirname(input.out), { recursive: true });
     fs.writeFileSync(input.out, JSON.stringify(result, null, 2));
-    return { out: input.out, words: words.length, files: new Set(words.map((w) => w.file)).size };
+    return { out: input.out, words: words.length, files: new Set(words.map((w) => w.file)).size, skipped };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -100,7 +102,7 @@ export function pickMoment(moments, index) {
   return (approved.length ? approved : items)[Number(index)] ?? null;
 }
 
-const ASPECT = { '9:16': 'crop=trunc(ih*9/16/2)*2:ih', '1:1': 'crop=ih:ih', '16:9': null };
+const ASPECT = { '9:16': "crop='min(iw,trunc(ih*9/16/2)*2)':'min(ih,trunc(iw*16/9/2)*2)'", '1:1': "crop='min(iw,ih)':'min(iw,ih)'", '16:9': null };
 
 export function cut(input) {
   const m = pickMoment(input.moments, input.index ?? 0);

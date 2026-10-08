@@ -10,7 +10,7 @@ import { isPrivate, checkUrl, safeFetch } from '../../plugins/agent-reach/bin/sa
 import { check, normalise } from '../../plugins/cite-check/bin/cite-check.js';
 import { search, queriesOf } from '../../plugins/agent-reach/bin/search.js';
 import { parseCsv, load, query, render, kpiBlocks } from '../../plugins/data/bin/data.js';
-import { cut, captions } from '../../plugins/media/bin/media.js';
+import { cut, captions, transcribe } from '../../plugins/media/bin/media.js';
 import { listDeps, licenceReport } from '../../plugins/security/bin/security.js';
 import { exportPdf } from '../../plugins/docs-export/bin/docs-export.js';
 
@@ -237,6 +237,50 @@ test('media validates cut and caption moment ids before invoking ffmpeg or writi
     writeJson(join(dir, 'words.json'), { words: [] });
     assert.throws(() => captions({ clip, words: join(dir, 'words.json'), out }), /moment id/);
     assert.deepEqual(existsSync(out) ? readdirSync(out) : [], []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+function testClip(file, size, audio = false) {
+  const lavfi = ['-f', 'lavfi', '-i', `testsrc=size=${size}:duration=0.5`, ...(audio ? ['-f', 'lavfi', '-i', 'sine=duration=0.5'] : [])];
+  spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...lavfi, '-pix_fmt', 'yuv420p', '-shortest', file]);
+}
+
+test('media cut crops 9:16 and 1:1 from portrait and landscape footage', () => {
+  const dir = tempDir();
+  try {
+    const sizeOf = (file) => spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file], { encoding: 'utf8' }).stdout.trim();
+    const got = {};
+    for (const size of ['90x200', '320x180']) {
+      const video = join(dir, `${size}.mp4`);
+      testClip(video, size);
+      for (const aspect of ['9:16', '1:1']) {
+        const id = `${size}-${aspect.replace(':', '-')}`;
+        got[id] = sizeOf(cut({ moments: [{ id, src_start: 0, src_end: 0.4 }], video, aspect, out: dir }).path);
+      }
+    }
+    assert.deepEqual(got, { '90x200-9-16': '90,160', '90x200-1-1': '90,90', '320x180-9-16': '100,180', '320x180-1-1': '180,180' });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('clips-to-scheduled-posts defaults max_clips to the number of clips it cuts', () => {
+  const pipe = JSON.parse(readFileSync(fileURLToPath(new URL('../../pipelines/clips-to-scheduled-posts.json', import.meta.url)), 'utf8'));
+  const fanout = (id) => pipe.steps.find((s) => s.id === id).fanout;
+  assert.equal(pipe.inputs.max_clips.default, fanout('cut'));
+  assert.equal(fanout('style'), fanout('cut'));
+});
+
+test('media transcribe skips and reports a file with no audio track', (t) => {
+  const dir = tempDir();
+  try {
+    testClip(join(dir, 'silent.mp4'), '64x64');
+    let r;
+    try {
+      r = transcribe({ path: dir, out: join(dir, 'words.json') });
+    } catch (e) {
+      if (/whisper.* not found at/.test(e.message)) return t.skip(e.message);
+      throw e;
+    }
+    assert.deepEqual({ words: r.words, skipped: r.skipped }, { words: 0, skipped: ['silent.mp4'] });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

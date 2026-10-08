@@ -35,7 +35,7 @@
           "scenes": { "type": ["boolean", "string"] }
         }
       },
-      "output_schema": { "type": "object", "required": ["out", "words"], "properties": { "out": { "type": "string" }, "words": { "type": "integer" }, "files": { "type": "integer" } } }
+      "output_schema": { "type": "object", "required": ["out", "words"], "properties": { "out": { "type": "string" }, "words": { "type": "integer" }, "files": { "type": "integer" }, "skipped": { "type": "array" } } }
     },
     {
       "id": "download",
