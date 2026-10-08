@@ -461,17 +461,21 @@ export class Runner {
     const rows = this.rows(run.id, step.id, iteration);
     const limit = new Semaphore(step.kind === 'agent' ? pipe.budget?.max_parallel ?? 3 : n);
     let budgetHit = false;
+    let lost = false;
     const results = await Promise.all(rows.map(async (row): Promise<IndexResult | null> => {
       if (row.status === 'done' || row.status === 'skipped') return null;
       const release = await limit.take();
       try {
+        if (lost) return null;
         const fresh = this.run(run.id) as RunRow;
         if (fresh.status !== 'running') return { paused: fresh.status };
         if (!row.session_id && step.kind === 'agent' && this.budgetReason(fresh)) {
           budgetHit = true;
           return { paused: 'budget' };
         }
-        return await this.execIndex(fresh, pipe, step, row);
+        const r = await this.execIndex(fresh, pipe, step, row);
+        if ('ok' in r && !r.ok) lost = true;
+        return r;
       } finally {
         release();
       }

@@ -116,6 +116,20 @@ test('H9 an agent that runs the run over its budget is stopped and the run pause
   assert.deepEqual({ ...runOf('h9') }, { status: 'paused', paused_why: 'budget' });
 });
 
+test('H5 a fan-out step launches no further indexes once one has failed', async () => {
+  const { run } = agentRun('h5');
+  const runner = priv(new Runner(db));
+  const launched: number[] = [];
+  runner.execIndex = async (_run: unknown, _pipe: unknown, _step: unknown, row: { fanout_index: number }) => {
+    launched.push(row.fanout_index);
+    return { ok: false, error: 'boom' };
+  };
+  runner.fail = () => 'failed';
+  const step = { id: 'fan', kind: 'agent', prompt: 'x', fanout: 3 };
+  await runner.execStep(run, { title: 'pl', budget: { max_parallel: 1 }, steps: [step] }, step, 0);
+  assert.deepEqual(launched, [0]);
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
