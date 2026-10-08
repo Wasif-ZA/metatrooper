@@ -95,7 +95,7 @@ test('Codex usage is one row per turn id: the growth in total_token_usage, repea
     const file = path.join(home, 'rollout.jsonl');
     const line = (type: string, payload: object) => JSON.stringify({ timestamp: '2026-09-30T13:00:00Z', type, payload }) + '\n';
     const count = (i: number, c: number, o: number) => line('event_msg', { type: 'token_count', info: { total_token_usage: { input_tokens: i, cached_input_tokens: c, cache_write_input_tokens: 0, output_tokens: o } } });
-    fs.writeFileSync(file, line('session_meta', { id: 'x' }) + line('turn_context', { model: 'gpt-x' }) + line('event_msg', { type: 'task_started', turn_id: 't1' })
+    fs.writeFileSync(file, line('session_meta', { id: 'x' }) + line('turn_context', { model: 'unpriced-x' }) + line('event_msg', { type: 'task_started', turn_id: 't1' })
       + count(100, 40, 10) + count(100, 40, 10) + line('event_msg', { type: 'token_count', info: null }));
     readCodexSession(db, 'c1', file);
     assert.deepEqual(sessionTokens(db, 'c1'), { in: 60, out: 10, cache_read: 40, cache_write: 0 });
@@ -103,7 +103,7 @@ test('Codex usage is one row per turn id: the growth in total_token_usage, repea
     readCodexSession(db, 'c1', file);
     assert.deepEqual(sessionTokens(db, 'c1'), { in: 150, out: 30, cache_read: 100, cache_write: 0 });
     const rows = db.prepare("SELECT dedupe_key, model, usd, source FROM usage WHERE session_id = 'c1' ORDER BY dedupe_key").all();
-    assert.deepEqual(rows.map((r: any) => [r.dedupe_key, r.model, r.usd, r.source]), [['codex:c1:t1', 'gpt-x', null, 'codex-session'], ['codex:c1:t2', 'gpt-x', null, 'codex-session']]);
+    assert.deepEqual(rows.map((r: any) => [r.dedupe_key, r.model, r.usd, r.source]), [['codex:c1:t1', 'unpriced-x', null, 'codex-session'], ['codex:c1:t2', 'unpriced-x', null, 'codex-session']]);
   } finally {
     db.close();
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
@@ -144,6 +144,33 @@ test('usage rows carry the session run_id and step_id so run budgets count them;
     fs.appendFileSync(t, rec('b3', 7));
     readMeters(db);
     assert.equal(new Runner(db).used('r1').tokens, 45);
+  } finally {
+    db.close();
+    for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});
+
+test('H9 a gpt- model without its own price gets the gpt-* fallback, and agy transcript steps are metered once per step_index', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-meter5-'));
+  const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  process.env.METATROOPER_HOME = path.join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { usdFor, readAgyTranscript, sessionTokens } = await import('../src/meter.ts');
+  const db = openCoreDb();
+  try {
+    assert.ok(usdFor('gpt-6-luna', 1000, 1000, 0, 0)! > 0);
+    assert.equal(usdFor('gemini-x', 1000, 1000, 0, 0), null);
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('a5', 'p', 'agy', 'pty', 'working', 'x', 'x')").run();
+    const file = path.join(home, 'transcript.jsonl');
+    const step = (n: number, i: number, o: number) => JSON.stringify({ step_index: n, type: 'PLANNER_RESPONSE', input_tokens: i, cache_read_tokens: 10, output_tokens: o }) + '\n';
+    fs.writeFileSync(file, '{"type":"USER_INPUT","step_index":0}\n' + step(1, 100, 20) + step(2, 50, 5));
+    assert.equal(readAgyTranscript(db, 'a5', file), 2);
+    assert.deepEqual(sessionTokens(db, 'a5'), { in: 130, out: 25, cache_read: 20, cache_write: 0 });
   } finally {
     db.close();
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;

@@ -95,3 +95,17 @@ test('M1-12 an agy session whose transcript ends on an unanswered tool call goes
     assert.deepEqual(states, ['working', 'blocked']);
   } finally { t.done(); }
 });
+
+test('H9 a codex session started in a worktree links to the rollout whose cwd is its own cwd', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '08');
+    fs.mkdirSync(dir, { recursive: true });
+    const wt = path.join(t.home, 'proj', '.troop', 'worktrees', 'w1');
+    fs.writeFileSync(path.join(dir, `rollout-2026-10-08T10-00-00-${CODEX_ID}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: wt } }) + '\n');
+    t.addSession('c-wt', 'codex', Date.now() - 1000);
+    t.db.prepare("UPDATE session SET cwd = ? WHERE id = 'c-wt'").run(wt);
+    t.checkActivity(t.db);
+    assert.equal(t.native('c-wt'), CODEX_ID);
+  } finally { t.done(); }
+});

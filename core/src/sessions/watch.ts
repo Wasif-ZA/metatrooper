@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
 import { getEngine } from '../engines/registry.ts';
-import { noteCodexSession } from '../meter.ts';
+import { noteAgySession, noteCodexSession } from '../meter.ts';
 
 export function pidAlive(pid: number): boolean {
   try {
@@ -101,7 +101,7 @@ function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
     try {
       const meta = JSON.parse(firstLine(p));
       const cwd = meta?.payload?.cwd ?? meta?.cwd;
-      return typeof cwd === 'string' && sameDir(cwd, s.project_path) && fs.statSync(p).birthtimeMs <= startMs + 30_000;
+      return typeof cwd === 'string' && (sameDir(cwd, s.project_path) || (s.cwd !== null && sameDir(cwd, s.cwd))) && fs.statSync(p).birthtimeMs <= startMs + 30_000;
     } catch {
       return false;
     }
@@ -180,6 +180,7 @@ interface SessionRow {
   native_id: string | null;
   started_at: string;
   project_path: string;
+  cwd: string | null;
   state: string;
 }
 
@@ -187,7 +188,7 @@ interface SessionRow {
 export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   const rows = db
     .prepare(
-      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.state
+      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.cwd, s.state
        FROM session s JOIN project p ON p.id = s.project_id
        WHERE s.state != 'exited' AND s.engine_id IN ('codex','agy')`,
     )
@@ -200,6 +201,7 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       const m = measure(file);
       a = { file, size: m.size, mtime: m.mtime, lastChange: 0, working: false };
       if (s.engine_id === 'codex') noteCodexSession(s.id, file);
+      else noteAgySession(s.id, path.join(file, 'transcript.jsonl'));
       activity.set(s.id, a);
       continue;
     }
