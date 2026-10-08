@@ -220,7 +220,7 @@ export class Runner {
     }
     this.db.prepare("UPDATE run_step SET status = 'pending', session_id = NULL WHERE run_id = ? AND status IN ('failed','running')").run(runId);
     const raised = this.run(runId) as RunRow;
-    for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed') AND paused_why IS NOT 'breaker'").all(runId) as unknown as RunRow[]) {
+    for (const c of this.db.prepare("SELECT * FROM run WHERE parent_run = ? AND status IN ('paused','failed')").all(runId) as unknown as RunRow[]) {
       if (this.db.prepare("SELECT 1 FROM gate WHERE run_id = ? AND status = 'waiting'").get(c.id)) continue;
       this.resume(c.id, {
         max_tokens: c.max_tokens + raised.max_tokens - run.max_tokens,
@@ -909,7 +909,7 @@ export class Runner {
     const u = parseUses(step.uses as string);
     if (u?.kind !== 'pipeline') return { ok: false, error: `bad uses ${step.uses}` };
     const prior = row.output_path ? this.run(path.basename(row.output_path)) : undefined;
-    let child = prior && (prior.status === 'running' || prior.status === 'paused') ? { id: prior.id } : undefined;
+    let child = prior && ['running', 'paused', 'done'].includes(prior.status) ? { id: prior.id } : undefined;
     if (!child) {
       const inputs = resolveValue(step.with ?? {}, this.scope(run, row.fanout_index)) as Record<string, unknown>;
       const id = this.start({ pipeline_id: u.id, project_id: run.project_id, inputs, trigger: 'manual' }, { run, step: step.id, budget: this.remaining(run) });

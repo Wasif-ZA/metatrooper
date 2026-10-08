@@ -151,6 +151,26 @@ test('H7 fail() and end() leave no live step rows, building variants, open panes
   assert.equal((db.prepare("SELECT count(*) AS n FROM needs_you WHERE ref = 'h7' AND resolved_at IS NULL").get() as { n: number }).n, 0);
 });
 
+test('H13 a sub-pipeline child that already finished is reused, and Resume resumes a child that tripped its breaker', async () => {
+  for (const id of ['h13', 'h13c', 'h13b']) {
+    const dir = path.join(home, id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'pipeline.json'), JSON.stringify({ schema: 1, id: 'pl', title: 'pl', steps: [{ id: 'last', kind: 'code', code: 'x.mjs' }] }));
+    insertRun(id, 0, { dir, parent: id === 'h13' ? undefined : 'h13', status: id === 'h13' ? 'running' : id === 'h13c' ? 'done' : 'failed' });
+  }
+  db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status, outputs) VALUES ('h13c', 'last', 0, 0, 'done', '{\"answer\":42}')").run();
+  const runner = priv(new Runner(db));
+  runner.start = () => { throw new Error('started a new child'); };
+  const parent = db.prepare("SELECT * FROM run WHERE id = 'h13'").get();
+  const r = await runner.pipelineIndex(parent, { id: 'sub', kind: 'pipeline', uses: 'pipeline:pl' }, { step_id: 'sub', iteration: 0, fanout_index: 0, status: 'running', output_path: path.join(home, 'h13', 'sub', 'h13c') });
+  assert.deepEqual(r, { ok: true, outputs: { answer: 42 } });
+  db.prepare("UPDATE run SET status = 'failed' WHERE id = 'h13'").run();
+  db.prepare("UPDATE run SET paused_why = 'breaker' WHERE id = 'h13b'").run();
+  runner.drive = async () => {};
+  runner.resume('h13');
+  assert.equal(runOf('h13b').status, 'running');
+});
+
 const pipelinesDir =path.join(home, '.troop', 'pipelines');
 fs.mkdirSync(pipelinesDir, { recursive: true });
 
