@@ -49,7 +49,7 @@ const runBars = (() => {
     if (c.sig !== sig || Date.now() - c.at > 8000) {
       c.sig = sig;
       c.at = Date.now();
-      void ctx.api.runDetail(run.id).then((d) => { c.data = rules.flagsOf(d && !d.error ? d : null); ctx.render(); });
+      void ctx.api.runDetail(run.id).then((d) => { c.detail = d && !d.error ? d : null; c.data = rules.flagsOf(c.detail); ctx.render(); });
     }
     return c.data;
   }
@@ -63,6 +63,16 @@ const runBars = (() => {
     ctx.openRun(runId);
   }
 
+  /** Unticked hand-back items of a finished run, or null when it wrote none or all are ticked. */
+  function handbackLeft(run) {
+    const c = flags[run.id];
+    const items = c && c.detail ? handBack.items({ detail: c.detail }) : null;
+    if (!items || !items.length) return null;
+    const done = handBack.ticks(run.id);
+    const left = items.filter((x) => !done.has(x.n)).length;
+    return left ? { left, total: items.length } : null;
+  }
+
   function line(run, st, d) {
     const p = ctx.snap().pipelines.find((x) => x.id === run.pipeline_id);
     const id = (p && p.title) || run.pipeline_id;
@@ -73,6 +83,8 @@ const runBars = (() => {
       return { text: `${id} · ${at} · ${secs}s`, last: s ? s.last_line : '', hot: false };
     }
     if (run.status !== 'done') return { text: `${id} · ${run.status}`, last: '', hot: true };
+    const left = handbackLeft(run);
+    if (left) return { text: `${id} done`, last: `${left.left} of ${left.total} hand-back item${left.total === 1 ? '' : 's'} wait for you`, hot: true };
     if (d && d.open) return { text: `${id} done`, last: `${d.open} still open${d.critical ? ` · ${d.critical} critical` : ''}`, hot: true };
     if (d && (d.disagree || d.critical)) return { text: `${id} done`, last: [d.disagree ? `${d.disagree} disagree` : '', d.critical ? `${d.critical} critical` : ''].filter(Boolean).join(' · '), hot: true };
     return { text: `${id} done`, last: d && d.items ? `nothing needs you · ${d.items.length} finding${d.items.length === 1 ? '' : 's'}` : 'nothing needs you', hot: false };

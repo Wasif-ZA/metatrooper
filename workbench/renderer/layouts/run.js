@@ -25,7 +25,7 @@ const runScreen = (() => {
     timeline: '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M3 1.5v11" stroke-dasharray="1 1"/><circle cx="3" cy="3.5" r="1.3" fill="currentColor"/><circle cx="3" cy="10.5" r="1.3" fill="currentColor"/><path d="M6 3.5h9M6 10.5h7" stroke-width="1.4"/></svg>',
     'agent-split': '<svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor"><path d="M1 1.5h14" stroke-width="1.6" stroke-dasharray="2 1"/><rect x="1" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/><rect x="8.8" y="4" width="6.2" height="9" stroke-dasharray="1 1.2"/></svg>',
   };
-  const S = { runId: null, cur: null, manual: null, lastTouch: -1e12, timer: null, sel: null, focused: null, html: '' };
+  const S = { runId: null, cur: null, manual: null, slot: null, railSel: null, lastTouch: -1e12, timer: null, sel: null, focused: null, html: '' };
   const meta = {};
   const logs = {};
   const diffs = {};
@@ -152,7 +152,7 @@ const runScreen = (() => {
   }
 
   function open(runId, auto) {
-    if (S.runId !== runId) Object.assign(S, { runId, cur: null, manual: null, sel: null, focused: null, html: '', deliberate: false });
+    if (S.runId !== runId) Object.assign(S, { runId, cur: null, manual: null, slot: null, railSel: null, sel: null, focused: null, html: '', deliberate: false });
     if (!auto) {
       S.deliberate = true;
       if (document.activeElement) document.activeElement.blur();
@@ -230,6 +230,17 @@ const runScreen = (() => {
     const L = runLayouts[S.cur] || runLayouts['run-log'];
     const live = rules.activeStep(m.list).step;
     m.watch = live && live.kind === 'agent' && live.session ? live : m.agent;
+    const five = rules.ruleOf(m.run.pipeline_id).five;
+    if (S.cur === 'agent-split') {
+      m.rail = agentRail.shown(m, S.manual === 'agent-split' && S.slot != null && five.indexOf('agent-split') !== S.slot);
+      const sel = m.rail && S.railSel ? m.sessions.find((x) => x.id === S.railSel) : null;
+      if (sel) {
+        const step = m.list.find((x) => x.id === sel.step_id);
+        m.watch = { ...(step || { id: sel.step_id, title: sel.step_id, kind: 'agent', status: 'running' }), session: sel, engine: sel.engine_id };
+        m.agent = { session: sel };
+        m.diff = sessionDiff(sel.id);
+      }
+    }
     if (S.cur === 'agent-split' && m.watch && S.focused !== m.watch.session.id) {
       S.focused = m.watch.session.id;
       void ctx.promote(m.watch.session.id);
@@ -239,7 +250,7 @@ const runScreen = (() => {
       <span class="chip needs ${m.waiting ? 'on' : ''}"><span class="n">${m.waiting}</span>need you</span>
       <span class="sp"></span>
       ${ctx.cancelButton(m.run)}
-      <span class="lsw" role="toolbar" aria-label="Layout">${rules.ruleOf(m.run.pipeline_id).five.map((k, i) => `<button data-rs="layout" data-l="${k}" class="${k === S.cur ? `on${S.manual ? ' hand' : ''}` : ''}" title="${i + 1}  ${NAME[k]}" aria-pressed="${k === S.cur}">${ICON[k] || REVIEW_ICON[k] || ""}</button>`).join('')}<button class="auto ${S.manual ? '' : 'on'}" data-rs="auto" title="${S.manual ? 'Manual pick held. Press 0 to follow the run again' : 'Auto: the layout follows the active step'}"><span class="lt"></span>${S.manual ? 'Manual' : 'Auto'}</button></span>
+      <span class="lsw" role="toolbar" aria-label="Layout">${five.map((k, i) => { const on = S.manual && S.slot != null ? i === S.slot : k === S.cur && five.indexOf(k) === i; return `<button data-rs="layout" data-l="${k}" data-slot="${i}" class="${on ? `on${S.manual ? ' hand' : ''}` : ''}" title="${i + 1}  ${k === 'agent-split' && five.indexOf(k) !== i ? 'Agent split, worktree rail' : NAME[k]}" aria-pressed="${on}">${ICON[k] || REVIEW_ICON[k] || ""}</button>`; }).join('')}<button class="auto ${S.manual ? '' : 'on'}" data-rs="auto" title="${S.manual ? 'Manual pick held. Press 0 to follow the run again' : 'Auto: the layout follows the active step'}"><span class="lt"></span>${S.manual ? 'Manual' : 'Auto'}</button></span>
       <span class="chip"><kbd>Esc</kbd> wall</span>
     </header>`;
     const html = `${head}${helperChips(m.detail && m.detail.assists)}${outsideList(m.review)}${formatOnlyList(m.detail && m.detail.formatOnly)}<div class="rsv L-${S.cur}">${L.render(m, helpers, S)}</div>`;
@@ -261,7 +272,8 @@ const runScreen = (() => {
     if (!b) return;
     const what = b.dataset.rs;
     if (what === 'wall') return close();
-    if (what === 'layout') return manual(b.dataset.l);
+    if (what === 'layout') return manual(b.dataset.l, Number(b.dataset.slot));
+    if (what === 'rail') { S.railSel = b.dataset.id; S.html = ''; return render(); }
     if (what === 'auto') return auto();
     if (what === 'sel') { S.sel = b.dataset.step; S.html = ''; return render(); }
     if (what === 'tick') { handBack.toggle(S.runId, Number(b.dataset.n)); S.html = ''; return render(); }
@@ -279,14 +291,16 @@ const runScreen = (() => {
     }
   }
 
-  function manual(name) {
+  function manual(name, slot = null) {
     const m = model();
     S.manual = name;
+    S.slot = slot;
     S.pickedEnded = Boolean(m && ended(m.run));
     show(name);
   }
   function auto() {
     S.manual = null;
+    S.slot = null;
     const m = model();
     if (m) show(rules.pickLayout(m.run, m.pipe, m.list, null, m.review || m.findings || rules.flagsOf(m.detail)));
   }
@@ -297,7 +311,7 @@ const runScreen = (() => {
     if (e.key === 'Escape') { close(); return true; }
     if (e.key === '0') { auto(); return true; }
     const m = /^[1-5]$/.test(e.key) && model();
-    if (m) { manual(rules.ruleOf(m.run.pipeline_id).five[Number(e.key) - 1]); return true; }
+    if (m) { manual(rules.ruleOf(m.run.pipeline_id).five[Number(e.key) - 1], Number(e.key) - 1); return true; }
     return false;
   }
 
