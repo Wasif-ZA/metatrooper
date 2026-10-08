@@ -1030,7 +1030,13 @@ export class Runner {
     ).all() as Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; session_id: string | null; output_path: string | null }>;
     for (const r of rows) {
       const run = this.run(r.run_id) as RunRow;
-      const step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);
+      let step: Step | undefined;
+      try {
+        step = this.pipelineOf(run).steps.find((s) => s.id === r.step_id);
+      } catch (e) {
+        this.fail(run, `its run folder could not be read after a core restart: ${(e as Error).message}`);
+        continue;
+      }
       if (step?.kind === 'agent') {
         const s = r.session_id ? (this.db.prepare('SELECT state, pid FROM session WHERE id = ?').get(r.session_id) as { state: string; pid: number | null } | undefined) : undefined;
         if (s && s.state !== 'exited' && s.pid && pidAlive(s.pid)) continue;

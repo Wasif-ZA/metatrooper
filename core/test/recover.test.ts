@@ -57,3 +57,27 @@ test('core restart relaunches agent steps whose session died, re-registers built
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+async function recoverDb() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-recover-'));
+  process.env.METATROOPER_HOME = path.join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { Runner } = await import('../src/pipelines/runner.ts');
+  const db = openCoreDb();
+  db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+  db.prepare("INSERT INTO pipeline (id, source, path, version, valid) VALUES ('pl', 'project', 'x', 1, 1)").run();
+  return { home, db, Runner };
+}
+
+test('core restart fails a running run whose folder is gone instead of crashing', async () => {
+  const { home, db, Runner } = await recoverDb();
+  try {
+    db.prepare(`INSERT INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at)
+      VALUES ('gone', 'pl', 'p', '{}', ?, 'running', 'manual', 1000, 10, 60, 'x')`).run(path.join(home, 'missing'));
+    db.prepare("INSERT INTO run_step (run_id, step_id, iteration, fanout_index, status) VALUES ('gone', 'a', 0, 0, 'running')").run();
+    new Runner(db).recover();
+    assert.equal((db.prepare("SELECT status FROM run WHERE id = 'gone'").get() as { status: string }).status, 'failed');
+  } finally {
+    db.close();
+  }
+});
