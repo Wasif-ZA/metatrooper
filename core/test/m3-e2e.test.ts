@@ -281,6 +281,10 @@ test('M3-01 clips-to-scheduled-posts cuts only the picked moments and schedules 
       copy: { outputs: { posts: 'posts.json' }, run_files: { 'posts.json': JSON.stringify(posts) } },
       check: { outputs: { passed: true, flags: 'none' } },
     });
+    mkdirSync(join(h.project, '.troop/pipelines'), { recursive: true });
+    writeFileSync(join(h.project, '.troop/pipelines', `${def.id}.json`), JSON.stringify(def));
+    const six = await h.pipe.request('run.start', { pipeline_id: def.id, project_id: h.projectId, inputs: { video, week_start: '2030-01-07', max_clips: 6 } });
+    assert.match(JSON.stringify(six.error), /max_clips must be one of 1, 2, 3, 4/);
     const runId = await h.pipeline(def, { video, week_start: '2030-01-07', platforms: 'tiktok', max_clips: 4, tiktok_privacy: 'SELF_ONLY' });
     const pick: any = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'pick' AND status = 'waiting'").get(runId) ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 120000);
     const runDir = (h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as any).run_dir;
