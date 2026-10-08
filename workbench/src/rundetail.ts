@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { paneFile } from '../../core/src/pipelines/panes.ts';
 import { assistRegistry, type AssistResult } from '../../core/src/pipelines/assists.ts';
+import { listShots, SHOT_NAME } from '../../core/src/browser/shots.ts';
 
 const DOC_CAP = 200 * 1024;
 
@@ -13,6 +14,7 @@ export interface RunDetail {
   pr: { number: number | null; url: string } | null;
   findings: unknown[] | null;
   formatOnly: string[];
+  shots: string[];
   assists: Array<{ tool: string; name: string; steps: string[]; installed: boolean; version: string | null; install: string; risk: string; risk_note: string | null; egress: string }>;
 }
 
@@ -42,7 +44,7 @@ function runAssists(runDir: string): RunDetail['assists'] {
   }
 }
 
-/** Inputs, each step's latest outputs, spec.md, review.diff and findings.json from the run folder, and the PR a step output names. */
+/** Inputs, each step's latest outputs, saved shots, spec.md, review.diff and findings.json from the run folder, and the PR a step output names. */
 export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error: string } {
   const run = db.prepare('SELECT r.inputs, r.run_dir, p.path AS project_dir FROM run r JOIN project p ON p.id = r.project_id WHERE r.id = ?').get(runId) as
     | { inputs: string | null; run_dir: string; project_dir: string }
@@ -75,5 +77,17 @@ export function runDetail(db: DatabaseSync, runId: string): RunDetail | { error:
     const v = JSON.parse(doc('findings.json') ?? 'null');
     if (Array.isArray(v)) findings = v;
   } catch {}
-  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings, formatOnly: (doc('format-only.txt') ?? '').split(/\s+/).filter(Boolean), assists: runAssists(run.run_dir) };
+  return { inputs: parse(run.inputs), outputs, docs: { spec: doc('spec.md'), diff: doc('review.diff') }, pr, findings, formatOnly: (doc('format-only.txt') ?? '').split(/\s+/).filter(Boolean), shots: listShots(run.run_dir), assists: runAssists(run.run_dir) };
+}
+
+/** One saved shot of a run as a PNG data URL, or null when the name is not a shot or the file is missing. */
+export function runShot(db: DatabaseSync, runId: unknown, name: unknown): string | null {
+  if (typeof runId !== 'string' || typeof name !== 'string' || !SHOT_NAME.test(name)) return null;
+  const run = db.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as { run_dir: string } | undefined;
+  if (!run) return null;
+  try {
+    return `data:image/png;base64,${fs.readFileSync(path.join(run.run_dir, 'shots', name)).toString('base64')}`;
+  } catch {
+    return null;
+  }
 }

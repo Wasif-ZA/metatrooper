@@ -47,7 +47,7 @@
       "kind": "agent",
       "cwd": "{{steps.build.outputs.worktree}}",
       "browser": true,
-      "prompt": "The site from {{run.dir}}/DESIGN.md is running in your browser pane. Look at it at 1280 and 390 px wide: layout, spacing, contrast, broken images, console errors, and anything that differs from DESIGN.md. Fix what you find in this worktree and commit. Set the output key verdict to pass when you found nothing to fix, otherwise fixed.",
+      "prompt": "The site from {{run.dir}}/DESIGN.md is running in your browser pane. Look at it at 1280 and 390 px wide, and at each width call screenshot with save_as set to the width (1280, then 390) before you change anything: layout, spacing, contrast, broken images, console errors, and anything that differs from DESIGN.md. Fix what you find in this worktree and commit. Set the output key verdict to pass when you found nothing to fix, otherwise fixed.",
       "outputs": ["verdict"],
       "loop": { "steps": ["critique"], "until": "steps.critique.outputs.verdict == \"pass\"", "max": 3 }
     },

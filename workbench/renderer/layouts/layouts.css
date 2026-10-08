@@ -315,3 +315,10 @@
 .L-agent-split .rail .rs { font-size: 11px; color: var(--muted); }
 .L-agent-split .rail .st-working .rs { color: var(--work); }
 .L-agent-split .rail .st-waiting_for_you .rs { color: var(--wait); }
+.shots { display: flex; gap: 8px; align-items: flex-start; overflow-x: auto; }
+.shot { margin: 0; flex: none; display: flex; flex-direction: column; gap: 4px; }
+.shot img { display: block; max-height: 260px; max-width: 420px; border: 1px dotted var(--hairline-strong); border-radius: var(--r); background: var(--pane); }
+.shot figcaption { font-size: 11px; color: var(--faint); }
+.ba-pics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ba-pics .cap { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.pics { flex: none; }

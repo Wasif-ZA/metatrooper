@@ -31,6 +31,7 @@ const runScreen = (() => {
   const diffs = {};
   const details = {};
   const hunks = {};
+  const shotSrcs = {};
   let ctx = null;
   let el = null;
 
@@ -97,6 +98,15 @@ const runScreen = (() => {
       void ctx.api.sessionDiffFile(sessionId, file, 'branch').then((t) => { c.text = typeof t === 'string' ? t : null; render(); });
     }
     return c.text;
+  }
+
+  function shotSrc(runId, name) {
+    const key = `${runId}:${name}`;
+    if (!(key in shotSrcs)) {
+      shotSrcs[key] = null;
+      void ctx.api.runShot(runId, name).then((src) => { shotSrcs[key] = src || null; if (src) { S.html = ''; render(); } });
+    }
+    return shotSrcs[key];
   }
 
   function sessionDiff(sessionId) {
@@ -381,6 +391,22 @@ const runScreen = (() => {
     inputs(m) {
       const vals = m.detail ? Object.entries(m.detail.inputs) : [];
       return vals.map(([k, v]) => `<div class="kv"><span class="k">${esc((m.meta.inputs[k] && m.meta.inputs[k].label) || k)}</span><span class="v">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</span></div>`).join('');
+    },
+    /** Saved shots grouped by round, oldest first: [{round, shots: [{name, label}]}]. */
+    rounds(m) {
+      const by = {};
+      for (const n of (m.detail && m.detail.shots) || []) {
+        const x = /^.+-(\d+)-([a-z0-9-]+)\.png$/.exec(n);
+        if (x) (by[x[1]] ||= []).push({ name: n, label: x[2] });
+      }
+      return Object.keys(by).map(Number).sort((a, b) => a - b).map((round) => ({ round, shots: by[round].sort((a, b) => (Number(b.label) || 0) - (Number(a.label) || 0) || a.label.localeCompare(b.label)) }));
+    },
+    shotRow(m, r) {
+      return `<div class="shots">${r.shots.map((x) => {
+        const src = shotSrc(m.run.id, x.name);
+        const cap = /^\d+$/.test(x.label) ? `${x.label} px` : x.label;
+        return `<figure class="shot">${src ? `<img src="${src}" alt="${esc(`round ${r.round}, ${cap}`)}">` : '<div class="empty">Loading.</div>'}<figcaption>${esc(cap)}</figcaption></figure>`;
+      }).join('')}</div>`;
     },
     pr: (m) => (m.detail && m.detail.pr ? `<a class="prl" href="${esc(m.detail.pr.url)}" target="_blank" rel="noopener" title="${esc(m.detail.pr.url)}">${m.detail.pr.number != null ? `PR #${m.detail.pr.number}` : 'Pull request'}</a>` : ''),
     open: (s) => `<button class="lnk" data-action="focus" data-id="${esc(s.session.id)}">Open terminal</button>`,
