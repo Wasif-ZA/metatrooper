@@ -233,6 +233,12 @@ function handlers(): void {
       return { ok: false, error: `not valid JSON: ${(e as Error).message}` };
     }
     if (typeof json.id !== 'string' || !/^[a-z0-9][a-z0-9-]{1,62}$/.test(json.id)) return { ok: false, error: 'the pipeline id must be lower-case letters, digits and dashes' };
+    const shipped = d.prepare("SELECT path FROM pipeline WHERE id = ? AND source <> 'project'").get(json.id) as { path: string } | undefined;
+    if (shipped) {
+      try {
+        if (JSON.stringify(JSON.parse(fs.readFileSync(shipped.path, 'utf8'))) === JSON.stringify(json)) return { ok: true, unchanged: true, path: shipped.path.split(String.fromCharCode(92)).join('/') };
+      } catch {}
+    }
     const dir = path.join(project.path, '.troop', 'pipelines');
     const file = path.join(dir, `${json.id}.json`);
     if (!inside(dir, file)) return { ok: false, error: 'bad pipeline id' };

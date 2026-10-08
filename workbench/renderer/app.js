@@ -1751,7 +1751,7 @@ async function onClick(e) {
       if (!v.result.valid) return toast(`Not saved:\n${v.result.errors.join('\n')}`, true);
       const r = await api.savePipeline(ui.projectId, JSON.stringify(json));
       if (!r.ok) return toast(r.error, true);
-      toast(`Saved ${r.path}`);
+      toast(r.unchanged ? 'No changes; the built-in stays in use.' : `Saved ${r.path}`);
       return;
     }
     case 'step-toggle': {
