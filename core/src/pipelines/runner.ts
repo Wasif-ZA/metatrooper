@@ -6,8 +6,7 @@ import { coreDir, homeDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
-import { folderApproval, launchSession } from '../sessions/launch.ts';
-import { canonicalPath } from '../project.ts';
+import { launchSession } from '../sessions/launch.ts';
 import { pidAlive } from '../sessions/watch.ts';
 import { trustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
@@ -23,8 +22,6 @@ import { BOARD_ACTION, captureBoard, recordBoard, referencesOf, type BoardCaptur
 
 const POLL_MS = 500;
 const STABLE_MS = 10_000;
-const DRIVER_PROMPT = path.join(import.meta.dirname, 'driver-prompt.md');
-const DRIVER_TURNS = 3;
 const BREAKER = 3;
 
 interface RunRow {
@@ -57,6 +54,7 @@ interface StepRow {
   started_at: string | null;
 }
 
+type AgentArgs = { stepId: string; row: StepRow; template: string; raw?: boolean; outputs: string[]; engine: () => EngineSpec | null; outPath: string; cwd: string; paneId?: string; timeoutMinutes: number; index: number; approval?: string };
 type IndexResult = { ok: true; outputs: Record<string, unknown> } | { ok: false; error: string } | { paused: string };
 type StepOutcome = 'done' | 'failed' | 'paused' | 'stopped';
 export type PaneCapture = (paneId: string, label: string) => Promise<{ w1280_path: string }>;
@@ -648,20 +646,6 @@ export class Runner {
     return `${body}\n\n${footer}`;
   }
 
-  /** The driver session's prompt: the step prompt goes to a file, and the driver runs the engine on it in print mode. */
-  private driverPrompt(engine: EngineSpec, prompt: string, a: { outPath: string; outputs: string[]; cwd: string; approval?: string }): string {
-    const promptFile = a.outPath.replace(/\.md$/, '.prompt.md');
-    fs.writeFileSync(promptFile, prompt);
-    const q = (s: string) => `'${s.split("'").join(`'\\''`)}'`;
-    const flags = engine.approval_profiles?.[folderApproval(canonicalPath(a.cwd), a.approval, engine)] ?? [];
-    const command = [engine.command, ...(engine.args ?? []), '--print', `"$(cat ${q(promptFile)})"`, '--print-timeout', '0', '--output-format', 'text', ...flags, '--add-dir', q(slash(a.cwd)), '--add-dir', q(slash(path.dirname(a.outPath)))].join(' ');
-    const fill: Record<string, string> = {
-      engine: engine.id, prompt_file: promptFile, followup_file: a.outPath.replace(/\.md$/, '.followup.md'), output_path: a.outPath,
-      outputs: a.outputs.length ? a.outputs.join(', ') : 'none', cwd: slash(a.cwd), command, max_turns: String(DRIVER_TURNS),
-    };
-    return fs.readFileSync(DRIVER_PROMPT, 'utf8').replace(/\{\{(\w+)\}\}/g, (m, k: string) => fill[k] ?? m);
-  }
-
   private async agentIndex(run: RunRow, pipe: Pipeline, step: Step, row: StepRow, place: { cwd: string; paneId?: string }, raw = false): Promise<IndexResult> {
     const fanout = Boolean(step.fanout);
     const outPath = row.output_path ?? this.outputPath(run, step.id, row.fanout_index, fanout);
@@ -682,11 +666,32 @@ export class Runner {
     });
   }
 
-  private async runAgent(
-    run: RunRow,
-    pipe: Pipeline,
-    a: { stepId: string; row: StepRow; template: string; raw?: boolean; outputs: string[]; engine: () => EngineSpec | null; outPath: string; cwd: string; paneId?: string; timeoutMinutes: number; index: number; approval?: string },
-  ): Promise<IndexResult> {
+  /** A print-mode engine whose session exits without meeting the output contract gets one more attempt, unless its error was auto-denied or repeats the previous one. */
+  private async runAgent(run: RunRow, pipe: Pipeline, a: AgentArgs): Promise<IndexResult> {
+    const prior = !a.row.session_id && fs.existsSync(a.outPath) ? parseFrontMatter(fs.readFileSync(a.outPath, 'utf8'))?.reason : undefined;
+    let r = await this.agentAttempt(run, pipe, a);
+    let error = this.printFailure(run, a.row, r);
+    if (error === null) return r;
+    if (error !== prior && !error.includes('auto-denied')) {
+      r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running' } });
+      const again = this.printFailure(run, a.row, r);
+      if (again === null) return r;
+      error = again;
+    }
+    fs.writeFileSync(a.outPath, `---\nstatus: failed\nreason: ${JSON.stringify(error)}\n---\n`);
+    return { ok: false, error };
+  }
+
+  /** The error text of a failed attempt whose print-mode session has exited, else null. */
+  private printFailure(run: RunRow, row: StepRow, r: IndexResult): string | null {
+    if ('paused' in r || r.ok) return null;
+    const s = this.db.prepare('SELECT s.engine_id, s.state, s.last_line FROM run_step r JOIN session s ON s.id = r.session_id WHERE r.run_id = ? AND r.step_id = ? AND r.iteration = ? AND r.fanout_index = ?')
+      .get(run.id, row.step_id, row.iteration, row.fanout_index) as { engine_id: string; state: string; last_line: string | null } | undefined;
+    if (s?.state !== 'exited' || !getEngine(this.db, s.engine_id)?.print_args) return null;
+    return s.last_line ? `${r.error} (${s.last_line})` : r.error;
+  }
+
+  private async agentAttempt(run: RunRow, pipe: Pipeline, a: AgentArgs): Promise<IndexResult> {
     let sessionId = a.row.session_id;
     const where = [run.id, a.row.step_id, a.row.iteration, a.row.fanout_index] as const;
     if (!sessionId) {
@@ -695,24 +700,28 @@ export class Runner {
       if (fs.existsSync(a.outPath)) fs.renameSync(a.outPath, a.outPath.replace(/\.md$/, `.iter${a.row.iteration}-${Date.now()}.md`));
       const prompt = this.promptFor(run, a.index, a.outPath, a.template, a.outputs, a.raw);
       const project = this.project(run.project_id);
-      const driver = engine.driver ? this.usableEngine(engine.driver) : null;
-      if (engine.driver && !driver) this.log(run, { event: 'driver unavailable', step: a.stepId, detail: `${engine.driver} is not usable; ${engine.id} runs without a driver` });
-      const approval = driver ? a.approval ?? 'contained' : a.approval;
-      trustFolder(fs.realpathSync.native(a.cwd), driver ? [engine, driver] : [engine]);
+      const printArgs = engine.print_args;
+      if (printArgs) fs.writeFileSync(a.outPath.replace(/\.md$/, '.prompt.md'), prompt);
+      const approval = printArgs ? a.approval ?? 'contained' : a.approval;
+      trustFolder(fs.realpathSync.native(a.cwd), [engine]);
       const launched = launchSession(this.db, {
-        projectId: project.id, projectPath: project.path, projectName: project.name, engine: driver ?? engine,
-        prompt: driver ? this.driverPrompt(engine, prompt, { ...a, approval }) : prompt, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval, drivenEngine: driver ? engine.id : undefined,
+        projectId: project.id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd, runId: run.id, stepId: a.stepId, approval,
+        ...(printArgs
+          ? { extraArgs: [...printArgs.map((x) => (x === '{prompt}' ? prompt : x)), '--add-dir', slash(a.cwd), '--add-dir', slash(path.dirname(a.outPath))] }
+          : { prompt }),
       });
       sessionId = launched.session_id;
-      this.markRunning(run, a.row, { engine_id: (driver ?? engine).id, session_id: sessionId, output_path: a.outPath });
+      this.markRunning(run, a.row, { engine_id: engine.id, session_id: sessionId, output_path: a.outPath });
       if (a.paneId) this.db.prepare('UPDATE browser_pane SET session_id = ? WHERE id = ?').run(sessionId, a.paneId);
     }
     const started = Date.parse(a.row.started_at ?? nowIso());
     const deadline = started + a.timeoutMinutes * 60_000;
+    const sessionEngine = (this.db.prepare('SELECT engine_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string } | undefined)?.engine_id;
+    const print = Boolean(sessionEngine && getEngine(this.db, sessionEngine)?.print_args);
     for (;;) {
       const status = this.run(run.id)?.status;
       if (status === 'cancelled' || status === 'failed') return { paused: status };
-      const session = this.db.prepare('SELECT state, driven_engine FROM session WHERE id = ?').get(sessionId) as { state: string; driven_engine: string | null } | undefined;
+      const session = this.db.prepare('SELECT state FROM session WHERE id = ?').get(sessionId) as { state: string } | undefined;
       const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
       let fm: Record<string, unknown> | null = null;
       let mtime = 0;
@@ -725,7 +734,7 @@ export class Runner {
       }
       if (fm?.status === 'done') {
         const missing = a.outputs.filter((k) => !(k in fm));
-        if (missing.length && (settled || !session?.driven_engine)) {
+        if (missing.length && (settled || !print)) {
           return { ok: false, error: `${a.stepId} output is missing ${missing.join(', ')}; session left open` };
         }
         if (!missing.length && (settled || Date.now() - mtime >= STABLE_MS)) {

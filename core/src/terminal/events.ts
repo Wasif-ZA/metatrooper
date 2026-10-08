@@ -42,7 +42,10 @@ export function wireTermEvents(db: DatabaseSync): void {
       titles.delete(id);
       clearTimeout(lineTimers.get(id));
       lineTimers.delete(id);
-      safe(() => appendEvent('core.process-gone', id, { pid: null, code }, db));
+      void lastLine(id, settings().terminal.last_line_chars).then((line) => {
+        safe(() => { if (line !== null) setLine.run(line, id); });
+        safe(() => appendEvent('core.process-gone', id, { pid: null, code }, db));
+      });
     },
   });
 }
