@@ -106,6 +106,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         projectName: project.name,
         engine,
         prompt: str(p, 'prompt', false) || undefined,
+        browser: p.browser === true,
       });
     },
   });

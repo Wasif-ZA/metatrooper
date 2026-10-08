@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { nowIso, ulid } from '../time.ts';
 import { nextState } from './state.ts';
 import { noteTranscript } from '../meter.ts';
+import { removeSessionFiles } from '../plugins/mcp.ts';
 
 interface EventRow {
   seq: number;
@@ -61,7 +62,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const next = ev.kind === 'launch' || foreign ? null : nextState(s.state, { kind: ev.kind, payload });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
-          if (next === 'exited') setEnded.run(nowIso(), ev.session_id);
+          if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turnStarts.push(ev.session_id);
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
