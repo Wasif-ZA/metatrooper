@@ -33,7 +33,7 @@ or step that should is noted in its row. 2026-10-07T21:10+11:00: flags now reach
 | Pipeline | Rule | JSON | Fixture | Rule tests | Plugin | End to end |
 |---|---|---|---|---|---|---|
 | footage-to-edit (#32) | done | done | done | pass | media probe, transcribe (whisper.cpp base.en, CPU, word times): done | TODO |
-| clips-to-scheduled-posts (#33) | done | done | done | pass | media download (yt-dlp), transcribe, cut (9:16), captions (ASS, hook): done; social-scheduler: TODO (account) | TODO |
+| clips-to-scheduled-posts (#33) | done | done | done | pass | media download (yt-dlp), transcribe, cut (9:16), captions (ASS, hook): done; social-scheduler: done on Postiz (self-hosted is free; POSTIZ_URL and POSTIZ_API_KEY secrets), batch refused whole on one bad post, checked with a fake API; live post needs a Postiz instance on an always-on machine (the box, not the laptop: Postiz itself posts at the slot time) and platform keys | TODO |
 | seo-audit-fix (#34) | done | done | done | pass | seo crawl: done; fetches refuse private addresses | TODO |
 | deep-research-cited (#35) | done | done | done | pass | cite-check check, agent-reach search: done (search saves page text, else the Exa excerpt) | TODO |
 | prospect-list-to-drafts (#36) | done | done | done | pass | agent-reach sources: done; gmail draft: TODO (account) | TODO |

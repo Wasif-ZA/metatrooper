@@ -71,7 +71,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Clips: {{steps.style.outputs.path}}. Picked moments: {{run.dir}}/moments.json. For each clip and each of {{inputs.platforms}}, write a title, caption and hashtags, and a posting slot in the week from {{inputs.week_start}} as ISO with the Sydney offset. Write {{run.dir}}/posts.json and set the output key posts to that path.",
+      "prompt": "Clips: {{steps.style.outputs.path}}. Picked moments: {{run.dir}}/moments.json. For each clip and each of {{inputs.platforms}}, write a title, caption and hashtags, and a posting slot in the week from {{inputs.week_start}} as ISO with the Sydney offset. Write {{run.dir}}/posts.json as a list of {clip (the styled mp4 path), platform (one of tiktok, youtube-shorts, instagram-reels), title (2 to 100 characters), caption, hashtags (list, no #), slot} and set the output key posts to that path.",
       "outputs": ["posts"]
     },
     {
@@ -97,7 +97,7 @@
       "kind": "action",
       "external": true,
       "uses": "plugin:social-scheduler/schedule-post",
-      "with": { "posts": "{{steps.copy.outputs.posts}}", "clips": "{{steps.style.outputs.path}}" }
+      "with": { "posts": "{{steps.copy.outputs.posts}}" }
     }
   ]
 }

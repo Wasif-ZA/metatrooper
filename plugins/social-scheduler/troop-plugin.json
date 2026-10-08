@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "id": "social-scheduler",
+  "version": "0.1.0",
+  "name": "Social scheduler",
+  "description": "Schedules short video posts through your own Postiz instance (self-hosted or cloud). Every post is external.",
+  "platforms": ["windows"],
+  "permissions": ["network","secrets:POSTIZ_URL", "secrets:POSTIZ_API_KEY"],
+  "actions": [
+    {
+      "id": "schedule-post",
+      "title": "Schedule clips as posts, one batch",
+      "run": ["bin/social-scheduler.js", "schedule-post"],
+      "external": true,
+      "destination_field": "posts",
+      "timeout_seconds": 900,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["posts"],
+        "properties": {
+          "posts": { "type": "string", "minLength": 1, "description": "Path to a JSON list of {clip, platform, title, caption, hashtags, slot}." }
+        }
+      },
+      "output_schema": { "type": "object", "required": ["count"], "properties": { "count": { "type": "integer" }, "posts": { "type": "array" } } }
+    }
+  ]
+}
