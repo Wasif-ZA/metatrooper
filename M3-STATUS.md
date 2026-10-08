@@ -43,7 +43,8 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
   (all of 127.0.0.0/8, ::1, IPv4-mapped); a public start never reaches loopback, by link or redirect; other private
   ranges stay refused either way. Resolved addresses are checked, not names. core/test/seo-loopback.test.ts, one case
   per refusal path; making loopback always allowed fails 3 of its 6 tests.
-- #38: the `outline` prompt says the slides folder holds "one page image per slide", but `ingest` writes text only.
+- FIXED 2026-10-09T00:10+11:00, #38: the `outline` prompt said the slides folder held "one page image per slide", but `ingest` writes
+  text only. It now says one text file per slide and points at the lecture PDF itself for figures.
 - #39: the captcha handoff gate pauses on every row, also when fill reports `captcha: none`. Gates have no condition
   field, so a batch of 20 rows with no captcha still stops 20 times.
 - #39: `desktop.ps1` loads managed UI Automation only. A classic WinForms or Win32 form then shows every control as

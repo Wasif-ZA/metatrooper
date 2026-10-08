@@ -26,7 +26,7 @@
       "role": "plan",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "The lecture {{inputs.lecture}} is in {{run.dir}}/slides as text and one page image per slide. Write {{run.dir}}/outline.md: the sections, the slides each covers, and the key terms. No notes yet.",
+      "prompt": "The lecture {{inputs.lecture}} is in {{run.dir}}/slides as one text file per slide, named p<number>.txt in slide order; read {{inputs.lecture}} itself for figures. Write {{run.dir}}/outline.md: the sections, the slides each covers, and the key terms. No notes yet.",
       "outputs": ["summary"]
     },
     {
