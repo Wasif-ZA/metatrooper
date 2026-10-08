@@ -22,7 +22,6 @@ def isolated_environment(tmp_path, monkeypatch):
         "METAROUTER_OUTPUT",
         "CLAUDE_CODE_SESSION_ID",
         "METAROUTER_CODEX_COMPANION",
-        "METAROUTER_VAULT",
         "METAROUTER_SHELL",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -36,16 +35,19 @@ def invoke(capsys, *args):
     return exit_code, agent_result(captured.out)
 
 
-def write_fake_vault(tmp_path, monkeypatch, *, local_body=None, agy_body=None):
-    scripts = tmp_path / "fake-vault" / "meta" / "scripts"
+def write_fake_runners(tmp_path, monkeypatch, *, local_body=None, agy_body=None):
+    scripts = tmp_path / "runners"
     scripts.mkdir(parents=True)
     (scripts / "local.sh").write_text(
         local_body or "printf '%s\\n' 'synthetic local answer'\n", encoding="utf-8"
     )
-    (scripts / "agy-run.sh").write_text(
+    (scripts / "gemini-run.sh").write_text(
         agy_body or "printf '%s\\n' 'synthetic gemini answer'\n", encoding="utf-8"
     )
-    monkeypatch.setenv("METAROUTER_VAULT", str(tmp_path / "fake-vault"))
+    home = Path(os.environ["METAROUTER_HOME"])
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.json").write_text(json.dumps({"engines": {
+        "local": str(scripts / "local.sh"), "gemini": str(scripts / "gemini-run.sh")}}), encoding="utf-8")
     return scripts
 
 
@@ -62,7 +64,7 @@ def write_fake_codex(tmp_path, monkeypatch):
 def test_engine_prompt_is_one_argument_and_cannot_execute_shell_syntax(
     tmp_path, monkeypatch, capsys
 ):
-    write_fake_vault(
+    write_fake_runners(
         tmp_path,
         monkeypatch,
         local_body="printf '%s\\n' \"$#\"\nprintf '<%s>\\n' \"$@\"\n",
@@ -95,7 +97,7 @@ def test_take_does_not_consume_a_following_flag_as_its_value():
 def test_gemini_requires_a_directory_for_file_naming_prompts(
     directory_flag, tmp_path, monkeypatch
 ):
-    write_fake_vault(tmp_path, monkeypatch)
+    write_fake_runners(tmp_path, monkeypatch)
     args = ["summarize report.pdf"]
     if directory_flag:
         args += [directory_flag, "synthetic-folder"]
@@ -120,7 +122,7 @@ def test_codex_accepts_a_prompt_that_starts_with_dashes(tmp_path, monkeypatch):
 
 
 def test_local_lane_extract_routes_directly_to_extract(tmp_path, monkeypatch):
-    scripts = write_fake_vault(tmp_path, monkeypatch)
+    scripts = write_fake_runners(tmp_path, monkeypatch)
 
     argv = engines.argv(
         {"engine": "local"},
@@ -137,7 +139,7 @@ def test_local_lane_extract_routes_directly_to_extract(tmp_path, monkeypatch):
 
 
 def test_prompt_file_is_read_as_utf8(tmp_path, monkeypatch):
-    write_fake_vault(tmp_path, monkeypatch)
+    write_fake_runners(tmp_path, monkeypatch)
     prompt_file = Path("prompt.txt")
     prompt_file.write_bytes("naïve café 東京".encode("utf-8"))
 
@@ -148,11 +150,11 @@ def test_prompt_file_is_read_as_utf8(tmp_path, monkeypatch):
     assert argv[-1] == "naïve café 東京"
 
 
-def test_agy_footer_is_removed_from_answer_but_preserved_in_log(
+def test_runner_footer_is_removed_from_answer_but_preserved_in_log(
     tmp_path, monkeypatch, capsys
 ):
-    footer = "agy-run: synthetic status footer"
-    write_fake_vault(
+    footer = "gemini-run: synthetic status footer"
+    write_fake_runners(
         tmp_path,
         monkeypatch,
         agy_body=(
@@ -174,7 +176,7 @@ def test_agy_footer_is_removed_from_answer_but_preserved_in_log(
 def test_engine_failure_includes_stderr_even_when_stdout_is_not_empty(
     tmp_path, monkeypatch, capsys
 ):
-    write_fake_vault(
+    write_fake_runners(
         tmp_path,
         monkeypatch,
         local_body=(
@@ -194,7 +196,7 @@ def test_engine_failure_includes_stderr_even_when_stdout_is_not_empty(
 
 
 def test_engine_json_answer_is_a_json_object(tmp_path, monkeypatch, capsys):
-    write_fake_vault(
+    write_fake_runners(
         tmp_path,
         monkeypatch,
         local_body="printf '%s\\n' '{\"verdict\":\"accept\",\"score\":2}'\n",
@@ -208,7 +210,7 @@ def test_engine_json_answer_is_a_json_object(tmp_path, monkeypatch, capsys):
 
 
 def test_background_engine_returns_a_job_id(tmp_path, monkeypatch, capsys):
-    write_fake_vault(tmp_path, monkeypatch)
+    write_fake_runners(tmp_path, monkeypatch)
 
     exit_code, result = invoke(
         capsys, "run", "local", "synthetic background prompt", "--background"
@@ -227,7 +229,7 @@ def test_background_engine_returns_a_job_id(tmp_path, monkeypatch, capsys):
 def test_both_wait_argument_orders_work_from_a_different_cwd(
     tmp_path, monkeypatch, capsys
 ):
-    write_fake_vault(
+    write_fake_runners(
         tmp_path,
         monkeypatch,
         local_body="printf '%s\\n' '{\"answer\":\"job complete\"}'\n",
@@ -250,7 +252,7 @@ def test_both_wait_argument_orders_work_from_a_different_cwd(
 def test_collected_job_has_the_same_result_fields_as_foreground(
     tmp_path, monkeypatch, capsys
 ):
-    write_fake_vault(
+    write_fake_runners(
         tmp_path,
         monkeypatch,
         local_body="printf '%s\\n' '{\"answer\":\"same shape\"}'\n",

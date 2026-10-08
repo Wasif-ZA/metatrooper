@@ -8,7 +8,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from metarouter import calls, tldr
-from metarouter.log import home
+from metarouter.recipes import engines
+from metarouter.log import home, private
 
 TRANSCRIPTS = Path.home() / ".claude" / "projects"
 MIN_USES = 5
@@ -26,9 +27,8 @@ WRITE_MARK = re.compile(r">|\btee\b|\bmv |\bcp |git (commit|add|checkout|restore
                         r"\b(install|uninstall|add|kill|taskkill|chmod|mkdir|touch|sed -i)\b")
 EXTERNAL = re.compile(r"(^|\|\s*)(curl|wget|gh|ssh|scp|npx)\b")
 NAME_NOISE = {"prefix", "dev", "null", "tail", "the"}
-FORWARDER = re.compile(r"codex-companion\.mjs|agy-run\.sh|local\.sh|local-work\.py|app-server-broker")
+FORWARDER = re.compile(r"codex-companion\.mjs|app-server-broker")
 CLI_NAME = re.compile(r"^[a-z][a-z0-9._-]*$")
-SENSITIVE = re.compile(r"acu|redcap|hwbreport|partner|participant|survey", re.I)
 INLINE_PY = re.compile(r"python\S*\s+(-c\b|-\s*<<|<<)")
 PY_GROUPS = [
     ("image", r"Image\.open|\.thumbnail\(|\.resize\(|\.crop\(|ImageChops|ImageDraw|getpixel", "img"),
@@ -163,13 +163,14 @@ def mine(root=TRANSCRIPTS):
     fixes = {}
     samples = {}
     pairs = Counter()
+    runners = engines.scripts()
     n_sessions = n_cmds = 0
     for sess in sessions(root):
         n_sessions += 1
         shaped = []
         for cmd, failed, out in sess:
             n_cmds += 1
-            if FORWARDER.search(cmd):
+            if FORWARDER.search(cmd) or any(n in cmd for n in runners):
                 shaped.append(None)
                 continue
             if INLINE_PY.search(cmd):
@@ -318,7 +319,7 @@ def learn(root=TRANSCRIPTS, taken=None):
             if purity != "read" or not ex:
                 queued_unsafe += 1
                 continue
-            if SENSITIVE.search(c["body"]) or any(SENSITIVE.search(a) for a in ex["args"]):
+            if private(c["body"]) or any(private(a) for a in ex["args"]):
                 continue
             code = example_exit(cli, c, ex)
             if code == 0:

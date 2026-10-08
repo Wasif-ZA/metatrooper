@@ -15,11 +15,13 @@ from pathlib import Path
 
 from metarouter import calls, filters, hints, log, shrink, snapshot, tldr
 from metarouter import recipes as store
+from metarouter.log import config, private
 from metarouter.result import Result, mode, render
 
 VERBS = {
     "run": "run <recipe> [args]      run a recipe: json, replace, find, img, codex, gemini, local...",
-    "exec": "exec [--no-trunc] -- <command>  run a shell command, print a short result, keep the full log",
+    "exec": "exec [--no-trunc] [--strict] -- <command>  run a shell command, print a short result, keep the full log",
+    "log": "log [last|n] [--grep P] [--tail N]  read part of a saved full output",
     "search": "search <words>          find a recipe by plain words",
     "list": "list                    every recipe, one line each",
     "add": "add <name> -- <cmd>     keep a command that worked as a recipe; {1} {2} mark arguments",
@@ -32,6 +34,9 @@ VERBS = {
     "mode": "mode [learn|auto]       learn: approved recipes only; auto: catalogue, PATH CLIs, MCP registry",
     "learn": "learn [--review]        find recipe and hint candidates in the transcripts",
     "ingest": "ingest [--since T]      where tool-result tokens go, from the transcripts",
+    "stats": "stats [--days N] [--here]  recipe runs, failures, and hints followed by a success",
+    "export": "export [file]           write your saved recipes to one JSON file to share",
+    "import": "import <file>           add recipes from an export; existing names are kept",
 }
 GIT_BASH = Path(r"C:\Program Files\Git\bin\bash.exe")
 OUT_LIMIT = 8000
@@ -183,6 +188,9 @@ def finish(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_lab
             r.breaker = hints.breaker(calls.read() + [r.rec], r.rec)
     except Exception:
         pass
+    r.rec["hinted"] = bool(r.hint)
+    if r.breaker:
+        r.rec["breaker"] = True
     return r
 
 
@@ -190,12 +198,17 @@ def exec_lane(args):
     cut = args.index("--") if "--" in args else len(args)
     head, tail = args[:cut], args[cut:]
     whole = "--no-trunc" in head
+    strict = "--strict" in head or bool(config().get("strict"))
     want = head[head.index("--want") + 1] if "--want" in head[:-1] else None
-    drop = {"--no-trunc", "--want", want}
+    drop = {"--no-trunc", "--strict", "--want", want}
     args = [a for a in head if a not in drop] + tail
     cmd = command_text(args)
     if not cmd.strip():
         return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: metarouter exec -- "pytest -q"')
+    if strict:
+        why = hints.stuck(calls.read(), calls.shape(cmd), calls.project(), datetime.datetime.now().astimezone())
+        if why:
+            return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(cmd), note=why)
     try:
         code, raw, secs = run_shell(cmd)
     except OSError as e:
@@ -292,7 +305,10 @@ def run_engine(r, args):
         return Result(ok=False, lane="run", exit=127, recipe=name, note=f"could not start {cmd[0]}: {e}")
     secs = round(time.monotonic() - start, 1)
     answer = proc.stdout.decode("utf-8", errors="replace").replace("\r\n", "\n")
-    answer = re.split(r"\n-{20,}\nagy-run: ", answer)[0].strip()
+    stems = "|".join(re.escape(Path(n).stem) for n in engines.scripts())
+    if stems:
+        answer = re.split(rf"\n-{{20,}}\n(?:{stems}): ", answer)[0]
+    answer = answer.strip()
     err = proc.stderr.decode("utf-8", errors="replace").strip()
     if proc.returncode != 0 and err:
         tail = "\n".join(err.splitlines()[-10:])
@@ -742,11 +758,161 @@ def learn_lane(args):
         if "--review" in args:
             return Result(ok=True, lane="learn", out=learn.review())
         root = args[args.index("--root") + 1] if "--root" in args else learn.TRANSCRIPTS
-        return Result(ok=True, lane="learn", out=learn.learn(root, taken=store.load()))
+        return Result(ok=True, lane="learn", out=learn.learn(root, taken=store.load()),
+                      note=log.no_private_warning())
     except PermissionError as e:
         return Result(ok=False, lane="learn", exit=2, note=str(e))
     except (IndexError, OSError, ValueError) as e:
         return Result(ok=False, lane="learn", exit=1, note=f"{type(e).__name__}: {e}")
+
+
+def flag_value(args, flag):
+    return args[args.index(flag) + 1] if flag in args[:-1] else None
+
+
+def log_lane(args):
+    pattern, tail = flag_value(args, "--grep"), flag_value(args, "--tail")
+    refs = [a for a in args if not a.startswith("--") and a not in (pattern, tail)]
+    ref = refs[0] if refs else "last"
+    rows = [r for r in calls.read() if r.get("log") and not private(str(r.get("project") or ""))]
+    me = calls.agent()
+    rows = [r for r in rows if r.get("agent") == me] or rows
+    logs = (log.home() / "logs").resolve()
+    if Path(ref).is_file():
+        path = Path(ref)
+        if not path.resolve().is_relative_to(logs):
+            return Result(ok=False, lane="log", exit=2, note=f"log reads only saved outputs under {logs.as_posix()}")
+    elif ref == "last" or ref.isdigit():
+        n = 1 if ref == "last" else int(ref)
+        if n < 1 or n > len(rows):
+            return Result(ok=False, lane="log", exit=2, note=f"no saved output number {ref}; {len(rows)} saved")
+        path = Path(rows[-n]["log"])
+    else:
+        return Result(ok=False, lane="log", exit=2, note="usage: metarouter log [last|<n>|<path>] [--grep P] [--tail N]")
+    try:
+        text = shrink.clean(path.read_bytes().decode("utf-8", errors="replace"))
+    except OSError as e:
+        return Result(ok=False, lane="log", exit=1, note=f"could not read {path}: {e}")
+    lines = text.splitlines()
+    if pattern:
+        try:
+            rx = re.compile(pattern, re.I)
+        except re.error as e:
+            return Result(ok=False, lane="log", exit=2, note=f"bad --grep pattern: {e}")
+        lines = [f"{i}: {ln}" for i, ln in enumerate(lines, 1) if rx.search(ln)]
+        if not lines:
+            return Result(ok=True, lane="log", log=path.as_posix(), out=f"no line matches {pattern}")
+    if tail:
+        if not tail.isdigit():
+            return Result(ok=False, lane="log", exit=2, note="--tail needs a number of lines")
+        lines = lines[-int(tail):]
+    out = "\n".join(shrink.clip(ln) for ln in lines)
+    return Result(ok=True, lane="log", log=path.as_posix(), lines=len(lines),
+                  out=shrink.budget(out, OUT_LIMIT - shrink.TAIL_CHARS, shrink.TAIL_CHARS))
+
+
+RECOVER_WITHIN = 3
+
+
+def stats_lane(args):
+    rows = [r for r in calls.read() if not private(str(r.get("project") or "")) and not private(r.get("recipe") or "")]
+    days = flag_value(args, "--days")
+    if days:
+        if not days.isdigit():
+            return Result(ok=False, lane="stats", exit=2, note="--days needs a number")
+        cutoff = (datetime.datetime.now().astimezone() - datetime.timedelta(days=int(days))).isoformat()
+        rows = [r for r in rows if r.get("time", "") >= cutoff]
+    if "--here" in args:
+        here = calls.project()
+        rows = [r for r in rows if r.get("project") == here]
+    if not rows:
+        return Result(ok=True, lane="stats", out="no calls logged yet")
+    per = {}
+    for r in rows:
+        if r.get("recipe"):
+            n, bad = per.get(r["recipe"], (0, 0))
+            per[r["recipe"]] = (n + 1, bad + (r.get("exit") != 0))
+    hinted = recovered = 0
+    tracked = sum("hinted" in r for r in rows)
+    for i, r in enumerate(rows):
+        if not r.get("hinted"):
+            continue
+        hinted += 1
+        tool = hints.breaker_key(r)
+        later = [x for x in rows[i + 1:] if x.get("project") == r.get("project") and x.get("agent") == r.get("agent")]
+        if any(hints.breaker_key(x) == tool and x.get("exit") == 0 for x in later[:RECOVER_WITHIN]):
+            recovered += 1
+    shown = [r for r in rows if "shown_bytes" in r]
+    kept = sum(max(0, r.get("bytes", 0) - r["shown_bytes"]) for r in shown) // 4
+    out = {
+        "calls": len(rows),
+        "failed": sum(r.get("exit") != 0 for r in rows),
+        "recipes": [f"{n}: {c} runs, {b} failed" for n, (c, b) in sorted(per.items(), key=lambda x: -x[1][0])[:LIST_ROWS]],
+        "hints": f"{hinted} shown in {tracked} calls that record hints, {recovered} followed by a success of the "
+                 f"same tool within {RECOVER_WITHIN} calls",
+        "breaker": f"{sum(bool(r.get('breaker')) for r in rows)} warnings",
+        "output_kept_out": f"about {kept:,} tokens of output not printed (bytes / 4). This is not money saved: "
+                           f"cached reads are cheap and an extra turn can cost more",
+    }
+    return Result(ok=True, lane="stats", out=out)
+
+
+def strings(v):
+    """Every string inside a nested dict or list."""
+    if isinstance(v, str):
+        yield v
+    elif isinstance(v, dict):
+        for x in v.values():
+            yield from strings(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from strings(x)
+
+
+def export_lane(args):
+    mine = [r for r in store.load().values() if r.get("source") not in ("seed", "catalog")]
+    if not mine:
+        return Result(ok=False, lane="export", exit=1, note='no saved recipes yet. Save one: metarouter add <name> -- "<command>"')
+    flagged = [r["name"] for r in mine if any(private(x) for x in strings(r))]
+    keep = [r for r in mine if r["name"] not in flagged]
+    path = Path(args[0]) if args else Path("metarouter-recipes.json")
+    path.write_text(json.dumps({"metarouter_recipes": 1, "recipes": keep}, indent=1, ensure_ascii=False),
+                    encoding="utf-8")
+    note = f"left out {len(flagged)} matching a private pattern: {', '.join(flagged)}" if flagged else None
+    return Result(ok=True, lane="export", out=f"wrote {len(keep)} recipes to {path.as_posix()}. Read it before "
+                                              f"sharing: literal paths and values in a body go with it", note=note)
+
+
+def import_lane(args):
+    if not args:
+        return Result(ok=False, lane="import", exit=2, note="usage: metarouter import <file>")
+    try:
+        data = json.loads(Path(args[0]).read_text(encoding="utf-8"))
+        incoming = data["recipes"] if isinstance(data, dict) else None
+        if not isinstance(incoming, list):
+            raise ValueError("not a metarouter export: no recipes list")
+    except (OSError, ValueError, KeyError) as e:
+        return Result(ok=False, lane="import", exit=2, note=f"could not read {args[0]}: {e}")
+    have = store.load()
+    added, kept, bad = [], [], []
+    for r in incoming:
+        name = r.get("name") if isinstance(r, dict) else None
+        if not name or r.get("kind") not in ("shell", "flow"):
+            bad.append(str(name))
+            continue
+        if name in have:
+            kept.append(name)
+            continue
+        try:
+            store.save(name, r["body"], summary=r.get("summary"), kind=r["kind"], purity=r.get("purity", "read"),
+                       source="import", example=r.get("example"))
+            body = r["body"] if isinstance(r["body"], str) else " && ".join(r["body"])
+            added.append(f"{name}: {shrink.clip(body)}")
+        except (ValueError, KeyError) as e:
+            bad.append(f"{name} ({e})")
+    out = {"added": added, "kept existing": kept, "skipped": bad}
+    return Result(ok=bool(added) or not bad, lane="import", exit=0 if added or not bad else 1,
+                  out={k: v for k, v in out.items() if v} or "nothing to import")
 
 
 def undo(args):
@@ -778,7 +944,8 @@ def unknown(verb):
 
 LANES = {"run": run_lane, "exec": exec_lane, "search": search_lane, "list": list_lane, "add": add_lane,
          "check": check, "undo": undo, "jobs": jobs_lane, "learn": learn_lane, "browse": browse_lane,
-         "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane}
+         "mcp": mcp_lane, "tools": tools_lane, "mode": mode_lane, "log": log_lane, "stats": stats_lane,
+         "export": export_lane, "import": import_lane}
 
 
 def log_call(rec):
@@ -800,6 +967,9 @@ def main(argv=None):
         r = menu()
     elif verb == "learn" and "--review" in rest and how_ == "json":
         r = Result(ok=False, lane="learn", exit=2, note="learn --review is for a person. It refuses to run in JSON or agent mode")
+    elif verb == "import" and how_ == "json":
+        r = Result(ok=False, lane="import", exit=2, note="import adds commands an agent will run. A person runs it, "
+                                                          "not JSON or agent mode")
     elif verb in LANES:
         try:
             r = LANES[verb](rest)

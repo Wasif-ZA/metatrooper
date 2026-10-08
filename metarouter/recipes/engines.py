@@ -2,6 +2,8 @@ import os
 import re
 from pathlib import Path
 
+from metarouter.log import config
+
 LOCAL_LANES = {"extract", "audit", "commit", "edit", "work", "look", "ask", "models", "--doctor", "--test"}
 LOCAL_MODEL = "gemma4:12b"
 CODEX_VALUE_FLAGS = {"--model", "--effort", "--resume"}
@@ -15,7 +17,7 @@ RECIPES = [
      "args": ["--base", "--scope"], "purity": "external", "engine": "codex-review"},
     {"name": "gemini", "summary": "ask Gemini through agy; file questions need --add-dir",
      "args": ["prompt", "--dir", "--add-dir", "--lane", "--prompt-file"], "purity": "external", "engine": "gemini"},
-    {"name": "local", "summary": "ask a local Ollama model on this laptop, or run a local.sh lane",
+    {"name": "local", "summary": "ask a local Ollama model through your local runner script",
      "args": ["prompt", "--model", "--prompt-file"], "purity": "read", "engine": "local"},
 ]
 
@@ -35,13 +37,20 @@ def codex_companion():
     return str(found[-1])
 
 
-def vault_script(name):
-    # ponytail: vault path defaults to ~/teehee; set METAROUTER_VAULT on any other machine
-    vault = Path(os.environ.get("METAROUTER_VAULT") or Path.home() / "teehee")
-    path = vault / "meta" / "scripts" / name
-    if not path.is_file():
-        raise FileNotFoundError(f"{path} not found. Set METAROUTER_VAULT to the vault folder")
-    return str(path)
+def script(engine):
+    """Path of the runner script config.json names for this engine under "engines"."""
+    path = (config().get("engines") or {}).get(engine)
+    if not path:
+        raise FileNotFoundError(f'no runner script for {engine}. Set "engines": {{"{engine}": "<path>"}} '
+                                f"in ~/.metarouter/config.json")
+    if not Path(path).is_file():
+        raise FileNotFoundError(f"{path} not found. Fix engines.{engine} in ~/.metarouter/config.json")
+    return path
+
+
+def scripts():
+    """File names of every configured runner script."""
+    return [Path(p).name for p in (config().get("engines") or {}).values() if isinstance(p, str)]
 
 
 def take(args, flag):
@@ -96,7 +105,7 @@ def argv(recipe, args, shell):
         if FILE_WORD.search(prompt) and not dirs and not workdirs:
             raise ValueError("this question names a file but has no --add-dir or --dir. agy cannot read "
                              "files outside its folder and comes back empty. Add --dir <folder>")
-        cmd = [shell, vault_script("agy-run.sh"), "--lane", (lanes or ["second-opinion"])[-1],
+        cmd = [shell, script("gemini"), "--lane", (lanes or ["second-opinion"])[-1],
                "--prompt", prompt, *passed]
         for d in workdirs[-1:]:
             cmd += ["--dir", d]
@@ -108,10 +117,10 @@ def argv(recipe, args, shell):
         if lanes:
             args = [lanes[-1], *args]
         if args and args[0] in LOCAL_LANES:
-            return [shell, vault_script("local.sh"), *args]
+            return [shell, script("local"), *args]
         models, rest = take(args, "--model")
         prompt = " ".join(rest)
         if not prompt:
             raise ValueError('local needs a prompt: metarouter run local "<prompt>"')
-        return [shell, vault_script("local.sh"), "ask", (models or [LOCAL_MODEL])[-1], prompt]
+        return [shell, script("local"), "ask", (models or [config().get("local_model") or LOCAL_MODEL])[-1], prompt]
     raise ValueError(f"unknown engine {engine}")

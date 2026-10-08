@@ -1,20 +1,19 @@
 import argparse
 import datetime
 import json
-import re
 import math
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from metarouter import calls
+from metarouter.log import no_private_warning, private
 
 IMAGE_TOKENS = 1500
 CAPS = (400, 800, 2000, 4000)
 BIG_READ_TOKENS = 10_000  # about 40 KB at four bytes per token
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
 OUT_DIR = Path.home() / ".metarouter"
-ACU = re.compile(r"work[\\/]+acu", re.I)
 
 
 def result_cost(content):
@@ -64,23 +63,23 @@ def blocks(line, since, until=None):
     return content if isinstance(content, list) else []
 
 
-def touches_acu(line):
+def touches_private(line):
     try:
         entry = json.loads(line)
     except json.JSONDecodeError:
         return False
     if not isinstance(entry, dict):
         return False
-    if ACU.search(str(entry.get("cwd") or "")):
+    if private(str(entry.get("cwd") or "")):
         return True
     content = (entry.get("message") or {}).get("content")
     return isinstance(content, list) and any(
-        isinstance(b, dict) and b.get("type") == "tool_use" and ACU.search(json.dumps(b.get("input") or {}))
+        isinstance(b, dict) and b.get("type") == "tool_use" and private(json.dumps(b.get("input") or {}))
         for b in content)
 
 
 def scan(root, since=None, until=None):
-    """Two passes: map tool_use_id to its call, then attribute each result to it. Sessions touching ACU are skipped."""
+    """Two passes: map tool_use_id to its call, then attribute each result to it. Private sessions are skipped."""
     root = Path(root)
     files = [root] if root.is_file() else sorted(root.rglob("*.jsonl"))
     calls, kept = {}, []
@@ -88,7 +87,7 @@ def scan(root, since=None, until=None):
         mine = {}
         with f.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if touches_acu(line):
+                if touches_private(line):
                     mine = None
                     break
                 for b in blocks(line, since, until):
@@ -154,10 +153,11 @@ def summarise(calls, results):
 
 
 def saved_tokens(rows, since=None, until=None):
-    """Tokens metarouter kept out of context: (bytes - shown_bytes) // 4 per printed, non-ACU call in the window."""
+    """Output kept out of context, estimated as (bytes - shown_bytes) // 4 per printed call. Not billed tokens:
+    a shorter result can still cost more if the agent needs extra turns."""
     total = 0
     for r in rows:
-        if "shown_bytes" not in r or ACU.search(str(r.get("project") or "")):
+        if "shown_bytes" not in r or private(str(r.get("project") or "")):
             continue
         if when(r.get("time")) is None or not in_window(r.get("time"), since, until):
             continue
@@ -204,11 +204,15 @@ def main(argv=None, how="human"):
         out = OUT_DIR / f"ingest-{time.strftime('%Y%m%dT%H%M%S')}.json"
         out.write_text(json.dumps({"since": args.since, "transcripts": n_files, **s}, indent=1),
                        encoding="utf-8")
+    warning = no_private_warning()
     if how == "json":
-        print(json.dumps({"ok": True, "exit": 0, "shell_read_tokens": s["shell_read_tokens"],
+        print(json.dumps({"ok": True, "exit": 0, **({"warning": warning} if warning else {}),
+                          "shell_read_tokens": s["shell_read_tokens"],
                           "saved_tokens": s["saved_tokens"], "out": {"transcripts": n_files,
                           "saved": out.as_posix() if out else None, **s}}))
         return
+    if warning:
+        print(warning, end="\n\n")
     report(s, n_files)
     if out:
         print(f"\nsaved {out}")

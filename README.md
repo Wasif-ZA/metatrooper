@@ -24,22 +24,18 @@
 
 <p align="center"><i><code>pytest -v</code>: 261 lines in, 11 out, the failure kept.</i></p>
 
-<p align="center">
-  <img alt="Bar chart: raw shell output is 6.31M tokens; through metarouter exec it is 2.23M tokens, 64.6% less. On failed commands, 366 of 368 errors, tracebacks, exit codes and last lines are kept." src="assets/bench.svg">
-</p>
-
 <br>
 
-# metarouter routes every tool call your agent makes through what already worked.
+# metarouter is your coding agent's tool memory.
 
 Open-source glue between coding agents and the tools they call.
 
 **If your agent is the _driver_, metarouter is the _GPS_: it knows the route, and it knows the potholes.**
 
-Your agent keeps rewriting the same commands, hitting the same traps, and reading 5,000 lines
-to find one error. metarouter remembers the commands that worked, attaches the fix it knows,
-and hands back only the lines that matter. It looks like a command wrapper. Under the hood:
-learned recipes, trap hints, output shrinking, engines, a browser and MCP, all answering in one
+Your agent keeps rewriting the same commands and walking into the same traps. metarouter
+remembers the commands that worked, warns before a command it knows will fail, and can undo its
+own edits. It also hands back the lines that matter instead of 5,000. Under the hood: learned
+recipes, trap hints, undo, output shrinking, engines, a browser and MCP, all answering in one
 shape.
 
 **Stop re-teaching your agent the same commands.**
@@ -108,7 +104,7 @@ around exactly those four.
 | --- | --- | --- |
 | **Recipes**: what worked before | The agent, every call | Saved commands with placeholders, found by plain-word search, learned from your sessions |
 | **Trap hints**: the known fix | The agent, on a bad call | The fix attached to the result, and a stop after three failures in a row |
-| **Shrink**: only the lines that matter | Your token budget | 64.6% fewer tokens, the failure kept, the full log on disk |
+| **Shrink**: only the lines that matter | Your agent's attention | Less to read, the failure kept, the full log on disk. Not a promise of a smaller bill: see [Limits](#limits) |
 | **One shape**: same answer everywhere | Agents and scripts | Plain text when the output is short, compact JSON when it was cut, readable text for a person |
 
 <br>
@@ -144,7 +140,7 @@ When a command hits a trap it knows, the result carries the fix. Three failures 
 </td>
 <td align="center" width="33%" valign="top">
 <h3>📉 Shrinks the output</h3>
-64.6% fewer tokens on 6,069 real shell outputs. On failed commands, 366 of 368 error lines, tracebacks and exit codes kept.
+On failed commands, 366 of 368 error lines, tracebacks and exit codes kept. <code>metarouter log --grep</code> reads the rest when needed.
 </td>
 </tr>
 <tr>
@@ -186,7 +182,8 @@ Python 3.11+ standard library. Only the <code>img</code> recipe wants Pillow.
 | ❌ Every session your agent writes the same inline python to read one JSON field. | ✅ `metarouter run json package.json .version`. One line, found by search, the same every time. |
 | ❌ A failing test run dumps 5,000 lines into context to show one assertion. | ✅ `metarouter exec` returns the failure and the summary. The rest is in a log file if it is needed. |
 | ❌ Your agent hits the same wrong endpoint, flag or shell again, and you correct it again. | ✅ The trap is written down once. The next time, the result carries the fix. |
-| ❌ The agent retries a broken command five times in a row. | ✅ After three failures in an hour, metarouter tells it to stop and read the log. |
+| ❌ The agent retries a broken command five times in a row. | ✅ After three failures in an hour, metarouter tells it to stop and read the log. With `--strict` it refuses the fourth run. |
+| ❌ The agent dumps a whole saved log back into context to find one line. | ✅ `metarouter log --grep "Error"` or `--tail 40` returns just those lines. |
 | ❌ Codex runs in the background and nobody collects the answer. | ✅ `metarouter jobs <id> --wait` collects it from any folder, in the same shape as everything else. |
 | ❌ A wrapper tool quietly rewrites commands and you cannot see what it learned. | ✅ No hook. Every recipe is a file you can read, and `learn --review` asks you first. |
 
@@ -199,6 +196,7 @@ Python 3.11+ standard library. Only the <code>img</code> recipe wants Pillow.
 | **Learned from your sessions.**   | Recipes come from your own Claude Code transcripts, not a generic catalogue.                  |
 | **Shapes, not values.**           | A learned recipe keeps the command with `{1}` placeholders, never the values you ran it with. |
 | **Only a person approves.**       | `learn --review` refuses to run inside an agent.                                             |
+| **Warns before, not after.**      | A known trap is flagged on the command itself, before it runs.                                 |
 | **The answer lines survive.**     | On a failed command, error lines, tracebacks and exit codes are kept: 366 of 368 on real outputs. |
 | **Nothing is thrown away.**       | Every call keeps its full output on disk; the short result names the file.                  |
 | **Reversible edits.**             | Recipe writes take a snapshot first. `metarouter undo` restores it.                           |
@@ -280,7 +278,7 @@ metarouter is one command with eight parts, all in the Python standard library:
 </td>
 <td width="50%" valign="top">
 
-**undo and ingest**: Snapshots before every recipe write. <code>ingest</code> shows where your agent's tool tokens actually go.
+**undo, stats and ingest**: Snapshots before every recipe write. <code>stats</code> shows recipe runs, failures, and how often a hint was followed by a success. <code>ingest</code> shows where your agent's tool tokens actually go.
 
 </td>
 </tr>
@@ -298,6 +296,7 @@ metarouter is one command with eight parts, all in the Python standard library:
 | **Not a model router.**       | It never picks which model answers. It routes tool calls: shell, recipes, engines, browser, MCP. |
 | **Not a proxy.**              | It never sits between your agent and the model.                                       |
 | **Not a lossless pipe.**      | The agent gets a short version. Use `--no-trunc` when every byte matters.             |
+| **Not a proven cost cutter.** | It cuts what the agent reads. Whether that lowers your bill: see [Limits](#limits).  |
 | **Not cross-platform yet.**   | Built and tested on Windows through Git Bash. See [Platforms](#platforms).            |
 
 <br>
@@ -339,17 +338,20 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 ## Commands
 
 <details>
-<summary>Open: 20 commands, one per goal, and the two modes</summary>
+<summary>Open: 26 commands, one per goal, and the two modes</summary>
 
 | Goal | Command |
 |------|---------|
 | Run anything, get a short result | `metarouter exec -- "pytest -q"` |
+| Refuse a command that already failed three times | `metarouter exec --strict -- "<command>"`, or `"strict": true` in config |
 | Read the whole output | `metarouter exec --no-trunc -- "<command>"` |
+| Read part of the last saved output | `metarouter log --grep "Error"`, `metarouter log --tail 40`, `metarouter log 2` |
 | Keep only the parts about a topic | `metarouter exec --want "timeout" -- "cat app.log"` |
 | Find a recipe in plain words | `metarouter search resize image` |
 | See every recipe | `metarouter list` |
 | Run a recipe | `metarouter run json package.json .version` |
 | Keep a command that worked | `metarouter add count-lines -- 'wc -l < {1}'` |
+| Share your recipes | `metarouter export recipes.json`, then on the other machine `metarouter import recipes.json` |
 | Check every recipe still works | `metarouter check` |
 | Put back the last edit | `metarouter undo` |
 | Ask Codex, wait or not | `metarouter run codex "write tests for X" --background` |
@@ -363,6 +365,7 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
 | Switch mode | `metarouter mode auto` |
 | Find recipe candidates | `metarouter learn`, then `metarouter learn --review` |
 | See where your tokens go | `metarouter ingest --since 2026-09-27` |
+| See what recipes and hints did | `metarouter stats --days 7 --here` |
 
 ### Two modes
 
@@ -379,12 +382,8 @@ cut. `--json`, `--human` or `METAROUTER_OUTPUT` force either style.
   <img src="assets/shrink.png" width="560" alt="A line-drawn owl at a desk turns a very long paper scroll into a short note">
 </p>
 
-<p align="center">
-  <img alt="Bar chart: raw shell output is 6.31M tokens; through metarouter exec it is 2.23M tokens, 64.6% less. On failed commands, 366 of 368 errors, tracebacks, exit codes and last lines are kept." src="assets/bench.svg">
-</p>
-
-On 6,069 Bash outputs from real Claude Code transcripts, 6.31M tokens went in and 2.23M came
-out (64.6% less).
+On 6,069 Bash outputs from real Claude Code transcripts, the text the agent reads fell by 64.6%.
+That is text, not money: see [Limits](#limits).
 
 A failed command keeps what explains the failure:
 
@@ -410,9 +409,32 @@ will differ: `python bench/shrink_bench.py` reruns it on yours.
 | **metarouter** | Remembering how your agent calls tools: recipes, trap hints, engines | The agent calls it; no hook | Log file in `~/.metarouter/logs/` |
 | [rtk](https://github.com/rtk-ai/rtk) | Compact output for many common commands | A hook rewrites Bash commands | `rtk recall` |
 | [Headroom](https://github.com/headroomlabs-ai/headroom) | Compressing everything sent to the model | Proxy, library or MCP | Cached locally |
+| [`headroom learn`](https://github.com/headroomlabs-ai/headroom#headroom-learn) | Mining failed sessions into notes | Writes fixes into `CLAUDE.local.md` | n/a |
+| [treg](https://github.com/superdesigndev/treg) | A hosted catalogue of paid APIs and your team's tools | One token to a hosted registry, priced per call | On the server |
+
+**Against `headroom learn`:** Headroom writes what went wrong as prose into an instruction file,
+which the model rereads on every turn. metarouter keeps runnable commands with `{1}` blanks,
+looks them up only when asked, flags a trap on the command before it runs, and can undo its own
+edits.
+
+**Against treg:** treg sells calls to other people's APIs and holds your team's keys on its
+server. metarouter runs on your machine and learns from your own sessions. No account, no key
+leaves your laptop, and nothing is billed per call.
 
 If all you want is smaller shell output with no change to how the agent works, rtk's hook is
 the shorter path.
+
+## Limits
+
+- **Shorter output is not a smaller bill.** An [independent test of rtk](https://quesma.com/blog/does-rtk-make-ai-coding-cheaper/)
+  found shrinking shell output did not cut cost per task: tool output is a small share of input,
+  cached reads are cheap, and one extra turn costs more than the trim saved. metarouter's own
+  task-level test, with and without it, is in progress; the result will be posted here.
+- **The 64.6% figure is characters / 4**, not billed tokens. `stats` labels it the same way.
+- **It only helps when the agent calls it.** There is no hook, so an agent that ignores its
+  instructions gets nothing.
+- **Recipes and hints are only as good as what you approve.** `stats` shows how often a hint was
+  followed by a success of the same tool.
 
 ## Platforms
 
@@ -420,9 +442,10 @@ the shorter path.
 <summary>Open: Windows tested, macOS and Linux untested</summary>
 
 - **Windows**: built and tested here, through Git Bash.
-- **macOS and Linux**: untested. `exec` needs `bash`; `browse` is Windows only for now.
-- **Engines**: `codex` needs the Codex plugin for Claude Code. `gemini` and `local` still call
-  scripts from the author's own setup and are not portable yet.
+- **macOS and Linux**: untested. `exec` needs `bash`. `browse` looks for Chrome or Chromium in the
+  usual places, or `METAROUTER_CHROME`.
+- **Engines**: `codex` needs the Codex plugin for Claude Code. `gemini` and `local` call a runner
+  script you name in `~/.metarouter/config.json`: `"engines": {"gemini": "<path>", "local": "<path>"}`.
 
 </details>
 
@@ -432,6 +455,10 @@ the shorter path.
 <summary>Open: what it reads, where it writes, what leaves your machine</summary>
 
 - `learn` and `ingest` read your transcripts in `~/.claude/projects/` and stay on your machine.
+- To keep folders or words out of everything metarouter learns or measures, list regexes in
+  `~/.metarouter/config.json`: `"private": ["work/client-x", "secret-project"]`. Sessions,
+  recipes and exports that match are skipped. Until you set one, `learn` and `ingest` print a
+  warning.
 - Logs, recipes, snapshots and jobs live in `~/.metarouter/` (or `METAROUTER_HOME`).
 - No telemetry. The network is used only when you ask for it: MCP registry search (auto
   mode), the `page` recipe (through r.jina.ai), `up`, `repo` (through `gh`), and the engines.
@@ -440,17 +467,10 @@ the shorter path.
 
 ## Roadmap
 
-- ⬜ `browse` on macOS and Linux
-- ⬜ `gemini` and `local` engines that work outside the author's setup
+- ⬜ Task-level test: pass rate, turns and cost per passed task, with and without metarouter
+- ⬜ Tested on macOS and Linux
 - ⬜ Computer use: an agent cursor of its own that never takes over your mouse
 
-## Docs
-
-1. [`docs/measurement.md`](docs/measurement.md): where agent tokens actually go.
-2. [`docs/benchmark.md`](docs/benchmark.md): the shrinker against Headroom and a plain cap.
-3. [`docs/spec.md`](docs/spec.md): what gets built, in which order.
-4. [`docs/architecture.md`](docs/architecture.md): how the lanes fit together.
-5. [`docs/ideas.md`](docs/ideas.md): every idea raised and where it landed.
-6. [`docs/decisions.md`](docs/decisions.md): what was cut and why.
+## Tests
 
 Tests: `uv run --no-project --with pytest --with pillow python -m pytest -q`.

@@ -21,7 +21,8 @@ SEED = [
     {"id": "git-clean-x", "when": "before", "match": r"git\s+clean\s+-[a-zA-Z]*x",
      "hint": "git clean -x deletes ignored files too, which can include the only copy of local data"},
     {"id": "git-bash-date", "when": "before", "match": r"(^|[;&|(]\s*)date(\s|$|\))",
-     "hint": "Git Bash on Windows reads the clock as UTC here. Use: bash meta/scripts/now-iso.sh"},
+     "hint": "Git Bash on Windows can read the clock as UTC. For local time with its offset: "
+             "python -c \"import datetime; print(datetime.datetime.now().astimezone().isoformat())\""},
     {"id": "foreground-sleep", "when": "before", "match": r"(^|[;&|]\s*)sleep\s+\d{2,}",
      "hint": "Long foreground sleeps are blocked by the harness. Wait on a condition, or run the job "
              "with --background and collect it with metarouter jobs <id> --wait. Waiting on a dev "
@@ -86,6 +87,21 @@ def breaker_key(record):
     if record.get("recipe"):
         return "recipe:" + record["recipe"]
     return "cmd:" + (record.get("shape") or "").split(" ")[0]
+
+
+def stuck(rows, shape, project, now):
+    """Return a refusal when this exact command shape failed BREAKER_RUN times in a row here within the hour."""
+    mine = [r for r in rows if r.get("shape") == shape and r.get("project") == project][-BREAKER_RUN:]
+    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 for r in mine):
+        return None
+    try:
+        first = datetime.datetime.fromisoformat(mine[0]["time"])
+    except (KeyError, ValueError):
+        return None
+    if now - first > BREAKER_WINDOW:
+        return None
+    return (f"refused: this command failed {BREAKER_RUN} times in a row since {first:%H:%M}. "
+            f"Read the last log (metarouter log --tail 40) and change the approach")
 
 
 def breaker(rows, record):

@@ -12,6 +12,8 @@ def isolated_environment(tmp_path, monkeypatch):
     for name in ("CLAUDECODE", "METAROUTER_OUTPUT", "CLAUDE_CODE_SESSION_ID", "METAROUTER_SHELL"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
+    (tmp_path / "home").mkdir()
+    (tmp_path / "home" / "config.json").write_text(json.dumps({"private": [r"work[\\/]+secret"]}), encoding="utf-8")
 
 
 def session(path, cwd, stamp, uses):
@@ -31,14 +33,14 @@ def gate_json(capsys, root, since, until):
     return json.loads(capsys.readouterr().out)
 
 
-def test_shell_read_tokens_skip_acu_sessions_and_other_tools(tmp_path, capsys):
+def test_shell_read_tokens_skip_private_sessions_and_other_tools(tmp_path, capsys):
     bash, read, grep = "b" * 400, "r" * 800, "g" * 1200
     session(tmp_path / "t" / "p1" / "s1.jsonl", "C:/repo", "2026-10-01T10:00:00+10:00",
             [("u1", "Bash", {"command": "ls"}, bash), ("u2", "Read", {"file_path": "a.py"}, read),
              ("u3", "Grep", {"pattern": "x"}, grep)])
     session(tmp_path / "t" / "p2" / "s2.jsonl", "C:/repo", "2026-10-01T10:00:00+10:00",
-            [("u4", "Read", {"file_path": "C:\\teehee\\work\\ACU\\x.csv"}, "z" * 4000)])
-    session(tmp_path / "t" / "p3" / "s3.jsonl", "C:/teehee/work/acu/hwb", "2026-10-01T10:00:00+10:00",
+            [("u4", "Read", {"file_path": "C:\\vault\\work\\SECRET\\x.csv"}, "z" * 4000)])
+    session(tmp_path / "t" / "p3" / "s3.jsonl", "C:/vault/work/secret/app", "2026-10-01T10:00:00+10:00",
             [("u5", "Bash", {"command": "ls"}, "z" * 4000)])
 
     res = gate_json(capsys, tmp_path / "t", "2026-10-01T00:00+10:00", "2026-10-02T00:00+10:00")
@@ -60,11 +62,11 @@ def test_window_includes_since_and_excludes_until_across_offsets(tmp_path, capsy
     assert res["saved_tokens"] == (1000 - 200) // 4
 
 
-def test_saved_tokens_need_shown_bytes_and_skip_acu_and_bad_times():
+def test_saved_tokens_need_shown_bytes_and_skip_private_and_bad_times():
     rows = [
         {"time": "2026-10-01T09:00:00+10:00", "project": "C:/repo", "bytes": 4000, "shown_bytes": 400},
         {"time": "2026-10-01T09:00:00+10:00", "project": "C:/repo", "bytes": 8000},
-        {"time": "2026-10-01T09:00:00+10:00", "project": "C:/teehee/work/ACU", "bytes": 8000, "shown_bytes": 0},
+        {"time": "2026-10-01T09:00:00+10:00", "project": "C:/vault/work/SECRET", "bytes": 8000, "shown_bytes": 0},
         {"time": "not a time", "project": "C:/repo", "bytes": 8000, "shown_bytes": 0},
         {"time": "2026-10-01T09:00:00+10:00", "project": "C:/repo", "bytes": 100, "shown_bytes": 500},
     ]

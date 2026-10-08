@@ -91,7 +91,7 @@ def fake_transcripts(root, commands, times=6):
 def test_learn_adds_bypassed_commands_only_in_auto_mode(tmp_path):
     from metarouter import learn
     root = tmp_path / "transcripts"
-    fake_transcripts(root, ["git --version", "rclone sync acu-reports remote:",
+    fake_transcripts(root, ["git --version", "rclone sync private-reports remote:",
                             "Get-CimInstance Win32_Process", "node build.js 2>&1",
                             "node /x/codex-companion.mjs task --write fix"])
     assert learn.learn(root)["added"] == []
@@ -690,13 +690,14 @@ def test_recipe_choices_command_fails_or_empty(capsys):
 
 def test_learn_check_gated_auto_save(tmp_path):
     from metarouter import learn
-    store.set_mode("auto")
+    log.home().mkdir(parents=True, exist_ok=True)
+    (log.home() / "config.json").write_text(json.dumps({"mode": "auto", "private": ["private"]}), encoding="utf-8")
     root = tmp_path / "transcripts"
     fake_transcripts(root, [
         "git --version",
         "git -C . status --short",
         "rm -rf build",
-        'git log --grep "acu"',
+        'git log --grep "private"',
     ])
     res = learn.learn(root)
     assert "git-version" in res["added"]
@@ -716,7 +717,9 @@ def test_learn_check_gated_auto_save(tmp_path):
 def test_learn_flow_candidates(tmp_path):
     from metarouter import learn
     root = tmp_path / "transcripts"
-    fake_transcripts(root, ["git status --short", "git diff --stat", "node /x/agy-run.sh"])
+    log.home().mkdir(parents=True, exist_ok=True)
+    (log.home() / "config.json").write_text(json.dumps({"engines": {"gemini": "/x/gemini-run.sh"}}), encoding="utf-8")
+    fake_transcripts(root, ["git status --short", "git diff --stat", "bash /x/gemini-run.sh"])
     res = learn.learn(root)
     assert res["flow_candidates"] == 1
     candidates = json.loads((log.home() / "candidates" / "candidates.json").read_text(encoding="utf-8"))

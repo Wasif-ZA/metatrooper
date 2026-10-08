@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import re
 from pathlib import Path
@@ -6,6 +7,34 @@ from pathlib import Path
 
 def home():
     return Path(os.environ.get("METAROUTER_HOME") or Path.home() / ".metarouter")
+
+
+def config():
+    """The user's ~/.metarouter/config.json as a dict; {} when missing or unreadable."""
+    try:
+        cfg = json.loads((home() / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def private(text):
+    """True when text matches one of the config's "private" regexes."""
+    for pat in config().get("private") or []:
+        try:
+            if re.search(pat, text or "", re.I):
+                return True
+        except re.error:
+            continue
+    return False
+
+
+NO_PRIVATE = ("WARNING: no private patterns set, so every transcript is read. To skip folders or words, add "
+              "\"private\": [\"<regex>\"] to ~/.metarouter/config.json")
+
+
+def no_private_warning():
+    return None if config().get("private") else NO_PRIVATE
 
 
 def child_env():

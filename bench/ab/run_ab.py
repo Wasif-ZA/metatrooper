@@ -10,36 +10,37 @@ import tempfile
 import time
 
 
-def load_agents_instructions():
-    agents_path = Path.home() / ".codex" / "AGENTS.md"
-    if agents_path.is_file():
-        return agents_path.read_text(encoding="utf-8").strip()
-    return ""
+README_BLOCK = """## Tools
+Run shell commands through metarouter.
+- Look for a saved recipe first: `metarouter search <words>`, then `metarouter run <recipe> ...`.
+- Anything else: `metarouter exec -- "<command>"`. Read the short result; it names the full log.
+- A command that worked and will be needed again: `metarouter add <name> -- '<command, {1} for arguments>'`.
+- If metarouter is missing or errors, run the plain command."""
 
 
 def build_prompt(task_dir, arm):
-    task_path = task_dir / "task.md"
-    task_content = task_path.read_text(encoding="utf-8").strip()
+    task_content = (task_dir / "task.md").read_text(encoding="utf-8").strip()
     if arm == "plain":
         return task_content
-    if arm == "metarouter":
-        instructions = load_agents_instructions()
-        if instructions:
-            return f"{instructions}\n\n{task_content}"
-        return task_content
+    if arm in ("metarouter", "metarouter-memory"):
+        return f"{README_BLOCK}\n\n{task_content}"
     raise ValueError(f"Unknown arm: {arm}")
 
 
-def arm_env(arm):
-    if arm != "plain":
-        return None
+def arm_env(arm, run_dir):
+    """Both arms get a Codex home with only auth and config, so no personal AGENTS.md leaks in.
+    The metarouter arm also gets an empty METAROUTER_HOME: a fresh install, no learned recipes."""
     real = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    home = Path(tempfile.gettempdir()) / "metarouter-ab-plain-codex-home"
-    home.mkdir(exist_ok=True)
+    home = run_dir / "codex-home"
+    home.mkdir(parents=True, exist_ok=True)
     for name in ("auth.json", "config.toml"):
         if (real / name).is_file():
             shutil.copy2(real / name, home / name)
-    return {**os.environ, "CODEX_HOME": str(home)}
+    env = {**os.environ, "CODEX_HOME": str(home)}
+    if arm != "plain":
+        (run_dir / "metarouter-home").mkdir(exist_ok=True)
+        env["METAROUTER_HOME"] = str(run_dir / "metarouter-home")
+    return env
 
 
 def find_token_usage(node):
@@ -103,25 +104,24 @@ def get_total_tokens(tokens):
     return None
 
 
+def token_part(tokens, key):
+    return tokens.get(key) or 0 if isinstance(tokens, dict) else 0
+
+
 def print_summary_table(rows, arms):
-    headers = ["arm", "pass", "median total tokens"]
+    headers = ["arm", "pass", "median total tokens", "tokens per pass", "uncached in", "cached in", "out"]
     table_data = []
     for arm in arms:
         arm_rows = [r for r in rows if r.get("arm") == arm]
         pass_count = sum(1 for r in arm_rows if r.get("pass"))
-        total_count = len(arm_rows)
-        pass_str = f"{pass_count}/{total_count}"
-        totals = []
-        for r in arm_rows:
-            tot = get_total_tokens(r.get("tokens"))
-            if tot is not None:
-                totals.append(tot)
-        if totals:
-            med = statistics.median(totals)
-            med_str = f"{med:.0f}" if isinstance(med, float) and med.is_integer() else f"{med}"
-        else:
-            med_str = "null"
-        table_data.append((arm, pass_str, med_str))
+        pass_str = f"{pass_count}/{len(arm_rows)}"
+        totals = [t for t in (get_total_tokens(r.get("tokens")) for r in arm_rows) if t is not None]
+        med_str = f"{statistics.median(totals):.0f}" if totals else "null"
+        per_pass = f"{sum(totals) / pass_count:.0f}" if pass_count and totals else "null"
+        cached = sum(token_part(r.get("tokens"), "cached_input_tokens") for r in arm_rows)
+        uncached = sum(token_part(r.get("tokens"), "input_tokens") for r in arm_rows) - cached
+        out = sum(token_part(r.get("tokens"), "output_tokens") for r in arm_rows)
+        table_data.append((arm, pass_str, med_str, per_pass, str(uncached), str(cached), str(out)))
 
     col_widths = [len(h) for h in headers]
     for row in table_data:
@@ -191,7 +191,31 @@ def run_dry_run(task_names, tasks_dir, arms):
     return 0
 
 
-def run_evaluation(task_names, tasks_dir, arms, out_path):
+def codex_session(codex_path, prompt, work, env, extra_dir):
+    """Run one codex exec in `work`. Return (stdout, exit code, seconds)."""
+    cmd = [codex_path, "exec", "--skip-git-repo-check", "--json", "--sandbox", "workspace-write",
+           "-c", 'windows.sandbox="unelevated"', "-C", str(work),
+           *(["--add-dir", str(extra_dir)] if extra_dir else []), "-"]
+    start_time = time.monotonic()
+    try:
+        proc = subprocess.run(cmd, input=prompt, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, timeout=600, encoding="utf-8")
+        return proc.stdout or "", proc.returncode, time.monotonic() - start_time
+    except subprocess.TimeoutExpired as exc:
+        raw_out = exc.stdout or ""
+        return (raw_out.decode("utf-8", errors="replace") if isinstance(raw_out, bytes) else raw_out), 124, 600.0
+
+
+def fresh_work(task_dir, work):
+    work.mkdir()
+    if (task_dir / "setup").is_dir():
+        shutil.copytree(task_dir / "setup", work, dirs_exist_ok=True)
+    run_setup_script(task_dir, work)
+
+
+def run_evaluation(task_names, tasks_dir, arms, out_path, repeats=1):
+    """Arms: plain, metarouter (fresh install), metarouter-memory (session 2 after a session 1
+    on the same task with the same metarouter home, so recipes saved in session 1 can be reused)."""
     codex_path = shutil.which("codex")
     if not codex_path:
         print("Error: codex executable not found", file=sys.stderr)
@@ -201,83 +225,41 @@ def run_evaluation(task_names, tasks_dir, arms, out_path):
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     results = []
-    for task_name in task_names:
+    runs = [(t, a, n) for n in range(1, repeats + 1) for t in task_names for a in arms]
+    for task_name, arm, n in runs:
         task_dir = tasks_dir / task_name
-        for arm in arms:
-            temp_dir = Path(tempfile.mkdtemp(prefix=f"bench_{task_name}_{arm}_"))
-            passed = False
-            try:
-                setup_dir = task_dir / "setup"
-                if setup_dir.is_dir():
-                    shutil.copytree(setup_dir, temp_dir, dirs_exist_ok=True)
-                run_setup_script(task_dir, temp_dir)
-
-                prompt = build_prompt(task_dir, arm)
-                cmd = [
-                    codex_path,
-                    "exec",
-                    "--skip-git-repo-check",
-                    "--json",
-                    "--sandbox",
-                    "workspace-write",
-                    "-C",
-                    str(temp_dir),
-                    "-",
-                ]
-
-                start_time = time.monotonic()
-                try:
-                    proc = subprocess.run(
-                        cmd,
-                        input=prompt,
-                        env=arm_env(arm),
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        timeout=600,
-                        encoding="utf-8",
-                    )
-                    elapsed = time.monotonic() - start_time
-                    exit_code = proc.returncode
-                    stdout_text = proc.stdout or ""
-                except subprocess.TimeoutExpired as exc:
-                    elapsed = 600.0
-                    exit_code = 124
-                    raw_out = exc.stdout or ""
-                    stdout_text = raw_out.decode("utf-8", errors="replace") if isinstance(raw_out, bytes) else raw_out
-
-                tokens = extract_last_token_usage(stdout_text)
-                Path(f"{out_path}.{task_name}.{arm}.jsonl").write_text(stdout_text, encoding="utf-8")
-
-                check_script = task_dir / "check.py"
-                check_proc = subprocess.run(
-                    [sys.executable, str(check_script)],
-                    cwd=str(temp_dir),
-                    capture_output=True,
-                    text=True,
-                )
-                passed = (check_proc.returncode == 0)
-
-                row = {
-                    "task": task_name,
-                    "arm": arm,
-                    "pass": passed,
-                    "tokens": tokens,
-                    "seconds": round(elapsed, 2),
-                    "exit": exit_code,
-                }
-                error = last_error(stdout_text)
-                if error:
-                    row["error"] = error
-                results.append(row)
-
-                with open(out_file, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(row) + "\n")
-            finally:
-                if passed:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                else:
-                    print(f"{task_name}/{arm} failed; kept {temp_dir}", file=sys.stderr)
+        run_dir = Path(tempfile.mkdtemp(prefix=f"bench_{task_name}_{arm}_{n}_"))
+        work = run_dir / "work"
+        passed = False
+        try:
+            prompt = build_prompt(task_dir, arm)
+            env = arm_env(arm, run_dir)
+            extra = run_dir / "metarouter-home" if arm != "plain" else None
+            row = {"task": task_name, "arm": arm, "run": n}
+            if arm == "metarouter-memory":
+                fresh_work(task_dir, run_dir / "warmup")
+                warm_out, _, _ = codex_session(codex_path, prompt, run_dir / "warmup", env, extra)
+                row["warmup_tokens"] = extract_last_token_usage(warm_out)
+            fresh_work(task_dir, work)
+            stdout_text, exit_code, elapsed = codex_session(codex_path, prompt, work, env, extra)
+            Path(f"{out_path}.{task_name}.{arm}.{n}.jsonl").write_text(stdout_text, encoding="utf-8")
+            check_proc = subprocess.run([sys.executable, str(task_dir / "check.py")], cwd=str(work),
+                                        capture_output=True, text=True)
+            passed = check_proc.returncode == 0
+            row.update({"pass": passed, "tokens": extract_last_token_usage(stdout_text),
+                        "seconds": round(elapsed, 2), "exit": exit_code})
+            error = last_error(stdout_text)
+            if error:
+                row["error"] = error
+            results.append(row)
+            with open(out_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        finally:
+            shutil.rmtree(run_dir / "codex-home", ignore_errors=True)
+            if passed:
+                shutil.rmtree(run_dir, ignore_errors=True)
+            else:
+                print(f"{task_name}/{arm}/{n} failed; kept {run_dir}", file=sys.stderr)
 
     print_summary_table(results, arms)
     return 0
@@ -286,10 +268,11 @@ def run_evaluation(task_names, tasks_dir, arms, out_path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="A/B evaluation harness for metarouter")
     parser.add_argument("--tasks", default=None, help="Comma-separated list of tasks")
-    parser.add_argument("--arms", default="plain,metarouter", help="Comma-separated list of arms")
+    parser.add_argument("--arms", default="plain,metarouter,metarouter-memory", help="Comma-separated list of arms")
     parser.add_argument("--dry-run", action="store_true", help="Print prompts and folders without running codex")
     parser.add_argument("--self-test", action="store_true", help="Test checks on unsolved setups")
     parser.add_argument("--out", default=None, help="Output JSONL file path")
+    parser.add_argument("--repeats", type=int, default=3, help="Runs per task and arm")
     args = parser.parse_args(argv)
 
     bench_ab_dir = Path(__file__).resolve().parent
@@ -317,7 +300,7 @@ def main(argv=None):
         return run_dry_run(task_names, tasks_dir, arms)
 
     out_path = args.out if args.out else str(bench_ab_dir / "results.jsonl")
-    return run_evaluation(task_names, tasks_dir, arms, out_path)
+    return run_evaluation(task_names, tasks_dir, arms, out_path, args.repeats)
 
 
 if __name__ == "__main__":

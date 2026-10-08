@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import threading
 from pathlib import Path
@@ -7,7 +8,10 @@ from pathlib import Path
 CHROME_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
 ]
+CHROME_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome"]
 
 
 def find_chrome():
@@ -16,6 +20,9 @@ def find_chrome():
     for p in CHROME_PATHS:
         if Path(p).exists():
             return p
+    for name in CHROME_NAMES:
+        if shutil.which(name):
+            return shutil.which(name)
     raise FileNotFoundError("Chrome not found. Set METAROUTER_CHROME to its path")
 
 
@@ -29,14 +36,27 @@ class Chrome:
                 "--no-default-browser-check", "about:blank"]
         if not show:
             args.insert(1, "--headless=new")
-        # ponytail: Windows pipe handles only; macOS and Linux pass fds 3 and 4 instead, add when one is used
-        import msvcrt
-        h_in, h_out = msvcrt.get_osfhandle(r_in), msvcrt.get_osfhandle(w_out)
-        os.set_handle_inheritable(h_in, True)
-        os.set_handle_inheritable(h_out, True)
-        args.insert(1, f"--remote-debugging-io-pipes={h_in},{h_out}")
-        self.proc = subprocess.Popen(args, close_fds=False, stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL)
+        if os.name == "nt":
+            import msvcrt
+            h_in, h_out = msvcrt.get_osfhandle(r_in), msvcrt.get_osfhandle(w_out)
+            os.set_handle_inheritable(h_in, True)
+            os.set_handle_inheritable(h_out, True)
+            args.insert(1, f"--remote-debugging-io-pipes={h_in},{h_out}")
+            self.proc = subprocess.Popen(args, close_fds=False, stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL)
+        else:
+            import fcntl
+            hi_in, hi_out = fcntl.fcntl(r_in, fcntl.F_DUPFD, 10), fcntl.fcntl(w_out, fcntl.F_DUPFD, 10)
+
+            def pipe_fds():
+                # Chrome reads commands on fd 3 and writes replies on fd 4
+                os.dup2(hi_in, 3)
+                os.dup2(hi_out, 4)
+
+            self.proc = subprocess.Popen(args, pass_fds=(hi_in, hi_out), preexec_fn=pipe_fds,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            os.close(hi_in)
+            os.close(hi_out)
         os.close(r_in)
         os.close(w_out)
         self.w, self.r = w_in, r_out

@@ -5,12 +5,22 @@ This benchmark evaluates coding agents with and without `metarouter` on standard
 ## Arms
 
 - **plain**: The agent is provided only with the task description (`task.md`).
-- **metarouter**: The agent is provided with `metarouter` usage instructions prepended to the task description.
+- **metarouter**: The README's four-line instruction block is prepended to the task, with an empty
+  `METAROUTER_HOME`: a fresh install.
+- **metarouter-memory**: Same prompt, run twice on the same task with one `METAROUTER_HOME`. Only
+  the second session is scored, so recipes saved in the first can be reused. This is the arm that
+  tests tool memory; it costs two Codex sessions per run.
+
+Every arm gets its own Codex home holding only `auth.json` and `config.toml`, so a personal
+`AGENTS.md` never reaches the prompt. Runs use `--repeats 3` by default.
+
+On Windows, Codex's sandbox cannot run this harness: the elevated sandbox writes files the checker
+cannot read, and the unelevated one cannot open the task folder. Run it on Linux or macOS (WSL works).
 
 ## What It Measures
 
 - **Correctness**: Each task includes a deterministic `check.py` that verifies the solution without network dependencies.
-- **Token Usage**: Measures input, output, and total token usage extracted from Codex JSONL execution events.
+- **Token Usage**: Input (uncached and cached), output, total, and tokens per passed task, from Codex JSONL events.
 - **Duration**: Wall-clock execution time for each run.
 
 ## Tasks

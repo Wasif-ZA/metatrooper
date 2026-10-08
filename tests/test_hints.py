@@ -46,7 +46,7 @@ def isolated_environment(tmp_path, monkeypatch):
         (
             "date +%s",
             "dateutil --version",
-            "reads the clock as UTC",
+            "can read the clock as UTC",
         ),
         (
             "sleep 60",

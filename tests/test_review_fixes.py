@@ -338,7 +338,8 @@ def test_ingest_json_output_keys(tmp_path, capsys):
     assert data["exit"] == 0
     assert isinstance(data["out"], dict)
     assert "lane" not in data
-    assert set(data.keys()) == {"ok", "exit", "out", "shell_read_tokens", "saved_tokens"}
+    assert set(data.keys()) == {"ok", "exit", "out", "shell_read_tokens", "saved_tokens", "warning"}
+    assert data["warning"].startswith("WARNING: no private patterns")
 
 
 def test_learn_review_in_json_mode_returns_exit_2(monkeypatch, capsys):
