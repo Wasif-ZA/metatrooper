@@ -121,7 +121,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         deps.refreshPanes();
         for (let i = 0; i < 40 && !deps.panes.has(paneId); i++) await new Promise((r) => setTimeout(r, 50));
       }
-      const result = await deps.panes.tool(paneId, tool, params);
+      const result = await deps.panes.tool(paneId, tool, { ...params, _session: bound.sessionId });
       return send({ jsonrpc: '2.0', id, result });
     };
 

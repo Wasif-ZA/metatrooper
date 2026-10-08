@@ -35,7 +35,7 @@
       "dev_command": "npm run dev -- --port {{port}}",
       "serve": "before",
       "view": "findings",
-      "prompt": "The app is running in your browser pane (the browser tool `panes` gives its dev_port). Walk every flow in {{run.dir}}/flows.md with the browser tools: navigate, snapshot, click, type, and read the console and network after each flow. Record each place the app does not do what the flow says, plus console errors and failed requests. Do not edit any file.\n\nWrite the findings to {{run.dir}}/findings.json as a JSON array: [{\"severity\":\"critical|high|medium|low\",\"title\",\"file\"?,\"line\"?,\"detail\"}] (an empty array when nothing is wrong), and set the output key findings to findings.json.",
+      "prompt": "The app is running in your browser pane (the browser tool `panes` gives its dev_port). Walk every flow in {{run.dir}}/flows.md with the browser tools: navigate, snapshot (call it with interactive: true first, and since_last: true after an action), click, type, and read the console and network after each flow. Record each place the app does not do what the flow says, plus console errors and failed requests. Do not edit any file.\n\nWrite the findings to {{run.dir}}/findings.json as a JSON array: [{\"severity\":\"critical|high|medium|low\",\"title\",\"file\"?,\"line\"?,\"detail\"}] (an empty array when nothing is wrong), and set the output key findings to findings.json.",
       "outputs": ["findings"]
     },
     {
