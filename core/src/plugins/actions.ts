@@ -7,7 +7,7 @@ import { nowIso } from '../time.ts';
 import { insideDir, type ActionSpec } from './manifest.ts';
 import type { InstalledPlugin } from './store.ts';
 
-export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA'];
+export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TROOP_CHROME', 'TROOP_PDFTOTEXT', 'TROOP_WHISPER', 'TROOP_WHISPER_MODEL'];
 export const LOG_CAP_BYTES = 1024 * 1024;
 const STDOUT_CAP_BYTES = 16 * 1024 * 1024;
 

@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, root, sleep, startCore, teardownCore, uiHello, until, withEnv } from './helpers.ts';
 import { validate } from '../src/jsonschema.ts';
 import { validateManifest } from '../src/plugins/manifest.ts';
-import { BASE_ENV, runAction } from '../src/plugins/actions.ts';
+import { actionEnv, BASE_ENV, runAction } from '../src/plugins/actions.ts';
 import { checkPaneMessage, paneCsp, resolvePaneFile } from '../src/plugins/bridge.ts';
 import { importClaude, importCodex, parseToml } from '../src/plugins/importers.ts';
 import { bindRole } from '../src/engines/registry.ts';
@@ -233,6 +233,19 @@ test('M1-16 an action sees only the base variables, the TROOP_ paths and approve
     assert.equal(env.TROOP_TEST_LEAK, undefined);
     const log = readFileSync(join(runDir, 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     assert.deepEqual(log.map((l) => l.line), ['line one', 'line two']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an action receives the TROOP_ tool path overrides its plugin reads', () => {
+  const dir = fixtureDir();
+  try {
+    const env = withEnv({ TROOP_CHROME: 'C:/edge.exe', TROOP_PDFTOTEXT: 'C:/pdftotext.exe' }, () => actionEnv({
+      plugin: pluginRecord(dir, []), actionId: 'x', input: {}, projectDir: dir, run: { id: 'r', dir }, secret: () => null,
+    }).env);
+    assert.equal(env.TROOP_CHROME, 'C:/edge.exe');
+    assert.equal(env.TROOP_PDFTOTEXT, 'C:/pdftotext.exe');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
