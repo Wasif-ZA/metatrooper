@@ -632,7 +632,7 @@ export class Runner {
     startDevServer(this.db, run.id, idx, port, command, place.cwd);
     const ready = await waitReady(this.db, run.id, idx, port, () => !['running', 'paused'].includes(this.run(run.id)?.status ?? ''));
     if (ready.ok) {
-      if (place.paneId) this.db.prepare('UPDATE browser_pane SET url = ?, dev_port = ?, open = 1 WHERE id = ?').run(`http://127.0.0.1:${port}/`, port, place.paneId);
+      if (place.paneId) this.db.prepare('UPDATE browser_pane SET url = ?, dev_port = ?, open = 1 WHERE id = ?').run(`http://${ready.host}:${port}/`, port, place.paneId);
     }
     return ready;
   }

@@ -13,6 +13,7 @@ import { parseCsv, load, query, render, kpiBlocks } from '../../plugins/data/bin
 import { cut, captions, transcribe } from '../../plugins/media/bin/media.js';
 import { listDeps, licenceReport } from '../../plugins/security/bin/security.js';
 import { exportPdf } from '../../plugins/docs-export/bin/docs-export.js';
+import { read as gmailRead, draft as gmailDraft, rawMessage, textOf, refusal, unanswered, searchQuery } from '../../plugins/gmail/bin/gmail.js';
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'm3-plugins-'));
@@ -366,6 +367,62 @@ test('desktop returns non-ASCII window titles intact and writes confirmations wi
     const bytes = readFileSync(join(dir, 'confirmations.json'));
     assert.notEqual(bytes[0], 0xef);
     assert.equal(JSON.parse(bytes.toString('utf8'))[0].window, title);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gmail read writes messages with plain text and only threads whose last message is mine', async () => {
+  const dir = tempDir();
+  try {
+    const b64 = (s) => Buffer.from(s).toString('base64url');
+    const calls = [];
+    const api = async (method, route) => {
+      calls.push(route);
+      if (route.startsWith('messages?')) return { messages: [{ id: 'm1' }] };
+      if (route.startsWith('messages/m1')) return { id: 'm1', threadId: 't1', snippet: 'hi', payload: { headers: [{ name: 'From', value: 'a@x.example' }, { name: 'Message-ID', value: '<1@x>' }], mimeType: 'multipart/alternative', parts: [{ mimeType: 'text/html', body: { data: b64('<b>no</b>') } }, { mimeType: 'text/plain', body: { data: b64('plain body') } }] } };
+      if (route === 'profile') return { emailAddress: 'me@x.example' };
+      if (route.startsWith('threads?')) return { threads: [{ id: 't2' }, { id: 't3' }] };
+      if (route.startsWith('threads/t2')) return { id: 't2', messages: [{ payload: { headers: [{ name: 'From', value: 'Me <me@x.example>' }, { name: 'Subject', value: 'quote?' }] } }] };
+      if (route.startsWith('threads/t3')) return { id: 't3', messages: [{ payload: { headers: [{ name: 'From', value: 'me@x.example' }] } }, { payload: { headers: [{ name: 'From', value: 'b@x.example' }] } }] };
+      throw new Error(route);
+    };
+    const r = await gmailRead({ query: 'is:unread', since: 'last-run', unanswered_sent_days: 3, out: 'messages.json' }, api, dir);
+    assert.deepEqual([r.count, r.followups], [1, 1]);
+    const saved = JSON.parse(readFileSync(join(dir, 'messages.json'), 'utf8'));
+    assert.equal(saved.messages[0].body, 'plain body');
+    assert.equal(saved.messages[0].message_id, '<1@x>');
+    assert.equal(saved.followups[0].thread, 't2');
+    assert.ok(decodeURIComponent(calls[0]).includes('is:unread newer_than:1d'));
+    assert.equal(searchQuery({ since: '2026-10-01' }), 'is:unread after:2026/10/01');
+    assert.equal(unanswered({ id: 't', messages: [] }, 'me@x.example'), null);
+    assert.equal(textOf({ mimeType: 'text/html', body: { data: b64('<p>a</p>  <p>b</p>') } }), 'a b');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('gmail draft refuses the whole batch on one bad draft and saves replies in their thread', async () => {
+  const dir = tempDir();
+  try {
+    const posts = [];
+    const api = async (method, route, body) => {
+      if (method === 'GET') return { threadId: 'T9', payload: { headers: [{ name: 'Message-ID', value: '<p@x>' }] } };
+      posts.push(body);
+      return { id: `d${posts.length}` };
+    };
+    writeJson(join(dir, 'bad.json'), [{ id: 'm1', to: 'a@x.example', subject: 'Re: hi', body: 'ok' }, { id: 'm2', to: 'a@x.example', subject: 'Hi {{name}}', body: 'x' }]);
+    await assert.rejects(gmailDraft({ drafts: 'bad.json' }, api, dir), /m2: unfilled template text/);
+    assert.equal(posts.length, 0);
+    writeJson(join(dir, 'ok.json'), [{ id: 'm1', to: 'Dana <dana@x.example>', subject: 'Re: café', body: 'Yes.\nThanks' }]);
+    const r = await gmailDraft({ drafts: 'ok.json', reply: true }, api, dir);
+    assert.deepEqual(r, { count: 1, drafts: [{ id: 'm1', draft_id: 'd1' }] });
+    assert.equal(posts[0].message.threadId, 'T9');
+    const raw = Buffer.from(posts[0].message.raw, 'base64url').toString('utf8');
+    assert.match(raw, /In-Reply-To: <p@x>\r\n/);
+    assert.match(raw, /Subject: =\?utf-8\?B\?/);
+    assert.equal(refusal({ to: 'a@x.example\r\nBcc: z@x.example', subject: 's', body: 'b' }) !== null, true);
+    assert.ok(!rawMessage({ to: 'a@x.example', subject: 's', body: 'b' }, null).includes('='));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

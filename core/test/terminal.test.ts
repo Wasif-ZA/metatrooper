@@ -510,3 +510,20 @@ test('12 settings returns defaults for no file, preserves defaults for wrong typ
     for (const isolated of [noFile, wrongType, broken]) rmSync(isolated.home, { recursive: true, force: true });
   }
 });
+
+test('7 lastLine joins a line the terminal wrapped across rows', async () => {
+  const id = `wrap-${randomUUID()}`;
+  const code = "process.stdout.write('HEAD-'+'x'.repeat(100)+'-TAIL\\r\\n');setInterval(()=>{},1000)";
+  term.open(id, [process.execPath, '-e', code], moduleHome.home, process.env, 40, 10);
+  try {
+    const line = await until(async () => {
+      const value = await term.lastLine(id, 500);
+      return value?.endsWith('-TAIL') ? value : null;
+    });
+    assert.equal(line, `HEAD-${'x'.repeat(100)}-TAIL`);
+    assert.equal(await term.lastLine(id, 8), 'HEAD-xxx');
+  } finally {
+    term.kill(id);
+    await until(() => !term.has(id));
+  }
+});

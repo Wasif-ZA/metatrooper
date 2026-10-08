@@ -59,7 +59,8 @@ export const BUILT_IN: EngineSpec[] = [
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
     activity_waiting: { file: 'transcript.jsonl', last_line_regex: '"type":"PLANNER_RESPONSE".*"tool_calls":\\[\\{' },
     mcp_attach: { kind: 'agy-config' },
-    roles: ['research', 'worker', 'review', 'visual-check'], cost_rank: 1, usage_source: 'none',
+    // agy --print auto-denies shell commands, so it only takes read-only roles.
+    roles: ['review', 'visual-check'], cost_rank: 1, usage_source: 'none',
     print_args: ['--print', '{prompt}', '--print-timeout', '0', '--output-format', 'text'],
     trust: { kind: 'json-list', file: '~/.gemini/antigravity-cli/settings.json', at: ['trustedWorkspaces'], path_style: 'windows' },
     settings: { file: '~/.gemini/antigravity-cli/settings.json', set: { toolPermission: 'proceed-in-sandbox' } },
