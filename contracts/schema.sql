@@ -47,7 +47,7 @@ CREATE TABLE session (
   project_id    TEXT NOT NULL REFERENCES project(id),
   engine_id     TEXT NOT NULL REFERENCES engine(id),
   driven_engine TEXT,                          -- no longer written (D51); older rows: engine a claude driver ran (claude > agy)
-  host          TEXT NOT NULL CHECK (host IN ('pty','sandbox')),  -- a terminal owned by the core; sandbox runs the engine in a container
+  host          TEXT NOT NULL CHECK (host IN ('pty','sandbox','external')),  -- a terminal owned by the core; sandbox runs the engine in a container; external is a Claude session opened outside MetaTrooper, adopted from its hooks
   pid           INTEGER,                       -- launcher pid from launch.js
   native_id     TEXT,                          -- claude session_id, codex thread-id, agy conversation id
   run_id        TEXT REFERENCES run(id),
@@ -59,6 +59,7 @@ CREATE TABLE session (
   title         TEXT,                          -- unused since M1-05 fix; the terminal title lives in core memory (session.live-text)
   last_line     TEXT,                          -- unused since M1-05 fix; the last terminal row lives in core memory (session.live-text)
   turn_base     TEXT,                          -- git stash-create commit (or HEAD) of cwd when the current turn started
+  parent_id     TEXT REFERENCES session(id),   -- the session whose shell ran `troop launch` for this one
   hidden        INTEGER NOT NULL DEFAULT 0,
   started_at    TEXT NOT NULL,
   ended_at      TEXT
@@ -77,6 +78,7 @@ CREATE TABLE event (
   processed   INTEGER NOT NULL DEFAULT 0       -- set to 1 by the core only
 );
 CREATE INDEX event_unprocessed_idx ON event (processed, seq);
+CREATE INDEX event_kind_idx ON event (kind, seq);
 
 -- Queue 2: commands that could not be delivered over the pipe within 300 ms.
 CREATE TABLE command (
@@ -96,7 +98,7 @@ CREATE TABLE comment (
   id           TEXT PRIMARY KEY,
   at           TEXT NOT NULL,
   session_id   TEXT NOT NULL REFERENCES session(id),
-  kind         TEXT NOT NULL CHECK (kind IN ('element','diff-line','file')),
+  kind         TEXT NOT NULL CHECK (kind IN ('element','diff-line','file','notice')),  -- notice: written by the core (file overlap, a child session's hand-back)
   body         TEXT NOT NULL,                  -- the formatted block delivered to the agent; starts with [comment <id>]
   crop_path    TEXT,
   clipboard_at TEXT,                           -- copied to the clipboard
@@ -108,7 +110,7 @@ CREATE INDEX comment_prompt_idx ON comment (session_id, prompt_at);
 CREATE TABLE needs_you (
   id           TEXT PRIMARY KEY,
   at           TEXT NOT NULL,
-  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','spool-too-large','other')),
+  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','spool-too-large','uncommitted','other')),
   ref          TEXT,                           -- gate id, command id, schedule id, run id, plugin id, or session id
   text         TEXT NOT NULL,
   resolved_at  TEXT,

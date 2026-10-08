@@ -33,6 +33,8 @@ export function openCoreDb()               {
   db.exec('CREATE INDEX IF NOT EXISTS usage_session_idx ON usage (session_id)');
   allowSandbox(db);
   if (!(db.prepare('PRAGMA table_info(session)').all()                           ).some((c) => c.name === 'driven_engine')) db.exec('ALTER TABLE session ADD COLUMN driven_engine TEXT');
+  if (!(db.prepare('PRAGMA table_info(session)').all()                           ).some((c) => c.name === 'parent_id')) db.exec('ALTER TABLE session ADD COLUMN parent_id TEXT REFERENCES session(id)');
+  db.exec('CREATE INDEX IF NOT EXISTS event_kind_idx ON event (kind, seq)');
   if (!(db.prepare('PRAGMA table_info(run)').all()                           ).some((c) => c.name === 'hidden')) db.exec('ALTER TABLE run ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
   return db;
 }
@@ -56,10 +58,10 @@ function rebuildTable(db              , schema        , t        , select       
   for (const idx of schemaBlock(schema, new RegExp(`CREATE INDEX \\w+\\s+ON ${t} \\([^)]*\\);`, 'g'))) db.exec(idx);
 }
 
-/** Rebuilds session and needs_you once when their CHECKs predate the sandbox host. */
+/** Rebuilds session, comment and needs_you once when their CHECKs predate a host or kind schema.sql now allows. */
 export function allowSandbox(db              )       {
   const sql = (t        ) => (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(t)                               )?.sql ?? '';
-  const stale = [['session', "'sandbox'"], ['needs_you', "'spool-too-large'"]].filter(([t, v]) => !sql(t).includes(v)).map(([t]) => t);
+  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'uncommitted'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
   if (!stale.length) return;
   const schema = fs.readFileSync(schemaFile, 'utf8');
   db.exec('PRAGMA foreign_keys = OFF');

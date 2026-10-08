@@ -29,6 +29,7 @@ import { trustFolder } from './trust.ts';
 import { setBoardFlag } from './board.ts';
 import { setItemStatus } from './pipelines/panes.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
+import { owners, repoOf } from './sessions/owners.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -106,6 +107,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (approval !== 'ask' && !engine.approval_profiles?.[approval]) {
         throw new RpcError(E.INVALID_PARAMS, `${engine.id} has no approval profile ${approval}`);
       }
+      const parent = str(p, 'parent_id', false) || undefined;
+      if (parent && !db.prepare('SELECT 1 FROM session WHERE id = ?').get(parent)) throw new RpcError(E.NOT_FOUND, 'parent session not found');
       if (host === 'sandbox') {
         const refusal = sandboxRefusal(engine, project.path);
         if (refusal) throw new RpcError(E.VALIDATION, refusal);
@@ -119,6 +122,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         engine,
         prompt: str(p, 'prompt', false) || undefined,
         browser: p.browser === true,
+        parentId: parent,
       });
     },
   });
@@ -230,10 +234,23 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('session.owners', {
+    handler: (p) => {
+      const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
+      if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      const repo = repoOf(project.path);
+      if (!repo) return { repo: null, paths: [] };
+      const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title]));
+      return { repo, paths: owners(db, repo, titles) };
+    },
+  });
+
   m.set('session.paste-prompt', {
     handler: (p) => {
       const id = str(p, 'session_id');
-      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      const row = db.prepare('SELECT host FROM session WHERE id = ?').get(id) as { host: string } | undefined;
+      if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (row.host === 'external') throw new RpcError(E.INVALID_PARAMS, 'the session was opened outside MetaTrooper; type into its own terminal');
       return writePrompt(db, id);
     },
   });

@@ -35,6 +35,20 @@ nothing would commit.
 | G-D6 | Notices name a session by its terminal title and 8-character id. Vault surface ids (`teehee-62`) are not mapped | MetaTrooper is not vault-specific; the title is what the person sees on the wall |
 | G-D7 | Only Claude is adopted when external. Codex and agy outside troop stay invisible | Only Claude's hooks run for every session; Codex's notify hook is per launch |
 
+## Built differently from the table below (2026-10-09T07:54+11:00)
+
+- G1: the hook never writes `session`, because schema.sql makes the core its only writer. The hook appends the
+  event with `session_id` NULL, and only when its `session_id` is a known `native_id` or its `cwd` is inside a
+  registered project; the core adopts it as an `external` session while processing events. An external session
+  ends on `claude.SessionEnd` and is skipped by the 5 s pid check, which would otherwise end it after 15 s.
+- Schema stays at user_version 2. The new CHECK values (`external`, `notice`, needs_you `uncommitted`) are added
+  by rebuilding stale tables at open, as the sandbox host was; `parent_id` and `event_kind_idx` are added in place.
+- G2 also marks a file shared when an earlier claim by a live session is still uncommitted, so a non-overlapping
+  second editor does not silently take the first one's work.
+- Every git call the core makes for ownership runs with `GIT_OPTIONAL_LOCKS=0`, so it never refreshes the index
+  under a user's own `git commit`.
+- Tests are by Claude: Codex was not available in the cloud session that built this.
+
 ## What to build
 
 | Id | Change |

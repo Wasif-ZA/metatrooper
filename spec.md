@@ -726,7 +726,7 @@ can be built in parallel from day one; only its plugin manifest waits for #13. T
 and variants because both render through it. Milestone 2 waits for the adoption gate so lanes are built on a
 core that has survived daily use; milestone 3 lanes are independent of each other.
 
-### Milestone 4: improve what runs today (about 11.75 CC days)
+### Milestone 4: improve what runs today (about 13.75 CC days)
 
 M1 is built and dogfooding has started (UI-01 still TODO). Three costs show up in daily use. Review steps tell
 agents to read whole source files. Agents rebuild things open-source tools already do. Small rough edges
@@ -806,8 +806,9 @@ before it is built.
 | M4-8 | M2 and M3 issue amendments (docs only) | `issues/m4-08-issue-amendments.md` | Medium | 0.5 | M4-9 |
 | M4-9 | Helper tools for every pipeline (`assists`) | `issues/m4-09-helper-tools.md` | High | 1.5 | none |
 | M4-10 | Ideas mined from the helper repos, built pipelines | `issues/m4-10-mined-ideas.md` | High | 2 | M4-2, M4-4 |
+| M4-11 | Session glue: file owners from git, edit warnings, left-behind files, hand-back to the parent | `issues/m4-11-session-glue.md` | Medium | 2 | none |
 
-Total about 11.75 CC days.
+Total about 13.75 CC days.
 
 ```
 M4-1 baselines ──┬─> M4-3 code map ──┐

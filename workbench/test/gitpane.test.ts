@@ -48,3 +48,34 @@ test('git tab: branch names keep their dots, with and without an upstream', asyn
   assert.equal(await head('## No commits yet on v0.3'), 'v0.3');
   assert.equal(await head('## main...origin/main'), 'main');
 });
+
+test('M4-30 git tab groups changes by owner; a shared file is only in the shared group, which has no stage action', async () => {
+  const { ownerGroups } = await import('../src/gitpane.ts');
+  const f = (p: string) => ({ path: p, code: 'M', added: 1, deleted: 0 });
+  const a = { id: 'A', title: 'claude A (A)', state: 'exited' };
+  const b = { id: 'B', title: 'claude B (B)', state: 'working' };
+  const groups = ownerGroups([f('x.ts'), f('a1.ts'), f('b1.ts'), f('free.ts'), f('a2.ts')], [
+    { path: 'x.ts', owners: [a, b], shared: true, unclaimed: false },
+    { path: 'a1.ts', owners: [a], shared: false, unclaimed: false },
+    { path: 'a2.ts', owners: [a], shared: false, unclaimed: false },
+    { path: 'b1.ts', owners: [b], shared: false, unclaimed: false },
+    { path: 'free.ts', owners: [], shared: false, unclaimed: true },
+  ]);
+  assert.deepEqual(groups.map((g) => [g.key, g.title, g.state, g.stage, g.files.map((x) => x.path)]), [
+    ['owner:A', 'claude A (A)', 'exited', true, ['a1.ts', 'a2.ts']],
+    ['owner:B', 'claude B (B)', 'working', true, ['b1.ts']],
+    ['shared', 'Shared, stage by hand', 'claude A (A), claude B (B)', false, ['x.ts']],
+    ['unclaimed', 'No owner', '', true, ['free.ts']],
+  ]);
+  for (const g of groups.filter((x) => x.stage)) assert.ok(!g.files.some((x) => x.path === 'x.ts'));
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gitpane-group-'));
+  const git = runIn(dir);
+  await git(['init', '-q', '-b', 'main']);
+  for (const n of ['a1.ts', 'a2.ts', 'x.ts']) fs.writeFileSync(path.join(dir, n), 'v\n');
+  await gitAct(git, 'stage-group', ['a1.ts', 'a2.ts']);
+  assert.deepEqual((await gitView(git)).staged.map((x) => x.path).sort(), ['a1.ts', 'a2.ts']);
+  await assert.rejects(gitAct(git, 'stage-group', []), /nothing to stage/);
+  await assert.rejects(gitAct(git, 'stage-group', ['ok', 3]), /nothing to stage/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

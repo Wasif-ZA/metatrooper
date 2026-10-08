@@ -42,6 +42,7 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
 | `core.stalled` | core | `{}`: the session is still `starting` 15 s after launch (5 s check); the engine is sitting on a trust prompt, a login, or an empty input box |
+| `core.claim` | core | `{repo, turn_base, from, at, files: [{path, owners: [session ids], shared}]}`: written processed at each `claude.Stop` and `claude.SessionEnd` for the files changed in that turn (`git diff --name-only <turn_base>`, plus untracked files modified since the turn's `UserPromptSubmit`). Paths are relative to `repo`. A file another session also changed in an overlapping turn goes to the session whose Edit, Write or MultiEdit hook named it; with no such hint, or when an earlier live owner's change is still uncommitted, both are listed and `shared` is true (M4-11) |
 | `core.*` | core | other internal kinds: `core.checkpoint`, `core.recovered`, `core.missed-schedule`; they never change state |
 
 Every payload is built from an explicit allowlist of fields, exactly as listed in this table. Any field not
@@ -87,7 +88,8 @@ The core processes events in `seq` order and sets `session.state`:
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
 | `term.output` | `waiting_for_you` or `unknown` to `working` |
-| `core.process-gone` (5 s check) | `exited` |
+| `core.process-gone` (5 s check; not for `external` sessions) | `exited` |
+| `claude.SessionEnd` on an `external` session | `exited` |
 | `core.stalled` while `starting` | `waiting_for_you` |
 | `core.seen` while `done` | `idle` |
 
@@ -128,8 +130,12 @@ array only if it becomes empty and was absent before install (recorded in
 `~/.metatrooper/hooks-install.json`). With no install record (hooks written by an older first launch),
 `hooks uninstall` still removes exactly the matching entries and leaves every user hook.
 
-Hooks do nothing outside a MetaTrooper session: when `TROOP_SESSION_ID` is not set, `event.js` exits 0
-immediately without opening the database.
+Without `TROOP_SESSION_ID`, `event.js` exits 0 at once for every kind but `claude.*`. A `claude.*` event with a
+`session_id` and a `cwd` is appended with `session_id` NULL only when its `session_id` is already a session's
+`native_id`, or `cwd` lies inside a registered project; otherwise the hook writes nothing. The core adopts the
+first such event of a conversation as a session with `host = 'external'`, `engine_id = 'claude'`, the project
+that holds `cwd`, and that `native_id`, and links later events to it. An external session is never typed into
+or closed by MetaTrooper, and ends on its `claude.SessionEnd` (M4-11).
 
 ## The one hook with output: UserPromptSubmit
 
@@ -146,6 +152,23 @@ This is the named exception to "hooks print nothing".
 4. After the flush completes, set `prompt_at = now` on exactly those comment ids, with `WHERE prompt_at IS
    NULL` so a concurrent hook cannot mark them twice.
 5. If anything fails before printing, print nothing and exit 0; the comments go with the next prompt.
+
+Rows of kind `notice` (written by the core: file overlaps and a child session's hand-back, M4-11) are printed
+in the same line after the comments, under `Notices from MetaTrooper:`; with no comments the context starts with
+that header. Each notice body starts with `[notice <key>]`, and the core never writes the same key twice to a
+session.
+
+## PreToolUse: edit warning
+
+For `Edit`, `Write` and `MultiEdit`, when the latest `core.claim` naming `tool_input.file_path` lists a live
+session other than this one, and `git status --porcelain` still shows the file changed, the hook prints one
+line and never blocks:
+
+```json
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"<path> has uncommitted changes from session <title> (<id8>), state <state>. Edit only your own lines; do not reformat or revert the file."}}
+```
+
+It reads only `core.claim` rows through `event_kind_idx` and stays inside the 240 ms hook budget.
 
 Delivery is at least once and never lost. A duplicate is possible only if the hook dies after printing and
 before step 4; each body starts with `[comment <id>]` so a repeat is recognisable. Two prompts within 50 ms can
