@@ -10,6 +10,12 @@
   "budget": { "max_usd": 20, "max_minutes": 180 },
   "background": true,
   "layout": "pipe",
+  "assists": [
+    {"tool": "lighthouse", "steps": ["critique"], "use": "performance, accessibility and SEO scores at 1280 and 390 px"},
+    {"tool": "shadcn", "steps": ["build"], "use": "copy accessible components into the project instead of hand-writing them"},
+    {"tool": "screenshot-to-code", "steps": ["build"], "use": "a first pass of a section from a reference screenshot"},
+    {"tool": "backstopjs", "steps": ["critique"], "use": "visual diff between critique rounds"}
+  ],
   "steps": [
     {
       "id": "design",

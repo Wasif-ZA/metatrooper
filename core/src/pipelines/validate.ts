@@ -3,6 +3,7 @@ import path from 'node:path';
 import { repoDir } from '../paths.ts';
 import { validate } from '../jsonschema.ts';
 import type { ActionSpec } from '../plugins/manifest.ts';
+import { assistErrors } from './assists.ts';
 import { parseRef, refsIn, templateStrings } from './template.ts';
 
 export interface Step {
@@ -23,6 +24,7 @@ export interface Step {
   destination?: string;
   fanout?: number;
   worktree?: boolean;
+  baseline_tests?: boolean;
   cwd?: string;
   browser?: boolean;
   dev_command?: string;
@@ -43,6 +45,7 @@ export interface Pipeline {
   run_in?: 'local' | 'cloud';
   budget?: { max_tokens?: number; max_usd?: number; max_minutes?: number; max_parallel?: number };
   requires?: string[];
+  assists?: Array<{ tool: string; steps: string[]; use: string }>;
   steps: Step[];
 }
 
@@ -88,6 +91,7 @@ export function validatePipeline(json: unknown, ctx: ValidationContext): string[
   const errors = validate(pipelineSchema(), json);
   if (errors.length) return errors;
   const p = json as Pipeline;
+  errors.push(...assistErrors(p));
   const index = new Map<string, number>();
   p.steps.forEach((s, i) => {
     if (index.has(s.id)) errors.push(`${at(i, s)}: duplicate step id`);

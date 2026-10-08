@@ -36,3 +36,28 @@ Background. The run folds to the 36px wall bar with a small gauge for the worst 
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8)
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| unlighthouse | harlan-zw/unlighthouse | MIT | OK | requests only to the site under audit; otherwise not checked | crawl and speed |
+| siteone-crawler | janreges/siteone-crawler | MIT | OK | requests only to the site under audit; otherwise not checked | audit |
+| Lighthouse | GoogleChrome/lighthouse | Apache-2.0 | OK | requests only to the page under audit; otherwise not checked | speed |
+| lychee | lycheeverse/lychee | Apache-2.0 | OK | requests to every host whose link it checks | audit |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+- Median of 5, never concurrent: `speed` scores each key page as the median of 5 sequential Lighthouse runs; the `audit` fan-out never runs Lighthouse in parallel (GoogleChrome/lighthouse).
+- Same crawl before and after, diffed: crawl the preview build on its leased port before `approve` and diff findings against the first crawl; `pr-first` lists fixed, still open and new (janreges/siteone-crawler).
+
+### Notes
+
+- Show the spread: each key page shows median and min to max; a change smaller than the spread is labelled noise (GoogleChrome/lighthouse). Medium, S.
+- Sample by route on big sites: group URLs by route pattern and audit a sample per group (harlan-zw/unlighthouse). Medium, S.
+- Link check the build, not production: `--remap` the production host onto the preview port and `--cache` between loop rounds (lycheeverse/lychee). Medium, S.
+- Regenerate the sitemap from the crawl in `fix` (janreges/siteone-crawler). Low, S.

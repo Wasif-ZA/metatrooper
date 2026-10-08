@@ -207,6 +207,25 @@ const runScreen = (() => {
     el.style.left = S.cur === 'agent-split' && r && r.width ? `${Math.round(r.right + 8)}px` : '';
   }
 
+  function formatOnlyList(files) {
+    if (!files || !files.length) return '';
+    return `<details class="rs-outside"><summary>${files.length} file${files.length === 1 ? '' : 's'} format only, not reviewed</summary><ul>${files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>`;
+  }
+
+  function outsideList(review) {
+    const list = review && review.outside;
+    if (!list || !list.length) return '';
+    return `<details class="rs-outside"><summary>${list.length} finding${list.length === 1 ? '' : 's'} outside the change</summary><ul>${list.map((x) => `<li>${esc(x.file)}${x.from ? `:${x.from}` : ''} ${esc(x.title)}</li>`).join('')}</ul></details>`;
+  }
+
+  function helperChips(list) {
+    if (!list || !list.length) return '';
+    return `<div class="rs-helpers" aria-label="Helper tools">${list.map((a) => {
+      const tip = [a.installed ? `${a.name} ${a.version || 'installed'}` : `not installed: ${a.install}`, `steps: ${a.steps.join(', ')}`, a.risk === 'caution' && a.risk_note ? a.risk_note : '', a.egress !== 'none' ? `sends: ${a.egress}` : ''].filter(Boolean).join(' · ');
+      return `<span class="chip helper ${a.installed ? 'on' : 'off'}${a.egress !== 'none' ? ' egress' : ''}" data-helper="${esc(a.tool)}" title="${esc(tip)}">${esc(a.name)}<span class="hv">${a.installed ? esc(a.version || 'installed') : 'not installed'}</span>${a.risk === 'caution' && a.risk_note ? `<span class="hn">${esc(a.risk_note)}</span>` : ''}</span>`;
+    }).join('')}</div>`;
+  }
+
   function paint(m) {
     const L = runLayouts[S.cur] || runLayouts['run-log'];
     const live = rules.activeStep(m.list).step;
@@ -223,7 +242,7 @@ const runScreen = (() => {
       <span class="lsw" role="toolbar" aria-label="Layout">${rules.ruleOf(m.run.pipeline_id).five.map((k, i) => `<button data-rs="layout" data-l="${k}" class="${k === S.cur ? `on${S.manual ? ' hand' : ''}` : ''}" title="${i + 1}  ${NAME[k]}" aria-pressed="${k === S.cur}">${ICON[k] || REVIEW_ICON[k] || ""}</button>`).join('')}<button class="auto ${S.manual ? '' : 'on'}" data-rs="auto" title="${S.manual ? 'Manual pick held. Press 0 to follow the run again' : 'Auto: the layout follows the active step'}"><span class="lt"></span>${S.manual ? 'Manual' : 'Auto'}</button></span>
       <span class="chip"><kbd>Esc</kbd> wall</span>
     </header>`;
-    const html = `${head}<div class="rsv L-${S.cur}">${L.render(m, helpers, S)}</div>`;
+    const html = `${head}${helperChips(m.detail && m.detail.assists)}${outsideList(m.review)}${formatOnlyList(m.detail && m.detail.formatOnly)}<div class="rsv L-${S.cur}">${L.render(m, helpers, S)}</div>`;
     el.hidden = false;
     placeForSplit();
     if (html === S.html) return;

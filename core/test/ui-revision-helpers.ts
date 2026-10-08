@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { connect } from 'node:net';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, fakeGh, isolation, pipePath, root, startCore, teardownCore, uiHello, until } from './helpers.ts';
@@ -49,6 +49,7 @@ export async function revisionHarness(fixture?: string, fakeWrapper?: string) {
     async pipeline(def: any, inputs = {}) {
       const dir = join(project, '.troop/pipelines'); mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, `${def.id}.json`), JSON.stringify(def));
+      if (existsSync(join(root, 'pipelines', def.id))) cpSync(join(root, 'pipelines', def.id), join(dir, def.id), { recursive: true });
       const r = await pipe.request('run.start', { pipeline_id: def.id, project_id: projectId, inputs }, { timeout: 10000 });
       assert.ok(r.result?.run_id, JSON.stringify(r)); return r.result.run_id as string;
     },

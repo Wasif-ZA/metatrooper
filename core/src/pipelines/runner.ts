@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync, fork, type ChildProcess } from 'node:child_process';
+import { execFile, execFileSync, fork, type ChildProcess } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import { coreDir, homeDir } from '../paths.ts';
+import { settings } from '../settings.ts';
+import { resolveCommand } from '../hook/resolve.ts';
 import { nowIso, ulid } from '../time.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { bindRole, getEngine, type EngineSpec } from '../engines/registry.ts';
@@ -16,6 +19,7 @@ import { loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
+import { detectAssists, helperBlock } from './assists.ts';
 import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
 import { liveText } from '../terminal/events.ts';
@@ -93,6 +97,29 @@ class Semaphore {
       if (next) next();
       else this.free++;
     };
+  }
+}
+
+/** Compares two step errors with the held-for seconds of an exit error left out. */
+function sameError(a: string, b: unknown): boolean {
+  const strip = (e: string) => e.replace(/ for \d+ s\)/, ')');
+  return typeof b === 'string' && strip(a) === strip(b);
+}
+
+const execFileAsync = promisify(execFile);
+const BASELINE_TIMEOUT_MS = 600_000;
+
+/** Runs `npm ci` in a worktree that has a package-lock.json and no node_modules, unless settings turn it off. */
+async function npmCiIfNeeded(dir: string): Promise<void> {
+  if (!settings().worktree.npm_ci) return;
+  if (!fs.existsSync(path.join(dir, 'package-lock.json')) || fs.existsSync(path.join(dir, 'node_modules'))) return;
+  const npm = resolveCommand('npm') ?? ['npm'];
+  try {
+    await execFileAsync(npm[0], [...npm.slice(1), 'ci', '--prefer-offline', '--no-audit', '--no-fund'], { cwd: dir, timeout: 600_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string; message: string };
+    const tail = `${err.stdout ?? ''}${err.stderr ?? ''}`.trim().split(/\r?\n/).slice(-20).join('\n');
+    throw new Error(`npm ci failed in ${slash(dir)}: ${tail || err.message}`);
   }
 }
 
@@ -313,6 +340,8 @@ export class Runner {
     if (this.active.has(runId)) return;
     this.active.add(runId);
     try {
+      const first = this.run(runId);
+      if (first && !fs.existsSync(path.join(first.run_dir, 'assists.json'))) await detectAssists(this.pipelineOf(first), first.run_dir, this.project(first.project_id).path);
       for (;;) {
         const run = this.run(runId);
         if (!run || run.status !== 'running') return;
@@ -573,6 +602,26 @@ export class Runner {
   }
 
 
+  /** Runs the repo plugin's run-tests in a fresh worktree and writes `<run_dir>/<step>-<idx>.baseline.json`; never fails the step. */
+  private async testBaseline(run: RunRow, stepId: string, idx: number, dir: string): Promise<void> {
+    const file = path.join(run.run_dir, `${stepId}-${idx}.baseline.json`);
+    const plugin = loadPlugin(this.db, 'repo');
+    let result: Record<string, unknown> = { failing: 'unknown' };
+    if (plugin) {
+      let child: ChildProcess | undefined;
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), BASELINE_TIMEOUT_MS); });
+      const r = await Promise.race([
+        runAction({ plugin, actionId: 'run-tests', input: { path: dir }, projectDir: dir, run: { id: run.id, dir: run.run_dir }, secret: () => null, onSpawn: (c) => { child = c; } }),
+        timeout,
+      ]);
+      clearTimeout(timer);
+      if (r === null) { if (child) killTree(child); }
+      else if (r.ok) result = { passed: r.outputs.passed, exit_code: r.outputs.exit_code, failing: r.outputs.failing ?? 'unknown' };
+    }
+    fs.writeFileSync(file, JSON.stringify(result, null, 2) + '\n');
+  }
+
   private async placeIndex(run: RunRow, step: Step, idx: number): Promise<{ cwd: string; port?: number; paneId?: string; branch?: string }> {
     const project = this.project(run.project_id);
     let cwd = project.path;
@@ -602,6 +651,8 @@ export class Runner {
           throw new Error(`git worktree add failed: ${gitError(e)}`);
         }
       }
+      await npmCiIfNeeded(dir);
+      if (step.baseline_tests) await this.testBaseline(run, step.id, idx, dir);
       cwd = slash(dir);
     } else if (step.cwd) {
       cwd = slash(resolveString(step.cwd, this.scope(run, idx)));
@@ -666,8 +717,12 @@ export class Runner {
     return slash(path.join(run.run_dir, fanout ? `${stepId}-${idx}.md` : `${stepId}.md`));
   }
 
-  private promptFor(run: RunRow, idx: number, outPath: string, template: string, outputs: string[], raw = false): string {
-    const body = raw ? template : resolveString(template, this.scope(run, idx));
+  private promptFor(run: RunRow, stepId: string, idx: number, outPath: string, template: string, outputs: string[], raw = false): string {
+    const resolved = raw ? template : resolveString(template, this.scope(run, idx));
+    const helpers = helperBlock(this.pipelineOf(run), run.run_dir, stepId);
+    const body = helpers ? `${resolved}
+
+${helpers}` : resolved;
     const earlier = new Set<string>();
     for (const m of template.matchAll(/\{\{\s*steps\.([a-z0-9-]+)\./g)) {
       for (const r of this.rows(run.id, m[1])) if (r.output_path) earlier.add(r.output_path);
@@ -706,7 +761,7 @@ export class Runner {
     let r = await this.agentAttempt(run, pipe, a);
     let error = this.printFailure(run, a.row, r);
     if (error === null) return r;
-    if (error !== prior && !error.includes('auto-denied')) {
+    if (!sameError(error, prior) && !error.includes('auto-denied')) {
       r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running' } });
       const again = this.printFailure(run, a.row, r);
       if (again === null) return r;
@@ -733,7 +788,7 @@ export class Runner {
       const engine = a.engine();
       if (!engine) return { ok: false, error: `no installed engine for step ${a.stepId}` };
       if (fs.existsSync(a.outPath)) fs.renameSync(a.outPath, a.outPath.replace(/\.md$/, `.iter${a.row.iteration}-${Date.now()}.md`));
-      const prompt = this.promptFor(run, a.index, a.outPath, a.template, a.outputs, a.raw);
+      const prompt = this.promptFor(run, a.stepId, a.index, a.outPath, a.template, a.outputs, a.raw);
       const project = this.project(run.project_id);
       const printArgs = engine.print_args;
       if (printArgs) fs.writeFileSync(a.outPath.replace(/\.md$/, '.prompt.md'), prompt);
@@ -753,6 +808,8 @@ export class Runner {
     const deadline = started + a.timeoutMinutes * 60_000;
     const sessionEngine = (this.db.prepare('SELECT engine_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string } | undefined)?.engine_id;
     const print = Boolean(sessionEngine && getEngine(this.db, sessionEngine)?.print_args);
+    let held = { state: 'starting', at: started };
+    let asking = false;
     try {
       for (;;) {
         const fresh = this.run(run.id);
@@ -760,6 +817,14 @@ export class Runner {
         if (status === 'cancelled' || status === 'failed') return { paused: status };
         const session = this.db.prepare('SELECT state, state_at FROM session WHERE id = ?').get(sessionId) as { state: string; state_at: string } | undefined;
         const settled = session?.state === 'done' || session?.state === 'idle' || session?.state === 'exited';
+        if (session && session.state !== 'exited' && session.state !== held.state) held = { state: session.state, at: Date.parse(session.state_at) };
+        if (session?.state === 'waiting_for_you' && !asking) {
+          this.needsYou('other', sessionId!, `${pipe.title} / ${a.stepId}: ${sessionEngine ?? 'the agent'} is waiting for an answer`);
+          asking = true;
+        } else if (session?.state !== 'waiting_for_you' && asking) {
+          this.resolveAsk(sessionId!);
+          asking = false;
+        }
         let fm: Record<string, unknown> | null = null;
         let mtime = 0;
         if (fs.existsSync(a.outPath)) {
@@ -779,7 +844,8 @@ export class Runner {
             return { ok: true, outputs };
           }
         } else if (session?.state === 'exited') {
-          return { ok: false, error: `${a.stepId}: the session exited without writing ${a.outPath}` };
+          const secs = Math.max(0, Math.round((Date.parse(session.state_at) - held.at) / 1000));
+          return { ok: false, error: `${a.stepId}: the session exited (last state ${held.state} for ${secs} s) without writing ${a.outPath}` };
         } else if (settled && Date.now() - Date.parse(session.state_at) >= SETTLED_GRACE_MS) {
           return { ok: false, error: `${a.stepId}: the session stopped without writing ${a.outPath}` };
         }
@@ -794,8 +860,13 @@ export class Runner {
         await sleep(POLL_MS);
       }
     } finally {
+      if (asking) this.resolveAsk(sessionId!);
       this.killSession(sessionId);
     }
+  }
+
+  private resolveAsk(sessionId: string): void {
+    this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'other' AND ref = ? AND resolved_at IS NULL").run(nowIso(), sessionId);
   }
 
   private killSession(id: string | null): void {
@@ -866,7 +937,7 @@ export class Runner {
         const engine = typeof step.engine === 'string' ? step.engine : null;
         if (!engine) return null;
         const outPath = this.outputPath(run, step.id, 0, false);
-        const prompt = this.promptFor(run, 0, outPath, step.prompt as string, step.outputs ?? []);
+        const prompt = this.promptFor(run, step.id, 0, outPath, step.prompt as string, step.outputs ?? []);
         const destination = step.destination ? resolveString(step.destination, scope) : null;
         return {
           hash: actionHash({ step: step.id, engine, prompt_sha256: sha256(prompt), destination }),

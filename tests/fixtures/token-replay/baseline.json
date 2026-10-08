@@ -1,0 +1,20 @@
+{
+  "small": {
+    "before": {
+      "bytes": 1462,
+      "tokens": 366
+    }
+  },
+  "medium": {
+    "before": {
+      "bytes": 11279,
+      "tokens": 2820
+    }
+  },
+  "large": {
+    "before": {
+      "bytes": 44799,
+      "tokens": 11200
+    }
+  }
+}

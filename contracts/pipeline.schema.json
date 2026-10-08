@@ -40,6 +40,18 @@
       "description": "Plugin ids this pipeline needs. The gallery shows 'ready' only when all are installed and enabled.",
       "type": "array", "items": { "type": "string" }
     },
+    "assists": {
+      "description": "Optional helper tools from pipelines/assists/registry.json that the listed steps may use when installed. A pipeline never depends on one.",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["tool", "steps", "use"],
+        "properties": {
+          "tool": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$" },
+          "steps": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "use": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    },
     "layout": { "$ref": "#/$defs/layout", "description": "Fallback screen layout, used only when the pipeline's pick rule matches nothing." },
     "background": { "type": "boolean", "default": false, "description": "True: the run folds to the 36px wall bar and opens only when it needs the user. False: the run holds the big slot." },
     "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } }
@@ -90,6 +102,7 @@
         "destination": { "$ref": "#/$defs/template", "description": "Where an agent publish step sends things (repo, account, recipient). Required for kind=agent with role=publish or external=true; part of the gate action_hash." },
         "fanout": { "type": "integer", "minimum": 2, "maximum": 8 },
         "worktree": { "type": "boolean", "default": false },
+        "baseline_tests": { "type": "boolean", "default": false, "description": "Run the repo plugin's run-tests in the fresh worktree before the agent starts and keep the failing names." },
         "cwd": { "$ref": "#/$defs/template", "description": "Folder the step runs in when it has no worktree, e.g. {{variants.picked.worktree}}. Defaults to the project folder." },
         "browser": { "type": "boolean", "default": false, "description": "Give this step a browser pane it owns (one per fan-out index)." },
         "dev_command": { "type": "string", "description": "Command started in the worktree to serve the app, e.g. 'npm run dev -- --port {{port}}'. {{port}} is allocated by the runner." },

@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, root, startCore, teardownCore, until } from './helpers.ts';
@@ -12,6 +13,34 @@ before(buildGenerated);
 
 const builtin = join(root, 'pipelines', 'two-engine-review.json');
 const { bucketFindings } = await import(pathToFileURL(join(root, 'pipelines', 'two-engine-review', 'bucket.mjs')).href);
+const { fileSections } = await import(pathToFileURL(join(root, 'pipelines', 'two-engine-review', 'diff.mjs')).href);
+
+test('M4-25 fileSections identifies files in a unified diff without difft', () => {
+  const sections = fileSections('diff --git a/src/a.js b/src/a.js\nindex 1234567..abcdef0 100644\n--- a/src/a.js\n+++ b/src/a.js\n@@ -1 +1 @@\n-old\n+new\n');
+  assert.equal(sections.length, 1);
+  assert.deepEqual({ file: sections[0].file, old: sections[0].old, added: sections[0].added, deleted: sections[0].deleted }, { file: 'src/a.js', old: 'src/a.js', added: false, deleted: false });
+});
+
+test('M4-25 difft sends formatting-only changes to format-only.txt', { skip: spawnSync('difft', ['--version'], { windowsHide: true, timeout: 5000 }).status !== 0 && 'difft is not on PATH' }, async () => {
+  const isolated = isolation();
+  const core = await startCore(isolated);
+  try {
+    const project = join(isolated.home, 'format-only');
+    mkdirSync(project, { recursive: true });
+    await promisify(execFile)('git', ['init', '-q', project]);
+    await promisify(execFile)('git', ['-C', project, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'base']);
+    writeFileSync(join(project, 'example.js'), 'function greet(name) {\n  return name;\n}\n');
+    await promisify(execFile)('git', ['-C', project, 'add', 'example.js']);
+    await promisify(execFile)('git', ['-C', project, 'commit', '-q', '-m', 'add file']);
+    writeFileSync(join(project, 'example.js'), 'function greet(name) {\n    return name;\n}\n');
+    const runDir = join(isolated.home, 'run');
+    const { run } = await import(pathToFileURL(join(root, 'pipelines', 'two-engine-review', 'diff.mjs')).href);
+    await run({ inputs: { range: 'HEAD' }, projectPath: project, runDir, writeFile: async (name: string, content: string) => writeFileSync(join(runDir, name), content) });
+    assert.ok(existsSync(join(runDir, 'format-only.txt')));
+    assert.equal(readFileSync(join(runDir, 'format-only.txt'), 'utf8'), 'example.js\n');
+    assert.equal(readFileSync(join(runDir, 'review.diff'), 'utf8'), '');
+  } finally { await teardownCore(core, isolated); }
+});
 
 /** Listening TCP sockets owned by rootPid or any descendant, as 'pid:port' lines (Windows only). */
 async function listenersUnder(rootPid: number): Promise<string> {
@@ -94,7 +123,7 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
       assert.deepEqual({ ...ran(geminiStep.id) }, { step_engine: 'fake-a', session_engine: 'fake-a' });
       const row = store.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'bucket'").get(runId) as { outputs: string };
       assert.deepEqual(JSON.parse(row.outputs), {
-        codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, buckets_path: 'review-buckets.json',
+        codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, outside_change: 0, buckets_path: 'review-buckets.json',
       });
     } finally { finished = true; store.close(); }
   } finally { await teardownCore(core, isolated); }

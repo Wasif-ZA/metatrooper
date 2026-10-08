@@ -4,8 +4,10 @@ Child of Milestone 4 in `spec.md` (Milestones and child issues). Decisions M4-D1
 verified current state are there; this file is what to build.
 
 ## What to build
-- Fixture: `tests/fixtures/token-replay/repo/` is a copy of `tests/fixtures/spec-to-pr`, committed as one
-  commit. Three patches apply to it: `small.patch` (1 file, under 30 changed lines), `medium.patch` (3 to 5
+- Fixture: `tests/fixtures/token-replay/repo/` is `axios/axios` v1.7.2 (`lib/`, MIT, 65 files, about 5,000
+  lines), decided 2026-10-08: the 10-line `spec-to-pr` fixture cannot show a code map saving, so M4-03 could
+  not pass on it. The harness commits it as one commit in a temp folder.
+  Three patches apply to it: `small.patch` (1 file, under 30 changed lines), `medium.patch` (3 to 5
   files), `large.patch` (10 or more files, 300 or more changed lines). All three are written for M4-1 and
   committed.
 - `tests/replay/token-replay.mjs --diff <small|medium|large> --mode <before|after>`:

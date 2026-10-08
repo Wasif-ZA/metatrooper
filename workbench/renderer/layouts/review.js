@@ -36,6 +36,7 @@ const reviewStore = (() => {
       disagree: items.filter((x) => x.bucket === 'disagree').length,
       critical: items.filter((x) => x.rank === 0).length,
       files: new Set(items.map((x) => x.file)).size,
+      outside: (Array.isArray(raw.outside_change) ? raw.outside_change : []).filter((p) => p && typeof p === 'object').map((p) => item('outside_change', p)),
     };
   }
 
@@ -74,7 +75,7 @@ const reviewStore = (() => {
 })();
 
 const reviewView = (() => {
-  const LABEL = { disagree: 'Disagree', both: 'Both', codex_only: 'Only Codex', gemini_only: 'Only Gemini' };
+  const LABEL = { disagree: 'Disagree', both: 'Both', codex_only: 'Only Codex', gemini_only: 'Only Gemini', outside_change: 'Outside the change' };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const where = (x) => `${x.file}${x.from != null ? `:${x.from}${x.to != null && x.to !== x.from ? `-${x.to}` : ''}` : ''}`;
   const hot = (x) => x.bucket === 'disagree' || x.rank === 0;

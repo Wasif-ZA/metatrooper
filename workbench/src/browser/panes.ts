@@ -48,6 +48,7 @@ interface Pane {
   overlay: WebContentsView;
   dbg: Debugger;
   refs: Map<string, number>;
+  lastSnapshot: Map<string, Set<string>>;
   console: Array<{ at: number; level: string; text: string }>;
   network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
   status: number | null;
@@ -207,7 +208,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: new Map(), console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: new Map(), lastSnapshot: new Map(), console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -250,6 +251,7 @@ export class PaneManager {
     wc.on('did-navigate', (_e, url, code) => {
       pane.status = code;
       pane.refs.clear();
+      pane.lastSnapshot.clear();
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
     wc.on('did-navigate-in-page', (_e, url) => this.hooks.urlChanged(pane.row.id, url));
@@ -579,7 +581,8 @@ export class PaneManager {
     return { png: Buffer.from(shot.data, 'base64'), truncated: height > MAX_CAPTURE_PX, height: h };
   }
 
-  async snapshotText(pane: Pane, maxNodes: number): Promise<string> {
+  /** Accessibility tree lines; with `interactive`, only nodes carrying a ref plus the ancestors above them. */
+  async snapshotLines(pane: Pane, maxNodes: number, interactive: boolean): Promise<string[]> {
     const { nodes } = await this.cmd(pane, 'Accessibility.getFullAXTree');
     const byId = new Map<string, any>(nodes.map((n: any) => [n.nodeId, n]));
     const root = nodes.find((n: any) => !n.parentId) ?? nodes[0];
@@ -607,8 +610,25 @@ export class PaneManager {
       for (const c of n.childIds ?? []) walk(byId.get(c), next);
     };
     walk(root, 0);
-    if (lines.length >= maxNodes) lines.push(`(stopped at ${maxNodes} nodes)`);
-    return lines.join('\n');
+    const stopped = lines.length >= maxNodes;
+    let out = lines;
+    if (interactive) {
+      out = [];
+      const stack: Array<{ depth: number; line: string; shown: boolean }> = [];
+      for (const line of lines) {
+        const depth = (line.length - line.trimStart().length) / 2;
+        while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+        const entry = { depth, line, shown: false };
+        if (line.includes(' [ref=e')) {
+          for (const s of stack) if (!s.shown) { out.push(s.line); s.shown = true; }
+          out.push(line);
+          entry.shown = true;
+        }
+        stack.push(entry);
+      }
+    }
+    if (stopped) out.push(`(stopped at ${maxNodes} nodes)`);
+    return out;
   }
 
   /** Runs one metatrooper-browser tool on a pane. */
@@ -644,8 +664,14 @@ export class PaneManager {
         }
         return { url: wc.getURL() };
       }
-      case 'snapshot':
-        return { text: await this.snapshotText(pane, Math.max(10, Math.min(Number(a.max_nodes) || 400, 5000))) };
+      case 'snapshot': {
+        const lines = await this.snapshotLines(pane, Math.max(10, Math.min(Number(a.max_nodes) || 400, 5000)), a.interactive === true);
+        const key = `${String(a._session ?? '')}|${a.interactive === true ? 'i' : 'f'}`;
+        const bare = (l: string) => l.replace(/ \[ref=e\d+\]/, '');
+        const prev = pane.lastSnapshot.get(key);
+        pane.lastSnapshot.set(key, new Set(lines.map(bare)));
+        return { text: (a.since_last === true && prev ? lines.filter((l) => !prev.has(bare(l))) : lines).join('\n') };
+      }
       case 'click': {
         const p = await this.target(pane, a.ref);
         await this.clickAt(pane, p.x, p.y);

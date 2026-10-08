@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const win = process.platform === 'win32';
 
@@ -41,6 +42,23 @@ export function detect(dir) {
   return { runner: 'none', command: [] };
 }
 
+/** Failing test names from node:test TAP, vitest, jest or pytest output; "unknown" for any other runner. */
+export function failingTests(output) {
+  const lines = output.split(/\r?\n/);
+  const names = new Set();
+  const tap = /^TAP version|^\s*(not )?ok \d+ - /m.test(output);
+  const jest = /^\s*(Tests:|Test Files\s)/m.test(output);
+  const pytest = /=+ test session starts =+/.test(output);
+  if (!tap && !jest && !pytest) return 'unknown';
+  for (const line of lines) {
+    let m;
+    if (tap && !/#\s*(TODO|SKIP)\b/i.test(line) && (m = /^\s*not ok \d+ - (.+?)(\s+#.*)?$/.exec(line))) names.add(m[1].trim());
+    if (jest && (m = /^\s*(?:FAIL\s+(\S.*?)|[✕×]\s+(.+?))(\s+\(\d+(?:\.\d+)? ?m?s\))?$/.exec(line))) names.add((m[1] || m[2]).trim());
+    if (pytest && (m = /^FAILED\s+(\S+)/.exec(line))) names.add(m[1].trim());
+  }
+  return [...names];
+}
+
 function runTests(dir, command) {
   const q = (a) => (/[\s"&|<>^()]/.test(a) ? `"${a}"` : a);
   const argv = win ? [process.env.COMSPEC || 'cmd.exe', '/d', '/s', '/c', `"${command.map(q).join(' ')}"`] : command;
@@ -49,7 +67,7 @@ function runTests(dir, command) {
   });
   const output = `${r.stdout || ''}${r.stderr || ''}`;
   process.stderr.write(output.slice(-20000));
-  return { passed: r.status === 0, exit_code: r.status ?? -1, output_tail: output.split(/\r?\n/).slice(-50).join('\n') };
+  return { passed: r.status === 0, exit_code: r.status ?? -1, output_tail: output.split(/\r?\n/).slice(-50).join('\n'), failing: failingTests(output) };
 }
 
 function diff(dir, base, runDir) {
@@ -63,7 +81,7 @@ function diff(dir, base, runDir) {
   return { stat, files, untracked, patch_path: file.split(String.fromCharCode(92)).join('/') };
 }
 
-try {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) try {
   const req = readStdin();
   const input = req.input || {};
   const dir = path.resolve(process.env.TROOP_PROJECT_DIR || req.project || '.', input.path || '.');

@@ -38,3 +38,30 @@ orange.
 - Never commit, push or open PRs from an agent; hand back the command.
 - Codex writes the tests for children #12, #15 and #17.
 - No em dashes; comments say what the code does, not why.
+
+## Helper tools (M4-8)
+
+| Helper | Repo | Licence | Risk | Egress | Step it helps |
+|---|---|---|---|---|---|
+| osv-scanner | google/osv-scanner | Apache-2.0 | OK | package names and versions go to the OSV API; `--offline` with a downloaded database avoids it | inventory |
+| trivy | aquasecurity/trivy | Apache-2.0 | OK | not checked | inventory and licences |
+| semgrep | semgrep/semgrep | LGPL-2.1 | caution: LGPL; fine as an external CLI, never bundled | not checked | notes |
+| gitleaks | gitleaks/gitleaks | MIT | OK | none (local scan) | check |
+
+Helpers are optional. Each pipeline runs without them. They are listed in `pipelines/assists/registry.json` once the pipeline is built (registry format in `issues/m4-09-helper-tools.md`).
+
+## Ideas (M4-8)
+
+### Requirements
+
+- Licence allowlist as a code step: `osv-scanner --licenses="MIT,Apache-2.0"` against the project's allowed SPDX list; only conflicts reach the ledger (google/osv-scanner).
+
+### Notes
+
+- Reachable first in the triage queue: sort findings by reachable, then severity; unreachable ones collapse (google/osv-scanner, semgrep/semgrep). Medium, S.
+- Guided remediation inside the worktree only: `plan` asks `osv-scanner fix` for the upgrade set and `bump` applies it, never in the main checkout (google/osv-scanner). Medium, M.
+- Offline database for repeat runs: cache it under `~/.metatrooper/` so the `check` loop does not re-query the API (google/osv-scanner). Low, S.
+
+## Added requirement (M4-8)
+
+The `check` step reuses M4-4's secret-scan function (see `issues/m4-04-secret-scan.md`) instead of adding a second scanner call.

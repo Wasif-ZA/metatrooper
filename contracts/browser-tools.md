@@ -15,7 +15,7 @@ with the user's panes; its storage is cleared when it closes.
 | `panes` | `{}` | `[{pane_id, url, variant, dev_port}]` for panes this session may drive |
 | `navigate` | `{pane_id, url}` | `{url, title, status}`; opens an agent pane when the session has none |
 | `back` | `{pane_id}` | `{url}` |
-| `snapshot` | `{pane_id, max_nodes?: int = 400}` | accessibility tree as text, each actionable node tagged `[ref=e12]` |
+| `snapshot` | `{pane_id, max_nodes?: int = 400, interactive?: bool, since_last?: bool}` | accessibility tree as text, each actionable node tagged `[ref=e12]`; `interactive` keeps only nodes with a ref and their ancestors; `since_last` keeps only lines not in this session's previous snapshot of the pane (ref ids ignored; cleared on navigate) |
 | `click` | `{pane_id, ref}` | `{ok}`; fails with -32033 and clicks nothing when the element is disabled, outside the viewport, or covered by another element |
 | `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}`; replaces the field's text (select all, then insert); same checks as `click` |
 | `select` | `{pane_id, ref, value}` | `{ok}`; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |

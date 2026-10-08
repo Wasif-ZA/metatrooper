@@ -40,7 +40,7 @@ export function scanPipelines(db: DatabaseSync): Map<string, Found> {
     if (!p.enabled) continue;
     for (const rel of p.manifest.pipelines ?? []) add(`plugin:${p.id}`, path.resolve(p.path, rel));
   }
-  for (const row of db.prepare('SELECT path FROM project ORDER BY last_opened').all() as Array<{ path: string }>) {
+  for (const row of db.prepare('SELECT path FROM project ORDER BY julianday(last_opened)').all() as Array<{ path: string }>) {
     for (const f of jsonFiles(path.join(row.path, '.troop', 'pipelines'))) add('project', f);
   }
   return found;
