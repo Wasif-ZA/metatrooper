@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync, readFileSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { root, runNode, sleep, until } from '../../core/test/helpers.ts';
 import { git, panePipeline, revisionHarness, runDone, terminalViewer } from '../../core/test/ui-revision-helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules/electron/dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -25,8 +26,7 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
     : spawn(electron, args, { env: h.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
   const stopWindow = async () => {
     if (!wb.pid) return;
-    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' });
-    else try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb.pid);
     if (wb.exitCode === null) wb.kill();
     await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
   };

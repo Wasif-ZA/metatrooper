@@ -6,6 +6,7 @@ import { createServer, type Server } from 'node:http';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, sleep, startCore, teardownCore, until, uiHello } from '../../core/test/helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -92,7 +93,7 @@ test('M4-23 snapshot interactive filtering and unchanged since_last snapshots', 
     const incrementalText = first.steps.unchanged.result.text as string;
     assert.equal(incrementalText.trim(), '', incrementalText);
   } finally {
-    if (wb?.pid) try { if (process.platform === 'win32') spawnSync('taskkill', ['/T', '/F', '/PID', String(wb.pid)]); else process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb?.pid);
     site.server.close();
     await sleep(300);
     await teardownCore(core, iso);
@@ -161,7 +162,7 @@ test('M1-22 three panes from three sessions: each session drives only its own pa
       assert.ok(out.steps.after.error, `after a refused hello, session ${i} drove pane ${other}: ${JSON.stringify(out.steps.after)}`);
     });
   } finally {
-    if (wb?.pid) try { if (process.platform === 'win32') spawnSync('taskkill', ['/T', '/F', '/PID', String(wb.pid)]); else process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb?.pid);
     for (const s of sites) s.server.close();
     await sleep(300);
     await teardownCore(core, iso);
