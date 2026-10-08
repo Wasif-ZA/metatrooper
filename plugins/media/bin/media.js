@@ -99,7 +99,7 @@ export function pickMoment(moments, index) {
   const list = Array.isArray(moments) ? moments : JSON.parse(fs.readFileSync(moments, 'utf8'));
   const items = Array.isArray(list) ? list : list.items ?? [];
   const approved = items.filter((m) => m.status === 'approved');
-  return (approved.length ? approved : items)[Number(index)] ?? null;
+  return (approved.length ? approved : items.filter((m) => m.status !== 'dropped'))[Number(index)] ?? null;
 }
 
 const ASPECT = { '9:16': "crop='min(iw,trunc(ih*9/16/2)*2)':'min(ih,trunc(iw*16/9/2)*2)'", '1:1': "crop='min(iw,ih)':'min(iw,ih)'", '16:9': null };

@@ -30,8 +30,9 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
 
 ## Hardening notes
 
-- #33: `max_clips` has `default: 4` and a "4 at most" label but no maximum, while `cut` and `caption` fan out to a
-  fixed 4. An input of 6 still drops clips 5 and 6. Check whether the pipeline schema can cap a number input.
+- FIXED 2026-10-09T00:09+11:00, #33: `max_clips` was a number with no maximum while `cut` and `style` fan out to a fixed 4, so 6 dropped
+  clips 5 and 6. It is now a `choice` of 1 to 4 (no schema change); run.start refuses 6 (m3-e2e clips test) and
+  m3-plugins checks the largest choice equals the fan-out.
 - FIXED 2026-10-08T23:15+11:00, #27 #34 #35: the runner writes an action step's result to `<run_dir>/<step id>.json` (contract,
   pipelines.md). Three built-ins wrote their own data to that same name, so the runner's `{ok, outputs}` file
   replaced it: seo `crawl.json` (the audit lanes got counts, not pages), security `inventory.json`, and cite-check's own
@@ -57,5 +58,6 @@ Fixture inputs live in `tests/fixtures/<pipeline>/input/`. `run.js` next to them
 - FIXED, #33: `cut` read the moments file from `{{steps.moments.outputs.items}}`. An agent that sets it to a relative
   `moments.json` (the test's first fake did) made every cut fail with ENOENT, because actions resolve paths from the
   project folder. `cut` now reads `{{run.dir}}/moments.json`, the path the prompt fixes.
-- #32 #33: `media` `pickMoment` falls back to all moments when none is marked approved, so a user who drops every moment
-  at the pick gate (or forgets to mark any) still gets the first 4 cut.
+- FIXED 2026-10-09T00:09+11:00, #32 #33: `media` `pickMoment` fell back to every moment when none was approved, so dropping all of them
+  at the pick gate still cut the first 4. A dropped moment is now never cut; with no approved moment the pending ones
+  are cut as before (core/test/pick-moment.test.ts; the old line fails it).
