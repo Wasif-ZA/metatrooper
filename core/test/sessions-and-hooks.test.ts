@@ -1,6 +1,7 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -157,6 +158,34 @@ test('UserPromptSubmit prints one exact comment envelope and marks only delivere
       const second = await runNode(['core/event.js', 'claude.UserPromptSubmit'], env, input);
       assert.equal(second.code, 0);
       assert.equal(second.stdout, '');
+    } finally { store.close(); }
+  } finally { await h.teardown(); }
+});
+
+test('M1-14 a UserPromptSubmit hook killed at any moment never loses a comment', async () => {
+  const h = await fakeHarness();
+  try {
+    const sessionId = await launchFake(h);
+    const store = db(h.home);
+    try {
+      const env = { ...h.env, TROOP_SESSION_ID: sessionId };
+      const input = JSON.stringify({ session_id: 'native-1', cwd: h.home, prompt: 'p' });
+      let unprinted = 0;
+      for (const delay of [0, 5, 10, 20, 30, 40, 60, 80, 120, 200]) {
+        const id = randomUUID();
+        store.prepare('INSERT INTO comment (id, at, session_id, kind, body) VALUES (?, ?, ?, ?, ?)').run(id, new Date().toISOString(), sessionId, 'file', `[comment ${id}] c`);
+        const child = spawn(process.execPath, ['core/event.js', 'claude.UserPromptSubmit'], { cwd: root, env, windowsHide: true });
+        let out = '';
+        child.stdout.on('data', (d) => { out += d; });
+        child.stdin.end(input);
+        const closed = new Promise((r) => child.on('close', r));
+        setTimeout(() => child.kill('SIGKILL'), delay);
+        await closed;
+        const marked = store.prepare('SELECT prompt_at FROM comment WHERE id = ?').get(id).prompt_at !== null;
+        if (!out.includes(id)) { unprinted++; assert.equal(marked, false, `delay ${delay}: comment marked delivered but never printed`); }
+        if (!marked) store.prepare('UPDATE comment SET prompt_at = ? WHERE id = ?').run(new Date().toISOString(), id);
+      }
+      assert.ok(unprinted > 0, 'no kill landed before the print, so the test proved nothing');
     } finally { store.close(); }
   } finally { await h.teardown(); }
 });
