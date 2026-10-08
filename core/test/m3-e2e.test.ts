@@ -200,6 +200,46 @@ test('M3-01 inbox-triage-drafts reads the fixture mailbox and saves a reply draf
   } finally { gmail.close(); await close(h); }
 });
 
+test('M3-01 prospect-list-to-drafts drops bad rows, gates the site fetch and saves new drafts only after approve', async () => {
+  const gmail = await fakeGmail({ me: 'sam@crumb.example', messages: [], sent: [] });
+  const h = await gmailHarness(gmail.url);
+  try {
+    for (const f of ['prospects.csv', 'do-not-contact.txt']) copyFileSync(join(root, 'tests/fixtures/prospect-list-to-drafts/input', f), join(h.project, f));
+    cpSync(join(root, 'pipelines/prospect-list-to-drafts'), join(h.project, '.troop/pipelines/prospect-list-to-drafts'), { recursive: true });
+    const emails = [
+      { id: 'priya', to: 'priya@shahphysio.example', subject: 'Your Saturday clinic', body: 'You open Saturdays from 8am. Want a booking page for it?' },
+      { id: 'marco', to: 'marco@rossibarbers.example', subject: 'Walk-ins', body: 'Your site says walk-ins only. Want a live queue page?' },
+    ];
+    const def = builtin('prospect-list-to-drafts', {
+      hook: { outputs: { items: 'hooks.json' } },
+      write: { outputs: { count: 2 }, run_files: { 'emails.json': JSON.stringify(emails) } },
+      check: { outputs: { passed: true, flag: 'none' } },
+    });
+    // agent-reach/sources fetches the prospects' public sites, so a fake external step stands in with the same gate.
+    def.steps[def.steps.findIndex((s: any) => s.id === 'sources')] = { id: 'sources', title: 'Fetch their sites', role: 'research', kind: 'agent', engine: 'fake', external: true, destination: 'prospect sites', approval: 'edits', outputs: ['count'], prompt: 'FAKE {"outputs":{"count":2}}\nFetch.' };
+    const runId = await h.pipeline(def, { list: 'prospects.csv', do_not_contact: 'do-not-contact.txt', offer: 'booking pages' });
+    const gateAt = (step: string) => until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = ? AND status = 'waiting'").get(runId, step)
+      ?? (h.db.prepare("SELECT 1 FROM run WHERE id = ? AND status = 'failed'").get(runId) ? assert.fail('run failed') : null), 60000);
+    const spend: any = await gateAt('approve-spend');
+    assert.equal(spend.guards_step, 'sources');
+    const load = JSON.parse((h.db.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'load'").get(runId) as any).outputs);
+    assert.equal(load.kept, 2);
+    assert.deepEqual(load.dropped.map((d: any) => d.why), ['no email', 'duplicate', 'do not contact']);
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'sources' AND status <> 'pending'").get(runId) as any).n, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: spend.id, decision: 'approve', action_hash: spend.action_hash })).result, {});
+    const approve: any = await gateAt('approve');
+    assert.equal(approve.guards_step, 'drafts');
+    assert.equal((h.db.prepare("SELECT COUNT(*) n FROM run_step WHERE run_id = ? AND step_id = 'hook' AND status = 'done'").get(runId) as any).n, 4);
+    assert.equal(gmail.calls.length, 0);
+    assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: approve.id, decision: 'approve', action_hash: approve.action_hash })).result, {});
+    await until(() => (h.db.prepare('SELECT status FROM run WHERE id = ?').get(runId) as any).status === 'done', 30000);
+    const posts = gmail.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/drafts')).map((c) => JSON.parse(c.body).message);
+    assert.equal(posts.length, 2);
+    assert.ok(posts.every((m) => m.threadId === undefined));
+    assert.match(Buffer.from(posts[0].raw, 'base64url').toString('utf8'), /To: priya@shahphysio\.example/);
+  } finally { gmail.close(); await close(h); }
+});
+
 test('gmail refuses a TROOP_GMAIL_API that is not loopback, so the refresh token never leaves the machine', async () => {
   const { endpoints } = await import('../../plugins/gmail/bin/gmail.js');
   assert.deepEqual(endpoints({}), { api: 'https://gmail.googleapis.com/gmail/v1/users/me', token: 'https://oauth2.googleapis.com/token' });
