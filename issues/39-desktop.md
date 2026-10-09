@@ -70,3 +70,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 ## Added requirement (M4-8)
 
 Copy the selector patterns from pywinauto, Windows-MCP and UFO into the `desktop` plugin's PowerShell actions.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `form-fill-batch`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

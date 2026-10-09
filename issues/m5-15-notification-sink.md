@@ -87,3 +87,14 @@ Inbound approvals later: 3 CC days, after the cloud relay decision.
 - M5-15c: `notify.sink.set` over a pipe connection without `ui.hello` fails with `NEEDS_UI`.
 - M5-15d: the webhook URL never appears in the database, `log.jsonl` or `~/.metatrooper/` outside its `.dpapi` file.
 - M5-15e: core down for 10 minutes, then up: rows raised before the restart are sent once, not repeated.
+
+## As built (m5-integrations, 2026-10-09)
+
+- `notify_delivery (needs_you_id, sink_id, state pending|done|failed, tries, next_at)` keeps each row's progress per
+  sink in the database, so a core restart never resends to a sink that already got the row, and rows in retry
+  backoff are left out of the 50-row batch instead of filling it (both found by Codex and Gemini).
+- `needs_you.notified_at` marks: `<iso>` sent to every sink; `<iso> failed` at least one sink gave up after the
+  retries; `<iso> skipped` older than 24 hours; `<iso> no-sink` no enabled sink wants its kind.
+- Webhook delivery refuses redirects, so an https destination can never forward the message to plain http.
+- Queries order by `rowid`, never by an offset timestamp as text (the M1 DST rule).
+- Not built yet: the workbench settings pane, the `metatrooper://` link handler, quiet hours.

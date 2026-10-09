@@ -90,3 +90,13 @@ with `"allOf": [{"if": {"properties": {"transport": {"const": "http"}}}, "then":
 - M5-12d: a codex session gets `-c mcp_servers.<n>.url=...` for an `engine-oauth` server and no entry for a
   `header` server.
 - M5-12e: a pipeline-step session never receives a `writes: external` server, under every approval profile.
+
+## As built (m5-integrations, 2026-10-09)
+
+- An mcp `id` must match `^[A-Za-z0-9_-]{1,64}$`, and the `headersHelper` string quotes the node path, the shim path,
+  the plugin id and the server id, so no id can change the command Claude's shell runs.
+- The `writes: external` rule applies to every transport, stdio included (Gemini found that stdio servers skipped
+  it); an http server with no `writes` counts as external.
+- The importer refuses a remote server whose url is not https and lists it as an error.
+- Not built: the Claude PreToolUse deny (the attach rule already keeps those servers out of pipeline sessions), the
+  shim relay, the needs-you note when codex skips a header server.

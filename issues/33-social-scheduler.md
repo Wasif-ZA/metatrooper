@@ -70,3 +70,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 - Cheap caption stills with `npx remotion still --frame`; pass props as a file on Windows (remotion-dev/remotion). Medium, S.
 - One failed clip does not sink the batch: a failed fan-out index goes `failed` with its error and `approve` shows it excluded (calesthio/OpenMontage). Medium, M.
 - Gate card before `schedule` shows the exact request body, from a dry-run render (googleworkspace/cli). Medium, S.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `clips-to-scheduled-posts`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

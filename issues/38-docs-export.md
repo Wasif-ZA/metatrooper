@@ -65,3 +65,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 ## Added requirement (M4-8)
 
 The steps of `study-notes-to-pdf` are still unconfirmed (issue 22 fixes the UI only). Helper and idea step names use the assumed flow: ingest, write notes, build PDF, proof. Confirm the real steps before building.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `study-notes-to-pdf`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

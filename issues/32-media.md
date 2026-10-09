@@ -65,3 +65,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 - Silence padding: keep the 400 ms threshold but add 0.08 to 0.2 s padding to the `edit` prompt so word onsets are not clipped (WyattBlue/auto-editor, calesthio/OpenMontage). Medium, S.
 - Faster transcription on CPU: use the batched pipeline when RAM allows (SYSTRAN/faster-whisper). Medium, S.
 - Speed through silence instead of cutting: the plan picks cut or speed-up per section by target platform (calesthio/OpenMontage, WyattBlue/auto-editor). Low, S.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `footage-to-edit`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

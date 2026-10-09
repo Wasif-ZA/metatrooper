@@ -104,3 +104,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 ## Added requirement (M4-8)
 
 The issue text says the email-check helper is thin. Only reacher met the helper bar and it is AGPL or paid (caution). AfterShip/email-verifier (MIT) is a Go library with no binary and needs a wrapper the user builds. The `check` step must therefore work without any helper (MX lookup plus disposable and role lists).
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `prospect-list-to-drafts`, `inbox-triage-drafts`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

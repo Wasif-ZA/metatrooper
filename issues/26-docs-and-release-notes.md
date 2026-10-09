@@ -68,3 +68,7 @@ None.
 ## Added requirement (M4-8)
 
 A code step after `map` computes the version bump from commit prefixes: `fix` patch, `feat` minor, `!` or a `BREAKING-CHANGE` footer major, `Release-As: x.x.x` overrides. If `map` lists removed or renamed exports (its output is not specified here), a removed export with no `!` commit is flagged as a breaking change without a breaking commit. The agent writes prose only (googleapis/release-please; High, S).
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `docs-and-release-notes`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

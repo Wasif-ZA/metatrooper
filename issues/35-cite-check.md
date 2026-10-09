@@ -66,3 +66,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 - Dead links before cite-check: a code pass over every cited URL, using `--format json` and `--cache` (lycheeverse/lychee). Medium, S.
 - Journal quality on academic sources: check against open lists (OpenAlex, DOAJ, Stop Predatory Journals) in `critic` (LearningCircuit/local-deep-research). Low, M.
 - Private-topic mode: a run input `private: true` limits `sweep` to local files and refuses remote engines (LearningCircuit/local-deep-research). Medium, M.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `deep-research-cited`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

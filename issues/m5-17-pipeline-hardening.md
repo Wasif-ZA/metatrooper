@@ -25,7 +25,7 @@ the user trust, and Pro sells trust. So launch hardening is exactly that class, 
 | H6 | spec-build-review-handback | a retried review leaves two folders and the fix step reads the stale one | `handback.mjs:4-12`, `spec-build-review-handback.json:69` | 0.3 |
 | S2 | spec-to-pr | `build` can finish with nothing committed or a dirty tree, and `verify` tests the working tree, not the pushed commit | `pipelines/spec-to-pr.json`, new `check-build` code step | 0.75 |
 | S4 + E3 | spec-to-pr, e2e-browser-qa | no test runner found fails the whole run after the build; detection misses `tests/`-only and `setup.cfg` pytest layouts | `plugins/repo/bin/repo.js:92` | 0.5 |
-| S8 | spec-to-pr | a crashed suite reads as "0 new failures" | `pipelines/spec-to-pr/compare-tests.mjs` | 0.25 |
+| S8 | spec-to-pr | a crashed suite reads as "0 new failures" | `plugins/repo/bin/repo.js` (`failingTests`, read by `pipelines/spec-to-pr/compare-tests.mjs`) | 0.25 |
 | E1 | e2e-browser-qa | a missing or malformed `findings.json` reads as "None found" | `pipelines/e2e-browser-qa/report.mjs:70-81` | 0.5 |
 | E2 | e2e-browser-qa | the dev server counts as ready on any HTTP answer, a 500 included, and a foreign process on the port passes | `core/src/pipelines/devserver.ts:25` | 0.5 |
 | S3 | all agent steps | the one agent retry inherits the first attempt's start time, so it gets almost no time | `core/src/pipelines/runner.ts:807` | 0.5 |

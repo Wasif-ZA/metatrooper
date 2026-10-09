@@ -66,3 +66,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 ## Added requirement (M4-8)
 
 `node:sqlite` stays the built-in path for the `data` plugin. DuckDB, Evidence and Datasette are optional helpers only.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `data-to-dashboard`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).
