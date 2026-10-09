@@ -44,7 +44,7 @@ function columnNames(header) {
 export function load(input) {
   const [header, ...body] = parseCsv(fs.readFileSync(input.path, 'utf8'));
   if (!header) throw new Error(`${input.path} is empty`);
-  if (header.length === 1 && /[;	|]/.test(header[0])) throw new Error(`${input.path} looks ${header[0].includes(';') ? 'semicolon' : header[0].includes('	') ? 'tab' : 'pipe'} separated; save it with commas`);
+  if (header.length === 1 && /[;\t|]/.test(header[0])) throw new Error(`${input.path} looks ${header[0].includes(';') ? 'semicolon' : header[0].includes('\t') ? 'tab' : 'pipe'} separated; save it with commas`);
   const columns = columnNames(header);
   const table = input.table || 'raw';
   fs.mkdirSync(path.dirname(input.db), { recursive: true });
