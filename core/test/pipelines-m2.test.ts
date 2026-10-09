@@ -135,7 +135,7 @@ test('M4-21 spec-to-pr gate reports only new test failures', async () => {
 
     const def = pipelineWith('spec-to-pr', {
       spec: { outputs: { title: 'Keep tests unchanged' } },
-      build: { outputs: { summary: 'No code changes.' } },
+      build: { files: { 'NOTES.md': 'Tests unchanged.\n' }, commit: 'Add notes', outputs: { summary: 'Adds a notes file; no test changes.' } },
     });
     mkdirSync(join(t.project, '.troop', 'pipelines'), { recursive: true });
     writeFileSync(join(t.project, '.troop', 'pipelines', 'spec-to-pr.json'), JSON.stringify(def));
