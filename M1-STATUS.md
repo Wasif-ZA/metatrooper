@@ -1,5 +1,7 @@
 # M1 status ledger
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Branch m1-autobuild, then m1-windows. Status values: TODO | VERIFIED-LINUX | VERIFIED-WINDOWS | NEEDS-WINDOWS | NEEDS-WASIF | SUPERSEDED (another verified criterion now covers it). Only mark VERIFIED if the test passes in that iteration.
 
 | Criterion | Status | Evidence / notes |

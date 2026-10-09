@@ -1,5 +1,7 @@
 # M4-11 Session glue: who owns which file, and who hears about it
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Child of Milestone 4 in `spec.md` (Milestones and child issues). The decisions for this child are below,
 because `spec.md` had uncommitted edits from another session when this was written (2026-10-07T21:20+11:00).
 
