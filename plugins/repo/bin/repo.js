@@ -33,9 +33,10 @@ export function detect(dir) {
       return { runner: pm, command: [pm, 'test'] };
     }
   }
-  if (has('pyproject.toml') || has('pytest.ini') || has('setup.cfg') || has('tests')) {
+  const pyTests = has('tests') && fs.readdirSync(path.join(dir, 'tests')).some((f) => f.endsWith('.py'));
+  if (has('pyproject.toml') || has('pytest.ini') || has('setup.cfg') || pyTests) {
     if (has('uv.lock')) return { runner: 'pytest', command: ['uv', 'run', 'pytest'] };
-    if (has('pyproject.toml') || has('pytest.ini')) return { runner: 'pytest', command: ['python', '-m', 'pytest'] };
+    return { runner: 'pytest', command: win ? ['py', '-m', 'pytest'] : ['python3', '-m', 'pytest'] };
   }
   if (has('Cargo.toml')) return { runner: 'cargo', command: ['cargo', 'test'] };
   if (has('go.mod')) return { runner: 'go', command: ['go', 'test', './...'] };
@@ -89,7 +90,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (action === 'detect-tests') reply({ ok: true, outputs: detect(dir) });
   else if (action === 'run-tests') {
     const command = Array.isArray(input.command) && input.command.length ? input.command : detect(dir).command;
-    if (!command.length) fail(`no test runner found in ${dir}`);
+    if (!command.length) reply({ ok: true, outputs: { passed: false, exit_code: -1, runner: 'none', output_tail: `no test runner found in ${dir}`, failing: 'unknown' } });
     else reply({ ok: true, outputs: runTests(dir, command) });
   } else if (action === 'diff') reply({ ok: true, outputs: diff(dir, input.base || 'HEAD', process.env.TROOP_RUN_DIR || dir) });
   else fail(`unknown action ${action}`);
