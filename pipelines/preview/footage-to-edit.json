@@ -50,7 +50,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "Follow {{run.dir}}/edit-plan.md on the takes in {{inputs.footage}}. Cut fillers, false starts and silences over 400 ms at word boundaries with 30 ms fades, add the overlays, and render {{run.dir}}/edit/rough.mp4. If {{run.dir}}/flags.json exists, fix the flagged cuts you can, burn captions, duck the music bed, and render {{run.dir}}/out/final.mp4 plus a 9:16 centre crop. Mark a flag you cannot settle as left for you. Never edit the source takes.",
+      "prompt": "Follow {{run.dir}}/edit-plan.md on the takes in {{inputs.footage}}. Cut fillers, false starts and silences over 400 ms at word boundaries with 30 ms fades, add the overlays, and render {{run.dir}}/edit/rough.mp4. If {{run.dir}}/flags.json exists, fix the flagged cuts you can first. Then burn captions, duck the music bed, and render {{run.dir}}/out/final.mp4 plus a 9:16 centre crop. Mark a flag you cannot settle as left for you. Never edit the source takes.",
       "outputs": ["summary", "flags_left"]
     },
     {
