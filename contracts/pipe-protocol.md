@@ -133,6 +133,7 @@ Every other interaction is a database read.
 | `engines.check` | `{}` | `{}` (results land in `engine_check`) |
 | `run.start` | `{pipeline_id, project_id, inputs, trigger?}` | `{run_id}` |
 | `run.cancel` | `{run_id}` | `{}` |
+| `run.clear` | `{project_id?}` | `{cleared}`; hides runs that are not running or paused, in one project or all of them |
 | `run.resume` | `{run_id, max_tokens?, max_usd?, max_minutes?}` | `{}`; the limits can only be raised (`pipelines.md`, Runner details) |
 | `gate.resolve` | `{gate_id, decision: "approve" or "reject", action_hash, note?}` | `{}`; -32010 if `action_hash` differs from the gate's; -32012 unless the connection completed `ui.hello`. `meta.origin` is informational only and never trusted |
 | `schedule.set` | `{pipeline_id, project_id, cron, inputs, enabled}` | `{schedule_id}` |

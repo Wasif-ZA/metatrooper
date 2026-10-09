@@ -194,7 +194,7 @@ function renderRuns() {
         <span class="grow">${esc((s.projects.find((p) => p.id === r.project_id) || {}).name || 'other project')}: ${esc(pipeName(r.pipeline_id))} <span class="meta" data-ago="${esc(r.started_at)}">${esc(ago(r.started_at))}</span></span>
         <span class="state ${esc(r.status)}">${esc(r.status)}${r.paused_why ? `: ${esc(r.paused_why)}` : ''}</span></div>`).join('')}</div>`
     : '';
-  return `${start}<div class="split"><div class="panel"><h3>Runs</h3>${list}${others}</div><div>${renderRunDetail()}</div></div>`;
+  return `${start}<div class="split"><div class="panel"><h3>Runs${top.some((r) => r.status !== 'running' && r.status !== 'paused') ? ' <button class="link" data-action="runs-clear" title="Hide every finished run in this project">Clear finished</button>' : ''}</h3>${list}${others}</div><div>${renderRunDetail()}</div></div>`;
 }
 
 function renderRunDetail() {
@@ -1525,6 +1525,9 @@ async function onClick(e) {
       return;
     case 'clear-all':
       await rpc('project.clear', { project_id: ui.projectId });
+      return;
+    case 'runs-clear':
+      await rpc('run.clear', { project_id: ui.projectId });
       return;
     case 'seen': {
       const x = ui.snap.sessions.find((y) => y.id === id);

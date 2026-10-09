@@ -428,6 +428,16 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('run.cancel', { handler: (p) => { ctl.runner.cancel(str(p, 'run_id')); return {}; } });
 
+  m.set('run.clear', {
+    handler: (p) => {
+      const id = str(p, 'project_id', false);
+      const r = id
+        ? db.prepare("UPDATE run SET hidden = 1 WHERE hidden = 0 AND project_id = ? AND status NOT IN ('running', 'paused')").run(id)
+        : db.prepare("UPDATE run SET hidden = 1 WHERE hidden = 0 AND status NOT IN ('running', 'paused')").run();
+      return { cleared: Number(r.changes) };
+    },
+  });
+
   m.set('run.item-set', {
     handler: (p) => {
       try {

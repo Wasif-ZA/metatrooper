@@ -35,6 +35,7 @@ const USAGE = `usage: troop <command> [--json]
                                 block until the run pauses (gate, budget, loop-max, breaker, handoff) or ends
   run status <run>              show a run's state and open gates
   run cancel <run>              cancel a run and its sub-pipeline runs
+  run clear [--project <path>]  hide every finished run (all projects unless --project)
   stop                          stop the core
   gate [--since <date>] [--until <date>]
                                 adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
@@ -381,6 +382,17 @@ async function runCmd(a: Args, json: boolean): Promise<number> {
   if (sub === 'cancel' && target) {
     const r = await rpc('run.cancel', { run_id: target }, json);
     if (r.result) emit(json, r.result, `cancelled ${target}`);
+    return r.code;
+  }
+  if (sub === 'clear') {
+    let project_id: string | undefined;
+    if (a.opts.has('--project')) {
+      const project = await openProject(a.opts.get('--project')!, json);
+      if (project.code || !project.id) return project.code || 1;
+      project_id = project.id;
+    }
+    const r = await rpc('run.clear', project_id ? { project_id } : {}, json);
+    if (r.result) emit(json, r.result, `cleared ${r.result.cleared} runs`);
     return r.code;
   }
   if ((sub === 'wait' || sub === 'status') && target) {
