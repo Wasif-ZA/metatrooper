@@ -3,20 +3,14 @@
 Started 2026-10-09T14:30+11:00 under `/goal` while Wasif was away. Spec: spec.md, Milestone 5. Every undone M1 to M4
 item is M5 work now (`issues/m5-00-rebaseline.md`). Status values as in M1-STATUS.md.
 
-Code lives on four branches built from `origin/m4-harden` (cf98aa6) with main merged in, because m4-harden changes
-the runner, gate and plugin code these children touch. Merge order: m4-harden first (it waits on his look at the
-gate card), then `m5-launch`, which already merges the other three cleanly.
+All M5 code is on main. Wasif merged m4-harden, m5-launch and the first heads of m5-pro and m5-hp-a/b/c through PRs
+#69 to #72 (2026-10-09T21:57+11:00); the later commits on those four branches (Pro review fixes, tests, hp-a's last
+fixes) were merged straight into main and pushed at 0a76790.
 
-| Branch | Worktree | Holds |
-|---|---|---|
-| `m5-cut` | `~/.cache/claude-scratch/metatrooper-m5-2026-10-09/wt-cut` | M5-18 |
-| `m5-harden` | `.../wt-harden` | M5-17 launch set |
-| `m5-integrations` | `.../wt-integrations` | M5-12, M5-13 step 1, M5-15 |
-| `m5-launch` | `.../wt-launch` | the three merged; the branch to land |
-
-Suites on `m5-launch` with main 7817b5d merged in (2026-10-09T21:20+11:00): core 418 tests, 411 pass, 0 fail, 7 skipped
-(`METATROOPER_FAKE_DPAPI=1 npm test`); workbench 223 tests, 161 pass, 0 fail, 62 skipped (the opt-in Electron
-suites). Not yet: `tests/release.ps1` (M5-9 is not built), Linux.
+Suites on main 0a76790 (2026-10-09T23:10+11:00): core 462 tests, 452 pass, 1 fail, 9 skipped
+(`METATROOPER_FAKE_DPAPI=1 npm test`); the one failure is M4-29 in session-owners.test.ts (session glue, PR #49),
+which passes alone twice, so it is a timing flake under full-suite load. Workbench 224 tests, 165 pass, 0 fail, 59
+skipped (the opt-in Electron suites). Not yet: `tests/release.ps1` (M5-9 is not built), Linux (WSL lacks `make`).
 
 GitHub (2026-10-09T21:40+11:00, run with Wasif's go-ahead): milestone "M5 launch" due 2026-12-01; #26, #27, #29,
 #31 to #40 and #42 moved into it; #41 closed as not planned; M5-1 to M5-19 filed as #50 to #68 in order (M5-1 is #50,
@@ -35,6 +29,8 @@ M5-19 is #68), each pointing at its issue file.
 | M5-15 notification sink | CODE DONE, UI OWED | d800127, 508a3d7, 252f5fc, 8a915d2. Tests by Codex: m5-notify.test.ts (18 across the three files). No settings pane and no `metatrooper://` handler yet, so a sink is added over the pipe only |
 | M5-17 launch hardening | CODE DONE | 11 items, one commit each (9618c9f to d3961d9), review fixes 6e1afa5. Tests: m5-hardening.test.ts by Codex; the S3 test in agy-driver.test.ts and the fixture fixes in loop-handback, e2e-browser-qa and pipelines-m2 (M4-21) by Claude after Codex's sandbox failed twice |
 | M5-18 catalogue cut | CODE DONE | 2b05060, tests 12ab0e5 by Codex (catalogue-cut.test.ts) |
+| M5-6 Pro review and fix loop | CODE DONE, REAL RUN OWED | f0ef719, a09fe95, 1ea33e6; review fixes f3f0479 (freeze step, runner allow-list, no proof from a timeout or a missing module, index reset, line-drift mapping); c0d8e3d (exact-byte restore, NODE_TEST_CONTEXT stripped). Tests m5-06-pro.test.ts 14 pass, by Codex with fixture fixes by Claude. Codex and Gemini both rejected the first version; every agreed finding is fixed. Declined: removing the checked-out worktree (the hand-back asks the user to commit there) and stripping the proof command's environment (the fix agent already runs with the same user environment). M5-06d, the real run with him on screen, is owed |
+| M5-21 preview hardening | CODE DONE | 26 fixes on m5-hp-a/b/c, listed in issues/m5-21-preview-hardening.md; tests m5-21-preview-a/b/c.test.ts by Codex (7 + 7 + 8, two desktop cases skip without a real window) |
 | M5-19 one instruction file | NOT STARTED | First step is verifying the Claude Code flag |
 
 ## Two-engine reviews
