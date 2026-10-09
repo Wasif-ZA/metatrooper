@@ -766,7 +766,9 @@ ${helpers}` : resolved;
     let error = this.printFailure(run, a.row, r);
     if (error === null) return r;
     if (!sameError(error, prior) && !error.includes('auto-denied')) {
-      r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running' } });
+      const started_at = nowIso();
+      this.db.prepare('UPDATE run_step SET started_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ? AND fanout_index = ?').run(started_at, run.id, a.row.step_id, a.row.iteration, a.row.fanout_index);
+      r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running', started_at } });
       const again = this.printFailure(run, a.row, r);
       if (again === null) return r;
       error = again;

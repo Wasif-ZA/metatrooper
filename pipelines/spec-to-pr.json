@@ -52,6 +52,7 @@
       "kind": "agent",
       "worktree": true,
       "baseline_tests": true,
+      "timeout_minutes": 60,
       "prompt": "Build what {{run.dir}}/spec.md describes in this worktree. Write a failing test first, then the code, then run the tests. Commit your work on the current branch. Do not push.",
       "outputs": ["summary"]
     },
