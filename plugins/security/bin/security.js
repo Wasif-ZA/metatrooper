@@ -17,7 +17,7 @@ export function listDeps(input, outdated = npmOutdated) {
   if (!pkg) throw new Error(`no package.json in ${dir}`);
   const late = outdated(dir);
   const deps = [];
-  for (const [field, dev] of [['dependencies', false], ['devDependencies', true]]) {
+  for (const [field, dev] of [['dependencies', false], ['optionalDependencies', false], ['devDependencies', true]]) {
     for (const [name, range] of Object.entries(pkg[field] ?? {})) {
       const installed = readJson(path.join(dir, 'node_modules', name, 'package.json'));
       const o = late[name];
