@@ -1,6 +1,6 @@
 # M5-17 Hardening the built-ins from the repo scan
 
-Child of Milestone 5 in `spec.md`. Tag: BLOCKER for the set below (5.1 CC days, 4.6 before T2 joined); the rest M5, after 12-01. Decided M5-D11.
+Child of Milestone 5 in `spec.md`. Tag: BLOCKER for the set below (5.35 CC days: 4.6 for the first eleven, then T2 and SR-H5 joined); the rest M5, after 12-01. Decided M5-D11.
 Codex writes the tests.
 
 ## Where this comes from
@@ -30,14 +30,17 @@ the user trust, and Pro sells trust. So launch hardening is exactly that class, 
 | E2 | e2e-browser-qa | the dev server counts as ready on any HTTP answer, a 500 included, and a foreign process on the port passes | `core/src/pipelines/devserver.ts:25` | 0.5 |
 | S3 | all agent steps | the one agent retry inherits the first attempt's start time, so it gets almost no time | `core/src/pipelines/runner.ts:807` | 0.5 |
 | T2 | two-engine-review | a split verdict sends a finding both engines placed into `disagree`, so the fix loop never fixes it (M5-D16) | `bucket.mjs`, workbench `review.js` and `rules.js` | 0.5 |
+| SR-H5 | security-review-and-upgrade | with `node_modules` missing, `licence-report` writes "Packages: 0" with no conflicts, which reads as clean | `plugins/security/bin/security.js:45` | 0.25 |
 
-Worked: 0.4 + 0.4 + 0.3 + 0.2 + 0.3 + 0.75 + 0.5 + 0.25 + 0.5 + 0.5 + 0.5 + 0.5 = 5.1 CC days. The first eleven are
-built on `m5-harden`; T2 joined the set on 2026-10-09 (M5-D16).
+Worked: 0.4 + 0.4 + 0.3 + 0.2 + 0.3 + 0.75 + 0.5 + 0.25 + 0.5 + 0.5 + 0.5 + 0.5 + 0.25 = 5.35 CC days. The first eleven
+are built on `m5-harden`; T2 joined the set on 2026-10-09 (M5-D16). SR-H5 joined on 2026-10-09 on Wasif's word: it is
+the same broken-run-looks-clean class, so it ships at launch although its pipeline is preview (an exception to M5-D11).
 
 ## Acceptance criteria
 
 Each item's "smallest failing test" in the research file is its criterion: it fails on main at `ace0783` and passes
-after the fix. M5-17 is done when all 12 do, and `tests/release.ps1` (M5-9) still passes.
+after the fix. SR-H5's criterion is its Acceptance cell in `issues/27-security.md`. M5-17 is done when all 13 do, and
+`tests/release.ps1` (M5-9) still passes.
 
 ## M5, after 12-01
 
