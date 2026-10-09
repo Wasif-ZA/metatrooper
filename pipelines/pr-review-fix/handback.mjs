@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WIDEN } from '../two-engine-review/bucket.mjs';
@@ -15,15 +16,44 @@ const label = (p) => {
 
 const spans = (p) => [p.codex, p.gemini].filter(Boolean);
 
-function reported(again, p) {
-  return KEYS.some((k) => (again[k] ?? []).some((q) => spans(q).some((b) => spans(p).some((a) => a.file === b.file && a.line_start - WIDEN <= b.line_end + WIDEN && b.line_start - WIDEN <= a.line_end + WIDEN))));
+/** Per file, the fix's hunks as [oldStart, oldCount, newStart, newCount] from `git diff -U0 HEAD`. */
+function hunks(dir) {
+  const out = new Map();
+  let r;
+  try { r = spawnSync('git', ['-C', dir, '-c', 'core.quotepath=off', 'diff', '-U0', '--no-color', 'HEAD'], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 }); } catch { return out; }
+  let file = null;
+  for (const line of String(r.stdout ?? '').split(/\r?\n/)) {
+    const f = /^--- a\/(.+?)\t?$/.exec(line);
+    if (f) { file = f[1]; continue; }
+    const h = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (h && file) out.set(file, [...(out.get(file) ?? []), [Number(h[1]), h[2] === undefined ? 1 : Number(h[2]), Number(h[3]), h[4] === undefined ? 1 : Number(h[4])]]);
+  }
+  return out;
+}
+
+/** Moves a pre-fix line to where it sits after the fix. */
+function shift(moves, file, n) {
+  let delta = 0;
+  for (const [a, b, c, d] of moves.get(file) ?? []) {
+    if (a + Math.max(b, 1) - 1 < n) delta += d - b;
+    else if (a <= n) return c;
+  }
+  return n + delta;
+}
+
+function reported(again, p, moves) {
+  return KEYS.some((k) => (again[k] ?? []).some((q) => spans(q).some((b) => spans(p).some((a) => {
+    const s = shift(moves, a.file, a.line_start), e = shift(moves, a.file, a.line_end);
+    return a.file === b.file && s - WIDEN <= b.line_end + WIDEN && b.line_start - WIDEN <= e + WIDEN;
+  }))));
 }
 
 /** Writes handback.md: each finding as fixed with proof, claimed without proof, still found or not picked. */
 export async function run(ctx) {
-  const first = readJson(ctx.steps.review?.buckets_abs);
+  const first = ctx.steps.freeze?.buckets ?? readJson(ctx.steps.review?.buckets_abs);
   const again = readJson(ctx.steps.rereview?.buckets_abs);
-  const picks = new Set(readJson(path.join(ctx.runDir, 'picks.json'))?.pick ?? []);
+  const picks = new Set(ctx.steps.freeze?.pick ?? readJson(path.join(ctx.runDir, 'picks.json'))?.pick ?? []);
+  const moves = ctx.steps.checkout?.worktree ? hunks(String(ctx.steps.checkout.worktree)) : new Map();
   const proof = readJson(path.join(ctx.runDir, 'proof.json'))?.results ?? {};
   const readable = (b) => b && !['codex_verdict', 'gemini_verdict'].some((k) => ['failed', 'unknown'].includes(b[k]));
   const items = [];
@@ -31,7 +61,7 @@ export async function run(ctx) {
   for (const p of KEYS.flatMap((k) => first?.[k] ?? [])) {
     const r = proof[p.id];
     if (!picks.has(p.id)) items.push({ kind: 'not-picked', text: `${label(p)}: not picked` });
-    else if (readable(again) && reported(again, p)) items.push({ kind: 'still-found', text: `${label(p)}: still found after the fix${r?.passed ? ' (its proof passed)' : ''}` });
+    else if (readable(again) && reported(again, p, moves)) items.push({ kind: 'still-found', text: `${label(p)}: still found after the fix${r?.passed ? ' (its proof passed)' : ''}` });
     else if (!r || !r.claimed) items.push({ kind: 'still-found', text: `${label(p)}: not fixed${r?.why ? `, ${r.why}` : ''}` });
     else if (!r.passed) items.push({ kind: 'claimed', text: `${label(p)}: claimed fixed, no proof (${r.why})` });
     else if (!readable(again)) items.push({ kind: 'claimed', text: `${label(p)}: proof passed but the rereview did not run` });
