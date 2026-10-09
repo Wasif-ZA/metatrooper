@@ -7,16 +7,17 @@ import { knownSecretValues } from './secrets.ts';
 export const LOG_MAX_BYTES = 5 * 1024 * 1024;
 const KEEP = 3;
 
-/** Appends to logs/<name>.log, rotating to .1 and .2 at 5 MB so at most three files exist; never throws. */
+/** Appends to logs/<name>.log, rotating to .1 and .2 at 5 MB so at most three files exist; a single write over 5 MB keeps only its last 5 MB; never throws. */
 export function appendLog(name: string, text: string): void {
   try {
     const dir = logsDir();
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, `${name}.log`);
-    const line = redactSecretValues(text, knownSecretValues());
+    const full = Buffer.from(redactSecretValues(text, knownSecretValues()), 'utf8');
+    const line = full.length > LOG_MAX_BYTES ? full.subarray(full.length - LOG_MAX_BYTES) : full;
     let size = 0;
     try { size = fs.statSync(file).size; } catch {}
-    if (size > 0 && size + Buffer.byteLength(line) > LOG_MAX_BYTES) {
+    if (size > 0 && size + line.length > LOG_MAX_BYTES) {
       for (let i = KEEP - 1; i >= 1; i--) {
         const from = i === 1 ? file : `${file}.${i - 1}`;
         try { fs.renameSync(from, `${file}.${i}`); } catch {}
