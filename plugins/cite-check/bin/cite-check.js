@@ -59,7 +59,7 @@ export async function check(input, runDir) {
   let bound = 0;
   report.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
-    if (/^\s*(#|```|\||>|$)/.test(raw)) return;
+    if (/^\s*(#|```|$)/.test(raw) || (/^\s*[|>]/.test(raw) && !/\[s\w+\]/.test(raw))) return;
     for (const text of sentences(raw.trim())) {
       const ids = [...text.matchAll(/\[(s\w+)\]/g)].map((m) => m[1]);
       if (!ids.length) {
