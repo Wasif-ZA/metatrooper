@@ -18,6 +18,10 @@ Suites on `m5-launch` with main 7817b5d merged in (2026-10-09T21:20+11:00): core
 (`METATROOPER_FAKE_DPAPI=1 npm test`); workbench 223 tests, 161 pass, 0 fail, 62 skipped (the opt-in Electron
 suites). Not yet: `tests/release.ps1` (M5-9 is not built), Linux.
 
+GitHub (2026-10-09T21:40+11:00, run with Wasif's go-ahead): milestone "M5 launch" due 2026-12-01; #26, #27, #29,
+#31 to #40 and #42 moved into it; #41 closed as not planned; M5-1 to M5-19 filed as #50 to #68 in order (M5-1 is #50,
+M5-19 is #68), each pointing at its issue file.
+
 ## Children
 
 | Child | Status | Evidence / notes |

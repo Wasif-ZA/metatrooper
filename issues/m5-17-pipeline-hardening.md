@@ -29,8 +29,10 @@ the user trust, and Pro sells trust. So launch hardening is exactly that class, 
 | E1 | e2e-browser-qa | a missing or malformed `findings.json` reads as "None found" | `pipelines/e2e-browser-qa/report.mjs:70-81` | 0.5 |
 | E2 | e2e-browser-qa | the dev server counts as ready on any HTTP answer, a 500 included, and a foreign process on the port passes | `core/src/pipelines/devserver.ts:25` | 0.5 |
 | S3 | all agent steps | the one agent retry inherits the first attempt's start time, so it gets almost no time | `core/src/pipelines/runner.ts:807` | 0.5 |
+| T2 | two-engine-review | a split verdict sends a finding both engines placed into `disagree`, so the fix loop never fixes it (M5-D16) | `bucket.mjs`, workbench `review.js` and `rules.js` | 0.5 |
 
-Worked: 0.4 + 0.4 + 0.3 + 0.2 + 0.3 + 0.75 + 0.5 + 0.25 + 0.5 + 0.5 + 0.5 = 4.6 CC days.
+Worked: 0.4 + 0.4 + 0.3 + 0.2 + 0.3 + 0.75 + 0.5 + 0.25 + 0.5 + 0.5 + 0.5 + 0.5 = 5.1 CC days. The first eleven are
+built on `m5-harden`; T2 joined the set on 2026-10-09 (M5-D16).
 
 ## Acceptance criteria
 
@@ -39,8 +41,6 @@ after the fix. M5-17 is done when all 11 do, and `tests/release.ps1` (M5-9) stil
 
 ## M5, after 12-01
 
-- T2 (a split verdict hides agreed findings from the fix loop) changes what "disagree" means on the review screen,
-  so it waits for Wasif's word.
 - T3 and H9 (one engine timing out loses the other engine's review; a failed step leaves no hand-back) share a new
   soft-fail step flag; T6 and H3 share `when` on agent steps. Build each pair together.
 - H2, H4, H5 are prerequisites M5-6 builds its own versions of; fold them back into this pipeline after M5-6 lands.

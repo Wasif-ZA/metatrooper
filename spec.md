@@ -883,6 +883,12 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-D12 | Packager | electron-builder, NSIS per-user. It is MIT but under the 25k-star gate, so it ships only after Wasif grants the exception, as xterm got one |
 | M5-D13 | MCP servers that write outside | A server marked `writes: external` never attaches to a pipeline-step session, and in interactive sessions only under profiles where the engine still asks per tool. Codex named it a missing call; this is the conservative reading of the gate rule |
 | M5-D15 | Where undone work lives | Wasif, 2026-10-09: every undone issue or spec item from M1 to M4 goes into M5 (launch). `issues/m5-00-rebaseline.md` lists each one as BLOCKER (ships 12-01) or M5 (after 12-01, still this milestone). M1 to M4 keep their history; their ledgers point here for anything open. Cut items (M5-D10, CUT rows) are not undone work |
+| M5-D16 | T2, what "disagree" means | A finding both engines placed on the same lines always goes to `both`, so the fix loop sees it; when their verdicts differ it carries `split: true`, and the review screen's disagreement rule reads `split` instead of the bucket name. Verdicts are lower-cased and trimmed first. Added to the M5-17 launch set (0.5 CC days). Claude's call after Wasif delegated the open calls on 2026-10-09 ("the rest i think you can answer") |
+| M5-D17 | Token saving (A-05) | Stays a standing goal and an internal measurement (M4-03 replay median 0.35 already passes its 0.70 gate). Not a launch claim and not a launch gate; marketing quotes no saving until a real billed run shows one. Claude's call on the same delegation |
+| M5-D18 | Public repo scrub | Current files only: the employer path rule becomes the `sessions.ask_paths` setting (M5-D7), and spec.md, the ledgers and `ide-layer-research/` drop the employer's name, the employer path and the personal session counts for neutral wording. Git history is not rewritten (no force push), so what is already public stays in history. Part of M5-10. Claude's call on the same delegation |
+| M5-D19 | Code signing (recommendation) | Certum Open Source Code Signing (established CA, issues to individuals worldwide, about EUR 49 a year); OSSign only if Certum's identity check fails. It costs money, so it stands once Wasif buys it |
+| M5-D20 | Pro code and licence (recommendation) | Pro as a separate plugin in a private repo with its own licence; Lemon Squeezy licence keys with one user-triggered activation call, cached, documented as the second network exception beside wpad. Stands once Wasif creates the repo and the store |
+| M5-D21 | Packager | electron-builder (MIT, 14,670 stars, pushed 2026-10-09) runs only at build time and never ships inside the app, so it falls under the gate's exemption for local tooling. Claude's call on the same delegation |
 | M5-D14 | One instruction file | Added after Gemini named it as missing: each engine reads `AGENTS.md` when its own file is absent, through the engine's own flag, never by writing into the project (M5-19) |
 
 #### Milestone 5 children
@@ -906,12 +912,12 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-14 | Engines as data | `issues/m5-14-engines-as-data.md` | M5, after 12-01 | 3.0 | none |
 | M5-15 | Notification sink (outbound) | `issues/m5-15-notification-sink.md` | Medium | 2.0 | none |
 | M5-16 | Issue trigger and gated write-back | `issues/m5-16-issue-trigger.md` | M5, after 12-01 | 2.5 | M5-14 |
-| M5-17 | Hardening the built-ins from the repo scan | `issues/m5-17-pipeline-hardening.md` | High | 4.6 | M5-9 |
+| M5-17 | Hardening the built-ins from the repo scan | `issues/m5-17-pipeline-hardening.md` | High | 5.1 | M5-9 |
 | M5-18 | Catalogue cut: built-ins, preview, unshipped | `issues/m5-18-catalogue-cut.md` | High | 0.5 | none |
 | M5-19 | One instruction file | `issues/m5-19-one-instruction-file.md` | Medium | 0.5 | none |
 
 Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 1.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
-0.5 + 4.6 (M5-17) = 30.35 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 30.35 is more than 27, so M5 fits
+0.5 + 5.1 (M5-17) = 30.85 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 30.85 is more than 27, so M5 fits
 only with parallel sessions and the slip rule below; Wasif's review hours are the limit, not Claude's. M5-14 and
 M5-16 are after launch and are re-scored by the Codex gate before anyone builds them.
 
@@ -935,11 +941,12 @@ launch date moves instead.
 
 #### Milestone 5 hand-back (only Wasif)
 
-1. Certum or OSSign, and the account and identity check (M5-2). Nothing public ships before it.
-2. Pro code location and licence check model (M5-7), then the Lemon Squeezy store, product, tax and payout.
-3. Read the Anthropic, OpenAI and Google terms for automated runs and logo use (money plan rule).
-4. The packager exception (M5-D12) and what to scrub from the public repo (M5-10).
-5. A fresh Windows account with Smart App Control on, and a Linux box (M5-1, M5-5).
+1. Buy the Certum certificate and pass its identity check (M5-D19), or say no to it. Nothing public ships before a
+   signed installer.
+2. Create the private Pro repo and the Lemon Squeezy store: A$19 monthly with a 14-day trial, tax and payout
+   (M5-D20), or say no to that shape.
+3. Read and accept the Anthropic, OpenAI and Google terms for automated runs and logo use (money plan rule).
+4. A fresh Windows account with Smart App Control on, and a Linux box (M5-1, M5-5).
 6. On screen for the first real pr-review-fix run, one workday in the app (UI-01), the GIFs (M5-11).
 
 ## Acceptance criteria
