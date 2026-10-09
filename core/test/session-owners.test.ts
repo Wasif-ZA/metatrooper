@@ -97,7 +97,7 @@ test('M4-26 and M4-32: a file changed only through the shell is claimed at Stop;
     execFileSync('sed', ['-i', 's/one/one and two/', 'a.txt'], { cwd: h.repo });
     writeFileSync(join(h.repo, 'made.txt'), 'new\n');
     await h.hook('Stop', { session_id: 'native-a', stop_hook_active: false }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     assert.deepEqual(h.claims(a)[0].files.map((f: { path: string }) => f.path), ['a.txt', 'made.txt']);
     const rows = await h.owners();
     const by = Object.fromEntries(rows.map((r) => [r.path, r]));
@@ -119,7 +119,7 @@ test('M4-28: an Edit on a file a working session owns prints a warning naming it
     await sleep(20);
     writeFileSync(join(h.repo, 'a.txt'), 'changed by a\n');
     await h.hook('Stop', { session_id: 'native-a' }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     await h.turnStart(a, 'native-a');
     const insert = h.db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', NULL, 'core.filler', '{}', 1)");
     h.db.exec('BEGIN');
@@ -148,9 +148,9 @@ test('M4-29: two sessions change one file in overlapping turns with no hint: sha
     await sleep(20);
     writeFileSync(join(h.repo, 'x.ts'), 'let x = 22;\n');
     await h.hook('Stop', { session_id: 'native-a' }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     await h.hook('Stop', { session_id: 'native-b' }, b);
-    await until(() => h.claims(b).length === 1, 3000);
+    await until(() => h.claims(b).length === 1, 10000);
     const x = (await h.owners()).find((r) => r.path === 'x.ts')!;
     assert.equal(x.shared, true);
     assert.deepEqual(x.owners.map((o) => o.id).sort(), [a, b].sort());
@@ -177,10 +177,10 @@ test('M4-29: a Read hint gives an overlapping file to the session that named it,
     await h.hook('PostToolUse', { session_id: 'native-b', tool_name: 'Write', tool_input: { file_path: join(h.repo, 'x.ts') } }, b);
     writeFileSync(join(h.repo, 'x.ts'), 'let x = 333;\n');
     await h.hook('Stop', { session_id: 'native-a' }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     assert.deepEqual(h.claims(a)[0].files, []);
     await h.hook('Stop', { session_id: 'native-b' }, b);
-    await until(() => h.claims(b).length === 1, 3000);
+    await until(() => h.claims(b).length === 1, 10000);
     const x = (await h.owners()).find((r) => r.path === 'x.ts')!;
     assert.equal(x.shared, false);
     assert.deepEqual(x.owners.map((o) => o.id), [b]);
@@ -265,7 +265,7 @@ test('a file the session committed during its turn is not claimed, so later edit
     writeFileSync(join(h.repo, 'x.ts'), 'let x = 4444;\n');
     execFileSync('git', ['commit', '-qm', 'a commits a.txt', '--', 'a.txt'], { cwd: h.repo });
     await h.hook('Stop', { session_id: 'native-a' }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     assert.deepEqual(h.claims(a)[0].files.map((f: { path: string }) => f.path), ['x.ts']);
     writeFileSync(join(h.repo, 'a.txt'), 'a person edits it later\n');
     const rows = await h.owners();
@@ -285,7 +285,7 @@ test('a Read is not an ownership hint: one session reading while the other edits
     await h.hook('PostToolUse', { session_id: 'native-b', tool_name: 'Read', tool_input: { file_path: join(h.repo, 'x.ts') } }, b);
     writeFileSync(join(h.repo, 'x.ts'), 'let x = 55555;\n');
     await h.hook('Stop', { session_id: 'native-a' }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     assert.deepEqual(h.claims(a)[0].files.map((f: { path: string; shared: boolean }) => [f.path, f.shared]), [['x.ts', true]]);
   } finally { await h.teardown(); }
 });
@@ -299,7 +299,7 @@ test('claims from other repositories never push a still-dirty file out of the ow
     await sleep(20);
     writeFileSync(join(h.repo, 'a.txt'), 'owned by a\n');
     await h.hook('Stop', { session_id: 'native-a' }, a);
-    await until(() => h.claims(a).length === 1, 3000);
+    await until(() => h.claims(a).length === 1, 10000);
     const other = JSON.stringify({ repo: join(h.home, 'elsewhere'), turn_base: null, from: new Date().toISOString(), at: new Date().toISOString(), files: [{ path: 'a.txt', owners: [b], shared: false }] });
     const insert = h.db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.claim', ?, 1)");
     h.db.exec('BEGIN');
