@@ -59,7 +59,7 @@ export async function check(input, runDir) {
   let bound = 0;
   report.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
-    if (/^\s*(#|```|\||>|$)/.test(raw)) return;
+    if (/^\s*(#|```|$)/.test(raw) || (/^\s*[|>]/.test(raw) && !/\[s\w+\]/.test(raw))) return;
     for (const text of sentences(raw.trim())) {
       const ids = [...text.matchAll(/\[(s\w+)\]/g)].map((m) => m[1]);
       if (!ids.length) {
@@ -76,6 +76,7 @@ export async function check(input, runDir) {
       bound += 1;
     }
   });
+  if (!claims_total) unbound.push({ line: 0, text: '', reason: 'report cites no source' });
   const cited = new Set([...report.matchAll(/\[(s\w+)\]/g)].map((m) => m[1]));
   const result = { passed: unbound.length === 0 && !dead_links.some((d) => cited.has(d.id)),claims_total, bound, unbound, dead_links };
   const result_path = path.join(runDir || path.dirname(input.report), 'quote-check.json');

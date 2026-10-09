@@ -9,7 +9,7 @@
     "platforms": { "type": "text", "label": "Platforms, comma separated", "required": false, "default": "tiktok, youtube-shorts, instagram-reels" },
     "max_clips": { "type": "choice", "label": "Most clips to make", "required": false, "default": "4", "choices": ["1", "2", "3", "4"] },
     "week_start": { "type": "text", "label": "First posting day (ISO date)", "required": true },
-    "tiktok_privacy": { "type": "text", "label": "TikTok privacy: PUBLIC_TO_EVERYONE, or SELF_ONLY until TikTok audits your app", "required": false, "default": "PUBLIC_TO_EVERYONE" }
+    "tiktok_privacy": { "type": "choice", "label": "TikTok privacy (SELF_ONLY until TikTok audits your app)", "required": false, "default": "PUBLIC_TO_EVERYONE", "choices": ["PUBLIC_TO_EVERYONE", "SELF_ONLY"] }
   },
   "budget": { "max_minutes": 40 },
   "background": true,

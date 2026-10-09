@@ -26,7 +26,7 @@
       "role": "worker",
       "kind": "agent",
       "approval": "edits",
-      "prompt": "The CSV {{inputs.csv}} is loaded into table raw of {{run.dir}}/data.sqlite ({{steps.load.outputs.rows}} rows). Make a clean table: fix types, duplicates, date and price formats and blank categories. Do not edit the CSV. List every change in {{run.dir}}/CLEANING.md.",
+      "prompt": "The CSV {{inputs.csv}} is loaded into table raw of {{run.dir}}/data.sqlite ({{steps.load.outputs.rows}} rows). Make a clean table: fix types, duplicates, date and price formats and blank categories. Do not edit the CSV. List every change in {{run.dir}}/CLEANING.md. If {{run.dir}}/QA.md lists totals that are off, fix those first.",
       "outputs": ["table", "rows"]
     },
     {
@@ -36,7 +36,8 @@
       "kind": "agent",
       "approval": "edits",
       "prompt": "Compare table {{steps.clean.outputs.table}} in {{run.dir}}/data.sqlite with table raw and {{inputs.csv}}: row counts, column totals, nulls. Set passed to false when any total is more than 0.5% off. Write the comparison to {{run.dir}}/QA.md.",
-      "outputs": ["passed"]
+      "outputs": ["passed"],
+      "loop": { "steps": ["clean", "qa"], "until": "steps.qa.passed", "max": 2 }
     },
     {
       "id": "plan",
@@ -82,7 +83,7 @@
       "title": "Check the numbers, then Continue",
       "kind": "gate",
       "gate": "handoff",
-      "gate_summary": "Read {{run.dir}}/SUMMARY.md and {{run.dir}}/dashboard/index.html. Continue signs off; reject cancels the run. Sending the summary is yours."
+      "gate_summary": "Read {{run.dir}}/SUMMARY.md and {{run.dir}}/dashboard/index.html. Source check passed: {{steps.qa.outputs.passed}}. Continue signs off; reject cancels the run. Sending the summary is yours."
     }
   ]
 }

@@ -106,7 +106,10 @@ const ASPECT = { '9:16': "crop='min(iw,trunc(ih*9/16/2)*2)':'min(ih,trunc(iw*16/
 
 export function cut(input) {
   const m = pickMoment(input.moments, input.index ?? 0);
-  if (!m) return { path: null, skipped: true };
+  if (!m) {
+    if (!Number(input.index ?? 0)) throw new Error('no moment left to cut: every moment was dropped or moments.json is empty');
+    return { path: null, skipped: true };
+  }
   const start = Number(m.src_start);
   const end = Number(m.src_end);
   if (!(end > start)) throw new Error(`moment ${m.id} has no src_start/src_end range`);
