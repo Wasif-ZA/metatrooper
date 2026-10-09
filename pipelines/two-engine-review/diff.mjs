@@ -7,7 +7,9 @@ import path from 'node:path';
 export function fileSections(diff) {
   return diff.split(/(?=^diff --git )/m).filter(Boolean).map((text) => {
     const m = /^diff --git a\/(\S+) b\/(\S+)$/m.exec(text);
-    return { file: m ? m[2] : null, old: m ? m[1] : null, added: /^new file mode/m.test(text), deleted: /^deleted file mode/m.test(text), text };
+    const plus = /^\+\+\+ b\/(.+?)\t?$/m.exec(text);
+    const file = m ? m[2] : plus ? plus[1] : null;
+    return { file, old: m ? m[1] : file, added: /^new file mode/m.test(text), deleted: /^deleted file mode/m.test(text), text };
   });
 }
 
@@ -30,7 +32,7 @@ export async function run(ctx) {
   if (range.startsWith('-')) throw new Error(`range must be a revision, not an option: ${range}`);
   const dir = String(ctx.inputs.path || ctx.projectPath);
   if (ctx.inputs.path) execFileSync('git', ['-C', dir, 'add', '--intent-to-add', '--all'], { windowsHide: true });
-  let diff = execFileSync('git', ['-C', dir, 'diff', range], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
+  let diff = execFileSync('git', ['-C', dir, '-c', 'core.quotepath=off', 'diff', range], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
   const skipped = [];
   if (diff && difftAvailable()) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-difft-'));

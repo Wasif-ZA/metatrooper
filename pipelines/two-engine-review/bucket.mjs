@@ -22,7 +22,7 @@ export function hunkRanges(diff) {
   const ranges = new Map();
   let file = null;
   for (const line of diff.split(/\r?\n/)) {
-    const f = /^\+\+\+ b\/(.+)$/.exec(line);
+    const f = /^\+\+\+ b\/(.+?)\t?$/.exec(line);
     if (f) { file = f[1]; continue; }
     if (line.startsWith('+++ ')) { file = null; continue; }
     const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
