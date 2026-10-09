@@ -103,7 +103,7 @@ async function deliver(sink: SinkRow, item: Item): Promise<string | null> {
 }
 
 function raiseFailed(db: DatabaseSync, sink: SinkRow): void {
-  const last = db.prepare('SELECT at FROM needs_you WHERE kind = ? AND ref = ? AND text LIKE ? ORDER BY at DESC LIMIT 1').get('other', sink.id, `${FAILED_PREFIX}%`) as { at: string } | undefined;
+  const last = db.prepare('SELECT at FROM needs_you WHERE kind = ? AND ref = ? AND text LIKE ? ORDER BY rowid DESC LIMIT 1').get('other', sink.id, `${FAILED_PREFIX}%`) as { at: string } | undefined;
   if (last && Date.now() - Date.parse(last.at) < 3600_000) return;
   db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'other', ?, ?)").run(ulid(), nowIso(), sink.id, `${FAILED_PREFIX}: could not send to ${sink.name}`);
 }
@@ -127,7 +127,7 @@ export async function notifyTick(db: DatabaseSync): Promise<void> {
     const rows = db.prepare(`SELECT id, at, kind, text FROM needs_you n WHERE notified_at IS NULL AND resolved_at IS NULL
       AND NOT (kind = 'other' AND text LIKE ?)
       AND NOT EXISTS (SELECT 1 FROM notify_delivery d WHERE d.needs_you_id = n.id AND d.state = 'pending' AND d.next_at > ?)
-      ORDER BY at, id LIMIT 50`).all(`${FAILED_PREFIX}%`, now) as unknown as Item[];
+      ORDER BY rowid LIMIT 50`).all(`${FAILED_PREFIX}%`, now) as unknown as Item[];
     const mark = db.prepare('UPDATE needs_you SET notified_at = ? WHERE id = ?');
     const get = db.prepare('SELECT state, tries, next_at FROM notify_delivery WHERE needs_you_id = ? AND sink_id = ?');
     const put = db.prepare('INSERT OR REPLACE INTO notify_delivery (needs_you_id, sink_id, state, tries, next_at) VALUES (?, ?, ?, ?, ?)');
@@ -182,7 +182,7 @@ export function setSink(db: DatabaseSync, p: Record<string, unknown>): { id: str
 }
 
 export function listSinks(db: DatabaseSync): { sinks: Array<Record<string, unknown>> } {
-  const rows = db.prepare('SELECT * FROM notify_sink ORDER BY approved_at, id').all() as unknown as SinkRow[];
+  const rows = db.prepare('SELECT * FROM notify_sink ORDER BY rowid').all() as unknown as SinkRow[];
   return { sinks: rows.map((s) => ({ id: s.id, kind: s.kind, name: s.name, kinds: sinkKinds(s), enabled: s.enabled === 1, dest_hash: s.dest_hash.slice(0, 12), approved_at: s.approved_at })) };
 }
 
