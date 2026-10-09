@@ -36,6 +36,8 @@ export function openCoreDb(): DatabaseSync {
   const gateCols = (db.prepare('PRAGMA table_info(gate)').all() as Array<{ name: string }>).map((c) => c.name);
   if (!gateCols.includes('scan')) db.exec('ALTER TABLE gate ADD COLUMN scan TEXT');
   if (!gateCols.includes('override_reason')) db.exec('ALTER TABLE gate ADD COLUMN override_reason TEXT');
+  if (!(db.prepare('PRAGMA table_info(needs_you)').all() as Array<{ name: string }>).some((c) => c.name === 'notified_at')) db.exec('ALTER TABLE needs_you ADD COLUMN notified_at TEXT');
+  db.exec(schemaBlock(fs.readFileSync(schemaFile, 'utf8'), /CREATE TABLE notify_sink \([\s\S]*?\n\);/g)[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
   return db;
 }
 
