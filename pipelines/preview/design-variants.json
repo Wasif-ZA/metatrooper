@@ -31,6 +31,7 @@
       "title": "Write three directions",
       "role": "plan",
       "kind": "agent",
+      "approval": "edits",
       "prompt": "Brief: {{inputs.brief}}\n\nReferences found for it: {{steps.board.outputs.references}}\n\nWrite three clearly different design directions for this brief, each grounded in named references. Write them to {{run.dir}}/direction-0.md, {{run.dir}}/direction-1.md and {{run.dir}}/direction-2.md: layout, type, colour, and which references it borrows from. Do not edit the repository.",
       "outputs": ["summary"]
     },
@@ -47,6 +48,7 @@
       "role": "worker",
       "kind": "agent",
       "engine": "claude",
+      "approval": "contained",
       "fanout": 3,
       "worktree": true,
       "browser": true,
@@ -68,6 +70,7 @@
       "role": "worker",
       "kind": "agent",
       "engine": "claude",
+      "approval": "contained",
       "cwd": "{{variants.picked.worktree}}",
       "prompt": "This worktree holds the picked design for: {{inputs.brief}}\n\nPolish it: fix spacing, contrast and alignment, make it work at 390 px wide, and keep the direction. Commit on the current branch ({{variants.picked.branch}}). Do not push.",
       "outputs": ["summary"]
