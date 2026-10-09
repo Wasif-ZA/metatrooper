@@ -54,7 +54,7 @@
       "browser": true,
       "dev_command": "npm run dev -- --port {{port}}",
       "view": "variants-grid",
-      "prompt": "Build the page described in {{run.dir}}/direction-{{index}}.md in this worktree, for this brief: {{inputs.brief}}\n\nMake `npm run dev -- --port <n>` serve it on port n. Stop any server you start before you finish; the workbench serves it and opens the preview once you are done. Commit your work on the current branch. Do not push.",
+      "prompt": "If {{run.dir}}/direction-{{index}}.md does not exist, write status: failed and stop. Otherwise build the page it describes in this worktree, for this brief: {{inputs.brief}}\n\nMake `npm run dev -- --port <n>` serve it on port n. Stop any server you start before you finish; the workbench serves it and opens the preview once you are done. Commit your work on the current branch. Do not push.",
       "outputs": ["summary"]
     },
     {
