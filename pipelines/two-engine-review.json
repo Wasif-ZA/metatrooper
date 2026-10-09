@@ -42,6 +42,21 @@
       ]
     },
     {
+      "id": "scan",
+      "title": "Scan the diff for secrets",
+      "kind": "code",
+      "code": "two-engine-review/scan.mjs",
+      "outputs": ["status", "count", "findings", "scan"]
+    },
+    {
+      "id": "send-check",
+      "title": "Send this diff",
+      "kind": "gate",
+      "gate": "approve",
+      "when": "steps.scan.outputs.status == \"findings\"",
+      "gate_summary": "The diff has {{steps.scan.outputs.count}} possible secrets. Codex and Gemini read it next.\n{{steps.scan.outputs.findings}}"
+    },
+    {
       "id": "map",
       "title": "Build the code map",
       "kind": "code",

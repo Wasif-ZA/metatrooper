@@ -33,6 +33,9 @@ export function openCoreDb(): DatabaseSync {
   allowSandbox(db);
   if (!(db.prepare('PRAGMA table_info(session)').all() as Array<{ name: string }>).some((c) => c.name === 'driven_engine')) db.exec('ALTER TABLE session ADD COLUMN driven_engine TEXT');
   if (!(db.prepare('PRAGMA table_info(run)').all() as Array<{ name: string }>).some((c) => c.name === 'hidden')) db.exec('ALTER TABLE run ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+  const gateCols = (db.prepare('PRAGMA table_info(gate)').all() as Array<{ name: string }>).map((c) => c.name);
+  if (!gateCols.includes('scan')) db.exec('ALTER TABLE gate ADD COLUMN scan TEXT');
+  if (!gateCols.includes('override_reason')) db.exec('ALTER TABLE gate ADD COLUMN override_reason TEXT');
   return db;
 }
 

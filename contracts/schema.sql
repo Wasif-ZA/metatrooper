@@ -177,7 +177,9 @@ CREATE TABLE gate (
   summary      TEXT NOT NULL,                  -- what the user is approving, in words
   status       TEXT NOT NULL CHECK (status IN ('waiting','approved','rejected','stale')),
   decided_at   TEXT,
-  note         TEXT
+  note         TEXT,
+  scan         TEXT,                           -- secret-scan result JSON {status, count, items?|reason?}, written when the gate is created
+  override_reason TEXT                         -- why a gate with scan findings was approved anyway
 );
 
 CREATE TABLE plugin (
