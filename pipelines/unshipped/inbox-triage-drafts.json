@@ -59,7 +59,7 @@
       "title": "Approve the drafts",
       "kind": "gate",
       "gate": "approve",
-      "gate_summary": "Save {{steps.draft.outputs.count}} replies from {{run.dir}}/replies.json as Gmail drafts in their threads. Nothing is sent, labelled or archived. Check result: {{steps.check.outputs.passed}}, flag: {{steps.check.outputs.flag}}."
+      "gate_summary": "Save {{steps.draft.outputs.count}} replies from {{run.dir}}/replies.json as Gmail drafts in their threads. Nothing is sent, labelled or archived. Rules file found: {{steps.rules.outputs.found}}. Check result: {{steps.check.outputs.passed}}, flag: {{steps.check.outputs.flag}}."
     },
     {
       "id": "drafts",
