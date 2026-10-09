@@ -71,7 +71,7 @@ Tags: BLOCKER (ships 2026-12-01, owned by an M5 child), M5 (M5 work after 12-01)
 | M4-1 real before-runs, M4-01 baseline real half | M5 | Token saving is a standing goal but not a launch claim |
 | M4-03 replay gate (median ratio at most 0.70) | M5 | Depends on M4-3; no launch claim rests on it |
 | M4-04 real after-runs | M5 | Same |
-| M4-2 workbench half and `tests/helpers/kill-tree.ts` | BLOCKER | Release gate needs clean suites (L29) |
+| M4-2 workbench half and `tests/helpers/kill-tree.ts` | BLOCKER | Release gate needs clean suites (L29). kill-tree helper landed on main in 8df0817 (2026-10-09); the workbench half still owes two clean runs |
 | M4-3 code-map plugin (M4-05, M4-06) | M5 | Needs code-review-graph installed; agy attach not verified |
 | M4-4 publish-gate scan (M4-07, M4-08) | M5 | Publish gates already need a click |
 | M4-4 before external send (M4-20) | BLOCKER | Pro sends every diff to OpenAI and Google (L25) |
@@ -87,9 +87,9 @@ Tags: BLOCKER (ships 2026-12-01, owned by an M5 child), M5 (M5 work after 12-01)
 |---|---|---|
 | UI-02 first agent within 30 s on a fresh account | BLOCKER | The clean-machine install (L4) |
 | PORT-C check (review folds, opens to duel on Disagree) | BLOCKER | It is the Pro screen; review-bar test fails on main (L29) |
-| PORT-D pictures of the site (screenshot save_to) | M5 | website-build polish |
-| PORT-D worktree-rail variant of agent-split | FROZEN (M5-D3) | Opened by hand only; no rule or user needs it |
-| PORT-D hand-back bar stays orange until every item is ticked | M5 | Nice cue, not needed for proof |
+| PORT-D pictures of the site (screenshot save_to) | DONE | Landed on main in bb1b45f (2026-10-09, PR #48) |
+| PORT-D worktree-rail variant of agent-split | DONE | Landed on main in 14cb178 (2026-10-09, PR #48) before the freeze rule; kept, no further work (M5-D3) |
+| PORT-D hand-back bar stays orange until every item is ticked | DONE | Landed on main in 14cb178 (2026-10-09, PR #48) |
 | PORT-D never run end to end on a real pipeline | BLOCKER | Covered by L28 for the Pro loop |
 | Live-text cards never seen in the running app | BLOCKER | Part of UI-01 and his look at m4-harden |
 
