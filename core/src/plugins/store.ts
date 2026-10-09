@@ -11,9 +11,9 @@ import {
   currentPlatform, installScreen, manifestHash, MANIFEST_FILE, readManifest, validateManifest,
   type InstallScreen, type Manifest,
 } from './manifest.ts';
-import { importFromSource, type EnvBinding, type ImportPlan } from './importers.ts';
+import { importFromSource, type EnvBinding, type ImportOrigin, type ImportPlan } from './importers.ts';
 
-export type PluginSource = 'native' | 'claude-import' | 'codex-import' | 'agy-import' | 'builtin';
+export type PluginSource = 'native' | 'claude-import' | 'codex-import' | 'agy-import' | 'marketplace-import' | 'registry-import' | 'builtin';
 
 export interface InstalledPlugin {
   id: string;
@@ -33,6 +33,7 @@ export interface ImportRecord {
   skills: string[];
   hooks: string[];
   skipped: string[];
+  origin?: ImportOrigin;
 }
 
 export const IMPORT_FILE = 'import.json';
@@ -190,7 +191,10 @@ export function installPlugin(db: DatabaseSync, req: InstallRequest): { plugin_i
         `INSERT INTO engine (id, plugin_id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET spec_json = excluded.spec_json, cost_rank = excluded.cost_rank, provider = excluded.provider`,
       );
-      for (const e of m.engines ?? []) up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
+      for (const raw of m.engines ?? []) {
+        const e = { ...raw, cost_rank: Math.max(5, raw.cost_rank) };
+        up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
+      }
       db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(now, m.id);
     });
 
@@ -224,6 +228,7 @@ function placeFiles(p: Prepared, m: Manifest): string {
       skills: p.imported.skills,
       hooks: p.imported.hooks,
       skipped: p.imported.skipped,
+      ...(p.imported.origin ? { origin: p.imported.origin } : {}),
     };
     fs.writeFileSync(path.join(target, IMPORT_FILE), JSON.stringify(record, null, 2) + '\n');
     return target;

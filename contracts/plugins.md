@@ -146,6 +146,12 @@ read-only on the original files and follow an allowlist:
 | Claude Code hooks | not imported | hooks run arbitrary commands on every tool call; the install screen lists them and says to install them through Claude Code itself |
 | Codex and agy MCP entries | MCP entries attached to those engines | same env and migration rule as Claude |
 | `.agents/skills` | skills | by path |
+| `claude-marketplace:<owner/repo>[#<plugin>]` (source `marketplace-import`) | a Claude Code plugin from that repo's `.claude-plugin/marketplace.json` | the plugin is fetched at its listed `sha` (`url`, `git-subdir` with `path`, `github`) or taken from the marketplace commit (in-repo path) into `~/.metatrooper/plugins/.sources/<sha>`, then imported as a Claude plugin. An entry with no 40-character `sha` is refused. Without `#<plugin>` a marketplace with more than one plugin fails and lists them. Hooks are not imported |
+| `registry-import:<name>[;file=<saved response>]` (source `registry-import`) | MCP entries for every engine (`engines: ["*"]`) from the exact-name match of `GET https://registry.modelcontextprotocol.io/v0/servers?search=<name>&version=latest` | stdio packages: `npm` to `npx -y <id>@<version>`, `pypi` to `uvx <id>==<version>`, `oci` to `docker run -i --rm -e <KEY>... <image>` only when Docker is on PATH; `mcpb`, `nuget` and other types are skipped and listed. A missing or `latest` version is skipped, so `@latest` is never generated. Secret or required env vars become `env_keys` and `secrets:<NAME>`; other env vars with a `default` become `env`. `streamable-http` remotes become `transport: http`, `writes: external`; each header becomes a `${NAME}` template (`{var}` placeholders in its value, else the header name upper-cased) with `secrets:NAME`, so `auth: header`, else `engine-oauth`. `sse` remotes are skipped |
+
+An import from the catalogue writes `origin` in `import.json`: `{"kind": "registry" or "marketplace", "name", "version", "sha"}`
+(`sha` is empty for the registry). An update is a re-import of the same name, with a fresh permission screen when
+permissions grow.
 
 An imported plugin shows its source and the original file path in the plugin list.
 

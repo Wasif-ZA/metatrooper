@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
+import { repoDir } from '../paths.ts';
+import { engineSchemaErrors } from '../plugins/manifest.ts';
 
 export interface EngineSpec {
   id: string;
@@ -19,7 +21,7 @@ export interface EngineSpec {
   approval_profiles?: Record<string, string[]>;
   ask_near_acu?: boolean;
   settings?: { file: string; set: Record<string, string | number | boolean> };
-  mcp_attach?: { kind: string; path?: string };
+  mcp_attach?: { kind: string; path?: string; env?: string; format?: 'mcpServers' | 'opencode-mcp'; template?: string[] };
   roles: string[];
   cost_rank: number;
   provider?: 'local-cli' | 'api-key' | 'gateway';
@@ -79,7 +81,22 @@ export const BUILT_IN: EngineSpec[] = [
 export function loadEngines(): EngineSpec[] {
   const override = process.env.METATROOPER_ENGINES;
   if (override) return JSON.parse(fs.readFileSync(path.resolve(override), 'utf8')) as EngineSpec[];
-  return BUILT_IN;
+  return [...BUILT_IN, ...dataEngines(path.join(repoDir, 'engines')).filter((e) => !BUILT_IN.some((b) => b.id === e.id))];
+}
+
+/** Engine files from a folder, each starting at cost_rank 5 or more so bindRole never prefers one silently. */
+export function dataEngines(dir: string): EngineSpec[] {
+  if (!fs.existsSync(dir)) return [];
+  const out: EngineSpec[] = [];
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.json')).sort()) {
+    let e: unknown;
+    try { e = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (err) { console.warn(`engines/${f} skipped: ${(err as Error).message}`); continue; }
+    const errors = engineSchemaErrors(e);
+    if (errors.length) { console.warn(`engines/${f} skipped: ${errors[0]}`); continue; }
+    const spec = e as EngineSpec;
+    out.push({ ...spec, cost_rank: Math.max(5, spec.cost_rank) });
+  }
+  return out;
 }
 
 export function syncEngines(db: DatabaseSync, engines: EngineSpec[]): void {
@@ -116,7 +133,8 @@ export function bindRole(db: DatabaseSync, role: string, pinned?: string): Engin
     const e = engines.find((x) => x.id === pinned);
     return e && usable(e) ? e : null;
   }
+  const fromPlugin = new Set((db.prepare('SELECT id FROM engine WHERE plugin_id IS NOT NULL').all() as Array<{ id: string }>).map((r) => r.id));
   return engines
     .filter((e) => e.roles.includes(role) && usable(e))
-    .sort((a, b) => a.cost_rank - b.cost_rank || a.id.localeCompare(b.id))[0] ?? null;
+    .sort((a, b) => a.cost_rank - b.cost_rank || Number(fromPlugin.has(a.id)) - Number(fromPlugin.has(b.id)) || a.id.localeCompare(b.id))[0] ?? null;
 }

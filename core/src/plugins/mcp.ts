@@ -101,21 +101,51 @@ function entriesFor(db: DatabaseSync, engineId: string, ctx: AttachContext): Shi
   return out;
 }
 
-/** Engine arguments that point each plugin MCP server at the shim, plus `metatrooper-browser` when the session needs the browser; no real command or secret appears. */
-export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: string, browser = false, ctx: AttachContext = {}): string[] {
+interface AttachServer { name: string; args: string[]; http?: { url: string; headers: boolean } }
+
+function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, ctx: AttachContext): { node: string; servers: AttachServer[] } {
   const node = process.execPath.split(String.fromCharCode(92)).join('/');
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
-  const servers: Array<{ name: string; args: string[]; http?: { url: string; headers: boolean } }> = [
+  const servers: AttachServer[] = [
     ...(browser ? [{ name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
     ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId], http: e.http })),
   ];
+  return { node, servers };
+}
+
+/** The mcpServers JSON shape with shim commands; http servers that need headers are left out, as these engines have no headers helper. */
+function mcpJson(node: string, servers: AttachServer[], format = 'mcpServers'): Record<string, unknown> {
+  const plain = servers.filter((s) => !s.http?.headers);
+  if (format === 'opencode-mcp') {
+    return { mcp: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'remote', url: s.http.url, enabled: true } : { type: 'local', command: [node, ...s.args], enabled: true }])) };
+  }
+  return { mcpServers: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'http', url: s.http.url } : { command: node, args: s.args }])) };
+}
+
+/** Environment for env-json and config-dir engines: the shim commands as JSON, or a per-session folder holding mcp-config.json. Never a secret value. */
+export function mcpAttachEnv(db: DatabaseSync, engine: EngineSpec, sessionId: string, browser = false, ctx: AttachContext = {}): Record<string, string> {
+  const attach = engine.mcp_attach;
+  if (!attach?.env || (attach.kind !== 'env-json' && attach.kind !== 'config-dir')) return {};
+  const { node, servers } = attachServers(db, engine, browser, ctx);
+  if (!servers.length) return {};
+  const json = mcpJson(node, servers, attach.format);
+  if (attach.kind === 'env-json') return { [attach.env]: JSON.stringify(json) };
+  const dir = path.join(homeDir(), 'mcp', sessionId);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'mcp-config.json'), JSON.stringify(json, null, 2) + '\n');
+  return { [attach.env]: dir };
+}
+
+/** Engine arguments that point each plugin MCP server at the shim, plus `metatrooper-browser` when the session needs the browser; no real command or secret appears. */
+export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: string, browser = false, ctx: AttachContext = {}): string[] {
+  const { node, servers } = attachServers(db, engine, browser, ctx);
   switch (engine.mcp_attach?.kind) {
     case 'claude-mcp-config-flag': {
       if (!servers.length) return [];
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, s.http
-        ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${shim}" headers "${s.args[1]}" "${s.args[2]}"` } : {}) }
+        ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${s.args[0]}" headers "${s.args[1]}" "${s.args[2]}"` } : {}) }
         : { command: node, args: s.args }]));
       fs.writeFileSync(file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
@@ -128,6 +158,14 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
         .filter((s) => !new RegExp(`^\\[mcp_servers\\.${s.name}\\]`, 'm').test(user))
         .flatMap((s) => s.http ? ['-c', `mcp_servers.${s.name}.url=${JSON.stringify(s.http.url)}`] : ['-c', `mcp_servers.${s.name}.command=${JSON.stringify(node)}`, '-c', `mcp_servers.${s.name}.args=${JSON.stringify(s.args)}`]);
     }
+    case 'args-template': {
+      const template = engine.mcp_attach.template ?? [];
+      const wantsUrl = template.some((t) => t.includes('{url}'));
+      return servers.filter((s) => Boolean(s.http) === wantsUrl && !s.http?.headers).flatMap((s) => {
+        const values: Record<string, string> = { name: s.name, node, shim: s.args[0], plugin: s.args[1] ?? '', server: s.args[2] ?? '', url: s.http?.url ?? '' };
+        return template.map((t) => t.replace(/\{(name|node|shim|plugin|server|url)\}/g, (_, k: string) => values[k]));
+      });
+    }
     default:
       return [];
   }
@@ -138,8 +176,8 @@ const CODEX_BLOCK = /^# metatrooper mcp: begin[^\n]*\n[\s\S]*?^# metatrooper mcp
 
 /** Deletes a session's per-session MCP and settings files. */
 export function removeSessionFiles(sessionId: string): void {
-  for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`]) {
-    try { fs.rmSync(path.join(homeDir(), 'mcp', name), { force: true }); } catch {}
+  for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`, sessionId]) {
+    try { fs.rmSync(path.join(homeDir(), 'mcp', name), { recursive: true, force: true }); } catch {}
   }
 }
 
@@ -150,7 +188,7 @@ export function sweepSessionFiles(db: DatabaseSync): void {
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
   for (const name of fs.readdirSync(dir)) {
     const s = get.get(name.split('.')[0]) as { state: string } | undefined;
-    if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { force: true });
+    if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
   }
 }
 

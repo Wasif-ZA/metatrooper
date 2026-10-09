@@ -63,10 +63,10 @@ function rebuildTable(db: DatabaseSync, schema: string, t: string, select: (col:
   for (const idx of schemaBlock(schema, new RegExp(`CREATE INDEX \\w+\\s+ON ${t} \\([^)]*\\);`, 'g'))) db.exec(idx);
 }
 
-/** Rebuilds session, comment and needs_you once when their CHECKs predate a host or kind schema.sql now allows. */
+/** Rebuilds session, comment, needs_you and plugin once when their CHECKs predate a host or kind schema.sql now allows. */
 export function allowSandbox(db: DatabaseSync): void {
   const sql = (t: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(t) as { sql: string } | undefined)?.sql ?? '';
-  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'uncommitted'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
+  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'uncommitted'"], ['plugin', "'registry-import'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
   if (!stale.length) return;
   const schema = fs.readFileSync(schemaFile, 'utf8');
   db.exec('PRAGMA foreign_keys = OFF');

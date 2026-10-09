@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { coreDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import type { EngineSpec } from '../engines/registry.ts';
-import { mcpAttachArgs, sweepSessionFiles } from '../plugins/mcp.ts';
+import { mcpAttachArgs, mcpAttachEnv, sweepSessionFiles } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
@@ -53,6 +53,7 @@ export function launchSession(
   let setup: string[] | null = null;
   let argv: string[];
   let promptDelivered: boolean;
+  let env: Record<string, string> = {};
   if (host === 'sandbox') {
     const layout = gitLayout(opts.cwd ?? opts.projectPath);
     if ('refusal' in layout) throw new RpcError(E.VALIDATION, layout.refusal);
@@ -68,6 +69,7 @@ export function launchSession(
     const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
+    env = mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval });
   }
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
@@ -78,7 +80,7 @@ export function launchSession(
   ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, nowIso(), nowIso());
   const cwd = opts.cwd ?? opts.projectPath;
   try {
-    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, process.env);
+    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env });
   } catch {
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
   }

@@ -28,6 +28,7 @@
     }
   },
   "$defs": {
+    "argv": { "type": "array", "items": { "type": "string" } },
     "engine": {
       "type": "object",
       "additionalProperties": false,
@@ -54,14 +55,60 @@
         },
         "state_source": { "enum": ["hooks", "notify", "file-activity", "process"] },
         "activity_glob": { "type": "string", "description": "Required when state_source is file-activity." },
+        "activity_waiting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["last_line_regex"],
+          "properties": { "file": { "type": "string" }, "last_line_regex": { "type": "string" } }
+        },
+        "trust": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "file", "at", "path_style"],
+          "properties": {
+            "kind": { "enum": ["json-map", "json-list", "toml-table"] },
+            "file": { "type": "string", "pattern": "^~/", "description": "Under the user's home." },
+            "at": { "type": "array", "items": { "type": "string" } },
+            "set": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+            "path_style": { "enum": ["posix", "windows", "windows-lower"] }
+          }
+        },
+        "approval_profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ask": { "$ref": "#/$defs/argv" }, "edits": { "$ref": "#/$defs/argv" },
+            "contained": { "$ref": "#/$defs/argv" }, "isolated": { "$ref": "#/$defs/argv" }
+          },
+          "description": "Arguments per approval level. isolated is shown on the install screen as acting without asking."
+        },
+        "ask_near_acu": { "type": "boolean" },
+        "settings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "set"],
+          "properties": {
+            "file": { "type": "string", "pattern": "^~/", "description": "Under the user's home." },
+            "set": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } }
+          }
+        },
+        "print_args": { "type": "array", "items": { "type": "string" }, "description": "Headless run; {prompt} is replaced." },
+        "sandbox": { "type": "object", "description": "Built-in engines only: how the trooper sandbox host installs and logs in the engine." },
         "mcp_attach": {
           "type": "object",
           "additionalProperties": false,
           "required": ["kind"],
           "properties": {
-            "kind": { "enum": ["claude-mcp-config-flag", "codex-config", "agy-config", "env-file", "none"] },
-            "path": { "type": "string" }
-          }
+            "kind": { "enum": ["claude-mcp-config-flag", "codex-config", "agy-config", "env-file", "env-json", "config-dir", "args-template", "none"] },
+            "path": { "type": "string" },
+            "env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$", "description": "env-json: variable that receives the JSON. config-dir: variable that receives the folder." },
+            "format": { "enum": ["mcpServers", "opencode-mcp"], "default": "mcpServers", "description": "Shape of the JSON written." },
+            "template": { "type": "array", "items": { "type": "string" }, "description": "args-template: per server; {name}, {node}, {shim}, {plugin}, {server}, {url}." }
+          },
+          "allOf": [
+            { "if": { "properties": { "kind": { "enum": ["env-json", "config-dir"] } } }, "then": { "required": ["env"] } },
+            { "if": { "properties": { "kind": { "const": "args-template" } } }, "then": { "required": ["template"] } }
+          ]
         },
         "roles": { "type": "array", "items": { "enum": ["research", "plan", "worker", "review", "verify", "visual-check"] }, "minItems": 1 },
         "cost_rank": { "type": "integer", "minimum": 1, "maximum": 10 },
