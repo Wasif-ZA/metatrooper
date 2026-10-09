@@ -117,6 +117,7 @@ export async function sources(input, get = fetchHtml) {
     }
   }
   flush();
+  if (index.length && !index.some((e) => e.pages.length)) throw new Error(`no site could be fetched: ${index.slice(0, 3).map((e) => e.errors[0]).join('; ')}`);
   return { out: input.out, prospects: index.length, with_pages: index.filter((e) => e.pages.length).length, pages: index.reduce((n, e) => n + e.pages.length, 0) };
 }
 
