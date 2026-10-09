@@ -1,5 +1,7 @@
 # UI revision status ledger
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Branch ui-revision, from m2 at b256909 (D20). Started 2026-10-02T20:28+10:00. Epic: issues/archive/ui-revision-epic.md,
 children issues/archive/33 to 38 (live stubs for 33, 35, 36, 38 in issues/). Status values as in M1-STATUS.md, plus NEEDS-WASIF for a render pick. Nothing filed on
 GitHub; filing and pushing are Wasif's.

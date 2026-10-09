@@ -1,5 +1,7 @@
 # Epic: UI port, the wall and the pipeline layouts
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Written 2026-10-05T13:11+11:00. Phases A to E. Status per phase: UI-STATUS.md, rows PORT-A to PORT-E.
 
 The approved screens become the workbench: the wall (spec.md, Workbench) and one layout per pipeline run from

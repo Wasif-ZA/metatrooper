@@ -668,6 +668,8 @@ Estimates are Claude Code days and were raised after the review said the first o
 
 ### Milestone 1: the core loop (about 28 CC days)
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 | # | Title | Effort | Depends on |
 |---|---|---|---|
 | 12 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
@@ -689,6 +691,8 @@ Then the **adoption gate**: 14 days of Wasif's daily use, measured by #22, befor
 
 ### Milestone 2: design and coding lanes (about 18 CC days)
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 | # | Title | Effort | Depends on |
 |---|---|---|---|
 | 23 | Inspiration board and `agent-reach` plugin | 1.5 | 13, 15, 17 |
@@ -703,6 +707,8 @@ Then the **adoption gate**: 14 days of Wasif's daily use, measured by #22, befor
 | sandbox-host | Trooper sandbox host plugin: container image, `--host sandbox` launcher path, read-only logins, agy keyring login, egress proxy, spool bridge, escape self-test | 3 | 12, 13, 15 |
 
 ### Milestone 3: every other lane (about 18.5 CC days)
+
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
@@ -727,6 +733,8 @@ and variants because both render through it. Milestone 2 waits for the adoption 
 core that has survived daily use; milestone 3 lanes are independent of each other.
 
 ### Milestone 4: improve what runs today (about 11.75 CC days)
+
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
 
 M1 is built and dogfooding has started (UI-01 still TODO). Three costs show up in daily use. Review steps tell
 agents to read whole source files. Agents rebuild things open-source tools already do. Small rough edges
@@ -842,6 +850,96 @@ Out of scope:
 - Later list, all gate passes, not built in M4: OpenSpec change-proposal handoff for plan steps, repomix
   `--compress` context packs, difftastic as a diff display, context7 and github-mcp-server as recommended
   MCPs, `anthropics/sandbox-runtime` (Apache-2.0) as a Docker-free option for sandbox-host.
+
+### Milestone 5: launch (about 31 CC days, freeze 2026-11-05, public 2026-12-01)
+
+M1 to M4 built a desk Wasif uses every day. M5 is what a stranger needs on 2026-12-01: a signed installer that works
+without Node, a first run that explains itself, Pro on sale, docs that match the app, a catalogue cut to what people
+asked for, and a way to plug in the tools teams already use. Specced 2026-10-09 under `/goal` while Wasif was away;
+open calls decided by Codex and Gemini (both chose A on all eleven, M5-D1 to M5-D11), money and account calls left
+to him (hand-back list below).
+
+Research behind it: `ide-layer-research/m5-demand.md` (what users ask for, with reaction counts),
+`ide-layer-research/m5-integrations-demand.md` (which tools, with install counts), the read-only launch audit in
+`issues/m5-00-rebaseline.md`, and a 50-repo-per-pipeline idea scan (17 pipelines, 850 READMEs read by the local
+model), distilled into M5-17 and into each preview pipeline's issue.
+
+#### Milestone 5 decisions
+
+| # | Decision | Chosen |
+|---|---|---|
+| M5-D1 | Pipelines at launch | 5 built-ins: spec-to-pr, spec-build-review-handback, two-engine-review, e2e-browser-qa, and the Pro pr-review-fix. 10 others ship as preview templates (files kept, runnable once added) |
+| M5-D2 | No-signal pipelines | prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf leave the gallery and the installer until someone asks; kept in the repo |
+| M5-D3 | Features with no demand signal | Inspiration board, variants grid, agent cursors and 12 of the 15 layouts are frozen as they are: no new work, no marketing, fixed only when they break a built-in |
+| M5-D4 | Linux | Source install, beta, at launch; packaged Linux in December |
+| M5-D5 | Sandbox host | Experimental flag, off by default; its three P0s are after launch |
+| M5-D6 | Default approval for a new user | `ask`, with a first-run choice of auto mode; an existing settings file keeps its value |
+| M5-D7 | ACU path rule | Becomes the setting `sessions.ask_paths`, empty by default; Wasif's settings carry his path |
+| M5-D8 | Integrations at launch | Remote MCP (M5-12), the importer shape fix (M5-13 step 1) and the outbound notification sink (M5-15). Engines as data, marketplace and registry importers and the issue trigger in January 2027 |
+| M5-D9 | Pro timing | Pro (M5-6, M5-7) is built before the freeze; the freeze covers it. Supersedes the money plan's "Exams" row |
+| M5-D10 | Tray and TOON | Cut: issue files archived, GitHub #41 closed as not planned |
+| M5-D11 | Hardening budget | The 5 built-ins are hardened in code (M5-17); preview pipelines get the scan's ideas in their issue files only |
+| M5-D12 | Packager | electron-builder, NSIS per-user. It is MIT but under the 25k-star gate, so it ships only after Wasif grants the exception, as xterm got one |
+| M5-D13 | MCP servers that write outside | A server marked `writes: external` never attaches to a pipeline-step session, and in interactive sessions only under profiles where the engine still asks per tool. Codex named it a missing call; this is the conservative reading of the gate rule |
+| M5-D15 | Where undone work lives | Wasif, 2026-10-09: every undone issue or spec item from M1 to M4 goes into M5 (launch). `issues/m5-00-rebaseline.md` lists each one as BLOCKER (ships 12-01) or M5 (after 12-01, still this milestone). M1 to M4 keep their history; their ledgers point here for anything open. Cut items (M5-D10, CUT rows) are not undone work |
+| M5-D14 | One instruction file | Added after Gemini named it as missing: each engine reads `AGENTS.md` when its own file is absent, through the engine's own flag, never by writing into the project (M5-19) |
+
+#### Milestone 5 children
+
+| # | Title | Issue file | Priority | Effort (CC days) | Depends on |
+|---|---|---|---|---|---|
+| M5-0 | Every undone M1 to M4 item, now M5 work (BLOCKER or M5 rows) | `issues/m5-00-rebaseline.md` | Mixed, per row | per row | per row |
+| M5-1 | Installer and bundled runtime | `issues/m5-01-installer.md` | Critical | 3.75 | M5-D12 |
+| M5-2 | Code signing | `issues/m5-02-signing.md` | Critical | 0.5 | M5-1, Wasif's pick |
+| M5-3 | First run, engine messages, safe default | `issues/m5-03-first-run.md` | Critical | 1.0 | none |
+| M5-4 | Logs | `issues/m5-04-logs.md` | High | 0.5 | none |
+| M5-5 | Linux source beta | `issues/m5-05-linux.md` | Medium | 0.5 | none |
+| M5-6 | Pro review and fix loop with proof gate | `issues/m5-06-pro-review-proof-gate.md` | Critical | 3.5 | M5-8 S5 |
+| M5-7 | Pro licence, trial, checkout | `issues/m5-07-pro-licence-checkout.md` | Critical | 2.5 | M5-6, Wasif's two decisions |
+| M5-8 | Launch security subset | `issues/m5-08-launch-security.md` | Critical | 2.0 | none |
+| M5-9 | Release gate, CI, versioning | `issues/m5-09-release-gate.md` | High | 1.75 | none |
+| M5-10 | Public docs, licences, privacy, ACU setting | `issues/m5-10-public-docs.md` | High | 2.5 | M5-3, M5-18 |
+| M5-11 | Site, waitlist, demo data | `issues/m5-11-site-and-demo.md` | High | 1.75 | M5-6 for the GIFs |
+| M5-12 | Remote MCP servers | `issues/m5-12-remote-mcp.md` | High | 3.0 | none |
+| M5-13 | Importer shape fix (step 1 only at launch) | `issues/m5-13-catalogue-importers.md` | High | 0.5 | M5-12 |
+| M5-14 | Engines as data | `issues/m5-14-engines-as-data.md` | M5, after 12-01 | 3.0 | none |
+| M5-15 | Notification sink (outbound) | `issues/m5-15-notification-sink.md` | Medium | 2.0 | none |
+| M5-16 | Issue trigger and gated write-back | `issues/m5-16-issue-trigger.md` | M5, after 12-01 | 2.5 | M5-14 |
+| M5-17 | Hardening the built-ins from the repo scan | `issues/m5-17-pipeline-hardening.md` | High | 4.6 | M5-9 |
+| M5-18 | Catalogue cut: built-ins, preview, unshipped | `issues/m5-18-catalogue-cut.md` | High | 0.5 | none |
+| M5-19 | One instruction file | `issues/m5-19-one-instruction-file.md` | Medium | 0.5 | none |
+
+Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 2.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
+0.5 + 4.6 (M5-17) = 31.35 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 31.35 is more than 27, so M5 fits
+only with parallel sessions and the slip rule below; Wasif's review hours are the limit, not Claude's. M5-14 and
+M5-16 are after launch and are re-scored by the Codex gate before anyone builds them.
+
+```
+M5-18 cut ──> M5-10 docs
+M5-8 security (S5 scan) ──> M5-6 Pro loop ──> M5-7 licence ──> M5-11 site and GIFs
+M5-1 installer ──> M5-2 signing ──> clean-machine run (M5-01a)
+M5-9 release gate ──> M5-17 hardening
+M5-12 remote MCP ──> M5-13 shape fix
+M5-3, M5-4, M5-5, M5-15, M5-19   (any time)
+```
+
+Why this order: the cut comes first because docs, gallery and hardening all depend on which pipelines ship. The
+secret scan comes before the Pro loop because Pro sends every diff to OpenAI and Google. The installer comes before
+signing because signing needs files to sign. The release gate comes before hardening because every hardening item
+adds tests and the suites must already run clean.
+
+Slip rule, decided now so it needs no meeting: on 2026-10-26, if fewer than half the Critical children are done,
+M5-15 and M5-19 move to January, then M5-12 and M5-13, then M5-5 to December. Critical children never move; the
+launch date moves instead.
+
+#### Milestone 5 hand-back (only Wasif)
+
+1. Certum or OSSign, and the account and identity check (M5-2). Nothing public ships before it.
+2. Pro code location and licence check model (M5-7), then the Lemon Squeezy store, product, tax and payout.
+3. Read the Anthropic, OpenAI and Google terms for automated runs and logo use (money plan rule).
+4. The packager exception (M5-D12) and what to scrub from the public repo (M5-10).
+5. A fresh Windows account with Smart App Control on, and a Linux box (M5-1, M5-5).
+6. On screen for the first real pr-review-fix run, one workday in the app (UI-01), the GIFs (M5-11).
 
 ## Acceptance criteria
 
@@ -1039,6 +1137,18 @@ criterion lives in its child's issue file.
   <day> --until <next day> --json` shows at least 5 sessions launched from the app and 1 completed pipeline
   run, and Wasif records in UI-STATUS any moment he left the app for an agent task (zero for a pass).
 
+### Milestone 5
+
+M5 is done when the acceptance criteria in the issue files of M5-1 to M5-13, M5-15, M5-17, M5-18 and M5-19 pass
+(minus any child the slip rule moved, which then counts under its new milestone), and these four hold:
+
+- M5-01a. A fresh Windows account with Smart App Control on and no Node installs the signed installer and starts a
+  claude agent within 30 s.
+- M5-06a and M5-06d. pr-review-fix counts a finding as fixed only with a passing proof and a clean rereview, on the
+  fixture and in one real run.
+- M5-07b. A test-mode purchase unlocks Pro.
+- M5-09a. `tests/release.ps1` passes twice in a row on the commit tagged `v0.1.0`.
+
 ## Testing
 
 The builder writes code; Codex writes the tests for #12, #15, #17 and sandbox-host (the parts others will trust), matching the
@@ -1114,7 +1224,7 @@ No terminal library, WebSocket library or native module is needed.
 - Running any lane on ACU projects.
 - Callrouter Plan B.
 - A visual node-graph editor.
-- macOS and Linux testing; the code stays portable, only Windows is tested.
+- macOS testing; the code stays portable. Linux is a source-install beta at launch and packaged in December (M5-D4).
 
 ## Related
 
