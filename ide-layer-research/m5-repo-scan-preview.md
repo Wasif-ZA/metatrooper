@@ -4,7 +4,10 @@ Written 2026-10-09. Each pipeline got four to twenty GitHub searches (`gh search
 most starred candidates had their README read by the local model (gemma4:12b, no cloud tokens), then a Haiku
 pass kept only the repos that do the pipeline's job or one of its steps' jobs, including tools a step could
 call or copy. Nothing here is built before launch (M5-D11); it is the idea bank for each lane when it leaves
-preview. The coding built-ins have their own scan in `m5-hardening-coding.md`.
+preview. For seven lanes (design-variants, deep-research-cited, data-to-dashboard, form-fill-batch,
+prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf) the last pass was Sonnet judging about 300
+search candidates each from their descriptions, reusing the README notes where they existed. The coding
+built-ins have their own scan in `m5-hardening-coding.md`.
 
 Where a lane has fewer than 40 relevant repos, the close-match space on GitHub ran out: the count is what
 survived the relevance check, never padded.
@@ -12,18 +15,18 @@ survived the relevance check, never padded.
 | Pipeline | READMEs read | Relevant repos |
 |---|---|---|
 | website-build | 50 | 44 |
-| design-variants | 145 | 29 |
+| design-variants | 190 | 41 |
 | docs-and-release-notes | 50 | 42 |
 | security-review-and-upgrade | 90 | 43 |
 | footage-to-edit | 90 | 47 |
 | clips-to-scheduled-posts | 50 | 45 |
 | seo-audit-fix | 50 | 42 |
-| deep-research-cited | 90 | 36 |
-| data-to-dashboard | 90 | 28 |
-| form-fill-batch | 90 | 21 |
-| prospect-list-to-drafts | 90 | 16 |
-| inbox-triage-drafts | 90 | 33 |
-| study-notes-to-pdf | 90 | 26 |
+| deep-research-cited | 190 | 40 |
+| data-to-dashboard | 124 | 41 |
+| form-fill-batch | 90 | 34 |
+| prospect-list-to-drafts | 190 | 40 |
+| inbox-triage-drafts | 190 | 40 |
+| study-notes-to-pdf | 90 | 39 |
 
 ## website-build
 
@@ -96,57 +99,67 @@ Dropped (off-topic or same job as another row): zhayujie/bot-on-anything, vuepre
 
 ## design-variants
 
-Relevant: 29 of 90.
-
 | repo | stars | licence | what it does | idea for which step |
-|---|---|---|---|---|
-| abi/screenshot-to-code | 80109 | mit | Turns screenshots, mockups and video into HTML/Tailwind/React/Vue with multi-model calls | variants (model fallback, asset reuse), polish (pixel check) |
-| onlook-dev/onlook | 26891 | apache-2.0 | Visual editor that maps UI elements to Next.js/Tailwind source and edits them with AI | variants (element-to-source map), polish (sandbox preview) |
-| emilwallner/Screenshot-to-code | 16534 | other | GRU model turning mockups into HTML/CSS (research code, last push 2024-08) | variants (reference only) |
-| DouyinFE/semi-design | 10406 | other | React UI library with design tokens and a Design-to-Code workflow | variants (component source), polish (a11y check) |
-| grab/cursor-talk-to-figma-mcp | 7047 | mit | MCP bridge that reads and writes Figma frames | directions (Figma input), polish (batch text edits) |
-| ZSeven-W/openpencil | 6105 | mit | AI vector design tool; designs stored as JSON .op files, parallel agent teams | variants (structured design file, parallel parts) |
-| leigest519/ScreenCoder | 3005 | apache-2.0 | Multi-agent screenshot to HTML/CSS: detect, map, generate | board (element detection), variants (layout mapping) |
-| Anionex/agent-vision-toolkit | 1218 | mit | Vision tools for text-only LLMs: UI restoration, long-screenshot OCR | board, variants (intent-aware read), polish (verify-then-act) |
-| mostafasadeghi97/design2code | 683 | mit | Design screenshot to responsive HTML/CSS/JS | variants |
-| gridaco/assistant | 618 | other | Figma to modular Flutter and React code | variants (component detection) |
-| Flame-Code-VLM/Flame-Code-VLM | 561 | apache-2.0 | Mockup to modular React via a vision-language pipeline | variants, pick (functional tests) |
-| narnia-sh/layrr | 267 | mit | Maps a clicked browser element to its source file and line | polish (targeted edits) |
-| s-smits/ui-screenshot-to-prompt | 236 | none listed | Screenshot to implementation prompt via OCR, OpenCV and an LLM | board (region slicing) |
-| JochenYang/luma-mcp | 116 | mit | Vision MCP server: OCR, UI analysis, debugging for text-only models | variants (tile large images), polish (task routing) |
-| intergalacticspacehighway/codesnap | 115 | none listed | macOS app turning UI screenshots into reusable components | variants |
-| Mrxyy/screenshot-to-page | 104 | none listed | Screenshot or sketch to web page across several LLMs | variants (sketch input) |
-| Leonxlnx/taste-skill | 93941 | mit | Agent skills that enforce type, spacing and motion rules against generic output | board (design-system map), polish (redesign audit) |
-| GLips/Figma-Context-MCP | 15966 | mit | Trims Figma API data to layout and style facts for agents | directions (Figma context) |
-| creativetimofficial/ui | 12076 | mit | shadcn-based component and block library | variants (block source) |
-| max-sixty/worktrunk | 9071 | other | CLI for git worktrees with hooks, for parallel agents | variants (one worktree per direction) |
-| superdesigndev/superdesign | 7077 | other | AI design agent: mockups and components from prompts, inside an IDE | variants (option count, preview) |
-| bernaferrari/FigmaToCode | 5217 | gpl-3.0 | Deterministic Figma to HTML/Tailwind/Flutter/SwiftUI converter that flags ambiguous nodes | variants (rule-based output), pick (warnings) |
-| benjitaylor/agentation | 4904 | other | Click-to-annotate UI feedback that outputs selectors and positions for agents | polish (mark regions), pick (structured notes) |
-| Manavarya09/design-extract | 4190 | mit | Extracts tokens, layout, motion and voice from a live site via headless browser | board (reference tokens), polish (contrast score, drift check) |
-| Jakubantalik/Libraries.dev | 4146 | mit | Copy-paste UI components for agents, with parameter prompts | variants (component prompts) |
-| nraiden/openv0 | 3955 | mit | Multi-pass generative UI constrained to a component library | variants (library-constrained), polish (repeat passes) |
-| JimLiu/baoyu-design | 4269 | mit | Design-engine skill with starter components and a preview-verify loop | variants (starter primitives), polish (verify loop) |
-| shadcn-ui/lint | 3141 | mit | Agent-first linter for design-system rules, with fix messages | polish (auto-fix styling), variants (contracts) |
-| southleft/figma-console-mcp | 2454 | mit | Bidirectional Figma API: extract, create and audit components | board (design-code parity), variants (component sets), polish (WCAG pass) |
+|---|---:|---|---|---|
+| abi/screenshot-to-code | 80,109 | mit | screenshot, mockup or video to HTML/Tailwind/React via several models | variants (model fallback, asset reuse), polish (pixel check) |
+| onlook-dev/onlook | 26,891 | apache-2.0 | visual editor mapping UI elements to Next.js/Tailwind source, AI edits | variants (element-to-source map), polish |
+| shadcn-ui/ui | 125,186 | mit | copy-in component registry with accessible defaults | variants (assemble from registry, not raw markup) |
+| magicuidesign/magicui | 22,521 | mit | copy-paste animated components and effects | variants (animated blocks) |
+| ibelick/motion-primitives | 6,495 | mit | animated UI primitives for React | variants (motion parts) |
+| seek-oss/playroom | 4,598 | mit | design with JSX against your own component library, many frames side by side | variants, pick (side-by-side frames) |
+| DouyinFE/semi-design | 10,406 | other | React design system with tokens and a design-to-code flow | variants (component source), polish (a11y) |
+| grab/cursor-talk-to-figma-mcp | 7,047 | mit | MCP bridge that reads and writes Figma frames | directions (Figma input), polish (batch text edits) |
+| GLips/Figma-Context-MCP | 15,966 | mit | trims Figma API data to layout and style facts for agents | directions (Figma context) |
+| southleft/figma-console-mcp | 2,454 | mit | two-way Figma API: extract, create and audit components | board (design-code parity), polish (WCAG pass) |
+| awdr74100/figwright | 995 | mit | two-way Figma MCP, design to framework-aware code and back | variants (code push back to design) |
+| ZSeven-W/openpencil | 6,105 | mit | AI vector design tool, JSON design files, parallel agent teams | variants (structured file, parallel parts) |
+| leigest519/ScreenCoder | 3,005 | apache-2.0 | multi-agent screenshot to HTML/CSS: detect, map, generate | board (region detection), variants (layout map) |
+| Anionex/agent-vision-toolkit | 1,218 | mit | vision tools for text-only models: UI restoration, long-screenshot OCR | board, variants (intent-aware read), polish |
+| mostafasadeghi97/design2code | 683 | mit | design screenshot to responsive HTML/CSS/JS | variants |
+| Flame-Code-VLM/Flame-Code-VLM | 561 | apache-2.0 | mockup to modular React via a vision-language pipeline | variants, pick (functional tests) |
+| narnia-sh/layrr | 267 | mit | maps a clicked browser element to its source file and line | polish (targeted edits) |
+| s-smits/ui-screenshot-to-prompt | 236 | none listed | screenshot to implementation prompt via OCR, OpenCV, LLM | board (region slicing) |
+| JochenYang/luma-mcp | 116 | mit | vision MCP: OCR and UI analysis for text-only models | variants (tile large images), polish |
+| Leonxlnx/taste-skill | 93,941 | mit | agent skills enforcing type, spacing and motion rules against generic output | board (design-system map), polish (redesign audit) |
+| creativetimofficial/ui | 12,076 | mit | shadcn-based component and block library | variants (block source) |
+| max-sixty/worktrunk | 9,071 | other | CLI for git worktrees with hooks, built for parallel agents | variants (one worktree and server per direction) |
+| superdesigndev/superdesign | 7,077 | other | AI design agent making mockups and components from prompts in the IDE | variants (option count, preview) |
+| bernaferrari/FigmaToCode | 5,217 | gpl-3.0 | deterministic Figma to HTML/Tailwind/Flutter converter, flags ambiguous nodes | variants (rule-based output), pick (warnings) |
+| benjitaylor/agentation | 4,904 | other | click-to-annotate UI feedback emitting selectors and positions for agents | pick (structured notes), polish |
+| breschio/drawbridge | 969 | other | browser design editor: click an element, comment, send to Claude Code or Cursor | pick (region comments), polish |
+| Manavarya09/design-extract | 4,190 | mit | extracts tokens, layout, motion and voice from a live site | board (reference tokens), polish (contrast, drift check) |
+| dembrandt/dembrandt | 3,619 | mit | extracts a site's design system (colours, type, spacing) into tokens | board (reference tokens) |
+| zanwei/design-dna | 1,917 | mit | turns reference UIs into quantified Design DNA JSON | board (numbers per reference), directions |
+| Railly/tinte | 624 | mit | compiles a reference identity into an agent plugin of tokens and rules | directions (identity file the variants obey) |
+| Jakubantalik/Libraries.dev | 4,146 | mit | copy-paste UI parts for agents with parameter prompts | variants (component prompts) |
+| nraiden/openv0 | 3,955 | mit | multi-pass generative UI constrained to a component library | variants (library-constrained), polish (repeat passes) |
+| JimLiu/baoyu-design | 4,269 | mit | design-engine skill with starter components and preview-verify loop | variants (starter primitives), polish (verify loop) |
+| shadcn-ui/lint | 3,141 | mit | agent-first linter for Tailwind design-system rules with fix messages | polish (auto-fix), variants (contracts) |
+| plugin87/ux-ui-agent-skills | 1,558 | mit | agent skills: DTCG tokens, 52 components, WCAG 2.2 checks | directions (token format), polish (WCAG) |
+| carmahhawwari/ui-design-brain | 893 | other | skill giving agents component best practice per UI part | directions, variants |
+| AnxForever/stylekit | 589 | mit | 148 curated visual styles with design tokens for AI-generated UI | directions (named style palette) |
+| hamen/material-3-skill | 1,457 | mit | Material Design 3 skill: 30+ components, tokens, theming | variants (one direction on a real system) |
+| IncomeStreamSurfer/AI-DESIGN-BENCHMARK | 35 | none listed | generates a UI component with several models and compares outputs | pick (model compare view) |
+| spatie/browsershot | 5,248 | mit | HTML to image or PDF through headless Chrome | board (reference renders), pick (thumbnails) |
+| design-tokens/community-group | 2,144 | other | the DTCG design-token file format spec | directions (one token format for all three) |
 
-Dropped (61): nexu-io/html-video, cirosantilli/china-dictatorship, skills/secure-code-game, study8677/awesome-architecture, riccardoperra/codeimage, gege-circle/.github, Commando-X/vuln-bank, 6551Team/claude-code-design-guide, perrypixel/10x-Tool-Calls, arturitu/the-delegation, proffesor-for-testing/agentic-qe, Hainrixz/open-carrusel, oncework/Codeexpander, matank001/cursor-security-rules, cirosantilli/china-dictatroship-7, morpheuslord/HackBot, Shreyas-29/luro-ai, huangjia2019/agent-design-patterns, haidrrrry/claude-remotion-skill (kept for footage), abusufyanvu/6S191_MIT_DeepLearning, Sfedfcv/redesigned-pancake, thehimel/cursor-rules-and-prompts, hypersocialinc/shots, Glade-tool/glade-mcp, HenryLach/taskplane, mRFWq7LwNPZjaVv5v6eo/cihna-dictattorshrip-8, panbinibn/OpenPacketFix_, Rizalcahdemak/akun-termux, Masudbro94/python-hacked-mobile-phone-, zhaixiansen1023-cpu/QR_Code_Scanner, SergioRibera/sss, zpc1314521/PCL2, P3GLEG/tauri-plugin-mcp, jddev273/windows-to-wsl2-screenshots, asgeirtj/system_prompts_leaks, systemdesign42/system-design-academy, deepset-ai/haystack, dyad-sh/dyad, plandex-ai/plandex, cobusgreyling/loop-engineering, trycompai/crm, deepseek-ai/3FS, firerpa/lamda, vynect/venom, KunAgent/Kun, ATH-MaaS/ComfyUI-Copilot, OpenBMB/AgentVerse, mvanhorn/cli-printing-press, Jakubantalik/transitions.dev, panaversity/learn-agentic-ai, David-patrick-chuks/Riona-AI-Agent, atopile/atopile, isjiamu/gzh-design-skill, dromara/liteflow, ombharatiya/ai-system-design-guide, AprilNEA/AChat, DingTalk-Real-AI/dingtalk-workspace-cli, CommandCodeAI/langui, Owl-Listener/designer-skills, Trystan-SA/claude-design-system-prompt, jau123/MeiGen-AI-Design-MCP
+Dropped notable (not relevant): shadcn-ui/ui peers (twbs/bootstrap, mui/material-ui, tailwindlabs/tailwindcss, mantinedev/mantine: libraries, not pipelines), emilwallner/Screenshot-to-code (2024 research code), intergalacticspacehighway/codesnap (macOS app), Mrxyy/screenshot-to-page, gridaco/assistant, terrazzoapp/terrazzo, southleft/story-ui, Owl-Listener/designer-skills, vercel/satori, bubkoo/html-to-image, 20+ small visual-regression repos (eliBenven/visual-qa-agent, lintlab/visual-regression-action; odiff already covers the diff step)
 
 ### Top ideas
 
-1. **variants**: Give the variants agent a component registry to assemble from, not raw markup. Source: creativetimofficial/ui (block registry), Jakubantalik/Libraries.dev (parameter prompts), nraiden/openv0 (library-constrained generation).
-2. **board**: Detect UI regions from the reference before any generation, and pass the list to each direction so all three start from the same layout map. Source: leigest519/ScreenCoder (element detection), s-smits/ui-screenshot-to-prompt (OCR and grid slicing).
-3. **variants**: Use worktree hooks so each direction's worktree installs and starts its own dev server when spawned, instead of a hand-run setup per variant. Source: max-sixty/worktrunk (hooks).
-4. **polish**: Lint the picked variant against design-system rules before the pick gate: reject arbitrary hex and px values and overrides of core component internals. Source: shadcn-ui/lint, with contrast scoring from Manavarya09/design-extract.
-5. **pick**: Let the reviewer click the exact region that needs change and send its selector to the polish step, instead of describing it in prose. Source: benjitaylor/agentation, with narnia-sh/layrr to map the click to a source line.
+1. **variants**: Give each direction a component registry to assemble from, not raw markup. Source: shadcn-ui/ui, creativetimofficial/ui, Jakubantalik/Libraries.dev, nraiden/openv0.
+2. **board**: Turn each reference into numbers (colours, type scale, spacing) and detect its regions once, then hand the same list to all three directions. Source: dembrandt/dembrandt, zanwei/design-dna, Manavarya09/design-extract, leigest519/ScreenCoder.
+3. **variants**: One worktree per direction, with hooks that install and start its own dev server. Source: max-sixty/worktrunk.
+4. **polish**: Lint the picked variant against design-system rules before the pick gate: no arbitrary hex or px, contrast scored. Source: shadcn-ui/lint, Manavarya09/design-extract, plugin87/ux-ui-agent-skills.
+5. **pick**: Let the reviewer click the exact region to change and send its selector to polish, not prose. Source: benjitaylor/agentation, breschio/drawbridge, narnia-sh/layrr.
 
 ### Hardening
 
-1. **variants**: Parallel variants collide on ports and env files. Give each worktree its own port and env. Source: max-sixty/worktrunk (environment isolation).
-2. **variants**: The model invents components, icons or imports that do not exist. Check every import against the registry and run a build before the variant goes to the pick gate. Source: nraiden/openv0 (validation pass), creativetimofficial/ui (peer-dependency checks), Jakubantalik/Libraries.dev (peer deps).
-3. **variants**: Reference screenshots have missing or placeholder images, so the variant ships placeholders. Detect them and swap in cropped source assets. Source: leigest519/ScreenCoder (placeholder detection), abi/screenshot-to-code (asset extraction).
-4. **variants**: Large or long reference screenshots exceed the model's input size and the request fails or truncates. Tile them with overlap and cap resolution first. Source: JochenYang/luma-mcp (multi-crop, compression), Anionex/agent-vision-toolkit (overlap merge in long-screenshot OCR).
-5. **polish**: The polish pass breaks the layout or drops hover and active states that the picked variant had. Compare before and after renders (the odiff step already exists) and check interactive states. Source: abi/screenshot-to-code (visual regression), Manavarya09/design-extract (motion fidelity, drift check).
+1. **variants**: Parallel variants collide on ports and env files. Give each worktree its own port and env. Source: max-sixty/worktrunk.
+2. **variants**: The model invents components, icons or imports that do not exist. Check every import against the registry and build before the pick gate. Source: nraiden/openv0, creativetimofficial/ui, shadcn-ui/ui.
+3. **variants**: Placeholder or missing images in the reference ship as placeholders. Detect them and swap in cropped assets. Source: leigest519/ScreenCoder, abi/screenshot-to-code.
+4. **variants**: Long reference screenshots exceed model input and truncate. Tile with overlap and cap resolution first. Source: JochenYang/luma-mcp, Anionex/agent-vision-toolkit.
+5. **polish**: The polish pass breaks layout or drops hover and active states. Compare before and after renders and check interactive states. Source: abi/screenshot-to-code, Manavarya09/design-extract.
 
 ## docs-and-release-notes
 
@@ -494,310 +507,372 @@ Dropped (off-topic or same job as another row): bamlab/flashlight, cablate/mcp-g
 
 ## deep-research-cited
 
-### Relevant repos (36)
-
 | repo | stars | licence | what it does | idea for which step |
 |---|---:|---|---|---|
 | assafelovic/gpt-researcher | 29,965 | apache-2.0 | sub-question decomposition, crawl, cited long-form report | decompose, draft |
-| dzhng/deep-research | 19,771 | mit | iterative query generation and refinement loop | sweep, depth |
+| dzhng/deep-research | 19,771 | mit | iterative query generation and refinement loop with rate-limit handling | sweep, depth |
 | nickscamara/open-deep-research | 6,294 | other | Firecrawl scraping plus reasoning model report | sweep, draft |
-| 54yyyu/zotero-mcp | 5,290 | mit | search, read and cite papers in Zotero | sweep |
-| Leonxlnx/unlazy | 3,876 | mit | depth-tree method and evidence gates | approve-plan, critic |
-| jordan-gibbs/hyperresearch | 3,809 | mit | adversarial audit, fact-check and source verification | critic, cite-check |
-| guy-hartstein/company-research-agent | 2,296 | apache-2.0 | LangGraph multi-agent, source-backed structured reports | draft |
-| AnotiaWang/deep-research-web-ui | 2,223 | none listed | verifies findings against source excerpts | cite-check |
-| HKUDS/Auto-Deep-Research | 1,749 | none listed | multi-step deep research on swappable LLMs | sweep, depth |
-| RUC-NLPIR/WebThinker | 1,470 | mit | searches, navigates pages, drafts report inside reasoning | depth, draft |
-| 917Dhj/DeepPaperNote | 1,164 | mit | extracts methods and evidence from papers into notes | depth |
-| NVIDIA-AI-Blueprints/deep-researcher-agent | 885 | apache-2.0 | citation-backed reporting backend | draft, cite-check |
-| Ayanami0730/deep_research_bench | 838 | apache-2.0 | evaluation benchmark for report quality | critics |
+| firecrawl/firecrawl | 189,733 | agpl-3.0 | web to clean markdown or JSON for agents, search and crawl | sweep (page fetch) |
+| unclecode/crawl4ai | 85,050 | apache-2.0 | LLM-friendly crawler returning clean markdown | sweep (page fetch) |
+| 54yyyu/zotero-mcp | 5,290 | mit | search, read and cite papers in a Zotero library | sweep |
+| openags/paper-search-mcp | 2,769 | mit | MCP and CLI to search and download papers from many academic sources | sweep (academic angle) |
+| blazickjp/arxiv-mcp-server | 3,202 | apache-2.0 | arXiv metadata and LaTeX section reading over MCP | sweep, cite-check (BibTeX from records) |
 | DeepXiv/deepxiv_sdk | 804 | mit | structured citations over academic papers | sweep |
-| qx-labs/agents-deep-research | 794 | apache-2.0 | Planner plus iterative gap-filling loops | decompose, depth |
-| firecrawl/open-researcher | 688 | none listed | split-view analysis with automatic citations | draft |
+| Leonxlnx/unlazy | 3,876 | mit | depth-tree method and evidence gates | approve-plan, critic |
+| jordan-gibbs/hyperresearch | 3,809 | mit | adversarial audit, fact-check and source verification in Claude Code | critic, cite-check |
+| Socialpranker/deepdive | 371 | mit | 12-phase research skill with a plan-review gate | decompose, approve-plan |
+| Weizhena/Deep-Research-skills | 2,319 | mit | outline then investigation with human gates | approve-plan |
 | mjasnikovs/pi-task | 142 | agpl-3.0 | fixed refine, research, grill, compose, critique stages | decompose, critics |
+| guy-hartstein/company-research-agent | 2,296 | apache-2.0 | LangGraph multi-agent, source-backed structured reports | draft |
+| AnotiaWang/deep-research-web-ui | 2,223 | none listed | verifies findings against source excerpts, cited report | cite-check |
+| RUC-NLPIR/WebThinker | 1,470 | mit | searches, navigates pages and drafts inside reasoning | depth, draft |
+| 917Dhj/DeepPaperNote | 1,164 | mit | extracts methods and evidence from one paper into notes | depth |
+| NVIDIA-AI-Blueprints/deep-researcher-agent | 885 | apache-2.0 | citation-backed reporting backend | draft, cite-check |
+| qx-labs/agents-deep-research | 794 | apache-2.0 | planner plus iterative gap-filling loops with caps | decompose, depth |
+| firecrawl/open-researcher | 688 | none listed | split-view analysis with automatic citations | draft |
 | damionrashford/RivalSearchMCP | 132 | mit | multi-source search with conflict detection | sweep, critic |
-| h4444433333/net-deep-research | 123 | mit-0 | source verification and structured evidence | cite-check |
-| Aryan-Pardeshi/DeepResearch_AI | 94 | mit | evidence-grounded report with human approval gates | approve-plan, draft |
-| extracurricular-ai/open-deep-research-with-web-ui | 73 | other | search engine fallbacks and parallel tasks | sweep |
-| zoharbabin/web-researcher-mcp | 65 | mit | web search, full-page reads, verified citations (MCP) | sweep, cite-check |
+| h4444433333/net-deep-research | 123 | mit-0 | source reputation grading and structured evidence | sweep, cite-check |
+| Aryan-Pardeshi/DeepResearch_AI | 94 | mit | evidence-grounded report with DOI resolution and approval gates | approve-plan, cite-check |
+| extracurricular-ai/open-deep-research-with-web-ui | 73 | other | search fallbacks, parallel tasks, SQLite trace | sweep (provider fallback, resume) |
+| zoharbabin/web-researcher-mcp | 65 | mit | web search, full-page reads, verified citations over MCP | sweep, cite-check |
 | wheattoast11/openrouter-deep-research-mcp | 55 | mit | parallel research with consensus-backed synthesis | critics |
 | LiXin97/agora-lab | 49 | apache-2.0 | adversarial meetings and paper-review gates | critics |
-| blurryface13/asteria-agent | 43 | apache-2.0 | literature review, report writing, citation tracking | draft |
 | wanshuiyin/Auto-claude-code-research-in-sleep | 17,163 | mit | cross-model review loops with automated verification | critics |
-| InternLM/MindSearch | 6,938 | apache-2.0 | multi-agent deep search and synthesis | sweep, draft |
-| synthetic-sciences/openscience | 3,950 | apache-2.0 | multi-agent research with human approvals | approve-plan |
 | SamurAIGPT/llm-wiki-agent | 3,612 | mit | contradiction detection across sources | critic |
-| blazickjp/arxiv-mcp-server | 3,202 | apache-2.0 | arXiv metadata and LaTeX section reading | sweep |
-| mshumer/OpenDeepResearcher | 2,791 | mit | loop decides when evidence is enough | depth |
-| Weizhena/Deep-Research-skills | 2,319 | mit | outline then investigation with human gates | approve-plan |
-| TIGER-AI-Lab/OpenResearcher | 1,259 | none listed | long-horizon research framework and trajectories | depth |
-| fastcrw/crw | 1,116 | agpl-3.0 | URL to clean markdown scraper | sweep |
-| fdarkaou/open-deep-research | 875 | mit | iterative search, scrape, markdown report | sweep, draft |
-| Johell1NS/browser-search | 529 | mit | SearXNG search tiers for browsing | sweep |
+| mshumer/OpenDeepResearcher | 2,791 | mit | loop decides when evidence is enough, drops duplicate URLs | depth, sweep |
+| Ayanami0730/deep_research_bench | 838 | apache-2.0 | benchmark rubric for report quality | critics (rubric) |
+| serenakeyitan/citation-check-skill | 251 | mit | lightweight citation validator skill | cite-check |
+| Liyan06/MiniCheck | 228 | apache-2.0 | small model that checks a claim against a grounding document | cite-check (support test) |
+| KRLabsOrg/verbatim-rag | 206 | mit | provenance-first RAG returning verbatim source spans | draft (quote spans), cite-check |
+| superwesleyhys-ux/factcircuit | 574 | mit | auditable claim-and-evidence verification loop | critic, cite-check |
+| BharathxD/ClaimeAI | 106 | mit | LangGraph fact-checker that splits text into verifiable claims | critics (claim split) |
+| ghoulr/opencode-websearch-cited | 246 | apache-2.0 | plugin giving LLM web search with citations | sweep |
+| Johell1NS/browser-search | 529 | mit | SearXNG search tiers for agent browsing | sweep (second provider) |
+| InternLM/MindSearch | 6,938 | apache-2.0 | multi-agent web search and synthesis | sweep, depth |
 
-Dropped (54): khoj-ai/khoj, virattt/dexter, Alibaba-NLP/DeepResearch, arc53/DocsGPT, MiroMindAI/MiroThinker, zilliztech/deep-searcher, netease-youdao/LobsterAI, SkyworkAI/DeepResearchAgent, agentset-ai/agentset, Xiangyue-Zhang/auto-deep-researcher-24x7, rohunvora/x-research-skill, opencrabs/opencrabs, zamalali/DeepGit, DavidZWZ/Awesome-Deep-Research, VectorSpaceLab/general-agentic-memory, heurist-network/heurist-agent-framework, Haervwe/open-webui-tools, Haohao-end/openagent, vanthree31/PaperLens, petermartens98/GPT4-LangChain-Internet-Research-Agent-App, ahwurm/localharness, dovvnloading/Graphlink, Yogapriya2512/A-Simple-Chatbot-, vincenzo-afk/Intelis-Agent, FlowLLM-AI/finance-mcp, affaan-m/ECC, bytedance/deer-flow, xbtlin/ai-berkshire, GaiZhenbiao/ChuanhuChatGPT, microsoft/RD-Agent, browseros-ai/BrowserOS, 0x4m4/hexstrike-ai, MervinPraison/PraisonAI, KunAgent/Kun, deepchecks/deepchecks, simonlin1212/TradingAgents-astock, yilewang/llm-for-zotero, simonlin1212/Vibe-Research, szczyglis-dev/py-gpt, VoltAgent/awesome-ai-agent-papers, zi-yue-1129/DATAGEN, MaliosDark/wifi-3d-fusion, OpenOSINT/OpenOSINT, scadastrangelove/awesome-ai-security-tools, MLSysOps/MLE-agent, WecoAI/aideml, NPC-Worldwide/npcpy, Pokee-AI/PokeeResearchOSS, agents-flex/agents-flex, z0m31en7/Uscrapper, Mariewelt/OpenChem, 0xK3vin/MegaMemory, CopilotKit/open-multi-agent-canvas, harshaneel/humanize
+Dropped notable (not relevant): khoj-ai/khoj, Alibaba-NLP/DeepResearch, MiroMindAI/MiroThinker, zilliztech/deep-searcher, SkyworkAI/DeepResearchAgent, bytedance/deer-flow, langchain-ai/langgraph, run-llama/llama_index, D4Vinci/Scrapling, apify/crawlee, virattt/dexter, arc53/DocsGPT, agentset-ai/agentset, 55 more general agent frameworks, RAG kits and unrelated deep-learning repos
 
 ### Top ideas
 
-1. draft: every claim must carry a verbatim quote and a source id, and uncited sentences are cut before cite-check (deep-research-web-ui maps each claim to a snippet; net-deep-research grades claims A/B/C/U).
-2. critic: flag numbers and dates that disagree across sources as a conflict list, not a silent pick (RivalSearchMCP conflict detection; llm-wiki-agent contradiction flags).
-3. sweep: attach a reliability grade to each saved source and filter by domain tier before depth (net-deep-research source reputation; web-researcher-mcp search lenses for trusted domains).
-4. cite-check: resolve each citation against authoritative metadata (DOI, arXiv id) before the quote check, so a made-up key fails early (arxiv-mcp-server BibTeX from arXiv records; DeepResearch_AI DOI resolution; zotero-mcp for the Zotero library).
-5. approve-plan: show the six plan items and the depth each needs, and do not search until approved (Deep-Research-skills outline gate; DeepResearch_AI human gates; pi-task grill step).
+1. **draft**: Every claim carries a verbatim quote and a source id; uncited sentences are cut before cite-check. Source: AnotiaWang/deep-research-web-ui, KRLabsOrg/verbatim-rag, h4444433333/net-deep-research.
+2. **critic**: List numbers and dates that disagree across sources as a conflict list, not a silent pick. Source: damionrashford/RivalSearchMCP, SamurAIGPT/llm-wiki-agent.
+3. **sweep**: Grade each saved source and filter by domain tier before depth. Source: h4444433333/net-deep-research, zoharbabin/web-researcher-mcp.
+4. **cite-check**: Resolve each citation against authoritative metadata (DOI, arXiv id) before the quote check, so a made-up key fails early; add an entailment test for "does the quote support the claim". Source: blazickjp/arxiv-mcp-server, Aryan-Pardeshi/DeepResearch_AI, Liyan06/MiniCheck, serenakeyitan/citation-check-skill.
+5. **approve-plan**: Show the six plan items and depth, and do not search until approved. Source: Weizhena/Deep-Research-skills, Socialpranker/deepdive, mjasnikovs/pi-task.
 
 ### Hardening
 
-1. sweep: rate limits and dead providers stop the run (dzhng/deep-research handles rate limits and concurrency; open-deep-research-with-web-ui and web-researcher-mcp fall back to a second search provider).
-2. depth and patch: the gap loop never ends on a hard query (qx-labs agents-deep-research caps iterations and time; OpenDeepResearcher's sufficiency check stops it; agora-lab watchdog breaks repeat cycles).
-3. draft and cite-check: a fabricated quote ships after the two patch rounds run out (hyperresearch blocks shipping when a quote fails; the pipeline should end the run with a visible failed-quote list, not a report).
-4. sweep and critic: syndicated copies of one article count as three sources (hyperresearch syndication audit de-weights repeats; OpenDeepResearcher drops duplicate URLs).
-5. sweep: a crash or timeout loses the whole run (open-deep-research-with-web-ui keeps the trace in SQLite; pi-task and agora-lab persist state per step, so a resume starts at the failed step).
+1. **sweep**: Rate limits and dead providers stop the run. Fall back to a second provider. Source: dzhng/deep-research, extracurricular-ai/open-deep-research-with-web-ui, Johell1NS/browser-search.
+2. **depth and patch**: The gap loop never ends on a hard query. Cap iterations and time, stop on a sufficiency check. Source: qx-labs/agents-deep-research, mshumer/OpenDeepResearcher, LiXin97/agora-lab.
+3. **draft and cite-check**: A fabricated quote ships after the patch rounds run out. End the run with a visible failed-quote list, not a report. Source: jordan-gibbs/hyperresearch, superwesleyhys-ux/factcircuit.
+4. **sweep and critic**: Syndicated copies of one article count as three sources. De-weight repeats and drop duplicate URLs. Source: jordan-gibbs/hyperresearch, mshumer/OpenDeepResearcher.
+5. **sweep**: A crash or timeout loses the whole run. Persist state per step so resume starts at the failed step. Source: extracurricular-ai/open-deep-research-with-web-ui, mjasnikovs/pi-task, LiXin97/agora-lab.
 
 ## data-to-dashboard
 
-### Relevant repos (28)
-
 | repo | stars | licence | what it does | idea for which step |
 |---|---:|---|---|---|
-| Canner/WrenAI | 17,827 | other | governed semantic layer for SQL and dashboards | plan, build |
-| dataease/SQLBot | 6,874 | other | NL to SQL Q&A with visualisation | plan |
-| Zafer-Liu/Data-Analysis-Agent | 2,613 | other | NL to SQL, charts and insights | plan, narrate |
-| zi-yue-1129/DATAGEN | 1,808 | mit | state-managed analysis and report writing | narrate |
-| helicalinsight/helicalinsight | 1,081 | agpl-3.0 | AI-assisted BI with dashboards | build |
-| datagallery-ai/dataagent | 785 | apache-2.0 | governed, auditable multi-step data workbench | qa |
-| zhongyu09/openchatbi | 666 | mit | NL to SQL, analysis and visualisation | plan |
-| Wilson-ZheLin/Streamline-Analyst | 491 | mit | cleaning and preprocessing pipeline | clean |
-| liangdabiao/claude-data-analysis | 441 | none listed | sub-agents for exploration, visuals and reports | clean, narrate |
-| surendranb/google-analytics-mcp | 242 | mit | schema-aware GA4 data access | load |
-| togethercomputer/open-data-scientist | 190 | mit | ReAct data exploration, code execution, report | plan |
-| ellie886/Datalume | 135 | none listed | deterministic pandas maths under LLM reasoning | qa, narrate |
-| VincenzoManto/Datacmd | 107 | mit | CSV/JSON to terminal dashboards | build |
-| Rimagination/easyplot | 89 | mit | publication-ready figures from R and Python | build |
-| Varn1t/EDAgent | 67 | none listed | automated EDA, cleaning and reporting | clean, qa |
-| metabase/metabase | 49,591 | other | BI dashboards (reference) | build |
-| antvis/mcp-server-chart | 4,393 | mit | 25+ chart types as an MCP server | build |
-| StructuredLabs/preswald | 4,268 | apache-2.0 | packages Python, DuckDB and UI into one browser file | build |
-| observablehq/framework | 3,660 | isc | static dashboards from data loaders | build |
-| getnao/nao | 1,739 | other | analytics agents with context engineering | plan |
-| rhiever/datacleaner | 1,078 | mit | missing values and categorical encoding | clean |
-| dbt-labs/dbt-charts | 554 | apache-2.0 | declarative YAML KPI and dashboard definitions | plan |
-| VisActor/VMind | 470 | mit | NL and CSV to interactive charts | build |
-| nshiab/simple-data-analysis | 356 | mit | chainable DuckDB clean and analyse API | clean, qa |
-| HKUSTDial/DataMagic | 298 | mit | data to narrated stories with recipe cards | narrate |
-| hustcc/mcp-echarts | 269 | mit | generate, validate and export ECharts specs | build, readback |
-| JasonObeid/Chart2Text | 161 | none listed | chart data to natural-language summaries | narrate |
-| JetBrains/databao-agent | 157 | other | NL to SQL, dataframes and Vega-Lite | plan, build |
+| Canner/WrenAI | 17,827 | other | governed text-to-SQL with an MDL semantic layer for agents | plan (KPI definitions), qa |
+| dataease/SQLBot | 6,874 | other | chat-to-data analysis with RAG over table schema | plan, qa |
+| metabase/metabase | 49,591 | other | open-source BI with questions, dashboards and embedding | build (dashboard layout reference) |
+| recharts/recharts | 27,617 | mit | React chart library on D3 | build (chart parts) |
+| plotly/plotly.js | 18,355 | mit | declarative JS charting with JSON chart specs | build (chart spec) |
+| pyecharts/pyecharts | 15,774 | mit | Python builder for ECharts specs | build |
+| Data-Centric-AI-Community/fg-data-profiling | 13,718 | mit | one-line data profiling report: types, missing values, outliers | load, qa |
+| mholt/PapaParse | 13,585 | mit | robust CSV parser, handles quotes and bad rows | load (parse errors listed) |
+| adaltas/node-csv | 4,281 | mit | streaming CSV parse and stringify for Node | load |
+| BdR76/CSVLint | 250 | gpl-3.0 | CSV validation with schema and type checks | load (header and type check) |
+| antvis/mcp-server-chart | 4,393 | mit | MCP server with 25+ chart types, checks data fit | build, readback (spec validation) |
+| hustcc/mcp-echarts | 269 | mit | MCP server generating ECharts with validation | build, readback |
+| observablehq/framework | 3,660 | isc | static site generator for data apps with precomputed snapshots | build (single static output) |
+| StructuredLabs/preswald | 4,268 | apache-2.0 | packages Python data apps into one WASM bundle | build (single-file export) |
+| nshiab/simple-data-analysis | 356 | mit | DuckDB-powered TypeScript steps for tabular data | clean (chainable steps) |
+| dbt-labs/dbt-charts | 554 | apache-2.0 | declarative YAML over SQL for dashboards, easy for agents | plan, build (spec validation) |
+| JetBrains/databao-agent | 157 | other | chat with your data through a semantic layer | plan |
+| holoviz/lumen | 316 | bsd-3-clause | agent turning questions into SQL, charts and dashboards | plan, build |
+| getnao/nao | 1,739 | other | analytics agent that builds context from a warehouse first | plan |
+| mprove-io/mprove | 338 | apache-2.0 | agentic BI over a Malloy semantic layer | plan |
+| datagallery-ai/dataagent | 785 | apache-2.0 | DataFoundry: AI workbench keeping the SQL trace, read-only access | qa (SQL trace), load |
+| zhongyu09/openchatbi | 666 | mit | chat BI with row caps and SQL guard | qa, readback |
+| togethercomputer/open-data-scientist | 190 | mit | data-science agent running code in Docker | build (sandbox) |
+| HKUSTDial/DataMagic | 298 | mit | table to narrated animated video, maps values to labels and units | readback, narrate |
+| VisActor/VMind | 470 | mit | intelligent chart generation, picks chart type from data | plan (chart choice) |
+| RamiAwar/dataline | 1,596 | gpl-3.0 | chat with CSV and databases, charts from answers | plan, build |
+| rhiever/datacleaner | 1,078 | mit | auto-clean tables: impute, encode, drop | clean (deterministic pass) |
+| Wilson-ZheLin/Streamline-Analyst | 491 | mit | LLM agent running clean, prep and analysis end to end | clean, plan |
+| Varn1t/EDAgent | 67 | none listed | multi-agent EDA with two-pass cleaning and top-correlation summaries | clean, plan |
+| ellie886/Datalume | 135 | none listed | data-analysis agent limited to whitelisted analysis functions | build (function whitelist), qa |
+| VincenzoManto/Datacmd | 107 | mit | raw data to terminal dashboards with header and type validation | load, build |
+| posit-dev/pointblank | 494 | mit | data validation toolkit with threshold reports | qa (declared checks) |
+| Quantco/dataframely | 619 | bsd-3-clause | declarative dataframe schema validation | load (schema drift) |
+| canimus/cuallee | 250 | apache-2.0 | DataFrame-agnostic quality check library | qa |
+| sqlpage/SQLPage | 2,574 | mit | SQL-only dashboards: a query becomes a page | build (alternative output) |
+| liangdabiao/claude-data-analysis | 441 | none listed | Claude Code data-analysis agent over CSV | plan, build |
+| melihbirim/csvql | 30 | mit | SQL over CSV files for agents | qa (recompute numbers) |
+| vizzuhq/vizzu-lib | 2,039 | apache-2.0 | animated charts and data stories | narrate (story order) |
+| JasonObeid/Chart2Text | 161 | none listed | generates plain-language explanations from charts | narrate |
+| manzt/quak | 411 | mit | scalable data profiler and table viewer | qa (look at the table) |
+| ubershmekel/gfilter | 9 | mit | cross-filter dashboard for any CSV | build (cross-filter idea) |
 
-Dropped (62): netease-youdao/LobsterAI, cirosantilli/china-dictatorship, gege-circle/.github, eosphoros-ai/DB-GPT-Hub, aipoch/medical-research-skills, DEEP-PolyU/Awesome-LLM-based-Text2SQL, LeonChaoX/qinyan-academic-skills, cfahlgren1/natural-sql, opengeos/GeoAgent, antgroup/Agentar-Scale-SQL, premAI-io/premsql, Din829/DbRheo-CLI, cirosantilli/china-dictatroship-7, Oft3r/agentic-trading-desk, Sfedfcv/redesigned-pancake, arunpshankar/LLM-Text-to-SQL-Architectures, Anaconda-Labs/building-intelligent-apps-with-anaconda, mRFWq7LwNPZjaVv5v6eo/cihna-dictattorshrip-8, panbinibn/OpenPacketFix_, pragunbhutani/dbt-llm-agent, Text2SqlAgent/text2sql-framework, colossus-lab/openarg_backend, oooscoos/Benzi, zpc1314521/PCL2, EimanTahir027/100-AI-Agents-independent-projects, czyt1988/data-workbench, AstraZeneca/cellatria, Satissss/LinkAlign, jaakla/openmapstack-skills, Yangjiaxi/Sense, cameronking4/shadcn-openai-plaid-dashboard, whitew1994WW/AgenticDataAnalysis, arkaloscom/arkalos, ruvnet/GenAI-Superstream, gsaini/financial-research-analyst-agent, pingcap/tidb, apache/doris, databendlabs/databend, Arcenox-co/TickerQ, spiceai/spiceai, relation-graph/relation-graph, RamiAwar/dataline, tirrenotechnologies/tirreno, uasoft-indonesia/badaso, AlgoTraders/stock-analysis-engine, mariusandra/insights, alishobeiri/thread-notebook, frappe/insights, Canner/vulcan-sql, metabase/dataset-generator, n2ns/antigravity-panel, SkyCascade/SkyLearn, AOEpeople/aoe_technology_radar, mprove-io/mprove, Vanszs/qwencloud-generator, widestage/widestage, thvroyal/kimi-skills, XternA/income-generator, admin-dashboards/react-dashboards, jortilles/EDA, sandbaseai/sandbase-skills, bearlike/REMS-For-Organisations
+Dropped notable (not relevant): pingcap/tidb, apache/doris, databendlabs/databend, spiceai/spiceai (databases), frappe/insights, mariusandra/insights, widestage/widestage, jortilles/EDA (full BI servers), antgroup/Agentar-Scale-SQL, premAI-io/premsql, cfahlgren1/natural-sql (text-to-SQL models), LobsterAI, GeoAgent, AstraZeneca/cellatria, 40 CSV parsers in other languages and unrelated plotting libs
 
 ### Top ideas
 
-1. plan: define each KPI once with its metric, filter and join in a semantic layer, and have build read only those definitions (WrenAI MDL semantic layer; dbt-charts declarative YAML; databao-agent).
-2. qa: recompute every headline number deterministically in SQL or pandas and compare it with the table, not with the LLM's own sum (Datalume deterministic pandas fallback; DataFoundry keeps the SQL trace for qa).
-3. clean: run a deterministic pre-cleaner for types, dates, currency and blanks, then let the LLM handle only the leftovers (EDAgent two-pass cleaning; datacleaner imputation; simple-data-analysis chainable DuckDB steps).
-4. build: emit the dashboard as one static, precomputed file, so readback opens a single page (preswald single-file export; Observable Framework precomputed snapshots).
-5. readback: validate each chart spec before rendering, and check the chart type fits the data (mcp-echarts validate; dbt-charts validate; mcp-server-chart checks categorical data for bar charts).
+1. **plan**: Define each KPI once (metric, filter, join) in a semantic layer; build reads only those definitions. Source: Canner/WrenAI, dbt-labs/dbt-charts, JetBrains/databao-agent, mprove-io/mprove.
+2. **qa**: Recompute every headline number deterministically in SQL or pandas and compare with the table, not with the model's own sum. Source: ellie886/Datalume, datagallery-ai/dataagent, melihbirim/csvql.
+3. **clean**: Deterministic pre-cleaner for types, dates, currency and blanks; the model sees only leftovers. Source: Varn1t/EDAgent, rhiever/datacleaner, nshiab/simple-data-analysis.
+4. **load**: Profile the CSV first (types, missing values, bad rows) and write the profile for qa to read. Source: Data-Centric-AI-Community/fg-data-profiling, mholt/PapaParse, BdR76/CSVLint.
+5. **readback**: Validate each chart spec and the chart type against the data before render. Source: hustcc/mcp-echarts, antvis/mcp-server-chart, dbt-labs/dbt-charts, VisActor/VMind.
 
 ### Hardening
 
-1. load and qa: the agent writes a destructive query (WrenAI and openchatbi need a SQL guard that blocks DROP and DELETE; DataFoundry enforces read-only credentials on load).
-2. clean: the raw table is too big for the context window and the agent loses rows (EDAgent passes only top correlations to the LLM; openchatbi caps rows returned to readback).
-3. build: model-written Python for charts runs on the host (open-data-scientist runs code in Docker; Datalume allows only a whitelist of analysis functions).
-4. load: the CSV changes shape between runs and the schema drifts (Data-Analysis-Agent validates schema before clean; Datacmd and preswald validate headers and types before build).
-5. readback: a screenshot looks right while the printed number is wrong (DataMagic maps data values to visual labels and units before render; compare parsed page numbers with the table value).
+1. **load and qa**: The agent writes a destructive query. Use read-only access and a SQL guard. Source: Canner/WrenAI, zhongyu09/openchatbi, datagallery-ai/dataagent.
+2. **clean**: The table is too big for context and rows are lost. Pass summaries, not rows, and cap rows returned. Source: Varn1t/EDAgent, zhongyu09/openchatbi.
+3. **build**: Model-written chart code runs on the host. Sandbox it or allow only whitelisted functions. Source: togethercomputer/open-data-scientist, ellie886/Datalume.
+4. **load**: The CSV changes shape between runs. Validate headers and types against a declared schema before clean. Source: Quantco/dataframely, posit-dev/pointblank, VincenzoManto/Datacmd.
+5. **readback**: A screenshot looks right while the printed number is wrong. Compare parsed page numbers with the table value and map values to labels and units. Source: HKUSTDial/DataMagic, canimus/cuallee.
 
 ## form-fill-batch
 
-### Relevant repos (21)
-
 | repo | stars | licence | what it does | idea for which step |
 |---|---:|---|---|---|
-| magnitudedev/browser-agent | 4,134 | apache-2.0 | vision-first browser agent that fills web forms | fill |
-| yinkaisheng/Python-UIAutomation-for-Windows | 3,585 | apache-2.0 | Python wrapper for Windows UI Automation | map, fill |
-| open-rpa/openrpa | 3,087 | mpl-2.0 | RPA platform with UI interaction and workflow | fill |
-| lahfir/agent-desktop | 1,779 | apache-2.0 | accessibility tree instead of pixels | map |
-| robocorp/rpaframework | 1,574 | apache-2.0 | Python RPA libraries for web and desktop | fill |
-| saucepleez/taskt | 1,369 | apache-2.0 | RPA with screen recording | fill |
-| AmrDab/clawdcursor | 403 | mit | accessibility tree plus OCR UI map (MCP) | map |
-| remorses/usecomputer | 337 | mit | screenshot and input CLI for agents | shot |
-| mrpulor-gh/nuphus-mcp | 322 | mit | screen control MCP server | fill |
-| congchuanling-dot/Cohort | 199 | mit | verifiable replays and tool-gate management | approve, confirm |
-| ThePacielloGroup/aviewer | 164 | apache-2.0 | inspects MSAA and UI Automation trees | map |
-| srikar-kodakandla/linkedin-easyapply-using-AI | 134 | apache-2.0 | LLM parses fields and fills application forms | map, fill |
-| sbroenne/mcp-windows | 108 | mit | Windows UI Automation by element name and state (MCP) | map, fill |
-| shanselman/FlaUI-MCP | 103 | mit | accessibility trees for Windows apps (MCP) | map, fill |
-| trycua/cua | 29,107 | mit | sandboxed desktops and screenshots | shot |
-| simular-ai/Agent-S | 12,567 | apache-2.0 | GUI agent framework (mouse, keyboard, screen) | fill |
-| pywinauto/pywinauto | 6,204 | bsd-3-clause | Windows GUI automation library | fill, confirm |
-| openai/openai-cua-sample-app | 1,889 | mit | computer-use loop with Playwright or PyAutoGUI | fill |
-| AMAP-ML/LongHorizon-Harness | 1,704 | mit | plan, act, independently verify loop | fill, shot |
-| mediar-ai/terminator | 1,652 | mit | deterministic steps plus AI recovery on Windows | fill |
-| a-real-ai/pywinassistant | 1,341 | mit | Windows UIA instead of vision or OCR | map, fill |
+| pywinauto/pywinauto | 6,204 | bsd-3-clause | Windows GUI automation in Python through the UIA tree | map, fill (set_focus, value set) |
+| yinkaisheng/Python-UIAutomation-for-Windows | 3,585 | apache-2.0 | Python wrapper of Microsoft UI Automation with ValuePattern, capture | map, fill, shot |
+| mediar-ai/terminator | 1,652 | mit | Playwright-style computer use for Windows with retries | fill (obscured-element retry) |
+| lahfir/agent-desktop | 1,779 | apache-2.0 | desktop control for agents with stable element references | map, fill (@id refs) |
+| sbroenne/mcp-windows | 108 | mit | MCP to control Windows apps by accessible element names | map, fill |
+| shanselman/FlaUI-MCP | 103 | mit | MCP for Windows through FlaUI and UI Automation, 30 s timeout | map, fill, confirm (get_text) |
+| remorses/usecomputer | 337 | mit | fast computer-automation CLI with window-scoped screenshots | shot |
+| openai/openai-cua-sample-app | 1,889 | mit | computer-using-agent sample with replay JSON and stuck-key release | fill, approve (replay log) |
+| AMAP-ML/LongHorizon-Harness | 1,704 | mit | long-horizon computer-use harness with verified-state checkpoints | approve (evidence), confirm |
+| congchuanling-dot/Cohort | 199 | mit | local agent runtime with controlled tools and acceptance contracts | confirm (acceptance check) |
+| AmrDab/clawdcursor | 403 | mit | compiles the screen into one UI map; kill switch, settle wait | map, fill (settle, stop switch) |
+| mrpulor-gh/nuphus-mcp | 322 | mit | desktop automation MCP: screen, mouse, keyboard | fill, shot |
+| OpenAdaptAI/OpenAdapt | 1,763 | mit | compiles a demonstrated GUI task into a program that reports VERIFIED only | map, confirm |
+| microsoft/skill-recorder | 4,211 | mit | records an on-screen work session into a reusable skill | map (record a first fill) |
+| beuaaa/pywinauto_recorder | 199 | mit | record and replay GUI actions through pywinauto | fill (replay) |
+| trycua/cua | 29,107 | mit | computer-use drivers, sandboxes and benchmarks | fill (sandbox for dry runs) |
+| Skyvern-AI/skyvern | 23,163 | agpl-3.0 | AI browser workflows including form fills | map, fill |
+| simular-ai/Agent-S | 12,567 | apache-2.0 | agentic framework using computers like a human | fill |
+| askui/python-sdk | 555 | mit | AI control of desktop and mobile UIs | fill |
+| robocorp/rpaframework | 1,574 | apache-2.0 | RPA libraries: Excel, desktop, browser | map (read the sheet), fill |
+| tebelorg/RPA-Python | 5,502 | apache-2.0 | Python RPA package with visual and DOM automation | fill |
+| iflytek/astron-rpa | 5,258 | apache-2.0 | agent-ready RPA suite | fill |
+| saucepleez/taskt | 1,369 | apache-2.0 | free RPA builder with Windows input actions | fill |
+| open-rpa/openrpa | 3,087 | mpl-2.0 | open RPA with record and replay on Windows | fill |
+| sandraschi/windows-computer-use-mcp | 41 | mit | 22 MCP tools for click and type on Windows | fill |
+| ThePacielloGroup/aviewer | 164 | apache-2.0 | inspector for the Windows accessibility tree | map (see field names) |
+| dm-vodopyanov/py_inspect | 27 | none listed | Inspect.exe analogue using pywinauto | map (see field names) |
+| awlevin/typesafe-computer-use | 1,208 | mit | OCR the screen, classify, act at tiny cost per step | shot, confirm |
+| a-real-ai/pywinassistant | 1,341 | mit | open-source Windows assistant driving apps through UIA | fill |
+| amruthvvkp/flaui-uiautomation-wrapper | 18 | gpl-3.0 | full FlaUI API for Python | map, fill |
+| botcity-dev/botcity-framework-core-python | 144 | apache-2.0 | BotCity Python RPA framework | fill |
+| clicknium/clicknium-docs | 161 | apache-2.0 | GUI automation for web and desktop apps | fill |
+| AhmadHassan-BTed/FormFilla | 249 | other | local-first extension filling forms from a stored profile | map (profile to field) |
+| Br1an67/OpenJobAutofill | 105 | mit | privacy-first AI form autofill extension | map |
 
-Dropped (69): AirtestProject/Airtest, firerpa/lamda, KunAgent/Kun, netease-youdao/LobsterAI, Pinvou/pinvou-agent, skalesapp/skales, test-zeus-ai/testzeus-hercules, wzyn20051216/solidworks-automation-skill, e2b-dev/surf, zsims/hunt-and-peck, joshuar/go-hass-agent, LeonGaoHaining/opencowork, PM-Shawn/Abu-Cowork, tikmatrix/tikmatrix-desktop, robiot/AlphaClicker, robotcodedev/robotcode, cosscom/shipyard, Sfedfcv/redesigned-pancake, bagidea/bagidea-office, dragonked2/alphacode, EDEAI/OpenFlux, winyunq/UnrealMotionGraphicsMCP, dddabtc/winremote-mcp, Astro-Han/pawwork, madebyaris/native-cli-ai, Dyan-Dev/loopi, ImGoodBai/goodable, LAVARONG/wechat-automation-api, DeepFundAI/ai-browser, YV17labs/GhostDesk, DatafyingTech/Claude-Agent-Team-Manager, tfreitasleal/sharpRPA, sahajamit/promptwright, ceilf6/FrontAgent, michaljach/opencode-browser, zSynctic/AutoClicker, NanmiCoder/cc-haha, nanobrowser/nanobrowser, ntegrals/openbrowser, microsoft/fara, the-open-agent/openagent, Anil-matcha/open-dots, Marker-Inc-Korea/AutoRAG, yuruotong1/autoMate, TurixAI/TuriX-CUA, feder-cr/invisible_playwright_mcp, e2b-dev/open-computer-use, Hello-Mr-Crab/pywechat, szczyglis-dev/py-gpt, showlab/computer_use_ootb, showlab/ShowUI, trycua/acu, ghostwright/ghost-os, hyperbrowserai/HyperAgent, tinyfish-io/agentql, chen0416ccc-cpu/codex-windows-fast-patch-skill, OpenGVLab/ScaleCUA, kerpopule/hermes-jev-skills, vinyzu-archive/Botright, kangoka/tiktodv3, abshkbh/arrakis, itbrowser-net/undetectable-fingerprint-browser, xlang-ai/OpenCUA, suitedaces/computer-agent, agent-sh/computer-use-linux, oxylabs/agent-browser, techinz/playwright-captcha, noCaptchaAi/NoCaptcha-Ai-Browser-Extension, maximedrn/opensea-automatic-bulk-upload-and-sale
+Dropped notable (not relevant): SeleniumHQ/selenium, chromedp/chromedp, webdriverio, Skyvern peers (nanobrowser, HyperAgent, agentql: browser only), captcha tools (techinz/playwright-captcha, noCaptchaAi, EzSolver, Botright: not to be copied), stealth browsers (camofox, invisible_playwright), 60 desktop-agent shells and Windows tweak scripts
 
 ### Top ideas
 
-1. map: read the window's UI Automation tree and match each sheet column to a field by its accessible name, not by position on screen (sbroenne/mcp-windows element names; FlaUI-MCP windows_snapshot; pywinauto backend='uia').
-2. fill: set values through the element's value pattern or a stable element reference, and fall back to typing only when neither works (Python-UIAutomation ValuePattern; agent-desktop @id references; FlaUI ref selection).
-3. shot: capture the form window alone for each row, so the approve gate sees the same thing the submit will send (usecomputer window-scoped screenshots; Python-UIAutomation CaptureToImage).
-4. confirm: read every field back from the UI tree after fill and diff it against rows.json before the batch gate (FlaUI windows_get_text; Cohort acceptance-contract check).
-5. fill and approve: write a replay log of every action and screenshot per row, so the batch approval has evidence to inspect (openai-cua-sample-app replay JSON; LongHorizon-Harness verified-state checkpoints).
+1. **map**: Read the window's UI Automation tree and match each sheet column to a field by accessible name, not screen position. Source: sbroenne/mcp-windows, shanselman/FlaUI-MCP, pywinauto/pywinauto, ThePacielloGroup/aviewer.
+2. **fill**: Set values through the element's value pattern or a stable reference; type only as a fallback. Source: yinkaisheng/Python-UIAutomation-for-Windows, lahfir/agent-desktop.
+3. **shot**: Capture the form window alone per row so the approve gate sees what submit will send. Source: remorses/usecomputer, yinkaisheng/Python-UIAutomation-for-Windows.
+4. **confirm**: Read each field back from the UI tree after fill and diff against rows.json before the batch gate. Source: shanselman/FlaUI-MCP, congchuanling-dot/Cohort, OpenAdaptAI/OpenAdapt.
+5. **fill and approve**: Write a replay log of every action and screenshot per row as batch evidence; offer a recorded first fill as a template. Source: openai/openai-cua-sample-app, AMAP-ML/LongHorizon-Harness, microsoft/skill-recorder.
 
 ### Hardening
 
-1. captcha: the agent tries to get past a captcha instead of stopping. Keep the pipeline's hand-off to you; do not copy the captcha-solving repos (nuphus OCR and mcp-windows fallbacks are detection aids only, not solvers).
-2. fill: a modal dialog hangs the call forever (FlaUI-MCP sets a 30 second timeout; Python-UIAutomation Exists(timeout) waits for an element before acting).
-3. fill: keystrokes land in the wrong window after focus moves (pywinauto set_focus before typing; Python-UIAutomation SetTopmost; record the window handle per row in rows.json).
-4. map and fill: a stuck key or a crashed loop leaves input held down (openai-cua-sample-app releases stuck keys after a crash; clawdcursor adds a kill switch and status banner you can use to stop the run).
-5. shot and fill: the UI is still settling when the check runs (clawdcursor waits a settle window before verifying; terminator recovers from obscured elements with retries).
+1. **captcha**: The agent tries to get past a captcha. Keep the hand-off to you; use detection only, never solver tools. Source: nuphus-mcp and mcp-windows detection aids (do not copy techinz/playwright-captcha).
+2. **fill**: A modal dialog hangs the call. Use call timeouts and wait-for-element. Source: shanselman/FlaUI-MCP, yinkaisheng/Python-UIAutomation-for-Windows.
+3. **fill**: Keystrokes land in the wrong window after focus moves. Set focus and record the window handle per row. Source: pywinauto/pywinauto, yinkaisheng/Python-UIAutomation-for-Windows.
+4. **fill**: A stuck key or crashed loop leaves input held down. Release keys on crash and keep a kill switch. Source: openai/openai-cua-sample-app, AmrDab/clawdcursor.
+5. **shot and fill**: The UI is still settling when the check runs. Wait a settle window and retry obscured elements. Source: AmrDab/clawdcursor, mediar-ai/terminator.
 
 ## prospect-list-to-drafts
 
-### Relevant repos (16)
-
 | repo | stars | licence | what it does | idea for which step |
 |---|---:|---|---|---|
-| asiifdev/business-leads-ai-automation | 211 | mit | AI outreach content for prospects | write |
-| PaulleDemon/Email-automation | 180 | other | Jinja2-personalised cold email campaigns | write, drafts |
-| ethanplusai/harvey | 103 | mit | researches prospects and writes cold emails | hook, write |
-| getaero-io/gtm-eng-skills | 65 | mit | lead enrichment waterfall skills | sources, hook |
-| Atum246/keelead | 37 | mit | 62 data sources and email verification | sources, check |
-| NightTrek/mistral-backlinker | 21 | none listed | contact scrape, company research, sales emails | sources, hook |
-| SARAN-KUMAR-S/COLD-EMAIL-GENERATOR | 15 | mit | personalised emails with vector-stored context | write |
-| austinchennn/cold-email | 13 | other | research recipients, tailored emails, Gmail | hook, drafts |
-| hitb1099/outreach-os | 12 | mit | discovery, scoring and follow-up sequences | load |
-| dancolta/trustpilot-outreach-automation | 12 | none listed | reviews turned into drafts through an outreach profile | hook, write |
-| outreachmagic/outreachmagic | 11 | mit | outbound data layer and email verification | check |
-| alphaparkinc/genpark-sales-email-personalization-engine-skill | 9 | none listed | personalised cold outreach engine | write |
-| 434media/bizdev-agent | 9 | none listed | scrapes company sites into a CRM | sources |
-| alphaparkinc/genpark-cold-outreach-deliverability-spam-sanitizer-skill | 8 | none listed | checks outreach copy against spam filters | check |
-| alexandertiopan1212/AI_Email_Crafter | 6 | none listed | personalised outreach saved as Gmail drafts | drafts |
-| SnehaDeshmukh28/SmartEmail-Personalizer-Agent | 5 | none listed | CSV to personalised emails | write |
+| ethanplusai/harvey | 103 | mit | autonomous sales agent on Claude CLI: prospects, cold emails, costed research | hook, write, approve-spend |
+| Cold-IQ/ColdIQ-s-GTM-Skills | 296 | none listed | Claude Code GTM skills: sales triggers and email templates | hook, write |
+| getcargohq/cargo-skills | 19 | mit | GTM skills for agents: build lead lists, find and verify emails | load, check |
+| emelia-io/claude-outreach | 17 | mit | B2B outreach skill with sub-skills and sub-agents | write, check |
+| getaero-io/gtm-eng-skills | 65 | mit | skills for waterfall email enrichment and identity validation | sources, hook, check |
+| Othmane-Khadri/gtm-engineer-playbook | 58 | mit | 10 Claude Code skills for GTM work | hook, write |
+| outreachmagic/outreachmagic | 11 | mit | unified data layer for agents: research leads, verify emails | sources, check |
+| hunter-io/claude-plugin | 8 | mit | Hunter plugin: find and verify professional emails | check (verify) |
+| hitb1099/outreach-os | 12 | mit | AI outreach with lead scoring, status states, personalised email | load, drafts (state per row) |
+| austinchennn/cold-email | 13 | other | multi-agent cold-email pipeline with SQLite sent tracking, backoff | sources, drafts (dedupe) |
+| PaulleDemon/Email-automation | 180 | other | open-source cold outreach tool with Jinja2 rendering | write, check (undefined vars) |
+| dancolta/trustpilot-outreach-automation | 12 | none listed | signal-based outbound from low reviews, staggered requests | hook (public signal), sources |
+| 434media/bizdev-agent | 9 | none listed | prospect research to sales email, timeouts and UA rotation | sources, hook |
+| alexandertiopan1212/AI_Email_Crafter | 6 | none listed | personalised email drafts saved as drafts, never sent | write, drafts |
+| alphaparkinc/genpark-cold-outreach-deliverability-spam-sanitizer-skill | 8 | none listed | sanitises cold copy for spam triggers and length | check (lint) |
+| alphaparkinc/genpark-waterfall-enrichment-orchestrator-skill | 8 | none listed | multi-provider enrichment waterfall skill | sources |
+| alphaparkinc/genpark-sales-email-personalization-engine-skill | 9 | none listed | flags hallucinated personalisation in sales email | check |
+| AfterShip/email-verifier | 1,636 | mit | email verification without sending: syntax, MX, disposable, role | load, check |
+| truemail-rb/truemail | 1,284 | mit | configurable email validator with MX and SMTP levels | load, check |
+| umuterturk/email-verifier | 609 | mit | privacy-first email verifier | check |
+| buyukakyuz/email-sleuth | 426 | mit | finds and verifies professional emails from names and domains | sources, check |
+| Atum246/keelead | 37 | mit | lead engine over 62 sources with multi-layer email verification | sources, check |
+| debpalash/OpenGTM | 42 | other | self-hosted Clay alternative: sourcing and enrichment waterfalls | sources |
+| masteranime/enrichment-kit | 40 | mit | multi-vendor enrichment waterfall, bring your own keys | sources |
+| firecrawl/fire-enrich | 1,276 | mit | AI enrichment turning emails into rich company data | sources, hook |
+| kaymen99/sales-outreach-automation-langgraph | 399 | none listed | LangGraph lead research, qualification and outreach | hook, write |
+| adityajha2005/yc-outreach | 162 | mit | pick a batch, get founders, write personalised cold emails | hook, write |
+| LeadGrowGTM/poke-the-bear-skill | 4 | other | cold email method (Poke the Bear) as a Claude Code skill | write (style rules) |
+| BayramAnnakov/lead-qualification-plugin | 22 | none listed | Claude Code plugin scoring lead fit | load (skip poor fits) |
+| NightTrek/mistral-backlinker | 21 | none listed | AI agents research a company then write a personalised email | hook, write |
+| iPythoning/b2b-sdr-agent-template | 190 | mit | AI SDR template with a staged sales pipeline | write, check |
+| rqcai200/lead-enrichment-scoring | 24 | mit | cheap lead enrichment and scoring | load |
+| jannismoore/lead-finder | 19 | mit | find and enrich leads with AI | sources |
+| clawnify/OpenProspector | 12 | mit | open Clay alternative to find and enrich B2B leads | sources |
+| LeadMagic/leadmagic-n8n | 11 | mit | n8n node for email finding, validation and company data | check |
+| apifyforge/waterfall-contact-enrichment | 4 | mit | waterfall contact finder that stops at first hit | sources (cost) |
+| D4Vinci/Scrapling | 86,442 | bsd-3-clause | adaptive scraping framework, survives page changes | sources (site fetch) |
+| gosom/google-maps-scraper | 6,338 | mit | extracts business name, address, site from Google Maps | load (list source) |
+| dmitriiweb/extract-emails | 111 | mit | extract emails and social links from URLs | sources |
+| attentiontech/gtm-superintelligence | 93 | apache-2.0 | open GTM intelligence and automation | hook |
 
-Dropped (74): omkarcloud/google-maps-scraper, Mahanaicoach/google-maps-scraper-kit, kiryano/Scout, Madi-S/Lead-Generation, worldscraping/google-maps-scraper, linkdAPI/linkedin-leads-discover, eeshsaxena/outreach-emails, prantikmedhi/b2b-leads-ai, LLMbreaker/awesome-ai-sales-tools, muzammildafedar/udayah, openmindsclub/algeria-b2b-lead-scraper, Schlaflied/job-autopilot, avayabaniya/job-cd, PatrykIA/High_Lead_Generation_Automation_Tool, eyobbokru/Lead-generation-linkedin, Anmol-Baranwal/hndigest, GiacomoSaccaggi/getmailsfromPagineGialle, akahappygit/AI-Lead-Voice-Automation, codiebyheaart/sales-lead-scraper-tool, SURESHBEEKHANI/Cold-Email-Automations, williamswarren/LinkedIn-Web-Scraper, FenrirDWolf/Google-Map-Scraper, badroumari/linkedin_email_scraper, abhiram0709/Cold-Mail-Automation-Using-N8N-With-Brevo-CRM, IJustWantAJob/outbound-email-automation, aniket1251/outly, ipushin/Scraping-and-Analysing-real-estate-transactions, jessjohn1539/Google-Maps-Lead-Scraper-using-Selenium, Shaamiilll/startup-india-scraper, awais2iv/Social-Lead-Automation, api-evangelist/gojiberry-ai, ndpvt-web/ai-sales-agent-simulator, avrtt/mailman, Danish08654/AI-Sales-Intelligence-System, frappe/erpnext, nocobase/nocobase, krayin/laravel-crm, illacloud/illa-builder, trycompai/crm, idurar/idurar-erp-crm, Dolibarr/dolibarr, gosom/google-maps-scraper, openblocks-dev/openblocks, SuiteCRM/SuiteCRM, joeyism/linkedin_scraper, melgarafael/DeskcommCRM, speedyapply/JobSpy, frappe/crm, espocrm/espocrm, eracle/OpenOutreach, ONLYOFFICE/CommunityServer, InvoicePlane/InvoicePlane, metasfresh/metasfresh, Django-CRM/Django-CRM, Bottelet/DaybydayCRM, WuKongOpenSource/Wukong-AICRM, open-mercato/open-mercato, relaticle/relaticle, dwijitsolutions/laraadmin, WebVella/WebVella-ERP, asyraffff/Open-Source-Ruby-and-Rails-Apps, apache/ofbiz-framework, oroinc/crm-application, directus-labs/agency-os, ChurchCRM/CRM, elm1nst3r/GHOST-osint-crm, josephlimtech/linkedin-profile-scraper-api, graniet/operative-framework, linvo-io/linvo-scraper, linkedtales/scrapedin, ScrapingBee/google-reviews-scraper, mishakorzik/MailFinder, Taoviqinvicible/Tools-termux, austinoboyle/scrape-linkedin-selenium
+Dropped notable (not relevant): eracle/OpenOutreach (LinkedIn bot), kiryano/Scout, speedyapply/JobSpy, LinkedIn scrapers (joeyism/linkedin_scraper, linvo-io/linvo-scraper: terms risk), twentyhq/twenty and 15 CRMs (frappe/crm, SuiteCRM, espocrm), omkarcloud/google-maps-scraper and 9 Maps scraper clones, SES and Laravel sender platforms
 
 ### Top ideas
 
-1. hook: pick prospects whose own page shows a checkable gap (missing schema, stale blog, empty team page) before writing, so the one fact is real (harvey signal filters; gtm-eng-skills signal discovery).
-2. sources: run a provider waterfall with dedupe, falling to a second provider only when the first returns nothing (gtm-eng-skills provider waterfall; keelead multi-source aggregation).
-3. check: verify each contact's domain (MX record) and drop disposable or dead domains before any draft is written (keelead MX and disposable-email layers; outreachmagic waterfall verification).
-4. check: run a deterministic lint on every email before the LLM check: under 100 words, no unfilled braces, no spam trigger words (genpark deliverability sanitizer; PaulleDemon Jinja2 rendering to catch undefined variables).
-5. drafts: give each prospect a state (Pending, Drafted, Saved) so a re-run skips finished rows (outreach-os status state machine; austinchennn SQLite sent tracking; AI_Email_Crafter saves as Draft, never Send).
+1. **hook**: Pick prospects whose own page shows a checkable gap (missing schema, stale blog, empty team page) so the one fact is real. Source: ethanplusai/harvey, getaero-io/gtm-eng-skills, dancolta/trustpilot-outreach-automation.
+2. **sources**: Provider waterfall with dedupe, stopping at the first hit to save cost. Source: getaero-io/gtm-eng-skills, apifyforge/waterfall-contact-enrichment, debpalash/OpenGTM.
+3. **check**: Verify each contact's domain (MX, disposable, role address) before any draft is written. Source: AfterShip/email-verifier, truemail-rb/truemail, Atum246/keelead.
+4. **check**: Deterministic lint on every email before the model check: under 100 words, no unfilled braces, no spam triggers. Source: alphaparkinc genpark deliverability sanitizer, PaulleDemon/Email-automation.
+5. **drafts**: Give each prospect a state (Pending, Drafted, Saved) so a re-run skips finished rows. Source: hitb1099/outreach-os, austinchennn/cold-email, alexandertiopan1212/AI_Email_Crafter.
 
 ### Hardening
 
-1. sources: sites rate-limit or block the fetch (trustpilot-outreach staggers requests at randomised intervals; austinchennn uses exponential backoff; bizdev-agent rotates user agents and sets timeouts).
-2. write: the email invents a detail about the prospect (genpark personalisation flags hallucinated facts; gtm-eng-skills checks the right person and company before drafting).
-3. hook: the wrong person or company gets the email (gtm-eng-skills identity validation; check the persona and title match before write).
-4. drafts: a second run duplicates drafts in Gmail (outreach-os and austinchennn record sent or drafted status; check Gmail for an existing draft by recipient before create).
-5. load and approve-spend: a huge list burns the lookup budget (harvey shows a costed estimate before heavy research; cap pages per site with the max_pages input and show the count at the gate).
+1. **sources**: Sites rate-limit or block the fetch. Stagger requests and back off. Source: dancolta/trustpilot-outreach-automation, austinchennn/cold-email, 434media/bizdev-agent.
+2. **write**: The email invents a detail about the prospect. Flag any claim not in the fetched page. Source: alphaparkinc genpark personalisation engine, getaero-io/gtm-eng-skills.
+3. **hook**: The wrong person or company gets the email. Validate persona, title and domain match. Source: getaero-io/gtm-eng-skills, Cold-IQ/ColdIQ-s-GTM-Skills.
+4. **drafts**: A second run duplicates Gmail drafts. Record state per row and check for an existing draft by recipient. Source: hitb1099/outreach-os, austinchennn/cold-email.
+5. **load and approve-spend**: A huge list burns the lookup budget. Show a costed estimate and cap pages per site at the gate. Source: ethanplusai/harvey, apifyforge/waterfall-contact-enrichment.
 
 ## inbox-triage-drafts
 
-### Relevant repos (33)
-
 | repo | stars | licence | what it does | idea for which step |
 |---|---:|---|---|---|
-| elie222/inbox-zero | 12,435 | other | AI email organisation, drafting and filtering | classify, draft |
-| cloudflare/agentic-inbox | 8,231 | apache-2.0 | self-hosted email client with agent drafting | draft, drafts |
-| herald-email/herald-mail-app | 144 | other | terminal mail client with AI triage | classify |
-| AgriciDaniel/claude-email | 130 | mit | AI triage and copywriting suite | classify, draft |
-| fazlerocks/jevmail | 93 | mit | sorts Gmail into trays by category | classify |
-| jacob-dietle/Autonomous-Sales-Inbox-and-CRM-Assistant | 55 | agpl-3.0 | classifies mail and drafts brand-consistent replies | classify, draft |
-| Ha22yX/auto-email-system | 51 | mit | triage, summary and priority queues | classify |
-| leeguooooo/mail-use | 43 | mit | JSON mail interface with built-in safety | fetch, drafts |
-| ZackAkil/AI-got-this-gmail-delegator | 23 | none listed | categorises mail and drafts from a knowledge base | classify, draft |
-| darinkishore/Inbox-MCP | 21 | none listed | email triage MCP server | fetch |
-| talalakkari/agentic-cal | 18 | apache-2.0 | email and calendar triage via MCP | classify |
-| navbuildz/gmail-mcp-server | 15 | mit | multi-account Gmail read, write and archive (MCP) | fetch, drafts |
-| Ishabdullah/Aigentik-CLI | 14 | mit | local-LLM Gmail triage | classify |
-| stonefullstm/ai-email-triage | 13 | mit | heuristics, embeddings, then LLM fallback cascade | classify |
-| aziruhq/aziru | 9 | agpl-3.0 | taxonomy triage with drafts needing approval | classify, drafts |
-| henry200803/mailbridge | 9 | mit | mailbox search, read and draft (MCP) | drafts |
-| alphaparkinc/genpark-autonomous-inbox-triage-email-dispatcher-agent-skill | 8 | none listed | autonomous triage and reply generation | classify, draft |
-| alphaparkinc/genpark-instant-inbox-zero-email-triage-synthesizer-skill | 8 | none listed | instant inbox-zero triage | classify |
-| astetic-dev/porter-intake-operator | 7 | mit | rubric-based triage into drafted replies | rules, classify |
-| Rajat25022005/Intelligent-Mail-Assistant | 7 | none listed | local Ollama triage with RAG replies | classify, draft |
-| KrishT97/MailSift-AI | 6 | other | spam and priority scoring model | classify |
-| paabloLC/gmail-ai-draft | 6 | mit | webhook-driven Gmail draft generation | fetch, draft |
-| alexandertiopan1212/AI_Email_Crafter | 6 | none listed | outreach drafts saved to Gmail | drafts |
-| maillifier/maillifier | 6 | mit | draft replies in an agent account | draft |
-| sryo/GmailTidy | 6 | gpl-3.0 | Apps Script labels, drafts, follow-up reminders | rules, drafts |
-| kl3inIT/zero-mail | 5 | mit | rule-based triage and drafts | rules |
-| mohsinsheikhani/property-maintenance-agent | 5 | none listed | eval framework: code graders, LLM judge, CI gates | check |
-| Foundry376/Mailspring | 17,898 | gpl-3.0 | mail rules engine | rules |
-| langchain-ai/agents-from-scratch | 2,375 | mit | LangGraph email assistant with human-in-the-loop | classify, draft, check |
-| brekkylab/backlot | 415 | mit | local emulator of SaaS APIs for tests | check |
-| jeremyephron/simplegmail | 411 | mit | Gmail API drafts and filters | drafts |
-| kaymen99/langgraph-email-automation | 278 | none listed | categorise, draft and verify replies with RAG | classify, draft, check |
-| asweigart/ezgmail | 273 | gpl-3.0 | Gmail API wrapper | fetch, drafts |
+| elie222/inbox-zero | 12,435 | other | AI email assistant: rules, replies in your tone, cleanup | classify, draft (style from past sent mail) |
+| cloudflare/agentic-inbox | 8,231 | apache-2.0 | self-hosted mail client with an AI agent and human confirmation | draft, approve (confirm before send) |
+| langchain-ai/agents-from-scratch | 2,375 | mit | email assistant with human-in-the-loop and memory | classify, check |
+| kaymen99/langgraph-email-automation | 278 | none listed | multi-agent customer email replies with relevance check | draft, check |
+| stonefullstm/ai-email-triage | 13 | mit | cascade of heuristics, then embeddings, then LLM, with hash cache | classify, fetch (skip seen) |
+| fazlerocks/jevmail | 93 | mit | Gmail triage into Needs reply, Updates, etc. with top-two probabilities | classify (confidence) |
+| aziruhq/aziru | 9 | agpl-3.0 | self-hosted Gmail triage with read-only scopes, draft-only | fetch, draft |
+| Ha22yX/auto-email-system | 51 | mit | triage and route mail to queues, untrusted HTML in sandboxed iframe | classify, fetch (HTML safe) |
+| paabloLC/gmail-ai-draft | 6 | mit | Gmail watch via webhooks, GPT drafts, processed state | fetch, draft (once per thread) |
+| sryo/GmailTidy | 6 | gpl-3.0 | Apps Script inbox zero with labels and follow-up reminders | classify, draft (ping once per thread) |
+| astetic-dev/porter-intake-operator | 7 | mit | folder-based operator triaging an inbox with stop conditions, no-guess | classify (low confidence stop) |
+| ZackAkil/AI-got-this-gmail-delegator | 23 | none listed | Gmail assistant that analyses mail and drafts replies | classify, draft |
+| Ishabdullah/Aigentik-CLI | 14 | mit | watches Gmail over IMAP, rule pre-processing, drafts | classify (rules first) |
+| AgriciDaniel/claude-email | 130 | mit | Claude Code skill for inbox triage and marketing mail | classify, draft |
+| kl3inIT/zero-mail | 5 | mit | Gmail assistant: auto-triage, natural-language rules, reply drafts | rules, classify |
+| maillifier/maillifier | 6 | mit | drafts replies to forwarded mail using Gemini | draft |
+| mohsinsheikhani/property-maintenance-agent | 5 | none listed | eval-first triage agent for maintenance email | classify (test set) |
+| AleBrito124356/inbox-agent | 2 | mit | IMAP fetch, classification, action items | fetch, classify |
+| dgr8akki/inbox-clerk | 0 | mit | LLM classifies unread mail, labels, archives | classify |
+| Vetri1706/openenv-email-triage-benchmark | 3 | none listed | triage environment with tasks and graders | check (benchmark) |
+| AGENTVAULT-API/inbox-triage | 0 | mit | deterministic triage for shared inboxes, fails closed on legal mail | classify (fail closed) |
+| madebydia/gmail-no-send | 2 | mit | drafts-only Gmail client for agent safety | drafts (no send path) |
+| jeremyephron/simplegmail | 411 | mit | simple Gmail API client with thread-aware replies | fetch, draft (thread headers) |
+| asweigart/ezgmail | 273 | gpl-3.0 | Pythonic Gmail API interface | fetch, drafts |
+| leeguooooo/mail-use | 43 | mit | CLI and MCP with strict JSON errors, empty versus failed | fetch (error contract) |
+| henry200803/mailbridge | 9 | mit | email MCP: search, read, draft, send with confirm flag | fetch, draft (confirm=true) |
+| navbuildz/gmail-mcp-server | 15 | mit | Gmail MCP with multi-account, labels, archive | fetch, drafts |
+| codefuturist/email-mcp | 125 | lgpl-3.0 | IMAP and SMTP MCP server: read, search, manage | fetch |
+| nikolausm/imap-mcp-server | 103 | mit | IMAP and SMTP for AI assistants | fetch |
+| pimalaya/himalaya | 7,413 | apache-2.0 | CLI to manage email over IMAP and SMTP | fetch |
+| ikvk/imap_tools | 848 | apache-2.0 | IMAP library with search and flags | fetch |
+| github/email_reply_parser | 710 | mit | splits the new reply from quoted history | classify, check (reply text only) |
+| zapier/email-reply-parser | 528 | mit | Python parser stripping quoted text and signatures | classify, check |
+| rspamd/rspamd | 2,545 | other | spam scoring with rules and fuzzy hashes | classify (rule score) |
+| ascarola/verdictmail | 6 | mit | IMAP IDLE daemon with SPF, DKIM, DMARC and URL checks | classify (phishing flag) |
+| alfaggodoy/phishing-eml-analyzer | 4 | none listed | 7-phase phishing analysis of .eml files | classify (suspect mail) |
+| remorses/zele | 299 | none listed | Gmail, Outlook, IMAP CLI for terminal use | fetch |
+| herald-email/herald-mail-app | 144 | other | terminal mail client with AI-assisted cleanup | classify |
+| Kyubyong/msg_reply | 78 | apache-2.0 | message reply suggestion system | draft |
+| nonozone/MailCli | 3 | apache-2.0 | local-first email interface for agents: structured inbox, search, triage | fetch |
 
-Dropped (57): kaymen99/AI-Voice-assistant, mypaios/mypaios, Drlordbasil/groq-gmail-assistant, atxp-dev/atxp, sannabotdev/sannabotapp, seanfromthepast/ATAT, BrisaAnahiEscobar/mailflow, ng-galien/maket, CLoaKY233/MIST, highhands89/seny-executive-assistant, pulzeai-oss/chrome-ai-assistant, Trinhvhao/n8n-rag-automation-chatbot, Ejb503/systemprompt-mcp-gmail, Albretsen/MCPEmails, tonykipkemboi/gmail-imap-mcp, atlyslabs/gideon, Ajitesh1405/knot, 0xgetz/arena-auto-chat, Airmail/airmail-mcp, ascarola/verdictmail, holoduke/myagent, tubone24/mugi-claw, benmoir-bilue/ben-mutt, novuhq/novu, enescingoz/awesome-n8n-templates, macro-inc/macro, eracle/OpenOutreach, ghostwright/phantom, firecrawl/fire-enrich, mikehasa/golive-skill, KroMiose/nekro-agent, hkdb/aerion, TryCaspian/caspian-sdk, landy22granatt/Kumpulan-Script-Termux, pazz/alot, OpenClaudia/openclaudia-skills, KeyID-AI/agent-kit, Taoviqinvicible/Tools-termux, Lifecycle-Innovations-Limited/claude-ops, haoruilee/awesome-agent-native-services, markrai/scrumboy, uday-khan/Termux, abhishekkr/gmail-helper, chekusu/mails, zszszszsz/.config, inboundemail/inbound, KeyID-AI/sdk-js, wong2/cf-mailroom, theexperiencecompany/gaia, sayantann11/all-classification-templetes-for-ML, KeyID-AI/sdk-py, remorses/zele, Vanszs/qwencloud-generator, Atomic-Mail/atomic-mail-agentic, truespar/sentio, agenticmail/agenticmail, Rizalcahdemak/akun-termux
+Dropped notable (not relevant): novuhq/novu, Mailspring, BillionMail, mox, iRedMail (mail clients and servers), 20 HTML email template kits (mailchimp, mailgun, sendgrid), 25 text-classification model repos, eracle/OpenOutreach, ghostwright/phantom, KeyID-AI SDKs, agenticmail/agenticmail, inboundemail/inbound (agent mailboxes)
 
 ### Top ideas
 
-1. classify: run deterministic rules first (sender, unsubscribe, noreply, newsletter headers) and call the LLM only for what is left (ai-email-triage heuristics then embeddings then LLM; Aigentik rule pre-processing).
-2. classify: store a confidence and the top two labels per message, and send low-confidence items to the check gate instead of guessing (jevmail top-two probabilities; porter-intake-operator stop conditions and no-guess policy).
-3. fetch: use read-only mail scopes and fetch only since the last run, with a content hash to skip mail already seen (aziru read-only scopes; ai-email-triage HashCache; gmail-ai-draft watch and retry handling).
-4. draft: create drafts only, with a confirm flag on any send or delete path (agentic-inbox human confirmation; mailbridge confirm=true; aziru draft-only).
-5. check: verify each reply against its own thread: same thread id, answers the open ask, promises nothing new (langgraph-email-automation relevance check; simplegmail reply_to for thread headers; agents-from-scratch tool-call validation).
+1. **classify**: Run deterministic rules first (sender, unsubscribe, noreply, list headers, spam score) and call the model only for the rest. Source: stonefullstm/ai-email-triage, Ishabdullah/Aigentik-CLI, rspamd/rspamd.
+2. **classify**: Store confidence and top two labels per message; send low confidence to the check gate, and fail closed on legal or complaint mail. Source: fazlerocks/jevmail, astetic-dev/porter-intake-operator, AGENTVAULT-API/inbox-triage.
+3. **fetch**: Read-only scopes, fetch since last run, hash to skip seen mail, strip quoted history before classify. Source: aziruhq/aziru, stonefullstm/ai-email-triage, github/email_reply_parser.
+4. **draft**: Drafts only, with a confirm flag on any send or delete path. Source: cloudflare/agentic-inbox, henry200803/mailbridge, madebydia/gmail-no-send.
+5. **check**: Verify each reply against its own thread: same thread id, answers the open ask, promises nothing new. Source: kaymen99/langgraph-email-automation, jeremyephron/simplegmail, langchain-ai/agents-from-scratch.
 
 ### Hardening
 
-1. classify: an email body tells the agent to act (prompt injection). Keep the pipeline rule that mail text is data, and strip or sandbox HTML first (auto-email-system renders untrusted HTML in a sandboxed iframe).
-2. fetch: an empty result is read as no mail when the fetch actually failed (mail-use reports empty versus failed as separate codes; enforce a strict JSON error contract).
-3. draft: two runs answer the same thread twice (gmail-ai-draft keeps processed state; GmailTidy pings once per thread; gmail-mcp labels handled mail).
-4. fetch: the push watch expires and new mail is missed (gmail-ai-draft handles watch expiry; aziru falls back to polling).
-5. draft: the reply uses the wrong tone or ignores the earlier messages (Inbox Zero style-matching against past sent mail; mailbridge get_thread for full history before drafting).
+1. **classify**: An email body tells the agent to act (prompt injection). Treat mail text as data and render HTML in a sandbox. Source: Ha22yX/auto-email-system, ascarola/verdictmail.
+2. **fetch**: An empty result is read as no mail when the fetch failed. Return empty and failed as separate codes. Source: leeguooooo/mail-use.
+3. **draft**: Two runs answer the same thread twice. Keep processed state per thread. Source: paabloLC/gmail-ai-draft, sryo/GmailTidy.
+4. **fetch**: The push watch expires and mail is missed. Renew the watch and fall back to polling. Source: paabloLC/gmail-ai-draft, aziruhq/aziru.
+5. **draft**: The reply ignores earlier messages or uses the wrong tone. Pull the full thread and match tone to past sent mail. Source: elie222/inbox-zero, henry200803/mailbridge.
 
 ## study-notes-to-pdf
 
-### Relevant repos (26)
-
 | repo | stars | licence | what it does | idea for which step |
 |---|---:|---|---|---|
-| microsoft/markitdown | 189,128 | mit | office and PDF to Markdown | ingest |
-| datalab-to/marker | 40,308 | apache-2.0 | PDF to Markdown keeping layout, tables, math | ingest |
-| firecrawl/anydoc | 22,642 | mit | office documents to Markdown | ingest |
-| firecrawl/pdf-inspector | 19,554 | mit | classifies scanned vs text PDFs | ingest |
-| iamgio/quarkdown | 16,303 | gpl-3.0 | Markdown with layouts and PDF or slide export | export |
-| Wandmalfarbe/pandoc-latex-template | 7,273 | bsd-3-clause | LaTeX template for Markdown to PDF | export |
-| CatchTheTornado/text-extract-api | 3,182 | mit | local OCR for scanned slides via Ollama | ingest |
-| chatdoc-com/OCRFlux | 2,533 | apache-2.0 | PDF tables merged across pages | ingest |
-| MarkPDFdown/markpdfdown | 2,295 | apache-2.0 | multimodal LLM PDF to Markdown | ingest |
-| themsaid/ibis | 2,010 | mit | Markdown to themed books with TOC | export |
-| simonhaenisch/md-to-pdf | 1,966 | mit | Markdown to PDF via Marked and Puppeteer | export |
-| realdennis/md2pdf | 1,841 | mit | offline Markdown to PDF editor | export |
-| elipapa/markdown-cv | 1,499 | mit | CSS styling for print output | export |
-| wisupai/e2m | 1,294 | apache-2.0 | many file types to Markdown | ingest |
-| fraserxu/electron-pdf | 1,292 | mit | HTML and Markdown to PDF | export |
-| yigitkonur/api-llm-ocr | 902 | other | vision OCR for PDF tables | ingest |
-| Blueturboguy07/NitroAI | 133 | agpl-3.0 | notes, flashcards and quizzes from PDFs | notes |
-| karthikkasirajan/studybuddy-ai | 54 | none listed | PDF to quizzes and study material | notes |
-| vincenzo-afk/PenFlow | 23 | none listed | study material to notebook-style pages | notes |
-| yukunou703/studyproof | 20 | mit | audits AI quotes against source text | check |
-| Manumarzo/AudioTTo | 19 | mit | slides to LaTeX study notes | notes |
-| EricKart/AI901-Study-Kit | 12 | none listed | notes, slides and PDFs from source docs | notes, export |
-| suran-jeet/ExamPrep-AI | 10 | none listed | PDF notes to study material via Ollama | notes |
-| ZelinZhou-THU/lecture-notes-creator | 7 | apache-2.0 | MinerU extraction plus AI review loop | notes, check |
-| AgriciDaniel/claude-obsidian | 15,420 | mit | sources to provenance-aware linked graph | outline |
-| fnando/kitabu | 687 | mit | Markdown to PDF via Prince engine | export |
+| microsoft/markitdown | 189,128 | mit | converts PDF, PPTX, DOCX and more to Markdown | ingest |
+| PaddlePaddle/PaddleOCR | 90,835 | apache-2.0 | OCR and document parsing to structured data | ingest (scanned pages) |
+| opendatalab/MinerU | 81,326 | other | PDF and Office docs to LLM-ready Markdown or JSON | ingest |
+| datalab-to/marker | 40,308 | apache-2.0 | PDF to Markdown and JSON, re-processes low-confidence blocks | ingest (tables, maths) |
+| ocrmypdf/OCRmyPDF | 34,968 | mpl-2.0 | adds a text layer to scanned PDFs | ingest (OCR pass) |
+| opendataloader-project/opendataloader-pdf | 29,508 | apache-2.0 | PDF parser for AI-ready data | ingest |
+| firecrawl/anydoc | 22,642 | mit | Word, PowerPoint, Excel, EPUB, PDF to clean Markdown | ingest (pptx slides) |
+| firecrawl/pdf-inspector | 19,554 | mit | inspects a PDF and classifies text versus scanned, selective OCR | ingest (route per page) |
+| Unstructured-IO/unstructured | 15,552 | apache-2.0 | document to structured elements | ingest |
+| run-llama/liteparse | 12,813 | apache-2.0 | fast open-source document parser | ingest |
+| The-Vibe-Company/megaparse | 7,413 | apache-2.0 | parser for PDFs and Office files tuned for LLM input | ingest |
+| getomni-ai/zerox | 12,256 | mit | OCR and extraction with vision models | ingest (hard pages) |
+| chatdoc-com/OCRFlux | 2,533 | apache-2.0 | merges cross-page tables, removes repeated headers | ingest (tables) |
+| MarkPDFdown/markpdfdown | 2,295 | apache-2.0 | PDF to Markdown with vision LLM | ingest |
+| landing-ai/ade-cli | 2,421 | apache-2.0 | agentic document extraction CLI | ingest |
+| Dicklesworthstone/llm_aided_ocr | 3,002 | other | corrects Tesseract OCR errors with an LLM | ingest (OCR fix) |
+| SakuraMathcraft/LaTeXSnipper | 1,018 | gpl-3.0 | formula recognition to LaTeX or Markdown | ingest (maths) |
+| pymupdf/PyMuPDF | 10,865 | agpl-3.0 | PDF text, page images and layout in Python | ingest (slide text for check), proof (page render) |
+| allenai/science-parse | 706 | apache-2.0 | parses PDFs into structured sections | outline |
+| iamgio/quarkdown | 16,303 | gpl-3.0 | Markdown with superpowers for papers and slides | export |
+| Wandmalfarbe/pandoc-latex-template | 7,273 | bsd-3-clause | Eisvogel: pandoc LaTeX template for Markdown to PDF | export (headers, footers) |
+| simonhaenisch/md-to-pdf | 1,966 | mit | Markdown to PDF through headless Chrome with CSS | export |
+| fnando/kitabu | 687 | mit | Markdown to paged PDF via Prince, with dependency checks | export |
+| elipapa/markdown-cv | 1,499 | mit | Markdown plus CSS print rules for a clean PDF | export (print CSS) |
+| asanzdiego/markdownslides | 142 | gpl-3.0 | Reveal.js and PDF slides from Markdown | export (slide-order layout) |
+| AgriciDaniel/claude-obsidian | 15,420 | mit | provenance-aware knowledge base with claim ledger, lint, rollback | notes, check |
+| yukunou703/studyproof | 20 | mit | local evidence workbench auditing AI text against source quotes | check (unverified status) |
+| ZelinZhou-THU/lecture-notes-creator | 7 | apache-2.0 | course PDF to self-study notes, page-driven structure | outline, notes |
+| Evan715823/cheatsheet-generator-skill | 201 | mit | slides and PDFs to dense LaTeX cheatsheets | notes, export |
+| Manumarzo/AudioTTo | 19 | mit | audio and PDF slides to structured LaTeX study notes | notes, export |
+| drpwchen/lecture-to-notes | 108 | mit | lecture recordings to grounded notes with a synced viewer | notes, check |
+| rvmarreddy/lecture-summariser | 0 | none listed | local offline slide PDF to styled LaTeX/PDF notes | notes, export |
+| flodlol/PDF-Slides-to-Handouts-Converter | 87 | mit | privacy-first slide to handout PDF | export (layout) |
+| Blueturboguy07/NitroAI | 133 | agpl-3.0 | local-first study notes from PDFs, video, audio | notes |
+| EricKart/AI901-Study-Kit | 12 | none listed | slide deck to notes with curriculum mapping | outline (module to slide map) |
+| nasqret/live-workshop-skill | 25 | none listed | lecture to structured searchable knowledge base skill | outline |
+| 2362094903-ops/study-assistant-skills | 24 | mit | Claude Code skills turning course material into study help | notes |
+| ArthurYangX/nano-NotebookLM | 18 | apache-2.0 | turns course materials into notes and knowledge | notes |
+| yigitkonur/api-llm-ocr | 902 | other | PDF to Markdown with vision LLMs preserving tables | ingest |
 
-Dropped (64): lowlighter/metrics, joeseesun/qiaomu-anything-to-notebooklm, danburzo/percollate, cirosantilli/china-dictatorship, alanshaw/markdown-pdf, vsch/flexmark-java, chrisryugj/kordoc, gege-circle/.github, visionmedia/masteringnode, jzillmann/pdf-to-markdown, SakuraMathcraft/LaTeXSnipper, adithya-s-k/marker-api, flyhunterl/flymd, x-cod3r/Ai-Anki-Generator, Erick-Bryan-Cubas/green-deck, gong1414/anki-card-skill, Panth1823/FlashGenie, umeshSinghVerma/Youtube-study-kit, sizwinz/StudySage-Offline-Online-AI-Note-Assistant, code-with-idrees/Google-Meet-AI-Attendence-Agent, mrunalg141/studymate, GrannyProgramming/remnote-flashcard-generator, FrostySL/anki-card-forge, FlashGenie/genie-app, akramlatif/ai-smart-study-system, rajdhakad9826/coursera-scraper, donnemartin/system-design-primer, donnemartin/interactive-coding-challenges, ankitects/anki, ankidroid/Anki-Android, 5mdld/anki-jlpt-decks, Natively-AI-assistant/natively-cluely-ai-assistant, tianshanghong/awesome-anki, ObsidianToAnki/Obsidian_to_Anki, team-reflect/reflect-open, superlinear-ai/raglite, anki-geo/ultimate-geography, berylliumsec/nebula, reuseman/flashcards-obsidian, badlydrawnrob/anki, blueberrycongee/Lumina-Note, Ajatt-Tools/mpvacious, thiswillbeyourgithub/AnkiAIUtils, ad-si/Coding-Flashcards, louietan/anki-editor, briansunter/logseq-openai, open-spaced-repetition/free-spaced-repetition-scheduler, Radiant303/SpringNote, Troyciv/anki-templates-superlist, pranavdeshai/anki-prettify, thiswillbeyourgithub/wdoc, ankimcp/anki-mcp-server, Dhravya/notty, xiao18825501901-rgb/coursemate-ai, alyssaxuu/carden, tema6120/ForgetMeNot, ayorgo/leetcode-neetcode-anki, rampaa/JL, 2anki/2anki.net, ymx10086/ResearchClaw, raine/anki-llm, helixnow/deep-student, antigluten/amgi, taivop/anki-decks
+Dropped notable (not relevant): danburzo/percollate, alanshaw/markdown-pdf, jzillmann/pdf-to-markdown, adithya-s-k/marker-api, Graphify-Labs/graphify (code graph), 12 Markdown editors (marktext, Milkdown, vditor), 60 Anki and flashcard generators (ankitects/anki, 2anki, anki-llm), Obsidian plugins, note-taking apps, lecture-transcription apps (audio is out of scope)
 
 ### Top ideas
 
-1. ingest: classify each PDF as text or scanned and OCR only the scanned pages (pdf-inspector selective OCR; marker digital-versus-scanned routing).
-2. notes: every line carries a slide cite, and check fails any slide that no line cites (studyproof quotation audit; lecture-notes-creator page-driven structure accounts for every slide).
-3. check: audit each quote against the slide text, and mark unverifiable lines instead of keeping them (studyproof unverified status; claude-obsidian claim ledger linking each fact to its source id).
-4. export: drive the PDF from one Markdown file with paged print CSS, not browser defaults (kitabu Prince paged output; markdown-cv print media queries; Eisvogel LaTeX template for headers and footers).
-5. outline: map modules to slide ranges first, so a missing topic is visible before any notes are written (EricKart curriculum mapping; lecture-notes-creator page-driven structure).
+1. **ingest**: Classify each PDF page as text or scanned and OCR only scanned pages; keep slide text for the check step. Source: firecrawl/pdf-inspector, datalab-to/marker, ocrmypdf/OCRmyPDF, pymupdf/PyMuPDF.
+2. **notes**: Every line carries a slide cite, and check fails any slide no line cites. Source: yukunou703/studyproof, ZelinZhou-THU/lecture-notes-creator, drpwchen/lecture-to-notes.
+3. **check**: Audit each quote against slide text and mark unverifiable lines instead of keeping them; keep a claim ledger. Source: yukunou703/studyproof, AgriciDaniel/claude-obsidian.
+4. **export**: Drive the PDF from one Markdown file with paged print CSS and a fixed template. Source: fnando/kitabu, elipapa/markdown-cv, Wandmalfarbe/pandoc-latex-template, simonhaenisch/md-to-pdf.
+5. **outline**: Map modules to slide ranges first so a missing topic shows before notes are written. Source: EricKart/AI901-Study-Kit, ZelinZhou-THU/lecture-notes-creator.
 
 ### Hardening
 
-1. export: a table or worked example splits across a page break (md-to-pdf page-break handling; kitabu font and layout checks before export).
-2. ingest: OCR garbles tables and maths, or repeats headers across pages (marker re-processes low-confidence blocks; OCRFlux merges cross-page tables and removes repeated headers).
-3. export: the PDF step fails on a machine with no LaTeX or Chrome (kitabu runs a dependency check first; Eisvogel's Docker image gives a fallback; md-to-pdf needs Puppeteer installed).
-4. check: an unsourced line survives the rewrite-once rule (studyproof marks it unverified; claude-obsidian lint catches orphans and dead links before proof).
-5. notes and proof: a failed proof pass leaves print.css half-edited and the PDF overwritten (claude-obsidian restores the last known-good file on failure and applies changes as one bundle).
+1. **export**: A table or worked example splits across a page break. Add page-break rules and check layout before export. Source: simonhaenisch/md-to-pdf, fnando/kitabu.
+2. **ingest**: OCR garbles tables and maths or repeats headers. Re-process low-confidence blocks and merge cross-page tables. Source: datalab-to/marker, chatdoc-com/OCRFlux, SakuraMathcraft/LaTeXSnipper.
+3. **export**: The PDF step fails with no LaTeX or Chrome installed. Run a dependency check first. Source: fnando/kitabu, Wandmalfarbe/pandoc-latex-template, simonhaenisch/md-to-pdf.
+4. **check**: An unsourced line survives the rewrite-once rule. Mark it unverified and lint for orphans. Source: yukunou703/studyproof, AgriciDaniel/claude-obsidian.
+5. **notes and proof**: A failed proof pass leaves print.css half-edited and the PDF overwritten. Restore the last known-good file and apply changes as one bundle. Source: AgriciDaniel/claude-obsidian.

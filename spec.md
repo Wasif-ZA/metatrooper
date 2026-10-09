@@ -861,8 +861,8 @@ to him (hand-back list below).
 
 Research behind it: `ide-layer-research/m5-demand.md` (what users ask for, with reaction counts),
 `ide-layer-research/m5-integrations-demand.md` (which tools, with install counts), the read-only launch audit in
-`issues/m5-00-rebaseline.md`, and a repo idea scan per pipeline (17 pipelines, about 1,900 READMEs read by the local model, then
-checked for relevance), distilled into M5-17, `ide-layer-research/m5-hardening-coding.md` and
+`issues/m5-00-rebaseline.md`, and a repo idea scan per pipeline (17 pipelines, about 1,640 READMEs read by the local model, then
+checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-research/m5-hardening-coding.md` and
 `ide-layer-research/m5-repo-scan-preview.md`, which each preview pipeline's issue links.
 
 #### Milestone 5 decisions

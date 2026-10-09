@@ -14,8 +14,8 @@ gate card), then `m5-launch`, which already merges the other three cleanly.
 | `m5-integrations` | `.../wt-integrations` | M5-12, M5-13 step 1, M5-15 |
 | `m5-launch` | `.../wt-launch` | the three merged; the branch to land |
 
-Suites on `m5-launch` (2026-10-09T20:45+11:00): core 413 tests, 406 pass, 0 fail, 7 skipped
-(`METATROOPER_FAKE_DPAPI=1 npm test`); workbench 214 tests, 152 pass, 0 fail, 62 skipped (the opt-in Electron
+Suites on `m5-launch` with main 7817b5d merged in (2026-10-09T21:20+11:00): core 418 tests, 411 pass, 0 fail, 7 skipped
+(`METATROOPER_FAKE_DPAPI=1 npm test`); workbench 223 tests, 161 pass, 0 fail, 62 skipped (the opt-in Electron
 suites). Not yet: `tests/release.ps1` (M5-9 is not built), Linux.
 
 ## Children
@@ -65,9 +65,9 @@ suites). Not yet: `tests/release.ps1` (M5-9 is not built), Linux.
 
 ## Repo scan
 
-1,900 READMEs read by gemma4:12b at no token cost, relevance checked by Haiku and Sonnet. Relevant repos per
+About 1,640 READMEs read by gemma4:12b at no token cost, relevance checked by Haiku and Sonnet; the last seven lanes finished by Sonnet from search descriptions (GPU stopped on his word). Relevant repos per
 pipeline: the four coding built-ins 40 to 43 each (`ide-layer-research/m5-hardening-coding.md`); the 13 others in
-`ide-layer-research/m5-repo-scan-preview.md`, where seven niche lanes stay under 40 after three search rounds.
+`ide-layer-research/m5-repo-scan-preview.md`: 39 to 47 each, except form-fill-batch at 34 (the search pool is generic RPA and captcha tools; not padded).
 
 ## Waiting on Wasif
 
