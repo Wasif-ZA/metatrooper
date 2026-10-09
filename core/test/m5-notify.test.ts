@@ -5,9 +5,11 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { schemaFile } from '../src/paths.ts';
+import { notifyTick, setSink } from '../src/notify.ts';
 import { buildGenerated, client, isolation, sleep, startCore, stopCore, teardownCore, uiHello, until } from './helpers.ts';
 
-function withFakeWebhook(onRequest: (body: string) => void) {
+function withFakeWebhook(onRequest: (body: string) => void, status = 204, headers: Record<string, string> = {}) {
   const bodies: string[] = [];
   const server = createServer((req, res) => {
     let body = '';
@@ -16,7 +18,7 @@ function withFakeWebhook(onRequest: (body: string) => void) {
     req.on('end', () => {
       bodies.push(body);
       onRequest(body);
-      res.writeHead(204);
+      res.writeHead(status, headers);
       res.end();
     });
   });
@@ -28,6 +30,31 @@ function withFakeWebhook(onRequest: (body: string) => void) {
       resolve({ url: `http://127.0.0.1:${address.port}/fake-webhook`, bodies, close: () => new Promise<void>((done) => server.close(() => done())) });
     });
   });
+}
+
+function withNotifyDb<T>(run: (db: DatabaseSync, home: string) => Promise<T> | T): Promise<T> {
+  const isolated = isolation();
+  const env = { ...isolated.env, METATROOPER_FAKE_DPAPI: '1' };
+  const oldHome = process.env.METATROOPER_HOME;
+  const oldFake = process.env.METATROOPER_FAKE_DPAPI;
+  process.env.METATROOPER_HOME = isolated.home;
+  process.env.METATROOPER_FAKE_DPAPI = '1';
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(schemaFile, 'utf8'));
+  return Promise.resolve().then(() => run(db, isolated.home)).finally(() => {
+    db.close();
+    rmSync(isolated.home, { recursive: true, force: true });
+    if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;
+    if (oldFake === undefined) delete process.env.METATROOPER_FAKE_DPAPI; else process.env.METATROOPER_FAKE_DPAPI = oldFake;
+  });
+}
+
+function notifySink(db: DatabaseSync, id: string, dest: string, name = id): void {
+  setSink(db, { id, kind: 'webhook', name, dest, kinds: ['gate'] });
+}
+
+function insertNotifyGate(db: DatabaseSync, id: string, at: string): void {
+  db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'gate', ?, ?)").run(id, at, `gate-${id}`, `fixture ${id}`);
 }
 
 function insertGate(dbFile: string, id: string, text: string, at = new Date().toISOString()): void {
@@ -173,5 +200,60 @@ test('Delivery rules mark old rows skipped and failed deliveries with the prescr
       const failed = db.prepare('SELECT notified_at FROM needs_you WHERE id=?').get(failedId) as { notified_at: string | null };
       assert.equal(failed.notified_at, null, 'first delivery attempt schedules retries without marking the row failed');
     } finally { db.close(); }
+  });
+});
+
+test('M5-15 restart safety persists each sink delivery independently', async () => {
+  await withNotifyDb(async (db) => {
+    const success = await withFakeWebhook(() => {});
+    const failure = await withFakeWebhook(() => {}, 500);
+    try {
+      notifySink(db, 'restart-success', success.url);
+      notifySink(db, 'restart-failure', failure.url);
+      const id = '01J9RESTARTSINK000000000001';
+      insertNotifyGate(db, id, new Date().toISOString());
+      await notifyTick(db);
+      assert.equal(success.bodies.length, 1);
+      assert.equal(failure.bodies.length, 1);
+      // A fresh tick simulates a process restart: delivery state is recovered solely from SQLite.
+      await notifyTick(db);
+      assert.equal(success.bodies.length, 1, 'successful sink must not receive a duplicate POST');
+    } finally { await success.close(); await failure.close(); }
+  });
+});
+
+test('M5-15 backoff does not starve a newer needs-you row', async () => {
+  await withNotifyDb(async (db) => {
+    const failing = await withFakeWebhook(() => {}, 500);
+    const succeeding = await withFakeWebhook(() => {});
+    try {
+      notifySink(db, 'backoff-fail', failing.url);
+      notifySink(db, 'backoff-pass', succeeding.url);
+      const start = Date.now() - 60_000;
+      for (let i = 0; i < 50; i++) insertNotifyGate(db, `01J9BACKOFF${String(i).padStart(14, '0')}`, new Date(start + i).toISOString());
+      await notifyTick(db);
+      assert.equal(failing.bodies.length, 50);
+      const newerId = '01J9BACKOFFNEWER000000000001';
+      insertNotifyGate(db, newerId, new Date(Date.now() + 1000).toISOString());
+      await notifyTick(db);
+      await notifyTick(db);
+      assert.ok(succeeding.bodies.some((body) => body.includes(newerId)), 'new row should be delivered within two ticks');
+    } finally { await failing.close(); await succeeding.close(); }
+  });
+});
+
+test('M5-15 redirect responses fail without posting to the redirect target', async () => {
+  await withNotifyDb(async (db) => {
+    const target = await withFakeWebhook(() => {});
+    const redirect = await withFakeWebhook(() => {}, 302, { location: target.url });
+    try {
+      notifySink(db, 'redirect-source', redirect.url);
+      insertNotifyGate(db, '01J9REDIRECT00000000000001', new Date().toISOString());
+      await notifyTick(db);
+      assert.equal(redirect.bodies.length, 1);
+      assert.equal(target.bodies.length, 0);
+      const delivery = db.prepare('SELECT state FROM notify_delivery WHERE sink_id=?').get('redirect-source') as { state: string };
+      assert.equal(delivery.state, 'pending', 'redirect is a failed first attempt and enters retry backoff');
+    } finally { await redirect.close(); await target.close(); }
   });
 });

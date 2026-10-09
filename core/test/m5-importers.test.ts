@@ -29,6 +29,15 @@ test('M5-13a imports Linear streamable-http fixture as engine OAuth', () => {
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test('M5-13 rejects an insecure http MCP URL and names its server in the plan error', () => {
+  const f = fixture('insecure-mcp', { mcpServers: { insecure_server: { type: 'http', url: 'http://127.0.0.1:43210/mcp' } } });
+  try {
+    const plan = importClaude(f.pluginDir);
+    assert.deepEqual(plan.manifest.mcp ?? [], []);
+    assert.ok(plan.errors.some((error) => error.includes('insecure_server')), `expected error naming insecure_server, got ${JSON.stringify(plan.errors)}`);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test('M5-13b imports GitHub fixture secret template without persisting a literal token', () => {
   const f = fixture('github', { mcpServers: { github: {
     type: 'http', url: 'https://api.githubcopilot.com/mcp/',

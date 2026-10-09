@@ -128,3 +128,33 @@ test('M5-12e pipeline step excludes http servers whose omitted writes means exte
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('M5-12f STDIO external writer attaches only under ask approval', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'm5-remote-mcp-stdio-'));
+  const db = new DatabaseSync(join(dir, 'troop.db'));
+  const oldHome = process.env.METATROOPER_HOME;
+  try {
+    db.exec(readFileSync(schemaFile, 'utf8'));
+    process.env.METATROOPER_HOME = dir;
+    const id = 'stdio-writer';
+    fixture(db, id, manifest(id, [{ id: 'writer', transport: 'stdio', command: 'node', args: ['writer.js'], writes: 'external', engines: ['claude'] }]));
+    const server = { id: 'writer', transport: 'stdio', command: 'node', args: ['writer.js'], writes: 'external', engines: ['claude'] };
+    const claude = engine('claude', 'claude-mcp-config-flag') as never;
+    for (const approval of ['contained', 'isolated']) {
+      assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval }), []);
+      assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { approval }), []);
+    }
+    assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval: 'ask' }), ['--mcp-config=' + join(dir, 'mcp', 'test-session.json').replaceAll('\\', '/')]);
+  } finally {
+    db.close();
+    if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('M5-12g manifest rejects MCP ids containing a space or semicolon', () => {
+  for (const id of ['bad id', 'bad;id']) {
+    const errors = validateManifest(manifest('valid-plugin', [{ id, transport: 'http', url: 'https://example.test/mcp', writes: 'none', engines: ['claude'] }]), null);
+    assert.ok(errors.length > 0, `accepted invalid MCP id ${JSON.stringify(id)}`);
+  }
+});
