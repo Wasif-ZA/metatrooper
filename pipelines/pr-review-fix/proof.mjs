@@ -6,7 +6,8 @@ import { WIDEN } from '../two-engine-review/bucket.mjs';
 const TEST_PATH = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[a-z]+$|(^|\/)test_[^/]+\.py$|_test\.(py|go)$/;
 const git = (dir, args) => execFileSync('git', ['-C', dir, '-c', 'user.name=proof', '-c', 'user.email=proof@localhost', ...args], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
 
-const passes = (dir, command) => spawnSync(String(command), { cwd: dir, shell: true, windowsHide: true, timeout: 5 * 60_000 }).status === 0;
+const cleanEnv = () => { const env = { ...process.env }; delete env.NODE_TEST_CONTEXT; return env; };
+const passes = (dir, command) => spawnSync(String(command), { cwd: dir, shell: true, windowsHide: true, timeout: 5 * 60_000, env: cleanEnv() }).status === 0;
 
 /** Old-side line ranges per file of the uncommitted fix, from `git diff -U0 HEAD`. */
 export function fixRanges(dir) {
@@ -27,7 +28,11 @@ export function diffProof(ranges, finding) {
   return finding.lines.some(([a, b]) => (ranges.get(finding.file) ?? []).some(([s, e]) => s <= b + WIDEN && a - WIDEN <= e));
 }
 
-/** Pass when the test command passes with the fix and fails once the fix's non-test files are stashed. */
+const headBytes = (dir, f) => {
+  try { return execFileSync('git', ['-C', dir, 'show', `HEAD:${f}`], { windowsHide: true, maxBuffer: 64 * 1024 * 1024 }); } catch { return null; }
+};
+
+/** Pass when the test command passes with the fix and fails once the fix's non-test files are put back to HEAD. */
 export function testProof(dir, proof, nonTest) {
   const name = String(proof.test ?? '');
   const [file, title] = name.split('::');
@@ -35,9 +40,14 @@ export function testProof(dir, proof, nonTest) {
   if (!String(proof.command).includes(title) && !String(proof.command).includes(path.basename(file))) return 'the command does not name the test';
   if (!nonTest.length) return 'the fix changes no non-test file';
   if (!passes(dir, proof.command)) return 'the test fails with the fix';
-  git(dir, ['stash', 'push', '--', ...nonTest]);
+  const saved = nonTest.map((f) => { const p = path.join(dir, f); return [p, fs.existsSync(p) ? fs.readFileSync(p) : null, headBytes(dir, f)]; });
   let failsWithout;
-  try { failsWithout = !passes(dir, proof.command); } finally { git(dir, ['stash', 'pop']); }
+  try {
+    for (const [p, , old] of saved) old === null ? fs.rmSync(p, { force: true }) : fs.writeFileSync(p, old);
+    failsWithout = !passes(dir, proof.command);
+  } finally {
+    for (const [p, now] of saved) now === null ? fs.rmSync(p, { force: true }) : fs.writeFileSync(p, now);
+  }
   return failsWithout ? null : 'the test also passes without the fix';
 }
 
