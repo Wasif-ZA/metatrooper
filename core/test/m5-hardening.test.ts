@@ -10,6 +10,9 @@ const bucket = await import(pathToFileURL(`${root}/pipelines/two-engine-review/b
 const compare = await import(pathToFileURL(`${root}/pipelines/spec-to-pr/compare-tests.mjs`).href);
 const handback = await import(pathToFileURL(`${root}/pipelines/spec-build-review-handback/handback.mjs`).href);
 const report = await import(pathToFileURL(`${root}/pipelines/e2e-browser-qa/report.mjs`).href);
+const checkBuild = await import(pathToFileURL(`${root}/pipelines/spec-to-pr/check-build.mjs`).href);
+const { detect } = await import(pathToFileURL(`${root}/plugins/repo/bin/repo.js`).href);
+const { execFileSync } = await import('node:child_process');
 
 test('T1 normalises path and line aliases before bucketing', () => {
   const buckets = bucket.bucketFindings(
@@ -18,6 +21,70 @@ test('T1 normalises path and line aliases before bucketing', () => {
     new Map([['a.js', [[10, 14]]]]),
   );
   assert.equal(buckets.both.length, 1);
+});
+
+test('T2 rejects findings outside the project root and normalises Windows paths', () => {
+  const findings = (file) => ({ verdict: 'reject', findings: [{ file, line: 5, title: file }] });
+  for (const file of ['D:/other/a.js', '/etc/passwd']) {
+    const result = bucket.bucketFindings(findings(file), { verdict: 'reject', findings: [] }, null, 'C:/proj');
+    assert.equal(result.unplaced.length, 1);
+    assert.equal(result.unplaced[0].codex.file, file);
+  }
+  const result = bucket.bucketFindings(findings('C:\\proj\\src\\a.js'), { verdict: 'reject', findings: [] }, null, 'C:/proj');
+  assert.equal(result.codex_only[0].codex.file, 'src/a.js');
+});
+
+test('H2 unread rejected findings and unplaced findings require human review', async (t) => {
+  const runDir = await fs.mkdtemp(path.join(os.tmpdir(), 'm5-h2-'));
+  t.after(() => fs.rm(runDir, { recursive: true, force: true }));
+  const reviewFile = path.join(runDir, 'review-buckets.json');
+  let data = { codex_verdict: 'reject', codex_unparsed: true, gemini_verdict: 'accept' };
+  await fs.writeFile(reviewFile, JSON.stringify(data));
+  const ctx = { runDir, steps: { review: { buckets_abs: reviewFile }, rereview: { buckets_abs: reviewFile } }, async writeFile() {} };
+  let result = await handback.run(ctx);
+  assert.ok(result.items.some((item) => item.kind === 'human' && item.text.includes('could not be read')));
+  data = { codex_verdict: 'accept', gemini_verdict: 'accept', unplaced: [{ title: 'loose finding', file: 'src/a.js', line: 3 }] };
+  await fs.writeFile(reviewFile, JSON.stringify(data));
+  result = await handback.run(ctx);
+  assert.ok(result.items.some((item) => item.kind === 'human' && item.text.includes('could not be placed')));
+  const rereviewFile = path.join(runDir, 'rereview-buckets.json');
+  await fs.writeFile(rereviewFile, JSON.stringify({ ...data, unplaced: [] }));
+  data.unplaced = [{ title: 'rereview loose finding' }];
+  await fs.writeFile(rereviewFile, JSON.stringify(data));
+  ctx.steps.rereview.buckets_abs = rereviewFile;
+  result = await handback.run(ctx);
+  assert.ok(result.items.some((item) => item.kind === 'human' && item.text.includes('could not be placed')));
+});
+
+test('S3 check-build uses merge-base when build-0.base is absent', async (t) => {
+  const runDir = await fs.mkdtemp(path.join(os.tmpdir(), 'm5-s3-'));
+  const repoDir = path.join(runDir, 'repo');
+  t.after(() => fs.rm(runDir, { recursive: true, force: true }));
+  await fs.mkdir(repoDir);
+  const git = (args) => execFileSync('git', ['-C', repoDir, ...args], { encoding: 'utf8' }).trim();
+  git(['init', '-q', '-b', 'main']);
+  git(['config', 'user.email', 'test@example.com']);
+  git(['config', 'user.name', 'Test']);
+  git(['commit', '--allow-empty', '-qm', 'base']);
+  git(['checkout', '-qb', 'feature']);
+  git(['commit', '--allow-empty', '-qm', 'feature']);
+  const ctx = { runDir, inputs: { base_branch: 'main' }, steps: { build: { worktree: repoDir } } };
+  assert.deepEqual(await checkBuild.run(ctx), { commits: 1, tests_added: 0, summary: '1 commit on the branch, none touching a test file' });
+  ctx.inputs.base_branch = 'nope';
+  await assert.rejects(checkBuild.run(ctx), /cannot find the commit/);
+});
+
+test('R1 detects pytest files and tolerates tests as a plain file', async (t) => {
+  const pytestDir = await fs.mkdtemp(path.join(os.tmpdir(), 'm5-r1-py-'));
+  t.after(() => fs.rm(pytestDir, { recursive: true, force: true }));
+  await fs.mkdir(path.join(pytestDir, 'tests', 'unit'), { recursive: true });
+  await fs.writeFile(path.join(pytestDir, 'tests', 'unit', 'test_app.py'), '');
+  assert.equal(detect(pytestDir).runner, 'pytest');
+
+  const fileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'm5-r1-file-'));
+  t.after(() => fs.rm(fileDir, { recursive: true, force: true }));
+  await fs.writeFile(path.join(fileDir, 'tests'), '');
+  assert.deepEqual(detect(fileDir), { runner: 'none', command: [] });
 });
 
 test('T4 parses a findings array when a quoted body contains an opening bracket', () => {
