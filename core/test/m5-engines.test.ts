@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { validate } from '../src/jsonschema.ts';
+import { validateManifest } from '../src/plugins/manifest.ts';
 import { BUILT_IN, bindRole, dataEngines, syncEngines, type EngineSpec } from '../src/engines/registry.ts';
 import { mcpAttachArgs, mcpAttachEnv } from '../src/plugins/mcp.ts';
+import { installPlugin, pluginsDir } from '../src/plugins/store.ts';
 import { root } from './helpers.ts';
 
 function tempDir(prefix: string): string { return mkdtempSync(join(tmpdir(), prefix)); }
@@ -44,6 +46,92 @@ test('M5-14d data engines without cost override cannot outrank a built-in role e
   } finally {
     db.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('M5-14e data engines skip malformed JSON and schema-invalid files with warnings', () => {
+  const dir = tempDir('troop-engine-invalid-');
+  try {
+    writeFileSync(join(dir, '01-malformed.json'), '{');
+    writeJson(join(dir, '02-schema-invalid.json'), { id: 'invalid' });
+    const valid: EngineSpec = {
+      id: 'valid-fixture', command: 'fixture', version_cmd: ['fixture', '--version'],
+      state_source: 'process', roles: ['review'], cost_rank: 3,
+    };
+    writeJson(join(dir, '03-valid.json'), valid);
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message?: unknown) => { warnings.push(String(message)); };
+    let loaded: EngineSpec[];
+    try { loaded = dataEngines(dir); }
+    finally { console.warn = originalWarn; }
+    assert.deepEqual(loaded.map((engine) => engine.id), ['valid-fixture']);
+    assert.equal(warnings.length, 2);
+    assert.ok(warnings.some((line) => line.includes('01-malformed.json skipped')));
+    assert.ok(warnings.some((line) => line.includes('02-schema-invalid.json skipped')));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('M5-14f plugin install cannot replace the built-in claude engine row', () => {
+  const dir = tempDir('troop-engine-collision-');
+  const previousHome = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(dir, 'home');
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+    syncEngines(db, [BUILT_IN.find((engine) => engine.id === 'claude')!]);
+    const before = db.prepare('SELECT id, plugin_id, spec_json, cost_rank, provider FROM engine WHERE id = ?').get('claude');
+    const plugin = join(dir, 'plugin');
+    mkdirSync(plugin, { recursive: true });
+    const claude = BUILT_IN.find((engine) => engine.id === 'claude')!;
+    const validEngine = {
+      id: 'claude', command: 'replacement', version_cmd: ['replacement', '--version'],
+      state_source: 'process', roles: ['review'], cost_rank: 1,
+    };
+    writeJson(join(plugin, 'troop-plugin.json'), {
+      schema: 1, id: 'collision-plugin', version: '1.0.0', name: 'Collision',
+      engines: [validEngine],
+    });
+    const validationErrors = validateManifest(JSON.parse(readFileSync(join(plugin, 'troop-plugin.json'), 'utf8')), null);
+    assert.deepEqual(validationErrors, [], `collision fixture must pass manifest validation: ${JSON.stringify(validationErrors)}`);
+    assert.throws(() => installPlugin(db, { source: plugin, approved_permissions: [] }), (error: unknown) => {
+      const rpc = error as { data?: { errors?: string[] } };
+      assert.ok(rpc.data?.errors?.some((line) => line.includes('already used by a built-in engine')));
+      return true;
+    });
+    assert.deepEqual(db.prepare('SELECT id, plugin_id, spec_json, cost_rank, provider FROM engine WHERE id = ?').get('claude'), before);
+    assert.equal(db.prepare('SELECT id FROM plugin WHERE id = ?').get('collision-plugin'), undefined);
+    assert.equal(readFileSync(join(plugin, 'troop-plugin.json'), 'utf8').length > 0, true);
+  } finally {
+    db.close();
+    if (previousHome === undefined) delete process.env.METATROOPER_HOME;
+    else process.env.METATROOPER_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('M5-14g an equally ranked usable built-in wins over a plugin engine', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+    const builtIn: EngineSpec = {
+      id: 'builtin-tie', command: 'builtin', version_cmd: ['builtin', '--version'],
+      state_source: 'process', roles: ['review'], cost_rank: 2,
+    };
+    const plugin: EngineSpec = { ...builtIn, id: 'plugin-tie', command: 'plugin' };
+    syncEngines(db, [builtIn]);
+    db.prepare(`INSERT INTO plugin (id, version, path, manifest, source, permissions, enabled, installed_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?)`).run('tie-plugin', '1.0.0', '/fixture/plugin', '{}', 'native', '[]', '2026-10-09T12:00:00.000Z');
+    db.prepare('INSERT INTO engine (id, plugin_id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?, ?)')
+      .run(plugin.id, 'tie-plugin', JSON.stringify(plugin), plugin.cost_rank, 'local-cli');
+    const check = db.prepare("INSERT INTO engine_check (engine_id, checked_at, installed, auth) VALUES (?, ?, 1, 'ok')");
+    check.run(builtIn.id, '2026-10-09T12:00:00.000Z');
+    check.run(plugin.id, '2026-10-09T12:00:00.000Z');
+    assert.equal(bindRole(db, 'review')?.id, builtIn.id);
+  } finally {
+    db.close();
   }
 });
 
