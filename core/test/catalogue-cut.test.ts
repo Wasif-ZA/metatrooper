@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { client, harness } from './helpers.ts';
 import { revisionHarness } from './ui-revision-helpers.ts';
 
-test('M5-18a fresh core seeds only the four built-in pipelines', async () => {
+test('M5-18a fresh core seeds only the five built-in pipelines', async () => {
   const h = await revisionHarness();
   try {
     const ids = (h.db.prepare('SELECT id FROM pipeline WHERE source = ?').all('builtin') as Array<{ id: string }>).map((pipeline) => pipeline.id).sort();
     assert.deepEqual(ids, [
       'e2e-browser-qa',
+      'pr-review-fix',
       'spec-build-review-handback',
       'spec-to-pr',
       'two-engine-review',

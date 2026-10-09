@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "id": "pr-review-fix",
+  "title": "PR review and fix with proof",
+  "lane": "coding",
+  "requires": ["repo"],
+  "inputs": {
+    "range": { "type": "text", "label": "Range to review (base..head)", "required": false, "default": "" },
+    "branch": { "type": "text", "label": "Branch to review, when no range is given", "required": false, "default": "" },
+    "base_branch": { "type": "text", "label": "Branch the review branch started from", "required": false, "default": "main" }
+  },
+  "background": true,
+  "budget": { "max_minutes": 180 },
+  "layout": "hand-back",
+  "steps": [
+    {
+      "id": "checkout",
+      "layout": "run-log",
+      "title": "Check out the head in a worktree",
+      "kind": "code",
+      "code": "pr-review-fix/checkout.mjs",
+      "outputs": ["worktree", "base", "head", "range"]
+    },
+    {
+      "id": "review",
+      "layout": "duel",
+      "title": "Two-engine review",
+      "role": "review",
+      "kind": "pipeline",
+      "uses": "pipeline:two-engine-review",
+      "with": { "range": "{{steps.checkout.outputs.range}}", "path": "{{steps.checkout.outputs.worktree}}" }
+    },
+    {
+      "id": "picks",
+      "layout": "pr-inline",
+      "title": "Tick the findings to fix",
+      "kind": "code",
+      "code": "pr-review-fix/picks.mjs",
+      "outputs": ["picks", "picks_abs"]
+    },
+    {
+      "id": "pick",
+      "layout": "pr-inline",
+      "title": "Pick what to fix",
+      "kind": "gate",
+      "gate": "approve",
+      "gate_summary": "{{steps.picks.outputs.picks}} findings are ticked, every one both engines agree on. Edit {{steps.picks.outputs.picks_abs}} to tick others by id (see {{steps.review.outputs.buckets_abs}}), then approve to fix them. Reject to stop."
+    },
+    {
+      "id": "fix",
+      "approval": "contained",
+      "layout": "pr-inline",
+      "title": "Fix the picked findings",
+      "role": "worker",
+      "kind": "agent",
+      "engine": "claude",
+      "cwd": "{{steps.checkout.outputs.worktree}}",
+      "timeout_minutes": 60,
+      "prompt": "Read {{steps.review.outputs.buckets_abs}} and {{steps.picks.outputs.picks_abs}}. Fix only the findings whose id is in the \"pick\" list, in this worktree. Leave every other finding alone. Do not commit and do not push. Then write {{run.dir}}/fixes.json with one entry per picked finding id: {\"fixes\": [{\"finding\": \"<id>\", \"status\": \"fixed\", \"proof\": {\"kind\": \"test\", \"test\": \"<test file>::<test name>\", \"command\": \"<one command that runs only that test>\"}}, {\"finding\": \"<id>\", \"status\": \"fixed\", \"proof\": {\"kind\": \"diff\"}}, {\"finding\": \"<id>\", \"status\": \"not-fixed\", \"reason\": \"<one line>\"}]}. Prefer a test proof: a test that fails on the original code and passes on your fix. Use a diff proof only when no test can show it. Never mark a finding fixed without one of these.",
+      "outputs": ["summary"]
+    },
+    {
+      "id": "proof",
+      "layout": "before-after",
+      "title": "Check every proof",
+      "kind": "code",
+      "code": "pr-review-fix/proof.mjs",
+      "outputs": ["checked", "passed", "proof_abs"]
+    },
+    {
+      "id": "rereview",
+      "layout": "duel",
+      "title": "Review the fixes",
+      "role": "review",
+      "kind": "pipeline",
+      "uses": "pipeline:two-engine-review",
+      "with": { "range": "{{steps.checkout.outputs.base}}", "path": "{{steps.checkout.outputs.worktree}}" }
+    },
+    {
+      "id": "handback",
+      "layout": "hand-back",
+      "title": "Write the hand-back",
+      "kind": "code",
+      "code": "pr-review-fix/handback.mjs"
+    }
+  ]
+}
