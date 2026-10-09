@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
+import { repoDir } from '../paths.ts';
 
 export interface EngineSpec {
   id: string;
@@ -19,7 +20,7 @@ export interface EngineSpec {
   approval_profiles?: Record<string, string[]>;
   ask_near_acu?: boolean;
   settings?: { file: string; set: Record<string, string | number | boolean> };
-  mcp_attach?: { kind: string; path?: string };
+  mcp_attach?: { kind: string; path?: string; env?: string; format?: 'mcpServers' | 'opencode-mcp'; template?: string[] };
   roles: string[];
   cost_rank: number;
   provider?: 'local-cli' | 'api-key' | 'gateway';
@@ -79,7 +80,16 @@ export const BUILT_IN: EngineSpec[] = [
 export function loadEngines(): EngineSpec[] {
   const override = process.env.METATROOPER_ENGINES;
   if (override) return JSON.parse(fs.readFileSync(path.resolve(override), 'utf8')) as EngineSpec[];
-  return BUILT_IN;
+  return [...BUILT_IN, ...dataEngines(path.join(repoDir, 'engines')).filter((e) => !BUILT_IN.some((b) => b.id === e.id))];
+}
+
+/** Engine files from a folder, each starting at cost_rank 5 or more so bindRole never prefers one silently. */
+export function dataEngines(dir: string): EngineSpec[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => {
+    const e = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as EngineSpec;
+    return { ...e, cost_rank: Math.max(5, e.cost_rank) };
+  });
 }
 
 export function syncEngines(db: DatabaseSync, engines: EngineSpec[]): void {
