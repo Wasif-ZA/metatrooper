@@ -1,5 +1,7 @@
 # M2 status ledger
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Hardening branch m2-harden (from main at 737dbd9, 2026-10-08). Branch m2, from main at 83a6de2 (M1 merged locally 2026-10-02). Started 2026-10-02 on Wasif's instruction while the
 adoption gate (spec.md, A-01 to A-05) runs in parallel; the gate is not cleared. Status values as in M1-STATUS.md.
 

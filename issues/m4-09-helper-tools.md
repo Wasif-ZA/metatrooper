@@ -1,5 +1,7 @@
 # M4-9 Helper tools for every pipeline (`assists`)
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Child of Milestone 4 in `spec.md` (Milestones and child issues). Decisions M4-D1 to M4-D12 and the
 verified current state are there; this file is what to build.
 

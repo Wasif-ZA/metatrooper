@@ -1,5 +1,7 @@
 # M3 status ledger
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Branch m3-harden, from main at 4752228 (2026-10-08). Status values as in M1-STATUS.md. Unfinished criteria first,
 then each issue (#32 to #42) is re-read and hardened one at a time.
 
