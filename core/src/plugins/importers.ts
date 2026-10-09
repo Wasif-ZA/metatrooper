@@ -300,21 +300,33 @@ export function importAgy(configFile: string = AGY_MCP_DEFAULT, projectDir?: str
   return plan;
 }
 
-const SHA = /^[0-9a-f]{40}$/;
+const SHA = /^[0-9a-fA-F]{40}$/;
 
-function git(args: string[], cwd?: string): string {
-  return execFileSync('git', args, { cwd, stdio: 'pipe', timeout: 120_000, windowsHide: true }).toString().trim();
+function git(args: string[], cwd?: string, local = false): string {
+  return execFileSync('git', ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', ...(local ? ['-c', 'protocol.file.allow=always'] : []), ...args], { cwd, stdio: 'pipe', timeout: 120_000, windowsHide: true }).toString().trim();
+}
+
+function httpsOnly(url: string, what: string): string {
+  if (!/^https:\/\/[^\s/]+\//.test(url)) throw new Error(`${what}: only https git URLs are imported, not ${url}`);
+  return url;
+}
+
+/** `dir` when its real path stays inside `root` after following symlinks, else null. */
+function realInside(root: string, dir: string | null): string | null {
+  if (!dir || !fs.existsSync(dir)) return dir;
+  const r = fs.realpathSync(root), d = fs.realpathSync(dir);
+  return d === r || d.startsWith(r + path.sep) ? dir : null;
 }
 
 /** Fetches `url` at exactly `sha` into `~/.metatrooper/plugins/.sources/<sha>`, reused when already there. */
-function checkoutAt(url: string, sha: string): string {
+function checkoutAt(url: string, sha: string, local = false): string {
   const dir = path.join(homeDir(), 'plugins', '.sources', sha);
   if (fs.existsSync(path.join(dir, '.git')) && git(['rev-parse', 'HEAD'], dir) === sha) return dir;
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   try {
     git(['init', '-q'], dir);
-    git(['fetch', '-q', '--depth', '1', '--', url, sha], dir);
+    git(['fetch', '-q', '--depth', '1', '--', url, sha], dir, local);
     git(['checkout', '-q', '--detach', 'FETCH_HEAD'], dir);
     if (git(['rev-parse', 'HEAD'], dir) !== sha) throw new Error('checked out the wrong commit');
   } catch (e) {
@@ -330,11 +342,14 @@ export function importMarketplace(spec: string): ImportPlan {
   const local = path.resolve(home(repo));
   let root = local;
   let sha = '';
+  let localMarketplace = false;
   if (fs.existsSync(path.join(local, '.claude-plugin', 'marketplace.json'))) {
-    try { sha = git(['rev-parse', 'HEAD'], local); } catch { sha = ''; }
+    try { sha = git(['rev-parse', 'HEAD'], local); } catch { throw new Error(`${local} is not a git repository, so nothing pins what would be imported`); }
+    localMarketplace = true;
+    if (git(['status', '--porcelain'], local)) throw new Error(`${local} has uncommitted changes; commit them so the import is pinned to ${sha.slice(0, 12)}`);
   } else {
-    const url = /^[\w.-]+\/[\w.-]+$/.test(repo) ? `https://github.com/${repo}.git` : repo;
-    sha = git(['ls-remote', '--', url, 'HEAD']).split(/\s/)[0];
+    const url = httpsOnly(/^[\w.-]+\/[\w.-]+$/.test(repo) ? `https://github.com/${repo}.git` : repo, 'marketplace');
+    sha = git(['ls-remote', '--', url, 'HEAD']).split(/\s/)[0].toLowerCase();
     if (!SHA.test(sha)) throw new Error(`no HEAD commit at ${url}`);
     root = checkoutAt(url, sha);
   }
@@ -352,10 +367,12 @@ export function importMarketplace(spec: string): ImportPlan {
     const url = s.source === 'github' && typeof s.repo === 'string' ? `https://github.com/${s.repo}.git` : (s.source === 'url' || s.source === 'git-subdir') && typeof s.url === 'string' ? s.url : '';
     if (!url) throw new Error(`plugin ${name}: source ${String(s.source)} is not supported`);
     if (typeof s.sha !== 'string' || !SHA.test(s.sha)) throw new Error(`plugin ${name}: no pinned sha listed, so it is not imported`);
-    const checkout = checkoutAt(url, s.sha);
-    dir = s.source === 'git-subdir' ? insideDir(checkout, String(s.path ?? '')) : checkout;
-    sha = s.sha;
+    sha = s.sha.toLowerCase();
+    const isLocal = localMarketplace && !/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && path.isAbsolute(url);
+    const checkout = isLocal ? checkoutAt(path.resolve(url), sha, true) : checkoutAt(httpsOnly(url, `plugin ${name}`), sha);
+    dir = realInside(checkout, s.source === 'git-subdir' ? insideDir(checkout, String(s.path ?? '')) : checkout);
   }
+  if (typeof entry.source === 'string') dir = realInside(root, dir);
   if (!dir) throw new Error(`plugin ${name}: source path leaves the repository`);
   const plan = importClaude(dir);
   plan.source = 'marketplace-import';
@@ -411,7 +428,8 @@ export function mapRegistryServer(server: Record<string, unknown>, original: str
     const transport = (pkg.transport as { type?: string } | undefined)?.type ?? 'stdio';
     if (!['npm', 'pypi', 'oci'].includes(type)) { plan.skipped.push(`${type} package ${ident}: skipped, ${type === 'mcpb' ? 'bundled binaries run unsigned native code' : 'not a supported package type'}`); continue; }
     if (transport !== 'stdio') { plan.skipped.push(`${type} package ${ident}: ${transport} transport is not imported`); continue; }
-    if (!v || v === 'latest' || ident.endsWith(':latest')) { plan.skipped.push(`${type} package ${ident}: no exact version, so it is not imported`); continue; }
+    if (!/^[@\w][\w@./:+-]*$/.test(ident)) { plan.errors.push(`${type} package ${ident}: not a package name`); continue; }
+    if (!/^\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$/.test(v) || ident.endsWith(':latest')) { plan.skipped.push(`${type} package ${ident}: no exact version, so it is not imported`); continue; }
     if (type === 'oci' && !onPath('docker')) { plan.skipped.push(`oci package ${ident}: Docker is not on PATH`); continue; }
     const envKeys: string[] = [];
     const env: Record<string, string> = {};

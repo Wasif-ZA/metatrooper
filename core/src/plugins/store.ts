@@ -191,7 +191,10 @@ export function installPlugin(db: DatabaseSync, req: InstallRequest): { plugin_i
         `INSERT INTO engine (id, plugin_id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET spec_json = excluded.spec_json, cost_rank = excluded.cost_rank, provider = excluded.provider`,
       );
+      const owner = db.prepare('SELECT plugin_id FROM engine WHERE id = ?');
       for (const raw of m.engines ?? []) {
+        const held = owner.get(raw.id) as { plugin_id: string | null } | undefined;
+        if (held && held.plugin_id !== m.id) throw new Error(`engine ${raw.id} already exists${held.plugin_id ? ` from plugin ${held.plugin_id}` : ' as a built-in'}; a plugin cannot replace it`);
         const e = { ...raw, cost_rank: Math.max(5, raw.cost_rank) };
         up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
       }
