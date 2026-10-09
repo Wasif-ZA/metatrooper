@@ -39,6 +39,13 @@
       "outputs": ["findings"]
     },
     {
+      "id": "check-findings",
+      "title": "Check the findings file",
+      "kind": "code",
+      "code": "e2e-browser-qa/check-findings.mjs",
+      "outputs": ["count"]
+    },
+    {
       "id": "fix",
       "title": "Fix what QA found",
       "role": "worker",
