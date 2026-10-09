@@ -95,6 +95,8 @@ test('a disagree and critical result auto-opens once, Escape folds it, and the h
     await w.wait(`!!document.querySelector('#runbars .rbar[data-run="${run}"]')`);
     await until(() => ['done', 'failed'].includes(h.db.prepare('SELECT status FROM run WHERE id = ?').get(run).status), 60000);
     await w.wait('runScreen.isOpen() && runScreen.layout() === "duel"', 15000);
+    assert.equal(await w.evaluate('runScreen.key({ key: "Escape" })'), false, 'an auto-opened run takes no keys (H1)');
+    await w.evaluate(`document.getElementById('runscreen').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
     await w.key('Escape', 'Escape');
     await w.wait('!runScreen.isOpen()');
     assert.equal(await w.evaluate(`document.querySelector('#runbars .rbar[data-run="${run}"]')?.classList.contains('halo')`), true);
