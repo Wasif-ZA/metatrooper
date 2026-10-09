@@ -121,11 +121,14 @@ how much of each engine's limit you have used.
 Works with any interactive CLI agent a plugin can describe. Three ship built in:
 
 <p>
-  <kbd><img src="assets/logos/claude.svg" width="16" valign="middle" alt=""> Claude Code</kbd> &nbsp;
-  <kbd><img src="assets/logos/openai.svg" width="16" valign="middle" alt=""> Codex</kbd> &nbsp;
-  <kbd><img src="assets/logos/googlegemini.svg" width="16" valign="middle" alt=""> Gemini (agy)</kbd> &nbsp;
+  <kbd>Claude Code</kbd> &nbsp;
+  <kbd>Codex CLI</kbd> &nbsp;
+  <kbd>Antigravity CLI (agy)</kbd> &nbsp;
   <kbd><img src="assets/logos/modelcontextprotocol.svg" width="16" valign="middle" alt=""> MCP servers and plugins</kbd>
 </p>
+
+<sub>MetaTrooper runs the official CLIs you install and sign in to yourself. It is not affiliated with or endorsed by
+Anthropic, OpenAI or Google.</sub>
 
 ## MetaTrooper is right for you if
 

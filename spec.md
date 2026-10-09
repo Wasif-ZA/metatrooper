@@ -889,6 +889,11 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-D19 | Code signing (recommendation) | Certum Open Source Code Signing (established CA, issues to individuals worldwide, about EUR 49 a year); OSSign only if Certum's identity check fails. It costs money, so it stands once Wasif buys it |
 | M5-D20 | Pro code and licence (recommendation) | Pro as a separate plugin in a private repo with its own licence; Lemon Squeezy licence keys with one user-triggered activation call, cached, documented as the second network exception beside wpad. Stands once Wasif creates the repo and the store |
 | M5-D21 | Packager | electron-builder (MIT, 14,670 stars, pushed 2026-10-09) runs only at build time and never ships inside the app, so it falls under the gate's exemption for local tooling. Claude's call on the same delegation |
+| M5-D22 | Landing m4-harden and m5-launch | Held until Wasif looks at the gate card and one spec-to-pr run on screen. Codex chose "merge, then screenshot and judge", Gemini chose "wait for his look"; the engines disagreed, so the conservative choice won (2026-10-09, Wasif asked the engines to make his remaining calls) |
+| M5-D23 | Signing, Pro shape, Pro repo | Both engines: Certum (confirms M5-D19); Pro as a private plugin with Lemon Squeezy keys (confirms M5-D20); do not create the Pro repo until M5-6 is built |
+| M5-D24 | Clean Windows machine | Both engines: a Hyper-V Windows 11 VM with Smart App Control on and a fresh standard account is the only setup that satisfies M5-01a; Windows Sandbox and a second account on this laptop do not |
+| M5-D25 | Linux evidence | Codex said WSL Ubuntu counts; Gemini said a real Linux desktop is needed. Conservative split: WSL counts for the core suite and the source-install beta (M5-05a), not for the Electron workbench. WSL here lacks `make`, so node-pty cannot build until `build-essential` is installed |
+| M5-D26 | Vendor terms (`ide-layer-research/m5-terms.md`) | Free app: allowed by all three with conditions (official unmodified binaries, the user signs in, MetaTrooper never reads or stores login tokens, no `claude -p` or Agent SDK, one login per person). Pro: OpenAI allowed with the same conditions; Anthropic and Google unclear. So Pro charges no one until Anthropic and Google confirm in writing, or until its Claude and Gemini steps can run on the buyer's own API key. Vendor logos are replaced by text names and a not-affiliated line |
 | M5-D14 | One instruction file | Added after Gemini named it as missing: each engine reads `AGENTS.md` when its own file is absent, through the engine's own flag, never by writing into the project (M5-19) |
 
 #### Milestone 5 children
@@ -915,6 +920,7 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-17 | Hardening the built-ins from the repo scan | `issues/m5-17-pipeline-hardening.md` | High | 5.1 | M5-9 |
 | M5-18 | Catalogue cut: built-ins, preview, unshipped | `issues/m5-18-catalogue-cut.md` | High | 0.5 | none |
 | M5-19 | One instruction file | `issues/m5-19-one-instruction-file.md` | Medium | 0.5 | none |
+| M5-20 | Mined ideas for website-build and design-variants | `issues/m5-20-built-preview-ideas.md` (teehee-85) | M5, after 12-01 | see file | M5-18 |
 
 Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 1.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
 0.5 + 5.1 (M5-17) = 30.85 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 30.85 is more than 27, so M5 fits
@@ -941,12 +947,15 @@ launch date moves instead.
 
 #### Milestone 5 hand-back (only Wasif)
 
-1. Buy the Certum certificate and pass its identity check (M5-D19), or say no to it. Nothing public ships before a
-   signed installer.
-2. Create the private Pro repo and the Lemon Squeezy store: A$19 monthly with a 14-day trial, tax and payout
-   (M5-D20), or say no to that shape.
-3. Read and accept the Anthropic, OpenAI and Google terms for automated runs and logo use (money plan rule).
-4. A fresh Windows account with Smart App Control on, and a Linux box (M5-1, M5-5).
+Every call below was decided by Codex and Gemini (M5-D22 to M5-D26); what is left needs his hands, money or name.
+
+1. Look at the m4-harden gate card and one spec-to-pr run on `m5-launch`, then merge m4-harden, then m5-launch
+   (M5-D22).
+2. Buy the Certum certificate and pass its identity check (M5-D23).
+3. Send the two terms questions drafted in `ide-layer-research/m5-terms.md` to Anthropic and to Google
+   (antigravity-support@google.com) before Pro charges anyone (M5-D26). Lemon Squeezy waits for the answers.
+4. Install Windows 11 once in a Hyper-V VM with Smart App Control on (M5-D24), and run
+   `sudo apt install build-essential` in WSL Ubuntu (M5-D25).
 6. On screen for the first real pr-review-fix run, one workday in the app (UI-01), the GIFs (M5-11).
 
 ## Acceptance criteria
