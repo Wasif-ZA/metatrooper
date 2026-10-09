@@ -12,9 +12,9 @@ test('M3-04 template.list lists all 17 templates, each ready only when every req
   try {
     const files = readdirSync(join(root, 'pipelines/templates')).filter((f) => f.endsWith('.json'));
     assert.equal(files.length, 17);
-    const list = async () => (await h.pipe.request('template.list', {})).result.templates as Array<{ id: string; requires: string[]; missing: string[]; ready: boolean }>;
+    const list = async () => (await h.pipe.request('template.list', {})).result.templates as Array<{ id: string; requires: string[]; missing: string[]; ready: boolean; preview: boolean }>;
     const plugins = new Set((h.db.prepare('SELECT id FROM plugin WHERE enabled = 1').all() as Array<{ id: string }>).map((r) => r.id));
-    const first = await list();
+    const first = (await list()).filter((t) => !t.preview);
     assert.deepEqual(first.map((t) => t.id).sort(), files.map((f) => JSON.parse(readFileSync(join(root, 'pipelines/templates', f), 'utf8')).id).sort());
     for (const t of first) {
       assert.deepEqual(t.missing, t.requires.filter((r) => !plugins.has(r)), t.id);

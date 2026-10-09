@@ -6,6 +6,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HINT } from '../../pipelines/code-map/index.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
@@ -20,8 +21,15 @@ function git(cwd, ...args) {
   return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true });
 }
 
-export function renderPrompt(hint = '') {
-  const pipe = JSON.parse(readFileSync(join(root, 'pipelines', 'two-engine-review.json'), 'utf8'));
+const BASELINE_COMMIT = '6cd0253';
+
+/** The codex-review prompt; `before` reads the pipeline file as it was at the baseline commit. */
+export function renderPrompt(mode = 'after') {
+  const file = mode === 'before'
+    ? git(root, 'show', `${BASELINE_COMMIT}:pipelines/two-engine-review.json`)
+    : readFileSync(join(root, 'pipelines', 'two-engine-review.json'), 'utf8');
+  const pipe = JSON.parse(file);
+  const hint = HINT;
   const step = pipe.steps.find((s) => s.id === 'codex-review');
   return step.prompt
     .replaceAll('{{steps.diff.outputs.diff_file}}', 'RUN/review.diff')
@@ -71,10 +79,12 @@ async function reviewContext(repo, files) {
     const { tools } = await rpc.send('tools/list', {});
     const tool = tools.find((t) => t.name === 'get_review_context_tool');
     if (!tool) throw new Error('code-review-graph has no get_review_context_tool');
-    const extra = (tool.inputSchema?.required ?? []).filter((k) => k !== 'files');
-    if (extra.length) throw new Error(`get_review_context_tool also requires ${extra.join(', ')}`);
-    const result = await rpc.send('tools/call', { name: tool.name, arguments: { files } });
-    return (result.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+    const props = tool.inputSchema?.properties ?? {};
+    if (!('changed_files' in props) || !('base' in props)) throw new Error(`get_review_context_tool takes ${Object.keys(props).join(', ')}, not changed_files and base`);
+    const result = await rpc.send('tools/call', { name: tool.name, arguments: { changed_files: files, base: 'HEAD', detail_level: 'minimal' } });
+    const text = (result.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+    if (result.isError) throw new Error(`get_review_context_tool failed: ${text.slice(0, 300)}`);
+    return text;
   } finally {
     child.kill();
   }
@@ -99,7 +109,7 @@ export async function replay(diffName, mode) {
     } else {
       context = await reviewContext(repo, files);
     }
-    const offered = [renderPrompt(), diff, context].join('\n');
+    const offered = [renderPrompt(mode), diff, context].join('\n');
     const bytes = Buffer.byteLength(offered, 'utf8');
     return { diff: diffName, mode, bytes, tokens: Math.ceil(bytes / 4) };
   } finally {

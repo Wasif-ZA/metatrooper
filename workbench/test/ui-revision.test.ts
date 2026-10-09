@@ -133,7 +133,7 @@ test('UI-08 spec-to-pr shows every step status and the approve-pr gate inline', 
     w = await windowFor(h); await select(h, w, session);
     await w.wait(`document.querySelector('.steps [data-step="approve-pr"]')`);
     const statuses = await w.evaluate(`Array.from(document.querySelectorAll('.steps [data-step]'), e=>({id:e.dataset.step,text:e.textContent.trim()}))`);
-    assert.deepEqual(statuses.map(s => s.id), ['spec','approve-spec','build','verify','approve-pr','open-pr']);
+    assert.deepEqual(statuses.map(s => s.id), ['spec','spec-lint','approve-spec','build','verify','compare-tests','approve-pr','open-pr']);
     for (const s of statuses) {
       const row = h.db.prepare('SELECT status FROM run_step WHERE run_id = ? AND step_id = ? ORDER BY iteration DESC LIMIT 1').get(run, s.id);
       assert.ok(s.text.includes(row?.status ?? 'pending'), `${s.id}: ${s.text}`);

@@ -36,6 +36,12 @@ export function openCoreDb()               {
   if (!(db.prepare('PRAGMA table_info(session)').all()                           ).some((c) => c.name === 'parent_id')) db.exec('ALTER TABLE session ADD COLUMN parent_id TEXT REFERENCES session(id)');
   db.exec('CREATE INDEX IF NOT EXISTS event_kind_idx ON event (kind, seq)');
   if (!(db.prepare('PRAGMA table_info(run)').all()                           ).some((c) => c.name === 'hidden')) db.exec('ALTER TABLE run ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
+  const gateCols = (db.prepare('PRAGMA table_info(gate)').all()                           ).map((c) => c.name);
+  if (!gateCols.includes('scan')) db.exec('ALTER TABLE gate ADD COLUMN scan TEXT');
+  if (!gateCols.includes('override_reason')) db.exec('ALTER TABLE gate ADD COLUMN override_reason TEXT');
+  if (!(db.prepare('PRAGMA table_info(needs_you)').all()                           ).some((c) => c.name === 'notified_at')) db.exec('ALTER TABLE needs_you ADD COLUMN notified_at TEXT');
+  const schemaText = fs.readFileSync(schemaFile, 'utf8');
+  for (const table of ['notify_sink', 'notify_delivery']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
   return db;
 }
 

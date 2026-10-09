@@ -139,3 +139,19 @@ export function rebuildPayload(kind        , built        )      {
       return {};
   }
 }
+
+const NOTIFY_LABEL                         = {
+  gate: 'approval needed', handoff: 'handoff waiting', 'run-failed': 'run failed', budget: 'budget limit', 'missing-secret': 'secret missing', other: 'needs you',
+};
+
+/** The one-line message a notification sink receives: a fixed label plus the item text with URLs, paths and token-like strings removed. */
+export function notifyText(kind        , text        )         {
+  const clean = text
+    .replace(/\s+/g, ' ')
+    .replace(/https?:\/\/\S+/g, '<url>')
+    .replace(/[A-Za-z]:[\\/]\S*|(?<!\S)\/[^\s/]+\/\S*/g, '<path>')
+    .replace(/[A-Za-z0-9_+=-]{24,}/g, '<redacted>')
+    .trim()
+    .slice(0, 160);
+  return `MetaTrooper (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
+}

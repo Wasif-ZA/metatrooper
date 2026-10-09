@@ -103,6 +103,25 @@ command, args and resolved secrets (DPAPI values and `${VAR}` references resolve
 at that moment), then spawns the real server with that environment and relays stdio. No secret is written into
 any engine's config file.
 
+An `mcp` entry may also set `env`, literal non-secret values added to the server's environment (a key also in
+`env_keys` is refused). In `args`, the exact token `{{cwd}}` becomes the shim's working directory, which is the
+agent session's cwd; there is no other templating.
+
+An `mcp` entry with `transport: "http"` has a `url` (https only) instead of a `command`. `auth` is `none`,
+`engine-oauth` (the engine runs the sign-in and keeps the token) or `header`. `headers` maps a header name to a
+value that must contain at least one `${SECRET}`; each `SECRET` needs `secrets:SECRET` in `permissions`, and a
+literal header value fails validation. `writes` is `none`, `project` or `external`; an http server with no
+`writes` counts as `external`.
+
+Claude gets `{"type":"http","url":...}` in the per-session file, plus `headersHelper` (the quoted node and shim
+paths, then `headers <plugin id> <server id>`) when the server has `headers`. The shim's `headers` subcommand
+prints the resolved headers as JSON from the secret store and exits 1 naming any missing secret. Codex gets
+`-c mcp_servers.<name>.url=<url>` only for a `writes: none` server with no `headers`. Neither is attached for agy.
+
+A `writes: external` server is never attached to a pipeline-step session, and in an interactive session only when
+the approval profile is not `contained` or `isolated` (the engine still asks per tool). Because the attach rule
+already guarantees this, there is no Claude PreToolUse deny for it.
+
 How engines are pointed at the shim (child #13):
 
 | `mcp_attach.kind` | How |

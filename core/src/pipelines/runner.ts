@@ -15,11 +15,12 @@ import { trustFolder, untrustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
 import { BASE_ENV, killPid, killTree, runAction } from '../plugins/actions.ts';
-import { loadPlugin } from '../plugins/store.ts';
+import { listPlugins, loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
 import { detectAssists, helperBlock } from './assists.ts';
+import { scanWorktree } from './secrets-scan.ts';
 import { startDevServer, startedNear, stopDevServer, stopRunServers, waitReady } from './devserver.ts';
 import * as term from '../terminal/index.ts';
 import { liveText } from '../terminal/events.ts';
@@ -504,10 +505,10 @@ export class Runner {
     const ensure = this.db.prepare("INSERT OR IGNORE INTO run_step (run_id, step_id, iteration, fanout_index, status) VALUES (?, ?, ?, ?, 'pending')");
     for (let i = 0; i < n; i++) ensure.run(run.id, step.id, iteration, i);
 
-    if (step.kind === 'gate') return this.gateStep(run, pipe, step, iteration);
+    if (step.kind === 'gate') return await this.gateStep(run, pipe, step, iteration);
     const ctx = { action: (p: string, a: string) => pluginAction(this.db, p, a) };
     if (isGuarded(step, ctx)) {
-      const check = this.checkApproval(run, pipe, step);
+      const check = await this.checkApproval(run, pipe, step);
       if (check !== 'ok') return check;
     }
 
@@ -646,7 +647,10 @@ export class Runner {
           } catch {
             kept = false;
           }
+          const base = git(project.path, ['rev-parse', 'HEAD']).trim();
           git(project.path, ['worktree', 'add', dir, ...(kept ? [branch] : ['-b', branch, 'HEAD'])]);
+          fs.mkdirSync(path.join(run.run_dir, 'worktrees'), { recursive: true });
+          fs.writeFileSync(path.join(run.run_dir, 'worktrees', `${step.id}-${idx}.base`), base);
         } catch (e) {
           throw new Error(`git worktree add failed: ${gitError(e)}`);
         }
@@ -762,7 +766,9 @@ ${helpers}` : resolved;
     let error = this.printFailure(run, a.row, r);
     if (error === null) return r;
     if (!sameError(error, prior) && !error.includes('auto-denied')) {
-      r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running' } });
+      const started_at = nowIso();
+      this.db.prepare('UPDATE run_step SET started_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ? AND fanout_index = ?').run(started_at, run.id, a.row.step_id, a.row.iteration, a.row.fanout_index);
+      r = await this.agentAttempt(run, pipe, { ...a, row: { ...a.row, session_id: null, status: 'running', started_at } });
       const again = this.printFailure(run, a.row, r);
       if (again === null) return r;
       error = again;
@@ -950,7 +956,38 @@ ${helpers}` : resolved;
     }
   }
 
-  private gateStep(run: RunRow, pipe: Pipeline, step: Step, iteration: number): StepOutcome {
+  /** A `when` gate's scan JSON: the `scan` output of the step its `when` names, if that step wrote one. */
+  private whenScan(run: RunRow, step: Step): string | null {
+    const target = step.when ? /^steps\.([a-z0-9-]+)\./.exec(step.when)?.[1] : undefined;
+    const row = target ? [...this.rows(run.id, target)].reverse().find((r) => r.outputs) : undefined;
+    const scan = row?.outputs ? (JSON.parse(row.outputs) as { scan?: unknown }).scan : undefined;
+    return scan === undefined ? null : typeof scan === 'string' ? scan : JSON.stringify(scan);
+  }
+
+  /** Secret-scan JSON for a gate guarding a publish step: every worktree before it, each since its base commit. */
+  private async publishScan(run: RunRow, pipe: Pipeline, guarded: Step | null, gateId: string): Promise<string | null> {
+    if (guarded?.role !== 'publish') return null;
+    const upto = pipe.steps.findIndex((s) => s.id === guarded.id);
+    const items: Array<{ rule: string; file: string; line: number | null }> = [];
+    const reasons: string[] = [];
+    const seen = new Set<string>();
+    for (const s of pipe.steps.slice(0, upto).filter((x) => x.worktree)) {
+      for (const r of this.rows(run.id, s.id)) {
+        const tree = r.outputs ? (JSON.parse(r.outputs) as { worktree?: string }).worktree : undefined;
+        const baseFile = path.join(run.run_dir, 'worktrees', `${s.id}-${r.fanout_index}.base`);
+        if (!tree || seen.has(tree) || !fs.existsSync(tree) || !fs.existsSync(baseFile)) continue;
+        seen.add(tree);
+        const res = await scanWorktree(tree, fs.readFileSync(baseFile, 'utf8').trim(), run.run_dir, `gate-${gateId}`);
+        if (res.status === 'findings') items.push(...res.items);
+        else if (res.status === 'unavailable') reasons.push(res.reason);
+      }
+    }
+    if (items.length) return JSON.stringify({ status: 'findings', count: items.length, items });
+    if (reasons.length || !seen.size) return JSON.stringify({ status: 'unavailable', reason: reasons[0] ?? 'no worktree to scan' });
+    return JSON.stringify({ status: 'clean', count: 0 });
+  }
+
+  private async gateStep(run: RunRow, pipe: Pipeline, step: Step, iteration: number): Promise<StepOutcome> {
     const waiting = this.db.prepare("SELECT id FROM gate WHERE run_id = ? AND step_id = ? AND status = 'waiting'").get(run.id, step.id);
     if (!waiting && step.when && !this.evalUntil(run, step.when)) {
       this.db.prepare("UPDATE run_step SET status = 'skipped', ended_at = ? WHERE run_id = ? AND step_id = ? AND iteration = ?").run(nowIso(), run.id, step.id, iteration);
@@ -967,8 +1004,9 @@ ${helpers}` : resolved;
         summary = step.title ?? step.id;
       }
       const id = ulid();
-      this.db.prepare('INSERT INTO gate (id, run_id, step_id, guards_step, kind, action_hash, summary, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, run.id, step.id, guarded?.id ?? null, step.gate as string, h?.hash ?? null, summary, 'waiting');
+      const scan = (await this.publishScan(run, pipe, guarded, id)) ?? this.whenScan(run, step);
+      this.db.prepare('INSERT INTO gate (id, run_id, step_id, guards_step, kind, action_hash, summary, status, scan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(id, run.id, step.id, guarded?.id ?? null, step.gate as string, h?.hash ?? null, summary, 'waiting', scan);
       this.needsYou(step.gate === 'approve' ? 'gate' : 'handoff', id, summary);
     }
     this.db.prepare("UPDATE run_step SET status = 'waiting', started_at = COALESCE(started_at, ?) WHERE run_id = ? AND step_id = ? AND iteration = ?").run(nowIso(), run.id, step.id, iteration);
@@ -976,7 +1014,7 @@ ${helpers}` : resolved;
   }
 
   /** Before a guarded step runs: its approval must match the action it is about to take, and is used up by it. */
-  private checkApproval(run: RunRow, pipe: Pipeline, step: Step): 'ok' | StepOutcome {
+  private async checkApproval(run: RunRow, pipe: Pipeline, step: Step): Promise<'ok' | StepOutcome> {
     const h = this.hashFor(run, step);
     if (!h) return this.fail(run, `step ${step.id}: its arguments could not be resolved for the approval check`);
     const approved = this.db.prepare(
@@ -993,8 +1031,9 @@ ${helpers}` : resolved;
     const kind = earlier ? earlier.kind : 'auto-external';
     const id = ulid();
     const summary = `${approved ? 'Changed since approval. ' : ''}${h.summary}`;
-    this.db.prepare("INSERT INTO gate (id, run_id, step_id, guards_step, kind, action_hash, summary, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting')")
-      .run(id, run.id, earlier?.step_id ?? step.id, step.id, kind, h.hash, summary);
+    const scan = await this.publishScan(run, pipe, step, id);
+    this.db.prepare("INSERT INTO gate (id, run_id, step_id, guards_step, kind, action_hash, summary, status, scan) VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?)")
+      .run(id, run.id, earlier?.step_id ?? step.id, step.id, kind, h.hash, summary, scan);
     this.needsYou('gate', id, summary);
     this.log(run, { event: approved ? 'gate stale' : 'gate needed', step: step.id });
     return this.pause(run, 'gate');
@@ -1123,7 +1162,7 @@ ${helpers}` : resolved;
       });
       child.on('exit', (code) => done({ ok: false, error: `code step exited with code ${code} before returning${stderr ? `: ${stderr.trim().split('\n').slice(-5).join(' | ')}` : ''}` }));
       child.on('error', (e) => done({ ok: false, error: `code step could not start: ${e.message}` }));
-      child.send({ type: 'init', module, ctx: { inputs: JSON.parse(run.inputs), steps, runDir: run.run_dir, projectPath: project.path } });
+      child.send({ type: 'init', module, ctx: { inputs: JSON.parse(run.inputs), steps, runDir: run.run_dir, projectPath: project.path, coreDir, plugins: listPlugins(this.db).filter((p) => p.enabled).map((p) => p.id) } });
     });
     this.children.delete(key);
     if ('ok' in result && result.ok) {

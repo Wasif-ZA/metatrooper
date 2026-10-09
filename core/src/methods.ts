@@ -20,6 +20,7 @@ import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
+import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import type { Runner } from './pipelines/runner.ts';
 import { listTemplates, syncPipelines, validationContext } from './pipelines/store.ts';
 import { validatePipeline } from './pipelines/validate.ts';
@@ -325,17 +326,21 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('gate.resolve', {
     needsUi: true,
     handler: (p) => {
-      const gate = db.prepare('SELECT id, run_id, step_id, kind, action_hash, status FROM gate WHERE id = ?').get(str(p, 'gate_id')) as
-        | { id: string; run_id: string; step_id: string; kind: string; action_hash: string | null; status: string }
+      const gate = db.prepare('SELECT id, run_id, step_id, kind, action_hash, status, scan FROM gate WHERE id = ?').get(str(p, 'gate_id')) as
+        | { id: string; run_id: string; step_id: string; kind: string; action_hash: string | null; status: string; scan: string | null }
         | undefined;
       if (!gate) throw new RpcError(E.NOT_FOUND, 'gate not found');
       if (gate.status !== 'waiting') throw new RpcError(E.GATE_STALE, `gate is ${gate.status}`);
       if (gate.action_hash && gate.action_hash !== p.action_hash) throw new RpcError(E.GATE_STALE, 'gate is stale: the action changed since approval');
       const decision = str(p, 'decision');
       if (decision !== 'approve' && decision !== 'reject') throw new RpcError(E.INVALID_PARAMS, 'decision must be approve or reject');
+      const reason = typeof p.override_reason === 'string' ? p.override_reason.trim() : '';
+      let findings = false;
+      try { findings = JSON.parse(gate.scan ?? 'null')?.status === 'findings'; } catch {}
+      if (decision === 'approve' && findings && !reason) throw new RpcError(E.INVALID_PARAMS, 'this gate has secret-scan findings; approve needs override_reason');
       if (decision === 'approve' && gate.kind === 'handoff') ctl.runner.checkContinue(gate.run_id, gate.step_id);
-      db.prepare('UPDATE gate SET status = ?, decided_at = ?, note = ? WHERE id = ?')
-        .run(decision === 'approve' ? 'approved' : 'rejected', nowIso(), typeof p.note === 'string' ? p.note : null, gate.id);
+      db.prepare('UPDATE gate SET status = ?, decided_at = ?, note = ?, override_reason = ? WHERE id = ?')
+        .run(decision === 'approve' ? 'approved' : 'rejected', nowIso(), typeof p.note === 'string' ? p.note : null, decision === 'approve' && findings ? reason : null, gate.id);
       db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind IN ('gate', 'handoff') AND ref = ? AND resolved_at IS NULL").run(nowIso(), gate.id);
       return {};
     },
@@ -373,6 +378,11 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return {};
     },
   });
+
+  m.set('notify.sink.set', { needsUi: true, handler: (p) => setSink(db, p) });
+  m.set('notify.sink.list', { handler: () => listSinks(db) });
+  m.set('notify.sink.test', { needsUi: true, handler: (p) => testSink(db, str(p, 'id')) });
+  m.set('notify.sink.remove', { needsUi: true, handler: (p) => removeSink(db, str(p, 'id')) });
 
   m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
 

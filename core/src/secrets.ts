@@ -35,7 +35,7 @@ export function setSecret(db: DatabaseSync, pluginId: string, name: string, valu
   const file = secretPath(pluginId, name);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, blob, 'utf8');
-  db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
+  if (pluginId !== 'core-notify') db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
   cache.set(`${pluginId}/${name}`, value);
 }
 
@@ -61,6 +61,12 @@ export function getSecret(pluginId: string, name: string): string | null {
 
 export function hasSecret(pluginId: string, name: string): boolean {
   return cache.has(`${pluginId}/${name}`) || fs.existsSync(secretPath(pluginId, name));
+}
+
+/** Deletes one stored secret from disk and memory. */
+export function deleteSecret(pluginId: string, name: string): void {
+  cache.delete(`${pluginId}/${name}`);
+  fs.rmSync(secretPath(pluginId, name), { force: true });
 }
 
 /** Deletes every stored secret of a plugin, on disk, in the table and in memory. */

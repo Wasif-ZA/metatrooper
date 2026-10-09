@@ -37,6 +37,26 @@ verified current state are there; this file is what to build.
 - Fallback: when the map is unavailable, `hint` is "Also read the source files it touches." so the rendered codex prompt keeps today's
   instruction in full. The M4-06 test asserts that sentence is in the rendered prompt file.
 
+## Measured before building, 2026-10-09T00:54+11:00
+
+code-review-graph 2.3.9, replay harness on the axios fixture. `get_review_context_tool` takes `changed_files` (not
+`files`) and `base` (default `HEAD~1`; the replay passes `HEAD` because the patch is uncommitted).
+
+| detail_level | small (366 before) | medium (2,820) | large (11,200) | median ratio |
+|---|---|---|---|---|
+| standard (default) | 2,479 | 6,846 | 27,981 | 2.48 |
+| minimal | 425 | 886 | 3,890 | 0.35 |
+
+Decided by Wasif 2026-10-09: build with `detail_level: minimal`; the real after-runs (M4-04) decide whether agents
+still open whole files. The hint names the tool's arguments: `changed_files` and `detail_level: "minimal"`.
+
+Built 2026-10-09 with two changes from the text above. The plugin lives in `plugins/optional/code-map/`,
+not `plugins/code-map/`: every folder directly in `plugins/` registers as a builtin and attaches to every Claude
+and Codex session, which would break sessions on machines without code-review-graph. It is installed from the
+plugin screen with that folder as the source. Code steps now get `ctx.plugins` (enabled plugin ids), and the
+`map` step returns the fallback hint unless `code-map` is among them, so the hint never names a tool the
+session does not have.
+
 ## Acceptance criteria
 
 - M4-05. Installing and using the code-map plugin leaves these unchanged, by SHA-256 of each file that exists

@@ -141,6 +141,9 @@ Every other interaction is a database read.
 | `plugin.remove` | `{plugin_id}` | `{}`; needs `ui.hello` |
 | `plugin.secret.set` | `{plugin_id, name, value}` | `{}`; needs `ui.hello`; `name` must be an approved `secrets:<NAME>` |
 | `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
+| `notify.sink.set` | `{kind, dest, name?, id?, kinds?, enabled?}` | `{id}`; needs `ui.hello`; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table |
+| `notify.sink.list` | `{}` | `{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}`; no destination |
+| `notify.sink.test` / `notify.sink.remove` | `{id}` | `{ok, error?}` / `{}`; need `ui.hello` |
 | `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
 | `pipeline.validate` | `{json}` | `{valid, errors}` |
 | `template.list` | `{}` | `{templates: [{id, title, lane, requires, missing, ready}]}`: every `pipelines/templates/*.json`; `ready` only when each plugin in `requires` is installed and enabled, `missing` names the rest |

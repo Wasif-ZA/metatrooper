@@ -23,7 +23,7 @@ test('M2-01 security-review-and-upgrade runs on a fixture, stops at approve-upgr
   const core = await startCore({ ...iso, env: { ...iso.env, METATROOPER_ENGINES: registry, PATH: `${bin}${delimiter}${process.env.PATH}` } });
   const db = new DatabaseSync(join(iso.home, 'troop.db')); db.exec('PRAGMA busy_timeout = 5000');
   try {
-    const def = JSON.parse(readFileSync(join(root, 'pipelines/security-review-and-upgrade.json'), 'utf8'));
+    const def = JSON.parse(readFileSync(join(root, 'pipelines/preview/security-review-and-upgrade.json'), 'utf8'));
     for (const step of def.steps) if (step.kind === 'agent') { step.engine = 'fake'; step.prompt = fake(step.id === 'plan' ? { outputs: { package: 'sample', high_reachable: false } } : { outputs: { summary: 'fixture notes' } }) + step.prompt; }
     mkdirSync(join(project, '.troop/pipelines'), { recursive: true }); writeFileSync(join(project, '.troop/pipelines/security-review-and-upgrade.json'), JSON.stringify(def));
     const pipe = await client(iso.prefix);

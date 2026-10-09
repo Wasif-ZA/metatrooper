@@ -40,7 +40,7 @@ test('cite-check passes when only an uncited source is dead', async () => {
 });
 
 test('deep-research draft prompt asks for the source id form search writes', () => {
-  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/deep-research-cited.json', import.meta.url), 'utf8'));
+  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/preview/deep-research-cited.json', import.meta.url), 'utf8'));
   const draft = pipe.steps.find((s) => s.id === 'draft').prompt;
   assert.doesNotMatch(draft, /\[s#\]/);
   assert.match(draft, /\[s01\]/);
@@ -96,7 +96,7 @@ test('github list-prs accepts a tag that has no release', () => {
 });
 
 test('docs-and-release-notes release tag is valid whether the agent answers v1.4.0 or 1.4.0', () => {
-  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/docs-and-release-notes.json', import.meta.url), 'utf8'));
+  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/preview/docs-and-release-notes.json', import.meta.url), 'utf8'));
   const manifest = JSON.parse(readFileSync(new URL('../../plugins/github/troop-plugin.json', import.meta.url), 'utf8'));
   const pattern = new RegExp(manifest.actions.find((a) => a.id === 'release').input_schema.properties.tag.pattern);
   const tag = pipe.steps.find((s) => s.id === 'release').with.tag;
@@ -105,7 +105,7 @@ test('docs-and-release-notes release tag is valid whether the agent answers v1.4
 });
 
 test('data-to-dashboard serves the dashboard folder so the pane root is the page', () => {
-  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/data-to-dashboard.json', import.meta.url), 'utf8'));
+  const pipe = JSON.parse(readFileSync(new URL('../../pipelines/preview/data-to-dashboard.json', import.meta.url), 'utf8'));
   const build = pipe.steps.find((s) => s.id === 'build');
   assert.match(build.dev_command, /http-server "\{\{run\.dir\}\}\/dashboard"/);
   assert.match(build.prompt, /\{\{run\.dir\}\}\/dashboard\/index\.html/);

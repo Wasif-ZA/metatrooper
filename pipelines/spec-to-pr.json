@@ -52,8 +52,16 @@
       "kind": "agent",
       "worktree": true,
       "baseline_tests": true,
+      "timeout_minutes": 60,
       "prompt": "Build what {{run.dir}}/spec.md describes in this worktree. Write a failing test first, then the code, then run the tests. Commit your work on the current branch. Do not push.",
       "outputs": ["summary"]
+    },
+    {
+      "id": "check-build",
+      "title": "Check the build is committed",
+      "kind": "code",
+      "code": "spec-to-pr/check-build.mjs",
+      "outputs": ["commits", "tests_added", "summary"]
     },
     {
       "id": "verify",
@@ -77,7 +85,7 @@
       "title": "Approve opening the pull request",
       "kind": "gate",
       "gate": "approve",
-      "gate_summary": "Open a pull request on {{inputs.repo}} from {{steps.build.outputs.branch}} into {{inputs.base_branch}}. Tests passed: {{steps.verify.outputs.passed}}. {{steps.compare-tests.outputs.summary}}."
+      "gate_summary": "Open a pull request on {{inputs.repo}} from {{steps.build.outputs.branch}} into {{inputs.base_branch}}. Tests passed: {{steps.verify.outputs.passed}}. Build: {{steps.check-build.outputs.summary}}. {{steps.compare-tests.outputs.summary}}."
     },
     {
       "id": "open-pr",

@@ -14,7 +14,7 @@ export interface Snapshot {
   pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown>; layout: string | null; background: boolean; step_defs: StepDef[] }>;
   runs: Array<{ id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string; ended_at: string | null; depth: number; parent_run: string | null }>;
   steps: Array<{ run_id: string; step_id: string; iteration: number; fanout_index: number; status: string; engine_id: string | null; session_id: string | null; fail_count: number; output_path: string | null }>;
-  gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string }>;
+  gates: Array<{ id: string; run_id: string; top_run: string; pipeline_id: string; step_id: string; guards_step: string | null; kind: string; action_hash: string | null; summary: string; project_id: string; scan: string | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   live_runs: Array<{ id: string; project_id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string }>;
@@ -148,7 +148,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
     `WITH RECURSIVE up(id, top) AS (
        SELECT id, id FROM run WHERE parent_run IS NULL
        UNION ALL SELECT r.id, up.top FROM run r JOIN up ON r.parent_run = up.id)
-     SELECT g.id, g.run_id, up.top AS top_run, r.pipeline_id, g.step_id, g.guards_step, g.kind, g.action_hash, g.summary, r.project_id
+     SELECT g.id, g.run_id, up.top AS top_run, r.pipeline_id, g.step_id, g.guards_step, g.kind, g.action_hash, g.summary, r.project_id, g.scan
      FROM gate g JOIN run r ON r.id = g.run_id JOIN up ON up.id = g.run_id
      WHERE g.status = 'waiting' ORDER BY g.rowid`,
   ).all() as Snapshot['gates']);

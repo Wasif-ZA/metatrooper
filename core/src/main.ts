@@ -23,6 +23,7 @@ import { browserCall } from './browser/client.ts';
 import { syncBuiltinPlugins, syncPipelines } from './pipelines/store.ts';
 import { ulid } from './time.ts';
 import { settings } from './settings.ts';
+import { notifyTick } from './notify.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -107,6 +108,7 @@ async function main(): Promise<void> {
   every(2000, () => readMeters(db));
   try { readLimits(db); } catch {}
   every(60_000, () => readLimits(db));
+  every(2000, () => notifyTick(db));
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));
   every(5000, () => resolveSpentNotices(db));

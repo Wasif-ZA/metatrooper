@@ -1,15 +1,12 @@
 function asFindings(text) {
-  try {
-    const list = JSON.parse(text);
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
+  const list = JSON.parse(text);
+  if (!Array.isArray(list)) throw new Error('findings.json is not a JSON array');
+  return list;
 }
 
 /** Writes qa-report.md from findings.json and the reverify result. */
 export async function run(ctx) {
-  const findings = asFindings(await ctx.readFile('findings.json').catch(() => '[]'));
+  const findings = asFindings(await ctx.readFile('findings.json'));
   const verify = ctx.steps.reverify ?? {};
   const fixed = findings.filter((f) => f.fixed_by);
   const open = findings.filter((f) => !f.fixed_by);
@@ -17,7 +14,7 @@ export async function run(ctx) {
   const md = [
     '# Browser QA report',
     '',
-    `Branch: ${ctx.steps.qa?.branch ?? 'unknown'}. Tests after the fixes: ${verify.passed ? 'passed' : 'failed'} (exit ${verify.exit_code ?? '?'}).`,
+    `Branch: ${ctx.steps.qa?.branch ?? 'unknown'}. Tests after the fixes: ${verify.runner === 'none' ? 'no tests exist in this repo' : `${verify.passed ? 'passed' : 'failed'} (exit ${verify.exit_code ?? '?'})`}.`,
     '',
     `## Fixed (${fixed.length})`,
     '',

@@ -33,9 +33,15 @@ export function detect(dir) {
       return { runner: pm, command: [pm, 'test'] };
     }
   }
-  if (has('pyproject.toml') || has('pytest.ini') || has('setup.cfg') || has('tests')) {
+  const pyIn = (d, depth) => {
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return false; }
+    return entries.some((e) => (e.isFile() && /\.py$/i.test(e.name)) || (e.isDirectory() && depth > 0 && pyIn(path.join(d, e.name), depth - 1)));
+  };
+  const pyTests = pyIn(path.join(dir, 'tests'), 3);
+  if (has('pyproject.toml') || has('pytest.ini') || has('setup.cfg') || pyTests) {
     if (has('uv.lock')) return { runner: 'pytest', command: ['uv', 'run', 'pytest'] };
-    if (has('pyproject.toml') || has('pytest.ini')) return { runner: 'pytest', command: ['python', '-m', 'pytest'] };
+    return { runner: 'pytest', command: win ? ['py', '-m', 'pytest'] : ['python3', '-m', 'pytest'] };
   }
   if (has('Cargo.toml')) return { runner: 'cargo', command: ['cargo', 'test'] };
   if (has('go.mod')) return { runner: 'go', command: ['go', 'test', './...'] };
@@ -54,7 +60,7 @@ export function failingTests(output) {
     let m;
     if (tap && !/#\s*(TODO|SKIP)\b/i.test(line) && (m = /^\s*not ok \d+ - (.+?)(\s+#.*)?$/.exec(line))) names.add(m[1].trim());
     if (jest && (m = /^\s*(?:FAIL\s+(\S.*?)|[✕×]\s+(.+?))(\s+\(\d+(?:\.\d+)? ?m?s\))?$/.exec(line))) names.add((m[1] || m[2]).trim());
-    if (pytest && (m = /^FAILED\s+(\S+)/.exec(line))) names.add(m[1].trim());
+    if (pytest && (m = /^(?:FAILED|ERROR)\s+(\S+)/.exec(line))) names.add(m[1].trim());
   }
   return [...names];
 }
@@ -67,7 +73,8 @@ function runTests(dir, command) {
   });
   const output = `${r.stdout || ''}${r.stderr || ''}`;
   process.stderr.write(output.slice(-20000));
-  return { passed: r.status === 0, exit_code: r.status ?? -1, output_tail: output.split(/\r?\n/).slice(-50).join('\n'), failing: failingTests(output) };
+  const failing = failingTests(output);
+  return { passed: r.status === 0, exit_code: r.status ?? -1, output_tail: output.split(/\r?\n/).slice(-50).join('\n'), failing: r.status !== 0 && !failing.length ? 'unknown' : failing };
 }
 
 function diff(dir, base, runDir) {
@@ -89,7 +96,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (action === 'detect-tests') reply({ ok: true, outputs: detect(dir) });
   else if (action === 'run-tests') {
     const command = Array.isArray(input.command) && input.command.length ? input.command : detect(dir).command;
-    if (!command.length) fail(`no test runner found in ${dir}`);
+    if (!command.length) reply({ ok: true, outputs: { passed: false, exit_code: -1, runner: 'none', output_tail: `no test runner found in ${dir}`, failing: 'unknown' } });
     else reply({ ok: true, outputs: runTests(dir, command) });
   } else if (action === 'diff') reply({ ok: true, outputs: diff(dir, input.base || 'HEAD', process.env.TROOP_RUN_DIR || dir) });
   else fail(`unknown action ${action}`);

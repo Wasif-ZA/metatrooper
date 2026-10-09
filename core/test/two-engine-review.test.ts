@@ -86,6 +86,7 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
     const pipelines = join(project, '.troop', 'pipelines');
     mkdirSync(pipelines, { recursive: true });
     cpSync(join(root, 'pipelines', 'two-engine-review'), join(pipelines, 'two-engine-review'), { recursive: true });
+    cpSync(join(root, 'pipelines', 'code-map'), join(pipelines, 'code-map'), { recursive: true });
     const def = JSON.parse(readFileSync(builtin, 'utf8'));
     const codexStep = def.steps.find((s: { id: string }) => s.id === 'codex-review');
     const geminiStep = def.steps.find((s: { id: string }) => s.id === 'gemini-review');
@@ -121,10 +122,14 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
       ).get(runId, step) as { step_engine: string; session_engine: string };
       assert.deepEqual({ ...ran(codexStep.id) }, { step_engine: 'fake-b', session_engine: 'fake-b' });
       assert.deepEqual({ ...ran(geminiStep.id) }, { step_engine: 'fake-a', session_engine: 'fake-a' });
+      const bucketOutputs = store.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'bucket'").get(runId) as { outputs: string };
+      assert.equal(JSON.parse(bucketOutputs.outputs).buckets_abs.endsWith('/review-buckets.json'), true);
       const row = store.prepare("SELECT outputs FROM run_step WHERE run_id = ? AND step_id = 'bucket'").get(runId) as { outputs: string };
-      assert.deepEqual(JSON.parse(row.outputs), {
-        codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, outside_change: 0, buckets_path: 'review-buckets.json',
+      const outputs = JSON.parse(row.outputs);
+      assert.deepEqual({ ...outputs, buckets_abs: undefined }, {
+        codex_verdict: 'reject', gemini_verdict: 'reject', both: 1, codex_only: 1, gemini_only: 1, disagree: 0, outside_change: 0, buckets_path: 'review-buckets.json', buckets_abs: undefined,
       });
+      assert.equal(outputs.buckets_abs.endsWith('/review-buckets.json'), true);
     } finally { finished = true; store.close(); }
   } finally { await teardownCore(core, isolated); }
 });

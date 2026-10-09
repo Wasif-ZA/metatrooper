@@ -9,15 +9,19 @@ import { qaWindow } from './qa-electron-helpers.ts';
 
 before(buildGenerated);
 
-test('report.mjs lists fixed and open findings, handles a missing file, and follows reverify', async () => {
+test('report.mjs lists fixed and open findings and follows reverify', async () => {
   const { run } = await import('../..//pipelines/e2e-browser-qa/report.mjs');
   const writes = new Map<string, string>();
   const findings = [{ severity: 'high', title: 'Crash', file: 'app.js', line: 4, detail: 'TypeError', fixed_by: 'fix' }, { severity: 'low', title: 'Copy', detail: 'unclear' }];
-  const ctx: any = { steps: { qa: { branch: 'troop/qa' }, reverify: { passed: true, exit_code: 0 } }, readFile: async () => JSON.stringify(findings), writeFile: async (p: string, v: string) => writes.set(p, v) };
+  const ctx: any = { steps: { qa: { branch: 'troop/qa' }, reverify: { passed: true, exit_code: 0 } }, readFile: async (name: string) => name === 'findings.json' ? JSON.stringify(findings) : JSON.stringify({ passed: true, exit_code: 0 }), writeFile: async (p: string, v: string) => writes.set(p, v) };
   assert.deepEqual(await run(ctx), { document: 'qa-report.md', fixed: 1, open: 1, passed: true });
   assert.match(writes.get('qa-report.md')!, /Fixed \(1\)[\s\S]*Crash[\s\S]*Still open \(1\)[\s\S]*Copy/);
-  const missing = await run({ ...ctx, steps: { qa: {}, reverify: { passed: false, exit_code: 1 } }, readFile: async () => { throw new Error('missing'); } });
-  assert.deepEqual(missing, { document: 'qa-report.md', fixed: 0, open: 0, passed: false });
+  await assert.rejects(run({ ...ctx, steps: { qa: {}, reverify: { passed: false, exit_code: 1 } }, readFile: async (name: string) => { if (name === 'findings.json') throw new Error('missing'); return ''; } }), /missing/);
+});
+
+test('report.mjs throws when findings.json is missing', async () => {
+  const { run } = await import('../..//pipelines/e2e-browser-qa/report.mjs');
+  await assert.rejects(run({ readFile: async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); }, steps: {}, writeFile: async () => {} }), /missing/);
 });
 
 async function startQa(h: Awaited<ReturnType<typeof revisionHarness>>, waitForBrowser = false) {

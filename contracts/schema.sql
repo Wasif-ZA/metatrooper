@@ -114,9 +114,31 @@ CREATE TABLE needs_you (
   ref          TEXT,                           -- gate id, command id, schedule id, run id, plugin id, or session id
   text         TEXT NOT NULL,
   resolved_at  TEXT,
-  read_at      TEXT                            -- seen in the notification inbox; NULL counts in the status strip
+  read_at      TEXT,                           -- seen in the notification inbox; NULL counts in the status strip
+  notified_at  TEXT                            -- sent to the notification sinks; "<iso> failed" or "<iso> skipped" when it was not delivered
 );
 CREATE INDEX needs_you_open_idx ON needs_you (resolved_at, at);
+
+-- Where needs-you rows are sent. The destination is in the secret store under plugin id core-notify, never here.
+CREATE TABLE notify_sink (
+  id           TEXT PRIMARY KEY,
+  kind         TEXT NOT NULL CHECK (kind IN ('ntfy','slack-webhook','discord-webhook','teams-workflow','webhook','command')),
+  name         TEXT NOT NULL,
+  dest_hash    TEXT NOT NULL,                  -- sha256 of the destination; changing it needs approval again
+  kinds        TEXT NOT NULL,                  -- JSON array of needs_you kinds to send
+  enabled      INTEGER NOT NULL DEFAULT 1,
+  approved_at  TEXT NOT NULL
+);
+
+-- One row per needs-you item and sink, so a restart never resends to a sink that already got it.
+CREATE TABLE notify_delivery (
+  needs_you_id TEXT NOT NULL,
+  sink_id      TEXT NOT NULL,
+  state        TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  tries        INTEGER NOT NULL DEFAULT 0,
+  next_at      INTEGER NOT NULL DEFAULT 0,  -- epoch ms of the next attempt
+  PRIMARY KEY (needs_you_id, sink_id)
+);
 
 -- The session each window shows; session.focus writes it and the window follows it. One window: 'main'.
 CREATE TABLE ui_selection (
@@ -179,7 +201,9 @@ CREATE TABLE gate (
   summary      TEXT NOT NULL,                  -- what the user is approving, in words
   status       TEXT NOT NULL CHECK (status IN ('waiting','approved','rejected','stale')),
   decided_at   TEXT,
-  note         TEXT
+  note         TEXT,
+  scan         TEXT,                           -- secret-scan result JSON {status, count, items?|reason?}, written when the gate is created
+  override_reason TEXT                         -- why a gate with scan findings was approved anyway
 );
 
 CREATE TABLE plugin (

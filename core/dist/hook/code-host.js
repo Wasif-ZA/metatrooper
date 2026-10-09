@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
                 
                
                  
-                                                                                
+                                                                                                                    
  
 
 let next = 0;
@@ -38,6 +38,8 @@ process.on('message', async (raw) => {
     steps: msg.ctx.steps,
     runDir: msg.ctx.runDir,
     projectPath: msg.ctx.projectPath,
+    coreDir: msg.ctx.coreDir,
+    plugins: Object.freeze([...(msg.ctx.plugins ?? [])]),
     log: (text         ) => call('log', [String(text)]),
     readFile: (rel        ) => call('readFile', [rel]),
     writeFile: (rel        , text        ) => call('writeFile', [rel, text]),

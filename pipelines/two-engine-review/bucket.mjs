@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const WIDEN = 3;
+export const WIDEN = 3;
 
 function asFindings(value) {
   let list = value;
@@ -22,7 +22,7 @@ export function hunkRanges(diff) {
   const ranges = new Map();
   let file = null;
   for (const line of diff.split(/\r?\n/)) {
-    const f = /^\+\+\+ b\/(.+)$/.exec(line);
+    const f = /^\+\+\+ b\/(.+?)\t?$/.exec(line);
     if (f) { file = f[1]; continue; }
     if (line.startsWith('+++ ')) { file = null; continue; }
     const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
@@ -41,24 +41,46 @@ function insideChange(f, ranges) {
   return Boolean(list) && list.some(([a, b]) => f.line_start - WIDEN <= b && a <= f.line_end + WIDEN);
 }
 
-/** Sorts two engines' findings into both, codex_only, gemini_only and disagree; picks no winner. With hunk ranges, findings outside the change go to outside_change unmatched. */
-export function bucketFindings(codex, gemini, ranges = null) {
-  const buckets = { both: [], codex_only: [], gemini_only: [], disagree: [], outside_change: [] };
+/** Canonical file and numeric line range, or null when the finding names no usable file or line. */
+function normalise(f, root) {
+  if (!f || typeof f.file !== 'string') return null;
+  let file = f.file.trim().replace(/\\/g, '/');
+  const base = root ? String(root).replace(/\\/g, '/').replace(/\/+$/, '') + '/' : '';
+  if (base && file.toLowerCase().startsWith(base.toLowerCase())) file = file.slice(base.length);
+  file = file.replace(/^(\.\/)+/, '');
+  let start = Number(f.line_start ?? f.line);
+  let end = Number(f.line_end ?? f.line_start ?? f.line);
+  if (!file || /^([A-Za-z]:)?\//.test(file) || !Number.isFinite(start)) return null;
+  if (!Number.isFinite(end)) end = start;
+  if (start > end) [start, end] = [end, start];
+  return { ...f, file, line_start: start, line_end: end };
+}
+
+/** Sorts two engines' findings into both, codex_only, gemini_only and disagree; picks no winner. With hunk ranges, findings outside the change go to outside_change unmatched; findings with no usable file or line go to unplaced. */
+export function bucketFindings(codex, gemini, ranges = null, root = null) {
+  const buckets = { both: [], codex_only: [], gemini_only: [], disagree: [], outside_change: [], unplaced: [] };
+  const place = (engine, list) => asFindings(list).flatMap((f) => {
+    const n = normalise(f, root);
+    if (!n) buckets.unplaced.push({ [engine]: f });
+    return n ? [n] : [];
+  });
+  const codexList = place('codex', codex.findings);
+  const geminiList = place('gemini', gemini.findings);
   const used = new Set();
   const split = codex.verdict !== gemini.verdict && (codex.verdict === 'approve' || gemini.verdict === 'approve');
   const inside = (f) => !ranges || insideChange(f, ranges);
-  asFindings(gemini.findings).forEach((g, i) => { if (!inside(g)) { used.add(i); buckets.outside_change.push({ gemini: g }); } });
-  for (const c of asFindings(codex.findings)) {
+  geminiList.forEach((g, i) => { if (!inside(g)) { used.add(i); buckets.outside_change.push({ gemini: g }); } });
+  for (const c of codexList) {
     if (!inside(c)) { buckets.outside_change.push({ codex: c }); continue; }
-    const j = asFindings(gemini.findings).findIndex((g, i) => !used.has(i) && overlaps(c, g));
+    const j = geminiList.findIndex((g, i) => !used.has(i) && overlaps(c, g));
     if (j < 0) {
       buckets.codex_only.push({ codex: c });
       continue;
     }
     used.add(j);
-    buckets[split ? 'disagree' : 'both'].push({ codex: c, gemini: asFindings(gemini.findings)[j] });
+    buckets[split ? 'disagree' : 'both'].push({ codex: c, gemini: geminiList[j] });
   }
-  asFindings(gemini.findings).forEach((g, i) => { if (!used.has(i)) buckets.gemini_only.push({ gemini: g }); });
+  geminiList.forEach((g, i) => { if (!used.has(i)) buckets.gemini_only.push({ gemini: g }); });
   return buckets;
 }
 
@@ -66,8 +88,10 @@ export function bucketFindings(codex, gemini, ranges = null) {
 export function findingsInText(text) {
   for (let i = text.indexOf('['); i >= 0; i = text.indexOf('[', i + 1)) {
     let depth = 0;
+    let quoted = false;
     for (let j = i; j < text.length; j++) {
-      if (text[j] === '[') depth++;
+      if (quoted) { if (text[j] === '\\') j++; else if (text[j] === '"') quoted = false; } else if (text[j] === '"') quoted = true;
+      else if (text[j] === '[') depth++;
       else if (text[j] === ']' && --depth === 0) {
         try {
           const list = JSON.parse(text.slice(i, j + 1));
@@ -85,7 +109,8 @@ function withFindings(ctx, stepId) {
   if (asFindings(outputs.findings).length) return outputs;
   let text = '';
   try { text = fs.readFileSync(path.join(ctx.runDir, `${stepId}.md`), 'utf8'); } catch {}
-  return { ...outputs, findings: findingsInText(text) ?? [] };
+  const parsed = findingsInText(text);
+  return { ...outputs, findings: parsed ?? [], unparsed: parsed === null && outputs.verdict === 'reject' };
 }
 
 export async function run(ctx) {
@@ -94,8 +119,10 @@ export async function run(ctx) {
   let ranges = null;
   try { ranges = hunkRanges(fs.readFileSync(String(ctx.steps.diff?.diff_file), 'utf8')); } catch {}
   if (ranges && !ranges.size) ranges = null;
-  const buckets = bucketFindings(codex, gemini, ranges);
-  await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...buckets }, null, 2));
+  const buckets = bucketFindings(codex, gemini, ranges, ctx.inputs.path || ctx.projectPath);
+  let n = 0;
+  for (const k of ['both', 'codex_only', 'gemini_only', 'disagree']) buckets[k] = buckets[k].map((p) => ({ id: `f${++n}`, ...p }));
+  await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...(codex.unparsed && { codex_unparsed: true }), ...(gemini.unparsed && { gemini_unparsed: true }), ...buckets }, null, 2));
   return {
     codex_verdict: String(codex.verdict ?? 'unknown'),
     gemini_verdict: String(gemini.verdict ?? 'unknown'),
@@ -105,5 +132,6 @@ export async function run(ctx) {
     disagree: buckets.disagree.length,
     outside_change: buckets.outside_change.length,
     buckets_path: 'review-buckets.json',
+    buckets_abs: path.join(ctx.runDir, 'review-buckets.json').replaceAll(path.sep, '/'),
   };
 }

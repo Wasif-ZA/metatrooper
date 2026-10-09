@@ -10,7 +10,7 @@ import { validatePipeline } from '../src/pipelines/validate.ts';
 
 before(buildGenerated);
 
-const load = () => JSON.parse(readFileSync(join(import.meta.dirname, '../../pipelines/design-variants.json'), 'utf8'));
+const load = () => JSON.parse(readFileSync(join(import.meta.dirname, '../../pipelines/preview/design-variants.json'), 'utf8'));
 const context = {
   pipeline: () => null,
   action: (plugin: string, action: string) => plugin === 'agent-reach' && action === 'inspiration-board'

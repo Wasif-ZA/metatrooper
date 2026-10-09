@@ -788,11 +788,23 @@ function stepTitle(runId, stepId, offset = 0) {
   return x && x.def && x.def.title ? x.def.title : null;
 }
 
+function gateScan(g) {
+  try { return JSON.parse(g.scan || 'null'); } catch { return null; }
+}
+
+function scanHtml(g) {
+  const s = gateScan(g);
+  if (!s || s.status === 'clean') return '';
+  if (s.status === 'unavailable') return `<div class="scan-line">Secret scan could not run: ${esc(s.reason || 'unknown reason')}</div>`;
+  return `<div class="scan-line">${s.count} possible secret${s.count === 1 ? '' : 's'}${(s.items || []).map((x) => `<br>${esc(x.rule)} in ${esc(x.file || 'unknown file')}${x.line ? ` line ${x.line}` : ''}`).join('')}</div>`;
+}
+
 function gateButtons(g, keys) {
   const k = (x) => (keys ? ` <kbd>${x}</kbd>` : '');
+  const anyway = gateScan(g)?.status === 'findings';
   return g.kind === 'handoff'
     ? `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">Continue${k('A')}</button>`
-    : `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">${esc((g.guards_step && stepTitle(g.run_id, g.guards_step)) || stepTitle(g.run_id, g.step_id, 1) || 'Approve')}${k('A')}</button><button class="btn" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Stop the run${k('R')}</button>`;
+    : `<button class="btn acc" data-action="gate" data-decision="approve" data-id="${esc(g.id)}">${anyway ? 'Approve anyway' : esc((g.guards_step && stepTitle(g.run_id, g.guards_step)) || stepTitle(g.run_id, g.step_id, 1) || 'Approve')}${k('A')}</button><button class="btn" data-action="gate" data-decision="reject" data-id="${esc(g.id)}">Stop the run${k('R')}</button>`;
 }
 
 function mdLite(text) {
@@ -824,7 +836,8 @@ function gateHtml(g, i) {
     <div class="gt"><span class="dm"></span><b>${esc(pipe ? pipe.title : g.pipeline_id)}</b>${pipe ? ringHtml(pipe.step_defs, steps) : ''}${g.kind === 'auto-external' ? '<span>external step</span>' : ''}</div>
     <div class="gs">${esc(stepTitle(g.run_id, g.step_id) || g.step_id)}</div>
     ${peek || `<div class="gd">${esc(g.summary)}</div>`}
-    <div class="ga">${d ? `<span class="verdict ${d.ok ? 'ok' : 'no'}">${d.ok ? 'Approved' : 'Rejected'}</span>` : `${g.kind === 'handoff' ? '' : `<input placeholder="Note" data-note="${esc(g.id)}" data-key="note:${esc(g.id)}">`}${gateButtons(g, i === 0)}<button class="lnk" data-action="run-open" data-id="${esc(g.run_id)}">Open run</button>`}</div></div>`;
+    ${scanHtml(g)}
+    <div class="ga">${d ? `<span class="verdict ${d.ok ? 'ok' : 'no'}">${d.ok ? 'Approved' : 'Rejected'}</span>` : `${g.kind === 'handoff' ? '' : `<input placeholder="${gateScan(g)?.status === 'findings' ? 'Why approve anyway (required)' : 'Note'}" data-note="${esc(g.id)}" data-key="note:${esc(g.id)}">`}${gateButtons(g, i === 0)}<button class="lnk" data-action="run-open" data-id="${esc(g.run_id)}">Open run</button>`}</div></div>`;
 }
 
 function shownGates() {
@@ -851,9 +864,19 @@ function renderSheet() {
 async function resolveGate(id, decision) {
   const g = ui.snap.gates.find((x) => x.id === id);
   if (!g || (ui.decided || {})[id]) return;
-  const note = document.querySelector(`[data-note="${CSS.escape(id)}"]`);
+  const notes = [...document.querySelectorAll(`[data-note="${CSS.escape(id)}"]`)];
+  const note = notes.find((n) => n.value.trim()) || notes[0];
   const params = { gate_id: id, decision, action_hash: g.action_hash };
   if (note && note.value) params.note = note.value;
+  if (decision === 'approve' && gateScan(g)?.status === 'findings') {
+    if (!note || !note.value.trim()) {
+      if (!wall.sheetOpen()) wall.setSheet(true, true);
+      toast('This gate found possible secrets. Type why you approve anyway in the Needs you sheet.', true);
+      setTimeout(() => document.querySelector(`[data-note="${CSS.escape(id)}"]`)?.focus(), 50);
+      return;
+    }
+    params.override_reason = note.value.trim();
+  }
   delete ui.drafts[`note:${id}`];
   (ui.decided ||= {})[id] = { g, ok: decision === 'approve', i: ui.snap.gates.indexOf(g) };
   for (const card of document.querySelectorAll(`.gate[data-g="${CSS.escape(id)}"]`)) wall.verdict(card, decision === 'approve');
@@ -1069,7 +1092,7 @@ function renderInbox() {
 function paletteItems() {
   const s = ui.snap;
   const items = [];
-  for (const g of s.gates) if (g.kind !== 'handoff') items.push({ group: 'Needs you', label: `Approve: ${g.summary}`, run: () => rpc('gate.resolve', { gate_id: g.id, decision: 'approve', action_hash: g.action_hash }) });
+  for (const g of s.gates) if (g.kind !== 'handoff') items.push({ group: 'Needs you', label: `Approve: ${g.summary}`, run: () => resolveGate(g.id, 'approve') });
   for (const x of s.sessions) items.push({ group: 'Agents', label: `${x.engine_id} ${taskOf(x)}`, meta: STATE_WORDS[x.state] || x.state, run: () => pick(x.id) });
   if (project()) for (const e of s.engines) if (e.light !== 'red') items.push({ group: 'Start', label: `New ${e.id} agent`, run: async () => { const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: e.id }); if (r.result) await pick(r.result.session_id); } });
   const sel = selectedSession();
@@ -2095,7 +2118,7 @@ setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
-runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), promote: (id) => pick(id, false), cancelButton, onClose: () => render() });
+runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), scanHtml, gateScan, promote: (id) => pick(id, false), cancelButton, onClose: () => render() });
 runBars.init({ snap: () => ui.snap, stepsOf, api, render: () => render(), cancelButton, isOpen: () => runScreen.isOpen(), openRun: (id, auto) => { wall.setList(false); ui.runId = id; setView(); runScreen.open(id, auto); reportPaneBounds(); } });
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
   ui.settingsLook = look;

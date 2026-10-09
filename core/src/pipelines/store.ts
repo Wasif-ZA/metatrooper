@@ -58,14 +58,18 @@ export function pluginAction(db: DatabaseSync, pluginId: string, actionId: strin
   return (loadPlugin(db, pluginId)?.manifest.actions ?? []).find((a) => a.id === actionId) ?? null;
 }
 
-/** The template gallery: every `pipelines/templates/*.json`, ready only when each plugin it requires is installed and enabled. */
+/** The template gallery: every `pipelines/templates/*.json` plus `pipelines/preview/*.json` (marked `preview`), ready only when each plugin it requires is installed and enabled. */
 export function listTemplates(db: DatabaseSync) {
   const enabled = new Set(listPlugins(db).filter((p) => p.enabled).map((p) => p.id));
-  return jsonFiles(path.join(repoDir, 'pipelines', 'templates')).map((file) => {
+  const files = [
+    ...jsonFiles(path.join(repoDir, 'pipelines', 'templates')).map((file) => ({ file, preview: false })),
+    ...jsonFiles(path.join(repoDir, 'pipelines', 'preview')).map((file) => ({ file, preview: true })),
+  ];
+  return files.map(({ file, preview }) => {
     const json = readJson(file) as Pipeline | null;
     const requires = json?.requires ?? [];
     const missing = requires.filter((id) => !enabled.has(id));
-    return { id: json?.id ?? path.basename(file, '.json'), title: json?.title ?? '', lane: json?.lane ?? '', requires, missing, ready: missing.length === 0 };
+    return { id: json?.id ?? path.basename(file, '.json'), title: json?.title ?? '', lane: json?.lane ?? '', requires, missing, ready: missing.length === 0, preview };
   });
 }
 

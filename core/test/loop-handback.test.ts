@@ -23,6 +23,8 @@ async function fixture(t, { reverifyPassed = true, includeReviews = true } = {})
     inputs: {},
     steps: {
       build: { worktree: 'C:/work/tree', branch: 'feature/loop' },
+      review: { buckets_abs: path.join(runDir, 'review', 'child-run', 'review-buckets.json') },
+      rereview: { buckets_abs: path.join(runDir, 'rereview', 'child-run', 'review-buckets.json') },
       reverify: { passed: reverifyPassed, exit_code: 4 },
     },
     async writeFile(name, contents) { await fs.writeFile(path.join(runDir, name), contents); },
@@ -44,7 +46,7 @@ test('hand-back numbers disputed, unresolved, human-only and commit items', asyn
   assert.match(result.items[6].text, /Review and commit the work in C:\/work\/tree on feature\/loop/);
   assert.equal(result.document, 'handback.md');
   assert.equal(result.count, 7);
-  assert.match(await fs.readFile(path.join(runDir, 'handback.md'), 'utf8'), /^# Hand-back\n\n1\. \[disputed\]/);
+  assert.match(await fs.readFile(path.join(runDir, 'handback.md'), 'utf8'), /^# Hand-back\n\n1\. \[disputed\] disputed finding/);
 });
 
 test('passing reverify omits only the failing-tests human item', async (t) => {
@@ -52,14 +54,17 @@ test('passing reverify omits only the failing-tests human item', async (t) => {
   const result = await run(ctx);
   assert.equal(result.items.length, 6);
   assert.equal(result.items.some((item) => item.text.startsWith('Tests fail')), false);
+  assert.match(result.items[0].text, /disputed finding/);
   assert.equal(result.items.at(-1).text.startsWith('Review and commit the work'), true);
 });
 
-test('missing review folders produce the commit hand-back item without crashing', async (t) => {
+test('missing review folders put two missing-results items before the commit item', async (t) => {
   const { runDir, ctx } = await fixture(t, { includeReviews: false });
   const result = await run(ctx);
-  assert.equal(result.count, 1);
-  assert.equal(result.items[0].n, 1);
-  assert.equal(result.items[0].kind, 'human');
-  assert.match(await fs.readFile(path.join(runDir, 'handback.md'), 'utf8'), /1\. \[human\] Review and commit/);
+  assert.equal(result.count, 3);
+  assert.deepEqual(result.items.map((item) => item.kind), ['human', 'human', 'human']);
+  assert.match(result.items[0].text, /^Review results missing for review:/);
+  assert.match(result.items[1].text, /^Review results missing for rereview:/);
+  assert.match(result.items[2].text, /Review and commit/);
+  assert.match(await fs.readFile(path.join(runDir, 'handback.md'), 'utf8'), /3\. \[human\] Review and commit/);
 });

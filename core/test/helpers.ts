@@ -287,3 +287,7 @@ export function buildGenerated() {
   })();
   return buildPromise;
 }
+
+export function pipelineFile(id: string) {
+  return ['', 'preview', 'unshipped'].map((sub) => join(root, 'pipelines', sub, `${id}.json`)).find(existsSync) ?? join(root, 'pipelines', `${id}.json`);
+}
