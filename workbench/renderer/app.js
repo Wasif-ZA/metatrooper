@@ -594,6 +594,12 @@ async function gitDo(op, arg) {
   render();
 }
 
+function ownerGroupsHtml(groups, row, busy) {
+  return groups.map((x) => `<div class="git-group${x.stage ? '' : ' shared'}" data-group="${esc(x.key)}"><div class="toolbar"><b class="grow">${esc(x.title)}${x.state ? `<span class="meta"> · ${esc(x.state)}</span>` : ''}</b>
+    ${x.stage ? `<button data-action="git-stage-group" data-files="${esc(JSON.stringify(x.files.map((f) => f.path)))}" ${busy}>Stage this group</button>` : ''}</div>
+    ${x.files.map((f) => row(f, false)).join('')}</div>`).join('');
+}
+
 function renderGit() {
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
@@ -611,7 +617,7 @@ function renderGit() {
     <div class="toolbar"><h3 style="margin:0" class="grow">Staged (${g.staged.length})</h3>${g.staged.length ? `<button data-action="git-unstage" data-file="" ${busy} title="Unstage all">-</button>` : ''}</div>
     ${g.staged.map((f) => row(f, true)).join('')}
     <div class="toolbar"><h3 style="margin:0" class="grow">Changes (${g.changes.length})</h3>${g.changes.length ? `<button data-action="git-stage" data-file="" ${busy} title="Stage all">+</button>` : ''}</div>
-    ${g.changes.map((f) => row(f, false)).join('')}
+    ${g.groups && g.groups.some((x) => x.key !== 'unclaimed') ? ownerGroupsHtml(g.groups, row, busy) : g.changes.map((f) => row(f, false)).join('')}
     ${ui.hbFile && ui.gitFile ? renderDiff() : ''}
     <h3>History</h3><div class="log git-log">${esc(g.log || 'No commits yet.')}</div>
   </div>`;
@@ -1055,7 +1061,7 @@ function renderInbox() {
   const rows = s.needs_you.map((n) => `<div class="item${n.read_at ? ' read' : ''}" data-action="inbox-open" data-id="${esc(n.id)}">
       <span class="dot ${n.kind === 'done' ? 'done unseen' : n.kind === 'failed' ? 'failed' : 'waiting_for_you'}"></span>
       <span class="grow">${esc(n.text)}<span class="meta"> · ${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></span></span>
-      <button class="link" data-action="${n.read_at ? 'inbox-unread' : 'inbox-read'}" data-id="${esc(n.id)}">${n.read_at ? 'Mark unread' : 'Mark read'}</button></div>`).join('');
+      ${n.kind === 'uncommitted' ? `<button class="link" data-action="inbox-open" data-id="${esc(n.id)}">Open Git tab</button>` : ''}<button class="link" data-action="${n.read_at ? 'inbox-unread' : 'inbox-read'}" data-id="${esc(n.id)}">${n.read_at ? 'Mark unread' : 'Mark read'}</button></div>`).join('');
   const asks = waiting.map((x) => `<div class="item" data-action="pick" data-id="${esc(x.id)}"><span class="dot waiting_for_you"></span><span class="grow">${esc(away(x))}${esc(x.engine_id)} ${esc(taskOf(x))} is asking you<span class="meta"> · ${esc(x.last_line || '')}</span></span></div>`).join('');
   setHtml('inbox-list', asks + rows || '<p class="empty" style="padding:6px 14px">Nothing here.</p>');
 }
@@ -1210,7 +1216,7 @@ function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : STATE_WORDS[x.state] || x.state }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();
@@ -1414,6 +1420,7 @@ async function onClick(e) {
       document.getElementById('inbox').hidden = true;
       if (!n) return;
       if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
+      else if (n.kind === 'uncommitted') { await rpc('needs_you.mark-read', { id }, true); await openTab('git'); }
       else { await rpc('needs_you.mark-read', { id }, true); wall.setSheet(true); }
       return;
     }
@@ -1550,6 +1557,9 @@ async function onClick(e) {
     case 'git-stage':
     case 'git-unstage':
       await gitDo(a.slice(4), el.dataset.file);
+      return;
+    case 'git-stage-group':
+      await gitDo('stage-group', JSON.parse(el.dataset.files || '[]'));
       return;
     case 'git-commit':
       await gitDo('commit', ui.gitMsg || '');

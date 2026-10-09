@@ -48,10 +48,15 @@ async function logError(err         )                {
 
 async function deliverComments(db              , sessionId        )                {
   const rows = db
-    .prepare('SELECT id, body FROM comment WHERE session_id = ? AND prompt_at IS NULL ORDER BY rowid')
-    .all(sessionId)                                       ;
+    .prepare('SELECT id, kind, body FROM comment WHERE session_id = ? AND prompt_at IS NULL ORDER BY rowid')
+    .all(sessionId)                                                     ;
   if (rows.length === 0) return;
-  const context = 'Comments from the MetaTrooper browser:\n\n' + rows.map((r) => r.body).join('\n\n');
+  const comments = rows.filter((r) => r.kind !== 'notice');
+  const notices = rows.filter((r) => r.kind === 'notice');
+  const context = [
+    comments.length ? 'Comments from the MetaTrooper browser:\n\n' + comments.map((r) => r.body).join('\n\n') : '',
+    notices.length ? 'Notices from MetaTrooper:\n\n' + notices.map((r) => r.body).join('\n\n') : '',
+  ].filter(Boolean).join('\n\n');
   const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } }) + '\n';
   await new Promise      ((resolve) => process.stdout.write(line, () => resolve()));
   const { nowIso } = await import('../time.js');
@@ -60,11 +65,36 @@ async function deliverComments(db              , sessionId        )             
   for (const r of rows) mark.run(at, r.id);
 }
 
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit']);
+
+/** Tells the agent, without blocking, that the file it is about to edit holds another live session's uncommitted work. */
+async function warnOwner(db              , sessionId        , payload                         )                {
+  const file = (payload.tool_input                                       )?.file_path;
+  const cwd = typeof payload.cwd === 'string' ? payload.cwd : process.cwd();
+  if (typeof file !== 'string' || !EDIT_TOOLS.has(String(payload.tool_name))) return;
+  const { otherOwner, labelOf } = await import('../sessions/owners.js');
+  const other = otherOwner(db, sessionId, file, cwd);
+  if (!other) return;
+  const { execFileSync } = await import('node:child_process');
+  const path = await import('node:path');
+  const abs = path.resolve(cwd, file);
+  try {
+    const left = Math.max(30, BUDGET_MS - (Date.now() - started) - 40);
+    if (!execFileSync('git', ['status', '--porcelain', '--', path.basename(abs)], { cwd: path.dirname(abs), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: left, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).trim()) return;
+  } catch {
+    return;
+  }
+  const text = `${file} has uncommitted changes from session ${labelOf(db, other.id)}, state ${other.state}. Edit only your own lines; do not reformat or revert the file.`;
+  const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: text } }) + '\n';
+  await new Promise      ((resolve) => process.stdout.write(line, () => resolve()));
+}
+
 async function main()                {
   const { kind, flags } = parseArgs(process.argv.slice(2));
   if (!kind) return;
-  const sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
-  if (!sessionId) return;
+  let sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
+  const outside = !sessionId && kind.startsWith('claude.');
+  if (!sessionId && !outside) return;
   let raw                          = {};
   if (kind === 'launch') {
     raw = { session_id: sessionId, pid: Number(flags.pid) || null, cwd: flags.cwd || process.cwd(), engine: flags.engine || '' };
@@ -79,10 +109,26 @@ async function main()                {
     const { nowIso } = await import('../time.js');
     payload.started_at = nowIso();
   }
-  const db = appendEvent(kind, sessionId, payload);
+  let db                     ;
+  if (outside) {
+    if (typeof payload.session_id !== 'string' || typeof payload.cwd !== 'string' || process.env.METATROOPER_SPOOL) return;
+    const { openWriterDb } = await import('../events/append.js');
+    db = openWriterDb(200);
+    if (!db) return;
+    const known = db.prepare("SELECT id FROM session WHERE native_id = ? AND NOT (host = 'external' AND state = 'exited') ORDER BY julianday(started_at) DESC LIMIT 1").get(payload.session_id)                              ;
+    if (!known) {
+      const { projectFor } = await import('../sessions/owners.js');
+      if (!projectFor(db.prepare('SELECT id, path FROM project').all()                                       , payload.cwd)) { db.close(); return; }
+    }
+    appendEvent(kind, null, payload, db);
+    sessionId = known?.id ?? '';
+  } else {
+    db = appendEvent(kind, sessionId, payload);
+  }
   if (!db) return;
   try {
-    if (kind === 'claude.UserPromptSubmit') await deliverComments(db, sessionId);
+    if (sessionId && kind === 'claude.UserPromptSubmit') await deliverComments(db, sessionId);
+    if (sessionId && kind === 'claude.PreToolUse') await warnOwner(db, sessionId, payload);
   } finally {
     db.close();
   }

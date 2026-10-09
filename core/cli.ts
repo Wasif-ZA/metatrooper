@@ -26,6 +26,7 @@ const USAGE = `usage: troop <command> [--json]
                                 --approval ask|edits|contained (default: contained on a worktree, else ask)
   launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt"}, ...]
   sessions [--all]              list sessions (hidden ones with --all)
+  owners [path]                 uncommitted files of the current project and the session that owns each
   focus|seen|hide <session>     act on a session by id or id prefix
   engines [--check]             show engine health (--check re-runs the checks)
   run start <pipeline> [--project <path>] [--input key=value]...
@@ -318,6 +319,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   const params: Record<string, unknown> = { project_id: target, engine_id: job.engine };
   if (job.prompt) params.prompt = job.prompt;
   if (job.approval) params.approval = job.approval;
+  if (process.env.TROOP_SESSION_ID) params.parent_id = process.env.TROOP_SESSION_ID;
   const r = await rpc('session.launch', params, json);
   if (r.result) emit(r.result, `launched ${job.engine}${job.worktree ? ` on ${job.worktree}` : ''} (approval ${r.result.approval}): session ${r.result.session_id}`);
   return r.code;
@@ -476,13 +478,30 @@ async function main(): Promise<number> {
     case 'sessions': {
       const rows = withDb((db) =>
         db.prepare(
-          `SELECT s.id, s.engine_id AS engine, s.state, s.state_at, p.name AS project
+          `SELECT s.id, s.engine_id AS engine, s.host, s.state, s.state_at, p.name AS project
            FROM session s JOIN project p ON p.id = s.project_id
            WHERE (? = 1 OR s.hidden = 0) ORDER BY julianday(s.started_at) DESC`,
         ).all(a.flags.has('--all') ? 1 : 0) as Array<Record<string, unknown>>,
       ) ?? [];
       if (json) console.log(JSON.stringify(rows));
-      else table(rows.map((r) => ({ ...r, id: String(r.id).slice(0, 8) })), ['id', 'engine', 'state', 'project', 'window', 'state_at']);
+      else table(rows.map((r) => ({ ...r, id: String(r.id).slice(0, 8) })), ['id', 'engine', 'host', 'state', 'project', 'window', 'state_at']);
+      return 0;
+    }
+
+    case 'owners': {
+      const repo = await openProject(a.opts.get('--project') ?? process.cwd(), json);
+      if (repo.code) return repo.code;
+      const r = await rpc('session.owners', { project_id: repo.id }, json);
+      if (r.code) return r.code;
+      const want = a.pos[0] ? a.pos[0].split('\\').join('/').replace(/^\.\//, '') : '';
+      const paths = ((r.result?.paths ?? []) as Array<{ path: string; owners: Array<{ id: string; title: string; state: string }>; shared: boolean; unclaimed: boolean }>)
+        .filter((x) => !want || x.path === want || x.path.startsWith(`${want.replace(/\/$/, '')}/`));
+      if (json) console.log(JSON.stringify(paths));
+      else table(paths.map((x) => ({
+        path: x.path,
+        owner: x.unclaimed ? 'unclaimed' : `${x.shared ? 'shared: ' : ''}${x.owners.map((o) => o.title).join(', ')}`,
+        state: x.owners.map((o) => o.state).join(', '),
+      })), ['path', 'owner', 'state']);
       return 0;
     }
 

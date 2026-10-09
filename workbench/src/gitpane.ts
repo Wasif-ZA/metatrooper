@@ -1,12 +1,33 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { OwnedPath } from '../../core/src/sessions/owners.ts';
 
 export type Run = (args: string[]) => Promise<string>;
 
 const exec = promisify(execFile);
 
 export interface GitFile { path: string; code: string; added: number | null; deleted: number | null }
-export interface GitView { branch: string; ahead: number; behind: number; staged: GitFile[]; changes: GitFile[]; log: string }
+export interface GitView { branch: string; ahead: number; behind: number; staged: GitFile[]; changes: GitFile[]; log: string; groups?: OwnerGroup[] }
+export interface OwnerGroup { key: string; title: string; state: string; files: GitFile[]; stage: boolean }
+
+/** Unstaged changes grouped by owning session; a shared file sits only in the shared group, which has no stage action. */
+export function ownerGroups(changes: GitFile[], owned: OwnedPath[]): OwnerGroup[] {
+  const by = new Map(owned.map((o) => [o.path, o]));
+  const groups = new Map<string, OwnerGroup>();
+  const put = (key: string, title: string, state: string, stage: boolean, f: GitFile) => {
+    const g = groups.get(key) ?? { key, title, state, files: [], stage };
+    g.files.push(f);
+    groups.set(key, g);
+  };
+  for (const f of changes) {
+    const o = by.get(f.path);
+    if (o && o.shared) put('shared', 'Shared, stage by hand', o.owners.map((x) => x.title).join(', '), false, f);
+    else if (o && o.owners.length) put(`owner:${o.owners[0].id}`, o.owners[0].title, o.owners[0].state, true, f);
+    else put('unclaimed', 'No owner', '', true, f);
+  }
+  const rank = (g: OwnerGroup) => (g.key === 'shared' ? 1 : g.key === 'unclaimed' ? 2 : 0);
+  return [...groups.values()].sort((a, b) => rank(a) - rank(b));
+}
 
 export function runIn(cwd: string): Run {
   return async (args) => (await exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, windowsHide: true })).stdout;
@@ -57,6 +78,12 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> 
   const path = typeof arg === 'string' ? arg : '';
   switch (op) {
     case 'stage': await git(['add', '--', path || '.']); return;
+    case 'stage-group': {
+      const list = Array.isArray(arg) ? arg : [];
+      if (!list.length || list.some((p) => typeof p !== 'string' || !p)) throw new Error('nothing to stage in this group');
+      await git(['add', '--', ...list]);
+      return;
+    }
     case 'unstage': await git(['restore', '--staged', '--', path || '.']); return;
     case 'commit':
       if (!path.trim()) throw new Error('write a commit message first');

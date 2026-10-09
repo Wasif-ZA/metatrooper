@@ -37,7 +37,7 @@ const termView = (() => {
     term.loadAddon(fit);
     term.open(body);
     const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
-    term.onData((data) => { if (!t.closed) troop.termInput(sessionId, data); });
+    term.onData((data) => { if (!t.closed && !t.outside) troop.termInput(sessionId, data); });
     const copy = () => { const s = term.getSelection(); if (!s) return false; void troop.copyText(s); term.clearSelection(); return true; };
     const paste = () => troop.readText().then((s) => { if (s) term.paste(s); });
     const copyOnRelease = () => { const s = term.getSelection(); if (s) void troop.copyText(s); };
@@ -62,6 +62,7 @@ const termView = (() => {
     if (!t.el.isConnected || !t.el.offsetWidth || t.el.classList.contains('fold')) return;
     const cell = t.term.element && t.term.element.querySelector('.xterm-rows > div');
     if (t.el.querySelector('.tile-body').clientHeight < (cell ? cell.offsetHeight * 2 : 30)) return;
+    if (t.outside) return;
     if (!t.attached) { t.attached = true; attach(t); t.cols = t.term.cols; t.rows = t.term.rows; return; }
     try { t.fit.fit(); } catch { return; }
     if (t.term.cols === t.cols && t.term.rows === t.rows) return;
@@ -109,6 +110,12 @@ const termView = (() => {
     set('.tile-meta', x.meta || '');
     t.el.dataset.state = x.state;
     t.el.classList.toggle('shell', Boolean(x.shell));
+    if (x.outside && !t.outside) {
+      t.outside = true;
+      t.el.classList.add('outside');
+      t.term.options.disableStdin = true;
+      t.term.write('Opened outside MetaTrooper. Type in its own terminal; this tile follows its hooks only.\r\n');
+    }
     t.el.classList.toggle('asking', x.state === 'waiting_for_you');
     t.el.classList.toggle('on', x.id === selected);
   }

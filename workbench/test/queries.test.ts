@@ -67,6 +67,7 @@ test('snapshot scopes sessions and runs to the project, keeps plugin engines onl
     assert.equal(s.pipelines[0].background, true);
     assert.equal(s.pipelines[0].step_defs[0].layout, 'agent-split');
     assert.deepEqual(s.sessions.map((x) => x.id), ['s1']);
+    assert.equal(s.sessions[0].host, 'pty');
     assert.deepEqual(s.engines.map((e) => [e.id, e.light]), [['claude', 'green']]);
     assert.deepEqual(s.pipelines.map((p) => [p.id, p.title, p.valid, p.errors, Object.keys(p.inputs)]), [['flow', 'The flow', false, ['/steps: bad'], ['to']]]);
     assert.deepEqual(s.runs.map((r) => r.id).sort(), ['r1', 'r2']);

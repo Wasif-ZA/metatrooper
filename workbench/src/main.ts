@@ -15,7 +15,8 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, readRunFile, snapshot, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
-import { gitAct, gitView, runIn, type GitView } from './gitpane.ts';
+import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
+import { owners, repoOf } from '../../core/src/sessions/owners.ts';
 import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
@@ -439,7 +440,11 @@ function handlers(): void {
       if (op !== 'view') gitViews.delete(project.path);
     }
     try {
-      return { ...(await viewOf(project.path)), error };
+      const view = await viewOf(project.path);
+      const repo = repoOf(project.path);
+      let groups: GitView['groups'];
+      try { if (repo && d) groups = ownerGroups(view.changes, owners(d, repo)); } catch {}
+      return { ...view, groups, error };
     } catch (e) {
       return { error: why(e) };
     }

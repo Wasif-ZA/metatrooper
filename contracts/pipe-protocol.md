@@ -117,8 +117,9 @@ Every other interaction is a database read.
 |---|---|---|
 | `account.state` | `{}` | `{state: "signed_out"}`: the only state until the cloud milestone; nothing prompts for sign-in |
 | `project.open` | `{path}` | `{project_id}`; error -32001 for ACU paths. `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
-| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it |
-| `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once |
+| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path |
+| `session.owners` | `{project_id}` | `{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}`: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` |
+| `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once; refused for an `external` session |
 | `session.clear-status` | `{session_id}` | `{}`: sets `idle`, appends `core.status-cleared`, marks its inbox rows read |
 | `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` |
 | `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |

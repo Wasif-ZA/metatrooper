@@ -132,6 +132,9 @@ test('allowSandbox rebuilds a legacy session CHECK to allow sandbox, keeps every
   allowSandbox(legacy);
   const after = legacy.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='session'").get() as {sql:string};
   assert.ok(after.sql?.includes("'sandbox'"));
+  assert.ok(after.sql?.includes("'external'"));
+  assert.ok(after.sql?.includes('parent_id'));
+  assert.ok((legacy.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='needs_you'").get() as {sql:string}).sql.includes("'uncommitted'"));
   assert.equal((legacy.prepare('SELECT COUNT(*) n FROM session').get() as {n:number}).n, 1);
   assert.equal((legacy.prepare('SELECT COUNT(*) n FROM needs_you').get() as {n:number}).n, 1);
   allowSandbox(legacy);

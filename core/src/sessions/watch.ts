@@ -19,7 +19,7 @@ export function pidAlive(pid: number): boolean {
 /** Every 5 s: sessions whose launcher pid is gone, or that never reported a pid and have no live terminal after STALL_MS, get a core.process-gone event. */
 export function checkPids(db: DatabaseSync, now = Date.now()): void {
   const rows = db
-    .prepare("SELECT id, pid, started_at FROM session WHERE state != 'exited'")
+    .prepare("SELECT id, pid, started_at FROM session WHERE state != 'exited' AND host != 'external'")
     .all() as Array<{ id: string; pid: number | null; started_at: string }>;
   for (const r of rows) {
     const gone = r.pid !== null ? !pidAlive(r.pid) : !hasTerm(r.id) && now - Date.parse(r.started_at) >= STALL_MS;

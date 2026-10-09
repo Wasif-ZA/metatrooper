@@ -60,6 +60,8 @@ body { position: relative; }
 .ph .rs, .ph .sx { display: none; }
 .tile[data-state="exited"]:not(.shell) .ph .rs { display: inline-flex; height: 24px; padding: 0 8px; font-size: 10.5px; }
 .tile.closed .tile-body { opacity: .5; }
+.tile.outside .tile-body { opacity: .6; }
+.tile.outside .ph .rs { display: none; }
 .tile.shell .ph .sx { display: inline-block; color: var(--mute); padding: 0 6px; }
 .tile.shell .ph .pb, .tile.shell .ph .ub { display: none; }
 .pane.on:not(.big) { border-color: var(--body); }
@@ -303,3 +305,5 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .pcard .err { color: var(--del); }
 .req { font-size: 11px; padding: 1px 6px; border-radius: 2px; background: var(--chip-bg); color: var(--muted); }
 .req.missing { color: var(--wait); border: 1px dashed var(--wait); background: none; }
+.git-group { border-top: 1px dotted var(--line); padding-top: 6px; margin-top: 6px; }
+.git-group.shared .toolbar b { color: var(--wait); }

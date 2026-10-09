@@ -44,7 +44,7 @@ const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox' },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const id = ulid();
   const host = opts.host ?? 'pty';
@@ -73,9 +73,9 @@ export function launchSession(
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(
-    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, state, state_at, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, nowIso(), nowIso());
+    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, state, state_at, started_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, nowIso(), nowIso());
   const cwd = opts.cwd ?? opts.projectPath;
   try {
     term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, process.env);
