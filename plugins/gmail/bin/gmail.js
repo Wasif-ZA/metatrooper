@@ -70,7 +70,7 @@ function partOf(payload, type) {
 }
 
 export function textOf(payload) {
-  return partOf(payload, 'text/plain') ?? partOf(payload, 'text/html')?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() ?? '';
+  return partOf(payload, 'text/plain') ?? partOf(payload, 'text/html')?.replace(/<(style|script|head)\b[\s\S]*?<\/\1>|<!--[\s\S]*?-->/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() ?? '';
 }
 
 export function searchQuery(input, now = new Date()) {
