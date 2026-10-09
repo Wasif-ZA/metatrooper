@@ -130,7 +130,7 @@ export async function notifyTick(db: DatabaseSync): Promise<void> {
     for (const row of rows) {
       if (Date.now() - Date.parse(row.at) > STALE_MS) { mark.run(`${nowIso()} skipped`, row.id); continue; }
       const targets = sinks.filter((s) => sinkKinds(s).includes(row.kind));
-      if (!targets.length) continue;
+      if (!targets.length) { mark.run(`${nowIso()} no-sink`, row.id); continue; }
       let pending = false;
       let failed = false;
       for (const sink of targets) {
