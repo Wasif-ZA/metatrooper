@@ -11,6 +11,7 @@ import { resolveCommand } from './resolve.js';
                               
                                
                     
+                                   
  
 
 function request(method        , params                         , timeoutMs = 3000)                   {
@@ -56,7 +57,19 @@ function refuse(message        )       {
   process.stdin.on('end', () => process.exit(1));
 }
 
+/** Prints an http server's resolved headers as JSON for Claude's headersHelper; exits 1 naming any missing secret. */
+async function printHeaders(pluginId        , serverId        )                {
+  try {
+    const r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId }, 8000))            ;
+    if (r.missing.length) throw new Error(`set ${r.missing.join(', ')} for ${pluginId}`);
+    process.stdout.write(JSON.stringify(r.headers ?? {}) + '\n', () => process.exit(0));
+  } catch (e) {
+    process.stderr.write(`metatrooper mcp-shim: ${(e         ).message}\n`, () => process.exit(1));
+  }
+}
+
 async function main()                {
+  if (process.argv[2] === 'headers') return printHeaders(process.argv[3] ?? '', process.argv[4] ?? '');
   const [pluginId, serverId] = process.argv.slice(2);
   if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id>');
   let r          ;
