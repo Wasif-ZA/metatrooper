@@ -13,6 +13,7 @@ export interface EngineSpec {
   auth_cmd?: string[];
   auth_ok?: { exit_code?: number; stdout_regex?: string };
   state_source: 'hooks' | 'notify' | 'file-activity' | 'process';
+  agents_md?: { unless: string[]; args: string[] };
   activity_glob?: string;
   activity_waiting?: { file?: string; last_line_regex: string };
   trust?: TrustSpec;
@@ -50,6 +51,7 @@ export const BUILT_IN: EngineSpec[] = [
     approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
     sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },
     state_source: 'hooks', mcp_attach: { kind: 'claude-mcp-config-flag' },
+    agents_md: { unless: ['CLAUDE.md', '.claude/CLAUDE.md'], args: ['--append-system-prompt-file', 'AGENTS.md'] },
     roles: ['research', 'plan', 'worker', 'review', 'verify', 'visual-check'], cost_rank: 3, usage_source: 'claude-transcript',
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
   },
