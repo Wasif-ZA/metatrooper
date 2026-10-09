@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const WIDEN = 3;
+export const WIDEN = 3;
 
 function asFindings(value) {
   let list = value;
@@ -120,6 +120,8 @@ export async function run(ctx) {
   try { ranges = hunkRanges(fs.readFileSync(String(ctx.steps.diff?.diff_file), 'utf8')); } catch {}
   if (ranges && !ranges.size) ranges = null;
   const buckets = bucketFindings(codex, gemini, ranges, ctx.inputs.path || ctx.projectPath);
+  let n = 0;
+  for (const k of ['both', 'codex_only', 'gemini_only', 'disagree']) buckets[k] = buckets[k].map((p) => ({ id: `f${++n}`, ...p }));
   await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...(codex.unparsed && { codex_unparsed: true }), ...(gemini.unparsed && { gemini_unparsed: true }), ...buckets }, null, 2));
   return {
     codex_verdict: String(codex.verdict ?? 'unknown'),
