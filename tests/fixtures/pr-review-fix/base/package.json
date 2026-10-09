@@ -1,0 +1,6 @@
+{
+  "name": "pr-review-fix-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/" }
+}

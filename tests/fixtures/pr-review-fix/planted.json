@@ -1,0 +1,10 @@
+{
+  "base": "base/",
+  "head": "head/",
+  "fix": "copy base/src over the head to fix all three",
+  "bugs": [
+    { "id": "total", "file": "src/total.js", "line_start": 2, "line_end": 2, "title": "total ignores quantity", "test": "test/total.test.js::multiplies price by quantity", "command": "node --test --test-name-pattern=\"multiplies price by quantity\" test/total.test.js" },
+    { "id": "discount", "file": "src/discount.js", "line_start": 2, "line_end": 2, "title": "discount treats the percent as a fraction", "test": "test/discount.test.js::zero percent keeps the price", "command": "node --test --test-name-pattern=\"zero percent keeps the price\" test/discount.test.js" },
+    { "id": "paginate", "file": "src/paginate.js", "line_start": 2, "line_end": 2, "title": "pageItems skips the first page", "test": null, "command": null }
+  ]
+}
