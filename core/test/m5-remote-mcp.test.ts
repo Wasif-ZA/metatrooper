@@ -52,7 +52,7 @@ test('M5-12b claude session config contains a quoted headersHelper and no token'
     const bytes = readFileSync(configPath, 'utf8');
     const config = JSON.parse(bytes);
     assert.equal(config.mcpServers['remote-b-github'].type, 'http');
-    assert.match(config.mcpServers['remote-b-github'].headersHelper, /headers remote-b github/);
+    assert.match(config.mcpServers['remote-b-github'].headersHelper, /headers "remote-b" "github"$/);
     assert.ok(config.mcpServers['remote-b-github'].headersHelper.includes('"'));
     assert.ok(!bytes.includes(FAKE_TOKEN));
   } finally {

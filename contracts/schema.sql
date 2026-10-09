@@ -128,6 +128,16 @@ CREATE TABLE notify_sink (
   approved_at  TEXT NOT NULL
 );
 
+-- One row per needs-you item and sink, so a restart never resends to a sink that already got it.
+CREATE TABLE notify_delivery (
+  needs_you_id TEXT NOT NULL,
+  sink_id      TEXT NOT NULL,
+  state        TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  tries        INTEGER NOT NULL DEFAULT 0,
+  next_at      INTEGER NOT NULL DEFAULT 0,  -- epoch ms of the next attempt
+  PRIMARY KEY (needs_you_id, sink_id)
+);
+
 -- The session each window shows; session.focus writes it and the window follows it. One window: 'main'.
 CREATE TABLE ui_selection (
   window_id    TEXT PRIMARY KEY,

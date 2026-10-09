@@ -81,9 +81,9 @@ export interface AttachContext {
 
 /** Whether a server may attach: an external-writes server never joins a pipeline step or a contained or isolated session, and codex gets only no-write, header-free http servers. */
 function mayAttach(s: McpSpec, engineId: string, ctx: AttachContext): boolean {
-  if (s.transport !== 'http') return true;
   const writes = mcpWrites(s);
   if (writes === 'external' && (ctx.pipeline || ctx.approval === 'contained' || ctx.approval === 'isolated')) return false;
+  if (s.transport !== 'http') return true;
   if (engineId === 'codex') return writes === 'none' && !s.headers && s.auth !== 'header';
   return true;
 }
@@ -115,7 +115,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, s.http
-        ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${shim}" headers ${s.args[1]} ${s.args[2]}` } : {}) }
+        ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${shim}" headers "${s.args[1]}" "${s.args[2]}"` } : {}) }
         : { command: node, args: s.args }]));
       fs.writeFileSync(file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.

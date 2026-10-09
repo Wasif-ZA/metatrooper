@@ -95,7 +95,7 @@ async function deliver(sink: SinkRow, item: Item): Promise<string | null> {
   if (sink.kind === 'command') return runCommand(JSON.parse(dest) as string[], `${text}\n${link}\n`);
   const { headers, body } = request(sink.kind, item, text, link);
   try {
-    const res = await fetch(dest, { method: 'POST', headers, body, signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(dest, { method: 'POST', headers, body, redirect: 'error', signal: AbortSignal.timeout(10_000) });
     return res.ok ? null : `HTTP ${res.status}`;
   } catch {
     return 'network error';
@@ -108,14 +108,12 @@ function raiseFailed(db: DatabaseSync, sink: SinkRow): void {
   db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'other', ?, ?)").run(ulid(), nowIso(), sink.id, `${FAILED_PREFIX}: could not send to ${sink.name}`);
 }
 
-interface Progress {
+interface Delivery {
+  state: 'pending' | 'done' | 'failed';
   tries: number;
-  next: number;
-  done?: boolean;
-  failed?: boolean;
+  next_at: number;
 }
 
-const progress = new Map<string, Progress>();
 let busy = false;
 
 /** Every 2 s: sends each new needs-you row once to every enabled sink that wants its kind. */
@@ -125,35 +123,29 @@ export async function notifyTick(db: DatabaseSync): Promise<void> {
   try {
     const sinks = db.prepare('SELECT * FROM notify_sink WHERE enabled = 1').all() as unknown as SinkRow[];
     if (!sinks.length) return;
-    const rows = db.prepare("SELECT id, at, kind, text FROM needs_you WHERE notified_at IS NULL AND resolved_at IS NULL AND NOT (kind = 'other' AND text LIKE ?) ORDER BY at, id LIMIT 50").all(`${FAILED_PREFIX}%`) as unknown as Item[];
+    const now = Date.now();
+    const rows = db.prepare(`SELECT id, at, kind, text FROM needs_you n WHERE notified_at IS NULL AND resolved_at IS NULL
+      AND NOT (kind = 'other' AND text LIKE ?)
+      AND NOT EXISTS (SELECT 1 FROM notify_delivery d WHERE d.needs_you_id = n.id AND d.state = 'pending' AND d.next_at > ?)
+      ORDER BY at, id LIMIT 50`).all(`${FAILED_PREFIX}%`, now) as unknown as Item[];
     const mark = db.prepare('UPDATE needs_you SET notified_at = ? WHERE id = ?');
+    const get = db.prepare('SELECT state, tries, next_at FROM notify_delivery WHERE needs_you_id = ? AND sink_id = ?');
+    const put = db.prepare('INSERT OR REPLACE INTO notify_delivery (needs_you_id, sink_id, state, tries, next_at) VALUES (?, ?, ?, ?, ?)');
     for (const row of rows) {
-      if (Date.now() - Date.parse(row.at) > STALE_MS) { mark.run(`${nowIso()} skipped`, row.id); continue; }
+      if (now - Date.parse(row.at) > STALE_MS) { mark.run(`${nowIso()} skipped`, row.id); continue; }
       const targets = sinks.filter((s) => sinkKinds(s).includes(row.kind));
       if (!targets.length) { mark.run(`${nowIso()} no-sink`, row.id); continue; }
-      let pending = false;
-      let failed = false;
-      for (const sink of targets) {
-        const key = `${row.id}|${sink.id}`;
-        const p = progress.get(key) ?? { tries: 0, next: 0 };
-        progress.set(key, p);
-        if (p.done) continue;
-        if (p.failed) { failed = true; continue; }
-        if (Date.now() < p.next) { pending = true; continue; }
-        if ((await deliver(sink, row)) === null) { p.done = true; continue; }
-        p.tries++;
-        if (p.tries > RETRY_MS.length) {
-          p.failed = true;
-          failed = true;
-          raiseFailed(db, sink);
-        } else {
-          p.next = Date.now() + RETRY_MS[p.tries - 1];
-          pending = true;
-        }
-      }
-      if (pending) continue;
-      mark.run(failed ? `${nowIso()} failed` : nowIso(), row.id);
-      for (const sink of targets) progress.delete(`${row.id}|${sink.id}`);
+      const states = await Promise.all(targets.map(async (sink) => {
+        const d = (get.get(row.id, sink.id) as Delivery | undefined) ?? { state: 'pending', tries: 0, next_at: 0 };
+        if (d.state !== 'pending' || Date.now() < d.next_at) return d.state;
+        if ((await deliver(sink, row)) === null) { put.run(row.id, sink.id, 'done', d.tries + 1, 0); return 'done'; }
+        const tries = d.tries + 1;
+        if (tries > RETRY_MS.length) { put.run(row.id, sink.id, 'failed', tries, 0); raiseFailed(db, sink); return 'failed'; }
+        put.run(row.id, sink.id, 'pending', tries, Date.now() + RETRY_MS[tries - 1]);
+        return 'pending';
+      }));
+      if (states.includes('pending')) continue;
+      mark.run(states.includes('failed') ? `${nowIso()} failed` : nowIso(), row.id);
     }
   } finally {
     busy = false;

@@ -54,6 +54,7 @@ function addServers(
   for (const [name, raw] of Object.entries(servers)) {
     const s = raw as Record<string, unknown>;
     if ((s?.type === 'http' || s?.type === 'streamable-http') && typeof s.url === 'string') {
+      if (!s.url.startsWith('https://')) { plan.errors.push(`MCP server ${name}: ${s.url} is not https, so it is not imported`); continue; }
       const headers: Record<string, string> = {};
       for (const [h, v] of Object.entries((s.headers ?? {}) as Record<string, unknown>)) {
         const names = headerSecretNames(String(v));
