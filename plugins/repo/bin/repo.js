@@ -33,7 +33,12 @@ export function detect(dir) {
       return { runner: pm, command: [pm, 'test'] };
     }
   }
-  const pyTests = has('tests') && fs.readdirSync(path.join(dir, 'tests')).some((f) => f.endsWith('.py'));
+  const pyIn = (d, depth) => {
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return false; }
+    return entries.some((e) => (e.isFile() && /\.py$/i.test(e.name)) || (e.isDirectory() && depth > 0 && pyIn(path.join(d, e.name), depth - 1)));
+  };
+  const pyTests = pyIn(path.join(dir, 'tests'), 3);
   if (has('pyproject.toml') || has('pytest.ini') || has('setup.cfg') || pyTests) {
     if (has('uv.lock')) return { runner: 'pytest', command: ['uv', 'run', 'pytest'] };
     return { runner: 'pytest', command: win ? ['py', '-m', 'pytest'] : ['python3', '-m', 'pytest'] };

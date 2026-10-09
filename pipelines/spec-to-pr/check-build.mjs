@@ -9,7 +9,12 @@ const git = (dir, args) => execFileSync('git', ['-C', dir, ...args], { encoding:
 /** Fails the run when the build left no commit or a dirty tree; reports whether the commits touch a test file. */
 export async function run(ctx) {
   const dir = String(ctx.steps.build?.worktree);
-  const base = fs.readFileSync(path.join(ctx.runDir, 'worktrees', 'build-0.base'), 'utf8').trim();
+  let base;
+  try { base = fs.readFileSync(path.join(ctx.runDir, 'worktrees', 'build-0.base'), 'utf8').trim(); }
+  catch {
+    try { base = git(dir, ['merge-base', 'HEAD', String(ctx.inputs?.base_branch ?? 'main')]); }
+    catch { throw new Error(`cannot find the commit the build started from (no build-0.base, no merge-base with ${ctx.inputs?.base_branch ?? 'main'})`); }
+  }
   const commits = Number(git(dir, ['rev-list', '--count', `${base}..HEAD`]));
   const dirty = git(dir, ['status', '--porcelain']).split(/\r?\n/).filter(Boolean);
   if (commits < 1) throw new Error('the build made no commit');

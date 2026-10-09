@@ -50,7 +50,7 @@ function normalise(f, root) {
   file = file.replace(/^(\.\/)+/, '');
   let start = Number(f.line_start ?? f.line);
   let end = Number(f.line_end ?? f.line_start ?? f.line);
-  if (!file || !Number.isFinite(start)) return null;
+  if (!file || /^([A-Za-z]:)?\//.test(file) || !Number.isFinite(start)) return null;
   if (!Number.isFinite(end)) end = start;
   if (start > end) [start, end] = [end, start];
   return { ...f, file, line_start: start, line_end: end };
