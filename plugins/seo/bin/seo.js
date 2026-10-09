@@ -111,6 +111,9 @@ export async function crawl(input, runDir, get) {
       if (!seen.has(link)) { seen.add(link); queue.push(link); }
     }
   }
+  const first = pages[0];
+  if (!first) throw new Error(`robots.txt disallows the start page ${start.href}`);
+  if (first.status < 200 || first.status >= 300) throw new Error(`start page ${first.url} did not load: ${first.error ?? first.status}`);
   const broken = pages.filter((p) => p.status === 0 || p.status >= 400);
   const inbound = new Map();
   for (const p of pages) for (const l of p.internal_links ?? []) inbound.set(l, (inbound.get(l) ?? 0) + 1);
