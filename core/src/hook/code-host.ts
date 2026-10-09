@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 interface Init {
   type: 'init';
   module: string;
-  ctx: { inputs: unknown; steps: unknown; runDir: string; projectPath: string };
+  ctx: { inputs: unknown; steps: unknown; runDir: string; projectPath: string; coreDir: string; plugins: string[] };
 }
 
 let next = 0;
@@ -37,6 +37,8 @@ process.on('message', async (raw) => {
     steps: msg.ctx.steps,
     runDir: msg.ctx.runDir,
     projectPath: msg.ctx.projectPath,
+    coreDir: msg.ctx.coreDir,
+    plugins: Object.freeze([...(msg.ctx.plugins ?? [])]),
     log: (text: unknown) => call('log', [String(text)]),
     readFile: (rel: string) => call('readFile', [rel]),
     writeFile: (rel: string, text: string) => call('writeFile', [rel, text]),

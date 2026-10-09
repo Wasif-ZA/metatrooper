@@ -22,7 +22,7 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
   const server = (plugin.manifest.mcp ?? []).find((s) => s.id === serverId);
   if (!server) throw new RpcError(E.NOT_FOUND, `MCP server ${serverId} not found in ${pluginId}`);
   const bindings = readImportRecord(plugin)?.env[serverId] ?? {};
-  const out: ResolvedServer = { command: server.command, args: server.args ?? [], env: {}, refs: {}, missing: [] };
+  const out: ResolvedServer = { command: server.command, args: server.args ?? [], env: { ...(server.env ?? {}) }, refs: {}, missing: [] };
   for (const key of server.env_keys ?? []) {
     if (!plugin.permissions.includes(`secrets:${key}`)) {
       out.missing.push(key);

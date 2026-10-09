@@ -80,7 +80,8 @@ async function main()                {
   if (missing.length) return refuse(`set ${missing.join(', ')} for ${pluginId}; MCP server ${serverId} did not start`);
 
   const resolved = resolveCommand(r.command) ?? [r.command];
-  const child = spawn(resolved[0], [...resolved.slice(1), ...r.args], { stdio: 'inherit', env, windowsHide: true });
+  const args = r.args.map((a) => (a === '{{cwd}}' ? process.cwd() : a));
+  const child = spawn(resolved[0], [...resolved.slice(1), ...args], { stdio: 'inherit', env, windowsHide: true });
   child.on('error', (e) => {
     process.stderr.write(`metatrooper mcp-shim: could not start ${r.command}: ${e.message}\n`);
     process.exit(1);

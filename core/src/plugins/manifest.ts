@@ -21,6 +21,7 @@ export interface McpSpec {
   command: string;
   args?: string[];
   env_keys?: string[];
+  env?: Record<string, string>;
   engines: string[];
 }
 
@@ -115,6 +116,7 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
   (m.mcp ?? []).forEach((s, i) => {
     for (const key of s.env_keys ?? []) {
       if (!perms.has(`secrets:${key}`)) errors.push(`/mcp/${i}/env_keys: ${key} needs the permission secrets:${key}`);
+      if (s.env && key in s.env) errors.push(`/mcp/${i}/env: ${key} is a secret in env_keys and cannot also be a literal`);
     }
   });
   (m.pane_methods ?? []).forEach((method, i) => {

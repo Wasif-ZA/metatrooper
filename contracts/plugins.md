@@ -103,6 +103,10 @@ command, args and resolved secrets (DPAPI values and `${VAR}` references resolve
 at that moment), then spawns the real server with that environment and relays stdio. No secret is written into
 any engine's config file.
 
+An `mcp` entry may also set `env`, literal non-secret values added to the server's environment (a key also in
+`env_keys` is refused). In `args`, the exact token `{{cwd}}` becomes the shim's working directory, which is the
+agent session's cwd; there is no other templating.
+
 How engines are pointed at the shim (child #13):
 
 | `mcp_attach.kind` | How |

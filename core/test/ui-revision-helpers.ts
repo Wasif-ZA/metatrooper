@@ -49,7 +49,9 @@ export async function revisionHarness(fixture?: string, fakeWrapper?: string) {
     async pipeline(def: any, inputs = {}) {
       const dir = join(project, '.troop/pipelines'); mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, `${def.id}.json`), JSON.stringify(def));
-      if (existsSync(join(root, 'pipelines', def.id))) cpSync(join(root, 'pipelines', def.id), join(dir, def.id), { recursive: true });
+      for (const sub of new Set((def.steps ?? []).filter((s: any) => typeof s.code === 'string').map((s: any) => s.code.split('/')[0]))) {
+        if (existsSync(join(root, 'pipelines', sub))) cpSync(join(root, 'pipelines', sub), join(dir, sub), { recursive: true });
+      }
       const r = await pipe.request('run.start', { pipeline_id: def.id, project_id: projectId, inputs }, { timeout: 10000 });
       assert.ok(r.result?.run_id, JSON.stringify(r)); return r.result.run_id as string;
     },

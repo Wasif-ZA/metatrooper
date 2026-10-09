@@ -70,6 +70,7 @@ async function withReview(fn: (h: Awaited<ReturnType<typeof revisionHarness>>, w
   try {
     writeFileSync(join(h.project, 'index.js'), 'export function greet(name) {\n  const n = name || process.env.DEFAULT_NAME;\n  return `Hello, ${n}!`;\n}\n');
     cpSync(join(resolve(workbench, '..'), 'pipelines/two-engine-review'), join(h.project, '.troop/pipelines/two-engine-review'), { recursive: true });
+    cpSync(join(resolve(workbench, '..'), 'pipelines/code-map'), join(h.project, '.troop/pipelines/code-map'), { recursive: true });
     const def = JSON.parse(readFileSync(join(resolve(workbench, '..'), 'pipelines/two-engine-review.json'), 'utf8'));
     def.requires = [];
     const directive = (verdict: string, findings: unknown[], delay: number) => `FAKE ${JSON.stringify({ delay_ms: delay, outputs: { verdict, findings: JSON.stringify(findings) } })}\n`;

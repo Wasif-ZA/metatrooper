@@ -189,7 +189,7 @@ answered by the runner with `{id, result}` or `{id, error}`), so `startAgent` ca
 step while `log` streams. The IPC channel exposes no gate method.
 
 `export async function run(ctx)`, where `ctx` has: `inputs`, `steps` (read-only outputs so far), `runDir`,
-`projectPath`, `log(msg)`, `readFile(rel)`, `writeFile(rel, text)` (both limited to `runDir`), and
+`projectPath`, `coreDir` (the core's folder), `plugins` (ids of the enabled plugins), `log(msg)`, `readFile(rel)`, `writeFile(rel, text)` (both limited to `runDir`), and
 `startAgent({prompt, engine?})` which runs an agent step under the same handoff contract and returns its
 outputs. `run(ctx)` must return a JSON-serialisable object; the runner writes it to `<step_id>.json` and uses
 it as the step's outputs. Throwing, or returning something that is not JSON-serialisable, fails the step. The

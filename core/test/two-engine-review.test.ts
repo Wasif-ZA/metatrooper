@@ -86,6 +86,7 @@ test('M1-26 two-engine-review returns both verdicts and four buckets for a plant
     const pipelines = join(project, '.troop', 'pipelines');
     mkdirSync(pipelines, { recursive: true });
     cpSync(join(root, 'pipelines', 'two-engine-review'), join(pipelines, 'two-engine-review'), { recursive: true });
+    cpSync(join(root, 'pipelines', 'code-map'), join(pipelines, 'code-map'), { recursive: true });
     const def = JSON.parse(readFileSync(builtin, 'utf8'));
     const codexStep = def.steps.find((s: { id: string }) => s.id === 'codex-review');
     const geminiStep = def.steps.find((s: { id: string }) => s.id === 'gemini-review');

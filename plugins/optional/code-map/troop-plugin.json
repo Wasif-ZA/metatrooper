@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "id": "code-map",
+  "version": "0.1.0",
+  "name": "Code map",
+  "description": "code-review-graph as an MCP server for Claude and Codex review steps. Install it with the Python 3.14 pip: python -m pip install code-review-graph. Never run `code-review-graph install` or `uninstall`: they rewrite every agent's settings.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": [],
+  "mcp": [
+    {
+      "id": "graph",
+      "command": "code-review-graph",
+      "args": ["serve", "--repo", "{{cwd}}", "--tools", "detect_changes_tool,get_review_context_tool,query_graph_tool"],
+      "env": { "PYTHONUTF8": "1" },
+      "engines": ["claude", "codex"]
+    }
+  ]
+}

@@ -42,12 +42,19 @@
       ]
     },
     {
+      "id": "map",
+      "title": "Build the code map",
+      "kind": "code",
+      "code": "code-map/index.mjs",
+      "outputs": ["available", "hint"]
+    },
+    {
       "id": "codex-review",
       "title": "Codex review",
       "role": "review",
       "kind": "agent",
       "engine": "codex",
-      "prompt": "Review the diff saved in {{steps.diff.outputs.diff_file}} (the changes from `git diff {{inputs.range}}` in the current directory). Read that file and the source files it touches; do not run commands and do not edit any file except your result file. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array.",
+      "prompt": "Review the diff saved in {{steps.diff.outputs.diff_file}} (the changes from `git diff {{inputs.range}}` in the current directory). Read that file; do not run commands and do not edit any file except your result file. Report a verdict of approve or reject, and each finding with file, line_start, line_end, severity, title and body. Write findings as a JSON array. {{steps.map.outputs.hint}}",
       "outputs": [
         "verdict",
         "findings"

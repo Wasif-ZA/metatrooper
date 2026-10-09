@@ -109,6 +109,7 @@
         "command": { "type": "string" },
         "args": { "type": "array", "items": { "type": "string" } },
         "env_keys": { "type": "array", "items": { "type": "string" }, "description": "Each must also appear as secrets:<KEY> in permissions." },
+        "env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Literal, non-secret environment values. A key also in env_keys is refused." },
         "engines": { "type": "array", "items": { "type": "string" }, "description": "Engine ids to attach to, or ['*']. Engines are given the mcp-shim command, never this command directly (plugins.md)." }
       }
     }

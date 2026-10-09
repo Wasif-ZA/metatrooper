@@ -15,7 +15,7 @@ import { trustFolder, untrustFolder } from '../trust.ts';
 import { leasePort, releasePorts } from '../ports.ts';
 import { getSecret } from '../secrets.ts';
 import { BASE_ENV, killPid, killTree, runAction } from '../plugins/actions.ts';
-import { loadPlugin } from '../plugins/store.ts';
+import { listPlugins, loadPlugin } from '../plugins/store.ts';
 import { pluginAction, syncPipelines, validationContext } from './store.ts';
 import { isGuarded, parseUses, validatePipeline, type Pipeline, type Step } from './validate.ts';
 import { actionHash, parseFrontMatter, resolveString, resolveValue, sha256, type Scope } from './template.ts';
@@ -1123,7 +1123,7 @@ ${helpers}` : resolved;
       });
       child.on('exit', (code) => done({ ok: false, error: `code step exited with code ${code} before returning${stderr ? `: ${stderr.trim().split('\n').slice(-5).join(' | ')}` : ''}` }));
       child.on('error', (e) => done({ ok: false, error: `code step could not start: ${e.message}` }));
-      child.send({ type: 'init', module, ctx: { inputs: JSON.parse(run.inputs), steps, runDir: run.run_dir, projectPath: project.path } });
+      child.send({ type: 'init', module, ctx: { inputs: JSON.parse(run.inputs), steps, runDir: run.run_dir, projectPath: project.path, coreDir, plugins: listPlugins(this.db).filter((p) => p.enabled).map((p) => p.id) } });
     });
     this.children.delete(key);
     if ('ok' in result && result.ok) {
