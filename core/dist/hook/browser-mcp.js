@@ -4,6 +4,7 @@ import { browserPipe } from '../paths.js';
 import { openReaderDb } from '../store/db.js';
 import { createDecoder, encode } from '../pipe/framing.js';
 import { ancestors, parentTable } from '../browser/ancestry.js';
+import { saveShot, shotFile } from '../browser/shots.js';
 
 const CALL_TIMEOUT_MS = 30_000;
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
@@ -19,7 +20,7 @@ const TOOLS                                                                     
   { name: 'select', description: 'Choose an option in a select element.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
   { name: 'scroll', description: 'Scroll the page, or a node into view.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['dy'] } },
   { name: 'wait_for', description: 'Wait until text or a ref appears.', inputSchema: { type: 'object', properties: { ...pane, text: { type: 'string' }, ref: { type: 'string' }, timeout_ms: { type: 'integer', default: 10000 } } } },
-  { name: 'screenshot', description: 'PNG of the viewport, or the full page.', inputSchema: { type: 'object', properties: { ...pane, full_page: { type: 'boolean', default: false } } } },
+  { name: 'screenshot', description: 'PNG of the viewport, or the full page. In a pipeline step, save_as (a label such as 1280) also saves it to the run folder as shots/<step>-<round>-<label>.png.', inputSchema: { type: 'object', properties: { ...pane, full_page: { type: 'boolean', default: false }, save_as: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,31}$' } } } },
   { name: 'evaluate', description: 'Run a JavaScript expression in an isolated world; result capped at 20 KB.', inputSchema: { type: 'object', properties: { ...pane, expression: { type: 'string' } }, required: ['expression'] } },
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
@@ -111,12 +112,33 @@ function send(msg        )       {
 
 async function toolCall(name        , args                         )                  {
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
-  const r = await browser.call(`browser.${name}`, args ?? {});
+  const { save_as: saveAs, ...rest } = args ?? {};
+  let shot                = null;
+  if (name === 'screenshot' && saveAs !== undefined) {
+    const db = openReaderDb();
+    try {
+      if (!db) throw new Error('save_as needs the MetaTrooper database');
+      shot = shotFile(db, findSession(), saveAs);
+    } catch (e) {
+      return { content: [{ type: 'text', text: (e         ).message }], isError: true };
+    } finally {
+      db?.close();
+    }
+  }
+  const r = await browser.call(`browser.${name}`, rest);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
   const result = r.result                                                                           ;
   if (name === 'screenshot' && result?.png_base64) {
     const content           = [{ type: 'image', data: result.png_base64, mimeType: 'image/png' }];
     if (result.truncated) content.push({ type: 'text', text: 'truncated: the page is taller than 16,384 px' });
+    if (shot) {
+      try {
+        saveShot(shot, result.png_base64);
+        content.push({ type: 'text', text: `saved ${shot}` });
+      } catch (e) {
+        return { content: [{ type: 'text', text: `not saved: ${(e         ).message}` }], isError: true };
+      }
+    }
     return { content };
   }
   if (name === 'snapshot' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };

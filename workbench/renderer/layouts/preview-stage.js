@@ -15,6 +15,7 @@ runLayouts['preview-stage'] = {
           step('production') ? box('Production', step('production'), out('production').url) : '',
           ...m.variants.filter((v) => v.status === 'picked').map((v) => box(`Picked variant ${String.fromCharCode(65 + v.idx)}`, null, v.dev_port ? `http://localhost:${v.dev_port}/` : '')),
         ].join('')}</div>
+        ${h.rounds(m).length ? `<section class="pics"><div class="sec">Round ${h.rounds(m).at(-1).round}</div>${h.shotRow(m, h.rounds(m).at(-1))}</section>` : ''}
         ${gate ? `<section class="gatebox halo"><span class="edge"></span><div class="sec">${h.esc(gate.title)}</div>${h.gateCard(m, gate)}</section>` : ''}
         <section class="files" data-keep="ps-files"><div class="sec">Changes on the branch</div>${m.agent ? h.files(m) : '<div class="empty">No changes yet.</div>'}</section>
       </main>`;

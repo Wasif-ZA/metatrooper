@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { client, sleep, until } from '../../core/test/helpers.ts';
 import { git, revisionHarness } from '../../core/test/ui-revision-helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -25,8 +26,7 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>, folder?
     : spawn(electron, args, { env: h.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
   const stopWindow = async () => {
     if (!wb.pid) return;
-    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' });
-    else try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb.pid);
     if (wb.exitCode === null) wb.kill();
     await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
   };
@@ -72,7 +72,7 @@ async function coreAnswers(h: Awaited<ReturnType<typeof revisionHarness>>, timeo
 }
 
 async function stopPid(pid: number): Promise<void> {
-  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+  if (process.platform === 'win32') killTree(pid);
   else try { process.kill(pid, 'SIGTERM'); } catch {}
   await sleep(250);
   if (process.platform !== 'win32') try { process.kill(pid, 'SIGKILL'); } catch {}
