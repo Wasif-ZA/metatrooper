@@ -19,7 +19,7 @@ function run(cmd, args, cwd) {
 
 export function mediaFiles(p) {
   if (!fs.statSync(p).isDirectory()) return [p];
-  return fs.readdirSync(p).filter((f) => MEDIA.test(f)).sort().map((f) => path.join(p, f));
+  return fs.readdirSync(p).filter((f) => MEDIA.test(f) && !f.startsWith('.')).sort().map((f) => path.join(p, f));
 }
 
 export function probe(input) {
@@ -34,6 +34,7 @@ export function probe(input) {
       audio: a ? { codec: a.codec_name, channels: a.channels, rate: Number(a.sample_rate) } : null,
     };
   });
+  if (!files.length) throw new Error(`no media files in ${input.path}`);
   return { files, count: files.length, duration: Math.round(files.reduce((t, f) => t + f.duration, 0) * 10) / 10 };
 }
 
@@ -64,6 +65,7 @@ export function transcribe(input) {
       words.push(...wordsFromWhisper(JSON.parse(fs.readFileSync(path.join(tmp, 'a.json'), 'utf8')), path.basename(file)));
       if (input.scenes) cuts[path.basename(file)] = scenes(file);
     }
+    if (!words.length && !skipped.length) throw new Error(`no speech found in ${input.path}`);
     const result = { model: path.basename(MODEL), words, skipped, ...(input.scenes ? { scenes: cuts } : {}) };
     fs.mkdirSync(path.dirname(input.out), { recursive: true });
     fs.writeFileSync(input.out, JSON.stringify(result, null, 2));
