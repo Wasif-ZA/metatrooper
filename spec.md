@@ -895,6 +895,8 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-D24 | Clean Windows machine | Both engines: a Hyper-V Windows 11 VM with Smart App Control on and a fresh standard account is the only setup that satisfies M5-01a; Windows Sandbox and a second account on this laptop do not |
 | M5-D25 | Linux evidence | Codex said WSL Ubuntu counts; Gemini said a real Linux desktop is needed. Conservative split: WSL counts for the core suite and the source-install beta (M5-05a), not for the Electron workbench. WSL here lacks `make`, so node-pty cannot build until `build-essential` is installed |
 | M5-D26 | Vendor terms (`ide-layer-research/m5-terms.md`) | Free app: allowed by all three with conditions (official unmodified binaries, the user signs in, MetaTrooper never reads or stores login tokens, no `claude -p` or Agent SDK, one login per person). Pro: OpenAI allowed with the same conditions; Anthropic and Google unclear. So Pro charges no one until Anthropic and Google confirm in writing, or until its Claude and Gemini steps can run on the buyer's own API key. Vendor logos are replaced by text names and a not-affiliated line |
+| M5-D27 | Hardening the preview pipelines | The goal asked for every pipeline to be hardened, so each of the 13 preview and unshipped pipelines got its two most serious failure modes fixed in code (M5-21, 26 fixes), on top of M5-D11's idea banks. Each fix was verified against the code first, has a Codex-written test, and anything needing a product call was listed, not built |
+| M5-D28 | SR-H5 in the launch set | Wasif, 2026-10-09 (through teehee-85): the security licence report that reads "Packages: 0" with no node_modules joins the M5-17 launch set, an exception to M5-D11 |
 | M5-D14 | One instruction file | Added after Gemini named it as missing: each engine reads `AGENTS.md` when its own file is absent, through the engine's own flag, never by writing into the project (M5-19) |
 
 #### Milestone 5 children
@@ -922,6 +924,7 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-18 | Catalogue cut: built-ins, preview, unshipped | `issues/m5-18-catalogue-cut.md` | High | 0.5 | none |
 | M5-19 | One instruction file | `issues/m5-19-one-instruction-file.md` | Medium | 0.5 | none |
 | M5-20 | Mined ideas for website-build and design-variants | `issues/m5-20-built-preview-ideas.md` (teehee-85) | M5, after 12-01 | see file | M5-18 |
+| M5-21 | Two verified hardening fixes in each of the 13 preview and unshipped pipelines | `issues/m5-21-preview-hardening.md` | Done (code) | 2.5 | M5-18 |
 
 Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 1.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
 0.5 + 5.1 (M5-17) = 30.85 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 30.85 is more than 27, so M5 fits

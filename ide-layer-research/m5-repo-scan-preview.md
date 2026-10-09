@@ -23,7 +23,7 @@ survived the relevance check, never padded.
 | seo-audit-fix | 50 | 42 |
 | deep-research-cited | 190 | 40 |
 | data-to-dashboard | 124 | 41 |
-| form-fill-batch | 90 | 34 |
+| form-fill-batch | 90 | 41 |
 | prospect-list-to-drafts | 190 | 40 |
 | inbox-triage-drafts | 190 | 40 |
 | study-notes-to-pdf | 90 | 39 |
@@ -670,15 +670,23 @@ Dropped notable (not relevant): pingcap/tidb, apache/doris, databendlabs/databen
 | clicknium/clicknium-docs | 161 | apache-2.0 | GUI automation for web and desktop apps | fill |
 | AhmadHassan-BTed/FormFilla | 249 | other | local-first extension filling forms from a stored profile | map (profile to field) |
 | Br1an67/OpenJobAutofill | 105 | mit | privacy-first AI form autofill extension | map |
+| FlaUI/FlaUI | 3,167 | mit | .NET UI Automation library, the base most Windows drivers wrap | map, fill (reference for UIA3 patterns) |
+| microsoft/WinAppDriver | 4,052 | mit | WebDriver server that drives Windows apps by accessibility id | fill (stable locators by AutomationId) |
+| FlaUI/FlaUInspect | 639 | mit | inspector showing a window's UIA tree and patterns | map (check which fields expose a value pattern) |
+| mapbox/pixelmatch | 6,987 | isc | tiny pixel-level image diff with a diff image output | confirm (diff filled form against the approved shot) |
+| microsoft/playwright-mcp | 37,957 | apache-2.0 | browser control through accessibility snapshots, no pixels | map, fill (web forms by role and label) |
+| AutoHotkey/AutoHotkey | 13,258 | gpl-2.0 | Windows macro and control scripting; ControlSetText sets a field without typing | fill (fallback for apps with no value pattern; call it, do not copy) |
+| Fedetrain/autofiller-universal | 0 | mit | batch web-form filler with self-healing selectors, offline rehearsal, data pre-flight | map (pre-flight rows), fill (dry run) |
 
-Dropped notable (not relevant): SeleniumHQ/selenium, chromedp/chromedp, webdriverio, Skyvern peers (nanobrowser, HyperAgent, agentql: browser only), captcha tools (techinz/playwright-captcha, noCaptchaAi, EzSolver, Botright: not to be copied), stealth browsers (camofox, invisible_playwright), 60 desktop-agent shells and Windows tweak scripts
+Dropped notable (not relevant): robotframework-flaui, FlaUIRecorder and Pulover's Macro Creator (duplicate wrappers or recorders of kept repos), mcp-playwright (same job as playwright-mcp), single-script CSV form fillers with 0 to 17 stars (copy one idea each at most), pdf form fillers and visual-regression CI tools (wrong job), SeleniumHQ/selenium, chromedp/chromedp, webdriverio, Skyvern peers (nanobrowser, HyperAgent, agentql: browser only), captcha tools (techinz/playwright-captcha, noCaptchaAi, EzSolver, Botright: not to be copied), stealth browsers (camofox, invisible_playwright), 60 desktop-agent shells and Windows tweak scripts
 
 ### Top ideas
 
 1. **map**: Read the window's UI Automation tree and match each sheet column to a field by accessible name, not screen position. Source: sbroenne/mcp-windows, shanselman/FlaUI-MCP, pywinauto/pywinauto, ThePacielloGroup/aviewer.
-2. **fill**: Set values through the element's value pattern or a stable reference; type only as a fallback. Source: yinkaisheng/Python-UIAutomation-for-Windows, lahfir/agent-desktop.
+2. **fill**: Set values through the element's value pattern or a stable reference; type only as a fallback (AutoHotkey ControlSetText for apps with no pattern). Source: microsoft/WinAppDriver, FlaUI/FlaUI, yinkaisheng/Python-UIAutomation-for-Windows, lahfir/agent-desktop.
 3. **shot**: Capture the form window alone per row so the approve gate sees what submit will send. Source: remorses/usecomputer, yinkaisheng/Python-UIAutomation-for-Windows.
-4. **confirm**: Read each field back from the UI tree after fill and diff against rows.json before the batch gate. Source: shanselman/FlaUI-MCP, congchuanling-dot/Cohort, OpenAdaptAI/OpenAdapt.
+   **pre-flight** (new): check every row against the form's required fields before the first fill, and run one dry rehearsal row. Source: Fedetrain/autofiller-universal.
+4. **confirm**: Read each field back from the UI tree after fill and diff against rows.json before the batch gate; pixel-diff the filled shot against the approved one just before submit. Source: mapbox/pixelmatch, shanselman/FlaUI-MCP, congchuanling-dot/Cohort, OpenAdaptAI/OpenAdapt.
 5. **fill and approve**: Write a replay log of every action and screenshot per row as batch evidence; offer a recorded first fill as a template. Source: openai/openai-cua-sample-app, AMAP-ML/LongHorizon-Harness, microsoft/skill-recorder.
 
 ### Hardening
