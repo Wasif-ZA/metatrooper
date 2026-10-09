@@ -127,7 +127,7 @@ test('test proofs reject a generic command and a command that omits the named te
   await proof.run(f.ctx);
   const results = JSON.parse(await fs.readFile(path.join(f.runDir, 'proof.json'), 'utf8')).results;
   assert.equal(results.total.passed, false);
-  assert.match(results.total.why, /command does not name the test/);
+  assert.match(results.total.why, /one test runner call with no shell operators/);
   assert.equal(results.discount.passed, false);
   assert.match(results.discount.why, /command does not name the test/);
 });
