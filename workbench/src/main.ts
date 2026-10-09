@@ -26,6 +26,7 @@ import { paneData } from '../../core/src/pipelines/panes.ts';
 import { runDetail, runShot } from './rundetail.ts';
 
 captureProcessLog('workbench', false);
+process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
