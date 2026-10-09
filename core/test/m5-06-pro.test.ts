@@ -132,6 +132,90 @@ test('test proofs reject a generic command and a command that omits the named te
   assert.match(results.discount.why, /command does not name the test/);
 });
 
+test('test proofs reject shell operators and node -e even when a test path is named', async (t) => {
+  const f = await setup(t);
+  await applyAllFixes(f.ctx.steps.checkout.worktree);
+  const entries = proofEntries();
+  entries[0].proof.command = 'node --test test/total.test.js && echo ok';
+  entries[1].proof.command = 'node -e "process.exit(0)" total.test.js';
+  await runProofAndHandback(f, entries);
+  const results = JSON.parse(await fs.readFile(path.join(f.runDir, 'proof.json'), 'utf8')).results;
+  for (const id of ['total', 'discount']) {
+    assert.equal(results[id].passed, false);
+    assert.equal(results[id].why, 'the command must be one test runner call with no shell operators');
+  }
+});
+
+test('test proofs refuse a named test file that does not exist', async (t) => {
+  const f = await setup(t);
+  await applyAllFixes(f.ctx.steps.checkout.worktree);
+  const entries = proofEntries();
+  entries[0].proof.test = 'test/missing.test.js::multiplies price by quantity';
+  entries[0].proof.command = 'node --test --test-name-pattern=multiplies test/missing.test.js';
+  await runProofAndHandback(f, entries);
+  const results = JSON.parse(await fs.readFile(path.join(f.runDir, 'proof.json'), 'utf8')).results;
+  assert.equal(results.total.passed, false);
+  assert.equal(results.total.why, 'the test file test/missing.test.js does not exist');
+});
+
+test('test proof rejects a missing-module failure caused by an added helper', async (t) => {
+  const f = await setup(t);
+  const worktree = f.ctx.steps.checkout.worktree;
+  await fs.mkdir(path.join(worktree, 'test'), { recursive: true });
+  await fs.writeFile(path.join(worktree, 'src/helper.js'), 'export const value = 1;\n');
+  await fs.writeFile(path.join(worktree, 'src/total.js'), "import { value } from './helper.js';\nexport function total(items) { return value + items.reduce((sum, item) => sum + item.price * item.qty, 0); }\n");
+  await fs.writeFile(path.join(worktree, 'test/helper.test.js'), "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { value } from '../src/helper.js';\ntest('helper import works', () => assert.equal(value, 1));\n");
+  git(worktree, 'add', 'src/helper.js');
+  const entries = proofEntries();
+  entries[0].proof.test = 'test/helper.test.js::helper import works';
+  entries[0].proof.command = 'node --test --test-name-pattern=helper test/helper.test.js';
+  await runProofAndHandback(f, entries);
+  const results = JSON.parse(await fs.readFile(path.join(f.runDir, 'proof.json'), 'utf8')).results;
+  assert.equal(results.total.passed, false);
+  assert.equal(results.total.why, 'without the fix the test fails only because a file the fix added is missing');
+});
+
+test('freeze keeps proof and handback tied to the original picks and review buckets', async (t) => {
+  const f = await setup(t);
+  await applyAllFixes(f.ctx.steps.checkout.worktree);
+  f.ctx.steps.freeze = { pick: ['total'], buckets: JSON.parse(await fs.readFile(f.reviewFile, 'utf8')) };
+  await fs.writeFile(path.join(f.runDir, 'fixes.json'), JSON.stringify({ fixes: proofEntries() }));
+  f.ctx.steps.proof = { worktree: f.ctx.steps.checkout.worktree };
+  await fs.writeFile(path.join(f.runDir, 'picks.json'), JSON.stringify({ pick: ['discount'] }));
+  await fs.writeFile(f.reviewFile, JSON.stringify({ both: [], codex_only: [], gemini_only: [], disagree: [] }));
+  await proof.run(f.ctx);
+  const results = JSON.parse(await fs.readFile(path.join(f.runDir, 'proof.json'), 'utf8')).results;
+  assert.equal(results.discount.passed, false);
+  assert.equal(results.discount.why, 'not picked at the gate');
+  const result = await handback.run(f.ctx);
+  assert.equal(result.fixed, 1);
+  assert.equal(result.not_picked, 2);
+  assert.ok(result.items.some((item: any) => item.kind === 'fixed' && item.text === 'total ignores quantity (src/total.js:2): fixed, proof passed and the rereview no longer reports it'));
+  assert.ok(result.items.some((item: any) => item.kind === 'not-picked' && item.text === 'discount treats the percent as a fraction (src/discount.js:2): not picked'));
+});
+
+test('rereview line drift reports the finding at its shifted line', async (t) => {
+  const f = await setup(t);
+  await applyAllFixes(f.ctx.steps.checkout.worktree);
+  const total = path.join(f.ctx.steps.checkout.worktree, 'src/total.js');
+  const original = await fs.readFile(total, 'utf8');
+  await fs.writeFile(total, `${Array.from({ length: 10 }, (_, i) => `// inserted ${i + 1}`).join('\n')}\n${original}`);
+  await runProofAndHandback(f, proofEntries());
+  const finding = planted.bugs[0];
+  const shifted = { id: 'total-again', codex: { title: finding.title, file: finding.file, line_start: 12, line_end: 12 }, gemini: null };
+  await fs.writeFile(f.rereviewFile, JSON.stringify({ both: [shifted], codex_only: [], gemini_only: [], disagree: [] }));
+  const result = await handback.run(f.ctx);
+  assert.equal(result.still_found, 1);
+  assert.ok(result.items.some((item: any) => item.kind === 'still-found' && item.text === 'total ignores quantity (src/total.js:2): still found after the fix (its proof passed)'));
+});
+
+test('proof resets the worktree index', async (t) => {
+  const f = await setup(t);
+  await applyAllFixes(f.ctx.steps.checkout.worktree);
+  await runProofAndHandback(f, proofEntries());
+  assert.equal(git(f.ctx.steps.checkout.worktree, 'diff', '--cached', '--name-only'), '');
+});
+
 test('checkout rejects a range with a nonexistent head', async (t) => {
   const f = await setup(t);
   f.ctx.inputs.range = `${git(f.repo, 'rev-parse', 'main')}..no-such-head`;
