@@ -55,7 +55,7 @@ export function failingTests(output) {
     let m;
     if (tap && !/#\s*(TODO|SKIP)\b/i.test(line) && (m = /^\s*not ok \d+ - (.+?)(\s+#.*)?$/.exec(line))) names.add(m[1].trim());
     if (jest && (m = /^\s*(?:FAIL\s+(\S.*?)|[✕×]\s+(.+?))(\s+\(\d+(?:\.\d+)? ?m?s\))?$/.exec(line))) names.add((m[1] || m[2]).trim());
-    if (pytest && (m = /^FAILED\s+(\S+)/.exec(line))) names.add(m[1].trim());
+    if (pytest && (m = /^(?:FAILED|ERROR)\s+(\S+)/.exec(line))) names.add(m[1].trim());
   }
   return [...names];
 }
@@ -68,7 +68,8 @@ function runTests(dir, command) {
   });
   const output = `${r.stdout || ''}${r.stderr || ''}`;
   process.stderr.write(output.slice(-20000));
-  return { passed: r.status === 0, exit_code: r.status ?? -1, output_tail: output.split(/\r?\n/).slice(-50).join('\n'), failing: failingTests(output) };
+  const failing = failingTests(output);
+  return { passed: r.status === 0, exit_code: r.status ?? -1, output_tail: output.split(/\r?\n/).slice(-50).join('\n'), failing: r.status !== 0 && !failing.length ? 'unknown' : failing };
 }
 
 function diff(dir, base, runDir) {
