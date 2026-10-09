@@ -1,7 +1,7 @@
 {
   "id": "copilot",
   "command": "copilot",
-  "version_cmd": ["copilot", "version"],
+  "version_cmd": ["copilot", "--version"],
   "state_source": "process",
   "mcp_attach": { "kind": "none" },
   "print_args": ["-p", "{prompt}"],

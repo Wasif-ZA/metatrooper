@@ -4,8 +4,6 @@
   "prompt_arg": "positional",
   "resume_args": ["--session", "{native_id}"],
   "version_cmd": ["pi", "--version"],
-  "auth_cmd": ["pi", "auth", "check"],
-  "auth_ok": { "exit_code": 0 },
   "state_source": "process",
   "mcp_attach": { "kind": "none" },
   "print_args": ["-p", "{prompt}"],

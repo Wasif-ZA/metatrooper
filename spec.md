@@ -231,7 +231,7 @@ An engine is any interactive CLI, defined by the `engine` object in `plugin-mani
 | `opencode` (engines/opencode.json, MCP env-json) | `opencode` | `--prompt` | process | none (auth `unknown`) | plan, worker, review, verify | 5 | none |
 | `copilot` (engines/copilot.json, MCP none) | `copilot` | none (clipboard handoff) | process | none (auth `unknown`) | plan, worker, review | 5 | none |
 | `gemini` (engines/gemini.json, MCP none) | `gemini` | `--prompt-interactive` | process | none (auth `unknown`) | research, plan, worker, review | 5 | none |
-| `pi` (engines/pi.json, MCP none) | `pi` | positional | process | `pi auth check`, exit 0 | plan, worker, review | 5 | none |
+| `pi` (engines/pi.json, MCP none) | `pi` | positional | process | none (auth `unknown`) | plan, worker, review | 5 | none |
 
 Role binding picks the lowest `cost_rank` engine that lists the role, is installed, and is not red; the user
 can pin an engine per step or per project. Health: `version_cmd` and `auth_cmd` on start, every 10 minutes,
