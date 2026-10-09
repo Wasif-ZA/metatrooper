@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Manifest, McpSpec } from './manifest.ts';
+import { headerSecretNames, type Manifest, type McpSpec } from './manifest.ts';
 
 export type ImportSource = 'claude-import' | 'codex-import' | 'agy-import';
 
@@ -53,8 +53,25 @@ function addServers(
   const mcp: McpSpec[] = plan.manifest.mcp ?? [];
   for (const [name, raw] of Object.entries(servers)) {
     const s = raw as Record<string, unknown>;
+    if ((s?.type === 'http' || s?.type === 'streamable-http') && typeof s.url === 'string') {
+      const headers: Record<string, string> = {};
+      for (const [h, v] of Object.entries((s.headers ?? {}) as Record<string, unknown>)) {
+        const names = headerSecretNames(String(v));
+        if (!names.length) {
+          plan.errors.push(`MCP server ${name}: header ${h} has no \${SECRET} reference, so it is not imported`);
+          continue;
+        }
+        headers[h] = substitute(String(v));
+        for (const key of names) perms.add(`secrets:${key}`);
+      }
+      const id = name.replace(/[^A-Za-z0-9_-]+/g, '-');
+      const hasHeaders = Object.keys(headers).length > 0;
+      mcp.push({ id, transport: 'http', url: substitute(s.url), ...(hasHeaders ? { headers } : {}), auth: hasHeaders ? 'header' : 'engine-oauth', writes: 'external', engines: [engine] });
+      plan.env[id] = {};
+      continue;
+    }
     if (typeof s?.command !== 'string') {
-      plan.skipped.push(`MCP server ${name}: only stdio servers with a command can run through the shim`);
+      plan.skipped.push(`MCP server ${name}: only stdio servers with a command and http servers can be imported`);
       continue;
     }
     const env: Record<string, EnvBinding> = {};
@@ -114,7 +131,10 @@ export function importClaude(dir: string): ImportPlan {
     sources.push(pj.mcpServers as Record<string, unknown>);
   }
   const dotMcp = path.join(root, '.mcp.json');
-  if (fs.existsSync(dotMcp)) sources.push((readJson(dotMcp).mcpServers ?? {}) as Record<string, unknown>);
+  if (fs.existsSync(dotMcp)) {
+    const j = readJson(dotMcp);
+    sources.push((j.mcpServers ?? j) as Record<string, unknown>);
+  }
   for (const servers of sources) addServers(plan, servers, 'claude', substitute);
 
   plan.skills = listSkills(path.join(root, 'skills'));
