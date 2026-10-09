@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, root, until } from './helpers.ts';
+import { buildGenerated, pipelineFile, root, until } from './helpers.ts';
 import { revisionHarness } from './ui-revision-helpers.ts';
 import { capturingEngine } from './pipeline-fixup-helpers.ts';
 
@@ -16,7 +16,7 @@ before(buildGenerated);
 type Harness = Awaited<ReturnType<typeof revisionHarness>>;
 
 function builtin(id: string, fake: Record<string, unknown>) {
-  const def = JSON.parse(readFileSync(join(root, `pipelines/${id}.json`), 'utf8'));
+  const def = JSON.parse(readFileSync(pipelineFile(id), 'utf8'));
   for (const step of def.steps) {
     if (step.kind !== 'agent') continue;
     step.engine = 'fake';
@@ -173,7 +173,7 @@ test('M3-01 inbox-triage-drafts reads the fixture mailbox and saves a reply draf
   const h = await gmailHarness(gmail.url);
   try {
     copyFileSync(join(root, 'tests/fixtures/inbox-triage-drafts/input/rules.md'), join(h.project, 'rules.md'));
-    cpSync(join(root, 'pipelines/inbox-triage-drafts'), join(h.project, '.troop/pipelines/inbox-triage-drafts'), { recursive: true });
+    cpSync(join(root, 'pipelines/unshipped/inbox-triage-drafts'), join(h.project, '.troop/pipelines/inbox-triage-drafts'), { recursive: true });
     const replies = [{ id: 'm1', thread: 't1', to: 'dana@crumb.example', subject: 'Re: Saturday order', body: 'Yes, 40 loaves are confirmed for Saturday.\nSam' }];
     const def = builtin('inbox-triage-drafts', {
       classify: { outputs: { items: 'classified.json' } },
@@ -205,7 +205,7 @@ test('M3-01 prospect-list-to-drafts drops bad rows, gates the site fetch and sav
   const h = await gmailHarness(gmail.url);
   try {
     for (const f of ['prospects.csv', 'do-not-contact.txt']) copyFileSync(join(root, 'tests/fixtures/prospect-list-to-drafts/input', f), join(h.project, f));
-    cpSync(join(root, 'pipelines/prospect-list-to-drafts'), join(h.project, '.troop/pipelines/prospect-list-to-drafts'), { recursive: true });
+    cpSync(join(root, 'pipelines/unshipped/prospect-list-to-drafts'), join(h.project, '.troop/pipelines/prospect-list-to-drafts'), { recursive: true });
     const emails = [
       { id: 'priya', to: 'priya@shahphysio.example', subject: 'Your Saturday clinic', body: 'You open Saturdays from 8am. Want a booking page for it?' },
       { id: 'marco', to: 'marco@rossibarbers.example', subject: 'Walk-ins', body: 'Your site says walk-ins only. Want a live queue page?' },

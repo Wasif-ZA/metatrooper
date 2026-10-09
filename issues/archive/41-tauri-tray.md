@@ -1,3 +1,5 @@
+Cut 2026-10-09, M5-D10.
+
 # Tauri tray companion
 
 Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
