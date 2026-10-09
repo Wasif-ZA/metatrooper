@@ -63,3 +63,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 - Sample by route on big sites: group URLs by route pattern and audit a sample per group (harlan-zw/unlighthouse). Medium, S.
 - Link check the build, not production: `--remap` the production host onto the preview port and `--cache` between loop rounds (lycheeverse/lychee). Medium, S.
 - Regenerate the sitemap from the crawl in `fix` (janreges/siteone-crawler). Low, S.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `seo-audit-fix`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).

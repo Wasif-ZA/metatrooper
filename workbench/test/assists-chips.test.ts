@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, openSync, closeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { runDetail } from '../src/rundetail.ts';
 import { root, sleep, until } from '../../core/test/helpers.ts';
 import { revisionHarness } from '../../core/test/ui-revision-helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
 const workbench = resolve(import.meta.dirname, '..');
@@ -71,8 +72,7 @@ async function windowFor(h: Awaited<ReturnType<typeof revisionHarness>>) {
     : spawn(electron, args, { env: h.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
   const stop = async () => {
     if (!wb.pid) return;
-    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' });
-    else try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb.pid);
     if (wb.exitCode === null) wb.kill();
     await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
   };

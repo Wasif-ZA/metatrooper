@@ -851,7 +851,7 @@ Out of scope:
   `--compress` context packs, difftastic as a diff display, context7 and github-mcp-server as recommended
   MCPs, `anthropics/sandbox-runtime` (Apache-2.0) as a Docker-free option for sandbox-host.
 
-### Milestone 5: launch (about 31 CC days, freeze 2026-11-05, public 2026-12-01)
+### Milestone 5: launch (about 30 CC days, freeze 2026-11-05, public 2026-12-01)
 
 M1 to M4 built a desk Wasif uses every day. M5 is what a stranger needs on 2026-12-01: a signed installer that works
 without Node, a first run that explains itself, Pro on sale, docs that match the app, a catalogue cut to what people
@@ -861,8 +861,9 @@ to him (hand-back list below).
 
 Research behind it: `ide-layer-research/m5-demand.md` (what users ask for, with reaction counts),
 `ide-layer-research/m5-integrations-demand.md` (which tools, with install counts), the read-only launch audit in
-`issues/m5-00-rebaseline.md`, and a 50-repo-per-pipeline idea scan (17 pipelines, 850 READMEs read by the local
-model), distilled into M5-17 and into each preview pipeline's issue.
+`issues/m5-00-rebaseline.md`, and a repo idea scan per pipeline (17 pipelines, about 1,900 READMEs read by the local model, then
+checked for relevance), distilled into M5-17, `ide-layer-research/m5-hardening-coding.md` and
+`ide-layer-research/m5-repo-scan-preview.md`, which each preview pipeline's issue links.
 
 #### Milestone 5 decisions
 
@@ -896,7 +897,7 @@ model), distilled into M5-17 and into each preview pipeline's issue.
 | M5-5 | Linux source beta | `issues/m5-05-linux.md` | Medium | 0.5 | none |
 | M5-6 | Pro review and fix loop with proof gate | `issues/m5-06-pro-review-proof-gate.md` | Critical | 3.5 | M5-8 S5 |
 | M5-7 | Pro licence, trial, checkout | `issues/m5-07-pro-licence-checkout.md` | Critical | 2.5 | M5-6, Wasif's two decisions |
-| M5-8 | Launch security subset | `issues/m5-08-launch-security.md` | Critical | 2.0 | none |
+| M5-8 | Launch security subset (S5 is built on m4-harden as M4-4) | `issues/m5-08-launch-security.md` | Critical | 1.0 | none |
 | M5-9 | Release gate, CI, versioning | `issues/m5-09-release-gate.md` | High | 1.75 | none |
 | M5-10 | Public docs, licences, privacy, ACU setting | `issues/m5-10-public-docs.md` | High | 2.5 | M5-3, M5-18 |
 | M5-11 | Site, waitlist, demo data | `issues/m5-11-site-and-demo.md` | High | 1.75 | M5-6 for the GIFs |
@@ -909,8 +910,8 @@ model), distilled into M5-17 and into each preview pipeline's issue.
 | M5-18 | Catalogue cut: built-ins, preview, unshipped | `issues/m5-18-catalogue-cut.md` | High | 0.5 | none |
 | M5-19 | One instruction file | `issues/m5-19-one-instruction-file.md` | Medium | 0.5 | none |
 
-Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 2.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
-0.5 + 4.6 (M5-17) = 31.35 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 31.35 is more than 27, so M5 fits
+Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 1.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
+0.5 + 4.6 (M5-17) = 30.35 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 30.35 is more than 27, so M5 fits
 only with parallel sessions and the slip rule below; Wasif's review hours are the limit, not Claude's. M5-14 and
 M5-16 are after launch and are re-scored by the Codex gate before anyone builds them.
 

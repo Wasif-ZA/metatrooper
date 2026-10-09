@@ -54,11 +54,12 @@ test('production artifact-columns and pr-first renderers load without a DOM', ()
 
 // The following cases exercise run.js's closed-over helpers in a real renderer context.
 // They are opt-in; this suite intentionally does not launch Electron by default.
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync, readFileSync, openSync, closeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { revisionHarness } from '../../core/test/ui-revision-helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules/electron/dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -76,8 +77,7 @@ async function windowFor(harness: Awaited<ReturnType<typeof revisionHarness>>) {
     : spawn(electron, args, { env: harness.env, stdio: ['ignore', 'ignore', output], windowsHide: true, detached: process.platform !== 'win32' });
   const stop = async () => {
     if (!wb.pid) return;
-    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(wb.pid), '/T', '/F'], { stdio: 'ignore' });
-    else try { process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb.pid);
     if (wb.exitCode === null) wb.kill();
     await Promise.race([new Promise<void>(r => wb.once('exit', () => r())), sleep(3000)]);
   };

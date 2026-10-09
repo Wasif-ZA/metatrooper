@@ -449,7 +449,26 @@ function renderPipelines() {
     <td>${p.valid ? '<span class="state done">valid</span>' : `<span class="state failed" title="${esc(p.errors.join('\n'))}">${p.errors.length} error${p.errors.length === 1 ? '' : 's'}</span>`}</td>
     <td>${p.source === 'project' ? `<button data-action="edit-pipeline" data-id="${esc(p.id)}">Edit</button>` : `<button data-action="copy-pipeline" data-id="${esc(p.id)}">Copy to project</button>`}</td></tr>`).join('');
   return `<div class="toolbar"><button class="primary" data-action="new-pipeline">New pipeline</button></div>
-    <div class="panel">${s.pipelines.length ? `<table><thead><tr><th>Title</th><th>Id</th><th>Source</th><th>Checks</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No pipelines yet.</p>'}</div>`;
+    <div class="panel">${s.pipelines.length ? `<table><thead><tr><th>Title</th><th>Id</th><th>Source</th><th>Checks</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No pipelines yet.</p>'}</div>
+    ${templateGallery(ui.templates)}`;
+}
+
+function templateGallery(list) {
+  if (!list) return '<div class="panel"><h3>Templates</h3><p class="empty">Loading templates.</p></div>';
+  const ready = list.filter((t) => t.ready).length;
+  const rows = list.map((t) => `<tr>
+    <td>${esc(t.title || t.id)}</td><td>${esc(t.lane)}</td>
+    <td>${t.requires.map((r) => `<span class="req ${t.missing.includes(r) ? 'missing' : ''}">${esc(r)}</span>`).join(' ')}</td>
+    <td>${t.ready ? '<span class="state done">ready</span>' : `<span class="state waiting" title="${esc(t.missing.join('\n'))}">needs ${esc(t.missing.join(', '))}</span>`}</td></tr>`).join('');
+  return `<div class="panel"><h3>Templates <span class="meta">${ready} of ${list.length} ready</span></h3>
+    ${list.length ? `<table><thead><tr><th>Title</th><th>Lane</th><th>Requires</th><th>Ready</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No templates.</p>'}</div>`;
+}
+
+async function loadTemplates() {
+  if (ui.templatesAt && Date.now() - ui.templatesAt < 5000) return;
+  ui.templatesAt = Date.now();
+  const r = await rpc('template.list', {}, true);
+  if (r.result) ui.templates = r.result.templates;
 }
 
 function stepErrors(i) {
@@ -1161,6 +1180,7 @@ async function openTab(tab) {
   ui.split = true;
   save('tab', tab);
   save('split', '1');
+  if (tab === 'pipelines') await loadTemplates();
   if ((tab === 'handback' || tab === 'diff') && ui.handback === undefined) refreshHandback();
   else render();
 }
@@ -1955,6 +1975,7 @@ api.onSnapshot(async (s) => {
   }
   followRunPanes();
   if (ui.tab === 'runs' && ui.runId) await refreshLog();
+  if (ui.tab === 'pipelines') await loadTemplates();
   if (ui.pendingPick && s.sessions.some((x) => x.id === ui.pendingPick)) {
     const id = ui.pendingPick;
     ui.pendingPick = null;

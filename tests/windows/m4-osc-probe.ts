@@ -6,6 +6,7 @@ import path from 'node:path';
 import { BUILT_IN, type EngineSpec } from '../../core/src/engines/registry.ts';
 import { planArgs } from '../../core/src/sessions/launch.ts';
 import { resolveCommand } from '../../core/src/hook/resolve.ts';
+import { killTree } from '../helpers/kill-tree.ts';
 
 const require = createRequire(import.meta.url);
 const pty = require('../../core/node_modules/node-pty') as typeof import('node-pty');
@@ -32,10 +33,6 @@ function runGit(args: string[], cwd: string): void {
   if (result.error || result.status !== 0) {
     throw new Error(result.error?.message ?? result.stderr.trim() ?? `git ${args.join(' ')} failed`);
   }
-}
-
-function killTree(pid: number): void {
-  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { encoding: 'utf8', windowsHide: true });
 }
 
 async function probe(engine: EngineSpec): Promise<ProbeResult> {

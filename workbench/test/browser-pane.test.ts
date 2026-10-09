@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { inflateSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, isolation, sleep, startCore, teardownCore, until, uiHello } from '../../core/test/helpers.ts';
+import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
 const electron = join(workbench, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
@@ -150,7 +151,7 @@ test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and e
     for (let y = 0; y < img.height; y++) if (isRed(img.pixel(10, y))) redRows++;
     assert.ok(redRows >= 78 && redRows <= 82, `header appears once (${redRows} red rows)`);
   } finally {
-    if (wb?.pid) try { if (process.platform === 'win32') spawnSync('taskkill', ['/T', '/F', '/PID', String(wb.pid)]); else process.kill(-wb.pid, 'SIGKILL'); } catch {}
+    killTree(wb?.pid);
     unowned.server.close();
     owned.server.close();
     await sleep(300);

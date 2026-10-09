@@ -21,7 +21,7 @@ with the user's panes; its storage is cleared when it closes.
 | `select` | `{pane_id, ref, value}` | `{ok}`; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
-| `screenshot` | `{pane_id, full_page?: bool = false}` | PNG image content |
+| `screenshot` | `{pane_id, full_page?: bool = false, save_as?: str}` | PNG image content; with `save_as` (1 to 32 of `a-z`, `0-9`, `-`, such as `1280`) in a pipeline step, the MCP server also writes it to `<run_dir>/shots/<step>-<round>-<label>.png` (round is the step's loop iteration plus 1) and adds `saved <path>`; outside a pipeline step it fails and saves nothing. The run screen shows these in preview-stage and before-after |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |

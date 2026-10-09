@@ -67,3 +67,7 @@ Helpers are optional. Each pipeline runs without them. They are listed in `pipel
 ## Added requirement (M4-8)
 
 The `check` step reuses M4-4's secret-scan function (see `issues/m4-04-secret-scan.md`) instead of adding a second scanner call.
+
+## Repo scan 2026-10-09
+
+Relevant repos, top ideas and hardening for `security-review-and-upgrade`: `ide-layer-research/m5-repo-scan-preview.md`, the section with the same name. Idea bank only; nothing there is built before launch (M5-D11).
