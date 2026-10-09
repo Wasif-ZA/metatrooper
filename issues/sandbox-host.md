@@ -1,5 +1,7 @@
 # Trooper sandbox host plugin
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Child sandbox-host of the MetaTrooper epic. Milestone 2, after the adoption gate. Effort: about 3 Claude Code days
 (image and entry script 0.5, `--host sandbox` launcher path and path mapping 0.5, logins and agy keyring
 login 0.5, egress proxy 0.5, spool writer and ingest 0.5, self-test and tests 0.5).

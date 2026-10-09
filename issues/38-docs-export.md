@@ -1,5 +1,7 @@
 # `docs-export` plugin and `study-notes-to-pdf`
 
+Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
+
 Part of the MetaTrooper epic. Milestone 3. Effort: about 1.5 Claude Code days.
 
 Depends on: child #18, child #32.
