@@ -88,8 +88,10 @@ export function bucketFindings(codex, gemini, ranges = null, root = null) {
 export function findingsInText(text) {
   for (let i = text.indexOf('['); i >= 0; i = text.indexOf('[', i + 1)) {
     let depth = 0;
+    let quoted = false;
     for (let j = i; j < text.length; j++) {
-      if (text[j] === '[') depth++;
+      if (quoted) { if (text[j] === '\\') j++; else if (text[j] === '"') quoted = false; } else if (text[j] === '"') quoted = true;
+      else if (text[j] === '[') depth++;
       else if (text[j] === ']' && --depth === 0) {
         try {
           const list = JSON.parse(text.slice(i, j + 1));
@@ -107,7 +109,8 @@ function withFindings(ctx, stepId) {
   if (asFindings(outputs.findings).length) return outputs;
   let text = '';
   try { text = fs.readFileSync(path.join(ctx.runDir, `${stepId}.md`), 'utf8'); } catch {}
-  return { ...outputs, findings: findingsInText(text) ?? [] };
+  const parsed = findingsInText(text);
+  return { ...outputs, findings: parsed ?? [], unparsed: parsed === null && outputs.verdict === 'reject' };
 }
 
 export async function run(ctx) {
@@ -117,7 +120,7 @@ export async function run(ctx) {
   try { ranges = hunkRanges(fs.readFileSync(String(ctx.steps.diff?.diff_file), 'utf8')); } catch {}
   if (ranges && !ranges.size) ranges = null;
   const buckets = bucketFindings(codex, gemini, ranges, ctx.inputs.path || ctx.projectPath);
-  await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...buckets }, null, 2));
+  await ctx.writeFile('review-buckets.json', JSON.stringify({ codex_verdict: codex.verdict, gemini_verdict: gemini.verdict, ...(codex.unparsed && { codex_unparsed: true }), ...(gemini.unparsed && { gemini_unparsed: true }), ...buckets }, null, 2));
   return {
     codex_verdict: String(codex.verdict ?? 'unknown'),
     gemini_verdict: String(gemini.verdict ?? 'unknown'),
