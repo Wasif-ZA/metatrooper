@@ -1,0 +1,11 @@
+{
+  "id": "copilot",
+  "command": "copilot",
+  "version_cmd": ["copilot", "--version"],
+  "state_source": "process",
+  "mcp_attach": { "kind": "none" },
+  "print_args": ["-p", "{prompt}"],
+  "roles": ["plan", "worker", "review"],
+  "cost_rank": 5,
+  "usage_source": "none"
+}

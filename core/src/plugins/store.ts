@@ -191,7 +191,10 @@ export function installPlugin(db: DatabaseSync, req: InstallRequest): { plugin_i
         `INSERT INTO engine (id, plugin_id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET spec_json = excluded.spec_json, cost_rank = excluded.cost_rank, provider = excluded.provider`,
       );
-      for (const e of m.engines ?? []) up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
+      for (const raw of m.engines ?? []) {
+        const e = { ...raw, cost_rank: Math.max(5, raw.cost_rank) };
+        up.run(e.id, m.id, JSON.stringify(e), e.cost_rank, e.provider ?? 'local-cli');
+      }
       db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(now, m.id);
     });
 

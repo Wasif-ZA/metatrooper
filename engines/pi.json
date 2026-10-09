@@ -1,0 +1,13 @@
+{
+  "id": "pi",
+  "command": "pi",
+  "prompt_arg": "positional",
+  "resume_args": ["--session", "{native_id}"],
+  "version_cmd": ["pi", "--version"],
+  "state_source": "process",
+  "mcp_attach": { "kind": "none" },
+  "print_args": ["-p", "{prompt}"],
+  "roles": ["plan", "worker", "review"],
+  "cost_rank": 5,
+  "usage_source": "none"
+}

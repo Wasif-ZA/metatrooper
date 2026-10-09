@@ -1,0 +1,13 @@
+{
+  "id": "gemini",
+  "command": "gemini",
+  "prompt_arg": "--prompt-interactive",
+  "version_cmd": ["gemini", "--version"],
+  "approval_profiles": { "edits": ["--approval-mode", "auto_edit"] },
+  "state_source": "process",
+  "mcp_attach": { "kind": "none" },
+  "print_args": ["-p", "{prompt}"],
+  "roles": ["research", "plan", "worker", "review"],
+  "cost_rank": 5,
+  "usage_source": "none"
+}

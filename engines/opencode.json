@@ -1,0 +1,13 @@
+{
+  "id": "opencode",
+  "command": "opencode",
+  "prompt_arg": "--prompt",
+  "resume_args": ["--session", "{native_id}"],
+  "version_cmd": ["opencode", "--version"],
+  "state_source": "process",
+  "mcp_attach": { "kind": "env-json", "env": "OPENCODE_CONFIG_CONTENT", "format": "opencode-mcp" },
+  "print_args": ["run", "{prompt}"],
+  "roles": ["plan", "worker", "review", "verify"],
+  "cost_rank": 5,
+  "usage_source": "none"
+}
