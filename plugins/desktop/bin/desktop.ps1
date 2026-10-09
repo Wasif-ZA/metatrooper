@@ -74,7 +74,7 @@ function Press($w, $el) {
 function Submit([string]$file) {
   $done = @(); $failed = @(); $used = @()
   foreach ($row in (Read-Rows $file)) {
-    if (-not $row.window) { continue }
+    if (-not $row.window) { $failed += @{ window = ''; error = 'row has no window recorded' }; continue }
     try {
       $w = Find-Window $row.window $row.handle $used
       $used += $w.Current.NativeWindowHandle
@@ -84,6 +84,7 @@ function Submit([string]$file) {
       $done += $row.window
     } catch { $failed += @{ window = $row.window; error = $_.Exception.Message } }
   }
+  if ($failed.Count) { throw "submitted $($done.Count) ($($done -join ', ')); failed $($failed.Count): $(($failed | ForEach-Object { "$($_.window): $($_.error)" }) -join '; ')" }
   return @{ submitted = $done.Count; windows = $done; failed = $failed }
 }
 
@@ -91,7 +92,7 @@ function Read-Confirmations([string]$file, [string]$out) {
   Start-Sleep -Milliseconds 800
   $list = @(); $used = @()
   foreach ($row in (Read-Rows $file)) {
-    if (-not $row.window) { continue }
+    if (-not $row.window) { $list += @{ window = ''; error = 'row has no window recorded' }; continue }
     try {
       $w = Find-Window $row.window $row.handle $used
       $used += $w.Current.NativeWindowHandle

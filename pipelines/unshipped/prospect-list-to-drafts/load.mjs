@@ -29,6 +29,7 @@ export async function run(ctx) {
     if (why) dropped.push({ email, why });
     return !why;
   });
+  if (!kept.length) throw new Error(`no prospect kept: ${dropped.length} dropped (${[...new Set(dropped.map((d) => d.why))].join(', ') || 'empty list'}); expected columns: name, business, site, email`);
   await ctx.writeFile('prospects.json', JSON.stringify(kept, null, 2));
   return { prospects: 'prospects.json', kept: kept.length, dropped };
 }

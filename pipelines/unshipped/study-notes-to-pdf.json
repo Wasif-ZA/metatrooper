@@ -70,7 +70,7 @@
       "title": "Read the PDF, then Continue",
       "kind": "gate",
       "gate": "handoff",
-      "gate_summary": "Read {{run.dir}}/out/{{inputs.name}}.pdf. Continue keeps the PDF; reject cancels the run."
+      "gate_summary": "Read {{run.dir}}/out/{{inputs.name}}.pdf. Check passed: {{steps.check.outputs.passed}}, unsourced lines left: {{steps.check.outputs.unsourced}} (see {{run.dir}}/CHECK.md). Continue keeps the PDF; reject cancels the run."
     }
   ]
 }
