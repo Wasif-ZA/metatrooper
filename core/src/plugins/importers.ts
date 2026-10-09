@@ -367,7 +367,7 @@ export const REGISTRY_URL = 'https://registry.modelcontextprotocol.io/v0/servers
 
 function fetchText(url: string): string {
   const script = 'fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); process.stdout.write(await r.text()); })';
-  return execFileSync(process.execPath, ['-e', script, url], { stdio: 'pipe', timeout: 30_000, windowsHide: true }).toString();
+  return execFileSync(process.execPath, ['-e', script, url], { stdio: 'pipe', timeout: 60_000, windowsHide: true }).toString();
 }
 
 function onPath(cmd: string): boolean {
