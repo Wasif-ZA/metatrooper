@@ -121,10 +121,10 @@ export async function crawl(input, runDir, get) {
   ok.sort((a, b) => (inbound.get(b.url) ?? 0) - (inbound.get(a.url) ?? 0));
   const key_pages = [start.href, ...ok.slice(0, 2).map((p) => p.url)];
   const data = {
-    start: start.href, crawled_at: new Date().toISOString(), limit, robots_disallow: disallow, skipped_by_robots: skipped,
+    start: start.href, crawled_at: new Date().toISOString(), limit, not_crawled: queue.length, robots_disallow: disallow, skipped_by_robots: skipped,
     pages, broken: broken.map((p) => ({ url: p.url, status: p.status, error: p.error, linked_from: pages.filter((q) => q.internal_links?.includes(p.url)).map((q) => q.url) })),
   };
-  const summary = { pages: pages.length, broken: broken.length, key_pages };
+  const summary = { pages: pages.length, broken: broken.length, not_crawled: queue.length, key_pages };
   const out = input.out ?? (runDir ? path.join(runDir, 'site-crawl.json') : null);
   if (!out) return { ...summary, data };
   fs.mkdirSync(path.dirname(out), { recursive: true });
