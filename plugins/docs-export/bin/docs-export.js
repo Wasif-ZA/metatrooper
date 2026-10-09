@@ -17,6 +17,7 @@ export function ingest(input) {
   const text = run(tool, ['-layout', '-enc', 'UTF-8', input.path, '-']);
   const pages = text.split('\f');
   if (pages.length && !pages[pages.length - 1].trim()) pages.pop();
+  if (!pages.some((p) => p.trim())) throw new Error(`no text in ${input.path}: a scanned PDF needs OCR, which is not installed`);
   fs.mkdirSync(input.out, { recursive: true });
   const width = String(pages.length).length;
   const files = pages.map((page, i) => {
