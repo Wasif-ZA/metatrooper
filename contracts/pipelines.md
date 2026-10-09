@@ -140,7 +140,7 @@ variant is discarded:
 1. Spawns `dev_command` (with `{{port}}` resolved) in the worktree through `cmd.exe /d /s /c`, with the user's
    normal environment (it is the user's own project command, not a plugin), hidden window, and records the pid
    in `dev_server`.
-2. Polls `http://127.0.0.1:<port>/` every 250 ms until any HTTP response arrives, for at most 90 s. Only then
+2. Polls `http://127.0.0.1:<port>/` every 250 ms until it answers with a status below 500 while the spawned process is still running, for at most 90 s (a 500 page or a foreign process on the port does not count). Only then
    does it point the step's browser pane at the URL. No response in 90 s fails the step with the last 50 lines
    of the server's output.
 3. Stops it with `taskkill /PID <pid> /T /F` when the variant is discarded, when the run ends, or when the core

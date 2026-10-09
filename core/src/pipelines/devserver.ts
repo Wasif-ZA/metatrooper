@@ -24,7 +24,7 @@ function answersOn(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const req = http.get({ host, port, path: '/', timeout: 1000 }, (res) => {
       res.resume();
-      resolve(true);
+      resolve((res.statusCode ?? 500) < 500);
     });
     req.on('timeout', () => { req.destroy(); resolve(false); });
     req.on('error', () => resolve(false));
@@ -47,7 +47,7 @@ export function startDevServer(db: DatabaseSync, runId: string, idx: number, por
     : { file: '/bin/sh', args: ['-c', command], verbatim: false };
   const child = spawn(shell.file, shell.args, {
     cwd,
-    env: process.env,
+    env: { ...process.env, PORT: String(port) },
     windowsHide: true,
     windowsVerbatimArguments: shell.verbatim,
     detached: process.platform !== 'win32',
@@ -68,13 +68,13 @@ export function startDevServer(db: DatabaseSync, runId: string, idx: number, por
   ).run(runId, idx, port, child.pid ?? null, nowIso());
 }
 
-/** Polls the port until any HTTP response arrives; on timeout stops the server and returns its last output lines. */
+/** Polls the port until the server answers below 500 while its process is alive; on timeout stops the server and returns its last output lines. */
 export async function waitReady(db: DatabaseSync, runId: string, idx: number, port: number, cancelled: () => boolean): Promise<{ ok: true; host: string } | { ok: false; tail: string }> {
   const end = Date.now() + READY_TIMEOUT_MS;
   const run = servers.get(key(runId, idx));
   while (Date.now() < end && !cancelled()) {
     const host = await answers(port);
-    if (host) {
+    if (host && !(run && run.child.exitCode !== null)) {
       db.prepare("UPDATE dev_server SET status = 'ready' WHERE run_id = ? AND idx = ?").run(runId, idx);
       return { ok: true, host };
     }
