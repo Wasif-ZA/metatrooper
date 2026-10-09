@@ -16,8 +16,9 @@ export function listDeps(input, outdated = npmOutdated) {
   const pkg = readJson(path.join(dir, 'package.json'));
   if (!pkg) throw new Error(`no package.json in ${dir}`);
   const late = outdated(dir);
+  if (!late || late.error) throw new Error(`npm outdated failed: ${late?.error?.summary ?? late?.error?.code ?? 'no result'}`);
   const deps = [];
-  for (const [field, dev] of [['dependencies', false], ['devDependencies', true]]) {
+  for (const [field, dev] of [['dependencies', false], ['optionalDependencies', false], ['devDependencies', true]]) {
     for (const [name, range] of Object.entries(pkg[field] ?? {})) {
       const installed = readJson(path.join(dir, 'node_modules', name, 'package.json'));
       const o = late[name];
@@ -38,7 +39,11 @@ const major = (v) => Number(String(v ?? '').replace(/^[^\d]*/, '').split('.')[0]
 function npmOutdated(dir) {
   const r = spawnSync('npm', ['outdated', '--json'], { cwd: dir, encoding: 'utf8', shell: process.platform === 'win32', windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
   if (r.error) throw new Error(`npm could not start: ${r.error.message}`);
-  try { return JSON.parse(r.stdout || '{}'); } catch { throw new Error(`npm outdated printed no JSON: ${(r.stderr || '').slice(0, 300)}`); }
+  if (r.status && !r.stdout.trim()) throw new Error(`npm outdated failed: ${(r.stderr || '').trim().slice(-300)}`);
+  let out;
+  try { out = JSON.parse(r.stdout || '{}'); } catch { throw new Error(`npm outdated printed no JSON: ${(r.stderr || '').slice(0, 300)}`); }
+  if (out.error) throw new Error(`npm outdated failed: ${out.error.summary ?? out.error.code ?? 'unknown'}`);
+  return out;
 }
 
 function packages(nodeModules, found = []) {
