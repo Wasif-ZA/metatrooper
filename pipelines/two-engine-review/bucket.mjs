@@ -130,5 +130,6 @@ export async function run(ctx) {
     disagree: buckets.disagree.length,
     outside_change: buckets.outside_change.length,
     buckets_path: 'review-buckets.json',
+    buckets_abs: path.join(ctx.runDir, 'review-buckets.json').replaceAll(path.sep, '/'),
   };
 }

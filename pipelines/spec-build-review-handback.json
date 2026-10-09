@@ -66,7 +66,7 @@
       "role": "worker",
       "kind": "agent",
       "cwd": "{{steps.build.outputs.worktree}}",
-      "prompt": "Read the review-buckets.json file in the one folder under {{run.dir}}/review/. Fix only the findings in its \"both\" list, in this worktree. Leave every other finding alone. Then run the tests. Do not commit and do not push.",
+      "prompt": "Read the file {{steps.review.outputs.buckets_abs}}. Fix only the findings in its \"both\" list, in this worktree. Leave every other finding alone. Then run the tests. Do not commit and do not push.",
       "outputs": ["summary"]
     },
     {

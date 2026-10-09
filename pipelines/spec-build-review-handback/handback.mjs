@@ -1,14 +1,11 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
-function buckets(runDir, stepId) {
-  const dir = path.join(runDir, stepId);
-  for (const child of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
-    try {
-      return JSON.parse(fs.readFileSync(path.join(dir, child, 'review-buckets.json'), 'utf8'));
-    } catch {}
+function buckets(file) {
+  try {
+    return JSON.parse(fs.readFileSync(String(file), 'utf8'));
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function finding(pair) {
@@ -21,7 +18,7 @@ const list = (b, keys) => keys.flatMap((k) => (Array.isArray(b[k]) ? b[k] : []).
 
 /** Writes handback.md: disputed and unresolved findings and the human-only steps, numbered. */
 export async function run(ctx) {
-  const [first, again] = [buckets(ctx.runDir, 'review'), buckets(ctx.runDir, 'rereview')];
+  const [first, again] = [buckets(ctx.steps.review?.buckets_abs), buckets(ctx.steps.rereview?.buckets_abs)];
   const unread = (b) => !b || ['codex_verdict', 'gemini_verdict'].some((k) => ['failed', 'unknown'].includes(b[k]));
   const missing = [['review', first], ['rereview', again]].filter(([, b]) => unread(b));
   const build = ctx.steps.build ?? {};
