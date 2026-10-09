@@ -13,6 +13,11 @@ function link(dir, project) {
   fs.copyFileSync(source, target);
 }
 
+function check(input, project) {
+  link(path.resolve(project || input.path), project);
+  return { linked: true };
+}
+
 function deploy(input, project, prod) {
   const dir = path.resolve(project || '.', input.path);
   link(dir, project);
@@ -28,8 +33,9 @@ function deploy(input, project, prod) {
 try {
   const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
   const action = process.argv[2];
-  if (action !== 'preview' && action !== 'production') throw new Error(`unknown action ${action}`);
-  const outputs = deploy(req.input || {}, process.env.TROOP_PROJECT_DIR || req.project, action === 'production');
+  if (!['check', 'preview', 'production'].includes(action)) throw new Error(`unknown action ${action}`);
+  const project = process.env.TROOP_PROJECT_DIR || req.project;
+  const outputs = action === 'check' ? check(req.input || {}, project) : deploy(req.input || {}, project, action === 'production');
   process.stdout.write(JSON.stringify({ ok: true, outputs }));
 } catch (e) {
   process.stdout.write(JSON.stringify({ ok: false, error: { message: e instanceof Error ? e.message : String(e), retryable: false } }));
