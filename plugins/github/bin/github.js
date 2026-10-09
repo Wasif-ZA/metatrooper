@@ -41,7 +41,11 @@ function sinceDate(repo, since, gh_) {
     const r = JSON.parse(gh_([...args, '--repo', repo, '--json', 'tagName,publishedAt,createdAt']));
     return { tag: r.tagName, date: (r.publishedAt || r.createdAt || '').slice(0, 10) || null };
   } catch {
-    if (!since || since === 'last tag') return { tag: null, date: null };
+    if (!since) return { tag: null, date: null };
+    if (since === 'last tag') {
+      if (gh_(['api', `repos/${repo}/tags?per_page=1`, '--jq', '.[0].name // empty']).trim()) throw new Error(`${repo} has tags but no release; set Since to a tag or a date`);
+      return { tag: null, date: null };
+    }
     const date = gh_(['api', `repos/${repo}/commits/${encodeURIComponent(since)}`, '--jq', '.commit.committer.date']).trim().slice(0, 10);
     return { tag: since, date };
   }
