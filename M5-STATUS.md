@@ -74,3 +74,17 @@ pipeline: the four coding built-ins 40 to 43 each (`ide-layer-research/m5-harden
 The hand-back in spec.md, Milestone 5, plus: his look at the m4-harden gate card; one spec-to-pr run on screen on
 `m5-launch` (check-build is new in the path); T2's meaning of "disagree"; `~/.cache/claude-scratch/metatrooper-m5-2026-10-09/github-m5.sh`
 for the GitHub milestone.
+
+## teehee-c1, 2026-10-09T23:42+11:00 (not merged)
+
+Worktrees under `~/.cache/claude-scratch/metatrooper-m5-2026-10-09/`. Money items (M5-7, the paid signing pick in M5-2)
+wait until a working model exists (Wasif, 2026-10-09).
+
+| Child | Branch | Status | Evidence / notes |
+|---|---|---|---|
+| M5-4 logs | `m5-logs` (`wt-logs`) | CODE DONE, TESTS DONE, REVIEW HALF | 5629fb1, 4498fb2 (Electron error box kept), 23ebd85 (oversized write capped). Tests by Codex: m5-04-logs.test.ts, 8 of 8 mutants caught (368f504). Codex review: oversized write fixed; "workbench continues after uncaught" declined (Electron's own default). Gemini review owed: the pipeline's agy step exited with no file, and the `/agy-review` rerun was stopped for low memory |
+| M5-8 S1 + S3 | `m5-security` (`wt-security`) | CODE DONE, TESTS IN PROGRESS | 027353d (S1, rebuild keeps unknown columns; only v1 to v2 drops the herdr columns), 49220af (S3, no cmd fallback; claude, codex, agy all resolve without it). Codex tests m5-08-security.test.ts uncommitted: 6 pass, 2 fail in their own fixture, sent back |
+| M5-19 one instruction file | `m5-instructions` (`wt-instructions`) | CODE DONE, TESTS IN PROGRESS | 808a687, 623d468. Flag verified on Claude Code 2.1.295; agy 1.3.2 reads AGENTS.md natively. Codex tests 3 of 5 mutants first pass; follow-up written, mutant rerun stopped for low memory. Project bar line not built (screen) |
+
+Found: a run paused on budget (`max_minutes` 5) leaves an agy step whose session already exited at `running` with no
+output (run 01M4G9B600PHFJQT28XBXKQF5E, gemini-review).
