@@ -39,21 +39,22 @@ function sinceDate(repo, since, gh_) {
   const args = since && since !== 'last tag' ? ['release', 'view', since] : ['release', 'view'];
   try {
     const r = JSON.parse(gh_([...args, '--repo', repo, '--json', 'tagName,publishedAt,createdAt']));
-    return { tag: r.tagName, date: (r.publishedAt || r.createdAt || '').slice(0, 10) || null };
+    const at = r.publishedAt || r.createdAt || '';
+    return { tag: r.tagName, date: at.slice(0, 10) || null, at: at || null };
   } catch {
     if (!since) return { tag: null, date: null };
     if (since === 'last tag') {
       if (gh_(['api', `repos/${repo}/tags?per_page=1`, '--jq', '.[0].name // empty']).trim()) throw new Error(`${repo} has tags but no release; set Since to a tag or a date`);
       return { tag: null, date: null };
     }
-    const date = gh_(['api', `repos/${repo}/commits/${encodeURIComponent(since)}`, '--jq', '.commit.committer.date']).trim().slice(0, 10);
-    return { tag: since, date };
+    const at = gh_(['api', `repos/${repo}/commits/${encodeURIComponent(since)}`, '--jq', '.commit.committer.date']).trim();
+    return { tag: since, date: at.slice(0, 10), at };
   }
 }
 
 export function listPrs(input, gh_ = gh) {
-  const { tag, date } = sinceDate(input.repo, input.since, gh_);
-  const search = date ? ['--search', `merged:>=${date}`] : [];
+  const { tag, date, at } = sinceDate(input.repo, input.since, gh_);
+  const search = date ? ['--search', `merged:>=${at || date}`] : [];
   const prs = JSON.parse(gh_(['pr', 'list', '--repo', input.repo, '--state', 'merged', '--base', input.base || 'main', ...search,
     '--json', 'number,title,labels,mergedAt,url,author,body', '--limit', String(input.limit ?? 200)]) || '[]');
   return {
