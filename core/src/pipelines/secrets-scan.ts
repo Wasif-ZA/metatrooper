@@ -33,13 +33,16 @@ export function diffLineMap(diff: string): Array<{ file: string; line: number } 
 export async function scanDiff(diff: string, runDir: string, label: string): Promise<ScanResult> {
   const exe = resolveCommand('gitleaks');
   if (!exe) return { status: 'unavailable', reason: 'gitleaks is not on PATH' };
-  const report = path.join(runDir, `scan-${label}.json`);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-scan-'));
+  const report = path.join(tmp, `scan-${label}.json`);
   const input = path.join(tmp, 'in.diff');
   fs.writeFileSync(input, diff);
+  let fd: number | null = null;
   try {
+    fd = fs.openSync(input, 'r');
+    const stdin = fd;
     const code = await new Promise<number | string>((resolve) => {
-      const child = spawn(exe[0], [...exe.slice(1), 'stdin', '--redact', '--no-banner', '--exit-code', '1', '--report-format', 'json', '--report-path', report], { stdio: [fs.openSync(input, 'r'), 'ignore', 'pipe'], windowsHide: true });
+      const child = spawn(exe[0], [...exe.slice(1), 'stdin', '--redact', '--no-banner', '--exit-code', '1', '--report-format', 'json', '--report-path', report], { stdio: [stdin, 'ignore', 'pipe'], windowsHide: true });
       let err = '';
       child.stderr?.on('data', (d) => { err += d; });
       const timer = setTimeout(() => { killTree(child); resolve('timed out after 60 s'); }, SCAN_TIMEOUT_MS);
@@ -52,12 +55,15 @@ export async function scanDiff(diff: string, runDir: string, label: string): Pro
     try { found = JSON.parse(fs.readFileSync(report, 'utf8')); } catch { return { status: 'unavailable', reason: 'gitleaks report could not be read' }; }
     if (!Array.isArray(found)) return { status: 'unavailable', reason: 'gitleaks report is not a list' };
     const map = diffLineMap(diff);
-    const items = found.map((f) => {
-      const at = typeof f.StartLine === 'number' ? map[f.StartLine] : null;
-      return { rule: String(f.RuleID ?? 'unknown'), file: at?.file ?? '', line: at?.line ?? null };
+    const items = found.flatMap((f) => {
+      if (typeof f.StartLine !== 'number') return [{ rule: String(f.RuleID ?? 'unknown'), file: '', line: null }];
+      const at = map[f.StartLine];
+      return at ? [{ rule: String(f.RuleID ?? 'unknown'), file: at.file, line: at.line }] : [];
     });
+    if (!items.length) return { status: 'clean', count: 0 };
     return { status: 'findings', count: items.length, items };
   } finally {
+    if (fd !== null) fs.closeSync(fd);
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 }

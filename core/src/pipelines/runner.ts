@@ -962,19 +962,27 @@ ${helpers}` : resolved;
     return scan === undefined ? null : typeof scan === 'string' ? scan : JSON.stringify(scan);
   }
 
-  /** Secret-scan JSON for a gate guarding a publish step: the run's latest worktree since its base commit. */
+  /** Secret-scan JSON for a gate guarding a publish step: every worktree before it, each since its base commit. */
   private async publishScan(run: RunRow, pipe: Pipeline, guarded: Step | null, gateId: string): Promise<string | null> {
     if (guarded?.role !== 'publish') return null;
     const upto = pipe.steps.findIndex((s) => s.id === guarded.id);
-    for (const s of pipe.steps.slice(0, upto).reverse().filter((x) => x.worktree)) {
-      for (const r of [...this.rows(run.id, s.id)].reverse()) {
+    const items: Array<{ rule: string; file: string; line: number | null }> = [];
+    const reasons: string[] = [];
+    const seen = new Set<string>();
+    for (const s of pipe.steps.slice(0, upto).filter((x) => x.worktree)) {
+      for (const r of this.rows(run.id, s.id)) {
         const tree = r.outputs ? (JSON.parse(r.outputs) as { worktree?: string }).worktree : undefined;
         const baseFile = path.join(run.run_dir, 'worktrees', `${s.id}-${r.fanout_index}.base`);
-        if (!tree || !fs.existsSync(tree) || !fs.existsSync(baseFile)) continue;
-        return JSON.stringify(await scanWorktree(tree, fs.readFileSync(baseFile, 'utf8').trim(), run.run_dir, `gate-${gateId}`));
+        if (!tree || seen.has(tree) || !fs.existsSync(tree) || !fs.existsSync(baseFile)) continue;
+        seen.add(tree);
+        const res = await scanWorktree(tree, fs.readFileSync(baseFile, 'utf8').trim(), run.run_dir, `gate-${gateId}`);
+        if (res.status === 'findings') items.push(...res.items);
+        else if (res.status === 'unavailable') reasons.push(res.reason);
       }
     }
-    return JSON.stringify({ status: 'unavailable', reason: 'no worktree to scan' });
+    if (items.length) return JSON.stringify({ status: 'findings', count: items.length, items });
+    if (reasons.length || !seen.size) return JSON.stringify({ status: 'unavailable', reason: reasons[0] ?? 'no worktree to scan' });
+    return JSON.stringify({ status: 'clean', count: 0 });
   }
 
   private async gateStep(run: RunRow, pipe: Pipeline, step: Step, iteration: number): Promise<StepOutcome> {

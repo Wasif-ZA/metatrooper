@@ -114,7 +114,7 @@ test('scanDiff reports clean, findings, and unavailable for gitleaks exit codes 
         count: 1,
         items: [{ rule: 'aws-access-token', file: 'src/config.ts', line: 1 }],
       });
-      assert.equal(existsSync(join(runDir, 'scan-findings.json')), true);
+      assert.equal(existsSync(join(runDir, 'scan-findings.json')), false);
     });
     await withFakeGitleaks(2, [], async () => {
       const result = await scanDiff('diff --git a/a b/a\n', runDir, 'error');
@@ -272,4 +272,145 @@ test('scanWorktree leaves the worktree index and git status unchanged', async ()
       rmSync(baseDir, { recursive: true, force: true });
     }
   });
+});
+
+test('scanDiff drops findings reported on removed and context lines, keeping only added lines', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'scan-diff-lines-'));
+  const diff = [
+    'diff --git a/config.ts b/config.ts',
+    '--- a/config.ts',
+    '+++ b/config.ts',
+    '@@ -1,2 +1,2 @@',
+    ' context line',
+    '-removed secret',
+    '+added secret',
+    '',
+  ].join('\n');
+  try {
+    await withFakeGitleaks(1, [
+      { RuleID: 'removed-key', StartLine: 6 },
+      { RuleID: 'context-key', StartLine: 5 },
+    ], async () => {
+      assert.deepEqual(await scanDiff(diff, runDir, 'removed-context'), { status: 'clean', count: 0 });
+    });
+    await withFakeGitleaks(1, [
+      { RuleID: 'removed-key', StartLine: 6 },
+      { RuleID: 'context-key', StartLine: 5 },
+      { RuleID: 'added-key', StartLine: 7 },
+    ], async () => {
+      assert.deepEqual(await scanDiff(diff, runDir, 'mixed'), {
+        status: 'findings',
+        count: 1,
+        items: [{ rule: 'added-key', file: 'config.ts', line: 2 }],
+      });
+    });
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+});
+
+test('scanDiff keeps findings without numeric StartLine with an empty file', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'scan-diff-no-line-'));
+  try {
+    await withFakeGitleaks(1, [{ RuleID: 'unknown-location' }], async () => {
+      assert.deepEqual(await scanDiff('diff --git a/config.ts b/config.ts\n', runDir, 'no-line'), {
+        status: 'findings',
+        count: 1,
+        items: [{ rule: 'unknown-location', file: '', line: null }],
+      });
+    });
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+});
+
+test('scanDiff removes its temp directory and does not write a report into runDir', async () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'scan-diff-temp-'));
+  const before = readdirSync(tmpdir()).filter((name) => name.startsWith('troop-scan-')).sort();
+  try {
+    await withFakeGitleaks(1, [{ RuleID: 'added-key', StartLine: 1 }], async () => {
+      await scanDiff('+x\n', runDir, 'temp-cleanup');
+    });
+    const after = readdirSync(tmpdir()).filter((name) => name.startsWith('troop-scan-')).sort();
+    assert.deepEqual(after, before);
+    assert.deepEqual(readdirSync(runDir).filter((name) => /^scan-.*\.json$/.test(name)), []);
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+});
+
+test('two-engine-review asks for approval when gitleaks is unavailable, then runs both reviews', async () => {
+  const oldPath = process.env.PATH;
+  let h: Awaited<ReturnType<typeof revisionHarness>>;
+  process.env.PATH = pathWithoutGitleaks();
+  try {
+    assert.equal(resolveCommand('gitleaks'), null);
+    h = await revisionHarness();
+  } finally {
+    process.env.PATH = oldPath;
+  }
+  try {
+    writeFileSync(join(h.project, 'reviewed.ts'), 'export const x = 1;\n');
+    git(h.project, 'add', 'reviewed.ts');
+    git(h.project, 'commit', '-qm', 'add reviewed file');
+    writeFileSync(join(h.project, 'reviewed.ts'), 'export const x = 1;\nexport const y = 2;\n');
+    const def = JSON.parse(readFileSync(join(root, 'pipelines/two-engine-review.json'), 'utf8'));
+    for (const s of def.steps) {
+      if (s.kind !== 'agent') continue;
+      s.engine = 'fake';
+      s.prompt = `FAKE ${JSON.stringify({ outputs: { verdict: 'approve', findings: '[]' } })}\n${s.prompt}`;
+    }
+    const runId = await h.pipeline(def);
+    const { gate } = await nextPause(h, runId);
+    assert.ok(gate, 'send-check gate opened');
+    assert.equal(gate.step_id, 'send-check');
+    assert.equal(JSON.parse(gate.scan ?? 'null').status, 'unavailable');
+    assert.match(gate.summary, /secret scan could not run/i);
+    assert.equal((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).error, undefined);
+    await resumed(h, runId);
+    const end = await nextPause(h, runId);
+    assert.equal(end.status, 'done');
+    assert.equal((h.db.prepare("SELECT COUNT(*) AS n FROM run_step WHERE run_id = ? AND step_id IN ('codex-review', 'gemini-review') AND status = 'done'").get(runId) as { n: number }).n, 2);
+  } finally {
+    await h.close();
+  }
+});
+
+test('publish gate scans and merges findings from each worktree step', async (t) => {
+  if (!realGitleaks) {
+    console.log('Skipping publishScan aggregation: real gitleaks is not on PATH.');
+    t.skip('real gitleaks is not on PATH');
+    return;
+  }
+  const h = await revisionHarness();
+  try {
+    const worker = (id: string, files: Record<string, string>) => ({
+      id, kind: 'agent', role: 'worker', engine: 'fake', worktree: true, outputs: ['summary'],
+      prompt: `FAKE ${JSON.stringify({ files, commit: `Add ${id}`, outputs: { summary: id } })}\nCreate and commit the fixture.`,
+    });
+    const def = {
+      schema: 1, id: 'publish-scan-aggregation', title: 'Publish scan aggregation', requires: ['github'],
+      steps: [
+        worker('first', { 'keys.ts': `export const key = '${plantedKey}';\n` }),
+        worker('second', { 'clean.ts': 'export const clean = true;\n' }),
+        { id: 'approve', kind: 'gate', gate: 'approve', title: 'Approve publish', gate_summary: 'Approve publishing the worktrees.' },
+        { id: 'publish', kind: 'action', role: 'publish', uses: 'plugin:github/create-pr', title: 'Open pull request',
+          with: { repo: 'fake/repo', branch: '{{steps.second.outputs.branch}}', base: 'main', title: 'Fixture', body: 'Fixture publish.', path: '{{steps.second.outputs.worktree}}' } },
+      ],
+    };
+    const runId = await h.pipeline(def);
+    const { gate, status } = await nextPause(h, runId);
+    assert.ok(gate, 'approval gate opened before publish');
+    assert.equal(status, 'paused');
+    const scan = JSON.parse(gate.scan ?? 'null');
+    assert.equal(scan.status, 'findings');
+    assert.equal(scan.count, 1);
+    assert.equal(scan.items[0].file, 'keys.ts');
+    const approved = await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined, override_reason: 'Reviewed synthetic test key.' });
+    assert.equal(approved.error, undefined, JSON.stringify(approved));
+    await resumed(h, runId);
+    assert.equal((await nextPause(h, runId)).status, 'done');
+  } finally {
+    await h.close();
+  }
 });

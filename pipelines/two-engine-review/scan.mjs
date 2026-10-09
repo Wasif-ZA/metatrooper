@@ -8,5 +8,8 @@ export async function run(ctx) {
   const diff = fs.readFileSync(String(ctx.steps.diff.diff_file), 'utf8');
   const scan = await scanDiff(diff, ctx.runDir, 'send');
   const list = scan.status === 'findings' ? scan.items.map((i) => `- ${i.rule} in ${i.file || 'unknown file'}${i.line ? ` line ${i.line}` : ''}`).join('\n') : '';
-  return { status: scan.status, count: scan.status === 'findings' ? scan.count : 0, findings: list, scan };
+  const message = scan.status === 'findings'
+    ? `The diff has ${scan.count} possible secret${scan.count === 1 ? '' : 's'}. Codex and Gemini read it next.\n${list}`
+    : scan.status === 'unavailable' ? `The secret scan could not run (${scan.reason}). Codex and Gemini read the diff next.` : '';
+  return { status: scan.status, count: scan.status === 'findings' ? scan.count : 0, findings: list, ask: scan.status === 'clean' ? 'no' : 'yes', message, scan };
 }
