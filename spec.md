@@ -808,7 +808,7 @@ before it is built.
 | M4-2 | Test suites clean up after themselves | `issues/m4-02-clean-test-suites.md` | Critical | 0.5 | none |
 | M4-3 | `code-map` plugin and the codex review prompt | `issues/m4-03-code-map-plugin.md` | High | 2 | M4-1 |
 | M4-4 | Secret scan at publish gates and before external sends | `issues/m4-04-secret-scan.md` | High | 2 | M4-2 |
-| M4-5 | TOON output for `troop` | `issues/m4-05-toon-output.md` | Low | 0.5 | M4-1 |
+| M4-5 | TOON output for `troop` | `issues/archive/m4-05-toon-output.md` | Low | 0.5 | M4-1 |
 | M4-6 | OSC notification probe and signal | `issues/m4-06-osc-signal.md` | Medium | 0.5 | none |
 | M4-7 | Fixes from real use | `issues/m4-07-fixes-from-real-use.md` | High | 1.5 | M4-2 |
 | M4-8 | M2 and M3 issue amendments (docs only) | `issues/m4-08-issue-amendments.md` | Medium | 0.5 | M4-9 |

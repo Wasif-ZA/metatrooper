@@ -54,7 +54,7 @@ async function website(verdicts = ['fixed', 'fixed', 'pass']) {
     writeFileSync(join(h.iso.home, 'bin', process.platform === 'win32' ? 'vercel.cmd' : 'vercel'), process.platform === 'win32'
       ? `@echo off\r\necho %*>>"${log}"\r\necho https://preview.test/site\r\n`
       : `#!/bin/sh\necho "$@" >> '${log}'\necho https://preview.test/site\n`, { mode: 0o755 });
-    const def = JSON.parse(readFileSync(join(root, 'pipelines/website-build.json'), 'utf8'));
+    const def = JSON.parse(readFileSync(join(root, 'pipelines/preview/website-build.json'), 'utf8'));
     for (const step of def.steps) {
       if (step.kind === 'agent') {
         step.engine = 'fake';

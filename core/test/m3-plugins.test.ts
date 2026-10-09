@@ -264,7 +264,7 @@ test('media cut crops 9:16 and 1:1 from portrait and landscape footage', () => {
 });
 
 test('clips-to-scheduled-posts defaults max_clips to the number of clips it cuts', () => {
-  const pipe = JSON.parse(readFileSync(fileURLToPath(new URL('../../pipelines/clips-to-scheduled-posts.json', import.meta.url)), 'utf8'));
+  const pipe = JSON.parse(readFileSync(fileURLToPath(new URL('../../pipelines/preview/clips-to-scheduled-posts.json', import.meta.url)), 'utf8'));
   const fanout = (id) => pipe.steps.find((s) => s.id === id).fanout;
   assert.equal(Number(pipe.inputs.max_clips.default), fanout('cut'));
   assert.equal(Math.max(...pipe.inputs.max_clips.choices.map(Number)), fanout('cut'));

@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { client, isolation, root, scriptedGh, startCore, teardownCore, uiHello, until } from './helpers.ts';
+import { client, isolation, pipelineFile, root, scriptedGh, startCore, teardownCore, uiHello, until } from './helpers.ts';
 
 const fake = (d: object) => `FAKE ${JSON.stringify(d)}\n`;
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe' });
@@ -35,7 +35,7 @@ async function setup(pipelineId: string, fixture: string, ghScript: string) {
 }
 
 function pipeline(id: string, directives: Record<string, object>) {
-  const def = JSON.parse(readFileSync(join(root, 'pipelines', `${id}.json`), 'utf8'));
+  const def = JSON.parse(readFileSync(pipelineFile(id), 'utf8'));
   for (const step of def.steps) {
     if (step.kind === 'agent') step.engine = 'fake';
     if (directives[step.id]) step.prompt = fake(directives[step.id]) + step.prompt;

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, root, startCore, teardownCore, until, uiHello } from './helpers.ts';
+import { buildGenerated, client, isolation, pipelineFile, root, startCore, teardownCore, until, uiHello } from './helpers.ts';
 import { assistErrors, detectAssists } from '../src/pipelines/assists.ts';
 
 before(buildGenerated);
@@ -87,7 +87,7 @@ test('M4-14 pipeline.validate accepts all five built pipelines and requires regi
   const h = await harness();
   try {
     for (const id of ['two-engine-review', 'spec-to-pr', 'e2e-browser-qa', 'website-build', 'design-variants']) {
-      const definition = JSON.parse(readFileSync(join(root, 'pipelines', `${id}.json`), 'utf8'));
+      const definition = JSON.parse(readFileSync(pipelineFile(id), 'utf8'));
       const checked = await h.pipe.request('pipeline.validate', { json: definition });
       assert.equal(checked.result?.valid, true, `${id}: ${JSON.stringify(checked.result?.errors)}`);
     }

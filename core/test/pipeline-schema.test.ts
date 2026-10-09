@@ -10,7 +10,7 @@ const schema = JSON.parse(readFileSync(join(repoDir, 'contracts/pipeline.schema.
 const pipelineDir = join(repoDir, 'pipelines');
 
 test('every shipped pipeline validates and the layout enum rejects unknown values', () => {
-  const files = readdirSync(pipelineDir).filter(file => file.endsWith('.json'));
+  const files = ['', 'preview', 'unshipped'].flatMap(sub => readdirSync(join(pipelineDir, sub)).filter(file => file.endsWith('.json')).map(file => join(sub, file)));
   assert.ok(files.length > 0, 'expected shipped pipeline JSON files');
   for (const file of files) {
     const pipeline = JSON.parse(readFileSync(join(pipelineDir, file), 'utf8'));

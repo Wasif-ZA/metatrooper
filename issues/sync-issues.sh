@@ -18,5 +18,4 @@ sync 37 '`data` plugin and `data-to-dashboard`' 'M3 every other lane' 'issues/37
 sync 38 '`docs-export` plugin and `study-notes-to-pdf`' 'M3 every other lane' 'issues/38-docs-export.md'
 sync 39 '`desktop` plugin, handoff gate UI, `form-fill-batch`' 'M3 every other lane' 'issues/39-desktop.md'
 sync 40 'Template gallery' 'M3 every other lane' 'issues/40-template-gallery.md'
-sync 41 'Tauri tray companion' 'M3 every other lane' 'issues/41-tauri-tray.md'
 sync 42 'Open-core seams' 'M3 every other lane' 'issues/42-open-core-seams.md'
