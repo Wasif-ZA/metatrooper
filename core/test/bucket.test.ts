@@ -26,9 +26,9 @@ test('M4-19 findings outside widened file hunks are separated into outside_chang
   assert.deepEqual(inside.outside_change, []);
 });
 
-test('empty diff preserves the original four buckets', () => {
+test('empty diff preserves the original buckets and includes unplaced', () => {
   const buckets = bucketFindings(verdict(finding('src/a.js', 31)), verdict(), null);
-  assert.deepEqual(Object.keys(buckets).sort(), ['both', 'codex_only', 'disagree', 'gemini_only', 'outside_change']);
+  assert.deepEqual(Object.keys(buckets).sort(), ['both', 'codex_only', 'disagree', 'gemini_only', 'outside_change', 'unplaced']);
   assert.deepEqual(buckets.outside_change, []);
   assert.equal(buckets.codex_only.length, 1);
 });

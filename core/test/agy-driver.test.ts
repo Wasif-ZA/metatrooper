@@ -226,3 +226,17 @@ test('a print step waits for a missing required key while agy is still running',
     assert.equal(h.count(), '1');
   } finally { await h.teardown(); }
 });
+
+test('M5-17 S3: the retry restarts the step clock at the second session', async () => {
+  const { h, runId } = await runCase('second');
+  try {
+    await awaitRun(h, runId, 'done');
+    const store = db(h.home);
+    try {
+      const sessions = store.prepare('SELECT started_at FROM session WHERE run_id = ? ORDER BY started_at').all(runId) as Array<{ started_at: string }>;
+      const step = store.prepare('SELECT started_at FROM run_step WHERE run_id = ?').get(runId) as { started_at: string };
+      assert.equal(sessions.length, 2);
+      assert.ok(step.started_at > sessions[0].started_at, `${step.started_at} should be after ${sessions[0].started_at}`);
+    } finally { store.close(); }
+  } finally { await h.teardown(); }
+});
