@@ -1124,6 +1124,7 @@ function paletteItems() {
   for (const t of themes) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look && ui.look.theme.name === t.id ? 'current' : '', run: () => setLook(t.id) });
   items.push({ group: 'Core', label: 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
   items.push({ group: 'Core', label: 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
+  items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
   return items;
 }
 

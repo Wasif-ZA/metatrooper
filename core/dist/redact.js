@@ -155,3 +155,10 @@ export function notifyText(kind        , text        )         {
     .slice(0, 160);
   return `MetaTrooper (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
 }
+
+/** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
+export function redactSecretValues(text        , values                  )         {
+  let out = text;
+  for (const v of values) if (v.length >= 4) out = out.split(v).join('[secret]');
+  return out;
+}

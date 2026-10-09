@@ -75,3 +75,8 @@ export function deleteSecrets(db: DatabaseSync, pluginId: string): void {
   fs.rmSync(path.join(homeDir(), 'secrets', pluginId), { recursive: true, force: true });
   db.prepare('DELETE FROM plugin_secret WHERE plugin_id = ?').run(pluginId);
 }
+
+/** Every secret value decrypted in this process. */
+export function knownSecretValues(): string[] {
+  return [...cache.values()];
+}

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('troop', {
   readText: () => ipcRenderer.invoke('readText'),
   restartCore: () => ipcRenderer.invoke('restartCore'),
   stopCore: () => ipcRenderer.invoke('stopCore'),
+  openLogs: () => ipcRenderer.invoke('openLogs'),
   longtasks: (entries) => ipcRenderer.invoke('longtasks', entries),
   probe: (state) => ipcRenderer.invoke('probe', state),
   paneShow: (paneId, bounds) => ipcRenderer.invoke('paneShow', paneId, bounds),

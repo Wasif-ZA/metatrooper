@@ -1,3 +1,4 @@
+import './log-core.ts';
 import { connect as netConnect, type Server } from 'node:net';
 import { openCoreDb } from './store/db.ts';
 import { corePipe, termPipe } from './paths.ts';
