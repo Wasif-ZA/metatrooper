@@ -66,6 +66,7 @@
 .runscreen .gin .gs { font-size: 12px; line-height: 18px; color: var(--body-strong); overflow-wrap: anywhere; }
 .runscreen .gin .gh { font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: flex; gap: 12px; }
 .runscreen .gin .ga { display: flex; gap: 8px; align-items: center; }
+.runscreen .gin .ga input { flex: 1; min-width: 160px; height: 28px; background: var(--canvas); border: 1px solid var(--hairline-strong); border-radius: 2px; padding: 0 8px; color: var(--ink); }
 .runscreen .btn { height: 28px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 2px; font-size: 11.5px; color: var(--body-strong); background: var(--canvas); border: 1px solid var(--hairline-strong); }
 .runscreen .btn.acc { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 700; }
 .runscreen .lnk { color: var(--body-strong); font-size: 11.5px; text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 3px; }

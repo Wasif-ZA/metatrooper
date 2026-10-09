@@ -339,7 +339,8 @@ const runScreen = (() => {
       if (!g) return '';
       return `<div class="gin"><div class="gs">${esc(g.summary)}</div>
         <div class="gh"><span>guards ${esc(g.guards_step || 'the next step')}</span>${g.action_hash ? `<span>hash ${esc(String(g.action_hash).slice(0, 4))}…${esc(String(g.action_hash).slice(-3))}</span>` : ''}</div>
-        <div class="ga">${ctx.gateButtons(g)}</div></div>`;
+        ${ctx.scanHtml(g)}
+        <div class="ga">${ctx.gateScan(g)?.status === 'findings' ? `<input placeholder="Why approve anyway (required)" data-note="${esc(g.id)}" data-key="note:${esc(g.id)}">` : ''}${ctx.gateButtons(g)}</div></div>`;
     },
     files(m) {
       const d = m.diff;
