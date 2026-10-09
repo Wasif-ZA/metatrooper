@@ -211,7 +211,7 @@ CREATE TABLE plugin (
   version      TEXT NOT NULL,
   path         TEXT NOT NULL,
   manifest     TEXT NOT NULL,                  -- JSON
-  source       TEXT NOT NULL CHECK (source IN ('native','claude-import','codex-import','agy-import','builtin')),
+  source       TEXT NOT NULL CHECK (source IN ('native','claude-import','codex-import','agy-import','marketplace-import','registry-import','builtin')),
   permissions  TEXT NOT NULL,                  -- JSON array, as approved by the user at install
   enabled      INTEGER NOT NULL DEFAULT 1,
   installed_at TEXT NOT NULL
