@@ -11,9 +11,9 @@ import {
   currentPlatform, installScreen, manifestHash, MANIFEST_FILE, readManifest, validateManifest,
   type InstallScreen, type Manifest,
 } from './manifest.ts';
-import { importFromSource, type EnvBinding, type ImportPlan } from './importers.ts';
+import { importFromSource, type EnvBinding, type ImportOrigin, type ImportPlan } from './importers.ts';
 
-export type PluginSource = 'native' | 'claude-import' | 'codex-import' | 'agy-import' | 'builtin';
+export type PluginSource = 'native' | 'claude-import' | 'codex-import' | 'agy-import' | 'marketplace-import' | 'registry-import' | 'builtin';
 
 export interface InstalledPlugin {
   id: string;
@@ -33,6 +33,7 @@ export interface ImportRecord {
   skills: string[];
   hooks: string[];
   skipped: string[];
+  origin?: ImportOrigin;
 }
 
 export const IMPORT_FILE = 'import.json';
@@ -224,6 +225,7 @@ function placeFiles(p: Prepared, m: Manifest): string {
       skills: p.imported.skills,
       hooks: p.imported.hooks,
       skipped: p.imported.skipped,
+      ...(p.imported.origin ? { origin: p.imported.origin } : {}),
     };
     fs.writeFileSync(path.join(target, IMPORT_FILE), JSON.stringify(record, null, 2) + '\n');
     return target;
