@@ -84,6 +84,7 @@ function Submit([string]$file) {
       $done += $row.window
     } catch { $failed += @{ window = $row.window; error = $_.Exception.Message } }
   }
+  if ($failed.Count) { throw "submitted $($done.Count) ($($done -join ', ')); failed $($failed.Count): $(($failed | ForEach-Object { "$($_.window): $($_.error)" }) -join '; ')" }
   return @{ submitted = $done.Count; windows = $done; failed = $failed }
 }
 
