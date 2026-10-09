@@ -24,7 +24,7 @@ test('core initializes the contracted schema in WAL mode', async () => {
       const actual = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name).sort();
       assert.deepEqual(actual, expected);
       assert.ok(actual.includes('needs_you'));
-      assert.deepEqual(db.prepare('PRAGMA table_info(needs_you)').all().map(row => row.name), ['id', 'at', 'kind', 'ref', 'text', 'resolved_at', 'read_at']);
+      assert.deepEqual(db.prepare('PRAGMA table_info(needs_you)').all().map(row => row.name), ['id', 'at', 'kind', 'ref', 'text', 'resolved_at', 'read_at', 'notified_at']);
       assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
       assert.equal(db.prepare('PRAGMA journal_mode').get().journal_mode.toLowerCase(), 'wal');
     } finally { db.close(); }

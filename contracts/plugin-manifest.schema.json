@@ -103,9 +103,19 @@
     "mcp": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "command", "engines"],
+      "required": ["id", "engines"],
+      "allOf": [{ "if": { "required": ["transport"], "properties": { "transport": { "const": "http" } } }, "then": { "required": ["url"] }, "else": { "required": ["command"] } }],
       "properties": {
-        "id": { "type": "string" },
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "transport": { "enum": ["stdio", "http"], "default": "stdio" },
+        "url": { "type": "string", "pattern": "^https://" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[^$]*(\\$\\{[A-Z][A-Z0-9_]{0,63}\\}[^$]*)+$" },
+          "description": "Each value must contain at least one ${SECRET}, and the plugin needs secrets:SECRET. Literal values fail validation."
+        },
+        "auth": { "enum": ["none", "header", "engine-oauth"], "default": "none" },
+        "writes": { "enum": ["none", "project", "external"], "description": "external: the server can post, send, create or spend outside the machine. An http server with no value counts as external." },
         "command": { "type": "string" },
         "args": { "type": "array", "items": { "type": "string" } },
         "env_keys": { "type": "array", "items": { "type": "string" }, "description": "Each must also appear as secrets:<KEY> in permissions." },

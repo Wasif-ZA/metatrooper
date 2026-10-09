@@ -18,11 +18,26 @@ export interface ActionSpec {
 
 export interface McpSpec {
   id: string;
-  command: string;
+  command?: string;
   args?: string[];
   env_keys?: string[];
   env?: Record<string, string>;
   engines: string[];
+  transport?: 'stdio' | 'http';
+  url?: string;
+  headers?: Record<string, string>;
+  auth?: 'none' | 'header' | 'engine-oauth';
+  writes?: 'none' | 'project' | 'external';
+}
+
+/** Secret names a header value templates, in order. */
+export function headerSecretNames(value: string): string[] {
+  return [...value.matchAll(/\$\{([A-Z][A-Z0-9_]{0,63})\}/g)].map((m) => m[1]);
+}
+
+/** An http server with no `writes` counts as external. */
+export function mcpWrites(s: McpSpec): 'none' | 'project' | 'external' {
+  return s.writes ?? (s.transport === 'http' ? 'external' : 'none');
 }
 
 export interface Manifest {
@@ -46,6 +61,7 @@ export const MANIFEST_FILE = 'troop-plugin.json';
 export const PANE_FORBIDDEN_METHODS = new Set([
   'core.stop', 'ui.hello', 'gate.resolve', 'hooks.install', 'hooks.uninstall',
   'plugin.install', 'plugin.remove', 'plugin.preview', 'plugin.secret.set', 'mcp.resolve', 'mcp.missing',
+  'notify.sink.set', 'notify.sink.test', 'notify.sink.remove',
 ]);
 
 let schemaCache: Record<string, unknown> | null = null;
@@ -114,6 +130,11 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
     for (const id of duplicates((list ?? []).map((x) => x.id))) errors.push(`/${name}: duplicate id ${id}`);
   }
   (m.mcp ?? []).forEach((s, i) => {
+    for (const [h, value] of Object.entries(s.headers ?? {})) {
+      for (const key of headerSecretNames(value)) {
+        if (!perms.has(`secrets:${key}`)) errors.push(`/mcp/${i}/headers/${h}: ${key} needs the permission secrets:${key}`);
+      }
+    }
     for (const key of s.env_keys ?? []) {
       if (!perms.has(`secrets:${key}`)) errors.push(`/mcp/${i}/env_keys: ${key} needs the permission secrets:${key}`);
       if (s.env && key in s.env) errors.push(`/mcp/${i}/env: ${key} is a secret in env_keys and cannot also be a literal`);
@@ -160,7 +181,7 @@ export interface InstallScreen {
   permissions: Array<{ permission: string; text: string; new: boolean }>;
   external_actions: Array<{ id: string; title: string; destination_field: string }>;
   engines: Array<{ id: string; command: string; roles: string[] }>;
-  mcp_servers: Array<{ id: string; command: string; engines: string[] }>;
+  mcp_servers: Array<{ id: string; command: string; engines: string[]; host?: string; signin?: string; writes?: string }>;
   warnings: string[];
 }
 
@@ -177,7 +198,9 @@ export function installScreen(m: Manifest, previous: string[] | null): InstallSc
     permissions: (m.permissions ?? []).map((p) => ({ permission: p, text: describePermission(p), new: previous !== null && !before.has(p) })),
     external_actions: (m.actions ?? []).filter((a) => a.external).map((a) => ({ id: a.id, title: a.title ?? a.id, destination_field: a.destination_field ?? '' })),
     engines: (m.engines ?? []).map((e) => ({ id: e.id, command: e.command, roles: e.roles })),
-    mcp_servers: (m.mcp ?? []).map((s) => ({ id: s.id, command: [s.command, ...(s.args ?? [])].join(' '), engines: s.engines })),
+    mcp_servers: (m.mcp ?? []).map((s) => s.transport === 'http'
+      ? { id: s.id, command: s.url ?? '', engines: s.engines, host: new URL(s.url ?? 'https://invalid').host, signin: s.headers ? 'MetaTrooper (header secret)' : 'the engine', writes: mcpWrites(s) }
+      : { id: s.id, command: [s.command, ...(s.args ?? [])].join(' '), engines: s.engines }),
     warnings,
   };
 }

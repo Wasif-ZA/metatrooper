@@ -20,6 +20,7 @@ import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
+import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import type { Runner } from './pipelines/runner.ts';
 import { listTemplates, syncPipelines, validationContext } from './pipelines/store.ts';
 import { validatePipeline } from './pipelines/validate.ts';
@@ -360,6 +361,11 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return {};
     },
   });
+
+  m.set('notify.sink.set', { needsUi: true, handler: (p) => setSink(db, p) });
+  m.set('notify.sink.list', { handler: () => listSinks(db) });
+  m.set('notify.sink.test', { needsUi: true, handler: (p) => testSink(db, str(p, 'id')) });
+  m.set('notify.sink.remove', { needsUi: true, handler: (p) => removeSink(db, str(p, 'id')) });
 
   m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
 
