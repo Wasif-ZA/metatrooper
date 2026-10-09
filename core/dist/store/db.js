@@ -46,18 +46,29 @@ export function openCoreDb()               {
 }
 
 const V2_TABLES = ['session', 'event', 'comment', 'needs_you'];
+const V1_DROPPED = ['window_name', 'herdr_pane', 'herdr_at'];
 
 function schemaBlock(schema        , re        )           {
   return [...schema.matchAll(re)].map((m) => m[0]);
 }
 
-/** Recreates table `t` from its schema.sql definition, copying the columns both share through `select`. */
-function rebuildTable(db              , schema        , t        , select                          = (c) => c)       {
+/** Recreates table `t` from its schema.sql definition, copying every old column through `select`; old columns schema.sql lacks are added back without constraints unless named in `drop`. */
+function rebuildTable(db              , schema        , t        , select                          = (c) => c, drop           = [])       {
   const create = schemaBlock(schema, new RegExp(`CREATE TABLE ${t} \\([\\s\\S]*?\\n\\);`, 'g'))[0];
   db.exec(create.replace(`CREATE TABLE ${t} (`, `CREATE TABLE ${t}_v2 (`));
+  const fresh = new Set((db.prepare(`PRAGMA table_info(${t}_v2)`).all()                           ).map((c) => c.name));
+  const old = db.prepare(`PRAGMA table_info(${t})`).all()                                         ;
+  for (const c of old.filter((o) => !fresh.has(o.name) && !drop.includes(o.name))) {
+    try {
+      db.exec(`ALTER TABLE ${t}_v2 ADD COLUMN "${c.name.replace(/"/g, '""')}" ${c.type}`);
+    } catch (e) {
+      const used = db.prepare(`SELECT 1 FROM ${t} WHERE "${c.name.replace(/"/g, '""')}" IS NOT NULL LIMIT 1`).get();
+      if (used) throw new Error(`troop.db: rebuilding ${t} would lose column ${c.name}, which holds data (${(e         ).message})`);
+    }
+  }
   const cols = (db.prepare(`PRAGMA table_info(${t}_v2)`).all()                           ).map((c) => c.name);
-  const old = new Set((db.prepare(`PRAGMA table_info(${t})`).all()                           ).map((c) => c.name));
-  const keep = cols.filter((c) => old.has(c));
+  const oldNames = new Set(old.map((c) => c.name));
+  const keep = cols.filter((c) => oldNames.has(c)).map((c) => (/^\w+$/.test(c) ? c : `"${c.replace(/"/g, '""')}"`));
   db.exec(`INSERT INTO ${t}_v2 (${keep.join(', ')}) SELECT ${keep.map(select).join(', ')} FROM ${t}`);
   db.exec(`DROP TABLE ${t}`);
   db.exec(`ALTER TABLE ${t}_v2 RENAME TO ${t}`);
@@ -91,7 +102,7 @@ export function migrateToV2(db              )       {
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const t of V2_TABLES) {
-      rebuildTable(db, schema, t, (c) => (t === 'session' && c === 'host' ? "'pty'" : t === 'event' && c === 'source' ? "CASE WHEN source IN ('claude-hook','launch','codex-notify') THEN source ELSE 'core' END" : c));
+      rebuildTable(db, schema, t, (c) => (t === 'session' && c === 'host' ? "'pty'" : t === 'event' && c === 'source' ? "CASE WHEN source IN ('claude-hook','launch','codex-notify') THEN source ELSE 'core' END" : c), V1_DROPPED);
     }
     db.exec(schemaBlock(schema, /CREATE TABLE ui_selection \([\s\S]*?\n\);/g)[0]);
     if ((db.prepare('PRAGMA foreign_key_check').all()             ).length) throw new Error('foreign key check failed after migration');
