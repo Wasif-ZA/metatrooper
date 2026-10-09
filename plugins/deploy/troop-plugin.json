@@ -8,6 +8,19 @@
   "permissions": ["network", "project:read"],
   "actions": [
     {
+      "id": "check",
+      "title": "Check the project is linked to Vercel",
+      "run": ["bin/deploy.js", "check"],
+      "timeout_seconds": 30,
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": { "path": { "type": "string", "minLength": 1 } }
+      },
+      "output_schema": { "type": "object", "required": ["linked"], "properties": { "linked": { "type": "boolean" } } }
+    },
+    {
       "id": "preview",
       "title": "Deploy a preview",
       "run": ["bin/deploy.js", "preview"],

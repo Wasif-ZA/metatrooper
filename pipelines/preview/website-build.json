@@ -18,10 +18,19 @@
   ],
   "steps": [
     {
+      "id": "link",
+      "title": "Check the Vercel link",
+      "role": "verify",
+      "kind": "action",
+      "uses": "plugin:deploy/check",
+      "with": { "path": "{{project.path}}" }
+    },
+    {
       "id": "design",
       "title": "Write the design",
       "role": "plan",
       "kind": "agent",
+      "approval": "edits",
       "prompt": "Brief: {{inputs.brief}}\n\nRead this repository. Write {{run.dir}}/DESIGN.md: pages and sections, layout, type, colour, and the content each section carries. Do not edit the repository.",
       "outputs": ["summary"]
     },
