@@ -31,7 +31,7 @@ MetaTrooper never writes into the user's project for this. Per session, at launc
 
 - Claude Code 2.1.295 has `--append-system-prompt-file <path>`. A `claude -p` run in a folder holding only an
   `AGENTS.md` with a codeword, launched with `--append-system-prompt-file AGENTS.md`, answered with the codeword.
-- agy 1.x has no context-file flag, but it reads `AGENTS.md` on its own: the same codeword test with no flag and
+- agy 1.3.2 has no context-file flag, but it reads `AGENTS.md` on its own: the same codeword test with no flag and
   "do not read any files" answered with the codeword. No tip needed.
 - Built: the engine registry field `agents_md` (`unless` files, `args`); claude adds
   `--append-system-prompt-file AGENTS.md` (relative, so it also works on the sandbox host) when the session folder has
