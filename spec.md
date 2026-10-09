@@ -877,7 +877,7 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-D5 | Sandbox host | Experimental flag, off by default; its three P0s are after launch |
 | M5-D6 | Default approval for a new user | `ask`, with a first-run choice of auto mode; an existing settings file keeps its value |
 | M5-D7 | ACU path rule | Becomes the setting `sessions.ask_paths`, empty by default; Wasif's settings carry his path |
-| M5-D8 | Integrations at launch | Remote MCP (M5-12), the importer shape fix (M5-13 step 1) and the outbound notification sink (M5-15). Engines as data, marketplace and registry importers and the issue trigger in January 2027 |
+| M5-D8 | Integrations at launch | Remote MCP (M5-12), the importer shape fix (M5-13 step 1) and the outbound notification sink (M5-15). Engines as data, marketplace and registry importers and the issue trigger in January 2027. Revised 2026-10-09: the goal asked for many popular tools to plug in, so the marketplace and registry importers (M5-13) and engines as data (M5-14) were built now; only the issue trigger (M5-16) waits |
 | M5-D9 | Pro timing | Pro (M5-6, M5-7) is built before the freeze; the freeze covers it. Supersedes the money plan's "Exams" row |
 | M5-D10 | Tray and TOON | Cut: issue files archived, GitHub #41 closed as not planned |
 | M5-D11 | Hardening budget | The 5 built-ins are hardened in code (M5-17); preview pipelines get the scan's ideas in their issue files only |
@@ -916,8 +916,8 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-10 | Public docs, licences, privacy, ACU setting | `issues/m5-10-public-docs.md` | High | 2.5 | M5-3, M5-18 |
 | M5-11 | Site, waitlist, demo data | `issues/m5-11-site-and-demo.md` | High | 1.75 | M5-6 for the GIFs |
 | M5-12 | Remote MCP servers | `issues/m5-12-remote-mcp.md` | High | 3.0 | none |
-| M5-13 | Importer shape fix (step 1 only at launch) | `issues/m5-13-catalogue-importers.md` | High | 0.5 | M5-12 |
-| M5-14 | Engines as data | `issues/m5-14-engines-as-data.md` | M5, after 12-01 | 3.0 | none |
+| M5-13 | Catalogue importers: Claude importer shape fix, Claude plugin marketplaces, MCP registry | `issues/m5-13-catalogue-importers.md` | Done (code) | 2.5 | M5-12 |
+| M5-14 | Engines as data: OpenCode, Copilot CLI, Gemini CLI, pi | `issues/m5-14-engines-as-data.md` | Done (code) | 3.0 | none |
 | M5-15 | Notification sink (outbound) | `issues/m5-15-notification-sink.md` | Medium | 2.0 | none |
 | M5-16 | Issue trigger and gated write-back | `issues/m5-16-issue-trigger.md` | M5, after 12-01 | 2.5 | M5-14 |
 | M5-17 | Hardening the built-ins from the repo scan | `issues/m5-17-pipeline-hardening.md` | High | 5.1 | M5-9 |

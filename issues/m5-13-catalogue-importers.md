@@ -1,7 +1,7 @@
 # M5-13 Catalogue importers: Claude marketplaces and the MCP registry
 
 Child of Milestone 5 in `spec.md` (Milestone 5: launch). Decisions M5-D1 onward and the launch scope are
-there; this file is what to build. Tag: BLOCKER for step 1 (importer shape fix, 0.5 CC days); marketplace and registry importers M5, after 12-01, M5-D8. Source: the integrations scan of 2026-10-09 (registry, npm,
+there; this file is what to build. Tag: done in code 2026-10-09, all three steps (M5-D8 revised). Source: the integrations scan of 2026-10-09 (registry, npm,
 PyPI and rival-desk evidence, ranked list in `ide-layer-research/m5-integrations-demand.md`).
 
 The after-launch parts of this file are a design sketch, not a build spec: before building, it is re-specced and
@@ -59,3 +59,15 @@ re-import with a fresh permission screen when permissions grow (rule already in 
 - M5-13c: `registry-import` against a recorded registry response for `com.supabase/mcp` yields an npm stdio server
   pinned to the listed version and an http server; a recorded `mcpb`-only entry yields a "skipped" line.
 - M5-13d: `claude-marketplace` with a fixture `marketplace.json` clones at the listed `sha`, not the branch head.
+
+## As built (2026-10-09)
+
+- `claude-marketplace:<owner/repo | https url | local folder>[#<plugin>]` and `registry-import:<name>` in
+  `core/src/plugins/importers.ts`; fixtures in `tests/fixtures/catalogue/`; tests `core/test/m5-catalogue.test.ts`.
+- Git runs with every protocol off except https. A remote marketplace and every remote plugin source must be https;
+  a local marketplace must be a clean git repository (its HEAD sha is what gets pinned), and only it may use local
+  absolute paths for its own plugin sources. In-repo and git-subdir paths are checked after following symlinks.
+- Registry packages need an exact version (`1.2.3`, optionally `-pre` or `+build`) and a package-shaped name; `latest`
+  and ranges are skipped and listed; `mcpb` and `nuget` are skipped and listed; `oci` only when Docker is on PATH.
+- `plugin.source` accepts `marketplace-import` and `registry-import`; `import.json` carries `origin`.
+- Both engines reviewed it; every agreed finding is fixed (M5-STATUS.md).

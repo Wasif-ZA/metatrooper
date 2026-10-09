@@ -1,7 +1,7 @@
 # M5-14 Engines as data: schema parity and an engine pack
 
 Child of Milestone 5 in `spec.md` (Milestone 5: launch). Decisions M5-D1 onward and the launch scope are
-there; this file is what to build. Tag: M5, after 12-01, M5-D8. Source: the integrations scan of 2026-10-09 (registry, npm,
+there; this file is what to build. Tag: done in code 2026-10-09 (M5-D8 revised). Source: the integrations scan of 2026-10-09 (registry, npm,
 PyPI and rival-desk evidence, ranked list in `ide-layer-research/m5-integrations-demand.md`).
 
 The after-launch parts of this file are a design sketch, not a build spec: before building, it is re-specced and
@@ -83,3 +83,13 @@ tests 0.25). Each further engine file: about 0.25.
 - M5-14c: launching opencode with one plugin MCP server sets `OPENCODE_CONFIG_CONTENT` to JSON holding only the shim
   command; the user's own `opencode.json` is unchanged byte for byte.
 - M5-14d: a plugin engine with no `cost_rank` override never wins `bindRole` over a built-in for the same role.
+
+## As built (2026-10-09)
+
+- `engines/opencode.json`, `copilot.json`, `gemini.json`, `pi.json`, loaded after `BUILT_IN` by `dataEngines` in
+  `core/src/engines/registry.ts`; attach kinds `env-json`, `config-dir`, `args-template` in `core/src/plugins/mcp.ts`
+  write shim commands only; tests `core/test/m5-engines.test.ts`.
+- A malformed or schema-invalid engine file is skipped with a warning, never stops the core.
+- Every data or plugin engine starts at cost_rank 5 or more; a tie goes to the built-in; a plugin cannot take an
+  engine id a built-in or another plugin already holds.
+- Not yet: Qwen Code, Cursor CLI, Amp, Kiro, Droid, Goose engine files (about 0.25 CC days each).
