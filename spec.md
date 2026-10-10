@@ -93,14 +93,14 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D63 | Protocol stability | `core.ping` returns `{ok, pid, version, protocol, schema_version, started_at}`. Methods marked stable in `pipe-protocol.md`, with their exact params and errors, keep their shape within a protocol version. A breaking change raises the version, and the old shape answers for one more minor release |
 | D64 | Pro and money | Out of this epic. M5-6 code moves with the pipelines (pr-review-fix is a pipeline). M5-7 is cut |
 | D65 | Tests | Codex writes the tests for the core, browser, desktop, approval and cursor children (M6-2, M6-4, M6-5, M6-6, M6-11, M6-12, M6-15, M6-18), through `/tests-brief`, then a mutation run proves they bite |
-| D66 | Dates | Wasif, 2026-10-10: keep the full scope and move the date. Freeze 2026-12-26, public release 2027-01-19 (worked in Milestone 6) |
+| D66 | Dates | Wasif, 2026-10-10: keep the full scope and move the date. Freeze 2026-12-26, public release 2027-01-19 (worked in Milestone 6; freeze moved to 2026-12-30 by D73) |
 | D67 | Clean-machine test | Wasif, 2026-10-10: when an installer exists (D72), it is tested on a second real Windows PC (his or a friend's) with Smart App Control on and a fresh standard account, instead of a Hyper-V VM (this laptop is Windows 11 Home) |
 | D68 | Rival extras | Wasif, 2026-10-10: search across all terminals, a cost chip per tile, and changed files per tile join this milestone (M6-19 to M6-21) |
 | D70 | Auto mode and watching | Wasif, 2026-10-10: agents stay in their auto mode (the default) even while they hold a desktop grant; edits and ask modes are too slow to work with. An auto-mode agent can script the desktop through its own shell and skip grants, cards and take-over, so protection is watching, two ways. (1) The wall can run on a second monitor in a watch layout (M6-15) that shows each granted window's live thumbnail beside its agent's tile. (2) The core runs a watcher (M6-22): a low-level input hook sees every mouse and keyboard event Windows marks as injected (`LLMHF_INJECTED`, `LLKHF_INJECTED`). Injected input that arrives while no `metatrooper-desktop` action is in flight raises a needs-you item "input from another program" naming the foreground window, and, with `desktop.watch_pause` on (default on), sets the take-over pause flag. A second listener catches what injected input misses: UI Automation's own system-wide events (focus changed, window opened, control invoked). One of those while the user made no physical input in the last 2 s (`GetLastInputInfo`) and no `metatrooper-desktop` action was in flight raises "the desktop changed while you were away from it", with the same pause setting. The watcher cannot name the process behind either signal; it says so |
 | D69 | Agent cursor | Wasif, 2026-10-10: every agent action in the browser and on the desktop shows that agent's own cursor gliding to the target like a person's mouse, then the click. It never moves the real pointer and adds at most 250 ms per action. One MetaTrooper cursor serves both surfaces; if cua-driver is ever added (D71) it runs with `--no-overlay` (M6-18) |
 | D71 | Desktop driver | Wasif, 2026-10-10: nothing is installed for computer use until it is really needed. MetaTrooper ships its own driver on Windows' built-in UI Automation (a long-lived PowerShell helper, no install, no new dependency). cua-driver (trycua/cua, MIT) stays the named upgrade behind the same tool list, added only when the built-in driver proves too weak on real apps, and only with Wasif's yes to install it |
 | D72 | Signing and installer | Wasif, 2026-10-10: no money on a certificate for now. The first public release is a source install (`git clone`, `npm install`, `npm start`; signed `node.exe` runs under Smart App Control, as on this laptop). The installer (M5-1, WIP kept on `agent/m5-1`) and signing (M5-2) wait until Wasif sees real users outside himself; then he decides whether to pay. D50's rule stands: no unsigned installer is published |
-| D73 | Mined ideas | Wasif, 2026-10-10: every mined idea that closes a gap named by a rival angle (users of Orca, t3code, cmux and others asking for it) joins this milestone as M6-23 to M6-27, for the best product at launch. Every other gap waits until after the release (After the release, below), High-value ones included. Moves D66's dates: freeze 2027-01-10, public release 2027-02-03 |
+| D73 | Mined ideas | Wasif, 2026-10-10: every mined idea that closes a gap named by a rival angle (users of Orca, t3code, cmux and others asking for it) was weighed for this milestone. Wasif left the cut to Claude, aiming for the best product at launch. Kept: the gaps that make the wall's status and limits trustworthy (M6-23 to M6-25, 4.0 CC days), because a true status, sessions that carry on and a working Windows desk are what people choose a desk on. Moved after the release, specced and ready: page comment threads, source file of a pick, mark-up, cross-origin picks, device and rendering modes, reference overlay, and continue-in-another-engine (9.5 CC days); rivals already ship annotation, so these do not decide a switch. Every other gap waits too, High-value ones included. The public release stays 2027-01-19; the freeze moves to 2026-12-30 |
 | D74 | Script in owned dev pages | Wasif, 2026-10-10: MetaTrooper adds nothing to a page's own code, with one exception. A pane showing a dev server that one of the user's sessions owns (a `ready` `session_dev_server` row, D60) gets a read-only 30-line devtools-hook stub before load, so a pick can name the component and its source file. No other origin ever gets it (M6-23) |
 
 ## Current state, verified 2026-10-10
@@ -233,7 +233,7 @@ Launching, the engine registry, health lights, usage and limits work as built. C
   <summary>`, `title`) and `since`, the time it entered the state. "Oldest waiting" means smallest `since`; ties go
   to the lower session id.
 - **Usage limits.** A reading past its reset time shows as expired, never as current (`core/src/limits.ts`).
-- **True status, part 2** (M6-25). A Claude `Stop` whose payload lists a `background_tasks` entry of type
+- **True status, part 2** (M6-23). A Claude `Stop` whose payload lists a `background_tasks` entry of type
   `subagent`, `teammate` or `workflow` that is not finished keeps the session `working`; with no event for 10
   minutes after it, the session moves to `done`. `claude.StopFailure` (when the CLI version lists it) maps to
   `waiting_for_you` with reason `stopped: <error_type>`. An Escape typed into a `working` session followed within
@@ -242,15 +242,12 @@ Launching, the engine registry, health lights, usage and limits work as built. C
   headless screen are checked every 5 s, and a match whose lines stay unchanged for 60 s raises a needs-you item
   "failed: <pattern>" (the pattern, never the screen text). opencode gets a state-reporter plugin file under
   `engines/plugins/` that runs `core/event.js` with `opencode.state`; its title states stay as the fallback.
-- **Limits that carry on** (M6-26). On `claude.StopFailure` with `error_type: rate_limit`, the core writes
+- **Limits that carry on** (M6-24). On `claude.StopFailure` with `error_type: rate_limit`, the core writes
   `core.limit-hit` with the window's `resets_at`. When `resets_at` passes, the session's pty is still open and no
   later event arrived, the core pastes "Continue where you left off." and Enter once (`core.limit-resumed`, keyed by
   the limit-hit event id so it never fires twice). Per-session toggle on the tile, default on. The last 6 readings
   per window are kept; when the usage slope says the window runs out before `resets_at`, one needs-you item names
-  the time ("Claude 5h window ends early at about 16:40"). A tile stopped by a limit offers "Continue in <engine>":
-  the core writes a handoff file (at most 6 KB: the task line, the last 10 turns, the session's changed files from
-  `session.owners`, the last failing command) to the session folder and launches the chosen engine with it as the
-  prompt. By hand only.
+  the time ("Claude 5h window ends early at about 16:40").
 - **Notifications** (M6-10): no OS toast for a session whose tile is focused while the window has focus; a toast
   names the session's task line, not only the engine.
 
@@ -404,7 +401,7 @@ Added:
   "usage unknown" for engines with no source. Hidden in demo mode.
 - **Changed files** (M6-21). Each tile header shows how many uncommitted files the session owns (`session.owners`);
   a click lists them and opens the Diff tab on one.
-- **Context fill** (M6-27). Beside the cost chip, the tile shows how full the context window is: the last turn's
+- **Context fill** (M6-25). Beside the cost chip, the tile shows how full the context window is: the last turn's
   `tokens_in + cache_read + cache_write` from `usage` over the model's window from the engine file
   (`context_window` per model). At 85% the chip turns orange and says "compacts soon". Engines with no source show
   nothing.
@@ -444,28 +441,6 @@ request interception, full-page capture, point-to-comment) stays. `contracts/bro
   keep their opener; a page cannot open a new pane without a click. `capture()` restores the viewport override in a
   `finally`. A picked element is sent as at most 4 KB of sanitised HTML, labelled as page content the agent must not
   follow as instructions; arrow keys walk the element stack before sending.
-- **Comments that come back** (M6-23). A comment row stays open until resolved and holds a short thread. The overlay
-  view draws a numbered pin at each open comment's element (`DOM.getBoxModel` by `backendNodeId`, refreshed on
-  scroll and resize); a resolved pin turns green and shows the agent's reply on hover. New browser tools:
-  `comments` (open rows for this session's panes), `reply_comment {id, text}`, `resolve_comment {id, reply?}` and
-  `reveal {ref}` (flashes the session's cursor on an element). The snapshot marks the user's last pick with
-  `(you pointed here)`. Several picks made before the next prompt go as one batch. Replies pass through the core's
-  redaction.
-- **Source file of a pick** (M6-23, D74). On a pane at an owned dev port, a pick also returns up to 5 component
-  names with `file:line` ("Component: <PricingCard> at src/components/PricingCard.tsx:42") from the React fiber;
-  Vue and Svelte give names only. Any other origin gets no stub and no source line.
-- **Mark up** (M6-23). M freezes the pane to a still with four tools (pen, arrow, box, text); Done saves one PNG
-  (at most 2 MB and 4 MP) into the same comment row. Shapes are kept as JSON.
-- **Picks in cross-origin frames** (M6-23). `Target.setAutoAttach` (flattened) gives each child frame its own
-  debugger session; a pick inside one is routed to that session, its box offset by the frame, and the comment
-  records the frame URL.
-- **Compare the page** (M6-24). The pane menu gets Device (Responsive, four presets, Rotate; the emulated viewport is
-  centred and scaled to fit the pane) and Rendering (colour scheme, reduced motion, six vision types, CPU 4x and 6x,
-  offline). Both live in one record per pane, re-applied on every navigation and after DevTools detaches; an
-  `emulate` browser tool sets the same record so an agent sees what the user sees. Overlay reference draws a saved
-  capture over the live pane with a drag divider and an opacity slider, following the page's scroll; it never
-  touches the page. Follow session (off by default) reloads the pane when its session goes from `working` to
-  `done` or `idle`.
 
 ## Computer use
 
@@ -622,7 +597,7 @@ One session owns the split; nothing else merges to `main` while it runs.
 5. Pipeline tables and rows stay (D58). Schedules simply stop firing; their rows are kept.
 6. GitHub issues for pipelines and any product repos on GitHub wait for Wasif (deferred, Hand-back).
 
-## Milestone 6: the desk (about 92 CC days, freeze 2027-01-10, public 2027-02-03)
+## Milestone 6: the desk (about 81 CC days, freeze 2026-12-30, public 2027-01-19)
 
 Replaces the rest of M5. Every M5 child is mapped in the re-baseline table below. Estimates were raised after both
 review engines called the first draft too low.
@@ -653,11 +628,9 @@ review engines called the first draft too low.
 | M6-20 | Cost chip per tile | Medium | 0.5 | none |
 | M6-21 | Changed files per tile | Medium | 1.0 | none |
 | M6-22 | Input watcher: injected input and UI Automation changes from other programs | Critical | 4.5 | M6-14 |
-| M6-23 | Comments that come back: threads, replies, source file, mark-up, cross-origin picks | High | 6.0 | M6-3, M6-11, M6-13 |
-| M6-24 | Compare the page: device, rendering, reference overlay, follow session | High | 2.0 | M6-11 |
-| M6-25 | True status, part 2: background work, StopFailure, interrupts, fatal patterns, opencode | Critical | 2.25 | M6-5 |
-| M6-26 | Limits that carry on: resume at reset, early-end warning, continue in another engine | High | 2.5 | M6-25 |
-| M6-27 | Context fill per tile | Medium | 0.75 | M6-20 |
+| M6-23 | True status, part 2: background work, StopFailure, interrupts, fatal patterns, opencode | Critical | 2.25 | M6-5 |
+| M6-24 | Limits that carry on: resume at reset, early-end warning | High | 1.0 | M6-23 |
+| M6-25 | Context fill per tile | Medium | 0.75 | M6-20 |
 | M5-9 | Release gate: two clean source-install runs and green CI | Critical | 0.5 | M6-1 |
 | M5-10 | Public docs rewritten for the four parts | Critical | 1.0 | M6-1, M6-15 |
 | M5-11 | Site and demo redone for the four parts | High | 0.75 | M6-18 |
@@ -669,22 +642,19 @@ Effort, worked:
   + 2.0 + 1.0 + 12.0 + 1.5 + 2.0 + 4.5 + 1.0 + 0.5 + 1.0 + 4.5 = 64.0 CC days (raised after round 2 for M6-1, M6-15,
   M6-18 and M6-22, which both engines named; M6-22 again for the UI Automation listener; M6-15 by 2.0 for the
   built-in driver, D71).
-- Mined rival-angle children (D73), each idea sized S 0.25, M 0.75, L 1.5 from the idea mine:
-  M6-23 = 1.5 source file + 1.5 threads and pins + 0.75 agent comment tools + 0.75 mark-up + 1.5 cross-origin picks
-  = 6.0; M6-24 = 0.75 device + 0.75 reference overlay + 0.25 rendering + 0.25 follow session = 2.0; M6-25 = 0.25
-  background work + 0.25 StopFailure + 0.75 interrupts + 0.25 fatal patterns + 0.75 opencode = 2.25; M6-26 = 0.75
-  resume at reset + 0.25 early-end warning + 1.5 continue in another engine = 2.5; M6-27 = 0.75. Sum: 6.0 + 2.0 +
-  2.25 + 2.5 + 0.75 = 13.5 CC days.
+- Mined rival-angle children (D73), each idea sized S 0.25, M 0.75, L 1.5 from the idea mine: M6-23 = 0.25
+  background work + 0.25 StopFailure + 0.75 interrupts + 0.25 fatal patterns + 0.75 opencode = 2.25; M6-24 = 0.75
+  resume at reset + 0.25 early-end warning = 1.0; M6-25 = 0.75. Sum: 2.25 + 1.0 + 0.75 = 4.0 CC days.
 - Carried M5 work: M5-9 0.5 + M5-10 1.0 + M5-11 0.75 + M5-15 0.5 = 2.75 CC days (M5-1 and M5-2 wait, D72).
-- Review, merge and two-engine checks, at 15% of the build: (64.0 + 13.5 + 2.75) x 0.15 = 80.25 x 0.15 = 12.0 CC
+- Review, merge and two-engine checks, at 15% of the build: (64.0 + 4.0 + 2.75) x 0.15 = 70.75 x 0.15 = 10.6 CC
   days.
-- Total: 80.25 + 12.0 = 92.25, about 92 CC days.
+- Total: 70.75 + 10.6 = 81.35, about 81 CC days.
 - Pace: M5 planned 30.85 CC days over 27 calendar days with four parallel sessions and paused with work unfinished,
   so this plan assumes 1 CC day per calendar day, limited by Wasif's review time, not by sessions.
-- Calendar: 92 days from 2026-10-11 is 2027-01-10 (21 days left in October, 30 in November, 31 in December, 10 in
-  January: 21 + 30 + 31 + 10 = 92). Freeze 2027-01-10 (D73). The same 24 days as before run to the public release
-  on 2027-02-03 (21 more in January, 3 in February: 21 + 3 = 24) and hold the source-install runs on a second PC,
-  the docs and site. There is no slack inside the 92 days, so the slip rule below is the buffer.
+- Calendar: 81 days from 2026-10-11 is 2026-12-30 (21 days left in October, 30 in November, 30 in December:
+  21 + 30 + 30 = 81). Freeze 2026-12-30 (D73). The 20 days to the public release on 2027-01-19 (1 left in December,
+  19 in January: 1 + 19 = 20) hold the source-install runs on a second PC and the holidays. There is no slack
+  inside the 81 days, so the slip rule below is the buffer.
 
 ```
 M6-1 split ─┬─> M6-2 approvals ─┬─> M6-12 browser handoff, origins, secrets
@@ -700,9 +670,8 @@ M6-4 reliability ─┬─> M6-3 ports
 M6-7 terminal ──> M6-8 input, M6-19 search
 M6-14 spike ──> M6-22 input watcher
 M6-20 cost chip, M6-21 changed files, M5-15   (any time)
-M6-20 ──> M6-27 context fill
-M6-3, M6-11, M6-13 ──> M6-23 comments; M6-11 ──> M6-24 compare
-M6-5 ──> M6-25 true status 2 ──> M6-26 limits
+M6-20 ──> M6-25 context fill
+M6-5 ──> M6-23 true status 2 ──> M6-24 limits
 ```
 
 Why this order: the split goes first because every other child edits files that import the runner. Reliability
@@ -713,8 +682,7 @@ computer use because it hooks the `approval.check` answer both of them send. The
 split so the source install is proven on a second PC well before the freeze.
 
 Slip rule, decided now: on 2026-11-23, if fewer than half the Critical children are done, M6-16, M6-10, M6-20 (with
-M6-27, which builds on it), M6-21, M5-15 and M6-13 (except its picked-element payload, which M6-23 builds on) move after the release, in
-that order. If M6-14's spike fails, M6-15 builds the PowerShell
+M6-25, which builds on it), M6-21, M5-15 and M6-13 move after the release, in that order. If M6-14's spike fails, M6-15 builds the PowerShell
 fallback at the same effort. Critical children never move; the dates move instead, by the days still owed.
 
 ### Re-baseline of M5
@@ -831,37 +799,25 @@ criteria (M1-18 to M1-21, M1-26, M1-31, M1-38, M2, M3, M4) move with the split.
 - M6-22c. With a grant live and no physical input for 5 s, a fixture script that clicks a button in another app
   through UI Automation `InvokePattern` raises one "the desktop changed while you were away from it" item within
   1 s; the same script while the tester is typing raises none.
-- M6-23a. An agent calls `comments`, gets the user's open note, replies and resolves it; the pane's pin turns green
-  and shows the reply, and the row reads resolved.
-- M6-23b. A pick on a fixture React app served from an owned dev port names `<PricingCard>` and its `file:line`; the
-  same app on a non-owned origin gets no stub (no `__REACT_DEVTOOLS_GLOBAL_HOOK__` defined by MetaTrooper) and no
-  source line.
-- M6-23c. A pick inside a cross-origin iframe returns that element, a crop of it, and the frame URL.
-- M6-23d. A mark-up with an arrow and a box saves one PNG under 2 MB into the comment row.
-- M6-24a. Device iPhone preset, then a navigation: the page still reports `innerWidth` 390. `emulate {color_scheme:
-  "dark"}` makes `matchMedia('(prefers-color-scheme: dark)')` true on the next snapshot.
-- M6-24b. With Follow session on, a session moving from `working` to `done` reloads its shown pane once.
-- M6-25a. A Claude `Stop` fixture with a running `subagent` background task leaves the session `working`; 10 minutes
+- M6-23a. A Claude `Stop` fixture with a running `subagent` background task leaves the session `working`; 10 minutes
   with no event (fake clock) moves it to `done`.
-- M6-25b. A `claude.StopFailure` fixture shows `waiting_for_you` with reason `stopped: rate_limit`.
-- M6-25c. Escape in a working fixture session whose title then matches the idle pattern within 5 s gives `idle` and
+- M6-23b. A `claude.StopFailure` fixture shows `waiting_for_you` with reason `stopped: rate_limit`.
+- M6-23c. Escape in a working fixture session whose title then matches the idle pattern within 5 s gives `idle` and
   one `core.interrupted` event.
-- M6-25d. A fixture engine printing a `fatal_patterns` string and then nothing for 60 s raises one needs-you item
+- M6-23d. A fixture engine printing a `fatal_patterns` string and then nothing for 60 s raises one needs-you item
   naming the pattern; no screen text is stored in it.
-- M6-25e. An opencode session shows `working` and `done` from its plugin, not from its title.
-- M6-26a. A limit-hit fixture whose `resets_at` passes (fake clock) gets "Continue where you left off." pasted exactly
+- M6-23e. An opencode session shows `working` and `done` from its plugin, not from its title.
+- M6-24a. A limit-hit fixture whose `resets_at` passes (fake clock) gets "Continue where you left off." pasted exactly
   once; a core restart after that does not paste it again; with the tile's toggle off, nothing is pasted.
-- M6-26b. Six readings 10 minutes apart rising from 40% to 90%, with the reset 2 h after the last one, raise one
+- M6-24b. Six readings 10 minutes apart rising from 40% to 90%, with the reset 2 h after the last one, raise one
   early-end item naming a time 10 minutes after the last reading. Worked: slope = (90 - 40) / 50 minutes = 1 point
   per minute; (100 - 90) / 1 = 10 minutes, which is before the reset, so the item fires.
-- M6-26c. "Continue in Codex" writes a handoff file of at most 6 KB holding the task line and changed files, and a
-  Codex session starts with it as the prompt.
-- M6-27a. A Claude tile whose last turn used 170,000 of a 200,000-token window shows 85% in orange with "compacts
+- M6-25a. A Claude tile whose last turn used 170,000 of a 200,000-token window shows 85% in orange with "compacts
   soon"; an engine with no usage shows no context chip.
 
 ## Testing
 
-Codex writes the tests for M6-2, M6-4, M6-5, M6-6, M6-11, M6-12, M6-15, M6-18, M6-22, M6-23, M6-25 and M6-26 (D65), with a mutation run per child
+Codex writes the tests for M6-2, M6-4, M6-5, M6-6, M6-11, M6-12, M6-15, M6-18, M6-22, M6-23 and M6-24 (D65), with a mutation run per child
 that must fail at least one test. Conformance suites stay for `schema.sql`, the manifest schema and the pipe
 protocol, plus new ones for `approvals.md` (including the hash test vector), `desktop-tools.md` and
 `agent-cursor.md`.
@@ -914,11 +870,9 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 | `core/src/desktop/uia-helper.ps1` | new: the built-in UI Automation driver (D71) |
 | `workbench/renderer/overlay.js`, `overlay.css`, `overlay.html` | the agent cursor renderer |
 | `workbench/src/desktop-overlay.ts` | new: per-display overlay windows, refit, z-order, content protection |
-| `workbench/renderer/wall.js`, `app.js`, `terminal.js` | keys, focus rule, chips, approval cards, input, WebGL pool, search, context chip, limit toggle and "Continue in"; Runs and Pipelines tabs removed |
-| `workbench/src/browser/source.ts`, `workbench/renderer/markup.js` | new: devtools-hook stub and fiber walk for owned dev ports (D74); mark-up tools (M6-23) |
-| `workbench/src/browser/emulation.ts` | new: per-pane device and rendering record, reference overlay (M6-24) |
-| `core/src/sessions/limit-resume.ts`, `core/src/sessions/handoff.ts` | new: resume at reset, early-end warning, handoff file (M6-26) |
-| `engines/plugins/opencode-state.js` | new: opencode state reporter (M6-25) |
+| `workbench/renderer/wall.js`, `app.js`, `terminal.js` | keys, focus rule, chips, approval cards, input, WebGL pool, search, context chip, limit toggle; Runs and Pipelines tabs removed |
+| `core/src/sessions/limit-resume.ts` | new: resume at reset, early-end warning (M6-24) |
+| `engines/plugins/opencode-state.js` | new: opencode state reporter (M6-23) |
 | `workbench/src/main.ts` | take-over hotkey, `settings.set`, `paneData` import removed |
 | `contracts/approvals.md`, `contracts/desktop-tools.md`, `contracts/agent-cursor.md` | new |
 | `contracts/browser-tools.md`, `contracts/pipe-protocol.md`, `contracts/events-and-hooks.md`, `contracts/schema.sql` | updated |
@@ -978,6 +932,50 @@ are not in Milestone 6 and get specced after the release.
 - Terminal: multi-line paste as bracketed paste (wall-terminal 7); OSC 133 shell integration (8); leading-edge
   output batching (10); OSC 9 and 777 status (11); leading-edge resize (12); copy last command output (13); Unicode
   graphemes (14); Ctrl+F in one tile (15); screen-reader mode (16); compose box (17); viewport anchor on clear (18).
+
+### Specced, built after the release
+
+Written 2026-10-10 for M6, then moved after the release by D73. Ready to build as written.
+
+- **Comments that come back**. A comment row stays open until resolved and holds a short thread. The overlay
+  view draws a numbered pin at each open comment's element (`DOM.getBoxModel` by `backendNodeId`, refreshed on
+  scroll and resize); a resolved pin turns green and shows the agent's reply on hover. New browser tools:
+  `comments` (open rows for this session's panes), `reply_comment {id, text}`, `resolve_comment {id, reply?}` and
+  `reveal {ref}` (flashes the session's cursor on an element). The snapshot marks the user's last pick with
+  `(you pointed here)`. Several picks made before the next prompt go as one batch. Replies pass through the core's
+  redaction.
+- **Source file of a pick** (D74). On a pane at an owned dev port, a pick also returns up to 5 component
+  names with `file:line` ("Component: <PricingCard> at src/components/PricingCard.tsx:42") from the React fiber;
+  Vue and Svelte give names only. Any other origin gets no stub and no source line.
+- **Mark up**. M freezes the pane to a still with four tools (pen, arrow, box, text); Done saves one PNG
+  (at most 2 MB and 4 MP) into the same comment row. Shapes are kept as JSON.
+- **Picks in cross-origin frames**. `Target.setAutoAttach` (flattened) gives each child frame its own
+  debugger session; a pick inside one is routed to that session, its box offset by the frame, and the comment
+  records the frame URL.
+- **Compare the page**. The pane menu gets Device (Responsive, four presets, Rotate; the emulated viewport is
+  centred and scaled to fit the pane) and Rendering (colour scheme, reduced motion, six vision types, CPU 4x and 6x,
+  offline). Both live in one record per pane, re-applied on every navigation and after DevTools detaches; an
+  `emulate` browser tool sets the same record so an agent sees what the user sees. Overlay reference draws a saved
+  capture over the live pane with a drag divider and an opacity slider, following the page's scroll; it never
+  touches the page. Follow session (off by default) reloads the pane when its session goes from `working` to
+  `done` or `idle`.
+- **Continue in another engine.** A tile stopped by a limit offers "Continue in <engine>":
+  the core writes a handoff file (at most 6 KB: the task line, the last 10 turns, the session's changed files from
+  `session.owners`, the last failing command) to the session folder and launches the chosen engine with it as the
+  prompt. By hand only.
+
+Checks:
+
+- Check: An agent calls `comments`, gets the user's open note, replies and resolves it; the pane's pin turns green
+  and shows the reply, and the row reads resolved.
+- Check: A pick on a fixture React app served from an owned dev port names `<PricingCard>` and its `file:line`; the
+  same app on a non-owned origin gets no stub (no `__REACT_DEVTOOLS_GLOBAL_HOOK__` defined by MetaTrooper) and no
+  source line.
+- Check: A pick inside a cross-origin iframe returns that element, a crop of it, and the frame URL.
+- Check: A mark-up with an arrow and a box saves one PNG under 2 MB into the comment row.
+- Check: Device iPhone preset, then a navigation: the page still reports `innerWidth` 390. `emulate {color_scheme:
+  "dark"}` makes `matchMedia('(prefers-color-scheme: dark)')` true on the next snapshot.
+- Check: With Follow session on, a session moving from `working` to `done` reloads its shown pane once.
 
 ## Related
 
