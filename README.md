@@ -211,6 +211,24 @@ cd metatrooper/workbench && npm ci
 npm run dev                       # the workbench window
 ```
 
+#### Linux (beta, from source)
+
+The steps above, on Ubuntu 24.04 or similar:
+
+```bash
+sudo apt install build-essential libsecret-tools   # node-pty's toolchain; secret-tool for plugin secrets
+git clone https://github.com/Wasif-ZA/metatrooper
+cd metatrooper/core && npm ci && cd ../workbench && npm ci && cd ..
+node core/cli.ts serve &                            # the core service
+workbench/bin/metatrooper.sh                         # the window, detached from this terminal
+```
+
+- Plugin secrets go to your keyring through `secret-tool`. Without it they are kept unencrypted in files only you
+  can read (mode 0600) under `~/.metatrooper/secrets/`, and the plugin install screen says so.
+- The shell tab is `bash`.
+- If the window does not open and Electron reports the SUID sandbox helper, run
+  `sudo chown root workbench/node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 workbench/node_modules/electron/dist/chrome-sandbox`.
+
 From source, `troop` below means `node core/cli.ts`.
 
 > [!WARNING]
