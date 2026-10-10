@@ -565,10 +565,10 @@ async function restartCore(): Promise<void> {
   await ensureCore();
 }
 
-/** Any open agent session or unfinished run counts, so an agent waiting on the user is never stopped unasked. */
+/** Any open agent session counts, so an agent waiting on the user is never stopped unasked. */
 function busy(): boolean {
   const s = lastGood;
-  return !!s && (s.sessions.some((x) => x.state !== 'exited') || s.runs.some((r) => r.status === 'running' || r.status === 'paused'));
+  return !!s && s.sessions.some((x) => x.state !== 'exited');
 }
 
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
@@ -579,7 +579,7 @@ async function onClose(): Promise<void> {
       buttons: ['Keep running in the background', 'Stop everything', 'Cancel'],
       defaultId: 0,
       cancelId: 2,
-      message: 'Agents or runs are still open.',
+      message: 'Agents are still open.',
       detail: 'Keep them running and reattach next time, or stop the core and every agent now.',
     });
     if (response === 2) return;
