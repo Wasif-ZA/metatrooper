@@ -151,10 +151,11 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 @container (max-width: 340px) { .ph .act { display: none; } }
 @container (max-width: 600px) { .ph .pb .l, .ph .ub .l, .ph .meta .br { display: none; } .ph .pb, .ph .ub { padding: 0 6px; } }
 .tile.shell .ph .act { display: none; }
-.pane.fold .ph { height: 100%; flex-direction: row; align-items: center; border-bottom-color: transparent; cursor: pointer; }
-.pane.fold .ph .r1 { flex: 0 1 auto; height: auto; padding-right: 0; }
-.pane.fold .ph .r2 { flex: 1 1 0; height: auto; padding-left: 8px; background: none; border: 0; }
-.pane.fold .ph .tx { display: none; }
+.pane.fold .ph { height: 100%; flex-direction: row; align-items: center; gap: 8px; padding: 0 4px 0 12px; border-bottom-color: transparent; cursor: pointer; }
+.pane.fold .ph .r1 { display: contents; }
+.pane.fold .ph .tx { order: 9; }
+.pane.fold .ph .r2 { flex: 1 1 0; height: auto; padding-left: 0; background: none; border: 0; }
+
 .pane.fold .ph:hover { background: var(--canvas-soft); }
 .pane.fold .ph .task { flex: 0 1 auto; max-width: 320px; font-weight: 500; color: var(--body-strong); }
 .pane.fold .ph .fl { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-family: var(--mono); font-size: 11px; }
@@ -166,6 +167,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .ph .r2 { height: 24px; padding: 0 8px 0 27px; font-size: 11px; color: var(--faint); font-family: var(--mono); }
 .ph .fl { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ph .tx { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 2px; background: none; color: var(--mute); cursor: pointer; }
+.tile:not(.shell):is([data-state="starting"], [data-state="working"], [data-state="waiting_for_you"], [data-state="unknown"]) .ph .tx { display: none; }
 .ph .tx:hover { background: color-mix(in srgb, var(--del) 25%, transparent); color: var(--ink); }
 .tile { --sc: var(--done); } .tile[data-state="waiting_for_you"] { --sc: var(--wait); } .tile:is([data-state="working"], [data-state="starting"]) { --sc: var(--work); } .tile[data-state="done"] { --sc: var(--unseen); }
 .hdr-line .ph .r2 { background: color-mix(in srgb, var(--sc) 13%, var(--pane)); border-top: 1px solid color-mix(in srgb, var(--sc) 55%, transparent); }
