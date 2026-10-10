@@ -331,3 +331,10 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .plist button.prow { padding: 6px 8px; display: flex; width: 100%; box-sizing: border-box; }
 .plist .prow .grow { flex: 1 1 40%; }
 .plist .prow .meta.warn { flex: 0 1 auto; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title .kpick { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--r); color: var(--body-strong); font-size: 12px; }
+.title .kpick:hover { background: var(--canvas-soft); }
+.menu .kmenu { min-width: 300px; max-height: 70vh; overflow-y: auto; }
+.menu .kmenu .item { display: flex; gap: 10px; align-items: center; }
+.menu .kmenu .item .grow { flex: 1; }
+.menu .kmenu .item.on { color: var(--ink); background: var(--canvas-soft); cursor: default; }
+.menu .sep { height: 1px; background: var(--hairline); margin: 4px 0; }
