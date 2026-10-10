@@ -42,6 +42,13 @@ export function folderApproval(dir: string, approval?: string, engine?: EngineSp
 
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
+/** The engine's extra args for reading AGENTS.md, when `dir` has one and none of the engine's own instruction files. */
+export function agentsMdArgs(engine: EngineSpec, dir: string): string[] {
+  const a = engine.agents_md;
+  if (!a || !fs.existsSync(path.join(dir, 'AGENTS.md'))) return [];
+  return a.unless.some((f) => fs.existsSync(path.join(dir, f))) ? [] : a.args;
+}
+
 export function launchSession(
   db: DatabaseSync,
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string },
@@ -60,13 +67,13 @@ export function launchSession(
     const proxy = ensureProxy();
     if (proxy) throw new RpcError(E.VALIDATION, proxy);
     fs.mkdirSync(spoolDir(id), { recursive: true });
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sandboxHookArgs(opts.engine, id)], 'sandbox');
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sandboxHookArgs(opts.engine, id)], 'sandbox');
     argv = dockerArgv(id, opts.engine, opts.cwd ?? opts.projectPath, layout, plan.argv);
     promptDelivered = plan.promptDelivered;
   } else {
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
     env = mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval });
