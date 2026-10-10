@@ -16,13 +16,21 @@ GitHub (2026-10-09T21:40+11:00, run with Wasif's go-ahead): milestone "M5 launch
 #31 to #40 and #42 moved into it; #41 closed as not planned; M5-1 to M5-19 filed as #50 to #68 in order (M5-1 is #50,
 M5-19 is #68), each pointing at its issue file.
 
+## Paused 2026-10-10T21:45+11:00
+
+Wasif paused M5 to pivot. Everything below marked MERGED is on `main` and pushed; `agent/m5-1` holds the only unmerged
+work. Last full suites on main (after M5-10, before M5-5): core 501 tests, 491 pass, 1 fail (fixed in e377207), 9
+skipped; workbench 165 pass, 0 fail, 59 skipped. The first CI run (38042019597) started on e377207.
+
 ## Children
 
 | Child | Status | Evidence / notes |
 |---|---|---|
 | M5-0 re-baseline | DONE | 003139e. 16 BLOCKER, 52 M5, 5 CUT, 2 FROZEN rows |
 | M5-9 release gate, CI, versioning | CODE DONE | 2f418f0. tests/release.ps1 (parses in Windows PowerShell 5.1; version, whisper and listeners suites run here, full run not done while another agent held ports), tests/version-check.mjs (a changed plugin version exits 1, M5-09b), root package.json 0.1.0, repo plugin 1.0.0 to 0.1.0, CHANGELOG.md, .github/workflows/ci.yml. Review-bar "auto-opens once" already fixed by 03ee4bc (passes 3 of 3 alone) and kill-tree.ts already built by 8df0817. Owed: M5-09a two clean release runs, M5-09c CI green after a push, the installer build (M5-1 adds `npm run dist`) |
-| M5-1 to M5-11 | NOT STARTED | Specced in their issue files. M5-2 and M5-7 wait on Wasif's picks first |
+| M5-1 installer | STOPPED, NOT MERGED | WIP e233104 on `agent/m5-1` (pushed): electron-builder devDependency, troop-hook shim source, runtime probe. Installer never built or checked. Resume from that branch |
+| M5-2 signing, M5-7 Pro licence | NOT STARTED | Wait on the certificate and a working model (money items) |
+| M5-8 S4 safe-fetch | CODE DONE, MERGED | ef42016 + e4ee20f: connect-time address check, 20 MB body cap, one deadline over the body, yt-dlp limited to known extractors. Codex and Gemini both reviewed; tests by Codex in seo-loopback.test.ts, 3 of 3 mutants caught |
 | M5-3 first run | CODE DONE | 0aff2d8, c4e7243 (agent m5-3). Engine check detail is missing, too-old, not-logged-in or timeout with a fix line on the launch tooltip; engine cards with install, login and Check again on the start panel when every engine is red; a missing settings.json gives approval ask and a first-run choice, an existing file without the key keeps contained. Engine schema gains min_version, install, login. Tests owed by Codex. agy install and login lines not checked against a real agy |
 | M5-11 site and demo seed | CODE DONE | 7e1c071. `site/index.html` (one file, inline CSS) passes page-check at 390 and 1280; `.github/workflows/pages.yml` deploys `site/`. `node tests/demo/seed.mjs` on an empty METATROOPER_HOME makes shop-cart and three runs (pr-review-fix done with proof, pr-review-fix paused at the pick gate, spec-to-pr done), project and run paths inside the home. `METATROOPER_DEMO=1` hides meters and usage in the window. Pro section waits for M5-7. Hand-back: Tally form id, switching on Pages, recording the three GIFs into `site/gifs/` |
 | M5-10 public docs | CODE DONE | Agent m5-10, 2026-10-10T20:45+11:00: 2ddcd58 (`sessions.ask_paths`, `ask_near_paths`; gate and sandbox read it; CLI refusal and -32001 removed), eaf223c (licences, THIRD-PARTY-NOTICES), d9b8ed7 (README, bug template, SECURITY.md, CONTRIBUTING.md), 106a0af (M5-D18 scrub), and the agy-driver fixture fix in this commit. M5-10a: grep clean; ask-paths 6, pure 21, gate 10, sandbox-refusals 6, agy-driver 10, m5-engines 6 and the core.test project.open case pass. M5-10b, M5-10c by grep. Owed: Wasif's settings.json key (the write was refused by the permission check), the GSAP licence call (kept, documented), the installer, first-run and Linux text describe M5-1, M5-3 and M5-5 as they will ship |
