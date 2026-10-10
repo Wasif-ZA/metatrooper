@@ -29,7 +29,7 @@ function staleCheck(db: DatabaseSync, table: string, check: string, extra: strin
   assert.ok(create);
   const old = create.replace(check, check === "host IN ('pty','sandbox','external')" ? "host IN ('pty','sandbox')" : check.replace(/'[^']+'/g, "'old'"));
   db.exec(`DROP TABLE ${table}`);
-  const withExtra = old.replace('\n);', `,\n  ${extra} TEXT\n);`);
+  const withExtra = old.replace(`CREATE TABLE ${table} (`, `CREATE TABLE ${table} (\n  ${extra} TEXT,`);
   db.exec(withExtra);
   if (table === 'session') {
     db.prepare('INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('s1', 'p1', 'e1', 'pty', 'working', '2026-10-09T00:00:00.000Z', '2026-10-09T00:00:00.000Z', value);
@@ -37,13 +37,13 @@ function staleCheck(db: DatabaseSync, table: string, check: string, extra: strin
     db.exec("DROP TABLE comment");
     const start = schema.indexOf('CREATE TABLE comment (');
     const finish = schema.indexOf('\n);', start);
-    db.exec(schema.slice(start, finish + 3).replace("'notice'", "'old'").replace(/\n\);$/, ',\n note TEXT\n);'));
+    db.exec(schema.slice(start, finish + 3).replace("'notice'", "'old'").replace('CREATE TABLE comment (', 'CREATE TABLE comment (\n  note TEXT,'));
     db.prepare("INSERT INTO comment (id, at, session_id, kind, body, note) VALUES (?, ?, ?, 'element', 'body', ?)").run('c1', '2026-10-09T00:00:00.000Z', 's1', value);
   } else {
     db.exec("DROP TABLE needs_you");
     const start = schema.indexOf('CREATE TABLE needs_you (');
     const finish = schema.indexOf('\n);', start);
-    db.exec(schema.slice(start, finish + 3).replace("'uncommitted'", "'old'" ).replace(/\n\);$/, ',\n note TEXT\n);'));
+    db.exec(schema.slice(start, finish + 3).replace("'uncommitted'", "'old'").replace('CREATE TABLE needs_you (', 'CREATE TABLE needs_you (\n  note TEXT,'));
     db.prepare("INSERT INTO needs_you (id, at, kind, text, note) VALUES (?, ?, 'gate', 'text', ?)").run('n1', '2026-10-09T00:00:00.000Z', value);
   }
 }
