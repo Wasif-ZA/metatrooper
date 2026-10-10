@@ -599,7 +599,7 @@ async function gitDo(op, arg) {
   let r;
   try { r = await api.git(id, op, arg); } catch (e) { r = { error: e.message }; } finally { ui.gitBusy = null; }
   if (ui.projectId !== id) return render();
-  if (r && r.error) toast(r.error, true);
+  if (r && r.error) { if (op === 'view') ui.git = { project: id, at: Date.now(), error: r.error }; else toast(r.error, true); }
   if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
   if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; toast('Committed.'); }
   if (op === 'push' && r && !r.error) toast('Pushed.');
@@ -617,6 +617,7 @@ function renderGit() {
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
   if (!g) return `<div class="panel"><p class="empty">${ui.projectId ? 'Loading.' : 'Pick a project first.'}</p></div>`;
+  if (g.error) return `<div class="panel"><p class="empty">No git here: ${esc(g.error)}</p></div>`;
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
   const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
     <span class="meta">${f.added === null ? '' : `+${f.added} -${f.deleted}`}</span>
@@ -936,9 +937,8 @@ function renderTitle() {
   const age = s.core.heartbeat_age_ms;
   setHtml('core', s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
     : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`);
-  setHtml('project-pick', s.projects.length
-    ? s.projects.map((p) => `<option value="${esc(p.id)}" ${p.id === ui.projectId ? 'selected' : ''} title="${esc(p.path)}">${esc(p.name)}${liveCounts(p.id)}</option>`).join('')
-    : '<option value="">No project</option>');
+  const cur = s.projects.find((p) => p.id === ui.projectId);
+  setHtml('project-pick', `${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}${cur ? `<span class="meta">${esc(liveCounts(cur.id))}</span>` : ''} <svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`);
   wall.roll(document.getElementById('needsN'), needsCount());
   const groups = limitGroups();
   const hot = groups.some((u) => u.ok.some((r) => r.used_pct >= 80));
@@ -951,7 +951,7 @@ function renderTitle() {
   setHtml('newagent', project() ? '<button class="btn acc" data-action="launch-menu" title="Start an agent or a terminal">+ New</button>' : '');
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 15000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
-  setHtml('branch', g ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
+  setHtml('branch', g && g.branch ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
 }
 
 const INFO_KINDS = ['gate', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
@@ -1458,7 +1458,31 @@ async function onClick(e) {
       menu.hidden = false;
       return;
     }
+    case 'project-menu': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      const wt = (p) => /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p.path);
+      const scratch = (p) => !wt(p) && /[\\/](\.cache|Temp|tmp)[\\/]/i.test(p.path);
+      const others = ui.snap.projects.filter((p) => p.id !== ui.projectId);
+      const item = (p) => `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(liveCounts(p.id).replace(/^ · /, ''))}</span></div>`;
+      const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(item).join('')}` : '');
+      const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
+      menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
+        + sec('Projects', others.filter((p) => !wt(p) && !scratch(p)))
+        + sec('Worktrees', others.filter(wt))
+        + sec('Scratch and temp folders', others.filter(scratch))
+        + '<div class="sep"></div><div class="item" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
+      menu.style.left = `${Math.max(8, r.left)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
+    case 'project-go':
+      document.getElementById('menu').hidden = true;
+      if (id && id !== ui.projectId) switchProject(id);
+      return;
     case 'open-folder':
+      document.getElementById('menu').hidden = true;
       await openFolder();
       return;
     case 'pick': {

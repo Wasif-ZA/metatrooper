@@ -43,14 +43,15 @@ test('a terminal tile stops sending input once its connection closes', () => {
   assert.deepEqual(sent, ['a']);
 });
 
-test('the Git tab leaves Loading when git throws or no project is picked', async () => {
+test('the Git tab leaves Loading when git throws or no project is picked, and a failed view does not toast', async () => {
   const ui: any = { projectId: 'p', gitBusy: null };
   const api = { git: async () => { throw new Error('spawn git ENOENT'); } };
   const toasts: string[] = [];
   const gitDo = new Function('ui', 'api', 'render', 'toast', `${fn('gitDo')}; return gitDo;`)(ui, api, () => {}, (t: string) => toasts.push(t));
   await gitDo('view');
   assert.equal(ui.gitBusy, null);
-  assert.deepEqual(toasts, ['spawn git ENOENT']);
+  assert.deepEqual(toasts, []);
+  assert.equal(ui.git.error, 'spawn git ENOENT');
   ui.projectId = null;
   ui.gitBusy = 'view';
   await gitDo('view');
