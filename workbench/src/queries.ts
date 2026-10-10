@@ -35,11 +35,11 @@ export function light(check: { installed: number; auth: string } | null | undefi
 }
 
 /** The one-line fix shown for a failed engine check. */
-export function engineFix(e: { id: string; install?: string; login?: string; version_cmd?: string[]; min_version?: string }, detail: string | null): string | null {
+export function engineFix(e: { id: string; install?: string; login?: string; min_version?: string }, detail: string | null): string | null {
   if (detail === 'missing') return e.install ? `Install it: ${e.install}` : `Put ${e.id} on PATH`;
   if (detail === 'too-old') return `Needs ${e.min_version} or newer${e.install ? `: ${e.install}` : ''}`;
   if (detail === 'not-logged-in') return e.login ?? `Log in to ${e.id}`;
-  if (detail === 'timeout') return `${(e.version_cmd ?? [e.id]).join(' ')} did not answer in 10 s; run it in a terminal, then Check again`;
+  if (detail === 'timeout') return `${e.id} did not answer in 10 s; run it in a terminal, then Check again`;
   return null;
 }
 
@@ -106,7 +106,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
      WHERE e.plugin_id IS NULL OR p.enabled = 1
      ORDER BY e.cost_rank, e.id`,
   ).all() as Array<Record<string, unknown>>).map((r) => {
-    const spec = parse<{ roles?: string[]; resume_args?: string[]; install?: string; login?: string; version_cmd?: string[]; min_version?: string }>(r.spec_json as string, {});
+    const spec = parse<{ roles?: string[]; resume_args?: string[]; install?: string; login?: string; min_version?: string }>(r.spec_json as string, {});
     const detail = (r.detail as string | null) ?? null;
     return {
       id: String(r.id),
