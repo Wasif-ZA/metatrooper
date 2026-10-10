@@ -974,9 +974,6 @@ async function onClick(e) {
       if (ui.shellSel === id) ui.shellSel = null;
       render();
       return;
-    case 'focus':
-      await pick(id);
-      return;
     case 'hide':
       await rpc('session.hide', { session_id: id });
       return;
