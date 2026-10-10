@@ -1,13 +1,13 @@
 // Live terminals: one xterm.js instance per shown session, fed from the core's terminal pipe through the main process.
-const TILE_HTML = `<span class="edge"></span><div class="tile-head ph">
-  <span class="dot"></span><b class="tile-engine eng"></b><span class="tile-task task"></span><span class="tile-last fl"></span>
-  <svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
+const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div class="r1">
+  <span class="dot"></span><b class="tile-engine eng"></b><span class="tile-task task"></span>
   <span class="tile-state badge"></span>
   <span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
   <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
-  <button class="link sx" data-action="shell-close" title="Close this shell">x</button>
-  <span class="tile-meta meta"></span><span class="shim"><i></i></span></div><div class="tile-body"></div>`;
+  <button class="tx" data-action="hide" title="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
+  <div class="r2"><span class="tile-last fl"></span><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-meta meta"></span></div>
+  <span class="shim"><i></i></span></div><div class="tile-body"></div>`;
 
 const termView = (() => {
   const troop = window.troop;
@@ -110,6 +110,9 @@ const termView = (() => {
     set('.tile-meta', x.meta || '');
     t.el.dataset.state = x.state;
     t.el.classList.toggle('shell', Boolean(x.shell));
+    const tx = t.el.querySelector('.tx');
+    tx.dataset.action = x.shell ? 'shell-close' : 'hide';
+    tx.title = x.shell ? 'Close this shell' : 'Hide this tile';
     if (x.outside && !t.outside) {
       t.outside = true;
       t.el.classList.add('outside');

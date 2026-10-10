@@ -54,15 +54,12 @@ body { position: relative; }
 .wall { position: absolute; inset: 0; isolation: isolate; z-index: 0; }
 .tile-body { padding: 6px 4px 4px 10px; background: var(--pane); border-radius: 0 0 var(--r) var(--r); contain: paint; }
 .pane.fold .tile-body { visibility: hidden; }
-.ph .act { display: none; }
-.pane.big .ph .act { display: flex; }
 .paired .pane.big .ph .act { display: none; }
-.ph .rs, .ph .sx { display: none; }
+.ph .rs { display: none; }
 .tile[data-state="exited"]:not(.shell) .ph .rs { display: inline-flex; height: 24px; padding: 0 8px; font-size: 10.5px; }
 .tile.closed .tile-body { opacity: .5; }
 .tile.outside .tile-body { opacity: .6; }
 .tile.outside .ph .rs { display: none; }
-.tile.shell .ph .sx { display: inline-block; color: var(--mute); padding: 0 6px; }
 .tile.shell .ph .pb, .tile.shell .ph .ub { display: none; }
 .pane.on:not(.big) { border-color: var(--body); }
 .ph { cursor: pointer; }
