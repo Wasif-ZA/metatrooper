@@ -22,6 +22,7 @@ M5-19 is #68), each pointing at its issue file.
 |---|---|---|
 | M5-0 re-baseline | DONE | 003139e. 16 BLOCKER, 52 M5, 5 CUT, 2 FROZEN rows |
 | M5-1 to M5-11 | NOT STARTED | Specced in their issue files. M5-2 and M5-7 wait on Wasif's picks first |
+| M5-3 first run | CODE DONE | 0aff2d8, c4e7243 (agent m5-3). Engine check detail is missing, too-old, not-logged-in or timeout with a fix line on the launch tooltip; engine cards with install, login and Check again on the start panel when every engine is red; a missing settings.json gives approval ask and a first-run choice, an existing file without the key keeps contained. Engine schema gains min_version, install, login. Tests owed by Codex. agy install and login lines not checked against a real agy |
 | M5-8 S5 secret scan | DONE on m4-harden | Built there as M4-4 by teehee-f8; not rebuilt |
 | M5-12 remote MCP | CODE DONE | 5f2aefd, review fixes 252f5fc. Tests by Codex: m5-remote-mcp.test.ts. Workbench install screen shows host and sign-in from `installScreen`; not seen on screen yet |
 | M5-13 step 1 importer shape fix | CODE DONE | 2f02def, https refusal 252f5fc. Tests by Codex: m5-importers.test.ts (Linear and GitHub shaped fixtures) |
