@@ -443,7 +443,7 @@ Security reports: [`SECURITY.md`](SECURITY.md). Contributing: [`CONTRIBUTING.md`
    plugins, browser tools.
 3. [`workbench/README.md`](workbench/README.md): running and testing the window.
 4. [`ide-layer-research/`](ide-layer-research/): the research that chose this shape.
-5. [`M1-STATUS.md`](M1-STATUS.md) to [`M5-STATUS.md`](M5-STATUS.md), [`UI-STATUS.md`](UI-STATUS.md):
+5. [`status/M1-STATUS.md`](status/M1-STATUS.md) to [`status/M5-STATUS.md`](status/M5-STATUS.md), [`status/UI-STATUS.md`](status/UI-STATUS.md):
    what is verified, and on which platform.
 
 Tests: `METATROOPER_FAKE_DPAPI=1 npm test` in `core/`, `npm test` in `workbench/`.

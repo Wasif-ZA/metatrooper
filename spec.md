@@ -1,1260 +1,855 @@
-# MetaTrooper: pipeline IDE, epic
+# MetaTrooper: the agent desk, epic
 
-Drafted 2026-09-29 through `/gstack-spec`; rewritten 2026-09-29T15:30+10:00 after a Codex (3/10) and Gemini
-(2/10) executability review. Status: draft, waiting for Wasif's confirmation and a re-score.
+Re-specced 2026-10-10T23:30+11:00 from the pipeline-IDE epic (archived as
+`issues/archive/spec-2026-09-29-pipeline-ide.md`). Wasif decided the scope in this session: MetaTrooper is four
+parts, the agent wall, browser use, computer use and the core services. Pipelines leave the product. They become
+their own apps, built later for learning, and those apps drive MetaTrooper's core instead of running inside it.
+The draft was reviewed by Codex and Gemini (both 4/10); all 19 accepted findings are applied below
+(`~/.cache/claude-scratch/metatrooper-respec-2026-10-10/review.html`).
 
-Exact formats live in `contracts/`. This file says what to build and why; the contracts say precisely how
-the pieces talk. Where they differ, the contract wins and this file is the bug.
+Exact formats live in `contracts/`. This file says what to build and why; the contracts say precisely how the
+pieces talk. Where they differ, the contract wins and this file is the bug.
 
-| Contract | Covers |
-|---|---|
-| `contracts/schema.sql` | every table, column, key and owner (loads cleanly in `node:sqlite`, checked 2026-09-29) |
-| `contracts/events-and-hooks.md` | event kinds and payloads, session linking, state mapping, hook install, UserPromptSubmit output, Codex notify wrapper |
-| `contracts/pipe-protocol.md` | named-pipe framing, JSON-RPC methods, error codes, queue fallback, access |
-| `contracts/pipeline.schema.json` and `contracts/pipelines.md` | pipeline file format and how a run executes it |
-| `contracts/plugin-manifest.schema.json` and `contracts/plugins.md` | plugin manifest, permissions, action process contract, pane bridge, importers |
-| `contracts/browser-tools.md` | the 13 `metatrooper-browser` tools, capture, and the browser safety rules |
+| Contract | Covers | Change in this epic |
+|---|---|---|
+| `contracts/schema.sql` | every table, column, key and owner | new `approval`, `grant`, `session_port`, `session_dev_server`, `schema_migration`; pipeline tables kept unused (D58) |
+| `contracts/events-and-hooks.md` | event kinds, session linking, state mapping, hook install | Codex and Gemini hooks, new Claude events, `claude.SessionEnd` fixed to `idle` (M6-5) |
+| `contracts/pipe-protocol.md` | named-pipe framing, JSON-RPC methods, error codes, queue, access | protocol version, exact shapes for stable methods, pipeline methods removed (M6-1, M6-17) |
+| `contracts/plugin-manifest.schema.json`, `contracts/plugins.md` | plugin manifest, permissions, actions, importers | pipeline-only fields removed |
+| `contracts/browser-tools.md` | the `metatrooper-browser` tools and safety rules | version 2 (M6-11, M6-12) |
+| `contracts/desktop-tools.md` | the `metatrooper-desktop` tools and safety rules | new (M6-15) |
+| `contracts/approvals.md` | approval checks, risky-action rules, scopes, hash | new (M6-2) |
+| `contracts/agent-cursor.md` | cursor messages, timing, overlay windows | new (M6-18) |
+| `contracts/pipeline.schema.json`, `contracts/pipelines.md` | pipeline format and runner | move to the pipelines repo (M6-1) |
 
 ## Context
 
-MetaTrooper is a desktop IDE for any coding assistant (Claude Code, Codex, Gemini, or any CLI a plugin
-adds). Each assistant runs in a terminal inside the app, owned by the core service, with its results opening
-beside it. Work flows through pipelines anyone can define, across 12 lanes from coding to video
-to study. It is built for Wasif first, and for anyone to point at a project of their choosing, as an
-open-source product (AGPL-3.0 core) whose local use is free and whose later cloud services are metered. The
-scope is wide on purpose. It ships in three milestones so nothing is built on a core that has not survived
-daily use.
+MetaTrooper is a desk where you run all your coding agents at once on Windows. Claude Code, Codex, Gemini or any
+CLI an engine file adds each run in a terminal the core service owns, on one wall that tells you which one needs
+you. Agents can drive a browser inside the app and, new in this epic, the native apps on your desktop. You see
+each agent's own cursor move to what it clicks, and anything risky stops for you first. It is open source
+(AGPL-3.0 core), free, with no account.
 
-Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-catalog.md`):
+Why the cut. M1 to M5 built 17 pipelines, 15 run layouts and a runner on top of the desk. Getting all of them to
+work at once was too much, and the parts people compare desks on (the wall, agent state, browser, Windows) were
+not getting the time. The pipeline code is not wasted: it moves to its own repo and becomes the start of separate
+apps (D53, D54).
 
-- One loop (spec, build, two-engine review, visual check, hand-back) is about two thirds of Wasif's AI work
-  (2026-06-01 to 2026-09-29).
-- It leaks time in three measured places:
+Evidence for what to build, gathered 2026-10-10 (board:
+`~/.cache/claude-scratch/metatrooper-idea-mine-2026-10-10/board.html`):
 
-| Friction | Measured |
-|---|---|
-| Visual redo loops | corrections, pasted screenshots, "show me / run it" asks |
-| Engine plumbing | smoke-test runs; plugin, MCP and login commands |
-| Lost place | `/clear`, `/resume`, "continue" and status asks; over half of prompts sent while another session was live |
+- Six research lanes triaged about 850 repos and read 101 in depth for the browser, core and wall: 97 ideas, each
+  naming a MetaTrooper file and a source file at a commit. A seventh lane read 10 repos for the agent cursor.
+- Rival issues ranked by reactions (Orca, t3code, cmux, Superset, emdash, Warp, Claude in Chrome and others). The
+  asks that repeat across rivals: agents come back after a reboot (cmux 50, 37 and 27 reactions), a status that is
+  true (cmux 42), any CLI as an engine (t3code: Pi 198, Copilot 185, OpenCode 130), Windows with no login (cmux
+  Windows 51, Warp login 506), a browser that works without debug ports or extensions (Claude in Chrome connect 79,
+  WSL 67), and an embedded browser at all (Warp 76).
+- Computer use: the best models now pass most desktop tasks (OSWorld-Verified, official sheet dated 2026-08-01:
+  Claude Fable 5 85.96%, Opus 5 83.39%). So MetaTrooper does not build a vision stack; it gives agents a scoped way
+  to see and act on Windows apps, and shows you what they do.
+- Orca (88.9k stars, MIT) now ships signed Windows builds, usage limits and computer use. "Windows" alone no longer
+  sets MetaTrooper apart. Depth does: per-agent isolation, true state from hooks, approvals before risky actions,
+  a visible cursor per agent, and everything coming back after a restart.
 
-- Shell output is 63.2% of his agent tokens; a 400-token cap has a 34.7% saving ceiling
-  (`projects/callrouter/docs/measurement.md`).
-- Two market scans agree the unmet needs across pipelines are: a stop before anything external, seeing what
-  the agent actually did, memory per project, Windows support with no forced login and your own
-  subscription, and spend control.
-- The 25 most popular real pipelines, ranked with sources, are in the catalog. Top: Spec to PR
-  (obra/superpowers, 292,523 stars), website build (131,282 stars), multi-platform posts (n8n template,
-  205,470 views).
+## Threat model
+
+Agents run as the user. Any agent with a shell can already do anything the user's account can, including reading
+`~/.metatrooper/ui.key` or driving Windows apps without MetaTrooper. So MetaTrooper does not claim to stop a hostile
+process running as the user, and nothing in this spec says it does.
+
+Agents keep their auto mode (D70), so an agent can also script the desktop through its own shell and skip
+MetaTrooper's tools. That is covered by watching, not by blocking: the watch layout and the input watcher (M6-22).
+
+What grants, approvals and take-over guarantee is narrower and testable: an agent using MetaTrooper's own browser
+and desktop tools cannot act outside the panes and windows it was given, cannot perform a D61 risky action without a
+person approving that exact action in the workbench, and stops at the take-over key. `approval.resolve` and the
+grant methods need a trusted UI connection (`ui.hello`); the MCP servers, plugins and pipeline apps get no path to
+them. A process that deliberately reads the UI key is a hostile same-user process and out of scope, as before.
 
 ## Decisions
 
+Decisions D4 to D51 and M4-D1 to M5-D29 stay in the archived spec as history. These still bind and are restated
+where they matter below: D5 (real interactive CLIs, never `claude -p`), D10 (Node core, Electron workbench), D19
+(core-owned terminals), D21 (own browser MCP, no WebSocket), D24 (no TCP port), D28 (free, no account), D30
+(licences), D41, D42, D46, D48 (approval profiles, worktree trust, private paths, now `sessions.ask_paths`), D49
+(launch and close), D50 (first user, signed installer before any release), M5-D4 (Linux source beta), M5-D12 and
+M5-D21 (electron-builder), M5-D14 (one instruction file), M5-D19 and M5-D23 (Certum signing), M5-D26 (vendor terms
+for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) is replaced by D67.
+
 | # | Decision | Chosen |
 |---|---|---|
-| D4 | Relation to callrouter | Separate project; callrouter plugs in |
-| D5 | How assistants run | Real interactive CLIs; never `claude -p` or the Agent SDK for agent steps |
-| D7 | Done measure | Usage and friction numbers over 14 days (adoption gate after milestone 1) |
-| D10 | Shells | Node core service; Electron workbench; Tauri tray companion |
-| D11 | Call log | Callrouter Plan A C1 writes `callrouter.db`; the IDE only reads it |
-| D13, D14 | Browser | Shared live browser with visible agent cursors, an inspiration board, parallel variants |
-| D15 | Plugins | Native `troop-plugin.json` plus importers for Claude Code plugins and Codex/agy MCP and skills |
-| D16 | Pipelines | `pipeline.json` with a form editor, plus optional TypeScript code steps |
-| D17 | Tokens | Live meter, callrouter Plan A as the first plugin, cheapest-capable-engine routing |
-| D19 | Terminals | In-app terminals owned by the core service (node-pty over ConPTY); the window only shows them, and close and reopen reattaches. Revised 2026-10-02 by the UI revision (issues/archive/ui-revision-epic.md D1) |
-| D21 | Browser MCP | Own `metatrooper-browser` MCP, no WebSocket |
-| D24 | Transport | Direct database reads; hooks append events; commands over a named pipe with a queue fallback. No TCP port, token file, WebSocket or SSE |
-| D25, D27 | Pipelines shipped | 17 working built-ins across 12 lanes; the other 17 catalog pipelines as templates |
-| D28 | Business model | Open core: the local IDE is free with no account; only things Wasif hosts and pays for are metered |
-| D29 | Cloud | Seams in this epic; the metered cloud is its own later epic |
-| D30 | Licence | Core AGPL-3.0; SDK, manifest schema, contracts for plugins, and pipeline files MIT |
-| D32 | herdr | Dropped 2026-10-02 (UI revision D8): one way to run agents |
-| D33 | Borrowed | Usage limits and reset timers, done vs idle, free SignPath signing, diff annotation, file drag, an agent-native CLI and skill |
-| D35 | Step handoff | Files between steps always; each agent step starts a fresh session with its prompt; `continue: true` falls back to a fresh session with a visible note |
-| D36 | Review fixes | Contracts pack, contradiction cleanup, security hardening, operational fixes: all applied |
-| D37 | Scope | Keep all 31 children, ship in 3 milestones; sandbox-host added 2026-09-29 (D43) |
-| D40 | Phone | Using the terminals and the IDE from a phone (like Claude Code Remote Control) is a v3 epic, after the cloud epic |
-| D41 | Approval profiles | Per-engine registry data: `ask`, `edits`, `contained`, and `isolated` (sandbox host only). `contained` is the default on a MetaTrooper worktree (2026-09-29). Elsewhere the default is the `sessions.approval` setting, `contained` out of the box (Wasif, 2026-10-05: every terminal starts in its engine's auto mode); an engine with no profile of that name starts in `ask`. Pipeline steps keep their own `approval` field |
-| D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29); removing a worktree removes those entries again with `untrustFolder` (2026-10-08) |
-| D43 | Trooper sandbox | Own container host plugin, child sandbox-host in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
-| D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
-| D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including the private work folder, now opens (2026-10-05) |
-| D46 | Private folder access | Wasif, 2026-10-05: open the whole vault including the private work folder, as Claude Code already does. Sessions whose folder is in or contains the private work folder always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch it unasked. Replaces the M1-30 refusal |
-| D47 | Claude drives agy | Wasif, 2026-10-05: agy stalls in pipeline steps, so an agent step whose engine is agy runs as a claude session (the driver) that hands agy the step prompt in print mode (`agy --print`), checks the output file's front matter after each turn, sends a follow-up naming what is missing, and after 3 turns writes `status: failed` with the reason. The driver never does the step's work. A driven step with no `approval` runs `contained` (driver claude in auto mode, agy with `--mode accept-edits --sandbox`); in or around the private work folder both run `ask` (D46). While the driver session is still working, an output with `status: done` but missing keys does not fail the step; the driver gets its turns first. A driver engine that is not usable logs `driver unavailable` and the step runs agy directly. The engine field `driver` turns it on; the session row keeps `driven_engine`; the tile reads `claude > agy`. Wall launches of agy stay plain terminals. Superseded 2026-10-08 by D51 |
-| D48 | External engines near the private folder | Wasif, 2026-10-05: engines flagged `ask_near_paths` (codex and agy, which send to OpenAI and Google) start in `ask` in any folder that sits under a tree containing the private work folder, such as a project inside the vault, because one shell command reaches it from there. claude keeps the requested approval there, as in his own Claude Code; D46 still makes every engine ask in or around the private work folder itself |
-| D49 | Launch and close | Wasif, 2026-10-05: open it like VS Code. `workbench/bin/install-launcher.ps1` adds a `metatrooper` command (`metatrooper .` opens that folder as the project) and Start menu and desktop shortcuts. The window starts the core when none answers, without the parent Claude Code session's variables. Closing asks Keep running / Stop everything only when the window started the core and agents or runs are open (Keep is the default); an idle own core is stopped; a core started elsewhere is left alone. Ctrl+K has Restart core and Stop core. Chosen by Codex and Gemini independently (both B) |
-| D50 | First user, distro and accounts | Wasif, 2026-10-07: a first outside user exists. Distribution waits on the signed installer (#31, SignPath); no unsigned release in the meantime. Accounts with sign-in are wanted, but in the cloud milestone with the gateway and sync, not now; this epic stays `signed_out`. Next work is the UI port, phases D and E |
-| D51 | agy print loop | Wasif, 2026-10-08: the claude driver (D47) cost about $0.56 a step and retried an identical auto-denied agy call 3 times, so a plain code loop replaces it, with no model. An agent step whose engine has `print_args` (agy) launches that engine itself as the session: `agy <approval flags> --print <step prompt> --print-timeout 0 --output-format text --add-dir <cwd> --add-dir <run folder>`, and keeps the prompt beside the output as `<step>.prompt.md`. A step with no `approval` runs `contained`; D46 and D48 still force `ask`. While the session runs, `status: done` with missing keys does not fail the step. When the session exits without meeting the output contract, the runner launches one more session, unless the error text (the runner's error plus the terminal's last line) contains `auto-denied` or equals the `reason` of the failed output the previous attempt left; after the last attempt it writes `status: failed` with that reason. `driven_engine` stays in the schema and is no longer written. Wall launches of agy stay plain terminals |
+| D52 | Scope | Wasif, 2026-10-10: four parts only. The wall, browser use, computer use, core services |
+| D53 | Pipeline code | Wasif, 2026-10-10: it moves to its own repo, `metatrooper-pipelines`, split with history, then leaves this repo. He will reuse it for the pipeline apps |
+| D54 | How pipeline apps run agents | Wasif, 2026-10-10: through MetaTrooper's core, over the `troop` CLI and the named pipe. Their agents show on the wall. So the pipe becomes a public API with a version (M6-17) |
+| D55 | Approvals | Wasif, 2026-10-10: gates stay, re-shaped for single agent actions in the browser and on the desktop. Same trusted-UI key (`ui.hello`) |
+| D56 | Computer use | Wasif, 2026-10-10: on his own desktop, with take-over. An agent acts only on windows it was given. cua-driver is the first choice, checked by a spike first (M6-14) |
+| D57 | Finish line | Wasif, 2026-10-10: a free public release with the signed installer, no Pro. Date moved by D66 |
+| D58 | Pipeline tables | Kept in `schema.sql` and in existing databases, unused, with their rows, until a numbered migration drops them after the release. Dropping data is one-way; keeping unused tables costs nothing. Nothing new references them |
+| D59 | Licences after the split | Every file keeps the licence it has: the runner and layouts AGPL-3.0, `pipelines/` and the pipeline contracts MIT. The new repo carries both licence files |
+| D60 | Port ownership without pipelines | An agent pane may open a loopback port that its own session owns: either the listening process descends from the session's pty, or the session's terminal printed that URL and the port started listening within 60 s after (covers detached `npm run dev` children). A user pane may open any loopback port the user types; an agent can never drive a user pane (rule 8) |
+| D61 | Risky actions | Every input tool call (click, type, key, select, scroll that triggers a click, navigate) is checked right before it is sent. It needs an approval card, every time, when: the target is a password field (browser `type=password`, UI Automation `IsPassword`); the typed text matches a credential pattern (the core's redaction rules) or the field's label matches password, token, secret, key, cvv or card; the focused or clicked control's Name or AutomationId matches send, submit, pay, buy, purchase, order, checkout, delete, remove, erase, publish, post, transfer, authorize or confirm (English only, listed in Known limits); a key press of Enter, Space or a shortcut while such a control has focus; a standard file dialog (`#32770`) opens; or it is the first input in a window or origin the session was not granted. Reading tools (snapshot, screenshot, windows, read, console, network) never ask |
+| D62 | Take-over | Ctrl+Alt+Q (setting `desktop.takeover_key`) sets one pause flag in the core. Every desktop and browser input is checked against the flag at dispatch, per chunk of at most 8 characters for typing, and queued calls are dropped. After the flag is set, no input reaches any app; calls return "paused by the user". Resume is per session from its tile |
+| D63 | Protocol stability | `core.ping` returns `{ok, pid, version, protocol, schema_version, started_at}`. Methods marked stable in `pipe-protocol.md`, with their exact params and errors, keep their shape within a protocol version. A breaking change raises the version, and the old shape answers for one more minor release |
+| D64 | Pro and money | Out of this epic. M5-6 code moves with the pipelines (pr-review-fix is a pipeline). M5-7 is cut |
+| D65 | Tests | Codex writes the tests for the core, browser, desktop, approval and cursor children (M6-2, M6-4, M6-5, M6-6, M6-11, M6-12, M6-15, M6-18), through `/tests-brief`, then a mutation run proves they bite |
+| D66 | Dates | Wasif, 2026-10-10: keep the full scope and move the date. Freeze 2026-12-29, public release 2027-01-19 (worked in Milestone 6) |
+| D67 | Clean-machine test | Wasif, 2026-10-10: the signed installer is tested on a second real Windows PC (his or a friend's) with Smart App Control on and a fresh standard account, instead of a Hyper-V VM (this laptop is Windows 11 Home) |
+| D68 | Rival extras | Wasif, 2026-10-10: search across all terminals, a cost chip per tile, and changed files per tile join this milestone (M6-19 to M6-21) |
+| D70 | Auto mode and watching | Wasif, 2026-10-10: agents stay in their auto mode (the default) even while they hold a desktop grant; edits and ask modes are too slow to work with. An auto-mode agent can script the desktop through its own shell and skip grants, cards and take-over, so protection is watching, two ways. (1) The wall can run on a second monitor in a watch layout (M6-15) that shows each granted window's live thumbnail beside its agent's tile. (2) The core runs a watcher (M6-22): a low-level input hook sees every mouse and keyboard event Windows marks as injected (`LLMHF_INJECTED`, `LLKHF_INJECTED`). Injected input that arrives while no `metatrooper-desktop` action is in flight raises a needs-you item "input from another program" naming the foreground window, and, with `desktop.watch_pause` on (default on), sets the take-over pause flag. A second listener catches what injected input misses: UI Automation's own system-wide events (focus changed, window opened, control invoked). One of those while the user made no physical input in the last 2 s (`GetLastInputInfo`) and no `metatrooper-desktop` action was in flight raises "the desktop changed while you were away from it", with the same pause setting. The watcher cannot name the process behind either signal; it says so |
+| D69 | Agent cursor | Wasif, 2026-10-10: every agent action in the browser and on the desktop shows that agent's own cursor gliding to the target like a person's mouse, then the click. It never moves the real pointer and adds at most 250 ms per action. cua-driver runs with `--no-overlay` so one MetaTrooper cursor serves both surfaces (M6-18) |
 
-## Current state, verified 2026-09-29
+## Current state, verified 2026-10-10
 
-- `projects/metatrooper/` holds research, this spec and `contracts/`. No code. Outside vault git
-  (`.gitignore:15`); it becomes its own repo.
-- Callrouter: specified, not built. Plan A is C1 foundation (12 h), C9 replay (8 h), C7 rewrite and cap
-  (10 h) (`projects/callrouter/docs/spec.md:28-47`). Python.
-- sprawll: `projects/sprawll/harness/` is empty on laptop-ops.
-- Agent-Reach 1.5.0 works through `~/.local/bin/agent-reach` (a bash wrapper added 2026-09-29).
-- Installed and checked: Windows Terminal 1.24.11911.0, Claude Code 2.1.284, codex-cli 0.155.1, agy 1.2.12,
-  gh 2.93.0, Vercel CLI 59.13.1, ffmpeg 9.0.1, yt-dlp 2026.08.19 (through uv's Python), node 24.16.0.
-- Gemini CLI state: 76 `conversations/*.db` files and 76 `brain/<id>/.system_generated/logs` folders under
-  `~/.gemini/antigravity-cli/`.
-- `~/.codex/config.toml:11` sets `notify` to Codex's computer-use helper.
-- Smart App Control is in enforce mode. Stock npm `electron.exe` 44.4.5 launches. uv's `~/.local/bin` shims
-  are blocked. A packaged app or self-built Tauri or native binary is expected to be blocked until signed.
+- `main` at dba0709 (the tile-header merge from another session: top bar, strip, Diff, Git and a Pipelines tab in
+  `workbench/renderer/app.js`). M5 paused at 2026-10-10T21:45+11:00. Last full suites on main before that merge:
+  core 501 tests, 491 pass, 1 fail (fixed in e377207), 9 skipped; workbench 165 pass, 0 fail, 59 skipped (`status/M5-STATUS.md`,
+  paused section).
+- The core answered `troop ping` at session start (pid 10032) and was offline at 2026-10-10T20:52+11:00, the time
+  of the last database write; seen in this session, cause not recorded anywhere.
+- Pipeline code that leaves: `core/src/pipelines/` (runner.ts 1,388 lines, assists, devserver, panes, secrets-scan,
+  store, template, validate), `core/src/schedules.ts`, `pipelines/`, 15 layouts in `workbench/renderer/layouts/`,
+  `workbench/src/rundetail.ts`, the pipeline plugins.
+- Code that stays but imports it (M6-1 must change each): `core/src/main.ts:18,22,24` (Runner, syncPipelines,
+  tickSchedules, and its timers), `core/src/methods.ts:19,24-31` (Runner type in `CoreControl`, schedules, store,
+  validate, panes), `core/src/plugins/manifest.ts`, `workbench/src/main.ts:25` (`paneData` from
+  `core/src/pipelines/panes.ts`), `core/cli.ts` (`troop run`; `troop gate` is the adoption-gate measurement and
+  stays), 8 renderer and
+  workbench call sites of `gate.resolve`, `run.start` or `run.cancel`, the Runs and Pipelines tabs in `app.js:13`,
+  and the inspiration board path `panes.ts` `boardCapture`. 70 of 142 test files mention pipelines, the runner or
+  `run_id`; M6-1 sorts each into move, keep or edit.
+- Approval logic lives inside the runner: `gate` rows need `run_id` and `step_id` (`contracts/schema.sql:194-207`);
+  `gate.resolve` is in `core/src/methods.ts:326-344`. `core/src/gate.ts` is the adoption-gate measurement, not
+  approvals.
+- Browser port ownership comes only from pipeline rows: `browser_pane.dev_port` and `variant.dev_port`
+  (`workbench/src/browser/panes.ts:124-127`), fed to `PolicyContext.ownedPorts` (`core/src/browser/policy.ts:14-21`).
+  No code path sets `dev_port` for a pane the user or an agent opens outside a run. `port_lease` and `dev_server`
+  both require a `run_id` (`schema.sql:251-274`); `core/src/ports.ts` leases by run.
+- Session state (`core/src/events/state.ts`, 48 lines): Codex moves to `done` on `codex.turn`; a Codex approval
+  prompt reaches `waiting_for_you` only through a terminal bell or, after 20 s of quiet, `core.activity` `blocked`,
+  and `blocked` only moves a session that is still `working` (`state.ts:29`), so a prompt after `codex.turn` is missed.
+  Process engines (opencode, copilot, gemini, pi) have no hook state. `claude.SessionEnd` maps to `idle` in code
+  but to `exited` in `contracts/events-and-hooks.md:84`.
+- Browser snapshot refs restart at `e1` on every call (`panes.ts` `snapshotLines`: `pane.refs.clear()`, `refN = 0`),
+  so an old ref can name a different element. `Accessibility.getFullAXTree` is called with no frame id. The cursor
+  overlay is one hardcoded blue dot (`workbench/renderer/overlay.css`), and `panes.ts:543-544` sleeps a fixed time
+  and reads the cursor back before each action.
+- Terminals spawn with `useConpty: true` (`core/src/terminal/index.ts:48`), but neither xterm sets `windowsPty`,
+  and there is no flow control (no `pause`/`resume`).
+- CLIs on this laptop: Claude Code 2.1.296, codex-cli 0.160.1 (`codex features list`: `hooks` stable; the binary
+  names PermissionRequest, Interrupt, Stop, SessionStart, SessionEnd, PreToolUse, PostToolUse, UserPromptSubmit,
+  Notification, SubagentStop, PreCompact; hooks need persisted trust or `--dangerously-bypass-hook-trust`), Gemini
+  CLI 0.58.0 (reads `GEMINI_CLI_SYSTEM_SETTINGS_PATH`; events BeforeTool, AfterTool, Notification, SessionStart,
+  SessionEnd, BeforeAgent, AfterAgent), agy 1.3.3. This laptop runs Windows 11 Home.
+- Computer use: not built. The old plan (`issues/39-desktop.md`) was a PowerShell UI Automation plugin inside the
+  `form-fill-batch` pipeline. cua-driver (trycua/cua, MIT, 29,237 stars, pushed 2026-10-10) is not installed.
 
 ## Architecture
 
 ```
- +--------------------------------+   +-------------------------+   +-------------------+
- | Electron workbench             |   | Tauri tray (milestone 3)|   | troop CLI         |
- | wall of live terminals         |   | lights, needs-you, meter|   | (agents use it)   |
- | pipeline layouts, gate sheet   |   +-----+-------------+-----+   +----+---------+----+
- +----+-------------+-------------+         |             |              |         |
-      | reads       | commands              | reads       | commands     | reads   | commands
-      | direct      | \\.\pipe\metatrooper| direct      |              | direct  |
-      v             +-----------------------+-------------+--------------+---------+
+ +--------------------------------+      +-------------------+      +--------------------------+
+ | Electron workbench             |      | troop CLI         |      | pipeline apps (later,    |
+ | the wall, browser panes,       |      | (agents and you)  |      |  own repos, D54)         |
+ | approval cards, agent cursors, |      +----+---------+----+      +-----+--------------+-----+
+ | desktop overlay windows        |           |         |                 |              |
+ +----+-------------+-------------+           | reads   | commands        | commands     |
+      | reads       | commands                |         |                 |              |
+      v             +---- \\.\pipe\metatrooper (protocol 1, D63) ----------+--------------+
  +----+--------------------------------------------------+
- | ~/.metatrooper/troop.db (SQLite, WAL)             |<---- hooks, launch.js, codex notify
- | core-owned tables  |  queue tables: event, command,   |      append `event` rows (250 ms budget,
- |                    |  comment                          |      exit 0 always)
+ | ~/.metatrooper/troop.db (SQLite, WAL)                 |<---- hooks (Claude, Codex, Gemini), launch.js
  +----+--------------------------------------------------+
       ^ sole writer of core-owned tables
  +----+--------------------------------------------------+
  | core service (node 24, TypeScript)                    |
- | event processor | state machine | launcher | runner    |
- | plugins | schedules | meter | limits | reads callrouter.db
+ | events, state, launcher, sessions, approvals, grants, |
+ | take-over flag, meter, limits, plugins, notify, ports |
  +----+--------------------------------------------------+
-      | node-pty (ConPTY), one pty per session; bytes to the window over the terminal pipe
+      | node-pty (ConPTY), one pty per session
       v
- +--------------------------------------------------------+
- | in-app terminals: headless xterm keeps 10,000 rows per  |
- | session; the workbench draws them with xterm.js         |
- +--------------------------------------------------------+
+ in-app terminals (headless xterm in core, xterm.js tiles in the wall)
 
- Agents -> metatrooper-browser (stdio MCP) -> \\.\pipe\metatrooper-browser -> workbench browser panes
+ Agents -> metatrooper-browser (stdio MCP) -> core check (D61, D62) -> workbench pane: cursor glide, then input
+ Agents -> metatrooper-desktop (stdio MCP) -> core check (grants, D61, D62) -> workbench desktop cursor glide
+                                           -> cua-driver --no-overlay -> Windows UI Automation
 ```
 
 ### Rules
 
-1. **The agent's terminal never depends on the window.** Each assistant runs in a pty owned by the core
-   service. Closing or crashing the workbench leaves every agent working, and reopening it reattaches with
-   scrollback. Killing the core ends its terminals: every live session becomes `exited` and shows one-click
-   Resume through the engine's own resume flag (revised 2026-10-02, UI revision D1 and D9).
-2. **Logic lives in the core service.** Shells read the database and send commands; they never decide.
-3. **A broken MetaTrooper is indistinguishable from an absent one.** Every hook, the launcher step and the
-   notify wrapper finish within 250 ms, swallow every error and exit 0. They print nothing, with one named
-   exception: the `UserPromptSubmit` hook prints the exact JSON in `events-and-hooks.md` when it has
-   comments to deliver, and nothing otherwise.
-4. **No window ever waits on another process.** Windows draw from direct database reads. A slow or crashed
-   core means slightly old data and a "core offline" badge (heartbeat in `meta.core_heartbeat` older than
-   6 s), never a frozen screen.
-5. **Table ownership.** The core is the only writer of core-owned tables. Three queue tables have other
-   writers: `event` (hooks, launcher, notify), `command` (workbench, tray, CLI), `comment` (workbench).
-   Only the core marks queue rows processed.
-6. **Nothing MetaTrooper writes lives in the vault or OneDrive**, except `<project>/.troop/runs/`, which is
-   git-excluded automatically.
-7. **Private folders ask first (D46).** `project.open` opens any folder, the private work folder included. A session (interactive or a
-   pipeline step) whose folder is in or contains the private work folder starts in `ask`, whatever approval it requested.
-8. **Default project.** `projects.default` in `~/.metatrooper/settings.json` (empty by default) names the folder
-   the core opens through `project.open` at start, so it is the most recent project and the window selects it
-   when nothing else is chosen. It resolves like any project, to its git repo root, so a plain folder inside the
-   vault opens as the vault.
+1. **The agent's terminal never depends on the window.** Closing the workbench leaves every agent working;
+   reopening reattaches with scrollback.
+2. **Logic lives in the core service.** Windows and apps read the database and send commands; they never decide.
+   The core is also the only writer of `~/.metatrooper/settings.json`; the workbench sends `settings.set`.
+3. **A broken MetaTrooper is indistinguishable from an absent one.** Every hook and the launcher finish within
+   250 ms, swallow every error and exit 0. This covers the Codex and Gemini hooks too.
+4. **No window ever waits on another process.** "Core offline" badge after 6 s without a heartbeat.
+5. **Table ownership.** The core is the only writer of core-owned tables. Queue tables: `event`, `command`,
+   `comment`. `approval` and `grant` rows are written by the core only, and changed only by `ui.hello` calls.
+6. **Nothing MetaTrooper writes lives in the vault or OneDrive.**
+7. **Private folders ask first** (`sessions.ask_paths`, unchanged).
+8. **An agent acts only on what it was given.** A browser pane it owns, or a desktop window granted to it. Never
+   another session's pane or window, never a user pane, never the workbench window.
+9. **Risky actions stop for a person** (D61). An agent, a plugin or a pipeline app cannot approve one.
 
 ### Transport
 
-| Path | How | Target | Core down |
-|---|---|---|---|
-| Reads | Windows open `troop.db` read-only and query it | p95 under 1 ms per query | last state stays, "core offline" badge |
-| Updates | `fs.watch` on the `~/.metatrooper/` folder (Electron) or the `notify` crate (Tauri), filtered to `troop.db*` names, 50 ms debounce, re-query on change. Watching the folder, not the `-wal` file, survives checkpoints deleting or replacing that file. A 1 s poll of `PRAGMA data_version` is the source of truth; the watcher only makes it faster. | under 100 ms write to redraw | nothing changes |
-| Events | append to `event` (`events-and-hooks.md`) | under 20 ms | rows wait; processed in order on restart |
-| Commands | JSON-RPC on `\\.\pipe\metatrooper` (`pipe-protocol.md`) | p95 under 20 ms | after 300 ms the command becomes a `command` row, shown "queued", run on restart |
+Unchanged: direct read-only database reads (p95 under 1 ms), a folder watch plus a 1 s `PRAGMA data_version` poll,
+events appended to `event`, commands on `\\.\pipe\metatrooper` with a 300 ms queue fallback. No TCP port,
+WebSocket or SSE (D24).
 
-The core checkpoints the WAL every 30 s (`PRAGMA wal_checkpoint(TRUNCATE)`), so old copies of scrubbed rows leave the WAL. Readers rely on SQLite's own
-`busy_timeout` (200 ms); if a read still fails, the window keeps the previous frame and tries on the next
-wake. Windows read on a read-only connection and open a short-lived read-write connection only to insert
-`command` and `comment` rows.
+## Core services
 
-## Sessions
+### Sessions and state (M6-5, M6-6)
 
-### Launching
+Launching, the engine registry, health lights, usage and limits work as built. Changes:
 
-The core opens a pty (core/src/terminal/, the only file that imports node-pty) running:
+- **Codex hooks.** Installed per launch with `-c` overrides, never editing `config.toml` (M1-36): PermissionRequest
+  to `waiting_for_you`, Stop to `done`, Interrupt to `idle`, SessionStart to the `native_id` link. The first M6-5
+  task is a 0.5-day spike with this order: hooks given by `-c` run with no trust prompt (use them); or Codex has a
+  command that records trust for a named hook (MetaTrooper runs it once, at hook install, and shows the user what it
+  trusted). `--dangerously-bypass-hook-trust` is never used. If neither works, Codex keeps the notify path plus
+  terminal-title states, and M6-05a's fallback branch applies.
+- **Gemini hooks.** A per-session settings file at `~/.metatrooper/engines/gemini/<session>.json`, passed through
+  `GEMINI_CLI_SYSTEM_SETTINGS_PATH`, adds MetaTrooper's hooks without touching `~/.gemini/settings.json`.
+  Notification to `waiting_for_you`, AfterAgent to `done`, SessionStart to the link. The file is deleted when the
+  session exits.
+- **Claude hooks.** Add PermissionRequest and PostToolUseFailure when the installed CLI version lists them. A
+  permission wait stays `waiting_for_you` until the PostToolUse of that same tool call (matched by `tool_use_id`)
+  or a new prompt; a PreToolUse for a different call does not end it. `claude.SessionEnd` maps to `idle` for
+  terminal sessions and `exited` only for `external` sessions; the contract is corrected to match.
+- **Title states.** For engines without hooks, each engine file may declare `state_titles` (regex to state). A
+  title matching a `waiting` pattern maps to `waiting_for_you`, a `working` pattern to `working`. No engine name
+  is in core code.
+- **Comes back after a restart.** When the core starts and finds sessions that were live when it stopped, it
+  resumes them with the engine's `resume_args`: at most 3 at a time, 2 s apart plus up to 1 s of random jitter. It
+  stops resuming an engine after 2 failures whose output matches that engine's `auth_error` pattern, and raises one
+  needs-you item. The wall layout (big slot, pairs, folded bars, split sizes) is saved through `settings.set` on
+  every change and restored with the sessions. Each session's last screen (headless serialize, last 200 rows) is
+  saved at exit, so a dead tile shows what it was doing. Desktop grants never survive a restart (M6-15).
+- **Waiting reasons.** Each `waiting_for_you` carries `reason` (`permission: <tool>`, `question`, `approval:
+  <summary>`, `title`) and `since`, the time it entered the state. "Oldest waiting" means smallest `since`; ties go
+  to the lower session id.
+- **Usage limits.** A reading past its reset time shows as expired, never as current (`core/src/limits.ts`).
+- **Notifications** (M6-10): no OS toast for a session whose tile is focused while the window has focus; a toast
+  names the session's task line, not only the engine.
 
+### Reliability (M6-4)
+
+- **One core only.** The single-instance lock (the pipe bind) is taken before the database opens or any command is
+  recovered. Today `core/src/main.ts` opens the database and runs `commands.recover()` first.
+- **Settings.** The core is the only writer: the workbench's `writeSetting` becomes a `settings.set {key, value}`
+  pipe call (needs `ui.hello`). The core never overwrites a file that does not parse; it writes
+  `settings.json.tmp-<pid>`, flushes, and renames it over the old file. On start, a leftover `.tmp-*` file is
+  deleted and the real file is used. A file that does not parse shows "settings.json does not parse, line N" in the
+  workbench and the core runs on defaults without writing.
+- **Numbered migrations.** `core/src/store/db.ts`'s add-column-if-missing chain becomes numbered migrations in
+  `core/src/store/migrations/NNN-<name>.sql` with a `schema_migration (id INTEGER PRIMARY KEY, applied_at TEXT)`
+  table. Migration 001 records the M5 schema as applied without changing it.
+- **A stale core is visible.** `core.ping` returns D63's shape; a workbench that finds a core of another `version`
+  says so and offers Restart core.
+- **Who restarts the core.** The workbench restarts only a core it started (D49), at most 3 times in 60 s, then shows
+  the last 20 lines of `~/.metatrooper/logs/core.log`. A core started by `troop serve` is never restarted by the
+  window.
+
+### Ports and dev servers (M6-3, D60)
+
+New tables replace the run-keyed ones for everything outside pipelines (migration 002):
+
+```sql
+CREATE TABLE session_port (                   -- ports leased to a session (worktree dev servers)
+  port         INTEGER PRIMARY KEY,
+  session_id   TEXT NOT NULL REFERENCES session(id),
+  leased_at    TEXT NOT NULL
+);
+
+CREATE TABLE session_dev_server (             -- dev servers seen in a session's terminal
+  id           TEXT PRIMARY KEY,               -- 'ds_<ulid>'
+  session_id   TEXT NOT NULL REFERENCES session(id),
+  project_id   TEXT NOT NULL REFERENCES project(id),
+  port         INTEGER NOT NULL,
+  url          TEXT NOT NULL,
+  pid          INTEGER,                        -- the listening process when found
+  matched_by   TEXT NOT NULL CHECK (matched_by IN ('ancestry','printed')),
+  status       TEXT NOT NULL CHECK (status IN ('ready','stopped')),
+  seen_at      TEXT NOT NULL
+);
 ```
-node --no-warnings "<core>/launch.js" --session <id> --engine <engine> --args-b64 <base64 of a JSON array: command, args, prompt>
+
+- The core scans each session's terminal output for `http://localhost:<port>`, `http://127.0.0.1:<port>` and
+  `http://[::1]:<port>`. For each URL it takes the port from that URL only and looks up the listening process
+  (`Get-NetTCPConnection -State Listen -LocalPort <port>` on a loopback or any-address socket, owning pid) every 1 s
+  for 60 s. If that pid descends from the session's pty it writes `matched_by: ancestry`. If not, it is `printed`
+  only when the port was absent from the core's listening-port snapshot taken when the URL was printed (Windows
+  keeps no listen start time, so the snapshot is the evidence). More than one owning pid on the port, or a port that
+  was already listening at the print, writes nothing. The row stores the pid; a different pid on that port later
+  turns the row `stopped`. The tile shows an "Open preview" chip for each `ready` row.
+- A row turns `stopped` when the port stops listening (checked every 5 s while the session lives) or the session
+  exits.
+- Browser policy: an agent pane may load a loopback port only through a `ready` row of its own session. A user pane
+  may load any loopback port the user typed. The private-range and DNS-rebinding rules are unchanged.
+- `ports.ts` leases from `session_port`. `port_lease`, `dev_server` and `variant` stay unused (D58).
+
+### Approvals (M6-2, D55, D61)
+
+```sql
+CREATE TABLE approval (
+  id           TEXT PRIMARY KEY,               -- 'ap_<ulid>'
+  session_id   TEXT NOT NULL REFERENCES session(id),
+  surface      TEXT NOT NULL CHECK (surface IN ('browser','desktop')),
+  target       TEXT NOT NULL,                  -- browser: origin; desktop: grant id
+  control      TEXT,                           -- the control's role, Name and AutomationId, when one is involved
+  action       TEXT NOT NULL,                  -- tool name: click, type, key, select, scroll, navigate
+  action_hash  TEXT NOT NULL,                  -- see below
+  summary      TEXT NOT NULL,                  -- in words, redacted: "click Send in Outlook"
+  reason       TEXT NOT NULL,                  -- which D61 rule fired
+  shot         TEXT,                           -- path of a redacted crop of the target
+  status       TEXT NOT NULL CHECK (status IN ('waiting','approved','rejected','expired')),
+  scope        TEXT CHECK (scope IN ('once','session')),
+  created_at   TEXT NOT NULL,
+  decided_at   TEXT
+);
 ```
 
-The engine's arguments travel as one base64 JSON value so no quoting layer can split them. The launcher is node rather than PowerShell because PowerShell 5.1 drops embedded double
-quotes when it passes arguments to native programs (verified 2026-09-29), and prompts contain quotes.
+- `control` is JSON: `{"automation_id": string, "name": string, "role": string}` with empty strings for missing
+  parts, or `null` when no control is involved; the `approval.control` column stores that JSON text.
+- `action_hash` is the sha256 hex of the JSON text of `{"action","args","control","session_id","surface","target"}`
+  with keys sorted at every level, no whitespace, and strings as JSON escapes them. Typed text in `args` is replaced
+  by its own sha256 before hashing, so the hash never carries a secret.
+- Flow: the MCP server sends `approval.check` to the core before every input call. The core answers `allow`,
+  `deny` (with a reason), or `ask`. On `ask` it writes the `approval` row and a `needs_you` row of kind `approval`
+  (the wall already wakes on `needs_you`), and the server's call waits until the row is decided or 120 s pass
+  (`expired`; the tool returns "not approved in time"). The agent is never told how to approve.
+- `approval.resolve {approval_id, decision: "approve"|"reject", scope: "once"|"session"}` needs `ui.hello` (-32012
+  otherwise); -32010 if the row is not `waiting`. `once` approves this call. `session` approves the same action on
+  the same target and the same control (matched by `control`) for the rest of the session. D61's password,
+  credential and file-dialog rules ask every time whatever the scope.
+- Re-check at dispatch: after approval, the server re-reads the target and control right before sending. If the
+  control's Name or AutomationId changed, the approval is void and a new check runs.
+- The wall shows waiting approvals oldest first as cards in the bottom sheet and as a count on the agent's tile:
+  redacted crop, summary, reason, Approve once, Approve for this session, Reject. A and R act on the top card only
+  when the sheet has focus; inside a terminal they are ordinary keys.
+- Summaries, crops and the `control` field pass through the core's redaction before they are stored.
 
-`launch.js`:
+### Public API (M6-17, D54, D63)
 
-1. Sets `TROOP_SESSION_ID` in its own environment, which the engine and every hook inherit.
-2. Appends the `launch` event in-process (`pid` = the launcher's own pid), giving up after 250 ms.
-3. Resolves the command without a shell: an `.exe` on PATH runs directly; an npm `.cmd` shim is unwrapped to
-   its target (`claude.cmd` to `claude.exe`, `codex.cmd` to `node codex.js`). Only an unknown shim falls back
-   to a shell.
-4. Spawns the engine with `stdio: 'inherit'` in the same console, ignores Ctrl+C itself (the engine receives
-   it), and exits with the engine's exit code. Verified 2026-09-29: quotes, spaces, semicolons, trailing
-   backslashes and empty arguments arrive unchanged.
+- Each pipe method is declared once in `core/src/methods.ts` with its params schema, errors, `stable` flag and
+  `needs_ui` flag. `pipe-protocol.md`'s method table, `troop --help` and the agent skill are generated from that
+  list, and a test fails when they differ.
+- Stable in protocol 1, each with its exact shape in `pipe-protocol.md`: `core.ping`, `project.open`,
+  `session.launch`, `session.list`, `session.wait`, `session.resume`, `session.focus`, `session.live-text`,
+  `worktree.create`, `pane.open` (agent form), `notify.sink.*`.
+- `session.wait {session_id, states: [state, ...], timeout_ms}`: `states` must be non-empty and from the state list
+  (-32602 otherwise); `timeout_ms` from 1 to 600,000 (-32602 otherwise); an unknown session is -32004. It returns
+  `{state, reason?, timed_out}` as soon as the session is in one of the states (at once if already there) or when
+  the timeout passes.
+- Removed with the pipelines: `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`,
+  `variant.*`. Calling one returns -32601 "moved to metatrooper-pipelines".
 
-The engine inherits the user's normal environment, exactly as when started by hand; MetaTrooper adds only
-`TROOP_SESSION_ID`. (Environment stripping applies to plugin actions, not to the user's own agents.)
+### Plugins and sandbox
 
-One exception, decided 2026-10-05: when the core itself was started from inside a Claude Code session, it drops
-that session's identity variables from every pty it opens (`PARENT_SESSION_ENV` in `core/src/terminal/`:
-`CLAUDECODE`, `CLAUDE_PID`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, the messaging socket and
-token, and the rest of that set). Otherwise every `claude` agent runs as that session's child and prints
-"Transcript saving is off", and it inherits the parent's messaging token. Claude Code settings the user sets
-(for example `CLAUDE_CODE_USE_BEDROCK`) are not in the set and pass through.
+Plugins, importers, remote MCP and the notification sink stay as built (M5-12 to M5-15). The pipeline-only plugins
+(`media`, `social-scheduler`, `seo`, `cite-check`, `gmail`, `data`, `docs-export`, `github`, `deploy`, `security`)
+move with the pipelines. The sandbox (M5-D29) stays an experimental flag, off by default.
 
-One pty per session, in the session's folder. The window attaches over the terminal pipe
-(`pipe-protocol.md`, "Terminal pipe"); `session.focus` writes the `ui_selection` row and the window selects
-that session. An engine with no `prompt_arg` gets its prompt typed into the pty when it first reaches `idle`
-or `waiting_for_you`, once (`core.prompt-written`); "Paste prompt" does the same by hand. The IDE never kills
-an agent; the user exits it.
+## The wall
 
-### Linking and state
+The approved wall (title bar, tile header from dba0709, list behind Ctrl+B, Ctrl+K search, the nine ideas, the
+dither look, GSAP motion) stays. Removed: the Runs and Pipelines tabs, run screens, the 15 layouts, background-run
+bars and the gate sheet's pipeline cards. The bottom sheet now holds approval cards.
 
-How each engine's own session is linked, and how every event maps to `starting`, `working`,
-`waiting_for_you`, `done`, `idle`, `unknown` or `exited`, is specified in `events-and-hooks.md`. `done` means
-finished and not yet looked at; opening the card or focusing the session moves it to `idle`.
-A card that cannot know the state says "state unknown". The IDE never reads terminal output to guess.
+Added:
 
-### Engine registry
+- **Keys** (M6-9). Wall keys use Alt, so a focused terminal keeps every Ctrl key the agent needs:
+  - Alt+arrow moves focus to the tile in that direction, from the rectangles `wall.js` already computes.
+  - Alt+N labels every tile with a letter for 2 s; a letter jumps there; Shift plus a letter swaps that tile into the
+    big slot.
+  - Alt+J jumps to the oldest waiting session (smallest `since`); its tile header shows the `reason`.
+  - Alt+Backspace returns to the previous tile.
+- **Focus-steal rule** (M6-9). A tile that starts waiting never takes the big slot within 3 s of a key press or
+  mouse click in the big tile; it queues and glides in after.
+- **Tile chips.** "Open preview" (D60), "driving: <window>" while an agent holds a desktop grant, the approval
+  count, the cost chip (M6-20) and the changed-files count (M6-21).
+- **Agent input** (M6-8). Shift+Enter sends a newline as a bracketed paste of `\n`, never Enter. A pasted or dropped
+  image is saved to `~/.metatrooper/paste/<session>/<ulid>.png` and its path is pasted. File paths,
+  `path:line:col` and URLs in terminal output are links, checked on disk before they are underlined.
+- **Terminal speed** (M6-7). Both xterms set `windowsPty: {backend: 'conpty', buildNumber}`. The core answers
+  cursor-position and device-attribute queries while no tile is attached. Each viewer gets output by byte credit
+  (64 KB window) and acknowledges it; the core pauses the pty when the headless terminal is more than 1 MB behind and
+  resumes under 256 KB, replacing the 4 MB "slow viewer" drop. Folded tiles get no stream and repaint from the
+  headless snapshot when unfolded. WebGL renders the 4 most recently active tiles; the rest use the DOM renderer.
+- **Search all terminals** (M6-19). Ctrl+K also searches every live session's headless scrollback (plain text, case
+  insensitive, at most 50 hits, newest first). A hit opens that tile scrolled to the line.
+- **Cost chip** (M6-20). Each tile header shows the session's tokens and dollars from the `usage` table, or
+  "usage unknown" for engines with no source. Hidden in demo mode.
+- **Changed files** (M6-21). Each tile header shows how many uncommitted files the session owns (`session.owners`);
+  a click lists them and opens the Diff tab on one.
 
-An engine is any interactive CLI, defined by the `engine` object in `plugin-manifest.schema.json`. Built-ins:
+## Browser use
 
-| id | command | prompt_arg | state_source | auth_cmd, auth_ok | roles | cost_rank | usage_source |
-|---|---|---|---|---|---|---|---|
-| `claude` | `claude` | positional | hooks | none (auth `unknown`) | research, plan, worker, review, verify, visual-check | 3 | claude-transcript |
-| `codex` | `codex` | positional | notify | `codex login status`, exit 0 | plan, worker, review, verify | 2 | codex-session |
-| `agy` | `agy` | none (clipboard handoff until verified in child #12) | file-activity, glob `~/.gemini/antigravity-cli/brain/*/.system_generated/logs/**` | none | research, worker, review, visual-check | 1 | none |
-| `opencode` (engines/opencode.json, MCP env-json) | `opencode` | `--prompt` | process | none (auth `unknown`) | plan, worker, review, verify | 5 | none |
-| `copilot` (engines/copilot.json, MCP none) | `copilot` | none (clipboard handoff) | process | none (auth `unknown`) | plan, worker, review | 5 | none |
-| `gemini` (engines/gemini.json, MCP none) | `gemini` | `--prompt-interactive` | process | none (auth `unknown`) | research, plan, worker, review | 5 | none |
-| `pi` (engines/pi.json, MCP none) | `pi` | positional | process | none (auth `unknown`) | plan, worker, review | 5 | none |
+The pane model (Electron `WebContentsView` per pane, no remote debugging port, agent panes owned by one session,
+request interception, full-page capture, point-to-comment) stays. `contracts/browser-tools.md` goes to version 2:
 
-Role binding picks the lowest `cost_rank` engine that lists the role, is installed, and is not red; the user
-can pin an engine per step or per project. Health: `version_cmd` and `auth_cmd` on start, every 10 minutes,
-and on `engines.check`, 10 s timeout each. Lights: green (installed, auth ok), grey (auth unknown), red
-(missing or failed). Grey is never shown as green.
+- **Stable refs** (M6-11). A ref is kept for the life of the element in its document (keyed by frame id plus
+  `backendDOMNodeId`). Navigation of a frame ends that frame's refs. A gone element's ref fails with "no longer on the
+  page". `since_last` returns added and removed lines.
+- **The page answers every action** (M6-11). `click`, `type`, `select`, `navigate` and `back` wait up to 1 s for the
+  page to settle, then return the URL, title, any dialog, new console errors and the interactive snapshot diff.
+- **Bounded output** (M6-11). `snapshot` takes `max_tokens` (default 4,000, counted with the meter's tokenizer) and
+  `scope_ref`, and returns a `continue` cursor when cut. Child frames and open shadow roots are included, with
+  frame-tagged refs. Screenshots are JPEG by default, no side over 1,568 px, with an optional element crop. A `read`
+  tool returns the page's main text with an optional search filter.
+- **Tool hints** (M6-11). `tools/list` marks `panes`, `snapshot`, `screenshot`, `read`, `console`, `network` and
+  `wait_for` with `readOnlyHint`, and every other tool with `destructiveHint`. Hints are labels for the agent; D61's
+  check is what enforces.
+- **Crashes are reported** (M6-11). A crashed or hung pane makes the next call fail at once with "the page crashed"
+  or "the page is not responding".
+- **Hand the pane to the user** (M6-12). `handoff {pane_id, reason}`: the pane becomes the user's, the agent's
+  browser tools fail with "the user has the pane", and the tile shows the reason and a Give back button.
+- **Origins** (M6-12). Origin means scheme, host and port after redirects. The first input on a new origin raises an
+  approval (D61) unless `.troop/config.json` allows it; Approve for this session covers that origin.
+- **Secrets by placeholder** (M6-12). `type` accepts `{{secret:NAME}}` only into a password field or a field the user
+  approved for that secret once, and only on the origin saved with it. The workbench main process fills the value
+  through `Input.insertText`; it never returns in any tool result, log, crop or event. Secrets live in the existing
+  DPAPI store.
+- **Scrubbed output and audit** (M6-12). Console, network and `read` results, approval summaries and audit rows
+  pass through the core's redaction (secret values, bearer tokens, cookies, URL credentials and token-looking query
+  values). Every browser tool call is an append-only `event` row (`browser.tool`: tool, pane, origin, result
+  status, no typed text), kept 30 days, listed as a timeline in the tile's Browser tab.
+- **Pane hygiene** (M6-13). Load errors, certificate errors and renderer crashes show their own page. OAuth popups
+  keep their opener; a page cannot open a new pane without a click. `capture()` restores the viewport override in a
+  `finally`. A picked element is sent as at most 4 KB of sanitised HTML, labelled as page content the agent must not
+  follow as instructions; arrow keys walk the element stack before sending.
 
-### Usage limits and meter
+## Computer use
 
-- Token meter: Claude usage from the session transcript's `message.usage`, deduplicated by `message.id`
-  (streamed partial records share an id; the last one wins). Codex usage from its session files, deduplicated
-  by turn id. Other engines: `unknown`, never guessed. Rows go to `usage`. The transcript is read
-  incrementally from the last byte offset, never re-read whole.
-- Prices: `core/prices.json`, dated, per model, edited by hand. Dollars only where the model is known.
-- Callrouter adds "saved" per session from its `call` rows. If `callrouter.db` is missing, locked or on an
-  unknown schema version, "saved" shows "unavailable" and nothing else changes.
-- Usage limits: per provider, current use against plan windows (5-hour, daily, weekly) with reset times and a
-  warning chip at 80%, stored in `limit_reading`. Sources follow Orca's documented per-provider approach
-  (`onorca.dev/docs/agents/usage-tracking`); Orca is MIT, so its readers may be adapted with its copyright
-  notice kept. A provider with no local source shows "usage unavailable".
+What it is, in plain words. Windows keeps a live list of every control on screen, with its name, type and position:
+UI Automation. A computer-use tool reads that list plus a screenshot of one window, lets the model pick a control,
+and sends the click or keystrokes to that window. cua-driver does this as an MCP server and sends input in the
+background, so your mouse and keyboard stay yours while it works.
 
-## Workbench
+What MetaTrooper adds around it (cua-driver's docs say it renders no consent UI):
 
-Decided 2026-10-04 (core screen) and 2026-10-05 (pipeline screens). This replaces layout A from the UI revision
-(`issues/archive/ui-revision-epic.md`, D2, D3, D10, D15). The terminal core, status, tools and panes from that
-revision stay underneath (terminal-core, status-and-notifications, zero-setup-tools, result-panes). The port is `issues/ui-port-epic.md`.
+- **Grants** (M6-15). A grant row binds a session to one window:
 
-### The wall
+  ```sql
+  CREATE TABLE grant (
+    id           TEXT PRIMARY KEY,               -- 'gr_<ulid>'
+    session_id   TEXT NOT NULL REFERENCES session(id),
+    hwnd         INTEGER NOT NULL,
+    pid          INTEGER NOT NULL,
+    process_start TEXT NOT NULL,                 -- the process creation time, so a reused pid never matches
+    exe          TEXT NOT NULL,
+    title        TEXT NOT NULL,                  -- at grant time, shown on the tile
+    created_at   TEXT NOT NULL,
+    ended_at     TEXT                            -- window closed, process ended, revoked, or core restarted
+  );
+  ```
 
-The screen is a wall of tiled live terminals, one tile per session. Each tile is a real terminal over the
-terminal pipe; you type into it in place. One tile holds the big slot and the rest tile around it.
+  A grant covers that window and the windows it owns (menus, combo popups, its own dialogs: `GetWindow(hwnd,
+  GW_OWNER)` chains back to the granted window, same pid and process start). A standard file dialog (`#32770` with a
+  file list) is covered but every input in it asks (D61). A grant ends when its window is destroyed, its process
+  ends, the user revokes it on the tile, or the core restarts. Grants are made only from the workbench (`grant.window
+  {session_id, hwnd}`, `ui.hello`): pick a window from a list, or drag the tile's "give window" handle onto it. The
+  workbench window, its children, elevated windows and the secure desktop can never be granted.
+- **The MCP server.** `metatrooper-desktop` is a stdio MCP server MetaTrooper attaches like `metatrooper-browser`.
+  It finds its session by process ancestry. For every input it: (1) calls `approval.check` on the core pipe (grant,
+  D61, D62); (2) calls `cursor.glide {session, target_rect_px, caption}` on the workbench pipe (`\\.\pipe\metatrooper-browser`,
+  which the workbench already serves; this is its one new method) and waits for the reply, sent on the overlay's
+  `arrived` or after `ms + 16`; (3) checks the pause flag again; (4) forwards to cua-driver. With the workbench
+  closed every desktop tool fails with "desktop not available: the MetaTrooper workbench is closed", since approvals
+  and the cursor need the window. Calls on a window outside the session's grants fail with "window not granted; ask the
+  user to give it to you".
+- **Tools** (`contracts/desktop-tools.md`): `windows` (granted windows only), `snapshot {window, max_nodes}` (UI
+  Automation tree, refs as in the browser), `screenshot {window}` (JPEG, 1,568 px max side), `click {window, ref}`,
+  `type {window, ref, text}`, `key {window, keys}`, `scroll`, `wait_for`. Each action result says `confirmed`,
+  `unverifiable` or `suspected_noop`, from cua-driver's effect check.
+- **Seeing it.** The agent's own cursor glides to each target (M6-18). While a session holds a grant, a thin frame in
+  its colour outlines the window and the tile shows "driving: <window>".
+- **Taking over** (D62). Ctrl+Alt+Q pauses all agent input everywhere, at dispatch.
+- **Watching** (D70). Agents keep their auto mode. The wall's watch layout (Ctrl+Alt+W, meant for a second monitor)
+  shows each granted window as a live thumbnail (Electron `desktopCapturer` per window, 2 frames a second) beside its
+  agent's tile, with the agent's cursor drawn on it. The input watcher (M6-22) runs whenever any grant is live: a
+  small helper process started by the core holds `WH_MOUSE_LL` and `WH_KEYBOARD_LL` hooks, reads the injected
+  flag, and reports each injected event to the core over the pipe with its time and the foreground window. The core
+  compares it with the in-flight `metatrooper-desktop` actions (by time, 200 ms slack) and, for unmatched injected
+  input, raises the needs-you item and sets the pause flag (D70). The hook class runs its own thread with a Win32
+  message loop (`GetMessage`, `TranslateMessage`, `DispatchMessage`), because low-level hooks deliver nothing
+  without one and Windows removes a hook whose callback stalls past `LowLevelHooksTimeout`; the callback only queues
+  the event and returns. It sees input sent with `SendInput`, `keybd_event` and `mouse_event`, which is what
+  PowerShell and .NET `SendKeys` and most automation libraries use. The helper is a PowerShell script that compiles
+  its hook class with `Add-Type` at start (no native module and no unsigned binary, as for the rest of the core);
+  if Smart App Control or PowerShell policy blocks it, the wall shows "input watcher off" in orange on every
+  granted tile. The same helper subscribes to UI Automation's desktop-wide events (`FocusChangedEvent`,
+  `Window_WindowOpenedEvent`, `Invoke_InvokedEvent`) on its own thread. It reports an event only when
+  `GetLastInputInfo` shows no physical input for 2 s and the core has no `metatrooper-desktop` action in flight;
+  the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
+  `desktop.watch_pause` is on. Apps that change on their own (a toast, a timer, a download finishing) also trip it,
+  so it only runs while a grant is live and each window can be muted for the session from the needs-you item.
+- **Spike first** (M6-14, time-boxed to 1 day, needs Wasif's yes to install). On this laptop: cua-driver lists
+  windows, reads Notepad's tree, types into Notepad while another window has focus without moving the pointer,
+  opens Notepad's Save As and reports it as an owned window, refuses an elevated window, keeps working after a UAC
+  prompt is dismissed, starts with `--no-overlay`, and runs with Smart App Control on. It also checks the watcher's
+  base: an `Add-Type` low-level hook helper starts under Smart App Control and sees cua-driver's own input as
+  injected or not (if cua-driver's background input does not set the injected flag, M6-22 matches on foreground
+  window events instead, and the spike records which). Each check is recorded pass or
+  fail with the command and output. Any failure of the first three stops M6-15's cua path; the fallback is the
+  PowerShell UI Automation plan in `issues/39-desktop.md`, reduced to the same tool list, with the same effort.
+- **Agents test MetaTrooper** (M6-16). The workbench gets accessible names and roles on every control the wall uses.
+  A `--demo` instance runs with its own `METATROOPER_HOME`, demo data only, no secrets and a fake approval key; its
+  window is the only workbench window that can be granted, and only to a session of that demo core.
 
-- **Title bar.** Slim, one row: list toggle (Ctrl+B), wordmark, project / branch / core crumb, the "need you"
-  chip (its count opens the gate sheet), the usage chip, the Agent button with an engine picker, PowerShell and
-  Git Bash buttons, window controls.
-- **Tile header.** Engine, task, branch and the working indicator. The selected tile adds Diff (Ctrl+D) and Hand
-  back, and a Pair button.
-- **List, behind Ctrl+B.** It slides over the wall: New agent, pwsh, bash, then agents, Runs and Usage. A click
-  puts a session in the big slot. Shift+click pairs it.
-- **Search, Ctrl+K.** One floating box over agents, gates and commands. Pipelines are the one-click commands
-  (zero-setup-tools). Arrows move, Enter opens, Esc closes.
-- **Gate sheet.** A bottom sheet that peeks as a tab. The tab shows the gate count and each run's step N of M.
-  Each gate card draws its run's steps as a pipe, with Approve, Reject and Open run. A opens the sheet, then
-  approves the top gate. R rejects it.
-- **Esc** closes search first, then the sheet, then the list.
-- **Runs that need you, with nothing selected.** When no selected session owns a run, the step list under the
-  big slot shows the newest run that needs the user (waiting at a gate, or failed), labelled "Needs you: <pipeline>"
-  so it never reads as the selected agent's run. Decided 2026-10-05 by Codex and Gemini independently (both A).
-  A failed run qualifies only while its `run-failed` needs-you item is unresolved, so acknowledging it clears
-  the row. Codex picked this (C); Gemini picked "failed since the window opened" (B), with the risk that a
-  failure just before opening is missed; the conservative choice, C, was taken.
-- **Run before Cancel in search.** Ctrl+K lists Run items before Cancel items, so a pipeline name plus Enter
-  starts a run and never arms a cancel.
-- **Cancel a run** from its run screen header, its step list row under the big slot, its 36px background bar, or
-  Ctrl+K ("Cancel run: <pipeline>"). One confirm, then `run.cancel`: the run ends `cancelled`, waiting gates
-  are rejected, its actions and dev servers stop, and the agent sessions that run launched are closed (Wasif,
-  2026-10-05). Agents the user started are never touched.
-- **Copy and paste in a terminal** work like PuTTY (Wasif, 2026-10-05): highlighting text with the mouse copies
-  it at once; right-click pastes. Ctrl+C copies when text is selected and otherwise reaches the agent as an
-  interrupt; Ctrl+Shift+C copies; Ctrl+V pastes (as a bracketed paste).
-- **Exited sessions** show as strips with Reopen (Resume or Start new here, status-and-notifications). The inbox and toasts are status-and-notifications's.
-- **Side tabs.** Diff, Hand-back, Browser, Runs and the Pipelines editor from layout A open as overlays over the
-  wall. They are not a fixed split.
+## The agent cursor (M6-18, D69)
 
-### The nine ideas
+One cursor per agent session, in the session's colour (the same colour as its tile), with a chip naming the agent
+and its task (28 characters at most). It glides to each target like a person's mouse, the click fires the moment
+it arrives, and a ripple and a one-line caption ("click Sign in", "type 14 characters", "press Enter") play after,
+off the critical path. Typed text is never shown. The real pointer never moves.
 
-Mined from the other round-8 concepts and approved with the wall:
+- **One renderer, two hosts.** `workbench/renderer/overlay.js` draws cursors. Host 1 is the existing overlay view
+  above each browser pane. Host 2 is one transparent, click-through, non-focusable Electron window per display for
+  the desktop (`transparent`, `frame: false`, `focusable: false`, `skipTaskbar`, `setIgnoreMouseEvents(true)`,
+  `showInactive()`), hidden when no agent is acting.
+- **Flow.** Browser: the workbench main process already runs every browser tool, so it glides the pane cursor
+  itself after `approval.check` allows. Desktop: `metatrooper-desktop` asks for the glide with `cursor.glide` on the
+  workbench pipe (Computer use). In both, the workbench main process sends the overlay `{session, colour, label, from, to, targetRect, ms, caption, reducedMotion}`; the overlay plans the path
+  once as timed samples, plays it by the clock, and replies `arrived`. Main fires the input on `arrived`, or at
+  `ms + 16` if the reply is late. Repeated actions on the same target skip the glide.
+- **Timing.** Glide time is `clamp(70 + 55 * log2(D / W + 1), 90, 220)` ms, D the distance and W the target width
+  in pixels. Worked: a 600 px move to an 80 px button is 600 / 80 + 1 = 8.5; log2(8.5) = 3.09; 70 + 55 x 3.09 = 240,
+  capped to 220 ms. A 40 px hop to a 120 px button is 40 / 120 + 1 = 1.33; log2(1.33) = 0.41; 70 + 22.6 = 93 ms.
+  Added cost per action: at most 220 ms glide plus about 15 ms for the reply, so under 250 ms. The fixed sleep and
+  read-back in `panes.ts:543-544` go.
+- **Desktop placement.** cua-driver reports window and element rectangles in physical pixels; the workbench converts
+  with `screen.screenToDipRect` and picks the display with `screen.getDisplayMatching`, one overlay window per
+  display so mixed 100% and 150% screens stay sharp. It refits on `display-metrics-changed`, `display-added`,
+  `display-removed`, and every 250 ms while a cursor shows. A minimised, closed or empty target hides the cursor; a
+  jump over 25% of the display snaps instead of gliding. A target covered by another window still gets the cursor,
+  drawn on top, and the caption adds "behind <window title>".
+- **Z-order.** Only while an action is in flight: `setAlwaysOnTop(true, 'floating')` and `moveTop()`, re-asserted
+  every 100 ms; 1.5 s after the last action, `setAlwaysOnTop(false)` and hide. Never left in the always-on-top band.
+- **Out of the agent's screenshots.** `setContentProtection(true)` at creation, and one frame (about 16 ms) is
+  waited after showing before the next agent screenshot. If protection is not available, the screenshot result says
+  `overlay_may_show: true`. Pane cursors live in a separate view and never appear in page captures.
+- **Many agents.** Each session's cursor stays; the latest mover draws on top. Idle for 5 s, a cursor fades over
+  300 ms. Reduced motion (CSS and `systemPreferences.getAnimationSettings()`): snap and a 120 ms colour flash.
+- **Settings.** `agent_cursor.mode`: `off`, `instant` (snap and ripple), `snappy` (default, above), `human` (slower
+  curved paths with overshoot, for demos; breaks the 250 ms budget on purpose). `agent_cursor.show_caption` (true),
+  `agent_cursor.idle_fade_ms` (5000), `agent_cursor.show_in_recordings` (false; true turns content protection off
+  for `/demo-capture`).
+- **Sources** (ideas, not code): trycua/cua's Windows overlay (motion planner, capture exclusion, idle fade; MIT),
+  microsoft/playwright's action highlight, bytedance/UI-TARS-desktop's overlay window, Xetera/ghost-cursor's curved
+  paths for the `human` preset.
 
-1. Done and exited panes fold to 36px bars; the freed height goes to live panes.
-2. A one-off attention sweep runs before the breathing edge.
-3. The pane that needs you glides into the big slot. If one is already waiting, it queues.
-4. A NEEDS YOU stamp stays on the pane until answered.
-5. Pair mode: two terminals side by side in the big slot.
-6. The working indicator is a live sparkline or a 3-bar equalizer (`spark` or `eq`).
-7. A gate shows an APPROVED or REJECTED stamp in place before its card leaves.
-8. The usage chip opens a hover popover with each provider's windows, with no scrim.
-9. In small panes the question card sits beside the log, so the log is not crushed.
+## The split (M6-1, D53, D58, D59)
 
-### Look and motion
+One session owns the split; nothing else merges to `main` while it runs.
 
-- **Dither is the default look.** Flat #0b0b0c, ink #f2f2f2, and orange #ff7a1a only for "needs you" and gates.
-  Space Mono labels, Silkscreen wordmark and stamps, dotted pane borders, dot halos, dot-bar working indicator.
-- **Warp charcoal ships as a theme** (Geist and Geist Mono). The other palettes from the rounds are also
-  selectable themes. Theme values live in settings; no colour is hardcoded in the CSS.
-- **Motion is GSAP**, loaded from `workbench/renderer/vendor/` (CSP is `script-src 'self'`). Lines stream in,
-  counters tick, the pane that needs you breathes at its edge, reflow glides, overlays spring. Reduced motion
-  turns it off.
+1. Tag `main` as `pipelines-final` and push the tag.
+2. In a scratch clone: `git subtree split --prefix=<path> -b split/<name>` for each leaving path. Create
+   `projects/metatrooper-pipelines` with `git init` and one empty commit, then for each split branch run
+   `git subtree add --prefix=<same path> <scratch clone> split/<name>`, so every file keeps its original path and
+   history and no two paths land at the root. Leaving paths: `core/src/pipelines/`, `core/src/schedules.ts`, `pipelines/`,
+   `workbench/renderer/layouts/`, `workbench/src/rundetail.ts`, `contracts/pipeline.schema.json`,
+   `contracts/pipelines.md`, the pipeline plugins, and the test files sorted as "move".
+3. First write `issues/m6-01-split-inventory.md`: every hit of `rg -n "Runner|runner\.|pipelines/|schedules|gate\.resolve|run\.(start|cancel|resume|clear|status)|variant|template\.list|rundetail|boardCapture|pipeline" core/src core/cli.ts workbench/src workbench/renderer`,
+   one row each, marked move, remove, replace or keep (with why). Then change every stay-side caller: remove the runner, store sync and schedule
+   timers from `main.ts`; drop `runner` from `CoreControl` and the pipeline methods from `methods.ts`; replace
+   `workbench/src/main.ts`'s `paneData` import with the pane code it needs; remove `troop run` (keep `troop gate`, the adoption measurement); remove the Runs and Pipelines tabs and their actions from `app.js`; remove `boardCapture` and the
+   `variant` half of the port query in `panes.ts` (ownership comes from M6-3; until it lands, agent panes reach no
+   loopback port, which is safe).
+4. Delete the leaving paths. `npm run build` and both default suites pass. Calls to removed methods return -32601
+   "moved to metatrooper-pipelines"; removed CLI commands print it and exit 2.
+5. Pipeline tables and rows stay (D58). Schedules simply stop firing; their rows are kept for the pipelines repo.
+6. Creating the GitHub repo for `metatrooper-pipelines` and moving GitHub issues are a hand-back.
 
-### Pipelines on the wall
+## Milestone 6: the desk (about 80 CC days, freeze 2026-12-29, public 2027-01-19)
 
-- A run's step list sits under the big slot as a glance. Its header opens the run screen: the full window under
-  the title bar, in the run's layout (Pipeline UI below). Esc goes back to the wall. `agent-split` keeps the
-  agent's live terminal in the big slot and fills the rest. A foreground run opens its run screen at start.
-- A background run folds to the 36px wall bar and opens only when it needs the user.
-- A step's `view` pane renders inside the active layout's output slot.
-- Keys follow focus. When a run screen is open, 1 to 5 pick its layout and 0 goes back
-  to automatic. When the focused tile is an agent asking a question, 1 and 2 answer it.
+Replaces the rest of M5. Every M5 child is mapped in the re-baseline table below. Estimates were raised after both
+review engines called the first draft too low.
 
-## Pipelines
+### Children
 
-Format: `contracts/pipeline.schema.json`. Execution: `contracts/pipelines.md`, which defines validation (with
-the publish rule), the run directory, the step handoff contract from D35, completion signals, gates bound
-to the exact action by `action_hash`, fan-out with worktrees and dynamically allocated ports, loops, resume,
-the 3-failure breaker, budgets with a one-step maximum overshoot and `max_minutes` for engines with unknown
-usage, schedules (only while the core runs, missed fires reported and never back-filled), and code steps.
-
-Roles: `trigger`, `ingest`, `research`, `plan`, `worker`, `review`, `verify`, `visual-check`, `gate`,
-`publish` (from the catalog's analysis of 25 pipelines).
-
-The workbench form view edits `pipeline.json` for non-coders (add step, pick role, pick engine, toggle gate)
-and runs `pipeline.validate` on every change.
-
-### Built-ins and templates
-
-| Lane | Built-in | Catalog # | Plugins | Milestone |
+| # | Title | Priority | Effort (CC days) | Depends on |
 |---|---|---|---|---|
-| Coding | `spec-build-review-handback` (Wasif's loop) | none | repo | 1 |
-| Coding | `two-engine-review` | 17 | repo | 1 |
-| Coding | `spec-to-pr` | 1 | repo, github | 2 |
-| Coding | `e2e-browser-qa` | 7 | repo | 2 |
-| Design | `website-build` | 2 | repo, deploy | 2 |
-| Design | `design-variants` | 14 | repo, agent-reach | 2 |
-| Docs and releases | `docs-and-release-notes` | A5 | repo, github | 2 |
-| Security and upkeep | `security-review-and-upgrade` | A6 | repo, security | 2 |
-| Video and social | `footage-to-edit` | 6 | media | 3 |
-| Video and social | `clips-to-scheduled-posts` | 8 | media, social-scheduler | 3 |
-| SEO | `seo-audit-fix` | 11 | seo, repo, deploy | 3 |
-| Research | `deep-research-cited` | 10 | agent-reach, cite-check | 3 |
-| Lead gen | `prospect-list-to-drafts` | 13 | agent-reach, gmail | 3 |
-| Personal ops | `inbox-triage-drafts` | 12 | gmail | 3 |
-| Data | `data-to-dashboard` | 23 | data | 3 |
-| Study and documents | `study-notes-to-pdf` | none (Wasif's uni lane) | docs-export | 3 |
-| Desktop and forms | `form-fill-batch` | A7 | desktop | 3 |
+| M6-1 | Split the pipelines out | Critical | 3.5 | none |
+| M6-2 | Approvals for agent actions | Critical | 3.0 | M6-1 |
+| M6-3 | Session ports and dev-server previews | Critical | 1.5 | M6-1, M6-4 |
+| M6-4 | Core reliability: lock order, settings writer, migrations, ping, restart owner | Critical | 2.0 | none |
+| M6-5 | State from each engine's hooks, with the Codex trust spike | Critical | 3.5 | M6-4 |
+| M6-6 | Everything comes back after a restart | Critical | 4.0 | M6-5 |
+| M6-7 | Terminal speed and correctness | Critical | 5.0 | none |
+| M6-8 | Agent input: Shift+Enter, image paste, links | High | 1.5 | M6-7 |
+| M6-9 | Wall keys and attention | High | 2.0 | M6-1, M6-5 |
+| M6-10 | Quiet, named notifications | Medium | 0.5 | M6-5 |
+| M6-11 | Browser tools version 2 | Critical | 4.0 | M6-1 |
+| M6-12 | Browser handoff, origins, secrets, audit | Critical | 3.5 | M6-2, M6-11 |
+| M6-13 | Browser pane hygiene and picks | High | 2.0 | M6-11 |
+| M6-14 | Computer-use spike on this laptop | Critical | 1.0 | Wasif's yes to install cua-driver |
+| M6-15 | Computer use: `metatrooper-desktop`, grants, frame, take-over, watch layout | Critical | 10.0 | M6-2, M6-14 |
+| M6-16 | Agents test the workbench through the desktop tools | Medium | 1.5 | M6-15, M6-18 |
+| M6-17 | Public API: one method list, exact shapes, `session.wait` | High | 2.0 | M6-1 |
+| M6-18 | Agent cursor for browser and desktop | Critical | 4.5 | M6-11, M6-15 |
+| M6-19 | Search all terminals | High | 1.0 | M6-7 |
+| M6-20 | Cost chip per tile | Medium | 0.5 | none |
+| M6-21 | Changed files per tile | Medium | 1.0 | none |
+| M6-22 | Input watcher: injected input and UI Automation changes from other programs | Critical | 4.5 | M6-14 |
+| M5-1 | Installer and bundled runtime (WIP on `agent/m5-1`) | Critical | 3.75 | M6-1 |
+| M5-2 | Code signing | Critical | 0.5 | M5-1, the certificate |
+| M5-9 | Release gate: two clean release runs and green CI | Critical | 0.5 | M5-1 |
+| M5-10 | Public docs rewritten for the four parts | Critical | 1.0 | M6-1, M6-15 |
+| M5-11 | Site and demo redone for the four parts | High | 0.75 | M6-18 |
+| M5-15 | Notification sink settings UI (code done) | Medium | 0.5 | none |
 
-Each built-in starts from its catalog sketch. Each has a fixture under `tests/fixtures/<pipeline id>/` (a
-sample repo, a 3-minute sample video, a sample site, a sample CSV, a sample lecture PDF, a local test form
-with a captcha stand-in, a repo with one outdated dependency) and a test Gmail account for the two Gmail
-pipelines. Templates: the other 13 of the top 25 and the remaining 4 appendix pipelines, 17 in all, in a
-gallery that shows each template's `requires` and says "ready" only when all are installed.
+Effort, worked:
 
-### Pipeline UI
-
-Decided 2026-10-04 and 2026-10-05. Each pipeline run is shown in one layout from a frozen library of 15. Field
-format and precedence: `contracts/pipelines.md`, "Layout and background".
-
-The library:
-
-- `run-log`: a step list and the selected step's log; every failure lands here.
-- `pipe`: all steps and gates at a glance, fan-outs and loops drawn as lanes and arcs.
-- `agent-split`: one agent live beside its newest output; a worktree rail on fan-out steps.
-- `artifact-columns`: a chain of documents left to right, gates on the seams.
-- `pr-first`: the one change, release or upgrade you will ship, with its ship gate at the foot.
-- `hand-back`: the numbered list of what only you can do, each with its exact command; no commit button.
-- `pr-inline`: findings pinned to the lines they are about.
-- `duel`: two verdicts side by side, equal weight, never a winner.
-- `buckets`: findings sorted into piles.
-- `coverage-map`: rows of strips showing what was covered and where things happened.
-- `triage`: a ranked queue with the selected item large and its actions.
-- `before-after`: old next to new, to prove a change worked.
-- `preview-stage`: the running product fills the screen; width, version and A / B / C tabs on top.
-- `variants-grid`: several products at equal weight; pick or combine one.
-- `timeline`: frames and tracks under a playhead; a text view as a toggle.
-
-A pipeline spec picks its five layouts from the library by name. It may add at most one new layout, with one
-line saying why none of the 15 fits.
-
-Rules:
-
-- The agent running the pipeline picks the layout by that pipeline's pick rule. There is no fixed default.
-- Each step may carry a `layout` hint. The pipeline `layout` is only a fallback.
-- Keys 1 to 5 pick one of the pipeline's five layouts by hand. The pick holds until 0 (back to automatic) or the
-  run ends.
-- A failed step always shows `run-log`.
-- A step's `view` renders inside the active layout's output slot. Every layout has one output slot. When the
-  layout changes, the pane moves with it. The `view` field and the pane code (result-panes) do not change.
-- Automatic mode moves the screen only when a gate starts waiting, a step fails, or a step has run for 5 s or
-  more. Never within 2 s of a click or key. The move is a calm glide.
-- A background pipeline folds to a 36px wall bar: step, progress dots, elapsed time, the last agent line, and at
-  most one small live extra. It opens only when it needs the user, in the layout the agent picks. Esc folds it,
-  Enter or a click opens it by hand. Done, it settles as a calm bar that says `nothing needs you`.
-- Orange means only the user can act: a waiting gate, a failure, a flag left for the user, and what points at
-  them. Everything else is ink. Orange stops once the user answers, in every layout at once.
-
-| Built-in | Runs | Five layouts (keys 1 to 5) | Opens when |
-|---|---|---|---|
-| `spec-build-review-handback` | background | hand-back, artifact-columns, agent-split, agent-split (worktree rail), run-log | `approve-spec` waits, the hand-back list is written, a verify or fix step fails |
-| `two-engine-review` | background | pr-inline, duel, buckets, coverage-map, triage | the Disagree bucket is not empty, or a finding is critical |
-| `spec-to-pr` | foreground | run-log, artifact-columns, pr-first, pipe, agent-split | opens its run screen at start |
-| `e2e-browser-qa` | background | timeline (trace), run-log, coverage-map, before-after, timeline (session) | a finding is left open, `reverify` fails, a critical finding lands |
-| `website-build` | background | preview-stage, before-after, pipe, agent-split, run-log | `approve` waits, critique gives up after round 3, `preview` or `production` fails |
-| `design-variants` | background | variants-grid, artifact-columns, preview-stage, agent-split, artifact-columns (direction lanes) | `approve-directions` or `pick` waits, a variant or `polish` fails, a port never answers |
-| `docs-and-release-notes` | background | pr-first, run-log, before-after, preview-stage, artifact-columns | `approve` waits, a sample still fails after the fix pass, `release` fails, a breaking PR has no migration doc |
-| `security-review-and-upgrade` | background | pr-first, triage (ledger), triage, before-after, run-log | `approve-upgrade` waits, a high reachable finding is not fixed by the plan, the check loop hits max, a licence conflicts |
-| `footage-to-edit` | background | timeline, preview-stage, before-after, pipe, run-log | `approve-plan` or `approve-final` waits, the last edit pass leaves a flag for the user, any step fails |
-| `clips-to-scheduled-posts` | background | variants-grid, preview-stage, timeline, pr-first, run-log | `pick` or `approve` waits, any step fails |
-| `seo-audit-fix` | background | triage, coverage-map, before-after, pr-first, run-log | `approve` waits, the speed loop ends with a key page under 90, `crawl` or `deploy` fails |
-| `deep-research-cited` | background | artifact-columns, run-log, coverage-map, pr-inline, preview-stage | `approve-plan` waits, cite-check hits loop max, any step fails; never on done |
-| `prospect-list-to-drafts` | background | coverage-map, triage, preview-stage, pr-first, run-log | `approve-spend` or `approve` waits, any step fails |
-| `inbox-triage-drafts` | background | triage, buckets, preview-stage, pr-first, run-log | `approve` waits, any step fails |
-| `data-to-dashboard` | background | preview-stage, artifact-columns, coverage-map, before-after, run-log | `signoff` waits, readback hits loop max with a headline wrong, `load` or `qa` fails |
-| `study-notes-to-pdf` | background | preview-stage, before-after, artifact-columns, coverage-map, run-log | `signoff` waits, a line is still unsourced, proof hits loop max, any step fails |
-| `form-fill-batch` | foreground | coverage-map, triage, preview-stage, pr-first, run-log | opens its run screen at start; folded by hand, reopens when a gate waits or a step fails |
-
-`design-variants` has no `run-log` among its five: a failure opens `agent-split` on the failing worktree, with its
-terminal output. Each pipeline's pick rule is in its child issue.
-
-## Browser
-
-Tools, capture, cursor and safety rules: `contracts/browser-tools.md`. In short:
-
-- Each browser pane is an Electron `WebContentsView` in a per-project session partition. Electron runs with
-  no remote debugging port.
-- Agents drive panes through `metatrooper-browser`, a stdio MCP server attached to every session. Every tool names
-  a `pane_id`; the workbench only lets the owning session drive a pane (error -32030 otherwise). With
-  fan-out, each variant has its own pane owned by its own session.
-- Commands run in-process through `webContents.debugger.sendCommand`. The cursor overlay moves to each click
-  or type point before the action runs. The overlay is drawn above the view, never injected into the page.
-- Requests are intercepted: public http(s), and loopback only on this project's dev ports. `file:`, other
-  loopback ports and private ranges are blocked unless the project allows the host. `evaluate` runs in an
-  isolated world under the same interception.
-- Full-page capture uses the pane's debugger (`Page.captureScreenshot` with `captureBeyondViewport`), because
-  `capturePage()` only captures the viewport and stitching repeats sticky headers.
-- `metatrooper-browser` finds its own session by walking its parent processes, so Codex's global MCP config works,
-  and one session cannot drive another session's pane by accident.
-- Private-range blocking resolves each host first, so a public name pointing at a private address is blocked.
-- If the workbench is closed, the next browser tool call returns "browser not available". The agent keeps
-  running.
-
-Point-to-comment: press C, click an element, type a note, pick a target session. The comment (note, CSS
-selector, first 2,000 characters of outer HTML, and a crop saved at
-`~/.metatrooper/comments/<session_id>/<comment_id>.png`) goes into `comment` and is delivered by the
-session's route: clipboard always; for Claude, also as context on the next prompt (at least once, never lost;
-a rare duplicate is marked with the comment id).
-
-Before/after: capture a pane at 390 and 1280 px, full page, as `before` and `after` snapshots; side by side
-per width; hold Space to swap.
-
-### Inspiration board
-
-The `agent-reach` plugin's `inspiration-board` action returns 8 to 12 references (Exa search, GitHub
-libraries) and the core captures each reference's first screen through a browser pane. Cards show capture,
-source link, reason, pin and remove. The step then proposes N directions (default 3) naming the pinned
-references each draws on, and a gate lets the user edit or approve them before the build fan-out. Items are
-stored in `board_item`, captures under `~/.metatrooper/boards/<run_id>/`.
-
-### Variants grid
-
-One live pane per variant, with its cost and engine. Pick marks the winner and the hand-back tray shows that
-worktree's diff. Combine starts a new agent step in a fresh worktree with the user's note and the selected
-tiles' crops. Discard removes the worktree (`git worktree remove`) after a confirm.
-
-## Hand-back tray
-
-Shows `git diff --cached --stat`, untracked files listed separately and never staged by MetaTrooper, binary
-files and submodules shown by name only, a drafted commit message, and the exact command to run. A Copy
-button and no Commit button. No code path runs `git commit`, `git push`, `git rebase` or `git commit
---amend`.
-
-Diff annotation: click a line in the diff, type a comment; it becomes a `comment` row of kind `diff-line`
-(file, line, text) delivered the same way as point-to-comment. File drag: dropping files or images on a
-session card creates a `file` comment containing their absolute paths.
-
-## Two-engine review
-
-Codex: `codex exec --sandbox read-only`, stdin from `/dev/null`, with the `/codex:review` prompt, which returns
-the shared Verdict JSON (`{verdict, findings:[{file, line_start, line_end, severity, title, body}]}`). Gemini:
-the `agy-review` runner and schema, `gemini-3.8-flash-high` only. Both run in parallel. Findings match when
-they name the same file and their line ranges overlap after widening each by 3 lines. Buckets: `both`,
-`codex_only`, `gemini_only`, `disagree` (a match where one says `approve` and the other lists it). The view
-never picks a winner. The review lane refuses ask paths like everything else.
-
-## Threat model for gates and pipes
-
-Agents run as the user. Any agent with a shell can already do anything the user's account can, including
-posting or pushing without the IDE. So MetaTrooper does not claim to stop a hostile process running as the
-user. What gates guarantee is narrower and testable: a pipeline never performs a publish or external step
-unless a person approved that exact action in the workbench, tray, or an interactive CLI; a pipeline, a code
-step, a plugin action, or a cooperating agent using the `troop` CLI non-interactively cannot approve one.
-Approval needs a trusted UI connection, proven with a per-start key in `~/.metatrooper/ui.key` that only the
-workbench, tray and interactive CLI read; code steps and plugin actions get no method or helper that reaches
-it. A script that deliberately reads that file is a hostile same-user process and out of scope.
-The named pipes accept requests only from the user's own account (tested, M1-10), and browser panes are bound
-to their session by process ancestry so well-behaved agents cannot drive each other's panes.
-
-## Agent-native CLI and skill
-
-`troop session launch|list|wait`, `troop run start|status|wait|resume`, `troop worktree create`,
-`troop browser panes|snapshot|click|type`, all with `--json`. Every command is a pipe method or a database
-read. `run wait` returns when the run reaches `done`, `failed`, or any gate. A skill file teaches agents when
-to use each. Publishing still stops at a gate, and `gate.resolve` from the CLI requires an interactive
-terminal (it refuses when stdin is not a TTY), so an agent cannot approve its own gate.
-
-## Plugins
-
-Manifest, permissions, action process contract, pane bridge and importers: `contracts/plugins.md`. Key
-points: nothing runs before the user approves the permission list; actions get an environment built from
-scratch plus only approved `secrets:<NAME>` values; actions that time out are killed with their whole
-process tree; filesystem and network permissions are declared and shown but not OS-enforced in version 1,
-and the install screen says so; importers never copy secret values and never import hooks.
-
-First-party plugins:
-
-| Plugin | Gives | Built on | Milestone |
-|---|---|---|---|
-| `callrouter` | shell-output cap, call log, "saved" figure | callrouter Plan A (Python, run through uv's real interpreter path, never a `~/.local/bin` shim) | 1 |
-| `repo` | worktrees, test-runner detection, diff | git | 1 |
-| `agent-reach` | research sources, inspiration board | Agent-Reach 1.5.0 | 2 |
-| `github` | issues, PRs, checks; opening a PR is external | gh | 2 |
-| `deploy` | preview and production deploys; production is external; project id from config | Vercel CLI | 2 |
-| `security` | security review prompt set, dependency listing and upgrade, licence report | npm, pip and uv metadata | 2 |
-| `media` | download, probe, cut, captions, samples, transcription with word timestamps | yt-dlp, ffmpeg, faster-whisper on CPU (API optional) | 3 |
-| `social-scheduler` | one `schedule_post` interface; every post is external | OpusClip MCP (needs OpusClip Pro), Postiz | 3 |
-| `seo` | crawl through a browser pane, Lighthouse, sitemap and meta checks; Search Console optional | Lighthouse CLI | 3 |
-| `cite-check` | verify step: each quote must appear in its fetched source after normalising whitespace, HTML entities, curly quotes and dashes, and case | string match, no model | 3 |
-| `gmail` | read, label, draft; send is external | Gmail API with the user's own OAuth client | 3 |
-| `data` | load CSV or SQLite, query, render a static HTML dashboard | node:sqlite | 3 |
-| `docs-export` | ingest PDF, DOCX, audio, transcripts; export PDF (Electron `printToPDF`) and DOCX | pdf.js, `media` | 3 |
-| `desktop` | Windows app control: UI tree, click, type, read, window screenshot; 10 s timeout per call; elements selected by AutomationId, then Name plus ControlType | Windows UI Automation through PowerShell | 3 |
-
-### Trooper sandbox host plugin
-
-An alternative session host (D43), child sandbox-host. It exists so the `isolated` approval profile can run an engine
-with every approval skipped: that is only safe inside a boundary MetaTrooper controls. The ideas come from
-agent-infra/sandbox (one environment, shared filesystem, localhost only) and TencentCloud/CubeSandbox
-(credentials kept out of reach, egress allow-list); neither product is used. Both stay documented fallbacks:
-AIO Sandbox (Apache-2.0, 6,036 stars, needs `seccomp=unconfined`) and CubeSandbox (12,751 stars, KVM micro-VMs,
-Linux hosts only).
-
-**Runtime.** Docker Desktop on WSL2, or Podman; the plugin uses the first of `docker`, `podman` on PATH. Neither
-is installed on laptop-ops as of 2026-09-29: installing one is a hand-back. Windows Sandbox is rejected (one
-instance at a time).
-
-**Image.** `metatrooper-trooper:<plugin version>`, built by `troop sandbox build` from the plugin's
-`Dockerfile`: Debian 12 slim, node 24, git 2.48 or newer, a non-root user `trooper` (uid 1000), the MetaTrooper
-hook scripts copied to `/opt/troop/`, and each engine installed from its registry entry's `sandbox.install`
-lines. Engine hooks inside the image point at `/opt/troop/event.js` and `/opt/troop/codex-notify.js`. No
-credential is ever written into the image.
-
-**Launch.** `session.launch` with `approval: "isolated"` sets `host: "sandbox"`; `isolated` on any other host
-is refused with -32003. The pty command is unchanged except `launch.js` gets `--host sandbox`, and the
-launcher, inside the pty, runs:
+- M6 children, M6-1 to M6-22 in table order: 3.5 + 3.0 + 1.5 + 2.0 + 3.5 + 4.0 + 5.0 + 1.5 + 2.0 + 0.5 + 4.0 + 3.5
+  + 2.0 + 1.0 + 10.0 + 1.5 + 2.0 + 4.5 + 1.0 + 0.5 + 1.0 + 4.5 = 62.0 CC days (raised after round 2 for M6-1, M6-15,
+  M6-18 and M6-22, which both engines named; M6-22 again for the UI Automation listener).
+- Carried M5 work: 3.75 + 0.5 + 0.5 + 1.0 + 0.75 + 0.5 = 7.0 CC days.
+- Review, merge and two-engine checks, at 15% of the build: (62.0 + 7.0) x 0.15 = 69.0 x 0.15 = 10.35 CC days.
+- Total: 69.0 + 10.35 = 79.35, about 80 CC days.
+- Pace: M5 planned 30.85 CC days over 27 calendar days with four parallel sessions and paused with work unfinished,
+  so this plan assumes 1 CC day per calendar day, limited by Wasif's review time, not by sessions.
+- Calendar: 80 days from 2026-10-11 is 2026-12-29 (21 days left in October, 30 in November, 29 in December:
+  21 + 30 + 29 = 80). Freeze 2026-12-29. The 21 days to 2027-01-19 hold signing, the clean-PC test (D67), the docs
+  and site, and the holidays. There is no slack inside the 80 days, so the slip rule below is the buffer.
 
 ```
-docker run --rm -it --name troop-<id8> --network troop-egress --user 1000:1000 --cap-drop ALL
-  --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --read-only
-  --tmpfs /tmp --tmpfs /home/trooper
-  -v <worktree>:<mapped worktree> -v <main repo .git>:<mapped .git>
-  -v ~/.metatrooper/spool/<session id>:/troop/spool
-  <login mounts from the engine's sandbox.logins>
-  -e TROOP_SESSION_ID=<id> -e METATROOPER_SPOOL=/troop/spool
-  -e HTTPS_PROXY=http://troop-proxy:3128 -e HTTP_PROXY=http://troop-proxy:3128
-  -w <mapped worktree> metatrooper-trooper:<version> /opt/troop/entry.sh <engine argv with isolated args>
+M6-1 split ─┬─> M6-2 approvals ─┬─> M6-12 browser handoff, origins, secrets
+            │                   └─> M6-15 computer use ─┬─> M6-18 agent cursor ──> M6-16 self-test
+            │       M6-14 spike ────────┘               └─> M5-10 docs
+            ├─> M6-11 browser v2 ─┬─> M6-13 hygiene
+            │                     └─> M6-18
+            ├─> M6-17 public API
+            └─> M5-1 installer ──> M5-2 signing ──> M5-9 release runs
+M6-4 reliability ─┬─> M6-3 ports
+                  └─> M6-5 hook state ──> M6-6 comes back ──> M6-10 notifications
+                                     └──> M6-9 wall keys
+M6-7 terminal ──> M6-8 input, M6-19 search
+M6-14 spike ──> M6-22 input watcher
+M6-20 cost chip, M6-21 changed files, M5-15   (any time)
 ```
 
-A host path `C:\a\b` maps to `/host/c/a/b`. Worktrees are created with `git worktree add --relative-paths`, so
-the worktree's `.git` file and the main repo's `.git/worktrees/<name>/gitdir` resolve inside the container
-when both are mounted at their mapped paths. The main repo's working tree is not mounted, so `isolated` is
-refused outside a MetaTrooper worktree. The main repo's `.git/hooks` and `.git/config` are mounted read-only over
-the writable `.git`, so nothing written inside runs on the host at its next git command. The terminal owns the
-container (`--rm -it`); when the session ends the core also runs `docker rm -f troop-<id8>`, since killing the
-docker client leaves its container running (2026-10-08).
+Why this order: the split goes first because every other child edits files that import the runner. Reliability
+comes before ports and hook state because both add migrations and events into the database the lock fix protects.
+Approvals come before the browser's origin rule and computer use, because both call `approval.check`. The spike
+gates computer use because cua-driver's Windows claims are unrun here. The cursor comes after browser v2 and
+computer use because it hooks the `approval.check` answer both of them send. The installer starts right after the
+split so the signed build is ready for the clean-PC test well before the freeze.
 
-**Logins.** Each engine's registry `sandbox.logins` lists read-only file mounts,
-for example `~/.claude/.credentials.json` and `~/.codex/auth.json`, mounted `:ro` under `/troop/logins/<engine>/`;
-`entry.sh` links each into its place under `/home/trooper`, which stays writable (2026-10-08). Read-only means an engine cannot rotate a refresh token and log the host out. Before
-launching, the launcher checks `claudeAiOauth.expiresAt` in the Claude file and refuses with "run claude once
-on the host to refresh its login" if it expires within 60 minutes; for Codex it runs `codex login status` on
-the host. agy keeps its login in a Linux keyring, so its entry declares a named volume instead
-(`troop-agy-keyring` at `/home/trooper/.local/share/keyrings`); `troop sandbox login agy` opens a container
-that starts dbus and `gnome-keyring-daemon`, runs agy's headless code login, and keeps the volume. The keyring
-password is a DPAPI secret (`sandbox/keyring`) passed in as an environment variable. `entry.sh` starts dbus
-and unlocks the keyring only when that volume is mounted.
+Slip rule, decided now: on 2026-11-23, if fewer than half the Critical children are done, M6-16, M6-10, M6-20,
+M6-21, M5-15 and M6-13 move after the release, in that order. If M6-14's spike fails, M6-15 builds the PowerShell
+fallback at the same effort. Critical children never move; the dates move instead, by the days still owed.
 
-**Egress.** `troop-egress` is a Docker network created `--internal` (no route out). `troop-proxy` is a second
-container on both that network and the default bridge, running the plugin's dependency-free node CONNECT
-proxy on port 3128, which is never published to the host (D24 holds: MetaTrooper opens no host port). It
-allows only the union of every engine's `sandbox.egress` hosts plus `registry.npmjs.org`, answers 403 to
-anything else, and appends each denied host (host name only) to `~/.metatrooper/logs/egress-denied.log`.
+### Re-baseline of M5
 
-**Event bridge.** Inside the container the event writer sees `METATROOPER_SPOOL` and appends one NDJSON line
-per event to `/troop/spool/events.ndjson` instead of opening `troop.db`, which never crosses the boundary.
-The core ingests every 250 ms (see `events-and-hooks.md`, "Spool ingest"), re-redacting every payload on the
-host, and deletes the spool folder once the session is `exited` and fully ingested.
-
-**Rule exceptions (opt-in, sandbox host only).** Rule 1 holds: the terminal is still a core-owned pty, and
-the engine runs in a container that pty owns. "The engine inherits the user's normal environment" does not
-hold: a sandboxed engine sees only its worktree, the repo's `.git`, its spool and its read-only logins.
-
-**Registry shape.** Per engine, data only:
-
-```ts
-sandbox?: {
-  install: string[];                                   // Dockerfile RUN lines
-  logins: Array<{ file: string; mode: 'ro' } | { volume: string; at: string }>;
-  egress: string[];                                    // host names, no wildcards
-};
-approval_profiles.isolated: string[];                  // e.g. claude ['--dangerously-skip-permissions']
-```
-
-A bypass flag is allowed only in `isolated`; a unit test keeps it out of every other profile.
-
-## Open core, licence, prior art
-
-Free, with no account: the whole local IDE, every lane and plugin, on the user's own CLI logins and keys.
-Signed out (the only state in this epic), the core, workbench and tray make no network connections of their
-own; plugins with `network` do, and are listed. One exception, Wasif's call on 2026-10-09: when Windows "Automatically
-detect settings" is on, the workbench window (Chromium) looks up the LAN host `wpad`, as Chrome and Edge do, so the
-browser pane keeps working behind auto-detected proxies.
-
-Metered later, in the cloud epic: a model gateway on Wasif's API keys for users without a subscription,
-cloud runs, hosted transcription and rendering, and sync. Users' own subscriptions are never metered or
-routed through the gateway.
-
-Seams in this epic: the `usage` ledger (in `schema.sql`, built with the core); the engine `provider` field
-(`gateway` is refused with -32040); an account state that is `signed_out` with no sign-in prompt; pipeline
-`run_in: "cloud"` refused with -32040.
-
-Licence: `core/`, `workbench/`, `tray/`: AGPL-3.0. `sdk/`, `contracts/plugin-manifest.schema.json`,
-`contracts/plugins.md`, `contracts/pipeline.schema.json`, `contracts/pipelines.md`, `contracts/browser-tools.md`
-and `pipelines/`: MIT. Plugins interact only through the manifest, action processes, the pane `postMessage`
-bridge and the named pipes, so a plugin never links to AGPL code. Electron is MIT and Tauri Apache-2.0 or
-MIT, both compatible.
-
-Prior art, checked 2026-09-29:
-
-| | Orca (stablyai/orca) | herdr (herdrdev/herdr) | MetaTrooper |
-|---|---|---|---|
-| Stars, licence | 80,844, MIT | 41,291, Apache-2.0 | new, AGPL-3.0 core |
-| Where agents run | terminals embedded in the Electron app | herdr's server; viewed in any terminal | in-app terminals owned by the core service |
-| Agent state | yes | blocked, working, done, idle, unknown, 12 agents on Windows | hooks, notify, file activity; terminal bell when those are silent |
-| Worktrees | compare and merge | create and open | fan-out variants with pick, combine, discard |
-| Click element to prompt | Design Mode | no | point-to-comment with agent cursors |
-| Pipelines, lanes, gates | no | no | 12 lanes, 17 built-ins, publish rule bound to the exact action |
-| Token saving | no | no | callrouter |
-
-## Milestones and child issues
-
-Estimates are Claude Code days and were raised after the review said the first ones were too low.
-
-### Milestone 1: the core loop (about 28 CC days)
-
-Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
-
-| # | Title | Effort | Depends on |
-|---|---|---|---|
-| 12 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, private-folder refusal | 4.5 | none |
-| 13 | Plugin system: manifest validation, install screen and approval, action runner with env stripping and tree kill, pane bridge, Claude and Codex/agy importers | 3.5 | 12 |
-| 14 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json` | 2.5 | 13 (for the plugin part only) |
-| 15 | Pipeline runner: validation with the publish rule, handoff contract, completion signals, gates with `action_hash`, fan-out, worktrees, port allocation, loops, resume, breaker, budgets, code steps, `repo` plugin | 4.5 | 12, 13 |
-| 16 | Electron workbench: project picker, session cards and focus, engine lights, runner view, form editor, gate panel, needs-you queue, "core offline" badge, database watcher | 3 | 12, 15 |
-| 17 | Live browser: panes, `metatrooper-browser` MCP, browser pipe with ownership checks, cursor overlay, request interception, isolated `evaluate`, full-page capture, point-to-comment, before/after | 5 | 12, 16 |
-| 18 | Two-engine review pipeline and view | 1 | 15, 16 |
-| 19 | Hand-back tray | 0.5 | 12, 16 |
-| 20 | Token meter and prices (reads `usage` from #12 and callrouter "saved") | 1.5 | 12, 14 |
-| 21 | Agent-native `troop` CLI and skill | 1.5 | 12, 15 |
-| 22 | Measurement tooling for the adoption gate | 0.5 | 16 to 20 |
-
-#16's screen was revised twice: the UI revision (terminal-core to result-panes, `issues/archive/`) and the wall port
-(`issues/ui-port-epic.md`, phases A to E).
-
-Then the **adoption gate**: 14 days of Wasif's daily use, measured by #22, before milestone 2 starts.
-
-### Milestone 2: design and coding lanes (about 18 CC days)
-
-Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
-
-| # | Title | Effort | Depends on |
-|---|---|---|---|
-| 23 | Inspiration board and `agent-reach` plugin | 1.5 | 13, 15, 17 |
-| 24 | Variants grid: tiles, pick, combine, discard | 2 | 15, 17 |
-| 25 | `github` and `deploy` plugins; `spec-to-pr`, `e2e-browser-qa`, `website-build`, `design-variants` | 2.5 | 15, 16, 17, 23, 24 |
-| 26 | `docs-and-release-notes` | 1 | 25 |
-| 27 | `security` plugin and `security-review-and-upgrade` | 1.5 | 18, 25 |
-| 28 | herdr host plugin (dropped 2026-10-02, UI revision D8) | 0 | none |
-| 29 | Usage limits and account switcher | 2 | 12, 16 |
-| 30 | Diff annotation and file drag | 1 | 19 |
-| 31 | Signed packaging through SignPath Foundation (Electron now; Tauri in milestone 3) | 1.5 | 16 |
-| sandbox-host | Trooper sandbox host plugin: container image, `--host sandbox` launcher path, read-only logins, agy keyring login, egress proxy, spool bridge, escape self-test | 3 | 12, 13, 15 |
-
-### Milestone 3: every other lane (about 18.5 CC days)
-
-Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
-
-| # | Title | Effort | Depends on |
-|---|---|---|---|
-| 32 | `media` plugin and `footage-to-edit` | 2.5 | 15, 16 |
-| 33 | `social-scheduler` plugin and `clips-to-scheduled-posts` | 1.5 | 32 |
-| 34 | `seo` plugin and `seo-audit-fix` | 2 | 17, 25 |
-| 35 | `cite-check` plugin and `deep-research-cited` | 1 | 15, 17, 23 |
-| 36 | `gmail` plugin, `prospect-list-to-drafts`, `inbox-triage-drafts` | 2 | 15, 16, 23 |
-| 37 | `data` plugin and `data-to-dashboard` | 1 | 15, 16 |
-| 38 | `docs-export` plugin and `study-notes-to-pdf` | 1.5 | 18, 32 |
-| 39 | `desktop` plugin, handoff gate UI, `form-fill-batch` | 3 | 15, 16, 17 |
-| 40 | Template gallery (17 templates) | 1 | 13, 15, 16 |
-| 41 | Tauri tray companion, signed through #31's pipeline | 2 | 12, 31 |
-| 42 | Open-core seams: `provider: gateway` and `run_in: cloud` refusals, account state | 1 | 12, 15 |
-
-Total: about 64.5 CC days (28 + 18 + 18.5). Human-team equivalent: about 12 months.
-
-Sequencing: #12's schema and pipe protocol are frozen before any client is built, because everything else
-reads them. Plugins come before the runner because steps call actions. Callrouter's own code (C1, C9, C7)
-can be built in parallel from day one; only its plugin manifest waits for #13. The browser precedes the board
-and variants because both render through it. Milestone 2 waits for the adoption gate so lanes are built on a
-core that has survived daily use; milestone 3 lanes are independent of each other.
-
-### Milestone 4: improve what runs today (about 13.75 CC days)
-
-Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
-
-M1 is built and dogfooding has started (UI-01 still TODO). Three costs show up in daily use. Review steps tell
-agents to read whole source files. Agents rebuild things open-source tools already do. Small rough edges
-show up in real runs and in the test suites. M4 adopts researched tools into code that runs today, gives
-every pipeline optional helper tools, applies ideas mined from those tools, and fixes what real use finds.
-Tools and ideas for pipelines that are not built yet go into their M2 and M3 issues (M4-D1).
-
-Specced 2026-10-05 through `/spec`. Research behind it: `research-core-coding.md`, `research-lanes.md`,
-`research-assists.md`, `ideas-coding.md`, `ideas-lanes.md` (scratch, 2026-10-05). Each child's detail is in its
-issue file; the Codex gate scored the single-file draft 4/10 twice, so each child file is scored on its own
-before it is built.
-
-#### Milestone 4 decisions
-
-| # | Decision | Chosen |
-|---|---|---|
-| M4-D1 | Scope | Built parts only: core, the five built pipelines, the wall, fixes from real use. Tools and ideas for unbuilt pipelines amend their issues (M4-8) |
-| M4-D2 | Done | The replay gate (M4-03) passes, the real confirm runs point the same way (M4-04), UI-01 passes, and both suites run clean alone (M4-02) |
-| M4-D3 | Tools | Code map, TOON output, gitleaks at publish gates, OSC notifications as a needs-you signal |
-| M4-D4 | Code map | `tirth8205/code-review-graph` (MIT, 31,923 stars, pushed 2026-09-18), installed with the real Python 3.14 interpreter like `metarouter` (`Python314/Scripts`, on PATH). `codebase-memory-mcp` is an unsigned .exe that Smart App Control is expected to block |
-| M4-D5 | Measuring tokens | A deterministic replay of offered context (a proxy, not the bill) is the gate; one real run per pipeline before and after must point the same way, no threshold |
-| M4-D6 | Secret findings at a publish gate | Approve is replaced by "Approve anyway" plus a typed reason; a scanner that cannot run shows a red line and Approve still works |
-| M4-D7 | Code-map install | Never run `code-review-graph install` or `uninstall`: they edit every agent's settings, hooks and rules files. MetaTrooper starts the server through its own manifest and `mcp-shim.js` |
-| M4-D8 | TOON default | Opt-in flag. A command's default flips only when its recorded payload saves at least 15% and decoding gives back the same JSON |
-| M4-D9 | Helper tools | Every one of the 17 pipelines lists optional helper tools that steps use when installed. A pipeline never depends on one. User-installed, never bundled, so the dependency gate does not apply; each shows licence risk and what it sends off the machine |
-| M4-D10 | Worktree dependencies | Revised after reading the code: every step with `worktree: true` today is an agent step, and the runner cannot intercept an agent's own `npm install`, so no junction is used. A fresh worktree with a `package-lock.json` and no `node_modules` gets `npm ci --prefer-offline --no-audit --no-fund` before its dev server or agent starts |
-| M4-D11 | Secret hit before an external send | Same rule as M4-D6 for `review.diff` before Codex and Gemini read it |
-| M4-D12 | Replay scope | Revised after reading the code: only `two-engine-review` `codex-review` is replayed. `gemini-review` runs on agy, which gets no MCP servers yet (`contracts/plugins.md:112`, `agy-config` "not attached yet"); `spec-to-pr`'s agent steps (`spec`, `build`) read open-ended parts of the repo, so no fixed context exists to replay. Both are covered by the real confirm runs instead |
-
-#### Milestone 4 current state
-
-- `pipelines/two-engine-review.json`: steps `diff` (code), `codex-review` (agent, codex), `gemini-review`
-  (agent, agy), `bucket` (code). Both review prompts say "Read that file and the source files it touches".
-- `pipelines/two-engine-review/diff.mjs`: writes `git diff <range>` of `ctx.projectPath` to `review.diff`.
-  `bucket.mjs`: matches findings across engines after widening each range by 3 lines (`WIDEN = 3`); buckets
-  `both`, `codex_only`, `gemini_only`, `disagree`; no check against the diff hunks.
-- `workbench/renderer/layouts/rules.js:11`: a review run opens (leaves the 36px bar) when
-  `disagree || critical`; `review.js:36-37` counts both over all four buckets.
-- `pipelines/spec-to-pr.json`: `spec` (agent, plan), `approve-spec` (gate), `build` (agent, worker,
-  `worktree: true`), `verify` (action `plugin:repo/run-tests`), `approve-pr` (gate), `open-pr` (action
-  `plugin:github/create-pr`, role `publish`). Input `base_branch` defaults to `main`.
-- `pipelines/website-build.json`: `build` (agent, worktree, `serve: before`), `critique` (agent, one pass,
-  no `until`), `preview` (action), `approve` (gate), `production` (action `plugin:deploy/production`,
-  role `publish`, `with.path: {{steps.build.outputs.worktree}}`).
-- `core/src/pipelines/runner.ts:489-504` `placeIndex`: creates a worktree at
-  `~/.metatrooper/worktrees/<project id>/<run>-<step>-<idx>` on branch `troop/<same>` from the project HEAD;
-  the starting commit is not recorded. `:754` `gateStep` opens gates; `:775` `checkApproval` binds them to
-  `action_hash`. `:137` `needsYou(kind, ref, text)` inserts a `needs_you` row. `:646-675` is the wait loop
-  for an agent step; `:670` fails with "the session exited without writing <path>".
-- `contracts/schema.sql`: `gate` has no scan or override columns; `needs_you.kind` allows `other`.
-  `core/src/store/db.ts:33` adds a missing column with `ALTER TABLE` at open (the `driven_engine` pattern).
-- `core/src/methods.ts:279-297` `gate.resolve {gate_id, decision, action_hash, note?}`.
-  `workbench/renderer/app.js:670` `resolveGate` and `:877` a Ctrl+K "Approve: <summary>" quick action call it.
-- `contracts/plugin-manifest.schema.json:103-114`: an `mcp` entry has `id`, `command`, `args`, `env_keys`
-  (secrets only), `engines`; no literal `env`, no argument templating. Attach kinds that work:
-  `claude-mcp-config-flag`, `codex-config`.
-- `core/src/terminal/index.ts:56`: `head.onBell` feeds `term.bell`; no OSC handler is registered.
-- `core/cli.ts:361-390` `troop run` has `start`, `wait`, `status`; no `cancel`. `run.cancel {run_id}` exists
-  (`contracts/pipe-protocol.md:131`).
-- `core/src/hook/browser-mcp.ts:15` and `workbench/src/browser/panes.ts:414`: `snapshot {pane_id, max_nodes}`.
-  The other browser tools return small JSON objects; `snapshot` returns text.
-- `core/src/engines/registry.ts:63`: agy has `print_args`; pipeline steps run it in print mode (D51).
-- The meter counts Claude (`message.usage`) and Codex tokens; agy has none (M1-28). Test pipelines use a
-  fake engine, so the meter reads zero for them.
-
-#### Milestone 4 children
-
-| # | Title | Issue file | Priority | Effort (CC days) | Depends on |
-|---|---|---|---|---|---|
-| M4-1 | Replay harness, baselines, before-runs | `issues/m4-01-replay-harness.md` | Critical | 0.75 | none |
-| M4-2 | Test suites clean up after themselves | `issues/m4-02-clean-test-suites.md` | Critical | 0.5 | none |
-| M4-3 | `code-map` plugin and the codex review prompt | `issues/m4-03-code-map-plugin.md` | High | 2 | M4-1 |
-| M4-4 | Secret scan at publish gates and before external sends | `issues/m4-04-secret-scan.md` | High | 2 | M4-2 |
-| M4-5 | TOON output for `troop` | `issues/archive/m4-05-toon-output.md` | Low | 0.5 | M4-1 |
-| M4-6 | OSC notification probe and signal | `issues/m4-06-osc-signal.md` | Medium | 0.5 | none |
-| M4-7 | Fixes from real use | `issues/m4-07-fixes-from-real-use.md` | High | 1.5 | M4-2 |
-| M4-8 | M2 and M3 issue amendments (docs only) | `issues/m4-08-issue-amendments.md` | Medium | 0.5 | M4-9 |
-| M4-9 | Helper tools for every pipeline (`assists`) | `issues/m4-09-helper-tools.md` | High | 1.5 | none |
-| M4-10 | Ideas mined from the helper repos, built pipelines | `issues/m4-10-mined-ideas.md` | High | 2 | M4-2, M4-4 |
-| M4-11 | Session glue: file owners from git, edit warnings, left-behind files, hand-back to the parent | `issues/m4-11-session-glue.md` | Medium | 2 | none |
-
-Total about 13.75 CC days.
-
-```
-M4-1 baselines ──┬─> M4-3 code map ──┐
-                 └─> M4-5 TOON       ├─> M4-04 real after-runs, M4-03 replay check
-M4-2 clean suites ─┬─> M4-4 secret scan ──> M4-10 ideas
-                   └─> M4-7 fixes ──> M4-12 UI-01 workday
-M4-9 assists ──> M4-8 issue edits
-M4-6 OSC probe   (any time)
-```
-
-Why this order: baselines and before-runs must exist before any prompt or tool changes, or nothing can be
-compared. The suites must run clean first because every later child adds tests, and leftover listeners on
-ports 3001 to 3100 make the full core suite hang today (M2-STATUS, M2-01).
-
-#### Milestone 4 rollback and out of scope
-
-Each child lands as its own commit. The code-map plugin uninstalls through the plugin screen and the codex
-prompt still works without it. `gate.scan` and `gate.override_reason` are nullable additions, so reverting
-the code leaves a database older code can open. TOON is opt-in until a measured flip. `assists` is optional
-in the schema; removing it from a pipeline file restores the old prompts. `worktree.npm_ci: false` turns off
-I8 without a code change.
-
-Out of scope:
-
-- Tools and ideas for pipelines not built yet (they go into their issues through M4-8).
-- `browser.hello` trusting a self-reported pid: same-user processes can already read the ui key, so a pid
-  check is not the boundary, and a real fix needs a native module (spec.md: no native module).
-- UI-02 (installer and a fresh account): waits on #31 SignPath.
-- Code map for agy: waits on a verified `agy-config` attach.
-- Installing helpers for the user; helpers contributed by third-party plugins (first-party registry only).
-- TOON for browser tools.
-- Later list, all gate passes, not built in M4: OpenSpec change-proposal handoff for plan steps, repomix
-  `--compress` context packs, difftastic as a diff display, context7 and github-mcp-server as recommended
-  MCPs, `anthropics/sandbox-runtime` (Apache-2.0) as a Docker-free option for sandbox-host.
-
-### Milestone 5: launch (about 30 CC days, freeze 2026-11-05, public 2026-12-01)
-
-M1 to M4 built a desk Wasif uses every day. M5 is what a stranger needs on 2026-12-01: a signed installer that works
-without Node, a first run that explains itself, Pro on sale, docs that match the app, a catalogue cut to what people
-asked for, and a way to plug in the tools teams already use. Specced 2026-10-09 under `/goal` while Wasif was away;
-open calls decided by Codex and Gemini (both chose A on all eleven, M5-D1 to M5-D11), money and account calls left
-to him (hand-back list below).
-
-Research behind it: `ide-layer-research/m5-demand.md` (what users ask for, with reaction counts),
-`ide-layer-research/m5-integrations-demand.md` (which tools, with install counts), the read-only launch audit in
-`issues/m5-00-rebaseline.md`, and a repo idea scan per pipeline (17 pipelines, about 1,640 READMEs read by the local model, then
-checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-research/m5-hardening-coding.md` and
-`ide-layer-research/m5-repo-scan-preview.md`, which each preview pipeline's issue links.
-
-#### Milestone 5 decisions
-
-| # | Decision | Chosen |
-|---|---|---|
-| M5-D1 | Pipelines at launch | 5 built-ins: spec-to-pr, spec-build-review-handback, two-engine-review, e2e-browser-qa, and the Pro pr-review-fix. 10 others ship as preview templates (files kept, runnable once added) |
-| M5-D2 | No-signal pipelines | prospect-list-to-drafts, inbox-triage-drafts, study-notes-to-pdf leave the gallery and the installer until someone asks; kept in the repo |
-| M5-D3 | Features with no demand signal | Inspiration board, variants grid, agent cursors and 12 of the 15 layouts are frozen as they are: no new work, no marketing, fixed only when they break a built-in |
-| M5-D4 | Linux | Source install, beta, at launch; packaged Linux in December |
-| M5-D5 | Sandbox host | Experimental flag, off by default; its three P0s are after launch |
-| M5-D6 | Default approval for a new user | `ask`, with a first-run choice of auto mode; an existing settings file keeps its value |
-| M5-D7 | Private path rule | Becomes the setting `sessions.ask_paths`, empty by default; Wasif's settings carry his path |
-| M5-D8 | Integrations at launch | Remote MCP (M5-12), the importer shape fix (M5-13 step 1) and the outbound notification sink (M5-15). Engines as data, marketplace and registry importers and the issue trigger in January 2027. Revised 2026-10-09: the goal asked for many popular tools to plug in, so the marketplace and registry importers (M5-13) and engines as data (M5-14) were built now; only the issue trigger (M5-16) waits |
-| M5-D9 | Pro timing | Pro (M5-6, M5-7) is built before the freeze; the freeze covers it. Supersedes the money plan's "Exams" row |
-| M5-D10 | Tray and TOON | Cut: issue files archived, GitHub #41 closed as not planned |
-| M5-D11 | Hardening budget | The 5 built-ins are hardened in code (M5-17); preview pipelines get the scan's ideas in their issue files only |
-| M5-D12 | Packager | electron-builder, NSIS per-user. It is MIT but under the 25k-star gate, so it ships only after Wasif grants the exception, as xterm got one |
-| M5-D13 | MCP servers that write outside | A server marked `writes: external` never attaches to a pipeline-step session, and in interactive sessions only under profiles where the engine still asks per tool. Codex named it a missing call; this is the conservative reading of the gate rule |
-| M5-D15 | Where undone work lives | Wasif, 2026-10-09: every undone issue or spec item from M1 to M4 goes into M5 (launch). `issues/m5-00-rebaseline.md` lists each one as BLOCKER (ships 12-01) or M5 (after 12-01, still this milestone). M1 to M4 keep their history; their ledgers point here for anything open. Cut items (M5-D10, CUT rows) are not undone work |
-| M5-D16 | T2, what "disagree" means | A finding both engines placed on the same lines always goes to `both`, so the fix loop sees it; when their verdicts differ it carries `split: true`, and the review screen's disagreement rule reads `split` instead of the bucket name. Verdicts are lower-cased and trimmed first. Added to the M5-17 launch set (0.5 CC days). Claude's call after Wasif delegated the open calls on 2026-10-09 ("the rest i think you can answer") |
-| M5-D17 | Token saving (A-05) | Stays a standing goal and an internal measurement (M4-03 replay median 0.35 already passes its 0.70 gate). Not a launch claim and not a launch gate; marketing quotes no saving until a real billed run shows one. Claude's call on the same delegation |
-| M5-D18 | Public repo scrub | Current files only: the employer path rule becomes the `sessions.ask_paths` setting (M5-D7), and spec.md, the ledgers and `ide-layer-research/` drop the employer's name, the employer path and the personal session counts for neutral wording. Git history is not rewritten (no force push), so what is already public stays in history. Part of M5-10. Claude's call on the same delegation |
-| M5-D19 | Code signing (recommendation) | Certum Open Source Code Signing (established CA, issues to individuals worldwide, about EUR 49 a year); OSSign only if Certum's identity check fails. It costs money, so it stands once Wasif buys it |
-| M5-D20 | Pro code and licence (recommendation) | Pro as a separate plugin in a private repo with its own licence; Lemon Squeezy licence keys with one user-triggered activation call, cached, documented as the second network exception beside wpad. Stands once Wasif creates the repo and the store |
-| M5-D21 | Packager | electron-builder (MIT, 14,670 stars, pushed 2026-10-09) runs only at build time and never ships inside the app, so it falls under the gate's exemption for local tooling. Claude's call on the same delegation |
-| M5-D22 | Landing m4-harden and m5-launch | Held until Wasif looks at the gate card and one spec-to-pr run on screen. Codex chose "merge, then screenshot and judge", Gemini chose "wait for his look"; the engines disagreed, so the conservative choice won (2026-10-09, Wasif asked the engines to make his remaining calls) |
-| M5-D23 | Signing, Pro shape, Pro repo | Both engines: Certum (confirms M5-D19); Pro as a private plugin with Lemon Squeezy keys (confirms M5-D20); do not create the Pro repo until M5-6 is built |
-| M5-D24 | Clean Windows machine | Both engines: a Hyper-V Windows 11 VM with Smart App Control on and a fresh standard account is the only setup that satisfies M5-01a; Windows Sandbox and a second account on this laptop do not |
-| M5-D25 | Linux evidence | Codex said WSL Ubuntu counts; Gemini said a real Linux desktop is needed. Conservative split: WSL counts for the core suite and the source-install beta (M5-05a), not for the Electron workbench. WSL here lacks `make`, so node-pty cannot build until `build-essential` is installed |
-| M5-D26 | Vendor terms (`ide-layer-research/m5-terms.md`) | Free app: allowed by all three with conditions (official unmodified binaries, the user signs in, MetaTrooper never reads or stores login tokens, no `claude -p` or Agent SDK, one login per person). Pro: OpenAI allowed with the same conditions; Anthropic and Google unclear. So Pro charges no one until Anthropic and Google confirm in writing, or until its Claude and Gemini steps can run on the buyer's own API key. Vendor logos are replaced by text names and a not-affiliated line |
-| M5-D27 | Hardening the preview pipelines | The goal asked for every pipeline to be hardened, so each of the 13 preview and unshipped pipelines got its two most serious failure modes fixed in code (M5-21, 26 fixes), on top of M5-D11's idea banks. Each fix was verified against the code first, has a Codex-written test, and anything needing a product call was listed, not built |
-| M5-D28 | SR-H5 in the launch set | Wasif, 2026-10-09 (through teehee-85): the security licence report that reads "Packages: 0" with no node_modules joins the M5-17 launch set, an exception to M5-D11 |
-| M5-D29 | Sandbox: code in Docker, not agents | Wasif, 2026-10-10: agents (Claude, Codex, agy) run on the host as normal; the builds, tests and dev servers they start run in one Docker container per project, and the workbench gets an Open sandbox button (a terminal into the container, and its files). No engine logs in inside Docker, so `troop sandbox login agy` and the M2-08 agy half are dropped. Supersedes the agents-in-Docker design in `issues/sandbox-host.md` (M2) and M5-D5's three sandbox P0s; needs a /spec before building (about 1 to 2 days) |
-| M5-D14 | One instruction file | Added after Gemini named it as missing: each engine reads `AGENTS.md` when its own file is absent, through the engine's own flag, never by writing into the project (M5-19) |
-
-#### Milestone 5 children
-
-| # | Title | Issue file | Priority | Effort (CC days) | Depends on |
-|---|---|---|---|---|---|
-| M5-0 | Every undone M1 to M4 item, now M5 work (BLOCKER or M5 rows) | `issues/m5-00-rebaseline.md` | Mixed, per row | per row | per row |
-| M5-1 | Installer and bundled runtime | `issues/m5-01-installer.md` | Critical | 3.75 | M5-D12 |
-| M5-2 | Code signing | `issues/m5-02-signing.md` | Critical | 0.5 | M5-1, Wasif's pick |
-| M5-3 | First run, engine messages, safe default | `issues/m5-03-first-run.md` | Critical | 1.0 | none |
-| M5-4 | Logs | `issues/m5-04-logs.md` | High | 0.5 | none |
-| M5-5 | Linux source beta | `issues/m5-05-linux.md` | Medium | 0.5 | none |
-| M5-6 | Pro review and fix loop with proof gate | `issues/m5-06-pro-review-proof-gate.md` | Critical | 3.5 | M5-8 S5 |
-| M5-7 | Pro licence, trial, checkout | `issues/m5-07-pro-licence-checkout.md` | Critical | 2.5 | M5-6, Wasif's two decisions |
-| M5-8 | Launch security subset (S5 is built on m4-harden as M4-4) | `issues/m5-08-launch-security.md` | Critical | 1.0 | none |
-| M5-9 | Release gate, CI, versioning | `issues/m5-09-release-gate.md` | High | 1.75 | none |
-| M5-10 | Public docs, licences, privacy, ask_paths setting | `issues/m5-10-public-docs.md` | High | 2.5 | M5-3, M5-18 |
-| M5-11 | Site, waitlist, demo data | `issues/m5-11-site-and-demo.md` | High | 1.75 | M5-6 for the GIFs |
-| M5-12 | Remote MCP servers | `issues/m5-12-remote-mcp.md` | High | 3.0 | none |
-| M5-13 | Catalogue importers: Claude importer shape fix, Claude plugin marketplaces, MCP registry | `issues/m5-13-catalogue-importers.md` | Done (code) | 2.5 | M5-12 |
-| M5-14 | Engines as data: OpenCode, Copilot CLI, Gemini CLI, pi | `issues/m5-14-engines-as-data.md` | Done (code) | 3.0 | none |
-| M5-15 | Notification sink (outbound) | `issues/m5-15-notification-sink.md` | Medium | 2.0 | none |
-| M5-16 | Issue trigger and gated write-back | `issues/m5-16-issue-trigger.md` | M5, after 12-01 | 2.5 | M5-14 |
-| M5-17 | Hardening the built-ins from the repo scan | `issues/m5-17-pipeline-hardening.md` | High | 5.1 | M5-9 |
-| M5-18 | Catalogue cut: built-ins, preview, unshipped | `issues/m5-18-catalogue-cut.md` | High | 0.5 | none |
-| M5-19 | One instruction file | `issues/m5-19-one-instruction-file.md` | Medium | 0.5 | none |
-| M5-20 | Mined ideas for website-build and design-variants | `issues/m5-20-built-preview-ideas.md` (teehee-85) | M5, after 12-01 | see file | M5-18 |
-| M5-21 | Two verified hardening fixes in each of the 13 preview and unshipped pipelines | `issues/m5-21-preview-hardening.md` | Done (code) | 2.5 | M5-18 |
-
-Launch total, worked: 3.75 + 0.5 + 1.0 + 0.5 + 0.5 + 3.5 + 2.5 + 1.0 + 1.75 + 2.5 + 1.75 + 3.0 + 0.5 + 2.0 + 0.5 +
-0.5 + 5.1 (M5-17) = 30.85 CC days. Calendar: 2026-10-09 to 2026-11-05 is 27 days. 30.85 is more than 27, so M5 fits
-only with parallel sessions and the slip rule below; Wasif's review hours are the limit, not Claude's. M5-14 and
-M5-16 are after launch and are re-scored by the Codex gate before anyone builds them.
-
-```
-M5-18 cut ──> M5-10 docs
-M5-8 security (S5 scan) ──> M5-6 Pro loop ──> M5-7 licence ──> M5-11 site and GIFs
-M5-1 installer ──> M5-2 signing ──> clean-machine run (M5-01a)
-M5-9 release gate ──> M5-17 hardening
-M5-12 remote MCP ──> M5-13 shape fix
-M5-3, M5-4, M5-5, M5-15, M5-19   (any time)
-```
-
-Why this order: the cut comes first because docs, gallery and hardening all depend on which pipelines ship. The
-secret scan comes before the Pro loop because Pro sends every diff to OpenAI and Google. The installer comes before
-signing because signing needs files to sign. The release gate comes before hardening because every hardening item
-adds tests and the suites must already run clean.
-
-Slip rule, decided now so it needs no meeting: on 2026-10-26, if fewer than half the Critical children are done,
-M5-15 and M5-19 move to January, then M5-12 and M5-13, then M5-5 to December. Critical children never move; the
-launch date moves instead.
-
-#### Milestone 5 hand-back (only Wasif)
-
-Every call below was decided by Codex and Gemini (M5-D22 to M5-D26); what is left needs his hands, money or name.
-
-1. Look at the m4-harden gate card and one spec-to-pr run on `m5-launch`, then merge m4-harden, then m5-launch
-   (M5-D22).
-2. Buy the Certum certificate and pass its identity check (M5-D23).
-3. Send the two terms questions drafted in `ide-layer-research/m5-terms.md` to Anthropic and to Google
-   (antigravity-support@google.com) before Pro charges anyone (M5-D26). Lemon Squeezy waits for the answers.
-4. Install Windows 11 once in a Hyper-V VM with Smart App Control on (M5-D24), and run
-   `sudo apt install build-essential` in WSL Ubuntu (M5-D25).
-6. On screen for the first real pr-review-fix run, one workday in the app (UI-01), the GIFs (M5-11).
+| M5 child | Goes |
+|---|---|
+| M5-0 re-baseline | Done; its pipeline rows move with the split |
+| M5-1 installer, M5-2 signing, M5-9 release gate | Stay (above) |
+| M5-3 first run, M5-4 logs, M5-5 Linux beta, M5-8 security, M5-12 remote MCP, M5-13 importers, M5-14 engines as data, M5-19 one instruction file | Done; stay in the product |
+| M5-10 docs, M5-11 site | Done for the old scope; redone (above) |
+| M5-15 notification sink | Code stays; settings UI owed (above) |
+| M5-6 Pro review loop, M5-17 pipeline hardening, M5-18 catalogue cut, M5-20, M5-21 | Move with the pipelines |
+| M5-7 Pro licence, M5-16 issue trigger | Cut (D64; the trigger starts pipelines) |
 
 ## Acceptance criteria
 
-### Milestone 1
+Carried and still binding, full text in the archived spec: M1-01, M1-04 to M1-17, M1-22 to M1-25c, M1-27, M1-28,
+M1-30, M1-33 to M1-37, M1-39, and M5-01a with "a fresh Windows account" read as D67's second PC. The pipeline
+criteria (M1-18 to M1-21, M1-26, M1-31, M1-38, M2, M3, M4) move with the split.
 
-- M1-01. `npm run dev` opens the workbench on laptop-ops with Smart App Control on.
-- M1-02 (superseded 2026-10-02 by UI-03 and UI-11). Launching claude, codex and agy for one project opens three Windows Terminal windows named
-  `troop-<id8>`, each a normal interactive session on the existing logins, with no API key set.
-- M1-03 (superseded 2026-10-02 by UI-06). Independence, per engine: start a long turn, kill the workbench and the core. The agent finishes its
-  turn, the user can keep typing, and restarting the core rediscovers the live sessions by pid within 10 s.
-- M1-04. With the core never started, every hook and `launch.js` exits 0 with no output, and the engine
-  starts no more than 1 s later than without MetaTrooper.
-- M1-05. A test types a marker string into a session and asserts it appears in no MetaTrooper log or table.
-- M1-06. Speed with 3 live sessions and a running pipeline: window reads p95 under 1 ms; a hook event is on
-  screen within 100 ms; pipe commands p95 under 20 ms.
-- M1-07. Over a 10-minute scripted session, including two core kills and restarts, the workbench renderer has
-  no main-thread task over 50 ms (long-task observer).
-- M1-08a. Killing the core between `accepted` and `running` re-executes that command on restart; killing it
-  after `running` marks it `error` "interrupted by core restart" with a needs-you item, and it is not re-run.
-- M1-08b. A connection without `ui.hello` gets -32012 from `gate.resolve`, whatever `meta.origin` it claims; a
-  code step's `ctx` has no path to approve.
-- M1-08. Commands sent while the core is down show "queued" within 300 ms and all run, in order, within 2 s
-  of restart. A command that arrives both by pipe and by queue (forced by delaying the reply past 300 ms) runs
-  exactly once. `session.focus` is never queued.
-- M1-09. `Get-NetTCPConnection -State Listen` shows no port owned by the core, workbench or
-  `metatrooper-browser`, and no connection upgrades to WebSocket, during a full `two-engine-review` run.
-- M1-10. A standard local account other than the owner cannot complete a request on either pipe.
-- M1-11. A Claude session shows `waiting_for_you` within 2 s of a permission Notification, `done` within
-  2 s of Stop, and `idle` after its card is opened (`session.seen`).
-- M1-12. Codex and agy sessions get a `native_id` by the rules in `events-and-hooks.md`, or show "state
-  unknown"; they never show a wrong state on the fixture runs.
-- M1-13. `hooks install` then `hooks uninstall` leaves `~/.claude/settings.json` and `~/.codex/config.toml`
-  byte-identical; the Codex computer-use helper still receives every notify while installed.
-- M1-14. The UserPromptSubmit hook delivers a queued comment as the JSON in `events-and-hooks.md`; killing
-  the hook before it prints leaves the comment for the next prompt (never lost); a normal run prints it once.
-- M1-15. A plugin folder with a valid manifest adds an engine that appears in `engine` and can be bound to a
-  role with no core code change; an invalid manifest is rejected with its schema errors.
-- M1-16. An action's environment contains only the base variables and approved secrets (checked by a
-  fixture action that prints its environment to a file); a hung action is killed with its child processes at
-  its timeout.
-- M1-17. An imported Claude Code plugin with one MCP server and one env key asks for `secrets:<KEY>`, and the
-  value is not written to any MetaTrooper file.
-- M1-18. A pipeline with a publish step and no earlier approve gate fails validation from the file and the
-  form view; so does a publish or external step with `fanout`, and an agent publish step without a pinned
-  `engine`.
-- M1-18a. A `kind: "pipeline"` step runs its child with the parent's remaining budget, shows the child's
-  gates in the parent, and returns the child's last-step outputs; nesting a pipeline inside itself fails
-  validation.
-- M1-18b. The same folder opened as `C:\Proj\` and `c:/proj` (on a case-insensitive volume) gets one
-  `project_id`.
-- M1-19. Changing a publish step's arguments after approval marks the gate `stale` and pauses for a new
-  approval; a `code` step and a non-TTY CLI cannot resolve a gate.
-- M1-20. A loop that never passes stops at `max`; a step failing 3 times trips the breaker; resume restarts
-  from the failed step with earlier outputs kept, and after the breaker it clears the failure counts.
-- M1-21. A run over `max_tokens` starts no new step; its overshoot is at most the usage of the steps running
-  at that moment, and never more than `max_parallel` of them.
-- M1-22. Fan-out 3 on the fixture repo gives 3 worktrees, 3 leased ports starting at 3001 (skipping a port the
-  test occupies), and 3 browser panes; each pane is drivable only by the session found through its own
-  process ancestry, including for Codex sessions.
-- M1-23. The cursor overlay reaches within 5 px of a click point before the click lands, from Claude, Codex
-  and agy sessions.
-- M1-24. Browser interception blocks `file:`, a loopback port the project does not own, `192.168.x.x`, `[::1]`
-  on an unowned port, a `fd00::` address, and a test hostname that resolves to `127.0.0.1`, including requests
-  made by page scripts and by `evaluate`.
-- M1-25. Full-page capture of a 5,000 px fixture page with a sticky header produces one image 5,000 px tall
-  with the header shown once.
-- M1-25a. An action spawned with the stripped environment can still run `npm` and a `.cmd` script by name.
-- M1-25b. An imported MCP server whose config held a literal env value still starts after import through the
-  MCP shim, and the value appears in no MetaTrooper file or engine config in plain text (only in its `.dpapi`
-  blob). With the variable missing, the session starts, that server reports the missing name, and a needs-you
-  item appears.
-- M1-25c. A `dev_command` variant is shown in its pane only after its port answers; discarding the variant
-  leaves no process from its tree running and releases the port lease.
-- M1-26. `two-engine-review` on a diff with one planted bug returns both verdicts and the four buckets within
-  5 minutes.
-- M1-27. The hand-back tray has no commit path (grep plus a test that stubs `git`).
-- M1-28. The meter's per-session tokens for a Claude session equal the sum over unique `message.id` values in
-  its transcript.
-- M1-29. toolrouter (renamed from callrouter 2026-09-30, CLI only, no hooks) records `shown_bytes` per call,
-  `toolrouter ingest --since --until --json` reports `shell_read_tokens` and `saved_tokens` with private-folder sessions excluded
-  (#22, section 5), and the repo ships a `troop-plugin.json` whose `ingest` action validates with
-  `validateManifest`. Superseded 2026-09-30: callrouter Plan A criteria 1 to 8.
-- M1-30. (Revised 2026-10-05, D46.) `project.open` on the vault root and on a folder inside the private work folder succeeds;
-  `session.launch` there with `approval: contained` (and a pipeline step asking for `contained`) starts in `ask`,
-  with no auto-mode flags in the engine's arguments; a session in an ordinary project still starts in auto mode.
-- M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop
-  run wait` returns at its first gate.
-- M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry
-  MIT.
-- M1-33. A core started with `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION` and `CLAUDE_CODE_MESSAGING_TOKEN` set
-  opens agent and shell ptys without them, while `CLAUDE_CODE_USE_BEDROCK` and `PATH` pass through. Added
-  2026-10-05: agents launched from a core started inside Claude Code saved no transcripts.
-- M1-34. With `projects.default` set to an existing folder, a fresh core start leaves that folder as the most
-  recent project; set to a folder that does not exist, the core starts, logs it and opens nothing.
-- M1-35. Installing the Codex notify hook over a config whose `notify` already runs MetaTrooper's
-  `codex-notify.js` (even wrapped several times, with no hooks state) leaves exactly one MetaTrooper wrapper
-  around the user's original notify. Added 2026-10-05: Wasif's config had the wrapper nested twice.
-- M1-36. A Codex session launched by MetaTrooper gets its MCP servers and its notify wrapper as `-c`
-  overrides, and launching never edits `config.toml`; `troop hooks uninstall --codex` removes the MetaTrooper
-  block older versions wrote there. Changed 2026-10-08 (H8): the global block started `metatrooper-browser` in
-  every Codex run on the laptop. On 2026-10-05 `-c` was seen to put Codex in embedded mode ("Running without
-  the shared background server"); that is the accepted cost of not touching the global config.
-- M1-37. `session.launch` with no `approval` in an ordinary project starts claude with `--permission-mode auto`
-  and codex with `--approve-for-me` (the `contained` profile); with `sessions.approval` set to `ask` it adds
-  neither; an engine without a `contained` profile starts in `ask` instead of failing.
-- M1-38. A pipeline agent step bound to agy launches agy as the session with `--print`, a prompt carrying the
-  step's `output_path` and its required keys, and `--add-dir` for the run folder; with `print_args` removed
-  from agy it launches agy interactive. In the private work folder the command carries no `--mode` or `--sandbox`
-  flags. An agy that writes the output on its second run completes the step; one that never writes it fails
-  the step after two runs with the last error as `reason`; an auto-denied run is not retried, and a resumed
-  step whose error repeats that reason runs once. Added 2026-10-05 (D47), reshaped 2026-10-08 (D51).
-- M1-39. In a project inside a folder tree that contains the private work folder (but not containing it itself), `session.launch`
-  with `approval: contained` starts codex and agy with no auto-mode flags (ask) and claude with `--permission-mode
-  auto`; a project outside any such tree starts all three in auto mode; an agy pipeline step there runs agy without
-  `--mode accept-edits --sandbox`.
-
-### Adoption gate (14 days after milestone 1, measured by #22)
-
-Baselines come from 2026-06-01 to 2026-09-29, excluding private-folder sessions: 496 prompts.
-
-- A-01. At least 70% of non-private Claude sessions in the window have their `sessionId` in `session.native_id`.
-- A-02. Status asks per 100 non-private prompts fall below 1. Baseline: 24 / 496 x 100 = 4.8. A status ask is a
-  prompt matching `what are you doing|how long|\beta\b|/btw eta|status\?` (case-insensitive).
-- A-03. Smoke-test engine runs fall below 3% of engine runs. Baseline: 26 / 183 = 14.2%. An engine run is one
-  Codex session file under `~/.codex/sessions/` or one Gemini conversation under
-  `~/.gemini/antigravity-cli/conversations/` started in the window, excluding private-folder cwds. It is a smoke test
-  when its first user message is under 80 characters and matches
-  `reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)` (case-insensitive).
-  MetaTrooper's own `engine_check` rows are not engine runs.
-- A-04. Pasted screenshots per 100 non-private prompts fall below 0.5. Baseline: 12 / 496 x 100 = 2.4. Counted as
-  prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding private-folder
-  sessions (same rule as the baseline). #22 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
-  are measured the same way.
-- A-05. toolrouter saves at least 20% of shell and Read result tokens in the window:
-  `saved_tokens / (shell_read_tokens + saved_tokens)`, from `toolrouter ingest` (#22, section 5).
-
-### Milestone 2
-
-- M2-01. Each milestone-2 built-in runs end to end on its fixture and stops at every gate before a publish
-  step.
-- M2-02. The inspiration board returns at least 8 references with captures for the fixture brief.
-- M2-03. Variants: Pick shows that worktree's diff in the tray; Combine starts a new worktree with the note
-  and crops; Discard removes the worktree.
-- M2-04 (dropped 2026-10-02 with #28). With the herdr plugin, a `continue` step reaches the earlier herdr pane via `agent.prompt` and the
-  run advances on herdr `done`; without it, the same pipeline runs in Windows Terminal and the log shows
-  `memory not kept`.
-- M2-05. The usage bar shows Claude and Codex usage against their windows with reset times, or "usage
-  unavailable"; it never shows an invented number.
-- M2-06. A diff-line comment and a dropped file reach the target session by its delivery route.
-- M2-07. Once SignPath approves, the signed Electron installer installs and launches on laptop-ops with Smart
-  App Control on.
-- M2-08. Hands-off: `troop launch --jobs` with `approval: "isolated"` on the tinyutils fixture (3 seeded bugs,
-  one per engine) ends with each engine's own test file passing in its worktree, zero approval prompts, zero
-  trust prompts, and each session reaching `done` from spool events alone.
-- M2-09. Escape self-test (`troop sandbox selftest`, same flags as a trooper, no engine): each of these fails
-  from inside the container, and each positive check passes. Fails: writing any host path outside the mounted
-  worktree, `.git` and spool; writing `.git/hooks` or `.git/config`; reading the host home folder; writing a
-  read-only login file (EROFS); an HTTPS
-  request to a host not on the allow-list (proxy 403); any request that bypasses the proxy (no route); reaching
-  the Docker socket; gaining root. Passes: writing in the worktree; `git commit` on the worktree's branch;
-  an HTTPS request to one allow-listed host.
-- M2-10. A marker typed into a sandboxed session appears in no MetaTrooper table, log, spool file or WAL once
-  the session is `exited` and ingested (M1-05 extended to the sandbox).
-- M2-11. Closing a sandboxed session's window leaves no `troop-<id8>` container within 5 s; killing the core
-  mid-turn leaves the agent working, and its spooled events are ingested in order after restart.
-- M2-12. `isolated` on the `pty` host, a launch before `troop sandbox build`, a Claude login expiring within
-  60 minutes, and an ask path are each refused with a stated reason, and nothing starts.
-
-### Milestone 3
-
-- M3-01. Each milestone-3 built-in runs end to end on its fixture and stops at every gate before a publish
-  step.
-- M3-02. `cite-check` fails a report with one planted quote absent from its source and passes the same report
-  with curly quotes and extra whitespace in a real quote.
-- M3-03. `form-fill-batch` pauses at a handoff gate when the fixture form shows its captcha stand-in and
-  resumes on Continue.
-- M3-04. The gallery lists all 17 templates, each "ready" only when its `requires` are installed.
-- M3-05. The Tauri tray shows the same session states and gates as the workbench.
-- M3-06. `provider: gateway` and `run_in: cloud` are refused with -32040 and nothing else changes; signed
-  out, a full `spec-to-pr` run makes zero outbound connections from the core, workbench or tray.
-
-### Milestone 4
-
-M4 is done when M4-02, M4-03 and M4-04 below pass and UI-01 passes as M4-12 defines. Every other
-criterion lives in its child's issue file.
-
-- M4-02. The full core suite, run alone twice in a row, passes, and `tests/windows/listeners.ps1` prints
-  `count=0` after each run. Same for the workbench suite.
-- M4-03. Replay: for each of `small`, `medium`, `large`, compute `after.tokens / before.tokens` for
-  `codex-review`. The median of the three ratios is at most 0.70.
-- M4-04. After M4-3, M4-9 and M4-10 land, the same two real runs as `real-before.json` are repeated on the
-  same fixture and inputs: for each pipeline, the total Claude plus Codex tokens of its agent steps is lower
-  than before. Recorded in `tests/fixtures/token-replay/real-after.json`. No threshold.
-- M4-12. UI-01, evidence-based: on one weekday Wasif works only in the app. Evidence: `troop gate --since
-  <day> --until <next day> --json` shows at least 5 sessions launched from the app and 1 completed pipeline
-  run, and Wasif records in UI-STATUS any moment he left the app for an agent task (zero for a pass).
-
-### Milestone 5
-
-M5 is done when the acceptance criteria in the issue files of M5-1 to M5-13, M5-15, M5-17, M5-18 and M5-19 pass
-(minus any child the slip rule moved, which then counts under its new milestone), and these four hold:
-
-- M5-01a. A fresh Windows account with Smart App Control on and no Node installs the signed installer and starts a
-  claude agent within 30 s.
-- M5-06a and M5-06d. pr-review-fix counts a finding as fixed only with a passing proof and a clean rereview, on the
-  fixture and in one real run.
-- M5-07b. A test-mode purchase unlocks Pro.
-- M5-09a. `tests/release.ps1` passes twice in a row on the commit tagged `v0.1.0`.
+- M6-01a. After the split, every row of `issues/m6-01-split-inventory.md` is closed, and re-running its `rg`
+  command returns only rows marked keep; `npm run build` and both default suites pass; `troop run start` prints "moved to
+  metatrooper-pipelines" and exits 2; `core.ping` still answers.
+- M6-01b. `projects/metatrooper-pipelines` exists and `git log --oneline -- core/src/pipelines/runner.ts` there shows
+  the commits from before the split; the tag `pipelines-final` exists on MetaTrooper's origin.
+- M6-02a. A browser `click` on a fixture button named "Send" creates one `approval` row in `waiting` and the call
+  returns only after `approval.resolve`; rejected, the button's handler never runs (fixture counter stays 0).
+- M6-02b. Focusing that button and calling `key {keys: "Enter"}` also creates an approval. Typing a string matching
+  a credential pattern into a plain text field also creates one.
+- M6-02c. `approval.resolve` without `ui.hello` returns -32012. A pending approval left 120 s returns "not approved
+  in time" and the row reads `expired`.
+- M6-02d. Approve for this session on a plain button covers the next click on it with no new row; renaming the
+  button in the fixture voids it and asks again; typing into a password field asks every time.
+- M6-02e. The same action computed in the MCP server and in the core gives the same `action_hash` (shared test
+  vector in `contracts/approvals.md`).
+- M6-03a. A fixture dev server started in a session's terminal prints its URL; within 2 s a `session_dev_server` row
+  with `matched_by: ancestry` exists, the tile shows "Open preview", and that session's agent pane loads it.
+- M6-03b. A fixture `npm run dev` that starts a detached child gets a `printed` row and the same result. A port
+  served by a process started outside MetaTrooper before the URL was printed is blocked for agent panes.
+- M6-03c. A user pane loads `http://localhost:<any listening port>` typed by hand; no agent tool can drive that pane.
+- M6-04a. Starting a second core while one runs exits with "core already running (pid N)" before it opens
+  `troop.db` (the database file's mtime is unchanged and a fixture command left `accepted` runs exactly once).
+- M6-04b. A `settings.json` holding invalid JSON is left byte-identical after the workbench changes a setting, and
+  the workbench shows "settings.json does not parse, line N". A valid change writes the new value; killing the core
+  between the temp write and the rename leaves the old file valid and the next start removes the temp file.
+- M6-04c. A database at the M5 schema opens under the new code, applies its numbered migrations once, and opens
+  again with no change.
+- M6-05a. A Codex session shows `waiting_for_you` within 2 s of a PermissionRequest and `done` within 2 s of Stop on
+  the M1-12 fixtures, and never shows `done` while an approval prompt is on screen. Fallback branch, used only if
+  the spike's result file says neither trust path works: `waiting_for_you` within 2 s of the approval prompt's title
+  or bell, and the gap is in Known limits.
+- M6-05b. A Gemini CLI session gets a `native_id` and shows `waiting_for_you` and `done` from its hooks;
+  `~/.gemini/settings.json` is byte-identical afterwards and the per-session file is gone.
+- M6-05c. A Claude session in a permission wait stays `waiting_for_you` through a PreToolUse for a different
+  `tool_use_id`, and moves to `working` on the PostToolUse of the waited call.
+- M6-06a. With 4 live sessions (claude, codex, gemini, a shell), killing the core and the workbench and starting
+  them again brings all 4 back in their tiles, in the same layout, within 30 s, never more than 3 resuming at once.
+- M6-06b. An engine whose resume fails twice with its `auth_error` output stops being resumed and raises one
+  needs-you item. A session that exited shows its saved last screen.
+- M6-07a. Printing a 50 MB file in one tile keeps every other tile's input echo under 100 ms (long-task observer),
+  and the core's memory grows by less than 64 MB during it.
+- M6-07b. With no workbench attached, a fixture program that sends a cursor-position query gets its answer.
+- M6-08a. Shift+Enter in a Claude, Codex and Gemini tile inserts a newline and does not submit, checked on each live
+  CLI.
+- M6-09a. Alt+J focuses the session with the smallest `since`. A key press in the big tile, then a second session
+  starts waiting: the big slot stays unchanged for 3 s, then the waiting tile glides in.
+- M6-11a. Two snapshots of an unchanged page give the same refs; after one element is removed its old ref fails with
+  "no longer on the page" and `since_last` lists it as removed; after the frame navigates, every old ref in that
+  frame fails.
+- M6-11b. A fixture page with a same-origin iframe and an open shadow root shows controls from both, and clicking a
+  frame-tagged ref clicks inside the frame.
+- M6-11c. A 4,000-token budget on a 20,000-node fixture returns at most 4,000 tokens and a `continue` cursor that
+  returns the rest.
+- M6-12a. `handoff` makes every other browser tool fail with "the user has the pane" until Give back.
+- M6-12b. `type` with `{{secret:NAME}}` into a password field on the saved origin fills it; on another origin or a
+  plain field it fails; the value appears in no `event` row, log, tool result, approval row or crop (marker test as
+  M1-05).
+- M6-14a. The spike's checks are recorded pass or fail in `issues/m6-14-computer-use-spike.md` with the commands run
+  and their output, within 1 day of starting.
+- M6-15a. A session granted Notepad types into it while another app has focus, and the pointer does not move. The
+  same session acting on Calculator (not granted) gets "window not granted". Notepad's Save As dialog is reachable
+  and every input in it raises an approval.
+- M6-15b. Ctrl+Alt+Q while an agent types a 2,000-character string: after the core acknowledges the pause, no
+  further character reaches Notepad (checked by comparing the file text at the acknowledgement and 2 s later).
+- M6-15c. The workbench window never appears in `windows`, and a direct call naming its handle fails. Closing a
+  granted window ends its grant; a new window that gets the same handle is not granted. After a core restart, no
+  grant is live.
+- M6-16a. An agent drives a `--demo` workbench: opens a tile, approves a card, reads the "Open preview" chip; no
+  screenshot shows a real session, and the demo core cannot see the real database.
+- M6-17a. The generated method table, `troop --help` and the skill list the same methods as `methods.ts`; a test
+  fails when one is edited by hand.
+- M6-17b. `session.wait` returns within 1 s of the state change, at once when already in the state, at the timeout
+  when it never comes, and -32602 for an empty `states` or a `timeout_ms` of 0.
+- M6-18a. In a browser pane and in Notepad, every click and type shows the session's own cursor arriving at the
+  target before the input lands, measured from the overlay's `arrived` message and the input time; the added time
+  per action is under 250 ms at the 95th percentile over 100 actions.
+- M6-18b. Two agents acting at once show two cursors in their own colours. The real pointer's position is unchanged
+  throughout (read before and after).
+- M6-18c. An agent screenshot taken while its cursor is visible does not show the cursor (pixel check at the cursor's
+  position), or the result carries `overlay_may_show: true`.
+- M6-18d. On two displays at 100% and 150%, the cursor lands within 3 px of the target after the target window is
+  dragged from one display to the other.
+- M6-19a. A unique marker printed in one of 4 tiles is found by Ctrl+K within 1 s and opens that tile at the line.
+- M6-20a. A Claude tile's cost chip equals the session's tokens in `usage`; an engine with no usage shows "usage
+  unknown".
+- M6-21a. A session that edits 3 files shows "3 changed"; committing one shows "2 changed".
+- M6-22a. With a grant live, a fixture PowerShell `SendKeys` run from an agent's terminal raises one "input from
+  another program" needs-you item within 1 s and sets the pause flag; a `metatrooper-desktop` `type` in the same
+  window raises none.
+- M6-22b. With the helper blocked (fixture policy), every granted tile shows "input watcher off".
+- M6-22c. With a grant live and no physical input for 5 s, a fixture script that clicks a button in another app
+  through UI Automation `InvokePattern` raises one "the desktop changed while you were away from it" item within
+  1 s; the same script while the tester is typing raises none.
 
 ## Testing
 
-The builder writes code; Codex writes the tests for #12, #15, #17 and sandbox-host (the parts others will trust), matching the
-rule already binding callrouter. Every contract file gets a conformance suite: `schema.sql` loads; every
-built-in and template validates against `pipeline.schema.json`; every first-party manifest validates against
-`plugin-manifest.schema.json`; the pipe protocol has a replay suite of recorded requests and replies.
+Codex writes the tests for M6-2, M6-4, M6-5, M6-6, M6-11, M6-12, M6-15, M6-18 and M6-22 (D65), with a mutation run per child
+that must fail at least one test. Conformance suites stay for `schema.sql`, the manifest schema and the pipe
+protocol, plus new ones for `approvals.md` (including the hash test vector), `desktop-tools.md` and
+`agent-cursor.md`.
 
 | Layer | What | Count |
 |---|---|---|
-| Unit | project id and private-folder refusal; event to state mapping per engine; session linking; role binding; validation and the publish rule; `action_hash`; loop, breaker, resume, budget; port allocation; finding merge; manifest and importer mapping; usage dedupe; cite-check normalisation | +45 |
-| Integration | launch to event to state; pipe request and queue fallback; crash recovery of accepted and running commands; hooks install and uninstall round trip; action env and tree kill; MCP shim with a missing secret; browser ownership and interception (IPv4 and IPv6); full-page capture; UserPromptSubmit at-least-once delivery including a marked duplicate; sub-pipeline budget and gates; code-step IPC; dev-server start, readiness and stop | +20 |
-| E2E | open a fixture project, run `spec-build-review-handback` with stub engines through every gate; `two-engine-review`; point-to-comment round trip; kill-the-core independence run | +5 |
-| Conformance | contracts as above | +4 suites |
+| Unit | D61 rule matching (names, AutomationId, keys, credential text, file dialogs); approval scopes, expiry, re-check; action hash vector; port ownership by ancestry and by print; dev-server URL parsing; title states; resume stagger and breaker; ref lifetime; token budget; secret placeholder rules; migrations; glide timing formula; grant ownership chain | +50 |
+| Integration | Codex and Gemini hook round trips; approval over the pipe; dev server to an owned preview; core kill and resume of 4 sessions; flow control under a 50 MB burst; grant enforcement and take-over against a fake driver; cursor `arrived` before input; settings crash between write and rename | +22 |
+| E2E | the M6-16 demo run; a browser handoff login on a fixture; a Notepad typing run with take-over on the laptop; two cursors at once | +4 |
+| Conformance | approvals, desktop tools, agent cursor | +3 suites |
 
 ## Rollback
 
-- Code: delete the repo; nothing else imports it.
-- Hooks: `troop hooks uninstall` (byte-identical, M1-13); callrouter's own rollback in its
-  `spec.md:145-151`.
-- Codex notify: restored by uninstall; a manual backup is at `~/.codex/config.toml.troop-bak`.
-- Worktrees: delete `~/.metatrooper/worktrees/`, then `git worktree prune` in each project.
-- Run files: delete `<project>/.troop/`.
-- Data: delete `~/.metatrooper/`.
+- The split: the tag `pipelines-final` restores every removed path (`git checkout pipelines-final -- <path>`).
+- Each child lands as its own commit and reverts alone.
+- Migrations only add tables in this epic; pipeline tables and rows stay (D58), so older code opens the database.
+- Computer use: disabling the `desktop` plugin detaches `metatrooper-desktop`; cua-driver is removed by its own
+  uninstaller. The agent cursor: `agent_cursor.mode: off`.
+- Codex and Gemini hooks: per launch only, nothing written to their global config; the Gemini file is deleted with
+  the session.
 
 ## Dependencies
 
-| Package | Licence | Stars (2026-09-29) | Use |
+| Package | Licence | Stars | Use |
 |---|---|---|---|
-| electron | MIT | 123,297 | workbench |
-| tauri | Apache-2.0 or MIT | 111,464 | tray |
-| @modelcontextprotocol/typescript-sdk | not declared in GitHub metadata | 13,485 | `metatrooper-browser`; its LICENSE file is read before install, and if it is not MIT or Apache-2.0 the server is written as plain JSON-RPC over stdio instead (about 200 lines) |
-| pdf.js | Apache-2.0 | not checked | `docs-export` plugin, PDF ingest. Accepted exception to the MIT rule |
-| Google Node client | Apache-2.0 | not checked | `gmail` plugin. Accepted exception to the MIT rule |
-| Postiz | AGPL-3.0 | 36,699 (2026-10-05) | `social-scheduler` schedule backend, reached over its HTTP API only; never bundled or linked. Accepted exception to the MIT rule |
+| electron | MIT | 123,297 (2026-09-29) | workbench, overlay windows |
+| cua-driver (trycua/cua) | MIT | 29,237 (2026-10-10) | computer use, after M6-14 passes; installed by the user, not bundled, until the spike shows it can ship |
+| @xterm/xterm and addons | MIT | 21,253 (2026-10-05) | terminals, an existing exception |
+| electron-builder | MIT | 14,670 (2026-10-09) | build-time only (M5-D21) |
 
-No terminal library, WebSocket library or native module is needed.
+No new runtime dependency besides cua-driver.
 
 ## Files
 
 | Path | Change |
 |---|---|
-| `projects/metatrooper/contracts/` | the contracts above (written 2026-09-29) |
-| `projects/metatrooper/core/` | service, `event.js`, `launch.js`, `codex-notify.js`, runner, plugins, meter, limits, `metatrooper-browser`, CLI |
-| `projects/metatrooper/workbench/` | Electron main and renderer |
-| `projects/metatrooper/tray/` | Tauri app |
-| `projects/metatrooper/sdk/` | plugin helper library (MIT) |
-| `projects/metatrooper/pipelines/` | 17 built-ins and 17 templates (MIT) |
-| `projects/metatrooper/plugins/` | the first-party plugins above |
-| `projects/metatrooper/tests/fixtures/` | one fixture per built-in |
-| `projects/callrouter/` | Plan A code plus `troop-plugin.json` |
-| `~/.claude/settings.json`, `~/.codex/config.toml` | hook and notify entries, merged and reversible |
+| `core/src/approvals.ts` | new: `approval.check`, D61 rules, scopes, expiry, hash, take-over flag |
+| `core/src/grants.ts` | new: grant rows, ownership chain, ending grants |
+| `core/src/watch/input-hook.ps1`, `core/src/watch/watcher.ts` | new: the input watcher helper and its matcher |
+| `core/src/methods.ts` | method declarations with schemas, `stable`, `needs_ui`; `approval.*`, `grant.*`, `settings.set`, `session.wait`; pipeline methods removed |
+| `core/src/main.ts` | lock before database; runner, store sync and schedule timers removed |
+| `core/src/events/state.ts` | Codex and Gemini events, sticky permission wait, title states, `reason` and `since` |
+| `core/src/hooks/install.ts` | per-launch Codex hooks, Gemini settings file, version-chosen Claude events |
+| `core/src/sessions/resume-all.ts` | new: resume after restart |
+| `core/src/terminal/index.ts`, `core/src/terminal/pipe.ts` | query answering, byte credit, pty pause, last-screen save, dev-server URL scan |
+| `core/src/browser/policy.ts`, `core/src/ports.ts` | ownership from `session_dev_server`, leases from `session_port` |
+| `core/src/settings.ts`, `core/src/store/db.ts`, `core/src/store/migrations/` | single writer, safe writes, numbered migrations |
+| `core/src/hook/browser-mcp.ts`, `workbench/src/browser/panes.ts` | browser tools version 2, `approval.check`, handoff, secrets, audit, cursor timing |
+| `core/src/hook/desktop-mcp.ts` | new: `metatrooper-desktop`, grants, forwarding to cua-driver |
+| `workbench/renderer/overlay.js`, `overlay.css`, `overlay.html` | the agent cursor renderer |
+| `workbench/src/desktop-overlay.ts` | new: per-display overlay windows, refit, z-order, content protection |
+| `workbench/renderer/wall.js`, `app.js`, `terminal.js` | keys, focus rule, chips, approval cards, input, WebGL pool, search; Runs and Pipelines tabs removed |
+| `workbench/src/main.ts` | take-over hotkey, `settings.set`, `paneData` import removed |
+| `contracts/approvals.md`, `contracts/desktop-tools.md`, `contracts/agent-cursor.md` | new |
+| `contracts/browser-tools.md`, `contracts/pipe-protocol.md`, `contracts/events-and-hooks.md`, `contracts/schema.sql` | updated |
+| `issues/m6-*.md` | one file per child |
+| `issues/archive/spec-2026-09-29-pipeline-ide.md` | the old spec |
 
-## Later epics
+## Known limits
 
-- **v2, metered cloud:** gateway, cloud runs, hosted media, sync, accounts, payments (D29).
-- **v3, phone:** see and drive sessions from a phone, like Claude Code Remote Control. It must keep rule 1:
-  the phone reaches an agent through the engine's own remote feature (Claude Code Remote Control), never by
-  streaming an agent's terminal through MetaTrooper. MetaTrooper's side is
-  read-only status, the needs-you queue and gate approvals on the phone, which the cloud epic's relay makes
-  possible. Nothing in this epic blocks it: state is already in the database and approvals already need a
-  trusted UI connection.
+- D61's control-name list is English only; other languages rely on the first-input and credential rules.
+- An app that draws its own controls without UI Automation (some games, some custom toolkits) shows no tree; the
+  agent gets screenshots only and every click there asks (first input in an unknown control).
+- Exclusive fullscreen apps may hide the desktop cursor overlay.
+- Grants and approvals do not stop a hostile process running as the user (Threat model).
+- An auto-mode agent can script the desktop through its own shell (D70). The input watcher catches injected input
+  but cannot name the program that sent it. Input sent as window messages (`PostMessage`, `SendMessage`) or through
+  UI Automation patterns (`InvokePattern`, `ValuePattern`) makes no input event and is not seen, so an agent's own
+  UI Automation script is caught only by the away-from-desktop listener: it fires on focus, new windows and
+  invoked controls, but not on a value set silently in a window that keeps focus (`ValuePattern.SetValue`), and it
+  stays quiet while the user is actively using the machine.
+
+## Hand-back (only Wasif)
+
+1. Say yes or no to installing cua-driver on this laptop for the M6-14 spike.
+2. Create the `metatrooper-pipelines` GitHub repo and say where GitHub issues for pipelines go (external state).
+3. Buy the Certum certificate (M5-D23) and line up the second Windows PC for the clean install test (D67).
+4. Restart the MetaTrooper core, which has been offline since 2026-10-10T20:52+11:00.
 
 ## Out of scope
 
-- The metered cloud and phone control: later epics, above.
-- Scheduled runs while the core is not running; back-filling missed schedules.
-- OS-level sandboxing of plugin filesystem and network access (AppContainer). Trooper sandboxing is sandbox-host, not this.
-- Auto-update.
-- The sprawll plugin, until sprawll's code is present with its machine contract.
-- Paid data integrations beyond the listed adapters (Ahrefs, Semrush, DataForSEO, Clay, Apollo); users add
-  them as plugins.
-- Any setting that turns off the publish rule.
-- Running any lane on private-folder projects.
-- Callrouter Plan B.
-- A visual node-graph editor.
-- macOS testing; the code stays portable. Linux is a source-install beta at launch and packaged in December (M5-D4).
+- Pipelines, run layouts, schedules, the template gallery, Pro, the pipeline plugins: they move (D53, D64).
+- Which pipelines become which app, and whether MetaTrooper also ships as an SDK: decided when the first pipeline
+  app is specced.
+- A Linux desktop sandbox for computer use (Xvfb and noVNC in Docker): after the release.
+- A vision or grounding model of MetaTrooper's own.
+- Localised D61 control names.
+- Phone control and the metered cloud: later epics.
+- macOS testing.
 
 ## Related
 
-- `ide-layer-research/pipeline-map.html`: Wasif's own pipelines and the market scans.
-- `ide-layer-research/pipeline-catalog.md`: 25 ranked pipelines plus 7 appendix pipelines, with sources.
-- `projects/callrouter/docs/`: Plan A, schema and the failure rule reused here.
-- Orca `github.com/stablyai/orca`, herdr `github.com/herdrdev/herdr`: prior art.
+- Archived pipeline-IDE spec: `issues/archive/spec-2026-09-29-pipeline-ide.md`.
+- Review of this spec: `~/.cache/claude-scratch/metatrooper-respec-2026-10-10/review.html` (Codex and Gemini,
+  reconciled).
+- Idea mine, rival research and cursor design: `~/.cache/claude-scratch/metatrooper-idea-mine-2026-10-10/`
+  (board.html, `<lane>/ideas.json`, `differentiate/*.json`, `computer-use/report.json`, `agent-cursor/design.md`).
+- Orca `github.com/stablyai/orca`, cua `github.com/trycua/cua`: prior art.

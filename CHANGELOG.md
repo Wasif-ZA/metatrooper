@@ -18,7 +18,7 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ## [0.1.0]
 
-Not yet tagged. Milestones 1 to 4, as recorded in `M1-STATUS.md` to `M4-STATUS.md`.
+Not yet tagged. Milestones 1 to 4, as recorded in `status/M1-STATUS.md` to `status/M4-STATUS.md`.
 
 ### Added
 
