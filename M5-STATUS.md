@@ -22,6 +22,7 @@ M5-19 is #68), each pointing at its issue file.
 |---|---|---|
 | M5-0 re-baseline | DONE | 003139e. 16 BLOCKER, 52 M5, 5 CUT, 2 FROZEN rows |
 | M5-1 to M5-11 | NOT STARTED | Specced in their issue files. M5-2 and M5-7 wait on Wasif's picks first |
+| M5-11 site and demo seed | CODE DONE | 7e1c071. `site/index.html` (one file, inline CSS) passes page-check at 390 and 1280; `.github/workflows/pages.yml` deploys `site/`. `node tests/demo/seed.mjs` on an empty METATROOPER_HOME makes shop-cart and three runs (pr-review-fix done with proof, pr-review-fix paused at the pick gate, spec-to-pr done), project and run paths inside the home. `METATROOPER_DEMO=1` hides meters and usage in the window. Pro section waits for M5-7. Hand-back: Tally form id, switching on Pages, recording the three GIFs into `site/gifs/` |
 | M5-8 S5 secret scan | DONE on m4-harden | Built there as M4-4 by teehee-f8; not rebuilt |
 | M5-12 remote MCP | CODE DONE | 5f2aefd, review fixes 252f5fc. Tests by Codex: m5-remote-mcp.test.ts. Workbench install screen shows host and sign-in from `installScreen`; not seen on screen yet |
 | M5-13 step 1 importer shape fix | CODE DONE | 2f02def, https refusal 252f5fc. Tests by Codex: m5-importers.test.ts (Linear and GitHub shaped fixtures) |
