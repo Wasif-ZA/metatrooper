@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "repo",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "name": "Repo",
   "description": "Test-runner detection, test runs and diffs for the project's git repository.",
   "platforms": ["windows", "linux", "macos"],
