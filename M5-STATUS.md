@@ -36,6 +36,7 @@ M5-19 is #68), each pointing at its issue file.
 | M5-21 preview hardening | CODE DONE | 26 fixes on m5-hp-a/b/c, listed in issues/m5-21-preview-hardening.md; tests m5-21-preview-a/b/c.test.ts by Codex (7 + 7 + 8, two desktop cases skip without a real window) |
 | M5-19 one instruction file | CODE DONE, MERGED | See the teehee-c1 section below (02d3aea) |
 | M5-4 logs, M5-8 S1 + S3 | CODE DONE, MERGED | See the teehee-c1 section below (6f91031, 7e48720) |
+| M5-8 S2 + S5 (m5-8b) | CODE DONE, no code change | 2026-10-10T20:40+11:00. S2: the browser pipe is created by the same `server.listen` as the core pipe, so it has Node's default DACL, read on 36cbc0b: full access for the owner, SYSTEM and Administrators, read only (FR) for Everyone and Anonymous. Only those three can write, which is the bar `pipe-acl.test.ts` holds the core pipe to; Node has no option to drop the Everyone read entry without native code. `tests/windows/m1-10-pipe-acl.ps1` already covers `metatrooper-browser`. Not added to `pipe-acl.test.ts`: `browser/server.ts` imports `panes.ts`, which imports electron, so the browser pipe can only be checked in an Electron run (Codex). S5: M4-20 passes on 36cbc0b (secrets-scan.test.ts 11 pass, real gitleaks); pr-review-fix gets the gate through its `review` sub-pipeline |
 
 ## Two-engine reviews
 
