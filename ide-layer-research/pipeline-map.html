@@ -43,7 +43,7 @@ ol li,ul li{margin:3px 0}
 <header>
 <div>
 <h1>Pipeline map: what you run, what the market runs</h1>
-<div class="sub">2026-09-29T11:40+10:00. Built from 346 of your AI sessions on laptop-ops, plus two separate market scans (web search, and Agent-Reach).</div>
+<div class="sub">2026-09-29T11:40+10:00. Built from the author's own AI sessions, plus two separate market scans (web search, and Agent-Reach).</div>
 </div>
 <div class="tools"><button id="theme">Light / dark</button><button id="copy">Copy all comments</button></div>
 </header>
@@ -59,38 +59,7 @@ ol li,ul li{margin:3px 0}
 
 <section data-id="mine">
 <h2>2. Your pipelines, ranked</h2>
-<p class="sub">1 unit = 1 Claude Code session, 1 Codex session or 1 Gemini run. Total 163 + 110 + 73 = 346. ACU work is shown as a count only.</p>
-<div class="scroll"><table>
-<tr><th>#</th><th>Pipeline</th><th class="n">Claude</th><th class="n">Codex</th><th class="n">Gemini</th><th class="n">Total</th><th>Share</th></tr>
-<tr><td>1</td><td>ACU internship (count only)</td><td class="n">49</td><td class="n">60</td><td class="n">21</td><td class="n">130</td><td><span class="bar" style="width:75px"></span>37.6%</td></tr>
-<tr><td>2</td><td>Uni coursework: notes, drafts, two-engine review, PDF</td><td class="n">15</td><td class="n">7</td><td class="n">23</td><td class="n">45</td><td><span class="bar" style="width:26px"></span>13.0%</td></tr>
-<tr><td>3</td><td>Personal projects: spec, build, review, push</td><td class="n">22</td><td class="n">10</td><td class="n">2</td><td class="n">34</td><td><span class="bar" style="width:20px"></span>9.8%</td></tr>
-<tr><td>4</td><td>MetaTrooper: plugins, MCP, skills, logins</td><td class="n">29</td><td class="n">3</td><td class="n">0</td><td class="n">32</td><td><span class="bar" style="width:18px"></span>9.2%</td></tr>
-<tr><td>5</td><td>Engine smoke tests ("reply READY")</td><td class="n">0</td><td class="n">9</td><td class="n">17</td><td class="n">26</td><td><span class="bar" style="width:15px"></span>7.5%</td></tr>
-<tr><td>6</td><td>Frontend design loop: art direction, build, screenshot, redo</td><td class="n">3</td><td class="n">16</td><td class="n">6</td><td class="n">25</td><td><span class="bar" style="width:14px"></span>7.2%</td></tr>
-<tr><td>7</td><td>Vault ops: merge conflicts, sync</td><td class="n">13</td><td class="n">1</td><td class="n">0</td><td class="n">14</td><td>4.0%</td></tr>
-<tr><td>8</td><td>Research and your own usage stats</td><td class="n">10</td><td class="n">1</td><td class="n">0</td><td class="n">11</td><td>3.2%</td></tr>
-<tr><td>9</td><td>Restart-only sessions</td><td class="n">11</td><td class="n">0</td><td class="n">0</td><td class="n">11</td><td>3.2%</td></tr>
-<tr><td>10</td><td>Client prospecting and outreach</td><td class="n">1</td><td class="n">2</td><td class="n">4</td><td class="n">7</td><td>2.0%</td></tr>
-<tr><td>11-13</td><td>Linux box, admin, jobs</td><td class="n">10</td><td class="n">1</td><td class="n">0</td><td class="n">11</td><td>3.2%</td></tr>
-</table></div>
-<p class="sub">Working for the core-loop share: ACU 130 + uni 45 + projects 34 + frontend 25 = 234. Then 234 / 346 = 67.6%.</p>
-
-<h3>What each engine does for you</h3>
-<ul>
-<li><b>Claude</b> is the orchestrator. In the 53 full transcripts it made 4,227 tool calls: 2,838 Bash, 410 Edit, 314 Write, 238 Read, and 86 multiple-choice questions to you.</li>
-<li><b>Codex is your reviewer.</b> Of its 41 sessions outside ACU and smoke tests, 23 were read-only reviews. Another 6 were Astra art direction. Only 2 were builds.</li>
-<li><b>Gemini is a reviewer and bulk worker.</b> Of its 35 real runs, 19 were reviews and 11 applied edits you had already decided. 72 of its 73 runs were one prompt with no follow-up.</li>
-<li><b>They run as a pair.</b> Codex handed off to Gemini 5 times and Gemini to Codex 4 times. On 7 of Gemini's 8 active days, Codex also ran.</li>
-</ul>
-
-<h3>Where your time leaks</h3>
-<ol>
-<li><b>Visual redo loops.</b> There were 36 corrections like "worse now" and "wrong repo" (30 in ACU, 6 in 49 frontend prompts). There is no before/after view, so every comparison is built by hand.</li>
-<li><b>Engine plumbing.</b> 26 of 183 engine runs (14%) only checked that the engine still worked. There were 22 plugin, MCP and login commands. Codex quota ran out and forced a switch to Gemini.</li>
-<li><b>Losing your place.</b> There were 38 <code>/clear</code>, 12 <code>/resume</code>, 22 "continue" re-asks, and 24 "what are you doing / how long left" asks. 58% of your prompts were sent while another session was still running.</li>
-</ol>
-<textarea placeholder="Your notes on this section"></textarea>
+<p class="sub">Removed from the public copy (M5-D18): this section ranked the author's own sessions by count. Its finding, used in section 1: about two thirds of the work runs one loop of spec, build, two-engine review, visual check and hand-back.</p>
 </section>
 
 <section data-id="market">
@@ -147,7 +116,7 @@ ol li,ul li{margin:3px 0}
 <tr><td>Client prospecting (46-prompt session, <code>client-lanes</code> skill)</td><td>Lead gen</td><td>Useful for you. Risky to sell, because of spam law.</td></tr>
 <tr><td>Video editing clients, OpusClip MCP installed</td><td>Social and video repurposing</td><td><b>Best overlap.</b> Top of both market scans, and you are the user.</td></tr>
 <tr><td>Research, market scans like this one</td><td>Research and scheduled reports</td><td>Easy to build. The gap is re-running a report weekly and showing what changed.</td></tr>
-<tr><td>Uni and ACU deliverables ending in PDF/HTML (24 PDF asks)</td><td>Reports and dashboards</td><td>Export as a first-class step, not a workspace.</td></tr>
+<tr><td>Uni and client deliverables ending in PDF/HTML</td><td>Reports and dashboards</td><td>Export as a first-class step, not a workspace.</td></tr>
 <tr><td>None</td><td>SEO</td><td>Strong market, but you don't do SEO work yourself. You'd be building for strangers.</td></tr>
 </table></div>
 <textarea placeholder="Your notes on this section"></textarea>
@@ -159,7 +128,7 @@ ol li,ul li{margin:3px 0}
 <p>Each pane below replaces something you currently do by hand.</p>
 <ol>
 <li><b>Agent board.</b> One card per running session or engine, showing what it's doing, how far along it is, and which engine it uses. <i>Replaces</i> the 24 status asks and 22 "continue" re-asks.</li>
-<li><b>Engine lights.</b> Always-visible Claude / Codex / Gemini health and quota. <i>Replaces</i> the 26 smoke-test runs and the 22 plugin and login commands.</li>
+<li><b>Engine lights.</b> Always-visible Claude / Codex / Gemini health and quota. <i>Replaces</i> the smoke-test runs and the plugin and login commands.</li>
 <li><b>Review lane.</b> One button runs Codex review and Gemini review on the same diff and shows what both found, what only one found, and where they disagree. <i>Replaces</i> the 9 manual handoffs and matches your CLAUDE.md audit rule.</li>
 <li><b>Before/after pane.</b> Screenshots at 390px and 1280px, with a hold-to-swap view. <i>Replaces</i> the 12 pasted screenshots, 29 "show me" asks and the redo loops.</li>
 <li><b>Hand-back tray.</b> Staged diff, drafted commit message, and the exact command for you to run. The IDE never commits.</li>
@@ -185,8 +154,8 @@ ol li,ul li{margin:3px 0}
 <section data-id="method">
 <h2>7. How this was made</h2>
 <ul>
-<li><b>Your history:</b> 163 Claude Code sessions (845 prompts, 2026-06-01 to 2026-09-29), 53 full transcripts, 110 Codex sessions, 73 Gemini conversations, 473 git commits and 219 activity-log entries. Everything came from this laptop, so the Dell and the main PC are not included.</li>
-<li><b>Privacy:</b> any session that touched ACU was counted and categorised only. None of its wording was read into this report.</li>
+<li><b>Your history:</b> the author's own Claude Code, Codex and Gemini sessions, 2026-06-01 to 2026-09-29 (counts removed from the public copy, M5-D18).</li>
+<li><b>Privacy:</b> any session that touched private client work was categorised only. None of its wording was read into this report.</li>
 <li><b>Lanes:</b> tool and skill counts came from a deterministic node script. A subagent sorted the prompts into categories. One market scan used web search. The other used Agent-Reach: GitHub CLI, Exa, YouTube through yt-dlp, the HN Algolia API and r.jina.ai.</li>
 <li><b>Agent-Reach fix:</b> Smart App Control was blocking uv's unsigned <code>agent-reach.exe</code>. A bash wrapper at <code>~/.local/bin/agent-reach</code> now runs it through uv's real Python.</li>
 </ul>

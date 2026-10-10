@@ -8,7 +8,7 @@ Already built, not repeated here: I1 changed-lines filter, I2 format-only skip (
 I4 baseline tests (spec-to-pr only), I5 spec lint (spec-to-pr only), I8 worktree `npm ci`. Known open and not repeated:
 review-bar "auto-opens once" timeout (fails on main too), Gemini safety-filter empties on sandbox files.
 
-Costs are in CC days (Codex writes the tests, per the ACU rule; same practice here).
+Costs are in CC days (Codex writes the tests, per the test-writing rule; same practice here).
 
 ---
 

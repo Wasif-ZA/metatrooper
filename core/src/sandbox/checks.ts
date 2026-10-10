@@ -4,7 +4,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { EngineSpec } from '../engines/registry.ts';
 import { coreDir, homeDir } from '../paths.ts';
-import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
+import { canonicalPath, isAskPath } from '../project.ts';
+import { settings } from '../settings.ts';
 
 const LOGIN_MARGIN_MS = 60 * 60 * 1000;
 
@@ -42,7 +43,7 @@ function authCmdRefusal(engine: EngineSpec): string | null {
 export function sandboxRefusal(engine: EngineSpec, cwd: string, deps = { runtime: containerRuntime, now: Date.now }): string | null {
   if (!engine.sandbox || !engine.approval_profiles?.isolated) return `${engine.id} has no sandbox setup`;
   const dir = canonicalPath(cwd);
-  if (isAcuPath(dir) || containsAcu(dir)) return 'isolated never runs on an ACU path';
+  if (isAskPath(dir, settings().sessions.ask_paths)) return 'isolated never runs on an ask path';
   const worktrees = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
   if (!dir.toLowerCase().startsWith(worktrees)) return 'isolated runs only in a MetaTrooper worktree';
   const runtime = deps.runtime();

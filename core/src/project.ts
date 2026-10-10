@@ -16,24 +16,35 @@ export function projectId(canonical: string): string {
   return crypto.createHash('sha1').update(canonical).digest('hex');
 }
 
-export function isAcuPath(p: string): boolean {
-  return /(^|\/)work\/acu(\/|$)/i.test(p.split(BS).join('/'));
+function lower(p: string): string {
+  return canonicalPath(p).toLowerCase();
 }
 
-function child(dir: string, name: string): string | null {
-  try {
-    const e = fs.readdirSync(dir, { withFileTypes: true }).find((d) => d.isDirectory() && d.name.toLowerCase() === name);
-    return e ? `${dir}/${e.name}` : null;
-  } catch {
-    return null;
-  }
+function within(p: string, root: string): boolean {
+  return p === root || p.startsWith(root.endsWith('/') ? root : root + '/');
 }
 
-// ponytail: checks one and two levels down only; a folder further above work/ACU is still allowed
-export function containsAcu(canonical: string): boolean {
-  if (/(^|\/)work$/i.test(canonical) && child(canonical, 'acu')) return true;
-  const work = child(canonical, 'work');
-  return Boolean(work && child(work, 'acu'));
+/** The folder one and two levels above a canonical path. */
+function parents(p: string): string[] {
+  const one = p.slice(0, Math.max(p.lastIndexOf('/'), 0));
+  return [one, one.slice(0, Math.max(one.lastIndexOf('/'), 0))].filter(Boolean).map(canonicalPath);
+}
+
+function roots(paths: unknown[]): string[] {
+  return paths.filter((p): p is string => typeof p === 'string' && p.trim() !== '').map(lower);
+}
+
+// ponytail: contains looks one and two levels down only; a folder further above an ask path is still allowed
+/** True when the folder is in an ask path, or an ask path sits one or two levels below it (D46, M5-D7). */
+export function isAskPath(p: string, paths: unknown[]): boolean {
+  const d = lower(p);
+  return roots(paths).some((r) => within(d, r) || parents(r).includes(d));
+}
+
+/** True when the folder sits under a tree holding an ask path, short of the drive or filesystem root (D48). */
+export function nearAskPath(p: string, paths: unknown[]): boolean {
+  const d = lower(p);
+  return roots(paths).some((r) => parents(r).some((a) => a.lastIndexOf('/') > 2 && within(d, a)));
 }
 
 export function resolveProjectPath(input: string): string {

@@ -13,6 +13,7 @@ export const DEFAULTS = {
   },
   sessions: {
     approval: 'ask',
+    ask_paths: [] as string[],
   },
   worktree: {
     npm_ci: true,

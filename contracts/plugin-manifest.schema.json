@@ -94,7 +94,7 @@
           },
           "description": "Arguments per approval level. isolated is shown on the install screen as acting without asking."
         },
-        "ask_near_acu": { "type": "boolean" },
+        "ask_near_paths": { "type": "boolean" },
         "settings": {
           "type": "object",
           "additionalProperties": false,

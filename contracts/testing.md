@@ -47,7 +47,8 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 |---|---|---|
 | `core/src/project.ts` | `canonicalPath(p: string): string` | rules in `pipe-protocol.md`, `project.open` (no git lookup) |
 | `core/src/project.ts` | `projectId(canonical: string): string` | sha1 hex of the canonical path |
-| `core/src/project.ts` | `isAcuPath(p: string): boolean` | true when the path contains `work/ACU` (either slash, any case) |
+| `core/src/project.ts` | `isAskPath(p: string, paths: unknown[]): boolean` | true when the path is in one of `paths`, or one of them sits one or two levels below it (either slash, any case) |
+| `core/src/project.ts` | `nearAskPath(p: string, paths: unknown[]): boolean` | true when the path is under the folder one or two levels above one of `paths`, short of the drive or filesystem root |
 | `core/src/redact.ts` | `redactToolInput(toolName: string, input: unknown): object` | the table in `events-and-hooks.md` |
 | `core/src/redact.ts` | `buildPayload(kind: string, raw: object): object` | the allowlists in `events-and-hooks.md` |
 | `core/src/events/state.ts` | `nextState(current: string, event: {kind: string, payload: object}): string \| null` | the state mapping table; `null` means no change |

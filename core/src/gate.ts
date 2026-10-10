@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
+import { settings } from './settings.ts';
 
-const ACU = /work[\\/]+acu/i;
 const STATUS_ASK = /what are you doing|how long|\beta\b|\/btw eta|status\?/i;
 const SMOKE = /reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)/i;
 
@@ -18,7 +18,7 @@ export interface Metric {
 
 export interface GateReport {
   window: { since: string; until: string };
-  counts: { prompts: number; acu: number; unclassified: number; engine_runs: number; skipped_lines: number; unreadable_files: number };
+  counts: { prompts: number; asked: number; unclassified: number; engine_runs: number; skipped_lines: number; unreadable_files: number };
   A01: Metric;
   A02: Metric;
   A03: Metric;
@@ -32,6 +32,7 @@ export interface GateOptions {
   home: string;
   db: DatabaseSync | null;
   toolrouter: string[] | null;
+  askPaths?: unknown[];
 }
 
 type Counts = GateReport['counts'];
@@ -90,33 +91,33 @@ function firstUserMessage(texts: string[]): string | null {
   return null;
 }
 
-function claudeSessionIsAcu(files: string[], c: Counts): boolean | null {
+function claudeSessionAsks(files: string[], c: Counts, ask: Ask): boolean | null {
   let readable = 0;
-  let acu = false;
+  let asked = false;
   for (const f of files) {
     const recs = readJsonl(f, c);
     if (!recs) continue;
     readable++;
     for (const r of recs) {
-      if (ACU.test(String(r.cwd ?? ''))) acu = true;
+      if (ask(String(r.cwd ?? ''))) asked = true;
       const content = (r.message as Rec | undefined)?.content;
       if (Array.isArray(content)) {
-        for (const b of content) if (b?.type === 'tool_use' && ACU.test(JSON.stringify(b.input ?? null))) acu = true;
+        for (const b of content) if (b?.type === 'tool_use' && ask(JSON.stringify(b.input ?? null))) asked = true;
       }
     }
   }
-  return readable ? acu : null;
+  return readable ? asked : null;
 }
 
-interface Run { start: number; acu: boolean; texts: string[] }
+interface Run { start: number; asked: boolean; texts: string[] }
 
-function codexRun(file: string, c: Counts): Run | null {
+function codexRun(file: string, c: Counts, ask: Ask): Run | null {
   const recs = readJsonl(file, c);
   if (!recs) return null;
   const meta = recs.find((r) => r.type === 'session_meta');
   const start = meta ? Date.parse(String(meta.timestamp ?? (meta.payload as Rec | undefined)?.timestamp ?? '')) : NaN;
   if (!meta || Number.isNaN(start)) { c.skipped_lines++; return null; }
-  let acu = ACU.test(String((meta.payload as Rec | undefined)?.cwd ?? ''));
+  let asked = ask(String((meta.payload as Rec | undefined)?.cwd ?? ''));
   const texts: string[] = [];
   for (const r of recs) {
     const p = r.payload as Rec | undefined;
@@ -124,9 +125,9 @@ function codexRun(file: string, c: Counts): Run | null {
     if (p.type === 'message' && p.role === 'user' && Array.isArray(p.content)) {
       texts.push(p.content.filter((i: Rec) => i?.type === 'input_text' && typeof i.text === 'string').map((i: Rec) => i.text).join(''));
     }
-    if (p.type === 'function_call' && ACU.test(String(p.arguments ?? ''))) acu = true;
+    if (p.type === 'function_call' && ask(String(p.arguments ?? ''))) asked = true;
   }
-  return { start, acu, texts };
+  return { start, asked, texts };
 }
 
 /** The text inside agy's <USER_REQUEST> wrapper; the whole content when there is no wrapper. */
@@ -138,16 +139,16 @@ export function agyRequest(content: string): string {
   return end < 0 ? rest : rest.slice(0, end);
 }
 
-function agyRun(file: string, c: Counts): Run | null {
+function agyRun(file: string, c: Counts, ask: Ask): Run | null {
   const recs = readJsonl(file, c);
   if (!recs) return null;
   const start = recs.length ? Date.parse(String(recs[0].created_at ?? '')) : NaN;
   if (Number.isNaN(start)) { c.skipped_lines++; return null; }
-  let acu = false;
+  let asked = false;
   const input = recs.find((r) => r.type === 'USER_INPUT');
   const texts = typeof input?.content === 'string' ? [agyRequest(input.content)] : [];
-  for (const r of recs) if ('tool_calls' in r && ACU.test(JSON.stringify(r.tool_calls))) acu = true;
-  return { start, acu, texts };
+  for (const r of recs) if ('tool_calls' in r && ask(JSON.stringify(r.tool_calls))) asked = true;
+  return { start, asked, texts };
 }
 
 function toolrouterMetric(argv: string[] | null, since: Date, until: Date): Metric {
@@ -169,10 +170,21 @@ function toolrouterMetric(argv: string[] | null, since: Date, until: Date): Metr
   return metric('A05', saved, shell + saved);
 }
 
+type Ask = (text: string) => boolean;
+
+const slashes = (s: string) => s.toLowerCase().replace(/[\\/]+/g, '/');
+
+/** True when the text names a folder from `sessions.ask_paths`, in either slash form and any case. */
+function askMatcher(paths: unknown[]): Ask {
+  const roots = paths.filter((p): p is string => typeof p === 'string' && p.trim() !== '').map((p) => slashes(p).replace(/\/$/, ''));
+  return (text) => { const t = slashes(text); return roots.some((r) => t.includes(r)); };
+}
+
 export function measureGate(o: GateOptions): GateReport {
+  const ask = askMatcher(o.askPaths ?? settings().sessions.ask_paths);
   const lo = o.since.getTime(), hi = o.until.getTime();
   const inWindow = (t: number) => t >= lo && t < hi;
-  const c: Counts = { prompts: 0, acu: 0, unclassified: 0, engine_runs: 0, skipped_lines: 0, unreadable_files: 0 };
+  const c: Counts = { prompts: 0, asked: 0, unclassified: 0, engine_runs: 0, skipped_lines: 0, unreadable_files: 0 };
 
   const transcripts = new Map<string, string[]>();
   const projects = path.join(o.home, '.claude', 'projects');
@@ -184,13 +196,13 @@ export function measureGate(o: GateOptions): GateReport {
       transcripts.set(sid, [...(transcripts.get(sid) ?? []), path.join(projects, d.name, f.name)]);
     }
   }
-  const acuBySession = new Map<string, boolean | null>();
+  const askBySession = new Map<string, boolean | null>();
   const classify = (sid: string) => {
-    if (!acuBySession.has(sid)) {
+    if (!askBySession.has(sid)) {
       const files = transcripts.get(sid);
-      acuBySession.set(sid, files ? claudeSessionIsAcu(files, c) : null);
+      askBySession.set(sid, files ? claudeSessionAsks(files, c, ask) : null);
     }
-    return acuBySession.get(sid) as boolean | null;
+    return askBySession.get(sid) as boolean | null;
   };
 
   const sessions = new Set<string>();
@@ -198,9 +210,9 @@ export function measureGate(o: GateOptions): GateReport {
   for (const r of readJsonl(path.join(o.home, '.claude', 'history.jsonl'), c) ?? []) {
     if (typeof r.sessionId !== 'string' || typeof r.display !== 'string' || typeof r.timestamp !== 'number') { c.skipped_lines++; continue; }
     if (!inWindow(r.timestamp)) continue;
-    const acu = classify(r.sessionId);
-    if (acu === null) { c.unclassified++; continue; }
-    if (acu) { c.acu++; continue; }
+    const asked = classify(r.sessionId);
+    if (asked === null) { c.unclassified++; continue; }
+    if (asked) { c.asked++; continue; }
     c.prompts++;
     sessions.add(r.sessionId);
     if (STATUS_ASK.test(r.display)) statusAsks++;
@@ -218,19 +230,19 @@ export function measureGate(o: GateOptions): GateReport {
 
   const runs: Run[] = [];
   for (const f of walkJsonl(path.join(o.home, '.codex', 'sessions'))) {
-    const r = codexRun(f, c);
+    const r = codexRun(f, c, ask);
     if (r) runs.push(r);
   }
   const brain = path.join(o.home, '.gemini', 'antigravity-cli', 'brain');
   for (const d of listDir(brain)) {
     const f = path.join(brain, d.name, '.system_generated', 'logs', 'transcript.jsonl');
     if (!d.isDirectory() || !fs.existsSync(f)) continue;
-    const r = agyRun(f, c);
+    const r = agyRun(f, c, ask);
     if (r) runs.push(r);
   }
   let smoke = 0;
   for (const r of runs) {
-    if (!inWindow(r.start) || r.acu) continue;
+    if (!inWindow(r.start) || r.asked) continue;
     c.engine_runs++;
     const first = firstUserMessage(r.texts);
     if (first !== null && first.length < 80 && SMOKE.test(first)) smoke++;
@@ -259,7 +271,7 @@ export function parseGateDate(s: string): Date | null {
 
 export function formatGate(r: GateReport): string {
   const c = r.counts;
-  const lines = [`window ${r.window.since} to ${r.window.until}  prompts ${c.prompts}  acu ${c.acu}  unclassified ${c.unclassified}  engine runs ${c.engine_runs}`];
+  const lines = [`window ${r.window.since} to ${r.window.until}  prompts ${c.prompts}  ask paths ${c.asked}  unclassified ${c.unclassified}  engine runs ${c.engine_runs}`];
   const unit: Record<string, string> = { A01: '%', A02: ' per 100', A03: '%', A04: ' per 100', A05: '%' };
   for (const id of ['A01', 'A02', 'A03', 'A04', 'A05'] as const) {
     const m = r[id];

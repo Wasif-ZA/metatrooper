@@ -51,7 +51,7 @@ notifications (`issues/m4-06-osc-signal.md`), and cmux#896 shows OpenCode does n
   "activity_waiting": { "type": "object", "required": ["last_line_regex"],
     "properties": { "file": { "type": "string" }, "last_line_regex": { "type": "string" } } },
   "settings": { "type": "object", "required": ["file", "set"] },
-  "ask_near_acu": { "type": "boolean" },
+  "ask_near_paths": { "type": "boolean" },
   "mcp_attach": { "properties": {
     "kind": { "enum": ["claude-mcp-config-flag", "codex-config", "agy-config", "env-json", "config-dir", "args-template", "none"] },
     "env": { "type": "string", "description": "env-json: variable that receives the JSON. config-dir: variable that receives the folder." },

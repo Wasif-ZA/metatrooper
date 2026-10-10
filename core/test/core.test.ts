@@ -41,7 +41,7 @@ test('core package declares AGPL-3.0', () => {
   assert.match(manifest.license, /^AGPL-3\.0/);
 });
 
-test('project.open uses canonical path sha1 and opens work/ACU paths', async () => {
+test('project.open uses canonical path sha1 and opens paths under any folder', async () => {
   const h = await harness();
   try {
     const project = join(h.home, 'Project');
@@ -63,13 +63,13 @@ test('project.open uses canonical path sha1 and opens work/ACU paths', async () 
         const fourth = await pipe.request('project.open', { path: slashAndDriveCase.toLowerCase() + '/' });
         assert.equal(fourth.result.project_id, first.result.project_id);
       }
-      const acu = join(h.home, 'work', 'ACU', 'repo');
-      mkdirSync(acu, { recursive: true });
-      const inside = await pipe.request('project.open', { path: acu });
+      const nested = join(h.home, 'work', 'client', 'repo');
+      mkdirSync(nested, { recursive: true });
+      const inside = await pipe.request('project.open', { path: nested });
       assert.ok(inside.result?.project_id);
       const sneaky = join(h.home, 'innocent');
-      symlinkSync(acu, sneaky, 'junction');
-      for (const p of [acu.toLowerCase().split('/').join('\\'), acu.split(/[\\/]/).join('//'), sneaky, join(h.home, 'work'), h.home]) {
+      symlinkSync(nested, sneaky, 'junction');
+      for (const p of [nested.toLowerCase().split('/').join('\\'), nested.split(/[\\/]/).join('//'), sneaky, join(h.home, 'work'), h.home]) {
         const r = await pipe.request('project.open', { path: p });
         assert.ok(r.result?.project_id, p);
       }

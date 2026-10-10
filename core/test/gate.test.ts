@@ -165,7 +165,7 @@ test('#13 gate: reports exact counts and raw values for all five metrics', t => 
     window: { since: SINCE.toISOString(), until: UNTIL.toISOString() },
     counts: {
       prompts: inWindowPrompts.length,
-      acu: 0,
+      asked: 0,
       unclassified: 0,
       engine_runs: engineRuns.length,
       skipped_lines: skippedLines,
@@ -179,24 +179,25 @@ test('#13 gate: reports exact counts and raw values for all five metrics', t => 
   });
 });
 
-test('#13 gate: excludes ACU Claude, Codex, and agy activity from every metric', t => {
+test('#13 gate: excludes ask path Claude, Codex, and agy activity from every metric', t => {
   const f = fixture(t);
-  const claudePrompts = [{ sessionId: 'claude-acu', display: 'status? [Image #1]', timestamp: Date.parse(INSIDE) }];
+  const askPath = path.join(f.home, 'work', 'Client');
+  const claudePrompts = [{ sessionId: 'claude-ask', display: 'status? [Image #1]', timestamp: Date.parse(INSIDE) }];
   writeHistory(f.home, claudePrompts);
-  writeClaudeTranscript(f.home, 'claude-acu', [{
+  writeClaudeTranscript(f.home, 'claude-ask', [{
     cwd: path.join(f.home, 'project'),
-    message: { content: [{ type: 'tool_use', input: { file_path: 'work/ACU/x.csv' } }] }
+    message: { content: [{ type: 'tool_use', input: { file_path: path.join(askPath, 'x.csv').replaceAll(path.sep, '/') } }] }
   }]);
-  writeCodexRun(f.home, 'acu', [codexMeta(INSIDE, path.join(f.home, 'work', 'ACU', 'project')), codexUser('reply ok')]);
-  writeAgyRun(f.home, 'acu', [{
+  writeCodexRun(f.home, 'ask', [codexMeta(INSIDE, path.join(askPath, 'project')), codexUser('reply ok')]);
+  writeAgyRun(f.home, 'ask', [{
     type: 'USER_INPUT', content: 'ping', created_at: INSIDE,
-    tool_calls: [{ name: 'Read', input: { path: 'work\\ACU\\x.csv' } }]
+    tool_calls: [{ name: 'Read', input: { path: path.join(askPath, 'x.csv').toLowerCase() } }]
   }]);
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(['claude-acu']), toolrouter: null });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(['claude-ask']), toolrouter: null, askPaths: [askPath] });
 
   assert.deepEqual(report.counts, {
     prompts: 0,
-    acu: claudePrompts.length,
+    asked: claudePrompts.length,
     unclassified: 0,
     engine_runs: 0,
     skipped_lines: 0,
@@ -218,7 +219,7 @@ test('#13 gate: counts a Claude prompt with no transcript only as unclassified',
 
   assert.deepEqual(report.counts, {
     prompts: 0,
-    acu: 0,
+    asked: 0,
     unclassified: prompts.length,
     engine_runs: 0,
     skipped_lines: 0,

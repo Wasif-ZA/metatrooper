@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { bs } from './helpers.ts';
-import { canonicalPath, projectId, isAcuPath } from '../src/project.ts';
+import { canonicalPath, projectId, isAskPath, nearAskPath } from '../src/project.ts';
 import { redactToolInput, buildPayload } from '../src/redact.ts';
 import { nextState } from '../src/events/state.ts';
 import { encode, createDecoder } from '../src/pipe/framing.ts';
@@ -18,9 +18,13 @@ test('canonicalPath normalizes separators, drive case, and trailing slash', () =
   assert.equal(projectId(canonicalPath(windows)), createHash('sha1').update('c:/Proj').digest('hex'));
 });
 
-test('isAcuPath detects either separator and any case', () => {
-  for (const path of ['C:/work/ACU/repo', `C:${bs}WORK${bs}acu${bs}repo`, 'work/acu']) assert.equal(isAcuPath(path), true, path);
-  for (const path of ['C:/work/other/repo', 'C:/work/ACUish/repo', 'C:/workspace/acu/repo']) assert.equal(isAcuPath(path), false, path);
+test('isAskPath and nearAskPath match either separator and any case', () => {
+  const paths = ['C:/home/vault/work/Client'];
+  for (const path of ['C:/home/vault/work/client/repo', `c:${bs}home${bs}VAULT${bs}work${bs}CLIENT`, 'C:/home/vault', 'C:/home/vault/work']) assert.equal(isAskPath(path, paths), true, path);
+  for (const path of ['C:/home/vault/work/clientish', 'C:/home/vault/projects/app', 'C:/', 'C:/home/other']) assert.equal(isAskPath(path, paths), false, path);
+  for (const path of ['C:/home/vault/projects/app', 'C:/home/vault/work/other']) assert.equal(nearAskPath(path, paths), true, path);
+  for (const path of ['C:/home/other/app', 'C:/home/vaultish']) assert.equal(nearAskPath(path, paths), false, path);
+  assert.equal(isAskPath('C:/home/vault/work/client', []), false);
 });
 
 test('redaction retains only the first command word and length for shells', () => {

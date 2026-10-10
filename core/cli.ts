@@ -8,7 +8,7 @@ import { installClaude, installCodex, installEngineSettings, lineDiff, planClaud
 import { loadEngines } from './src/engines/registry.ts';
 import { call, type CallOutcome } from './src/pipe/client.ts';
 import { openReaderDb } from './src/store/db.ts';
-import { isAcuPath, projectId, resolveProjectPath } from './src/project.ts';
+import { projectId, resolveProjectPath } from './src/project.ts';
 import { formatGate, measureGate, parseGateDate } from './src/gate.ts';
 import { homedir } from 'node:os';
 
@@ -288,10 +288,6 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
     canonical = resolveProjectPath(dir);
   } catch {
     canonical = '';
-  }
-  if (isAcuPath(dir) || isAcuPath(canonical)) {
-    console.error('error -32001: ACU projects are not opened in MetaTrooper');
-    return { code: 1 };
   }
   if (!canonical) {
     console.error(`folder not found: ${dir}`);

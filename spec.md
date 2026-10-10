@@ -27,15 +27,15 @@ daily use.
 
 Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-catalog.md`):
 
-- One loop is 67.6% of Wasif's AI work: ACU 130 + uni 45 + projects 34 + frontend 25 = 234 of 346 sessions
+- One loop (spec, build, two-engine review, visual check, hand-back) is about two thirds of Wasif's AI work
   (2026-06-01 to 2026-09-29).
 - It leaks time in three measured places:
 
 | Friction | Measured |
 |---|---|
-| Visual redo loops | 36 corrections, 12 pasted screenshots, 29 "show me / run it" asks |
-| Engine plumbing | 26 of 183 engine runs (14.2%) were smoke tests; 22 plugin, MCP and login commands |
-| Lost place | 38 `/clear`, 12 `/resume`, 22 "continue", 24 status asks; 58% of prompts sent while another session was live |
+| Visual redo loops | corrections, pasted screenshots, "show me / run it" asks |
+| Engine plumbing | smoke-test runs; plugin, MCP and login commands |
+| Lost place | `/clear`, `/resume`, "continue" and status asks; over half of prompts sent while another session was live |
 
 - Shell output is 63.2% of his agent tokens; a 400-token cap has a 34.7% saving ceiling
   (`projects/callrouter/docs/measurement.md`).
@@ -76,10 +76,10 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
 | D42 | Worktree trust | `worktree.create` marks the new worktree trusted in every engine that declares a trust store in its registry entry; the core names no engine (2026-09-29); removing a worktree removes those entries again with `untrustFolder` (2026-10-08) |
 | D43 | Trooper sandbox | Own container host plugin, child sandbox-host in milestone 2, built after the adoption gate. Ideas from AIO Sandbox and CubeSandbox, neither adopted; read-only login mounts plus an egress allow-list; agy logs in once into a keyring volume (2026-09-29) |
 | D44 | Workbench screen | A wall of tiled live terminals with the list behind Ctrl+B, floating search on Ctrl+K and gates in a bottom sheet; each pipeline run shown in one of 15 layouts. Core approved 2026-10-04, pipeline screens 2026-10-05. Replaces layout A (archived UI revision D2, D3, D10, D15). See Workbench and Pipeline UI |
-| D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including `work/ACU`, now opens (2026-10-05) |
-| D46 | ACU access | Wasif, 2026-10-05: open the whole vault including `work/ACU`, as Claude Code already does. Sessions whose folder is in or contains `work/ACU` always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch ACU unasked. Replaces the M1-30 refusal |
-| D47 | Claude drives agy | Wasif, 2026-10-05: agy stalls in pipeline steps, so an agent step whose engine is agy runs as a claude session (the driver) that hands agy the step prompt in print mode (`agy --print`), checks the output file's front matter after each turn, sends a follow-up naming what is missing, and after 3 turns writes `status: failed` with the reason. The driver never does the step's work. A driven step with no `approval` runs `contained` (driver claude in auto mode, agy with `--mode accept-edits --sandbox`); in or around `work/ACU` both run `ask` (D46). While the driver session is still working, an output with `status: done` but missing keys does not fail the step; the driver gets its turns first. A driver engine that is not usable logs `driver unavailable` and the step runs agy directly. The engine field `driver` turns it on; the session row keeps `driven_engine`; the tile reads `claude > agy`. Wall launches of agy stay plain terminals. Superseded 2026-10-08 by D51 |
-| D48 | External engines near ACU | Wasif, 2026-10-05: engines flagged `ask_near_acu` (codex and agy, which send to OpenAI and Google) start in `ask` in any folder that sits under a tree containing `work/ACU`, such as a project inside the vault, because one shell command reaches ACU from there. claude keeps the requested approval there, as in his own Claude Code; D46 still makes every engine ask in or around `work/ACU` itself |
+| D45 | Default project | `projects.default` setting, opened at core start. Superseded the same day by D46: the vault, including the private work folder, now opens (2026-10-05) |
+| D46 | Private folder access | Wasif, 2026-10-05: open the whole vault including the private work folder, as Claude Code already does. Sessions whose folder is in or contains the private work folder always start in `ask` (every tool call needs his OK), whatever approval was requested, so auto mode and unattended Codex or agy never touch it unasked. Replaces the M1-30 refusal |
+| D47 | Claude drives agy | Wasif, 2026-10-05: agy stalls in pipeline steps, so an agent step whose engine is agy runs as a claude session (the driver) that hands agy the step prompt in print mode (`agy --print`), checks the output file's front matter after each turn, sends a follow-up naming what is missing, and after 3 turns writes `status: failed` with the reason. The driver never does the step's work. A driven step with no `approval` runs `contained` (driver claude in auto mode, agy with `--mode accept-edits --sandbox`); in or around the private work folder both run `ask` (D46). While the driver session is still working, an output with `status: done` but missing keys does not fail the step; the driver gets its turns first. A driver engine that is not usable logs `driver unavailable` and the step runs agy directly. The engine field `driver` turns it on; the session row keeps `driven_engine`; the tile reads `claude > agy`. Wall launches of agy stay plain terminals. Superseded 2026-10-08 by D51 |
+| D48 | External engines near the private folder | Wasif, 2026-10-05: engines flagged `ask_near_paths` (codex and agy, which send to OpenAI and Google) start in `ask` in any folder that sits under a tree containing the private work folder, such as a project inside the vault, because one shell command reaches it from there. claude keeps the requested approval there, as in his own Claude Code; D46 still makes every engine ask in or around the private work folder itself |
 | D49 | Launch and close | Wasif, 2026-10-05: open it like VS Code. `workbench/bin/install-launcher.ps1` adds a `metatrooper` command (`metatrooper .` opens that folder as the project) and Start menu and desktop shortcuts. The window starts the core when none answers, without the parent Claude Code session's variables. Closing asks Keep running / Stop everything only when the window started the core and agents or runs are open (Keep is the default); an idle own core is stopped; a core started elsewhere is left alone. Ctrl+K has Restart core and Stop core. Chosen by Codex and Gemini independently (both B) |
 | D50 | First user, distro and accounts | Wasif, 2026-10-07: a first outside user exists. Distribution waits on the signed installer (#31, SignPath); no unsigned release in the meantime. Accounts with sign-in are wanted, but in the cloud milestone with the gateway and sync, not now; this epic stays `signed_out`. Next work is the UI port, phases D and E |
 | D51 | agy print loop | Wasif, 2026-10-08: the claude driver (D47) cost about $0.56 a step and retried an identical auto-denied agy call 3 times, so a plain code loop replaces it, with no model. An agent step whose engine has `print_args` (agy) launches that engine itself as the session: `agy <approval flags> --print <step prompt> --print-timeout 0 --output-format text --add-dir <cwd> --add-dir <run folder>`, and keeps the prompt beside the output as `<step>.prompt.md`. A step with no `approval` runs `contained`; D46 and D48 still force `ask`. While the session runs, `status: done` with missing keys does not fail the step. When the session exits without meeting the output contract, the runner launches one more session, unless the error text (the runner's error plus the terminal's last line) contains `auto-denied` or equals the `reason` of the failed output the previous attempt left; after the last attempt it writes `status: failed` with that reason. `driven_engine` stays in the schema and is no longer written. Wall launches of agy stay plain terminals |
@@ -151,8 +151,8 @@ Evidence (`ide-layer-research/pipeline-map.html`, `ide-layer-research/pipeline-c
    Only the core marks queue rows processed.
 6. **Nothing MetaTrooper writes lives in the vault or OneDrive**, except `<project>/.troop/runs/`, which is
    git-excluded automatically.
-7. **ACU asks first (D46).** `project.open` opens any folder, `work/ACU` included. A session (interactive or a
-   pipeline step) whose folder is in or contains `work/ACU` starts in `ask`, whatever approval it requested.
+7. **Private folders ask first (D46).** `project.open` opens any folder, the private work folder included. A session (interactive or a
+   pipeline step) whose folder is in or contains the private work folder starts in `ask`, whatever approval it requested.
 8. **Default project.** `projects.default` in `~/.metatrooper/settings.json` (empty by default) names the folder
    the core opens through `project.open` at start, so it is the most recent project and the window selects it
    when nothing else is chosen. It resolves like any project, to its git repo root, so a plain folder inside the
@@ -500,7 +500,7 @@ the shared Verdict JSON (`{verdict, findings:[{file, line_start, line_end, sever
 the `agy-review` runner and schema, `gemini-3.8-flash-high` only. Both run in parallel. Findings match when
 they name the same file and their line ranges overlap after widening each by 3 lines. Buckets: `both`,
 `codex_only`, `gemini_only`, `disagree` (a match where one says `approve` and the other lists it). The view
-never picks a winner. The review lane refuses ACU paths like everything else.
+never picks a winner. The review lane refuses ask paths like everything else.
 
 ## Threat model for gates and pipes
 
@@ -676,7 +676,7 @@ Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its t
 
 | # | Title | Effort | Depends on |
 |---|---|---|---|
-| 12 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal | 4.5 | none |
+| 12 | Core service: `schema.sql` (frozen first), event processor with redaction, state machine, launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, private-folder refusal | 4.5 | none |
 | 13 | Plugin system: manifest validation, install screen and approval, action runner with env stripping and tree kill, pane bridge, Claude and Codex/agy importers | 3.5 | 12 |
 | 14 | Callrouter Plan A, in the callrouter repo, meeting its own criteria 1 to 8; then its `troop-plugin.json` | 2.5 | 13 (for the plugin part only) |
 | 15 | Pipeline runner: validation with the publish rule, handoff contract, completion signals, gates with `action_hash`, fan-out, worktrees, port allocation, loops, resume, breaker, budgets, code steps, `repo` plugin | 4.5 | 12, 13 |
@@ -880,7 +880,7 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-D4 | Linux | Source install, beta, at launch; packaged Linux in December |
 | M5-D5 | Sandbox host | Experimental flag, off by default; its three P0s are after launch |
 | M5-D6 | Default approval for a new user | `ask`, with a first-run choice of auto mode; an existing settings file keeps its value |
-| M5-D7 | ACU path rule | Becomes the setting `sessions.ask_paths`, empty by default; Wasif's settings carry his path |
+| M5-D7 | Private path rule | Becomes the setting `sessions.ask_paths`, empty by default; Wasif's settings carry his path |
 | M5-D8 | Integrations at launch | Remote MCP (M5-12), the importer shape fix (M5-13 step 1) and the outbound notification sink (M5-15). Engines as data, marketplace and registry importers and the issue trigger in January 2027. Revised 2026-10-09: the goal asked for many popular tools to plug in, so the marketplace and registry importers (M5-13) and engines as data (M5-14) were built now; only the issue trigger (M5-16) waits |
 | M5-D9 | Pro timing | Pro (M5-6, M5-7) is built before the freeze; the freeze covers it. Supersedes the money plan's "Exams" row |
 | M5-D10 | Tray and TOON | Cut: issue files archived, GitHub #41 closed as not planned |
@@ -918,7 +918,7 @@ checked for relevance by Haiku and Sonnet), distilled into M5-17, `ide-layer-res
 | M5-7 | Pro licence, trial, checkout | `issues/m5-07-pro-licence-checkout.md` | Critical | 2.5 | M5-6, Wasif's two decisions |
 | M5-8 | Launch security subset (S5 is built on m4-harden as M4-4) | `issues/m5-08-launch-security.md` | Critical | 1.0 | none |
 | M5-9 | Release gate, CI, versioning | `issues/m5-09-release-gate.md` | High | 1.75 | none |
-| M5-10 | Public docs, licences, privacy, ACU setting | `issues/m5-10-public-docs.md` | High | 2.5 | M5-3, M5-18 |
+| M5-10 | Public docs, licences, privacy, ask_paths setting | `issues/m5-10-public-docs.md` | High | 2.5 | M5-3, M5-18 |
 | M5-11 | Site, waitlist, demo data | `issues/m5-11-site-and-demo.md` | High | 1.75 | M5-6 for the GIFs |
 | M5-12 | Remote MCP servers | `issues/m5-12-remote-mcp.md` | High | 3.0 | none |
 | M5-13 | Catalogue importers: Claude importer shape fix, Claude plugin marketplaces, MCP registry | `issues/m5-13-catalogue-importers.md` | Done (code) | 2.5 | M5-12 |
@@ -1045,10 +1045,10 @@ Every call below was decided by Codex and Gemini (M5-D22 to M5-D26); what is lef
 - M1-28. The meter's per-session tokens for a Claude session equal the sum over unique `message.id` values in
   its transcript.
 - M1-29. toolrouter (renamed from callrouter 2026-09-30, CLI only, no hooks) records `shown_bytes` per call,
-  `toolrouter ingest --since --until --json` reports `shell_read_tokens` and `saved_tokens` with ACU excluded
+  `toolrouter ingest --since --until --json` reports `shell_read_tokens` and `saved_tokens` with private-folder sessions excluded
   (#22, section 5), and the repo ships a `troop-plugin.json` whose `ingest` action validates with
   `validateManifest`. Superseded 2026-09-30: callrouter Plan A criteria 1 to 8.
-- M1-30. (Revised 2026-10-05, D46.) `project.open` on the vault root and on a folder inside `work/ACU` succeeds;
+- M1-30. (Revised 2026-10-05, D46.) `project.open` on the vault root and on a folder inside the private work folder succeeds;
   `session.launch` there with `approval: contained` (and a pipeline step asking for `contained`) starts in `ask`,
   with no auto-mode flags in the engine's arguments; a session in an ordinary project still starts in auto mode.
 - M1-31. `troop run start two-engine-review --json` from inside an agent session starts a run, and `troop
@@ -1073,30 +1073,30 @@ Every call below was decided by Codex and Gemini (M5-D22 to M5-D26); what is lef
   neither; an engine without a `contained` profile starts in `ask` instead of failing.
 - M1-38. A pipeline agent step bound to agy launches agy as the session with `--print`, a prompt carrying the
   step's `output_path` and its required keys, and `--add-dir` for the run folder; with `print_args` removed
-  from agy it launches agy interactive. In a `work/ACU` folder the command carries no `--mode` or `--sandbox`
+  from agy it launches agy interactive. In the private work folder the command carries no `--mode` or `--sandbox`
   flags. An agy that writes the output on its second run completes the step; one that never writes it fails
   the step after two runs with the last error as `reason`; an auto-denied run is not retried, and a resumed
   step whose error repeats that reason runs once. Added 2026-10-05 (D47), reshaped 2026-10-08 (D51).
-- M1-39. In a project inside a folder tree that contains `work/ACU` (but not containing it itself), `session.launch`
+- M1-39. In a project inside a folder tree that contains the private work folder (but not containing it itself), `session.launch`
   with `approval: contained` starts codex and agy with no auto-mode flags (ask) and claude with `--permission-mode
   auto`; a project outside any such tree starts all three in auto mode; an agy pipeline step there runs agy without
   `--mode accept-edits --sandbox`.
 
 ### Adoption gate (14 days after milestone 1, measured by #22)
 
-Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 total minus 349 ACU).
+Baselines come from 2026-06-01 to 2026-09-29, excluding private-folder sessions: 496 prompts.
 
-- A-01. At least 70% of non-ACU Claude sessions in the window have their `sessionId` in `session.native_id`.
-- A-02. Status asks per 100 non-ACU prompts fall below 1. Baseline: 24 / 496 x 100 = 4.8. A status ask is a
+- A-01. At least 70% of non-private Claude sessions in the window have their `sessionId` in `session.native_id`.
+- A-02. Status asks per 100 non-private prompts fall below 1. Baseline: 24 / 496 x 100 = 4.8. A status ask is a
   prompt matching `what are you doing|how long|\beta\b|/btw eta|status\?` (case-insensitive).
 - A-03. Smoke-test engine runs fall below 3% of engine runs. Baseline: 26 / 183 = 14.2%. An engine run is one
   Codex session file under `~/.codex/sessions/` or one Gemini conversation under
-  `~/.gemini/antigravity-cli/conversations/` started in the window, excluding ACU cwds. It is a smoke test
+  `~/.gemini/antigravity-cli/conversations/` started in the window, excluding private-folder cwds. It is a smoke test
   when its first user message is under 80 characters and matches
   `reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)` (case-insensitive).
   MetaTrooper's own `engine_check` rows are not engine runs.
-- A-04. Pasted screenshots per 100 non-ACU prompts fall below 0.5. Baseline: 12 / 496 x 100 = 2.4. Counted as
-  prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding ACU
+- A-04. Pasted screenshots per 100 non-private prompts fall below 0.5. Baseline: 12 / 496 x 100 = 2.4. Counted as
+  prompts in `~/.claude/history.jsonl` in the window whose `display` contains `[Image #`, excluding private-folder
   sessions (same rule as the baseline). #22 re-runs the 2026-09-29 baseline scripts unchanged so both numbers
   are measured the same way.
 - A-05. toolrouter saves at least 20% of shell and Read result tokens in the window:
@@ -1132,7 +1132,7 @@ Baselines come from 2026-06-01 to 2026-09-29, non-ACU only: 496 prompts (845 tot
 - M2-11. Closing a sandboxed session's window leaves no `troop-<id8>` container within 5 s; killing the core
   mid-turn leaves the agent working, and its spooled events are ingested in order after restart.
 - M2-12. `isolated` on the `pty` host, a launch before `troop sandbox build`, a Claude login expiring within
-  60 minutes, and an ACU path are each refused with a stated reason, and nothing starts.
+  60 minutes, and an ask path are each refused with a stated reason, and nothing starts.
 
 ### Milestone 3
 
@@ -1184,7 +1184,7 @@ built-in and template validates against `pipeline.schema.json`; every first-part
 
 | Layer | What | Count |
 |---|---|---|
-| Unit | project id and ACU refusal; event to state mapping per engine; session linking; role binding; validation and the publish rule; `action_hash`; loop, breaker, resume, budget; port allocation; finding merge; manifest and importer mapping; usage dedupe; cite-check normalisation | +45 |
+| Unit | project id and private-folder refusal; event to state mapping per engine; session linking; role binding; validation and the publish rule; `action_hash`; loop, breaker, resume, budget; port allocation; finding merge; manifest and importer mapping; usage dedupe; cite-check normalisation | +45 |
 | Integration | launch to event to state; pipe request and queue fallback; crash recovery of accepted and running commands; hooks install and uninstall round trip; action env and tree kill; MCP shim with a missing secret; browser ownership and interception (IPv4 and IPv6); full-page capture; UserPromptSubmit at-least-once delivery including a marked duplicate; sub-pipeline budget and gates; code-step IPC; dev-server start, readiness and stop | +20 |
 | E2E | open a fixture project, run `spec-build-review-handback` with stub engines through every gate; `two-engine-review`; point-to-comment round trip; kill-the-core independence run | +5 |
 | Conformance | contracts as above | +4 suites |
@@ -1247,7 +1247,7 @@ No terminal library, WebSocket library or native module is needed.
 - Paid data integrations beyond the listed adapters (Ahrefs, Semrush, DataForSEO, Clay, Apollo); users add
   them as plugins.
 - Any setting that turns off the publish rule.
-- Running any lane on ACU projects.
+- Running any lane on private-folder projects.
 - Callrouter Plan B.
 - A visual node-graph editor.
 - macOS testing; the code stays portable. Linux is a source-install beta at launch and packaged in December (M5-D4).

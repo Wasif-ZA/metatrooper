@@ -1,3 +1,5 @@
+<p align="center"><strong>Windows and Linux (beta). Local only: no account, no telemetry.</strong></p>
+
 <p align="center">
   <img src="assets/hero.png" width="640" alt="MetaTrooper: dithered dots on near-black gathering into four terminal clusters">
 </p>
@@ -12,13 +14,15 @@
   <a href="#features"><strong>Features</strong></a> &middot;
   <a href="#use-it-from-your-agent"><strong>Use from your agent</strong></a> &middot;
   <a href="#commands"><strong>Commands</strong></a> &middot;
+  <a href="#privacy"><strong>Privacy</strong></a> &middot;
+  <a href="#known-limits"><strong>Known limits</strong></a> &middot;
   <a href="#docs"><strong>Docs</strong></a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/node-24.16%2B-5FA04E" alt="Node 24.16+">
   <img src="https://img.shields.io/badge/core-AGPL--3.0-1a7f64" alt="Core AGPL-3.0">
-  <img src="https://img.shields.io/badge/tested%20on-Windows-0078D4" alt="Tested on Windows">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20beta-0078D4" alt="Windows, Linux beta">
   <img src="https://img.shields.io/badge/status-pre--release-c47f00" alt="Pre-release">
 </p>
 
@@ -26,7 +30,7 @@
   <a href="assets/wall.png"><img src="assets/wall-demo.gif" width="960" alt="The wall: one agent finishes, another asks a question, its pane breathes orange and glides to the big slot, you answer, a gate is approved"></a>
 </p>
 
-<p align="center"><sub>The approved window design on demo data. It is being built into <code>workbench/</code> now.</sub></p>
+<p align="center"><sub>The wall in <code>workbench/</code>, on demo data.</sub></p>
 
 <br>
 
@@ -137,13 +141,7 @@ Anthropic, OpenAI or Google.</sub>
 - ✅ You type **`/clear`, `/resume` and "continue"** more than you would like
 - ✅ You want **Codex and Gemini to review** what Claude wrote, without copying text between windows
 - ✅ You want a **hard stop** before anything is pushed, deployed or posted
-- ✅ You want to keep **your own subscriptions**, on Windows, with no account to sign up for
-
-<img src="assets/chart.png" width="800" alt="58% of prompts went in while another agent was running; /clear 38, visual corrections 36, /resume 12, pasted screenshots 12, over 346 sessions">
-
-These come from one person's numbers: over 346 agent sessions (2026-06-01 to 2026-09-29), 58% of
-prompts were sent while another session was live, and there were 38 `/clear`, 12 `/resume`, 36
-visual corrections and 12 pasted screenshots.
+- ✅ You want to keep **your own subscriptions**, on your own machine, with no account to sign up for
 
 ## Problems MetaTrooper solves
 
@@ -166,39 +164,54 @@ visual corrections and 12 pasted screenshots.
 | **A broken MetaTrooper is invisible.** | Every hook finishes within 250 ms, swallows every error and exits 0. Your agents never wait on it. |
 | **No ports.**                      | Windows read a local SQLite file; commands go over a named pipe. No TCP port, token file or WebSocket. |
 | **Pipelines are files.**           | A pipeline is a `pipeline.json` you can read, diff and edit in a form, with optional TypeScript steps. |
-| **Local and free.**                | No account and no telemetry. The core is AGPL-3.0; the SDK, contracts and pipelines are MIT.        |
+| **Local and free.**                | No account and no telemetry. The core is AGPL-3.0; the SDK, plugins, pipelines and public formats are MIT. |
 
 <br>
 
 ## Quickstart
 
+You need at least one of `claude`, `codex` or `agy` installed and signed in. MetaTrooper runs them; it never signs in
+for you and never reads their login tokens.
+
+### Windows: the installer
+
+1. Download `MetaTrooper-Setup-<version>.exe` from [Releases](https://github.com/Wasif-ZA/metatrooper/releases) and
+   run it. It installs for your user only, so there is no admin prompt, into `%LOCALAPPDATA%\Programs\MetaTrooper`.
+   Node comes inside the app; you do not need your own.
+2. Open MetaTrooper from the Start menu. The window starts the core for you.
+3. First run asks how agents should start: **Ask before each tool call** (the default) or **Auto mode in MetaTrooper
+   worktrees**. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
+
+The installer puts `troop` (the command line) in `%LOCALAPPDATA%\MetaTrooper\bin`. There is no auto-update and no
+update check, because that would be a network call: a new version is a new installer.
+
+### Linux (beta) and Windows: from source
+
+Node 24.16 or newer. On Linux, node-pty needs a C++ toolchain (`build-essential` on Ubuntu).
+
 > [!TIP]
 > **🪖 Just hand the whole thing to your agent.** Paste this into Claude Code or Codex:
 >
 > ```text
-> Clone https://github.com/Wasif-ZA/metatrooper, run `npm install` in core/ and workbench/,
+> Clone https://github.com/Wasif-ZA/metatrooper, run `npm ci` in core/ and workbench/,
 > start the core with `node core/cli.ts serve`, then copy skills/troop into my agent's
 > skills folder and run `node core/cli.ts engines` to show me which agents it found.
 > ```
 
-### Or install it yourself
-
-Windows, Node 24.16 or newer, and at least one of `claude`, `codex` or `agy` on your PATH.
-
 ```bash
 git clone https://github.com/Wasif-ZA/metatrooper
-cd metatrooper/core && npm install
+cd metatrooper/core && npm ci
 node cli.ts serve                 # the core service; leave this terminal open
 ```
 
 In a second terminal:
 
 ```bash
-cd metatrooper/workbench && npm install
+cd metatrooper/workbench && npm ci
 npm run dev                       # the workbench window
 ```
 
-There is no installer yet; `troop` below means `node core/cli.ts`.
+From source, `troop` below means `node core/cli.ts`.
 
 > [!WARNING]
 > **Two things happen on first run.** Launching Claude Code from the workbench installs
@@ -245,8 +258,18 @@ Add `--json` to any command for one line of JSON.
 
 ### Approval profiles
 
-`--approval ask|edits|contained` on `launch`. `contained` is the default on a MetaTrooper worktree,
-`ask` everywhere else.
+`--approval ask|edits|contained` on `launch`. A new install starts every agent in `ask` (each tool call needs your
+OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on a MetaTrooper worktree. A
+settings file from an older version keeps its value.
+
+Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
+requested, as does a folder holding one of them one or two levels down. Engines that send your code to another
+company (`codex`, `agy`) also ask anywhere under the folder two levels above a listed path. The list is empty by
+default:
+
+```json
+{ "sessions": { "ask_paths": ["C:/Users/you/notes/work/client"] } }
+```
 
 </details>
 
@@ -268,59 +291,131 @@ run themselves.
 
 ## Pipelines
 
-Five ship in `pipelines/`:
+Five built-ins ship in `pipelines/` and are ready on first run:
 
 <img src="assets/pipe.png" alt="spec-to-pr: spec, approve spec (gate), build, verify, approve PR (gate), open PR">
 
 | Pipeline | Steps |
 |---|---|
 | `spec-to-pr` | spec, **approve spec**, build, verify, **approve PR**, open PR |
-| `two-engine-review` | Codex review, Gemini review, bucket what each found |
-| `website-build` | design, build, critique, preview, **approve**, production |
-| `design-variants` | board, directions, **approve directions**, variants, pick, polish |
+| `spec-build-review-handback` | spec, **approve spec**, build, verify, two-engine review, fix, re-verify, re-review, a hand-back list for you |
+| `two-engine-review` | diff, **approve what is sent**, Codex review, Gemini review, bucket what each found |
 | `e2e-browser-qa` | flows, QA, fix, re-verify, report |
+| `pr-review-fix` (Pro) | Codex and Gemini review a PR, **pick findings**, Claude fixes them, a finding counts as fixed only with proof, re-review, hand-back |
 
 **Bold** steps are gates. Each step starts a fresh agent session and gets the previous step's files.
 The format is `contracts/pipeline.schema.json`.
 
-Four plugins ship in `plugins/`: `github`, `repo`, `deploy` and `agent-reach`.
-[metarouter](https://github.com/Wasif-ZA/metarouter) plugs in as one more, for recipes and
-smaller shell output.
+Ten more are preview templates in `pipelines/preview/`: `website-build`, `design-variants`, `footage-to-edit`,
+`docs-and-release-notes`, `security-review-and-upgrade`, `clips-to-scheduled-posts`, `seo-audit-fix`,
+`deep-research-cited`, `data-to-dashboard` and `form-fill-batch`. They are listed in the template gallery and run once
+you copy the file into `<project>/.troop/pipelines/` and enable the plugins it names. They get less testing than the
+built-ins.
+
+Thirteen plugins ship in `plugins/`: `agent-reach`, `cite-check`, `data`, `deploy`, `desktop`, `docs-export`,
+`github`, `gmail`, `media`, `repo`, `security`, `seo` and `social-scheduler`, plus `optional/code-map`.
+[metarouter](https://github.com/Wasif-ZA/metarouter) plugs in as one more, for recipes and smaller shell output.
+
+## Pro
+
+Pro adds the `pr-review-fix` pipeline. It is a paid add-on and is not on sale yet. When it is, you paste a licence
+key and press Activate: that makes one call to the licence server, the result is cached in
+`~/.metatrooper/pro.json`, and it is checked again only when you press Refresh or the cached expiry passes. Nothing
+else in MetaTrooper needs Pro or an account.
 
 ## Platforms
 
-<details>
-<summary>Open: Windows only for now</summary>
-
-- **Windows**: built and tested here (node-pty over ConPTY, named pipes, DPAPI for plugin secrets).
-- **macOS and Linux**: the core's tests pass on Linux; the workbench and terminals are untested.
+- **Windows**: the installer, built and tested here (node-pty over ConPTY, named pipes, DPAPI for plugin
+  secrets).
+- **Linux (beta)**: install from source. The core's tests run on Ubuntu 24.04; the window gets less testing there.
+  A packaged Linux build follows.
+- **macOS**: not supported.
 - **Engines**: `claude` reports state through hooks, `codex` through its notify setting, `agy` through
   file activity. `agy` has no prompt argument, so the prompt is typed into its terminal once.
 
-</details>
-
 ## Privacy
 
-<details>
-<summary>Open: what it reads, where it writes, what leaves your machine</summary>
+- **What leaves your machine.** The core and the window make no network connection of their own. Your agents
+  (`claude`, `codex`, `agy`) talk to their own vendors, as they do outside MetaTrooper. Plugins with the `network`
+  permission connect where their install screen says, and only after you approve that permission.
+- **Two exceptions.** (1) When Windows "Automatically detect settings" is on, the window's Chromium looks up the LAN
+  host `wpad`, as Chrome and Edge do, so the browser pane works behind an auto-detected proxy. (2) Pro activation
+  makes one call when you press Activate or Refresh (see [Pro](#pro)).
+- **The proof.** `workbench/test/no-network.test.ts` runs a whole `spec-to-pr` pipeline with fake engines in the
+  real window and fails if the core or Node opens any outbound connection, or if Chromium's network log names any
+  host other than localhost and `wpad`. Rerun it on Windows with the workbench dependencies installed:
 
-- State lives in `~/.metatrooper/` (`troop.db`, `settings.json`). The only thing written into a
-  project is `<project>/.troop/runs/`, which is git-excluded automatically.
-- Hooks store redacted events.
-- No account and no telemetry. The network is used by your agents and by plugins you approved,
-  each with the permissions shown on its install screen.
+  ```bash
+  cd workbench && node --test test/no-network.test.ts
+  ```
 
-</details>
+- **Plugins that use the network**:
+
+  | Plugin | Sends to |
+  |---|---|
+  | `agent-reach` | Exa search (through `mcporter`), GitHub search (through `gh`), and the pages it fetches |
+  | `cite-check` | each source URL it checks |
+  | `deploy` | Vercel, through the `vercel` CLI |
+  | `github` | GitHub, through the `gh` CLI |
+  | `gmail` | `accounts.google.com`, `oauth2.googleapis.com`, `gmail.googleapis.com` |
+  | `media` | the URL you give it (through `yt-dlp`) |
+  | `security` | the npm registry (through `npm outdated` and `npm ls`) |
+  | `seo` | the site you audit, same origin only |
+  | `social-scheduler` | your Postiz server (`POSTIZ_URL`, default `api.postiz.com`) |
+
+  `data`, `desktop`, `docs-export`, `repo` and `optional/code-map` make no network connection.
+- **What it stores.** State lives in `~/.metatrooper/` (`troop.db`, `settings.json`, `logs/`). The only thing
+  written into a project is `<project>/.troop/runs/`, which is git-excluded automatically. Hooks store redacted
+  events. On Windows, plugin secrets are encrypted with your login (DPAPI).
+
+## Logs
+
+Everything is in `~/.metatrooper/logs/`: `core.log`, `workbench.log`, `event-errors.log` (hook events the core
+could not store) and `plugin-output.log`. Each file rotates at 5 MB and keeps two old copies. Secret values a plugin
+was given are masked before they are written. In the window, Ctrl+K then "Open logs folder" opens it. Attach an
+excerpt, secrets removed, to a [bug report](https://github.com/Wasif-ZA/metatrooper/issues/new?template=bug.yml).
+
+## Uninstall
+
+- **Installer**: Windows Settings, Apps, MetaTrooper, Uninstall. It first runs `troop hooks uninstall --codex --yes`,
+  so `~/.claude/settings.json` and `~/.codex/config.toml` go back to exactly what they were, then removes the app, the
+  `troop` folder from PATH and the shortcuts. A box (unticked) also deletes `~/.metatrooper/` and its worktrees;
+  leave it unticked to keep your history.
+- **From source**: run `node core/cli.ts hooks uninstall --codex`, stop the core with `node core/cli.ts stop`, and
+  delete the clone. Delete `~/.metatrooper/` too if you want your history gone.
+
+## Known limits
+
+These are known and accepted for now; please do not file them as new bugs.
+
+- **The browser pane trusts the pid a caller reports.** `browser.hello` checks that the session's process is an
+  ancestor of the pid it is given, but takes that pid on the caller's word. A process running as your own user can
+  claim another session's browser. It could read your files anyway, and a real check needs a native module.
+- **A sandboxed session can lose its last event.** When a sandboxed session exits, a final event line it had not
+  finished writing is dropped from the spool.
+- **A failed print-mode step can lose its last line after a core restart.** The step's error detail includes the
+  terminal's last line, which is kept in memory only, so after a core restart the failure shows the bare error.
+- **No sandbox for agents' code yet.** Agents and the commands they run use your machine with your permissions;
+  `ask` and the gates are the guard rails (see the roadmap).
+
+## Licence
+
+| Folder | Licence |
+|---|---|
+| `core/`, `workbench/`, `sandbox/`, and anything without its own file (root `LICENSE`) | AGPL-3.0-only |
+| `sdk/`, `pipelines/`, `plugins/*/`, `skills/`, `engines/` | MIT |
+| `contracts/` | MIT for the public formats listed in `contracts/LICENSE-MIT`; the rest follows the root licence |
+| Third-party code and fonts in the app | their own licences, listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) |
+
+Security reports: [`SECURITY.md`](SECURITY.md). Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Roadmap
 
-- ⬜ The wall window shown above, approved 2026-10-04 and being built now. Default look is the
-  dither style of this README; Warp charcoal ships as a theme
+- ⬜ A sandbox for the code your agents run (not built yet): the agents stay on your machine as now, and the builds,
+  tests and dev servers they start run in one Docker container per project, with an Open sandbox button in the
+  window for a terminal and the files inside it
 - ⬜ Each pipeline gets its own screen, starting with Spec to PR
-- ⬜ A signed installer, so the first agent starts within 30 seconds of install
-- ⬜ A tray companion: status lights, needs-you count, token meter
-- ⬜ A container sandbox for agents, with read-only logins and an egress allow-list
-- ⬜ macOS and Linux
+- ⬜ A packaged Linux build
 - ⬜ Using your terminals from a phone
 
 ## Docs
@@ -330,7 +425,7 @@ smaller shell output.
    plugins, browser tools.
 3. [`workbench/README.md`](workbench/README.md): running and testing the window.
 4. [`ide-layer-research/`](ide-layer-research/): the research that chose this shape.
-5. [`M1-STATUS.md`](M1-STATUS.md), [`M2-STATUS.md`](M2-STATUS.md), [`UI-STATUS.md`](UI-STATUS.md):
+5. [`M1-STATUS.md`](M1-STATUS.md) to [`M5-STATUS.md`](M5-STATUS.md), [`UI-STATUS.md`](UI-STATUS.md):
    what is verified, and on which platform.
 
-Tests: `npm test` in `core/` and in `workbench/`.
+Tests: `METATROOPER_FAKE_DPAPI=1 npm test` in `core/`, `npm test` in `workbench/`.

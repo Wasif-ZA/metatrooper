@@ -46,7 +46,7 @@ produces nothing usable today.
 
 | What | Line |
 |---|---|
-| `EngineSpec` type, including `trust`, `approval_profiles`, `ask_near_acu`, `settings`, `activity_waiting`, `print_args`, `sandbox` | `:6-29` |
+| `EngineSpec` type, including `trust`, `approval_profiles`, `ask_near_paths`, `settings`, `activity_waiting`, `print_args`, `sandbox` | `:6-29` |
 | `BUILT_IN`: claude, codex, agy | `:47-77` |
 | `METATROOPER_ENGINES` env override loads a JSON array of engines | `:79-83` |
 | Plugin engines are rows in `engine`; `bindRole` picks lowest `cost_rank` that is installed and not red | `:85-122` |
@@ -54,7 +54,7 @@ produces nothing usable today.
 
 Engines are already data, not code. **But** the schema's `engine` def (`plugin-manifest.schema.json:31-74`,
 `additionalProperties: false`) has none of `trust`, `approval_profiles`, `print_args`, `settings`,
-`activity_waiting`, `sandbox`, `ask_near_acu`. So a plugin-supplied engine can never match a built-in: no folder
+`activity_waiting`, `sandbox`, `ask_near_paths`. So a plugin-supplied engine can never match a built-in: no folder
 trust (it will stop on its own trust dialog), no approval profiles, no headless `print_args` for pipeline steps.
 
 ### Gates, needs-you, triggers
