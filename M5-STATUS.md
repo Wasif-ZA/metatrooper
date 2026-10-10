@@ -34,7 +34,8 @@ M5-19 is #68), each pointing at its issue file.
 | M5-18 catalogue cut | CODE DONE | 2b05060, tests 12ab0e5 by Codex (catalogue-cut.test.ts) |
 | M5-6 Pro review and fix loop | CODE DONE, REAL RUN OWED | f0ef719, a09fe95, 1ea33e6; review fixes f3f0479 (freeze step, runner allow-list, no proof from a timeout or a missing module, index reset, line-drift mapping); c0d8e3d (exact-byte restore, NODE_TEST_CONTEXT stripped). Tests m5-06-pro.test.ts 14 pass, by Codex with fixture fixes by Claude. Codex and Gemini both rejected the first version; every agreed finding is fixed. Declined: removing the checked-out worktree (the hand-back asks the user to commit there) and stripping the proof command's environment (the fix agent already runs with the same user environment). M5-06d, the real run with him on screen, is owed |
 | M5-21 preview hardening | CODE DONE | 26 fixes on m5-hp-a/b/c, listed in issues/m5-21-preview-hardening.md; tests m5-21-preview-a/b/c.test.ts by Codex (7 + 7 + 8, two desktop cases skip without a real window) |
-| M5-19 one instruction file | NOT STARTED | First step is verifying the Claude Code flag |
+| M5-19 one instruction file | CODE DONE, MERGED | See the teehee-c1 section below (02d3aea) |
+| M5-4 logs, M5-8 S1 + S3 | CODE DONE, MERGED | See the teehee-c1 section below (6f91031, 7e48720) |
 
 ## Two-engine reviews
 
@@ -74,20 +75,62 @@ pipeline: the four coding built-ins 40 to 43 each (`ide-layer-research/m5-harden
 
 ## Waiting on Wasif
 
-The hand-back in spec.md, Milestone 5, plus: his look at the m4-harden gate card; one spec-to-pr run on screen on
-`m5-launch` (check-build is new in the path); T2's meaning of "disagree"; `~/.cache/claude-scratch/metatrooper-m5-2026-10-09/github-m5.sh`
-for the GitHub milestone.
+Gathered 2026-10-10T17:10+11:00. Every branch that only needed review and tests is merged; these need his hands, eyes,
+money or name. T2 was settled as M5-D16 and the GitHub milestone was created on 2026-10-09.
 
-## teehee-c1, 2026-10-09T23:42+11:00 (not merged)
+On screen, with the app open:
+1. Look at the m4-harden gate card, then one spec-to-pr run (check-build is new in that path).
+2. The first real pr-review-fix (Pro) run, M5-06d.
+3. M3-01 real-engine runs, data-to-dashboard on a small CSV first.
+4. One workday in the app (UI-01), then the README GIFs (M5-11).
+5. Glance at the M5-12 remote MCP install screen and the M5-19 project bar (neither seen on screen yet).
 
-Worktrees under `~/.cache/claude-scratch/metatrooper-m5-2026-10-09/`. Money items (M5-7, the paid signing pick in M5-2)
-wait until a working model exists (Wasif, 2026-10-09).
+Setup only he can do:
+6. `troop sandbox login agy` once (paste-a-code login), so sandbox step S7 can finish.
+7. A Hyper-V Windows 11 VM with Smart App Control on and a fresh standard account (M5-D24).
+8. `sudo apt install build-essential` in WSL Ubuntu (M5-D25).
+9. A test Gmail account for the gmail plugin, and accounts for social-scheduler.
 
-| Child | Branch | Status | Evidence / notes |
-|---|---|---|---|
-| M5-4 logs | `m5-logs` (`wt-logs`) | CODE DONE, TESTS DONE, REVIEW HALF | 5629fb1, 4498fb2 (Electron error box kept), 23ebd85 (oversized write capped). Tests by Codex: m5-04-logs.test.ts, 8 of 8 mutants caught (368f504). Codex review: oversized write fixed; "workbench continues after uncaught" declined (Electron's own default). Gemini review owed: the pipeline's agy step exited with no file, and the `/agy-review` rerun was stopped for low memory |
-| M5-8 S1 + S3 | `m5-security` (`wt-security`) | CODE DONE, TESTS IN PROGRESS | 027353d (S1, rebuild keeps unknown columns; only v1 to v2 drops the herdr columns), 49220af (S3, no cmd fallback; claude, codex, agy all resolve without it). Codex tests m5-08-security.test.ts uncommitted: 6 pass, 2 fail in their own fixture, sent back |
-| M5-19 one instruction file | `m5-instructions` (`wt-instructions`) | CODE DONE, TESTS IN PROGRESS | 808a687, 623d468. Flag verified on Claude Code 2.1.295; agy 1.3.2 reads AGENTS.md natively. Codex tests 3 of 5 mutants first pass; follow-up written, mutant rerun stopped for low memory. Project bar line not built (screen) |
+Money and outside contact (wait until a working model, Wasif 2026-10-09):
+10. Buy the Certum code signing certificate and pass its identity check (M5-D23).
+11. Send the two terms questions in `ide-layer-research/m5-terms.md` to Anthropic and Google (M5-D26).
+12. M5-2 and M5-7 picks, then the Pro repo and Lemon Squeezy store (M5-D20).
+
+Calls on leftovers:
+13. Branch `troop/01m4dgvfjnnj5yw1gq064xyhaa-build-0`: a marketing site in `site/` built with Vite, which he does not
+    accept; keep it as a reference or delete it.
+14. A real test for the M5-8 rollback guard (see the teehee-c1 section); hand it to Codex once its sandbox can write.
+
+## teehee-c1 branches, merged 2026-10-10T17:00+11:00
+
+M5-4, M5-8 S1 + S3 and M5-19 were built by teehee-c1 on their own branches and merged to main (6f91031, 7e48720,
+02d3aea) after tests, mutant runs and a Codex plus Gemini review of each. Money items (M5-7, the paid signing pick in
+M5-2) wait until a working model exists (Wasif, 2026-10-09).
+
+| Child | Status | Evidence / notes |
+|---|---|---|
+| M5-4 logs | CODE DONE, MERGED | 5629fb1, 4498fb2, 23ebd85. Tests m5-04-logs.test.ts by Codex, 6 pass, 8 of 8 mutants caught |
+| M5-8 S1 + S3 | CODE DONE, MERGED | 027353d (S1), 49220af (S3). Tests m5-08-security.test.ts by Codex, 8 pass; fixture fix 50a55fd by Claude (Codex's sandbox could not write the worktree): the extra column now goes first, because a trailing `--` comment on the last column swallowed the appended one. 4 of 5 mutants caught; MISSED: the throw when a column holding data cannot be re-added. The "rebuild failure rolls back" test never triggers a failure (both engines saw it), so that guard is untested |
+| M5-19 one instruction file | CODE DONE, MERGED | 808a687, 623d468. Tests m5-19-instructions.test.ts by Codex, 10 pass; fix dd54dae by Claude: the in-process launch test left terminal sessions open, so the run never exited (that hang was the "low memory" mutant stall), and the fixture helper cut paths on `/`. 5 of 5 mutants caught. Project bar line not built (screen) |
+
+Suites on main after the three merges (2026-10-10T17:20+11:00): core 498 tests, 487 pass, 2 fail, 9 skipped. M5-14a/b failed
+because M5-19 gave the built-in claude engine an `agents_md` field the engine schema did not list; fixed by adding it to
+contracts/plugin-manifest.schema.json (engines, instructions and plugins tests 32 of 32 after). M1-25a (npm by name)
+passes alone, so it is a load flake like M1-06 and M4-29.
+
+### Reviews of the three branches
+
+| Branch | Finding | Codex | Gemini | Done |
+|---|---|---|---|---|
+| m5-logs | Masking only knows secrets decrypted in this process | high | high | declined: every route that hands a secret to a plugin or sink goes through `getSecret`, which caches it, so nothing can print a value masking does not know |
+| m5-logs | `stamp()` leaves a dangling timestamp after a trailing newline | not found | high | declined: JavaScript's split never returns an empty tail for a zero-width match at the end, checked in node |
+| m5-logs | Synchronous mkdir, stat and append on every write | not found | medium | declined for launch: core log volume is low; revisit if a profile shows it |
+| m5-security | Rollback test passes without a failure | not found | medium | logged above as a test hole |
+| m5-security | An empty column that cannot be re-added is dropped silently | not found | high | declined: by design, only a column holding data blocks the rebuild |
+| m5-security | A non-npm `.cmd` or `.bat` now exits 127 with "not on PATH" | not found | low | not fixed: no shell fallback is the point of S3; the message could name batch files |
+| m5-instructions | `agentsMdArgs` never reaches a launch | medium | not found | declined: both launch paths pass it (`launch.ts:69`, `:75`) |
+| m5-instructions | AGENTS.md existence check missing | not found | high | invalid: Gemini read the worktree while a mutant was applied |
+| m5-instructions | Fixture helper cuts paths on `/` | not found | medium | fixed dd54dae |
 
 Found: a run paused on budget (`max_minutes` 5) leaves an agy step whose session already exited at `running` with no
 output (run 01M4G9B600PHFJQT28XBXKQF5E, gemini-review).
