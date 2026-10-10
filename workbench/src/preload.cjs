@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('troop', {
   runShot: (runId, name) => ipcRenderer.invoke('runShot', runId, name),
   uiSettings: () => ipcRenderer.invoke('uiSettings'),
   setTheme: (name) => ipcRenderer.invoke('setTheme', name),
+  setApproval: (value) => ipcRenderer.invoke('setApproval', value),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
   termResize: (sessionId, cols, rows) => ipcRenderer.invoke('termResize', sessionId, cols, rows),
   termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),

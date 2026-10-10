@@ -43,6 +43,9 @@
         },
         "resume_args": { "type": "array", "items": { "type": "string" }, "description": "Arguments that resume an earlier session; {native_id} is replaced by its id. Omit if the CLI cannot resume." },
         "version_cmd": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "min_version": { "type": "string", "description": "Lowest version that works; an older one shows as too-old." },
+        "install": { "type": "string", "description": "Install command shown when the engine is missing." },
+        "login": { "type": "string", "description": "Login command shown when auth_cmd fails." },
         "auth_cmd": { "type": "array", "items": { "type": "string" } },
         "agents_md": {
           "type": "object",

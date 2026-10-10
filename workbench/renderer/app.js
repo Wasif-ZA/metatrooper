@@ -960,7 +960,7 @@ function renderList(sel) {
   const shells = shellRows();
   const sessions = [...s.sessions].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
   setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${s.sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session and run in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)">x</button></div>
-    <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="Start ${esc(e.id)} in this project">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
+    <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
     <div class="lbody" id="sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
       ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
@@ -992,6 +992,10 @@ function renderRunbox(sel) {
   setHtml('runbox', steps ? stepListHtml(steps, `Needs you: ${title}`) : '');
 }
 
+function engineTip(e) {
+  return e.light === 'red' ? `${e.id} is not ready: ${e.fix || e.detail || 'check failed'}` : `Start ${e.id} in this project`;
+}
+
 function renderStart() {
   const el = document.getElementById('start');
   const show = !project() || (!ui.snap.sessions.length && !shellRows().length);
@@ -1000,9 +1004,16 @@ function renderStart() {
   if (!show) return;
   const p = project();
   const engines = ui.snap.engines;
-  setHtml('start', `<h3>Start an agent</h3><ol>
+  const firstRun = ui.settingsLook && ui.settingsLook.firstRun ? `<div class="firstrun"><h3>Before each tool call</h3>
+    <button class="primary" data-action="first-approval" data-value="ask">Ask before each tool call (recommended)</button>
+    <button data-action="first-approval" data-value="contained">Auto mode in MetaTrooper worktrees</button></div>` : '';
+  const cards = engines.some((e) => e.light === 'green') ? '' : `<h3>No agent is ready yet</h3><div class="ecards">${engines.filter((e) => e.install).map((e) => `<div class="ecard">
+    <b>${esc(e.id)}</b>${e.fix ? `<p class="fix">${esc(e.fix)}</p>` : ''}
+    <p>Install: <code>${esc(e.install)}</code></p>${e.login ? `<p>Log in: <code>${esc(e.login)}</code></p>` : ''}
+    <button data-action="check-engines">Check again</button></div>`).join('')}</div>`;
+  setHtml('start', `${firstRun}${cards}<h3>Start an agent</h3><ol>
     <li class="${p ? 'done' : ''}">${p ? `Folder: <b>${esc(p.name)}</b> <span class="meta">${esc(p.path)}</span>` : '<button class="primary" data-action="open-folder">Open a project folder</button>'}</li>
-    <li>${p ? `Agent: ${engines.map((e) => `<button class="${ui.startEngine === e.id ? 'primary' : ''}" data-action="start-engine" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''}>${esc(e.id)}</button>`).join(' ')}` : 'Pick an agent'}</li>
+    <li>${p ? `Agent: ${engines.map((e) => `<button class="${ui.startEngine === e.id ? 'primary' : ''}" data-action="start-engine" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">${esc(e.id)}</button>`).join(' ')}` : 'Pick an agent'}</li>
     <li>${p ? `Task (optional):<textarea rows="3" id="start-task" data-key="start-task" placeholder="What should it do? Leave empty to just open it."></textarea>
       <div class="actions"><button class="primary" data-action="start-go" ${ui.startEngine ? '' : 'disabled'}>Start</button></div>` : 'Say what to do, or leave it empty'}</li>
   </ol>`);
@@ -1394,7 +1405,7 @@ async function onClick(e) {
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ' (not ready)' : ''}</div>`).join('');
+      menu.innerHTML = ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` (not ready: ${esc(x.fix || x.detail || 'check failed')})` : ''}</div>`).join('');
       menu.style.left = `${Math.max(8, r.right - 160)}px`;
       menu.style.top = `${r.bottom + 4}px`;
       menu.hidden = false;
@@ -1495,6 +1506,9 @@ async function onClick(e) {
       return;
     case 'check-engines':
       await rpc('engines.check', {});
+      return;
+    case 'first-approval':
+      if (await api.setApproval(el.dataset.value)) { ui.settingsLook.firstRun = false; render(); }
       return;
     case 'launch': {
       document.getElementById('menu').hidden = true;

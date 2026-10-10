@@ -127,6 +127,10 @@ body.no-split .side-split { display: none; }
 .start ol { max-width: 560px; padding-left: 20px; }
 .start li { margin: 0 0 18px; }
 .start li.done { color: var(--mute); }
+.ecards { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; }
+.ecard { flex: 1 1 200px; padding: 12px; border: 1px var(--bstyle) var(--hairline-strong); border-radius: var(--r); }
+.ecard .fix { color: var(--wait); }
+.firstrun { margin: 0 0 24px; }
 .palette-list { max-height: 60vh; overflow: auto; }
 .inbox { position: fixed; left: 300px; top: 44px; width: min(480px, 90vw); max-height: 60vh; overflow: auto; background: var(--canvas-deep); border: 1px var(--bstyle) var(--hairline-strong); border-radius: var(--r); box-shadow: var(--float); z-index: 45; padding: 4px 0; }
 .inbox .head { padding: 8px 14px 4px; color: var(--mute); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .16em; }

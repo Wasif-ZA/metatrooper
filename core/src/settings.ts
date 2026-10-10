@@ -12,7 +12,7 @@ export const DEFAULTS = {
     default: '',
   },
   sessions: {
-    approval: 'contained',
+    approval: 'ask',
   },
   worktree: {
     npm_ci: true,
@@ -100,6 +100,8 @@ export function settings(): Settings {
     try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
   }
   const value = merge(DEFAULTS, raw) as Settings;
+  // A settings file from before M5-D6 keeps the old contained default.
+  if (mtime >= 0 && typeof (raw.sessions as { approval?: unknown } | undefined)?.approval !== 'string') value.sessions.approval = 'contained';
   cache = { mtime, value };
   return value;
 }

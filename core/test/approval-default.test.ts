@@ -40,12 +40,12 @@ async function runCase(id: string, engineSpec: object, settings?: object) {
   } finally { await teardownCore(core, isolated); }
 }
 
-test('ordinary session.launch defaults Claude to contained approval argv', async () => {
-  assert.deepEqual(await runCase('claude', engine('claude', '', { contained: ['--permission-mode', 'auto'] })), ['--permission-mode', 'auto']);
+test('an existing settings file without approval keeps Claude on contained approval argv', async () => {
+  assert.deepEqual(await runCase('claude', engine('claude', '', { contained: ['--permission-mode', 'auto'] }), { ui: { theme: 'dither' } }), ['--permission-mode', 'auto']);
 });
 
-test('ordinary session.launch defaults Codex to contained approval argv', async () => {
-  assert.deepEqual(await runCase('codex', engine('codex', '', { contained: ['--approve-for-me'] })), ['--approve-for-me']);
+test('sessions.approval contained gives Codex contained approval argv', async () => {
+  assert.deepEqual(await runCase('codex', engine('codex', '', { contained: ['--approve-for-me'] }), { sessions: { approval: 'contained' } }), ['--approve-for-me']);
 });
 
 test('sessions.approval ask adds no approval argv', async () => {
