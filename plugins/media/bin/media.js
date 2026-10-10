@@ -89,9 +89,8 @@ export async function download(input) {
     return { path: dest, from: 'file' };
   }
   if (!/^https?:\/\//i.test(input.source)) throw new Error(`${input.source} is neither a file nor a URL`);
-  // ponytail: checks the first host only; yt-dlp follows its own redirects.
   await checkUrl(input.source);
-  const r = run('yt-dlp', ['--no-playlist', '-f', 'bv*[height<=1080]+ba/b[height<=1080]/b', '--merge-output-format', 'mp4', '-o', path.join(input.out, 'source.%(ext)s'), '--print', 'after_move:filepath', input.source]);
+  const r = run('yt-dlp', ['--use-extractors', 'default,-generic', '--no-playlist', '-f', 'bv*[height<=1080]+ba/b[height<=1080]/b', '--merge-output-format', 'mp4', '-o', path.join(input.out, 'source.%(ext)s'), '--print', 'after_move:filepath', input.source]);
   const file = r.stdout.trim().split(/\r?\n/).pop();
   if (!file || !fs.existsSync(file)) throw new Error(`yt-dlp did not report a file: ${r.stdout.slice(-300)}`);
   return { path: file, from: 'url' };

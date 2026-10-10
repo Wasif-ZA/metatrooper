@@ -4,17 +4,23 @@ import http from 'node:http';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkUrl, isLoopback, loopbackStart, safeFetch } from '../../plugins/seo/bin/safe-fetch.js';
+import { checkUrl, isLoopback, loopbackStart, safeFetch, MAX_BYTES } from '../../plugins/seo/bin/safe-fetch.js';
 import { crawl } from '../../plugins/seo/bin/seo.js';
 
 const resolvesTo = (...ips: string[]) => async () => ips.map((address) => ({ address }));
 
 function serve(handler: http.RequestListener, host = '127.0.0.1'): Promise<{ url: string; close: () => Promise<void> }> {
   const server = http.createServer(handler);
-  return new Promise((resolve) => server.listen(0, host, () => {
-    const { port } = server.address() as any;
-    resolve({ url: `http://${host.includes(':') ? `[${host}]` : host}:${port}`, close: () => new Promise((r) => server.close(() => r())) });
-  }));
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, host, () => {
+      const { port } = server.address() as any;
+      resolve({
+        url: `http://${host.includes(':') ? `[${host}]` : host}:${port}`,
+        close: () => new Promise((r) => server.close(() => r())),
+      });
+    });
+  });
 }
 
 test('isLoopback covers all of 127.0.0.0/8, ::1 and IPv4-mapped loopback, and nothing else', () => {
@@ -54,17 +60,81 @@ test('checkUrl refuses a loopback address unless loopback is allowed, and refuse
   await assert.rejects(checkUrl('http://half.test/', resolvesTo('127.0.0.1', '10.0.0.1'), { loopback: true }), /private address 10\.0\.0\.1/);
 });
 
-test('safeFetch refuses a public page that redirects to loopback', async () => {
-  const real = globalThis.fetch;
-  const hits: string[] = [];
-  globalThis.fetch = (async (url: string) => {
-    hits.push(url);
-    return new Response(null, { status: 302, headers: { location: 'http://127.0.0.1:9/admin' } });
-  }) as typeof fetch;
+test('safeFetch rejects a DNS rebinding address at socket lookup before the server receives a request', async () => {
+  let lookups = 0;
+  let requests = 0;
+  const site = await serve(() => {
+    requests++;
+  });
+  const lookup = async () => {
+    lookups++;
+    return [{ address: lookups === 1 ? '93.184.216.34' : '127.0.0.1', family: 4 }];
+  };
   try {
-    await assert.rejects(safeFetch('http://public.test/', {}, resolvesTo('93.184.216.34')), /private address 127\.0\.0\.1/);
-    assert.deepEqual(hits, ['http://public.test/']);
-  } finally { globalThis.fetch = real; }
+    await assert.rejects(
+      safeFetch('http://rebind.test/', {}, lookup),
+      /private address 127\.0\.0\.1/,
+    );
+    assert.equal(lookups, 2);
+    assert.equal(requests, 0);
+  } finally {
+    await site.close();
+  }
+});
+
+test('safeFetch enforces the response body cap and returns a body just under it', async () => {
+  const site = await serve((req, res) => {
+    const size = req.url === '/over' ? MAX_BYTES + 1 : MAX_BYTES - 1;
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.end(Buffer.alloc(size, 120));
+  });
+  try {
+    await assert.rejects(
+      safeFetch(`${site.url}/over`, {}, undefined, { loopback: true }),
+      /over/,
+    );
+    const response = await safeFetch(`${site.url}/under`, {}, undefined, { loopback: true });
+    assert.equal((await response.text()).length, MAX_BYTES - 1);
+  } finally {
+    await site.close();
+  }
+});
+
+test('safeFetch applies the caller deadline while the response body is stalled', async () => {
+  const site = await serve((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.flushHeaders();
+  });
+  const started = Date.now();
+  try {
+    await assert.rejects(
+      safeFetch(`${site.url}/stall`, { signal: AbortSignal.timeout(300) }, undefined, { loopback: true }),
+    );
+    assert.ok(Date.now() - started < 2000);
+  } finally {
+    await site.close();
+  }
+});
+
+test('safeFetch preserves status, headers, final URL and text after one loopback redirect', async () => {
+  const site = await serve((req, res) => {
+    if (req.url === '/start') {
+      res.writeHead(302, { location: '/final' });
+      res.end();
+      return;
+    }
+    res.writeHead(201, { 'content-type': 'text/plain', 'x-fixture': 'shape-value' });
+    res.end('synthetic response body');
+  });
+  try {
+    const response = await safeFetch(`${site.url}/start`, {}, undefined, { loopback: true });
+    assert.equal(response.status, 201);
+    assert.equal(response.headers.get('x-fixture'), 'shape-value');
+    assert.equal(response.url, `${site.url}/final`);
+    assert.equal(await response.text(), 'synthetic response body');
+  } finally {
+    await site.close();
+  }
 });
 
 test('safeFetch from a loopback start still refuses a redirect to another private range', async () => {
