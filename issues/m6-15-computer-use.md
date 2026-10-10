@@ -1,6 +1,6 @@
 # M6-15: Computer use: `metatrooper-desktop`, grants, frame, take-over, watch layout
 
-Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 10.0 CC days. Depends on: M6-2, M6-14.
+Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 12.0 CC days. Depends on: M6-2, M6-14.
 
 ## Source of truth
 

@@ -83,8 +83,8 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D53 | Pipeline code | Wasif, 2026-10-10: it moves to its own repo, `metatrooper-pipelines`, split with history, then leaves this repo. He will reuse it for the pipeline apps |
 | D54 | How pipeline apps run agents | Wasif, 2026-10-10: through MetaTrooper's core, over the `troop` CLI and the named pipe. Their agents show on the wall. So the pipe becomes a public API with a version (M6-17) |
 | D55 | Approvals | Wasif, 2026-10-10: gates stay, re-shaped for single agent actions in the browser and on the desktop. Same trusted-UI key (`ui.hello`) |
-| D56 | Computer use | Wasif, 2026-10-10: on his own desktop, with take-over. An agent acts only on windows it was given. cua-driver is the first choice, checked by a spike first (M6-14) |
-| D57 | Finish line | Wasif, 2026-10-10: a free public release with the signed installer, no Pro. Date moved by D66 |
+| D56 | Computer use | Wasif, 2026-10-10: on his own desktop, with take-over. An agent acts only on windows it was given. Driver chosen by D71, checked by a spike first (M6-14) |
+| D57 | Finish line | Wasif, 2026-10-10: a free public release, no Pro. Date moved by D66; how it installs is D72 |
 | D58 | Pipeline tables | Kept in `schema.sql` and in existing databases, unused, with their rows, until a numbered migration drops them after the release. Dropping data is one-way; keeping unused tables costs nothing. Nothing new references them |
 | D59 | Licences after the split | Every file keeps the licence it has: the runner and layouts AGPL-3.0, `pipelines/` and the pipeline contracts MIT. The new repo carries both licence files |
 | D60 | Port ownership without pipelines | An agent pane may open a loopback port that its own session owns: either the listening process descends from the session's pty, or the session's terminal printed that URL and the port started listening within 60 s after (covers detached `npm run dev` children). A user pane may open any loopback port the user types; an agent can never drive a user pane (rule 8) |
@@ -93,11 +93,13 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D63 | Protocol stability | `core.ping` returns `{ok, pid, version, protocol, schema_version, started_at}`. Methods marked stable in `pipe-protocol.md`, with their exact params and errors, keep their shape within a protocol version. A breaking change raises the version, and the old shape answers for one more minor release |
 | D64 | Pro and money | Out of this epic. M5-6 code moves with the pipelines (pr-review-fix is a pipeline). M5-7 is cut |
 | D65 | Tests | Codex writes the tests for the core, browser, desktop, approval and cursor children (M6-2, M6-4, M6-5, M6-6, M6-11, M6-12, M6-15, M6-18), through `/tests-brief`, then a mutation run proves they bite |
-| D66 | Dates | Wasif, 2026-10-10: keep the full scope and move the date. Freeze 2026-12-29, public release 2027-01-19 (worked in Milestone 6) |
-| D67 | Clean-machine test | Wasif, 2026-10-10: the signed installer is tested on a second real Windows PC (his or a friend's) with Smart App Control on and a fresh standard account, instead of a Hyper-V VM (this laptop is Windows 11 Home) |
+| D66 | Dates | Wasif, 2026-10-10: keep the full scope and move the date. Freeze 2026-12-26, public release 2027-01-19 (worked in Milestone 6) |
+| D67 | Clean-machine test | Wasif, 2026-10-10: when an installer exists (D72), it is tested on a second real Windows PC (his or a friend's) with Smart App Control on and a fresh standard account, instead of a Hyper-V VM (this laptop is Windows 11 Home) |
 | D68 | Rival extras | Wasif, 2026-10-10: search across all terminals, a cost chip per tile, and changed files per tile join this milestone (M6-19 to M6-21) |
 | D70 | Auto mode and watching | Wasif, 2026-10-10: agents stay in their auto mode (the default) even while they hold a desktop grant; edits and ask modes are too slow to work with. An auto-mode agent can script the desktop through its own shell and skip grants, cards and take-over, so protection is watching, two ways. (1) The wall can run on a second monitor in a watch layout (M6-15) that shows each granted window's live thumbnail beside its agent's tile. (2) The core runs a watcher (M6-22): a low-level input hook sees every mouse and keyboard event Windows marks as injected (`LLMHF_INJECTED`, `LLKHF_INJECTED`). Injected input that arrives while no `metatrooper-desktop` action is in flight raises a needs-you item "input from another program" naming the foreground window, and, with `desktop.watch_pause` on (default on), sets the take-over pause flag. A second listener catches what injected input misses: UI Automation's own system-wide events (focus changed, window opened, control invoked). One of those while the user made no physical input in the last 2 s (`GetLastInputInfo`) and no `metatrooper-desktop` action was in flight raises "the desktop changed while you were away from it", with the same pause setting. The watcher cannot name the process behind either signal; it says so |
-| D69 | Agent cursor | Wasif, 2026-10-10: every agent action in the browser and on the desktop shows that agent's own cursor gliding to the target like a person's mouse, then the click. It never moves the real pointer and adds at most 250 ms per action. cua-driver runs with `--no-overlay` so one MetaTrooper cursor serves both surfaces (M6-18) |
+| D69 | Agent cursor | Wasif, 2026-10-10: every agent action in the browser and on the desktop shows that agent's own cursor gliding to the target like a person's mouse, then the click. It never moves the real pointer and adds at most 250 ms per action. One MetaTrooper cursor serves both surfaces; if cua-driver is ever added (D71) it runs with `--no-overlay` (M6-18) |
+| D71 | Desktop driver | Wasif, 2026-10-10: nothing is installed for computer use until it is really needed. MetaTrooper ships its own driver on Windows' built-in UI Automation (a long-lived PowerShell helper, no install, no new dependency). cua-driver (trycua/cua, MIT) stays the named upgrade behind the same tool list, added only when the built-in driver proves too weak on real apps, and only with Wasif's yes to install it |
+| D72 | Signing and installer | Wasif, 2026-10-10: no money on a certificate for now. The first public release is a source install (`git clone`, `npm install`, `npm start`; signed `node.exe` runs under Smart App Control, as on this laptop). The installer (M5-1, WIP kept on `agent/m5-1`) and signing (M5-2) wait until Wasif sees real users outside himself; then he decides whether to pay. D50's rule stands: no unsigned installer is published |
 
 ## Current state, verified 2026-10-10
 
@@ -170,7 +172,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 
  Agents -> metatrooper-browser (stdio MCP) -> core check (D61, D62) -> workbench pane: cursor glide, then input
  Agents -> metatrooper-desktop (stdio MCP) -> core check (grants, D61, D62) -> workbench desktop cursor glide
-                                           -> cua-driver --no-overlay -> Windows UI Automation
+                                           -> UI Automation helper (built into Windows, D71)
 ```
 
 ### Rules
@@ -423,10 +425,25 @@ request interception, full-page capture, point-to-comment) stays. `contracts/bro
 
 What it is, in plain words. Windows keeps a live list of every control on screen, with its name, type and position:
 UI Automation. A computer-use tool reads that list plus a screenshot of one window, lets the model pick a control,
-and sends the click or keystrokes to that window. cua-driver does this as an MCP server and sends input in the
-background, so your mouse and keyboard stay yours while it works.
+and sends the click or keystrokes to that window. Windows ships UI Automation itself, so MetaTrooper's driver needs
+nothing installed (D71). It acts through each control's own built-in actions, so your mouse and keyboard stay yours
+while it works.
 
-What MetaTrooper adds around it (cua-driver's docs say it renders no consent UI):
+- **The driver** (M6-15). One long-lived PowerShell helper per core, `core/src/desktop/uia-helper.ps1`, loads
+  `UIAutomationClient` and a small C# class compiled with `Add-Type` for screenshots and window rectangles. It talks
+  to the MCP server over a named pipe, one JSON request per line. Reading: the control tree from
+  `AutomationElement.FromHandle` (role, Name, AutomationId, `BoundingRectangle` in physical pixels, `IsPassword`),
+  and a window screenshot with `PrintWindow` (`PW_RENDERFULLCONTENT`), so a covered window still captures. Acting,
+  in this order: the control's pattern (`InvokePattern.Invoke` for a click, `ValuePattern.SetValue` for type,
+  `TogglePattern`, `SelectionItemPattern`, `ExpandCollapsePattern`, `ScrollPattern`); with no pattern, a
+  background `PostMessage` of `WM_LBUTTONDOWN`/`WM_LBUTTONUP` at the control's centre, or `WM_CHAR` per character.
+  `key` sends `WM_KEYDOWN`/`WM_KEYUP` with `PostMessage`. It never calls `SendInput`, which would move the real
+  pointer and need focus. After each action it re-reads the control and returns `confirmed` (the value, toggle state
+  or tree changed as expected) or `unverifiable`.
+- **Upgrade path.** If the built-in driver fails on apps Wasif really uses, cua-driver can replace the helper behind
+  the same tools (D71); nothing else changes.
+
+What MetaTrooper adds around the driver:
 
 - **Grants** (M6-15). A grant row binds a session to one window:
 
@@ -454,14 +471,14 @@ What MetaTrooper adds around it (cua-driver's docs say it renders no consent UI)
   It finds its session by process ancestry. For every input it: (1) calls `approval.check` on the core pipe (grant,
   D61, D62); (2) calls `cursor.glide {session, target_rect_px, caption}` on the workbench pipe (`\\.\pipe\metatrooper-browser`,
   which the workbench already serves; this is its one new method) and waits for the reply, sent on the overlay's
-  `arrived` or after `ms + 16`; (3) checks the pause flag again; (4) forwards to cua-driver. With the workbench
+  `arrived` or after `ms + 16`; (3) checks the pause flag again; (4) sends the action to the UI Automation helper. With the workbench
   closed every desktop tool fails with "desktop not available: the MetaTrooper workbench is closed", since approvals
   and the cursor need the window. Calls on a window outside the session's grants fail with "window not granted; ask the
   user to give it to you".
 - **Tools** (`contracts/desktop-tools.md`): `windows` (granted windows only), `snapshot {window, max_nodes}` (UI
   Automation tree, refs as in the browser), `screenshot {window}` (JPEG, 1,568 px max side), `click {window, ref}`,
   `type {window, ref, text}`, `key {window, keys}`, `scroll`, `wait_for`. Each action result says `confirmed`,
-  `unverifiable` or `suspected_noop`, from cua-driver's effect check.
+  `unverifiable`, from the helper's re-read after the action.
 - **Seeing it.** The agent's own cursor glides to each target (M6-18). While a session holds a grant, a thin frame in
   its colour outlines the window and the tile shows "driving: <window>".
 - **Taking over** (D62). Ctrl+Alt+Q pauses all agent input everywhere, at dispatch.
@@ -484,15 +501,15 @@ What MetaTrooper adds around it (cua-driver's docs say it renders no consent UI)
   the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
   `desktop.watch_pause` is on. Apps that change on their own (a toast, a timer, a download finishing) also trip it,
   so it only runs while a grant is live and each window can be muted for the session from the needs-you item.
-- **Spike first** (M6-14, time-boxed to 1 day, needs Wasif's yes to install). On this laptop: cua-driver lists
-  windows, reads Notepad's tree, types into Notepad while another window has focus without moving the pointer,
-  opens Notepad's Save As and reports it as an owned window, refuses an elevated window, keeps working after a UAC
-  prompt is dismissed, starts with `--no-overlay`, and runs with Smart App Control on. It also checks the watcher's
-  base: an `Add-Type` low-level hook helper starts under Smart App Control and sees cua-driver's own input as
-  injected or not (if cua-driver's background input does not set the injected flag, M6-22 matches on foreground
-  window events instead, and the spike records which). Each check is recorded pass or
-  fail with the command and output. Any failure of the first three stops M6-15's cua path; the fallback is the
-  PowerShell UI Automation plan in `issues/39-desktop.md`, reduced to the same tool list, with the same effort.
+- **Spike first** (M6-14, time-boxed to 1 day, nothing installed). On this laptop, with Smart App Control on, the
+  helper: lists top-level windows (checked 2026-10-10: `UIAutomationClient` loads from plain PowerShell and lists
+  them), reads Notepad's tree, captures Notepad with `PrintWindow` while it is covered, types into Notepad with
+  `ValuePattern` while another window has focus without moving the pointer, clicks a Calculator button with
+  `InvokePattern`, reaches Notepad's Save As as an owned window, gets an access error on an elevated window, and
+  compiles its `Add-Type` class (the same check covers M6-22's hook helper). It also records which of five apps Wasif
+  uses most expose usable patterns (names chosen at the spike). Each check is recorded pass or fail with the command
+  and output. If pattern actions fail on most of those apps, the spike says so and D71's cua-driver upgrade is
+  raised to Wasif as a question, not installed.
 - **Agents test MetaTrooper** (M6-16). The workbench gets accessible names and roles on every control the wall uses.
   A `--demo` instance runs with its own `METATROOPER_HOME`, demo data only, no secrets and a fake approval key; its
   window is the only workbench window that can be granted, and only to a session of that demo core.
@@ -518,7 +535,7 @@ off the critical path. Typed text is never shown. The real pointer never moves.
   capped to 220 ms. A 40 px hop to a 120 px button is 40 / 120 + 1 = 1.33; log2(1.33) = 0.41; 70 + 22.6 = 93 ms.
   Added cost per action: at most 220 ms glide plus about 15 ms for the reply, so under 250 ms. The fixed sleep and
   read-back in `panes.ts:543-544` go.
-- **Desktop placement.** cua-driver reports window and element rectangles in physical pixels; the workbench converts
+- **Desktop placement.** The helper reports window and element rectangles (`BoundingRectangle`) in physical pixels; the workbench converts
   with `screen.screenToDipRect` and picks the display with `screen.getDisplayMatching`, one overlay window per
   display so mixed 100% and 150% screens stay sharp. It refits on `display-metrics-changed`, `display-added`,
   `display-removed`, and every 250 ms while a cursor shows. A minimised, closed or empty target hides the cursor; a
@@ -561,7 +578,7 @@ One session owns the split; nothing else merges to `main` while it runs.
 5. Pipeline tables and rows stay (D58). Schedules simply stop firing; their rows are kept for the pipelines repo.
 6. Creating the GitHub repo for `metatrooper-pipelines` and moving GitHub issues are a hand-back.
 
-## Milestone 6: the desk (about 80 CC days, freeze 2026-12-29, public 2027-01-19)
+## Milestone 6: the desk (about 77 CC days, freeze 2026-12-26, public 2027-01-19)
 
 Replaces the rest of M5. Every M5 child is mapped in the re-baseline table below. Estimates were raised after both
 review engines called the first draft too low.
@@ -583,8 +600,8 @@ review engines called the first draft too low.
 | M6-11 | Browser tools version 2 | Critical | 4.0 | M6-1 |
 | M6-12 | Browser handoff, origins, secrets, audit | Critical | 3.5 | M6-2, M6-11 |
 | M6-13 | Browser pane hygiene and picks | High | 2.0 | M6-11 |
-| M6-14 | Computer-use spike on this laptop | Critical | 1.0 | Wasif's yes to install cua-driver |
-| M6-15 | Computer use: `metatrooper-desktop`, grants, frame, take-over, watch layout | Critical | 10.0 | M6-2, M6-14 |
+| M6-14 | Computer-use spike on this laptop, built-in UI Automation | Critical | 1.0 | none |
+| M6-15 | Computer use: `metatrooper-desktop`, grants, frame, take-over, watch layout | Critical | 12.0 | M6-2, M6-14 |
 | M6-16 | Agents test the workbench through the desktop tools | Medium | 1.5 | M6-15, M6-18 |
 | M6-17 | Public API: one method list, exact shapes, `session.wait` | High | 2.0 | M6-1 |
 | M6-18 | Agent cursor for browser and desktop | Critical | 4.5 | M6-11, M6-15 |
@@ -592,9 +609,7 @@ review engines called the first draft too low.
 | M6-20 | Cost chip per tile | Medium | 0.5 | none |
 | M6-21 | Changed files per tile | Medium | 1.0 | none |
 | M6-22 | Input watcher: injected input and UI Automation changes from other programs | Critical | 4.5 | M6-14 |
-| M5-1 | Installer and bundled runtime (WIP on `agent/m5-1`) | Critical | 3.75 | M6-1 |
-| M5-2 | Code signing | Critical | 0.5 | M5-1, the certificate |
-| M5-9 | Release gate: two clean release runs and green CI | Critical | 0.5 | M5-1 |
+| M5-9 | Release gate: two clean source-install runs and green CI | Critical | 0.5 | M6-1 |
 | M5-10 | Public docs rewritten for the four parts | Critical | 1.0 | M6-1, M6-15 |
 | M5-11 | Site and demo redone for the four parts | High | 0.75 | M6-18 |
 | M5-15 | Notification sink settings UI (code done) | Medium | 0.5 | none |
@@ -602,16 +617,17 @@ review engines called the first draft too low.
 Effort, worked:
 
 - M6 children, M6-1 to M6-22 in table order: 3.5 + 3.0 + 1.5 + 2.0 + 3.5 + 4.0 + 5.0 + 1.5 + 2.0 + 0.5 + 4.0 + 3.5
-  + 2.0 + 1.0 + 10.0 + 1.5 + 2.0 + 4.5 + 1.0 + 0.5 + 1.0 + 4.5 = 62.0 CC days (raised after round 2 for M6-1, M6-15,
-  M6-18 and M6-22, which both engines named; M6-22 again for the UI Automation listener).
-- Carried M5 work: 3.75 + 0.5 + 0.5 + 1.0 + 0.75 + 0.5 = 7.0 CC days.
-- Review, merge and two-engine checks, at 15% of the build: (62.0 + 7.0) x 0.15 = 69.0 x 0.15 = 10.35 CC days.
-- Total: 69.0 + 10.35 = 79.35, about 80 CC days.
+  + 2.0 + 1.0 + 12.0 + 1.5 + 2.0 + 4.5 + 1.0 + 0.5 + 1.0 + 4.5 = 64.0 CC days (raised after round 2 for M6-1, M6-15,
+  M6-18 and M6-22, which both engines named; M6-22 again for the UI Automation listener; M6-15 by 2.0 for the
+  built-in driver, D71).
+- Carried M5 work: M5-9 0.5 + M5-10 1.0 + M5-11 0.75 + M5-15 0.5 = 2.75 CC days (M5-1 and M5-2 wait, D72).
+- Review, merge and two-engine checks, at 15% of the build: (64.0 + 2.75) x 0.15 = 66.75 x 0.15 = 10.0 CC days.
+- Total: 66.75 + 10.0 = 76.75, about 77 CC days.
 - Pace: M5 planned 30.85 CC days over 27 calendar days with four parallel sessions and paused with work unfinished,
   so this plan assumes 1 CC day per calendar day, limited by Wasif's review time, not by sessions.
-- Calendar: 80 days from 2026-10-11 is 2026-12-29 (21 days left in October, 30 in November, 29 in December:
-  21 + 30 + 29 = 80). Freeze 2026-12-29. The 21 days to 2027-01-19 hold signing, the clean-PC test (D67), the docs
-  and site, and the holidays. There is no slack inside the 80 days, so the slip rule below is the buffer.
+- Calendar: 77 days from 2026-10-11 is 2026-12-26 (21 days left in October, 30 in November, 26 in December:
+  21 + 30 + 26 = 77). Freeze 2026-12-26. The 24 days to 2027-01-19 hold the source-install runs on a second PC, the
+  docs and site, and the holidays. There is no slack inside the 77 days, so the slip rule below is the buffer.
 
 ```
 M6-1 split ─┬─> M6-2 approvals ─┬─> M6-12 browser handoff, origins, secrets
@@ -620,7 +636,7 @@ M6-1 split ─┬─> M6-2 approvals ─┬─> M6-12 browser handoff, origins, 
             ├─> M6-11 browser v2 ─┬─> M6-13 hygiene
             │                     └─> M6-18
             ├─> M6-17 public API
-            └─> M5-1 installer ──> M5-2 signing ──> M5-9 release runs
+            └─> M5-9 source-install release runs
 M6-4 reliability ─┬─> M6-3 ports
                   └─> M6-5 hook state ──> M6-6 comes back ──> M6-10 notifications
                                      └──> M6-9 wall keys
@@ -632,9 +648,9 @@ M6-20 cost chip, M6-21 changed files, M5-15   (any time)
 Why this order: the split goes first because every other child edits files that import the runner. Reliability
 comes before ports and hook state because both add migrations and events into the database the lock fix protects.
 Approvals come before the browser's origin rule and computer use, because both call `approval.check`. The spike
-gates computer use because cua-driver's Windows claims are unrun here. The cursor comes after browser v2 and
-computer use because it hooks the `approval.check` answer both of them send. The installer starts right after the
-split so the signed build is ready for the clean-PC test well before the freeze.
+gates computer use because nobody has driven real apps through the built-in UI Automation helper here yet. The cursor comes after browser v2 and
+computer use because it hooks the `approval.check` answer both of them send. The release runs start right after the
+split so the source install is proven on a second PC well before the freeze.
 
 Slip rule, decided now: on 2026-11-23, if fewer than half the Critical children are done, M6-16, M6-10, M6-20,
 M6-21, M5-15 and M6-13 move after the release, in that order. If M6-14's spike fails, M6-15 builds the PowerShell
@@ -645,7 +661,8 @@ fallback at the same effort. Critical children never move; the dates move instea
 | M5 child | Goes |
 |---|---|
 | M5-0 re-baseline | Done; its pipeline rows move with the split |
-| M5-1 installer, M5-2 signing, M5-9 release gate | Stay (above) |
+| M5-9 release gate | Stays, for the source install (above) |
+| M5-1 installer, M5-2 signing | Wait for real users (D72); `agent/m5-1` keeps the WIP |
 | M5-3 first run, M5-4 logs, M5-5 Linux beta, M5-8 security, M5-12 remote MCP, M5-13 importers, M5-14 engines as data, M5-19 one instruction file | Done; stay in the product |
 | M5-10 docs, M5-11 site | Done for the old scope; redone (above) |
 | M5-15 notification sink | Code stays; settings UI owed (above) |
@@ -655,7 +672,9 @@ fallback at the same effort. Critical children never move; the dates move instea
 ## Acceptance criteria
 
 Carried and still binding, full text in the archived spec: M1-01, M1-04 to M1-17, M1-22 to M1-25c, M1-27, M1-28,
-M1-30, M1-33 to M1-37, M1-39, and M5-01a with "a fresh Windows account" read as D67's second PC. The pipeline
+M1-30, M1-33 to M1-37, M1-39. M5-01a (installer on a clean machine) waits with the installer (D72); instead,
+M6-00a: on a second Windows PC with Smart App Control on, the README's source-install steps start a claude agent
+on the wall within 10 minutes of `git clone`. The pipeline
 criteria (M1-18 to M1-21, M1-26, M1-31, M1-38, M2, M3, M4) move with the split.
 
 - M6-01a. After the split, every row of `issues/m6-01-split-inventory.md` is closed, and re-running its `rg`
@@ -771,8 +790,8 @@ protocol, plus new ones for `approvals.md` (including the hash test vector), `de
 - The split: the tag `pipelines-final` restores every removed path (`git checkout pipelines-final -- <path>`).
 - Each child lands as its own commit and reverts alone.
 - Migrations only add tables in this epic; pipeline tables and rows stay (D58), so older code opens the database.
-- Computer use: disabling the `desktop` plugin detaches `metatrooper-desktop`; cua-driver is removed by its own
-  uninstaller. The agent cursor: `agent_cursor.mode: off`.
+- Computer use: disabling the `desktop` plugin detaches `metatrooper-desktop` and stops the UI Automation helper;
+  nothing was installed. The agent cursor: `agent_cursor.mode: off`.
 - Codex and Gemini hooks: per launch only, nothing written to their global config; the Gemini file is deleted with
   the session.
 
@@ -781,11 +800,11 @@ protocol, plus new ones for `approvals.md` (including the hash test vector), `de
 | Package | Licence | Stars | Use |
 |---|---|---|---|
 | electron | MIT | 123,297 (2026-09-29) | workbench, overlay windows |
-| cua-driver (trycua/cua) | MIT | 29,237 (2026-10-10) | computer use, after M6-14 passes; installed by the user, not bundled, until the spike shows it can ship |
 | @xterm/xterm and addons | MIT | 21,253 (2026-10-05) | terminals, an existing exception |
 | electron-builder | MIT | 14,670 (2026-10-09) | build-time only (M5-D21) |
 
-No new runtime dependency besides cua-driver.
+No new runtime dependency. Computer use runs on Windows' built-in UI Automation (D71); cua-driver (trycua/cua, MIT,
+29,237 stars, 2026-10-10) is the named upgrade, not installed.
 
 ## Files
 
@@ -803,7 +822,8 @@ No new runtime dependency besides cua-driver.
 | `core/src/browser/policy.ts`, `core/src/ports.ts` | ownership from `session_dev_server`, leases from `session_port` |
 | `core/src/settings.ts`, `core/src/store/db.ts`, `core/src/store/migrations/` | single writer, safe writes, numbered migrations |
 | `core/src/hook/browser-mcp.ts`, `workbench/src/browser/panes.ts` | browser tools version 2, `approval.check`, handoff, secrets, audit, cursor timing |
-| `core/src/hook/desktop-mcp.ts` | new: `metatrooper-desktop`, grants, forwarding to cua-driver |
+| `core/src/hook/desktop-mcp.ts` | new: `metatrooper-desktop`, grants, approval and cursor calls |
+| `core/src/desktop/uia-helper.ps1` | new: the built-in UI Automation driver (D71) |
 | `workbench/renderer/overlay.js`, `overlay.css`, `overlay.html` | the agent cursor renderer |
 | `workbench/src/desktop-overlay.ts` | new: per-display overlay windows, refit, z-order, content protection |
 | `workbench/renderer/wall.js`, `app.js`, `terminal.js` | keys, focus rule, chips, approval cards, input, WebGL pool, search; Runs and Pipelines tabs removed |
@@ -829,10 +849,9 @@ No new runtime dependency besides cua-driver.
 
 ## Hand-back (only Wasif)
 
-1. Say yes or no to installing cua-driver on this laptop for the M6-14 spike.
-2. Create the `metatrooper-pipelines` GitHub repo and say where GitHub issues for pipelines go (external state).
-3. Buy the Certum certificate (M5-D23) and line up the second Windows PC for the clean install test (D67).
-4. Restart the MetaTrooper core, which has been offline since 2026-10-10T20:52+11:00.
+1. Create the `metatrooper-pipelines` GitHub repo and say where GitHub issues for pipelines go (external state).
+2. Line up a second Windows PC for the source-install run (M6-00a). No certificate now (D72).
+3. Restart the MetaTrooper core, which has been offline since 2026-10-10T20:52+11:00.
 
 ## Out of scope
 

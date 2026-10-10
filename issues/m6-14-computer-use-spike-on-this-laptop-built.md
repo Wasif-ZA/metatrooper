@@ -1,6 +1,6 @@
-# M6-14: Computer-use spike on this laptop
+# M6-14: Computer-use spike on this laptop, built-in UI Automation
 
-Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 1.0 CC days. Depends on: Wasif's yes to install cua-driver.
+Part of the MetaTrooper desk epic, Milestone 6. Priority: Critical. Effort: 1.0 CC days. Depends on: none.
 
 ## Source of truth
 
