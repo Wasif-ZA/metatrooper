@@ -97,12 +97,13 @@ export function settings(): Settings {
   try { mtime = fs.statSync(settingsFile()).mtimeMs; } catch {}
   if (cache && cache.mtime === mtime) return cache.value;
   let raw: Record<string, unknown> = {};
+  let parsed = false;
   if (mtime >= 0) {
-    try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
+    try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); parsed = true; } catch {}
   }
   const value = merge(DEFAULTS, raw) as Settings;
   // A settings file from before M5-D6 keeps the old contained default.
-  if (mtime >= 0 && typeof (raw.sessions as { approval?: unknown } | undefined)?.approval !== 'string') value.sessions.approval = 'contained';
+  if (parsed && typeof (raw.sessions as { approval?: unknown } | undefined)?.approval !== 'string') value.sessions.approval = 'contained';
   cache = { mtime, value };
   return value;
 }
