@@ -325,7 +325,7 @@ else in MetaTrooper needs Pro or an account.
 
 ## Platforms
 
-- **Windows 10 and 11**: the installer, built and tested here (node-pty over ConPTY, named pipes, DPAPI for plugin
+- **Windows**: the installer, built and tested here (node-pty over ConPTY, named pipes, DPAPI for plugin
   secrets).
 - **Linux (beta)**: install from source. The core's tests run on Ubuntu 24.04; the window gets less testing there.
   A packaged Linux build follows.
@@ -366,7 +366,7 @@ else in MetaTrooper needs Pro or an account.
   `data`, `desktop`, `docs-export`, `repo` and `optional/code-map` make no network connection.
 - **What it stores.** State lives in `~/.metatrooper/` (`troop.db`, `settings.json`, `logs/`). The only thing
   written into a project is `<project>/.troop/runs/`, which is git-excluded automatically. Hooks store redacted
-  events. Plugin secrets are encrypted with your Windows login (DPAPI).
+  events. On Windows, plugin secrets are encrypted with your login (DPAPI).
 
 ## Logs
 

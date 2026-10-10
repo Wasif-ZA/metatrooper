@@ -154,7 +154,7 @@ build visual animations without code in competition with Webflow. The file is no
 ## Fonts: SIL Open Font License 1.1
 
 - Geist and Geist Mono: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
-- Space Mono: Copyright 2016 Google Inc. All Rights Reserved. Designed by Colophon Foundry
+- Space Mono: Copyright 2016 The Space Mono Project Authors (https://github.com/googlefonts/spacemono)
 - Silkscreen: Copyright 2001 The Silkscreen Project Authors (https://github.com/googlefonts/silkscreen)
 
 Each is licensed under the SIL Open Font License, Version 1.1:
