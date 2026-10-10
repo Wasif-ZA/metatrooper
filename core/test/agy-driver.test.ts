@@ -71,7 +71,8 @@ async function openProject(h: Harness, name: string, inside = false, near = fals
   const project = near ? join(h.home, 'vault', 'projects', name) : join(h.home, name);
   const askPath = near ? join(h.home, 'vault', 'work', 'client') : join(project, 'work', 'client');
   if (inside || near) writeFileSync(join(h.home, 'settings.json'), JSON.stringify({ sessions: { ask_paths: [askPath] } }));
-  mkdirSync(inside || near ? askPath : project, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  if (inside || near) mkdirSync(askPath, { recursive: true });
   const pipe = await client(h.prefix);
   try {
     const opened = await pipe.request('project.open', { path: project });

@@ -22,6 +22,7 @@ M5-19 is #68), each pointing at its issue file.
 |---|---|---|
 | M5-0 re-baseline | DONE | 003139e. 16 BLOCKER, 52 M5, 5 CUT, 2 FROZEN rows |
 | M5-1 to M5-11 | NOT STARTED | Specced in their issue files. M5-2 and M5-7 wait on Wasif's picks first |
+| M5-10 public docs | CODE DONE | Agent m5-10, 2026-10-10T20:45+11:00: 2ddcd58 (`sessions.ask_paths`, `ask_near_paths`; gate and sandbox read it; CLI refusal and -32001 removed), eaf223c (licences, THIRD-PARTY-NOTICES), d9b8ed7 (README, bug template, SECURITY.md, CONTRIBUTING.md), 106a0af (M5-D18 scrub), and the agy-driver fixture fix in this commit. M5-10a: grep clean; ask-paths 6, pure 21, gate 10, sandbox-refusals 6, agy-driver 10, m5-engines 6 and the core.test project.open case pass. M5-10b, M5-10c by grep. Owed: Wasif's settings.json key (the write was refused by the permission check), the GSAP licence call (kept, documented), the installer, first-run and Linux text describe M5-1, M5-3 and M5-5 as they will ship |
 | M5-8 S5 secret scan | DONE on m4-harden | Built there as M4-4 by teehee-f8; not rebuilt |
 | M5-12 remote MCP | CODE DONE | 5f2aefd, review fixes 252f5fc. Tests by Codex: m5-remote-mcp.test.ts. Workbench install screen shows host and sign-in from `installScreen`; not seen on screen yet |
 | M5-13 step 1 importer shape fix | CODE DONE | 2f02def, https refusal 252f5fc. Tests by Codex: m5-importers.test.ts (Linear and GitHub shaped fixtures) |
