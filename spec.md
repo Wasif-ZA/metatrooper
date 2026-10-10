@@ -1,7 +1,7 @@
 # MetaTrooper: the agent desk, epic
 
-Re-specced 2026-10-10T23:30+11:00 from the pipeline-IDE epic (archived as
-`issues/archive/spec-2026-09-29-pipeline-ide.md`). Wasif decided the scope in this session: MetaTrooper is four
+Re-specced 2026-10-10T23:30+11:00 from the pipeline-IDE epic (now kept beside the pipeline products as
+`../suite-of-products/shared/spec-2026-09-29-pipeline-ide.md`; in this repo's git it is `spec.md` before 8c6da1b). Wasif decided the scope in this session: MetaTrooper is four
 parts, the agent wall, browser use, computer use and the core services. Pipelines leave the product. They become
 their own apps, built later for learning, and those apps drive MetaTrooper's core instead of running inside it.
 The draft was reviewed by Codex and Gemini (both 4/10); all 19 accepted findings are applied below
@@ -80,7 +80,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | # | Decision | Chosen |
 |---|---|---|
 | D52 | Scope | Wasif, 2026-10-10: four parts only. The wall, browser use, computer use, core services |
-| D53 | Pipeline code | Wasif, 2026-10-10: it moves to its own repo, `metatrooper-pipelines`, split with history, then leaves this repo. He will reuse it for the pipeline apps |
+| D53 | Pipeline code | Wasif, 2026-10-10: pipelines become products in `projects/suite-of-products/` (one repo per product, mapped in each product's README). Each pipeline's files and issues were copied to its product on 2026-10-10; five with no product yet went to `suite-of-products/unassigned/`, and the shared machinery (runner, layouts, templates, helpers, pipeline contracts, old spec, pipeline research) to `suite-of-products/shared/`. M6-1 removes them from this repo |
 | D54 | How pipeline apps run agents | Wasif, 2026-10-10: through MetaTrooper's core, over the `troop` CLI and the named pipe. Their agents show on the wall. So the pipe becomes a public API with a version (M6-17) |
 | D55 | Approvals | Wasif, 2026-10-10: gates stay, re-shaped for single agent actions in the browser and on the desktop. Same trusted-UI key (`ui.hello`) |
 | D56 | Computer use | Wasif, 2026-10-10: on his own desktop, with take-over. An agent acts only on windows it was given. Driver chosen by D71, checked by a spike first (M6-14) |
@@ -143,7 +143,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
   Notification, SubagentStop, PreCompact; hooks need persisted trust or `--dangerously-bypass-hook-trust`), Gemini
   CLI 0.58.0 (reads `GEMINI_CLI_SYSTEM_SETTINGS_PATH`; events BeforeTool, AfterTool, Notification, SessionStart,
   SessionEnd, BeforeAgent, AfterAgent), agy 1.3.3. This laptop runs Windows 11 Home.
-- Computer use: not built. The old plan (`issues/39-desktop.md`) was a PowerShell UI Automation plugin inside the
+- Computer use: not built. The old plan (`issues/39-desktop.md`, now in `../suite-of-products/unassigned/issues/`) was a PowerShell UI Automation plugin inside the
   `form-fill-batch` pipeline. cua-driver (trycua/cua, MIT, 29,237 stars, pushed 2026-10-10) is not installed.
 
 ## Architecture
@@ -344,7 +344,7 @@ CREATE TABLE approval (
   `{state, reason?, timed_out}` as soon as the session is in one of the states (at once if already there) or when
   the timeout passes.
 - Removed with the pipelines: `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`,
-  `variant.*`. Calling one returns -32601 "moved to metatrooper-pipelines".
+  `variant.*`. Calling one returns -32601 "moved to the pipeline products".
 
 ### Plugins and sandbox
 
@@ -560,11 +560,8 @@ off the critical path. Typed text is never shown. The real pointer never moves.
 
 One session owns the split; nothing else merges to `main` while it runs.
 
-1. Tag `main` as `pipelines-final` and push the tag.
-2. In a scratch clone: `git subtree split --prefix=<path> -b split/<name>` for each leaving path. Create
-   `projects/metatrooper-pipelines` with `git init` and one empty commit, then for each split branch run
-   `git subtree add --prefix=<same path> <scratch clone> split/<name>`, so every file keeps its original path and
-   history and no two paths land at the root. Leaving paths: `core/src/pipelines/`, `core/src/schedules.ts`, `pipelines/`,
+1. Tag `main` as `pipelines-final` and push the tag. Git history keeps every leaving file.
+2. Copy the code that is not yet in `../suite-of-products/shared/` there, keeping each file's path: `core/src/pipelines/`, `core/src/schedules.ts`, `pipelines/`,
    `workbench/renderer/layouts/`, `workbench/src/rundetail.ts`, `contracts/pipeline.schema.json`,
    `contracts/pipelines.md`, the pipeline plugins, and the test files sorted as "move".
 3. First write `issues/m6-01-split-inventory.md`: every hit of `rg -n "Runner|runner\.|pipelines/|schedules|gate\.resolve|run\.(start|cancel|resume|clear|status)|variant|template\.list|rundetail|boardCapture|pipeline" core/src core/cli.ts workbench/src workbench/renderer`,
@@ -573,10 +570,11 @@ One session owns the split; nothing else merges to `main` while it runs.
    `workbench/src/main.ts`'s `paneData` import with the pane code it needs; remove `troop run` (keep `troop gate`, the adoption measurement); remove the Runs and Pipelines tabs and their actions from `app.js`; remove `boardCapture` and the
    `variant` half of the port query in `panes.ts` (ownership comes from M6-3; until it lands, agent panes reach no
    loopback port, which is safe).
-4. Delete the leaving paths. `npm run build` and both default suites pass. Calls to removed methods return -32601
-   "moved to metatrooper-pipelines"; removed CLI commands print it and exit 2.
-5. Pipeline tables and rows stay (D58). Schedules simply stop firing; their rows are kept for the pipelines repo.
-6. Creating the GitHub repo for `metatrooper-pipelines` and moving GitHub issues are a hand-back.
+4. Delete the leaving paths, including `pipelines/` (already copied to the products on 2026-10-10). `npm run build`
+   and both default suites pass. Calls to removed methods return -32601 "moved to the pipeline products"; removed
+   CLI commands print it and exit 2.
+5. Pipeline tables and rows stay (D58). Schedules simply stop firing; their rows are kept.
+6. GitHub issues for pipelines and any product repos on GitHub wait for Wasif (deferred, Hand-back).
 
 ## Milestone 6: the desk (about 77 CC days, freeze 2026-12-26, public 2027-01-19)
 
@@ -679,9 +677,9 @@ criteria (M1-18 to M1-21, M1-26, M1-31, M1-38, M2, M3, M4) move with the split.
 
 - M6-01a. After the split, every row of `issues/m6-01-split-inventory.md` is closed, and re-running its `rg`
   command returns only rows marked keep; `npm run build` and both default suites pass; `troop run start` prints "moved to
-  metatrooper-pipelines" and exits 2; `core.ping` still answers.
-- M6-01b. `projects/metatrooper-pipelines` exists and `git log --oneline -- core/src/pipelines/runner.ts` there shows
-  the commits from before the split; the tag `pipelines-final` exists on MetaTrooper's origin.
+  the pipeline products" and exits 2; `core.ping` still answers.
+- M6-01b. `../suite-of-products/shared/core/src/pipelines/runner.ts` exists and matches the tagged copy; the tag
+  `pipelines-final` exists on MetaTrooper's origin.
 - M6-02a. A browser `click` on a fixture button named "Send" creates one `approval` row in `waiting` and the call
   returns only after `approval.resolve`; rejected, the button's handler never runs (fixture counter stays 0).
 - M6-02b. Focusing that button and calling `key {keys: "Enter"}` also creates an approval. Typing a string matching
@@ -831,7 +829,7 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 | `contracts/approvals.md`, `contracts/desktop-tools.md`, `contracts/agent-cursor.md` | new |
 | `contracts/browser-tools.md`, `contracts/pipe-protocol.md`, `contracts/events-and-hooks.md`, `contracts/schema.sql` | updated |
 | `issues/m6-*.md` | one file per child |
-| `issues/archive/spec-2026-09-29-pipeline-ide.md` | the old spec |
+| `issues/` | only M6 children and the carried M5 work; finished desk history in `issues/archive/` |
 
 ## Known limits
 
@@ -849,9 +847,10 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 
 ## Hand-back (only Wasif)
 
-1. Create the `metatrooper-pipelines` GitHub repo and say where GitHub issues for pipelines go (external state).
-2. Line up a second Windows PC for the source-install run (M6-00a). No certificate now (D72).
-3. Restart the MetaTrooper core, which has been offline since 2026-10-10T20:52+11:00.
+Deferred by Wasif on 2026-10-10, nothing waits on them before the freeze:
+
+1. GitHub homes for the pipeline products and where pipeline GitHub issues go.
+2. A second Windows PC for the source-install run (M6-00a). No certificate now (D72).
 
 ## Out of scope
 
@@ -866,7 +865,7 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 
 ## Related
 
-- Archived pipeline-IDE spec: `issues/archive/spec-2026-09-29-pipeline-ide.md`.
+- The pipeline-IDE spec this replaced: `../suite-of-products/shared/spec-2026-09-29-pipeline-ide.md`.
 - Review of this spec: `~/.cache/claude-scratch/metatrooper-respec-2026-10-10/review.html` (Codex and Gemini,
   reconciled).
 - Idea mine, rival research and cursor design: `~/.cache/claude-scratch/metatrooper-idea-mine-2026-10-10/`

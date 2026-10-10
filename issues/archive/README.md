@@ -36,8 +36,28 @@ Their lines were removed from `issues/sync-issues.sh`.
 | 20-token-meter.md | Token meter and prices, done | prunable: no, kept as design history |
 | 21-troop-cli.md | Agent-native troop CLI and skill, done | prunable: no, kept as design history |
 | 22-adoption-measurement.md | Measurement tooling for the adoption gate, done | prunable: no, kept as design history |
-| 23-inspiration-board.md | Inspiration board and agent-reach plugin, done | prunable: no, kept as design history |
-| 24-variants-grid.md | Variants grid, done | prunable: no, kept as design history |
-| 25-github-and-deploy.md | github and deploy plugins, four pipelines, done | prunable: no, kept as design history |
+| 23-inspiration-board.md | Inspiration board and agent-reach plugin, done | moved to ../suite-of-products (2026-10-10) |
+| 24-variants-grid.md | Variants grid, done | moved to ../suite-of-products (2026-10-10) |
+| 25-github-and-deploy.md | github and deploy plugins, four pipelines, done | moved to ../suite-of-products (2026-10-10) |
 | 30-diff-annotation.md | Diff annotation and file drag, done | prunable: no, kept as design history |
 | 28-herdr-host.md | herdr host plugin, dropped 2026-10-02 by UI revision D8 | prunable: yes |
+
+## Archived 2026-10-10 by the desk re-spec
+
+M1 to M5 work for the desk that is done, plus stubs and epics the new spec (Milestone 6) replaced. Pipeline issues
+left for `../suite-of-products/` (each product's `issues/`, plus `shared/` and `unassigned/`).
+
+| File | What | Verdict |
+|---|---|---|
+| 29-usage-limits-and-accounts.md | Usage limits and account switcher, built in M2 and M5 | prunable: no, kept as design history |
+| 42-open-core-seams.md | Cloud and gateway refusals, built | prunable: no, kept as design history |
+| m4-02-clean-test-suites.md | Test suites clean up after themselves, done | prunable: no, kept as design history |
+| m4-06-osc-signal.md | OSC notification signal, done | prunable: no, kept as design history |
+| m4-07-fixes-from-real-use.md | Fixes from real use, done | prunable: no, kept as design history |
+| m4-11-session-glue.md | Session owners and edit warnings, done | prunable: no, kept as design history |
+| m5-00-rebaseline.md | M5 re-baseline, superseded by spec.md Milestone 6 | prunable: no, kept as design history |
+| m5-03-first-run.md, m5-04-logs.md, m5-05-linux.md, m5-08-launch-security.md, m5-12-remote-mcp.md, m5-13-catalogue-importers.md, m5-14-engines-as-data.md, m5-19-one-instruction-file.md | M5 desk work, code done | prunable: no, kept as design history |
+| sandbox-host.md | Agents-in-Docker design, superseded by M5-D29 | prunable: yes |
+| status-and-notifications-live-stub.md, terminal-core-live-stub.md, zero-setup-tools-live-stub.md | Live stubs for done UI revision children | prunable: yes |
+| ui-port-epic.md | Wall and pipeline layouts port, done; pipeline half moved out | prunable: no, kept as design history |
+| 15-pipeline-runner.md, 18-two-engine-review.md, step-list.md, result-panes.md, spec-2026-09-29-pipeline-ide.md | Moved to ../suite-of-products on 2026-10-10 | gone from this folder |

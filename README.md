@@ -442,7 +442,7 @@ Security reports: [`SECURITY.md`](SECURITY.md). Contributing: [`CONTRIBUTING.md`
 2. [`contracts/`](contracts/): the exact formats: database schema, hooks, pipe protocol, pipelines,
    plugins, browser tools.
 3. [`workbench/README.md`](workbench/README.md): running and testing the window.
-4. [`ide-layer-research/`](ide-layer-research/): the research that chose this shape.
+4. [`ide-layer-research/`](ide-layer-research/): demand, integration and vendor-terms research (the pipeline research moved to `../suite-of-products/shared/research/`).
 5. [`status/M1-STATUS.md`](status/M1-STATUS.md) to [`status/M5-STATUS.md`](status/M5-STATUS.md), [`status/UI-STATUS.md`](status/UI-STATUS.md):
    what is verified, and on which platform.
 
