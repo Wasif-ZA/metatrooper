@@ -1,0 +1,2 @@
+// M5-1: run with ELECTRON_RUN_AS_NODE=1 under electron.exe; prints the versions when node:sqlite, node-pty and type stripping load.
+console.log(JSON.stringify({ node: process.versions.node, electron: process.versions.electron, sqlite: new (await import('node:sqlite')).DatabaseSync(':memory:').prepare('PRAGMA user_version').get(), pty: typeof (await import(new URL('../../core/node_modules/node-pty/lib/index.js', import.meta.url).href)).spawn }));
