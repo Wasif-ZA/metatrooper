@@ -19,7 +19,6 @@
     },
     "engines": { "type": "array", "items": { "$ref": "#/$defs/engine" } },
     "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } },
-    "pipelines": { "type": "array", "items": { "type": "string", "description": "Paths to pipeline.json files inside the plugin." } },
     "panes": { "type": "array", "items": { "$ref": "#/$defs/pane" } },
     "mcp": { "type": "array", "items": { "$ref": "#/$defs/mcp" } },
     "pane_methods": {

@@ -51,7 +51,6 @@ export interface Manifest {
   permissions?: string[];
   engines?: EngineSpec[];
   actions?: ActionSpec[];
-  pipelines?: string[];
   panes?: Array<{ id: string; title?: string; entry: string }>;
   mcp?: McpSpec[];
   pane_methods?: string[];
@@ -60,7 +59,7 @@ export interface Manifest {
 export const MANIFEST_FILE = 'troop-plugin.json';
 
 export const PANE_FORBIDDEN_METHODS = new Set([
-  'core.stop', 'ui.hello', 'gate.resolve', 'hooks.install', 'hooks.uninstall',
+  'core.stop', 'ui.hello', 'hooks.install', 'hooks.uninstall',
   'plugin.install', 'plugin.remove', 'plugin.preview', 'plugin.secret.set', 'mcp.resolve', 'mcp.missing',
   'notify.sink.set', 'notify.sink.test', 'notify.sink.remove',
 ]);
@@ -153,11 +152,6 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
       const abs = insideDir(dir, p.entry);
       if (!abs) errors.push(`/panes/${i}/entry: path must stay inside the plugin folder`);
       else if (!fs.existsSync(abs)) errors.push(`/panes/${i}/entry: ${p.entry} does not exist`);
-    });
-    (m.pipelines ?? []).forEach((p, i) => {
-      const abs = insideDir(dir, p);
-      if (!abs) errors.push(`/pipelines/${i}: path must stay inside the plugin folder`);
-      else if (!fs.existsSync(abs)) errors.push(`/pipelines/${i}: ${p} does not exist`);
     });
   }
   return errors;

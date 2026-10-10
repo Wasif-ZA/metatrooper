@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { connect } from 'node:net';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, fakeGh, isolation, pipePath, root, startCore, teardownCore, uiHello, until } from './helpers.ts';
@@ -46,31 +46,7 @@ export async function revisionHarness(fixture?: string, fakeWrapper?: string) {
       const r = await pipe.request('session.launch', { project_id: projectId, engine_id });
       assert.ok(r.result?.session_id, JSON.stringify(r)); return r.result;
     },
-    async pipeline(def: any, inputs = {}) {
-      const dir = join(project, '.troop/pipelines'); mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, `${def.id}.json`), JSON.stringify(def));
-      for (const sub of new Set((def.steps ?? []).filter((s: any) => typeof s.code === 'string').map((s: any) => s.code.split('/')[0]))) {
-        for (const base of ['', 'preview', 'unshipped']) if (existsSync(join(root, 'pipelines', base, sub))) cpSync(join(root, 'pipelines', base, sub), join(dir, sub), { recursive: true });
-      }
-      const r = await pipe.request('run.start', { pipeline_id: def.id, project_id: projectId, inputs }, { timeout: 10000 });
-      assert.ok(r.result?.run_id, JSON.stringify(r)); return r.result.run_id as string;
-    },
   };
-}
-
-export function panePipeline() {
-  return { schema: 1, id: 'revision-panes', title: 'Revision panes', steps: [
-    ['items', { items: 'items.json' }], ['document', { document: 'report.md', score: 'score.json', sources: 'sources.json' }],
-    ['table', { table: 'table.json' }], ['findings', { findings: 'findings.json' }],
-  ].map(([view, outputs]) => ({ id: view, kind: 'agent', engine: 'fake', role: 'worker', view, outputs: Object.keys(outputs), prompt: `FAKE ${JSON.stringify({ outputs })}\nRead the fixture.` })) };
-}
-
-export async function runDone(h: Awaited<ReturnType<typeof revisionHarness>>, id: string) {
-  return until(() => {
-    const row = h.db.prepare('SELECT status FROM run WHERE id = ?').get(id);
-    if (row?.status === 'failed') throw new Error(`run failed: ${JSON.stringify(h.db.prepare('SELECT * FROM run_step WHERE run_id = ?').all(id))}`);
-    return row?.status === 'done';
-  }, 60000);
 }
 
 export async function terminalViewer(prefix: string, home: string, session: string, resize = true) {

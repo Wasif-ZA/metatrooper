@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync, openSync, closeSync } from 'no
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { root, runNode, sleep, until } from '../../core/test/helpers.ts';
-import { git, panePipeline, revisionHarness, runDone, terminalViewer } from '../../core/test/ui-revision-helpers.ts';
+import { git, revisionHarness, terminalViewer } from '../../core/test/ui-revision-helpers.ts';
 import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
@@ -110,138 +110,6 @@ test('UI-03 a live terminal survives closing and reopening the window with match
   } finally { viewer?.socket.destroy(); await w?.close(); await h.close(); }
 });
 
-async function specRun(h: Awaited<ReturnType<typeof revisionHarness>>, failed = false) {
-  const def = JSON.parse(readFileSync(join(root, 'pipelines/spec-to-pr.json'), 'utf8'));
-  for (const s of def.steps) if (s.kind === 'agent') {
-    s.engine = 'fake';
-    const directive = s.id === 'spec' ? { outputs: { title: 'Add greet' } } : s.id === 'build'
-      ? failed ? { status: 'failed', outputs: { error: 'revision build exploded' } } : { files: { 'greet.js': 'export const greet = n => `Hello, ${n}!`;\n' }, commit: 'Add greet', outputs: { summary: 'Adds greet(name).' } } : {};
-    s.prompt = `FAKE ${JSON.stringify(directive)}\n${s.prompt}`;
-  }
-  const run = await h.pipeline(def, { idea: readFileSync(join(h.project, 'idea.md'), 'utf8'), repo: 'fake/repo' });
-  const gate = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-spec' AND status = 'waiting'").get(run), 60000);
-  assert.deepEqual((await h.pipe.request('gate.resolve', { gate_id: gate.id, decision: 'approve', action_hash: gate.action_hash ?? undefined })).result, {});
-  return run;
-}
-
-test('UI-08 spec-to-pr shows every step status and the approve-pr gate inline', options, async () => {
-  const h = await revisionHarness('spec-to-pr'); let w;
-  try {
-    const run = await specRun(h);
-    const gate = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND step_id = 'approve-pr' AND status = 'waiting'").get(run), 60000);
-    const session = h.db.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND session_id IS NOT NULL ORDER BY started_at DESC LIMIT 1").get(run).session_id;
-    w = await windowFor(h); await select(h, w, session);
-    await w.wait(`document.querySelector('.steps [data-step="approve-pr"]')`);
-    const statuses = await w.evaluate(`Array.from(document.querySelectorAll('.steps [data-step]'), e=>({id:e.dataset.step,text:e.textContent.trim()}))`);
-    assert.deepEqual(statuses.map(s => s.id), ['spec','spec-lint','approve-spec','build','verify','compare-tests','approve-pr','open-pr']);
-    for (const s of statuses) {
-      const row = h.db.prepare('SELECT status FROM run_step WHERE run_id = ? AND step_id = ? ORDER BY iteration DESC LIMIT 1').get(run, s.id);
-      assert.ok(s.text.includes(row?.status ?? 'pending'), `${s.id}: ${s.text}`);
-    }
-    assert.ok(await w.evaluate(`(()=>{const e=document.querySelector('.steps [data-step="approve-pr"]').nextElementSibling;return e.classList.contains('step-gate') && [...e.querySelectorAll('button')].map(b=>b.textContent).join(',')==='Approve,Reject' && e.querySelector('[data-id="${gate.id}"]')!==null})()`));
-  } finally { await w?.close(); await h.close(); }
-});
-
-test('UI-08 failed build displays its error under the failed step without a click', options, async () => {
-  const h = await revisionHarness('spec-to-pr'); let w;
-  try {
-    const run = await specRun(h, true);
-    await until(() => h.db.prepare("SELECT 1 FROM run_step WHERE run_id = ? AND step_id = 'build' AND status = 'failed'").get(run), 60000);
-    const session = h.db.prepare("SELECT session_id FROM run_step WHERE run_id = ? AND step_id = 'build'").get(run).session_id;
-    w = await windowFor(h); await select(h, w, session);
-    const error = await w.wait(`(()=>{const e=document.querySelector('.steps [data-step="build"]');const err=e?.nextElementSibling;return e?.classList.contains('s-failed') && err?.classList.contains('step-err') && err.getBoundingClientRect().height>0 && err.textContent})()`);
-    const runDir = h.db.prepare('SELECT run_dir FROM run WHERE id = ?').get(run).run_dir as string;
-    const failures = readFileSync(join(runDir, 'log.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line)).filter(e => e.event === 'step failed' && e.step === 'build');
-    assert.ok(failures.length > 0); assert.equal(error, failures.at(-1).why);
-    assert.match(error, /failed/);
-  } finally { await w?.close(); await h.close(); }
-});
-
-test('#37 editor drag saves reordered steps and JSON shows the same pipeline', options, async () => {
-  const h = await revisionHarness(); let w;
-  try {
-    const def = { schema: 1, id: 'revision-editor', title: 'Revision editor', steps: ['first','second'].map(id => ({ id, kind: 'agent', role: 'worker', engine: 'fake', prompt: 'work', outputs: ['summary'] })) };
-    await h.pipeline(def); w = await windowFor(h);
-    await w.click('[data-action="tab"][data-tab="pipelines"]');
-    await w.wait('document.querySelector(\'[data-action="edit-pipeline"][data-id="revision-editor"]\')');
-    await w.click('[data-action="edit-pipeline"][data-id="revision-editor"]');
-    await w.wait('document.querySelectorAll("[data-drag-step]").length === 2');
-    await w.evaluate(`(()=>{const a=document.querySelector('[data-drag-step="0"]'),b=document.querySelector('[data-drag-step="1"]'),dt=new DataTransfer();a.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:dt}));b.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt}));b.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}));a.dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer:dt}));})()`);
-    await w.click('[data-action="save-pipeline"]');
-    const file = join(h.project, '.troop/pipelines/revision-editor.json');
-    await until(() => JSON.parse(readFileSync(file, 'utf8')).steps[0].id === 'second');
-    const saved = JSON.parse(readFileSync(file, 'utf8')); assert.deepEqual(saved.steps.map(s => s.id), ['second','first']);
-    await w.click('[data-action="toggle-raw"]');
-    assert.deepEqual(JSON.parse(await w.evaluate('document.querySelector("[data-action=raw]").value')), saved);
-  } finally { await w?.close(); await h.close(); }
-});
-
-test('#37 editor refuses a schema-invalid pipeline and preserves the saved file', options, async () => {
-  const h = await revisionHarness(); let w;
-  try {
-    const saved = { schema: 1, id: 'revision-invalid', title: 'Invalid save fixture', steps: [{ id: 'work', kind: 'agent', role: 'worker', engine: 'fake', prompt: 'work', outputs: ['summary'] }] };
-    await h.pipeline(saved); w = await windowFor(h);
-    await w.click('[data-action="tab"][data-tab="pipelines"]');
-    await w.wait('document.querySelector(\'[data-action="edit-pipeline"][data-id="revision-invalid"]\')');
-    await w.click('[data-action="edit-pipeline"][data-id="revision-invalid"]');
-    await w.click('[data-action="toggle-raw"]');
-    const file = join(h.project, '.troop/pipelines/revision-invalid.json');
-    const before = readFileSync(file, 'utf8');
-    const invalid = JSON.stringify({ ...saved, steps: [{ ...saved.steps[0], kind: 'invalid-kind' }] });
-    await w.evaluate(`(()=>{const e=document.querySelector('[data-action="raw"]');e.value=${JSON.stringify(invalid)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await w.wait('ui.editor.errors?.length > 0'); await w.click('[data-action="save-pipeline"]');
-    await until(async () => readFileSync(file, 'utf8') !== before || await w.evaluate('document.querySelector("#toasts .error")?.textContent'), 10000);
-    assert.equal(readFileSync(file, 'utf8'), before, 'saving a schema-invalid pipeline must leave the saved JSON unchanged');
-    const message = await w.evaluate('document.querySelector("#toasts .error")?.textContent');
-    assert.match(message, /kind|enum|invalid/i);
-  } finally { await w?.close(); await h.close(); }
-});
-
-test('UI-09 all four result panes render fixture details and Approve updates clip-1', options, async () => {
-  const h = await revisionHarness('result-panes'); let w;
-  try {
-    const run = await h.pipeline(panePipeline()); await runDone(h, run);
-    const session = h.db.prepare('SELECT session_id FROM run_step WHERE run_id = ? AND step_id = ?').get(run, 'findings').session_id;
-    w = await windowFor(h); await select(h, w, session);
-    const cases = [
-      ['items', ['Opening hook, 0:00 to 0:28','82','Strong question in the first 3 seconds','audio peaks above 0 dB']],
-      ['document', ['Score 78','needs 70','citations','90','coverage','70','clarity','75','Local bakery websites','Order ahead','Bakery site survey','https://example.com/survey','Menu design notes']],
-      ['table', ['fetch','extract','check','row-1','200','12 fields','row-2','running','row-3','timeout after 30 s']],
-      ['findings', ['Critical','Secret in client bundle','src/config.ts:12','The Stripe key is imported by a browser module.','High','Unvalidated redirect','fixed by build-2','Low','Missing lang attribute']],
-    ];
-    for (const [step, texts] of cases) {
-      const selector = `[data-action="tab"][data-tab="pane:${run}:${step}"]`;
-      await w.wait(`document.querySelector(${JSON.stringify(selector)})`); await w.click(selector);
-      const text = await w.wait(`(()=>{const e=document.querySelector('#view');return e?.innerText.includes(${JSON.stringify(texts[0])}) && e.innerText})()`);
-      for (const expected of texts) assert.ok(text.includes(expected), `${step}: missing ${expected}`);
-      if (step === 'document') assert.equal(await w.evaluate('document.querySelector(".doc b").textContent'), 'Order ahead');
-    }
-    await w.click(`[data-action="tab"][data-tab="pane:${run}:items"]`);
-    await w.wait('document.querySelector(\'[data-action="item-set"][data-id="clip-1"][data-status="approved"]\')');
-    const file = join(h.project, 'items.json'); const expected = JSON.parse(readFileSync(file, 'utf8')); expected[0].status = 'approved';
-    await w.click('[data-action="item-set"][data-id="clip-1"][data-status="approved"]');
-    await until(() => JSON.parse(readFileSync(file, 'utf8'))[0].status === 'approved');
-    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), expected);
-  } finally { await w?.close(); await h.close(); }
-});
-
-test('#36 Ctrl+K lists project pipelines, filters them and starts the selected run', options, async () => {
-  const h = await revisionHarness(); let w;
-  try {
-    const def = { schema: 1, id: 'revision-palette', title: 'Unique palette fixture', steps: [{ id: 'hold', kind: 'gate', gate: 'approve', gate_summary: 'Hold here' }] };
-    await h.pipeline(def); w = await windowFor(h);
-    await w.key('k', 'KeyK', 2);
-    await w.wait('!document.querySelector("#palette").hidden');
-    const text = await w.evaluate('document.querySelector("#palette-list").innerText'); assert.ok(text.includes('Run Unique palette fixture'));
-    await w.send('Input.insertText', { text: 'Unique palette fixture' });
-    assert.deepEqual(await w.evaluate('[...document.querySelectorAll("#palette-list [data-palette]")].filter(e=>e.textContent.startsWith("Run ")).map(e=>e.textContent)'), ['Run Unique palette fixturerevision-palette']);
-    const before = h.db.prepare('SELECT COUNT(*) n FROM run WHERE pipeline_id = ?').get(def.id).n;
-    await w.key('Enter', 'Enter');
-    await until(() => h.db.prepare('SELECT COUNT(*) n FROM run WHERE pipeline_id = ?').get(def.id).n === Number(before) + 1, 10000);
-    assert.equal(await w.evaluate('document.querySelector("#palette").hidden'), true);
-  } finally { await w?.close(); await h.close(); }
-});
-
 test('D15 Diff scope toggles show last turn, uncommitted and whole branch file sets', options, async () => {
   const h = await revisionHarness(); let w;
   try {
@@ -319,10 +187,6 @@ test('UI-04 home jobs meet click baselines and improve at least three', options,
     const counts:{job:string;count:number;baseline:number}[]=[];
     const perform=async(job:string,baseline:number,action:(click:(selector:string)=>Promise<void>)=>Promise<void>,check:()=>Promise<any>)=>{let count=0;const click=async(selector:string)=>{count++;await w!.click(selector)};await action(click);assert.ok(await check(),`${job} completed`);counts.push({job,count,baseline});};
     await perform('start agent',1,async click=>{await click('[data-action="launch"][data-engine="fake"]')},async()=>!!await until(()=>h.db.prepare('SELECT id FROM session WHERE id != ?').get(session_id),5000));
-    const pipe=h.pipeline;
-    const def={schema:1,id:'ui04-clicks',title:'Click gate',steps:[{id:'hold',kind:'gate',gate:'approve',gate_summary:'Approve fixture'}]};
-    const run=await pipe(def); const gate=await until(()=>h.db.prepare('SELECT * FROM gate WHERE run_id=? AND status=\'waiting\'').get(run),30000);
-    await perform('approve gate',1,async click=>{await w!.wait(`document.querySelector(${JSON.stringify(`[data-action="gate"][data-id="${gate.id}"][data-decision="approve"]`)})`);await click(`[data-action="gate"][data-id="${gate.id}"][data-decision="approve"]`)},async()=>await until(()=>h.db.prepare('SELECT status FROM gate WHERE id=?').get(gate.id)?.status==='approved',5000));
     await perform('see diff',2,async()=>{await w!.wait('document.querySelector("#view")?.innerText.includes("seed.txt")')},async()=>await w!.evaluate('document.querySelector("#view")?.innerText.includes("seed.txt")'));
     await perform('hand back',2,async click=>{await click('[data-action="tab"][data-tab="handback"]');await w!.wait('document.querySelector("[data-action=handback-copy]")')},async()=>await w!.evaluate('document.querySelector("[data-action=handback-copy]") !== null'));
     await perform('open browser',2,async click=>{await click('[data-action="tab"][data-tab="browser"]');await w!.wait('document.querySelector(".browser")')},async()=>await w!.evaluate(`ui.snap.panes.some(p=>p.id===${JSON.stringify(pane)}) && document.querySelector(".browser")`));

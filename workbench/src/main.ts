@@ -14,7 +14,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, readRunFile, snapshot, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { dataVersion, snapshot, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
@@ -22,8 +22,6 @@ import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
-import { paneData } from '../../core/src/pipelines/panes.ts';
-import { runDetail, runShot } from './rundetail.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -35,13 +33,12 @@ const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
-  'run.start', 'run.cancel', 'run.clear','run.resume', 'gate.resolve', 'pipeline.validate', 'template.list', 'variant.pick', 'variant.discard', 'variant.combine', 'needs.dismiss',
-  'session.paste-prompt', 'run.item-set', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'board.pin', 'board.remove',
+  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
 ]);
 
 let win: BrowserWindow | null = null;
 let reader: DatabaseSync | null = null;
-let view: { projectId: string | null; runId: string | null } = { projectId: null, runId: null };
+let view: { projectId: string | null } = { projectId: null };
 let lastVersion = -1;
 let lastOnline: boolean | null = null;
 let pushTimer: NodeJS.Timeout | null = null;
@@ -59,7 +56,7 @@ function db(): DatabaseSync | null {
 }
 
 function emptySnapshot(): Snapshot {
-  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], pipelines: [], runs: [], steps: [], gates: [], needs_you: [], panes: [], snapshots: [], board: [], limits: [], variants: [], selected: null, git: {} };
+  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], needs_you: [], panes: [], snapshots: [], limits: [], selected: null, git: {} };
 }
 
 let lastGood: Snapshot | null = null;
@@ -81,7 +78,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = { ...withLiveText(snapshot(d, view.projectId, view.runId), liveText), git: rowGit() };
+    lastGood = { ...withLiveText(snapshot(d, view.projectId), liveText), git: rowGit() };
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
@@ -215,8 +212,8 @@ function handlers(): void {
     });
   };
 
-  on('view', (v: { projectId?: unknown; runId?: unknown }) => {
-    view = { projectId: typeof v?.projectId === 'string' ? v.projectId : null, runId: typeof v?.runId === 'string' ? v.runId : null };
+  on('view', (v: { projectId?: unknown }) => {
+    view = { projectId: typeof v?.projectId === 'string' ? v.projectId : null };
     push();
     return true;
   });
@@ -232,63 +229,6 @@ function handlers(): void {
     if (!win) return null;
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
     return r.canceled ? null : r.filePaths[0] ?? null;
-  });
-
-  on('readRunFile', (runId: unknown, name: unknown) => {
-    const d = db();
-    return d ? readRunFile(d, runId, name) : null;
-  });
-
-  on('readPipeline', (id: unknown) => {
-    const d = db();
-    const row = d && typeof id === 'string' ? (d.prepare('SELECT path FROM pipeline WHERE id = ?').get(id) as { path: string } | undefined) : undefined;
-    if (!row) return null;
-    try {
-      return fs.readFileSync(row.path, 'utf8');
-    } catch {
-      return null;
-    }
-  });
-
-  on('savePipeline', (projectId: unknown, text: unknown) => {
-    const d = db();
-    const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
-    if (!project || typeof text !== 'string') return { ok: false, error: 'pick a project first' };
-    let json: { id?: unknown };
-    try {
-      json = JSON.parse(text);
-    } catch (e) {
-      return { ok: false, error: `not valid JSON: ${(e as Error).message}` };
-    }
-    if (typeof json.id !== 'string' || !/^[a-z0-9][a-z0-9-]{1,62}$/.test(json.id)) return { ok: false, error: 'the pipeline id must be lower-case letters, digits and dashes' };
-    const builtin = path.resolve(here, '..', '..', 'pipelines', `${json.id}.json`);
-    const shipped = fs.existsSync(builtin) ? { path: builtin } : (d.prepare("SELECT path FROM pipeline WHERE id = ? AND source <> 'project'").get(json.id) as { path: string } | undefined);
-    if (shipped) {
-      try {
-        if (JSON.stringify(JSON.parse(fs.readFileSync(shipped.path, 'utf8'))) === JSON.stringify(json)) {
-          fs.rmSync(path.join(project.path, '.troop', 'pipelines', `${json.id}.json`), { force: true });
-          return { ok: true, unchanged: true, path: shipped.path.split(String.fromCharCode(92)).join('/') };
-        }
-      } catch {}
-    }
-    const dir = path.join(project.path, '.troop', 'pipelines');
-    const file = path.join(dir, `${json.id}.json`);
-    if (!inside(dir, file)) return { ok: false, error: 'bad pipeline id' };
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
-    return { ok: true, path: file.split(String.fromCharCode(92)).join('/') };
-  });
-
-  on('runLog', (runId: unknown) => {
-    const d = db();
-    const row = d && typeof runId === 'string' ? (d.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as { run_dir: string } | undefined) : undefined;
-    if (!row) return [];
-    try {
-      const text = fs.readFileSync(path.join(row.run_dir, 'log.jsonl'), 'utf8');
-      return text.trim().split('\n').slice(-50);
-    } catch {
-      return [];
-    }
   });
 
   on('paneShow', (paneId: unknown, bounds: unknown) => {
@@ -369,7 +309,7 @@ function handlers(): void {
   });
 
   on('snapshotImage', (file: unknown) => {
-    if (typeof file !== 'string' || !['snapshots', 'boards'].some((d) => inside(path.join(homeDir(), d), file))) return null;
+    if (typeof file !== 'string' || !inside(path.join(homeDir(), 'snapshots'), file)) return null;
     try {
       return `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
     } catch {
@@ -377,48 +317,23 @@ function handlers(): void {
     }
   });
 
-  on('review', (runId: unknown) => {
-    const d = db();
-    const row = d && typeof runId === 'string' ? (d.prepare('SELECT run_dir FROM run WHERE id = ?').get(runId) as { run_dir: string } | undefined) : undefined;
-    if (!row) return null;
-    try {
-      return JSON.parse(fs.readFileSync(path.join(row.run_dir, 'review-buckets.json'), 'utf8'));
-    } catch {
-      return null;
-    }
-  });
-
-  on('handback', (projectId: unknown, runId: unknown) => {
+  on('handback', (projectId: unknown) => {
     const d = db();
     const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
     if (!project) return { error: 'pick a project first' };
-    const picked = d && typeof runId === 'string'
-      ? (d.prepare("SELECT v.idx, v.worktree, v.branch FROM variant v JOIN run r ON r.id = v.run_id WHERE v.run_id = ? AND r.project_id = ? AND v.status = 'picked' ORDER BY v.idx LIMIT 1").get(runId, projectId) as { idx: number; worktree: string; branch: string } | undefined)
-      : undefined;
     try {
-      if (picked) {
-        const base = gitIn(project.path)(['merge-base', 'HEAD', picked.branch]).trim();
-        return { ...handback(gitIn(picked.worktree), { base, cwd: picked.worktree }), variant: picked.idx, branch: picked.branch };
-      }
       return handback(gitIn(project.path));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
 
-  on('handbackFile', (projectId: unknown, runId: unknown, file: unknown) => {
+  on('handbackFile', (projectId: unknown, file: unknown) => {
     const d = db();
     if (!d || typeof projectId !== 'string' || typeof file !== 'string') return null;
     const project = d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
     if (!project) return null;
-    const picked = typeof runId === 'string'
-      ? (d.prepare("SELECT v.worktree, v.branch FROM variant v JOIN run r ON r.id = v.run_id WHERE v.run_id = ? AND r.project_id = ? AND v.status = 'picked' ORDER BY v.idx LIMIT 1").get(runId, projectId) as { worktree: string; branch: string } | undefined)
-      : undefined;
     try {
-      if (picked) {
-        const base = gitIn(project.path)(['merge-base', 'HEAD', picked.branch]).trim();
-        return gitIn(picked.worktree)(['diff', base, '--', file]);
-      }
       return gitIn(project.path)(['diff', '--cached', '--', file]);
     } catch {
       return null;
@@ -461,23 +376,6 @@ function handlers(): void {
     } catch (e) {
       return { error: why(e) };
     }
-  });
-
-  on('stepPane', (runId: unknown, stepId: unknown) => {
-    const d = db();
-    if (!d || typeof runId !== 'string' || typeof stepId !== 'string') return { error: 'no step' };
-    return paneData(d, runId, stepId);
-  });
-
-  on('runShot', (runId: unknown, name: unknown) => {
-    const d = db();
-    return d ? runShot(d, runId, name) : null;
-  });
-
-  on('runDetail', (runId: unknown) => {
-    const d = db();
-    if (!d || typeof runId !== 'string') return { error: 'no run' };
-    return runDetail(d, runId);
   });
 
   const cwdOf = (sessionId: unknown) => {

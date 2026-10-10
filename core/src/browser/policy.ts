@@ -12,7 +12,7 @@ blocked6.addSubnet('fc00::', 7, 'ipv6');
 blocked6.addSubnet('fe80::', 10, 'ipv6');
 
 export interface PolicyContext {
-  /** Ports this pane's project owns (`browser_pane.dev_port`, `variant.dev_port`). */
+  /** Ports this pane's project owns (`browser_pane.dev_port`). */
   ownedPorts: Set<number>;
   /** Hosts the project's `.troop/config.json` allows in spite of the address rules. */
   allowHosts: Set<string>;

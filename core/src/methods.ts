@@ -16,19 +16,13 @@ import { liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
-import { cronMatches } from './schedules.ts';
 import { homeDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
-import type { Runner } from './pipelines/runner.ts';
-import { listTemplates, syncPipelines, validationContext } from './pipelines/store.ts';
-import { validatePipeline } from './pipelines/validate.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
-import { setBoardFlag } from './board.ts';
-import { setItemStatus } from './pipelines/panes.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
 
@@ -39,10 +33,14 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
   throw new RpcError(E.INVALID_PARAMS, `${key} is required`);
 }
 
+export const MOVED_METHODS = [
+  'run.start', 'run.cancel', 'run.clear', 'run.resume', 'run.item-set', 'gate.resolve', 'schedule.set', 'pipeline.validate',
+  'template.list', 'variant.pick', 'variant.discard', 'variant.combine', 'board.pin', 'board.remove',
+];
+
 export interface CoreControl {
   engines: () => EngineSpec[];
   stop: () => void;
-  runner: Runner;
   uiKey: string;
 }
 
@@ -282,23 +280,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('schedule.set', {
-    handler: (p) => {
-      const cron = str(p, 'cron');
-      try {
-        cronMatches(cron, new Date());
-      } catch (e) {
-        throw new RpcError(E.VALIDATION, (e as Error).message);
-      }
-      const id = str(p, 'schedule_id', false) || ulid();
-      db.prepare(
-        `INSERT INTO schedule (id, pipeline_id, project_id, cron, inputs, enabled) VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET cron = excluded.cron, inputs = excluded.inputs, enabled = excluded.enabled`,
-      ).run(id, str(p, 'pipeline_id'), str(p, 'project_id'), cron, JSON.stringify(p.inputs ?? {}), p.enabled === false ? 0 : 1);
-      return { schedule_id: id };
-    },
-  });
-
   m.set('hooks.install', {
     needsUi: true,
     handler: (p) => {
@@ -320,29 +301,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const codex = p.codex ? uninstallCodex() : null;
       uninstallEngineSettings();
       return { diff: [claude ? lineDiff(claude.before, claude.after) : '', codex ? lineDiff(codex.before, codex.after) : ''].filter(Boolean).join('\n') };
-    },
-  });
-
-  m.set('gate.resolve', {
-    needsUi: true,
-    handler: (p) => {
-      const gate = db.prepare('SELECT id, run_id, step_id, kind, action_hash, status, scan FROM gate WHERE id = ?').get(str(p, 'gate_id')) as
-        | { id: string; run_id: string; step_id: string; kind: string; action_hash: string | null; status: string; scan: string | null }
-        | undefined;
-      if (!gate) throw new RpcError(E.NOT_FOUND, 'gate not found');
-      if (gate.status !== 'waiting') throw new RpcError(E.GATE_STALE, `gate is ${gate.status}`);
-      if (gate.action_hash && gate.action_hash !== p.action_hash) throw new RpcError(E.GATE_STALE, 'gate is stale: the action changed since approval');
-      const decision = str(p, 'decision');
-      if (decision !== 'approve' && decision !== 'reject') throw new RpcError(E.INVALID_PARAMS, 'decision must be approve or reject');
-      const reason = typeof p.override_reason === 'string' ? p.override_reason.trim() : '';
-      let findings = false;
-      try { findings = JSON.parse(gate.scan ?? 'null')?.status === 'findings'; } catch {}
-      if (decision === 'approve' && findings && !reason) throw new RpcError(E.INVALID_PARAMS, 'this gate has secret-scan findings; approve needs override_reason');
-      if (decision === 'approve' && gate.kind === 'handoff') ctl.runner.checkContinue(gate.run_id, gate.step_id);
-      db.prepare('UPDATE gate SET status = ?, decided_at = ?, note = ?, override_reason = ? WHERE id = ?')
-        .run(decision === 'approve' ? 'approved' : 'rejected', nowIso(), typeof p.note === 'string' ? p.note : null, decision === 'approve' && findings ? reason : null, gate.id);
-      db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind IN ('gate', 'handoff') AND ref = ? AND resolved_at IS NULL").run(nowIso(), gate.id);
-      return {};
     },
   });
 
@@ -395,71 +353,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return {};
     },
   });
-
-  m.set('template.list', { handler: () => ({ templates: listTemplates(db) }) });
-
-  m.set('pipeline.validate', {
-    handler: (p) => {
-      let json: unknown = p.json;
-      if (typeof json === 'string') {
-        try {
-          json = JSON.parse(json);
-        } catch (e) {
-          return { valid: false, errors: [`not valid JSON: ${(e as Error).message}`] };
-        }
-      }
-      const errors = validatePipeline(json, validationContext(db, syncPipelines(db), null));
-      return { valid: errors.length === 0, errors };
-    },
-  });
-
-  m.set('run.start', {
-    handler: (p) => {
-      const trigger = str(p, 'trigger', false) || 'manual';
-      if (!['manual', 'schedule', 'cli'].includes(trigger)) throw new RpcError(E.INVALID_PARAMS, 'trigger must be manual, schedule or cli');
-      const inputs = p.inputs ?? {};
-      if (typeof inputs !== 'object' || Array.isArray(inputs)) throw new RpcError(E.INVALID_PARAMS, 'inputs must be an object');
-      const run_id = ctl.runner.start({
-        pipeline_id: str(p, 'pipeline_id'), project_id: str(p, 'project_id'), inputs: inputs as Record<string, unknown>, trigger: trigger as 'manual' | 'schedule' | 'cli',
-      });
-      return { run_id };
-    },
-  });
-
-  m.set('run.cancel', { handler: (p) => { ctl.runner.cancel(str(p, 'run_id')); return {}; } });
-
-  m.set('run.clear', {
-    handler: (p) => {
-      const id = str(p, 'project_id', false);
-      const r = id
-        ? db.prepare("UPDATE run SET hidden = 1 WHERE hidden = 0 AND project_id = ? AND status NOT IN ('running', 'paused')").run(id)
-        : db.prepare("UPDATE run SET hidden = 1 WHERE hidden = 0 AND status NOT IN ('running', 'paused')").run();
-      return { cleared: Number(r.changes) };
-    },
-  });
-
-  m.set('run.item-set', {
-    handler: (p) => {
-      try {
-        setItemStatus(db, str(p, 'run_id'), str(p, 'step_id'), str(p, 'id'), str(p, 'status'));
-      } catch (e) {
-        throw new RpcError(E.INVALID_PARAMS, (e as Error).message);
-      }
-      return {};
-    },
-  });
-
-  m.set('run.resume', {
-    handler: (p) => {
-      const raise: Record<string, number> = {};
-      for (const k of ['max_tokens', 'max_usd', 'max_minutes']) if (typeof p[k] === 'number') raise[k] = p[k] as number;
-      ctl.runner.resume(str(p, 'run_id'), raise);
-      return {};
-    },
-  });
-
-  m.set('variant.pick', { handler: (p) => { ctl.runner.pick(str(p, 'run_id'), int(p, 'idx')); return {}; } });
-  m.set('variant.discard', { handler: (p) => { ctl.runner.discard(str(p, 'run_id'), int(p, 'idx')); return {}; } });
 
   m.set('needs.dismiss', {
     needsUi: true,
@@ -527,22 +420,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('board.pin', {
-    needsUi: true,
-    handler: (p) => {
-      setBoardFlag(db, str(p, 'item_id'), 'pinned', p.pinned !== false);
-      return {};
-    },
-  });
-
-  m.set('board.remove', {
-    needsUi: true,
-    handler: (p) => {
-      setBoardFlag(db, str(p, 'item_id'), 'removed', p.removed !== false);
-      return {};
-    },
-  });
-
   m.set('comment.deliver', {
     handler: (p) => {
       const c = db.prepare('SELECT c.id, c.body, c.session_id, s.engine_id FROM comment c JOIN session s ON s.id = c.session_id WHERE c.id = ?').get(str(p, 'comment_id')) as
@@ -557,15 +434,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('variant.combine', {
-    handler: (p) => {
-      const indices = Array.isArray(p.indices) ? p.indices : [];
-      if (!indices.length || indices.some((i) => !Number.isInteger(i) || (i as number) < 0)) {
-        throw new RpcError(E.INVALID_PARAMS, 'indices must be a list of variant indices');
-      }
-      return ctl.runner.combine(str(p, 'run_id'), indices as number[], typeof p.note === 'string' ? p.note : '');
-    },
-  });
+  for (const name of MOVED_METHODS) m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, 'moved to the pipeline products'); } });
 
   return m;
 }

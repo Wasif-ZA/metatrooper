@@ -6,7 +6,6 @@ import { canonicalPath, projectId, isAskPath, nearAskPath } from '../src/project
 import { redactToolInput, buildPayload } from '../src/redact.ts';
 import { nextState } from '../src/events/state.ts';
 import { encode, createDecoder } from '../src/pipe/framing.ts';
-import { cronMatches } from '../src/schedules.ts';
 import { scrubParams } from '../src/pipe/commands.ts';
 
 test('canonicalPath normalizes separators, drive case, and trailing slash', () => {
@@ -144,16 +143,6 @@ test('shell redaction drops env-assignment prefixes and values', () => {
   assert.equal(bash.first_word, 'gh');
   const ps = redactToolInput('PowerShell', { command: "$env:KEY='PRIVATE_MARKER'; foo" });
   assert.equal(JSON.stringify(ps).includes('PRIVATE_MARKER'), false);
-});
-
-test('cron rejects out-of-range and malformed fields and reads n/step as n-max/step', () => {
-  for (const bad of ['60 * * * *', 'x * * * *', '* 24 * * *', '*/0 * * * *', '5-1 * * * *', '* * * * 8']) {
-    assert.throws(() => cronMatches(bad, new Date()), /bad cron field/, bad);
-  }
-  assert.equal(cronMatches('5/15 * * * *', new Date(2026, 0, 1, 0, 20)), true);
-  assert.equal(cronMatches('5/15 * * * *', new Date(2026, 0, 1, 0, 21)), false);
-  assert.equal(cronMatches('0 9 * * 7', new Date(2026, 8, 27, 9, 0)), true);
-  assert.equal(cronMatches('0 9 * * 1-5', new Date(2026, 8, 28, 9, 0)), true);
 });
 
 test('decoder reports a bad line and still delivers the lines after it', () => {

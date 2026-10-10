@@ -16,6 +16,14 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 - The repo plugin's version moves from 1.0.0 to 0.1.0 to match the root version.
 
+### Removed
+
+- M6-1: pipelines leave MetaTrooper. The runner, schedules, run layouts, the Runs and Pipelines tabs, gate cards,
+  variants, the inspiration board and ten pipeline-only plugins move to `../suite-of-products/shared/`; the tag
+  `pipelines-final` keeps every removed path. `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`,
+  `template.list`, `variant.*` and `board.*` answer -32601 "moved to the pipeline products", and `troop run` exits 2.
+  Pipeline tables and their rows stay in the database (D58).
+
 ## [0.1.0]
 
 Not yet tagged. Milestones 1 to 4, as recorded in `status/M1-STATUS.md` to `status/M4-STATUS.md`.

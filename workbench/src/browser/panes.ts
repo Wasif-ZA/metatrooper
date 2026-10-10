@@ -14,13 +14,10 @@ const MAX_CAPTURE_PX = 16_384;
 const EVAL_CAP = 20 * 1024;
 const LOG_KEEP = 200;
 const PARKED_VIEWPORT = { width: 1280, height: 800 };
-const BOARD_PANE = 'board-';
 const AGENT_PANE = 'bp_agent_';
 const ASKABLE = new Set(['clipboard-read', 'notifications', 'media', 'geolocation']);
 const GRANTED = new Set(['clipboard-sanitized-write', 'fullscreen', 'mediaKeySystem']);
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
-const BOARD_SETTLE_MS = 1500;
-const BOARD_LOAD_MS = 20_000;
 const ACTIONABLE = new Set(['button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option', 'slider', 'switch', 'listbox', 'spinbutton', 'treeitem']);
 
 export class ToolError extends Error {
@@ -123,9 +120,8 @@ export class PaneManager {
     const allow = new Set<string>();
     if (db) {
       const rows = db.prepare(
-        `SELECT dev_port AS port FROM browser_pane WHERE project_id = ? AND dev_port IS NOT NULL
-         UNION SELECT v.dev_port FROM variant v JOIN run r ON r.id = v.run_id WHERE r.project_id = ? AND v.dev_port > 0 AND v.status != 'discarded'`,
-      ).all(projectId, projectId) as Array<{ port: number }>;
+        'SELECT dev_port AS port FROM browser_pane WHERE project_id = ? AND dev_port IS NOT NULL',
+      ).all(projectId) as Array<{ port: number }>;
       for (const r of rows) owned.add(Number(r.port));
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
       if (project) {
@@ -147,7 +143,7 @@ export class PaneManager {
   }
 
   private isUserPane(pane: Pane | undefined): pane is Pane {
-    return !!pane && !pane.row.id.startsWith(AGENT_PANE) && !pane.row.id.startsWith(BOARD_PANE);
+    return !!pane && !pane.row.id.startsWith(AGENT_PANE);
   }
 
   /** The pane's partition: every request (frames, workers, WebSockets) passes the address policy, downloads and permissions follow the pane kind. Agent-opened panes get an in-memory partition of their own. */
@@ -195,7 +191,6 @@ export class PaneManager {
   sync(rows: PaneRow[]): void {
     const open = new Map(rows.filter((r) => r.open).map((r) => [r.id, r]));
     for (const [id, pane] of this.panes) {
-      if (id.startsWith(BOARD_PANE)) continue;
       if (!open.has(id)) this.destroy(id);
       else pane.row = open.get(id) as PaneRow;
     }
@@ -775,30 +770,6 @@ export class PaneManager {
     if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
     else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
     return { url: pane.view.webContents.getURL(), w390_path: out[390], w1280_path: out[1280] };
-  }
-
-  /** Inspiration board: loads a URL in a parked pane with no database row, captures its first 1280 by 800 screen to outFile, then closes the pane. */
-  async boardCapture(projectId: string, url: string, outFile: string): Promise<{ url: string; status: number | null }> {
-    const id = `${BOARD_PANE}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    await this.create({ id, project_id: projectId, run_id: null, variant: null, session_id: null, url: null, dev_port: null, open: 1 });
-    try {
-      const pane = this.pane(id);
-      await this.applyViewport(pane, true);
-      let timer: NodeJS.Timeout | undefined;
-      const timeout = new Promise<never>((_r, reject) => { timer = setTimeout(() => reject(new ToolError(-32099, `load timed out: ${url}`)), BOARD_LOAD_MS); });
-      try {
-        await Promise.race([this.load(pane, url), timeout]);
-      } finally {
-        clearTimeout(timer);
-      }
-      await sleep(BOARD_SETTLE_MS);
-      const shot = await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, ...PARKED_VIEWPORT, scale: 1 } });
-      fs.mkdirSync(path.dirname(outFile), { recursive: true });
-      fs.writeFileSync(outFile, Buffer.from(shot.data, 'base64'));
-      return { url: pane.view.webContents.getURL(), status: pane.status };
-    } finally {
-      this.destroy(id);
-    }
   }
 
   /** Point-to-comment: the next element the user clicks in the pane is described and cropped. */

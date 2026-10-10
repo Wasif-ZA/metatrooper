@@ -65,24 +65,18 @@ const wall = (() => {
 
   const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : Math.max((W - 32) / 3.3 * 1.3, Math.min(460, W * 0.5)));
   function rects() {
-    const nBars = document.querySelectorAll('#runbars .rbar').length;
-    const W = innerWidth, H = innerHeight - TOP - 60 - nBars * (BAR + G);
+    const W = innerWidth, H = innerHeight - TOP - 60;
     const R = {};
     const ids = [...BIG, ...ORDER].filter((id) => S[id]);
     if (mode === 'grid') {
       const cols = Math.ceil(Math.sqrt(ids.length)), rows = Math.ceil(ids.length / cols);
       const w = (W - 16 - G * (cols - 1)) / cols, hh = (H - G * (rows - 1)) / rows;
       ids.forEach((id, i) => R[id] = { left: 8 + (i % cols) * (w + G), top: TOP + Math.floor(i / cols) * (hh + G), width: w, height: hh });
-      return { R, C: colW(W), RX: 8, box: 0, H };
+      return { R, C: colW(W), RX: 8, H };
     }
     const C = colW(W), RX = 8 + C + G, RW = W - 8 - RX;
-    const rb = document.getElementById('runbox');
-    rb.style.display = rb.childElementCount ? 'block' : 'none';
-    rb.style.height = 'auto';
-    const box = rb.childElementCount ? Math.min(rb.scrollHeight + 2, Math.round(H * 0.45)) : 0;
-    const bh = box ? H - box - G : H;
     const bw = (C - G * (BIG.length - 1)) / BIG.length;
-    BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: bh });
+    BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });
     const rest = ORDER.filter((id) => !BIG.includes(id));
     const work = rest.filter((id) => active(S[id])), open = rest.filter((id) => !active(S[id]) && S[id].open);
     const bars = rest.filter((id) => folded(S[id])).slice(0, Math.max(0, Math.floor((H * 0.5) / (BAR + G))));
@@ -96,11 +90,11 @@ const wall = (() => {
     row(work, TOP, wh);
     row(open, work.length ? TOP + wh + G : TOP, work.length ? A - wh - G : A);
     bars.forEach((id, i) => R[id] = { left: RX, top: TOP + A + G + i * (BAR + G), width: RW, height: BAR });
-    return { R, C, RX, box, H };
+    return { R, C, RX, H };
   }
 
   function layout(animate, dur = 1.1) {
-    const { R, C, RX, box, H } = rects();
+    const { R, C, RX, H } = rects();
     document.body.classList.toggle('paired', BIG.length > 1 && mode !== 'grid');
     for (const id of Object.keys(S)) {
       const el = pane(id), r = R[id];
@@ -134,10 +128,7 @@ const wall = (() => {
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
     to('#split', { left: RX });
-    gsap.set('#runbox', { left: 8, top: TOP + H - box, width: C, height: box, display: box ? 'block' : 'none' });
     fitSearch();
-    const rb2 = document.getElementById('runbars');
-    if (rb2) gsap.set(rb2, { left: 8, top: TOP + H + G, width: innerWidth - 16 });
   }
 
   function pair(id) {

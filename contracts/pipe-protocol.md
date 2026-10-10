@@ -11,7 +11,7 @@ Version 1. Two pipes, same framing.
 
 Trusted UI connections: at every start the core writes 32 random bytes, hex, to `~/.metatrooper/ui.key`
 (replacing the old one). The workbench, the tray, and the `troop` CLI when it is attached to an interactive
-terminal read it and send `ui.hello` on connect. Only such connections may call `gate.resolve`. Code steps
+terminal read it and send `ui.hello` on connect. Only such connections may call the methods marked "needs `ui.hello`". Code steps
 and plugin actions are started by the core with the stripped environment, their cwd in the project, and no
 method or helper that reads the key; the key file is outside every run directory and project. A script that
 deliberately reads the key from disk is a hostile process running as the user, which the threat model in
@@ -97,7 +97,7 @@ survives in the WAL for at most about 30 s.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `session.live-text`, `engines.check`, `pipeline.validate`, every `browser.*` method, and the methods that carry
+`session.focus`, `session.live-text`, `engines.check`, every `browser.*` method, and the methods that carry
 secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
 written to the `command` table.
 
@@ -130,12 +130,6 @@ Every other interaction is a database read.
 | `session.live-text` | `{}` | `{<session_id>: {line?, title?}}`: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |
 | `ui.hello` | `{ui_key}` | `{ok}`; marks this connection as a trusted UI connection (see Access) |
 | `engines.check` | `{}` | `{}` (results land in `engine_check`) |
-| `run.start` | `{pipeline_id, project_id, inputs, trigger?}` | `{run_id}` |
-| `run.cancel` | `{run_id}` | `{}` |
-| `run.clear` | `{project_id?}` | `{cleared}`; hides runs that are not running or paused, in one project or all of them |
-| `run.resume` | `{run_id, max_tokens?, max_usd?, max_minutes?}` | `{}`; the limits can only be raised (`pipelines.md`, Runner details) |
-| `gate.resolve` | `{gate_id, decision: "approve" or "reject", action_hash, note?}` | `{}`; -32010 if `action_hash` differs from the gate's; -32012 unless the connection completed `ui.hello`. `meta.origin` is informational only and never trusted |
-| `schedule.set` | `{pipeline_id, project_id, cron, inputs, enabled}` | `{schedule_id}` |
 | `plugin.preview` | `{source}` | `{valid, errors, manifest_hash, source, screen}`; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |
 | `plugin.install` | `{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}` | `{plugin_id, missing_secrets}`; needs `ui.hello`. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk |
 | `plugin.remove` | `{plugin_id}` | `{}`; needs `ui.hello` |
@@ -145,17 +139,14 @@ Every other interaction is a database read.
 | `notify.sink.list` | `{}` | `{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}`; no destination |
 | `notify.sink.test` / `notify.sink.remove` | `{id}` | `{ok, error?}` / `{}`; need `ui.hello` |
 | `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
-| `pipeline.validate` | `{json}` | `{valid, errors}` |
-| `template.list` | `{}` | `{templates: [{id, title, lane, requires, missing, ready}]}`: every `pipelines/templates/*.json`; `ready` only when each plugin in `requires` is installed and enabled, `missing` names the rest |
 | `comment.deliver` | `{comment_id}` | `{clipboard_at, typed}`: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it |
-| `variant.pick`, `variant.discard` | `{run_id, idx}` | `{}` |
-| `variant.combine` | `{run_id, indices: [int, ...], note}` | `{step_id}`; at least 2 indices |
 | `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
 | `pane.open` | `{project_id, url?, session_id?, agent?: bool}` | `{pane_id}`; needs `ui.hello`; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>` |
 | `pane.close` | `{pane_id}` | `{}`; needs `ui.hello` |
 | `pane.url` | `{pane_id, url}` | `{}`; needs `ui.hello`; the workbench reports each navigation |
 | `pane.assign` | `{pane_id, session_id?}` | `{}`; needs `ui.hello`; sets or clears the one session allowed to drive the pane |
 | `pane.capture` | `{pane_id, label}` | `{snapshot_id}`; needs `ui.hello`; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row |
+| `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.*`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) |
 | `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule) |
 
 ## Browser methods (`\\.\pipe\metatrooper-browser`)

@@ -9,8 +9,6 @@
   <link rel="stylesheet" href="wall.css">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="browser.css">
-  <link rel="stylesheet" href="layouts/layouts.css">
-  <link rel="stylesheet" href="layouts/review.css">
 </head>
 <body class="ind-spark">
   <header class="title">
@@ -26,8 +24,7 @@
 
   <main id="centre" class="wall"></main>
   <div id="start" class="start" hidden></div>
-  <div id="runbox" class="runbox"></div>
-  <footer id="strip" class="strip"><span id="strip-needs"></span><span id="strip-info" class="task"></span><button class="stab" data-action="tab" data-tab="diff">Diff<span class="n" id="diffN"></span></button><button class="stab" data-action="tab" data-tab="git">Git</button><button class="stab" data-action="tab" data-tab="handback">Hand back</button><button class="stab" data-action="tab" data-tab="browser">Browser</button><button class="stab" data-action="tab" data-tab="runs">Runs</button><button class="stab" data-action="tab" data-tab="pipelines">Pipelines</button></footer>
+  <footer id="strip" class="strip"><span id="strip-needs"></span><span id="strip-info" class="task"></span><button class="stab" data-action="tab" data-tab="diff">Diff<span class="n" id="diffN"></span></button><button class="stab" data-action="tab" data-tab="git">Git</button><button class="stab" data-action="tab" data-tab="handback">Hand back</button><button class="stab" data-action="tab" data-tab="browser">Browser</button></footer>
 
   <section class="side-split" id="split">
     <nav class="tabs" id="tabs"></nav>
@@ -39,7 +36,7 @@
   <section class="sheet" id="sheet"><div class="tab" id="sheet-tab" data-action="sheet" aria-expanded="false"><span class="n roll" id="sheetN"><span>0</span></span><span class="t" id="sheetT"></span><span class="runs" id="sheetRuns"></span><span class="ga" id="sheetAct"></span><span class="chev"><svg width="10" height="10"><path d="M2 6.5L5 3.5 8 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span></div><div class="gates" id="gates"></div></section>
 
   <div class="search" id="search" role="search">
-    <div class="sbar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg><input id="palette-input" placeholder="Search agents, gates, commands" autocomplete="off" spellcheck="false"><kbd>Ctrl</kbd><kbd>K</kbd></div>
+    <div class="sbar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg><input id="palette-input" placeholder="Search agents and commands" autocomplete="off" spellcheck="false"><kbd>Ctrl</kbd><kbd>K</kbd></div>
     <div id="palette" class="palette" hidden>
       <div id="palette-list" class="res palette-list"></div>
       <div class="sfoot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
@@ -54,27 +51,7 @@
   <script src="vendor/gsap.min.js"></script>
   <script src="diff.js"></script>
   <script src="terminal.js"></script>
-  <script src="panes.js"></script>
   <script src="wall.js"></script>
-  <script src="layouts/rules.js"></script>
-  <script src="layouts/run.js"></script>
-  <script src="layouts/run-log.js"></script>
-  <script src="layouts/artifact-columns.js"></script>
-  <script src="layouts/pr-first.js"></script>
-  <script src="layouts/pipe.js"></script>
-  <script src="layouts/agent-split.js"></script>
-  <script src="layouts/hand-back.js"></script>
-  <script src="layouts/preview-stage.js"></script>
-  <script src="layouts/before-after.js"></script>
-  <script src="layouts/variants-grid.js"></script>
-  <script src="layouts/timeline.js"></script>
-  <script src="layouts/review.js"></script>
-  <script src="layouts/pr-inline.js"></script>
-  <script src="layouts/duel.js"></script>
-  <script src="layouts/buckets.js"></script>
-  <script src="layouts/coverage-map.js"></script>
-  <script src="layouts/triage.js"></script>
-  <script src="layouts/bar.js"></script>
   <script src="browser-chrome.js"></script>
   <script src="app.js"></script>
 </body>

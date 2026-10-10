@@ -110,7 +110,7 @@ test('Codex usage is one row per turn id: the growth in total_token_usage, repea
   }
 });
 
-test('usage rows carry the session run_id and step_id so run budgets count them; exited sessions stop being read; a deleted file is skipped', async () => {
+test('usage rows carry the session run_id and step_id; exited sessions stop being read; a deleted file is skipped', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-meter4-'));
   const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
   process.env.HOME = home;
@@ -119,7 +119,6 @@ test('usage rows carry the session run_id and step_id so run budgets count them;
   const { openCoreDb } = await import('../src/store/db.ts');
   const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
   const { noteTranscript, noteCodexSession, readMeters } = await import('../src/meter.ts');
-  const { Runner } = await import('../src/pipelines/runner.ts');
   const db = openCoreDb();
   try {
     syncEngines(db, BUILT_IN);
@@ -137,13 +136,14 @@ test('usage rows carry the session run_id and step_id so run budgets count them;
     readMeters(db);
     const row = db.prepare("SELECT run_id, step_id FROM usage WHERE dedupe_key = 'b1'").get() as { run_id: string; step_id: string };
     assert.deepEqual({ ...row }, { run_id: 'r1', step_id: 'build' });
-    assert.equal(new Runner(db).used('r1').tokens, 40);
+    const tokens = () => (db.prepare("SELECT SUM(tokens_in) AS n FROM usage WHERE session_id = 's4'").get() as { n: number }).n;
+    assert.equal(tokens(), 40);
     db.prepare("UPDATE session SET ended_at = 'x' WHERE id = 's4'").run();
     fs.appendFileSync(t, rec('b2', 5));
     readMeters(db);
     fs.appendFileSync(t, rec('b3', 7));
     readMeters(db);
-    assert.equal(new Runner(db).used('r1').tokens, 45);
+    assert.equal(tokens(), 45);
   } finally {
     db.close();
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;

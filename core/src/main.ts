@@ -15,14 +15,10 @@ import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { processEvents, resolveSpentNotices, resolveUncommitted } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
-import { tickSchedules } from './schedules.ts';
 import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters } from './meter.ts';
 import { readLimits } from './limits.ts';
-import { Runner } from './pipelines/runner.ts';
-import { browserCall } from './browser/client.ts';
-import { syncBuiltinPlugins, syncPipelines } from './pipelines/store.ts';
-import { ulid } from './time.ts';
+import { syncBuiltinPlugins } from './plugins/store.ts';
 import { settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
 
@@ -52,8 +48,6 @@ async function main(): Promise<void> {
   const engines = loadEngines();
   syncEngines(db, engines);
   syncBuiltinPlugins(db);
-  syncPipelines(db);
-  const runner = new Runner(db);
 
   const timers: NodeJS.Timeout[] = [];
   let server: Server | null = null;
@@ -66,16 +60,13 @@ async function main(): Promise<void> {
     server?.close();
     termServer?.close();
     term.killAll();
-    try { runner.shutdown(); } catch {}
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
     db.close();
     process.exit(0);
   };
 
   const uiKey = rotateUiKey();
-  runner.setBoardCapture((req) => browserCall(uiKey, 'browser.board_capture', req, 60_000));
-  runner.setPaneCapture((pane_id, label) => browserCall(uiKey, 'browser.capture', { pane_id, label }, 60_000) as Promise<{ w1280_path: string }>);
-  const methods = buildMethods(db, { engines: () => activeEngines(db), stop, runner, uiKey });
+  const methods = buildMethods(db, { engines: () => activeEngines(db), stop, uiKey });
   const commands = new CommandRunner(db, methods);
   const home = settings().projects.default;
   if (home) try { methods.get('project.open')!.handler({ path: home }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
@@ -83,7 +74,6 @@ async function main(): Promise<void> {
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
   processEvents(db);
   resolveSpentNotices(db);
-  runner.recover();
 
   wireTermEvents(db);
   server = await startPipeServer(corePipe(), commands, uiKey);
@@ -102,7 +92,6 @@ async function main(): Promise<void> {
   every(50, () => processEvents(db));
   every(250, () => commands.drainQueued());
   every(250, () => ingestSpools(db));
-  every(500, () => runner.tick());
   every(500, () => deliverPrompts(db));
   every(1000, () => checkActivity(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
@@ -115,14 +104,6 @@ async function main(): Promise<void> {
   every(5000, () => resolveSpentNotices(db));
   every(10_000, () => resolveUncommitted(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));
-  every(30_000, () => tickSchedules(db, (pipelineId, projectId, inputs) => {
-    try {
-      runner.start({ pipeline_id: pipelineId, project_id: projectId, inputs: (inputs ?? {}) as Record<string, unknown>, trigger: 'schedule' });
-    } catch (e) {
-      db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'run-failed', ?, ?)")
-        .run(ulid(), nowIso(), pipelineId, `Scheduled run of ${pipelineId} could not start: ${(e as Error).message}`);
-    }
-  }));
   every(600_000, () => checkAll(db, activeEngines(db)));
   checkPids(db);
   void checkAll(db, activeEngines(db)).catch(() => {});

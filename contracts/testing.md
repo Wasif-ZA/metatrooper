@@ -66,18 +66,12 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 | `core/src/plugins/mcp.ts` | `mcpAttachArgs(db, engine, sessionId, browser = false): string[]` | engine arguments pointing plugin MCP servers at the shim, plus `metatrooper-browser` only when `browser` is true |
 | `core/src/engines/registry.ts` | `bindRole(db, role, pinned?)` | lowest `cost_rank` engine listing the role, installed and not red |
 
-## Pipeline modules tests may import (child #15)
+## Port module tests may import (child #15)
 
 | Module | Export | Contract |
 |---|---|---|
-| `core/src/pipelines/validate.ts` | `validatePipeline(json, ctx): string[]`, `isGuarded(step, ctx)` | `pipelines.md`, Validation; `ctx` is `{pipeline(id), action(pluginId, actionId), dir}` |
-| `core/src/pipelines/template.ts` | `parseRef`, `resolveString`, `canonicalJson`, `actionHash`, `parseFrontMatter` | the template grammar in `pipeline.schema.json`; the hash in `pipelines.md`, Gates |
-| `core/src/ports.ts` | `leasePort(db, runId, idx)`, `releasePorts(db, runId, idx?)` | `pipelines.md`, Fan-out |
+| `core/src/ports.ts` | `leasePort(db, runId, idx)`, `releasePorts(db, runId, idx?)` | the `port_lease` table in `schema.sql`; session leases replace it in M6-3 |
 
-Everything else about runs is observable through the pipe (`run.*`, `gate.resolve`, `variant.*`,
-`pipeline.validate`) and the `run`, `run_step`, `gate`, `variant`, `browser_pane`, `dev_server` and
-`port_lease` tables. A fake engine (`METATROOPER_ENGINES`) that reads the handoff
-footer from its last argument and writes the output file is enough to drive every step kind.
 
 ## Browser modules tests may import (child #17)
 

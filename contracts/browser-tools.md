@@ -21,7 +21,7 @@ with the user's panes; its storage is cleared when it closes.
 | `select` | `{pane_id, ref, value}` | `{ok}`; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
-| `screenshot` | `{pane_id, full_page?: bool = false, save_as?: str}` | PNG image content; with `save_as` (1 to 32 of `a-z`, `0-9`, `-`, such as `1280`) in a pipeline step, the MCP server also writes it to `<run_dir>/shots/<step>-<round>-<label>.png` (round is the step's loop iteration plus 1) and adds `saved <path>`; outside a pipeline step it fails and saves nothing. The run screen shows these in preview-stage and before-after |
+| `screenshot` | `{pane_id, full_page?: bool = false}` | PNG image content |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
@@ -54,7 +54,7 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 
 1. Only panes listed by `panes` for that session can be driven. The workbench UI has no debugger attached.
 2. Navigation allowlist: `http:` and `https:` (and `ws:` and `wss:`, checked the same way) to public addresses, plus `http://localhost:<port>` and
-   `http://127.0.0.1:<port>` only for ports owned by this project (`browser_pane.dev_port`, `variant.dev_port`).
+   `http://127.0.0.1:<port>` only for ports owned by this project (`browser_pane.dev_port`).
    Blocked: `file:`, `chrome:`, `devtools:`, other loopback ports, and these ranges unless the project's
    `.troop/config.json` lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
    ports), `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`; IPv6 `::/128`, `::1/128`

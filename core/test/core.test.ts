@@ -248,12 +248,12 @@ test('accepted commands re-execute and running commands become -32098 on restart
   } finally { await stopCore(core, isolated); rmSync(isolated.home, { recursive: true, force: true }); }
 });
 
-test('gate.resolve and core.stop require ui.hello on the same connection', async () => {
+test('needs.dismiss and core.stop require ui.hello on the same connection', async () => {
   const h = await harness();
   try {
     const untrusted = await client(h.prefix);
     try {
-      const denied = await untrusted.request('gate.resolve', { gate_id: 'missing', decision: 'approve', action_hash: 'hash' }, { meta: { origin: 'workbench', sent_at: now() } });
+      const denied = await untrusted.request('needs.dismiss', { id: 'missing' }, { meta: { origin: 'workbench', sent_at: now() } });
       assert.equal(denied.error?.code, -32012);
       const stop = await untrusted.request('core.stop');
       assert.equal(stop.error?.code, -32012);

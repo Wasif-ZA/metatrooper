@@ -105,7 +105,7 @@ test('Ctrl+K focuses #palette-input and Enter runs the selected item', options, 
 test('waiting sessions get attn and the NEEDS YOU count matches the fixture', options, async () => withWall(async (h, w) => {
   const session = await h.launch();
   h.db.prepare("UPDATE session SET state = 'waiting_for_you' WHERE id = ?").run(session.session_id);
-  const expected = h.db.prepare("SELECT (SELECT COUNT(*) FROM gate WHERE status = 'waiting') + (SELECT COUNT(*) FROM session WHERE state = 'waiting_for_you') + (SELECT COUNT(*) FROM needs_you WHERE read_at IS NULL AND kind NOT IN ('gate', 'handoff')) AS n").get().n;
+  const expected = h.db.prepare("SELECT (SELECT COUNT(*) FROM session WHERE state = 'waiting_for_you') + (SELECT COUNT(*) FROM needs_you WHERE read_at IS NULL AND kind NOT IN ('gate', 'handoff')) AS n").get().n;
   const waiting = h.db.prepare("SELECT COUNT(*) AS n FROM session WHERE state = 'waiting_for_you'").get().n;
   await w.wait(`document.querySelectorAll('#centre .tile.attn').length === ${waiting}`);
   assert.equal(await w.evaluate("document.querySelectorAll('#centre .tile.attn').length"), waiting);
@@ -125,25 +125,6 @@ test('a done session folds to a 36px bar', options, async () => withWall(async (
   await w.wait(`${heightExpr} === 36`);
   const height = await w.evaluate(heightExpr);
   assert.equal(height, 36);
-}));
-
-test('Approve from the gate sheet records approval and displays the verdict stamp', options, async () => withWall(async (h, w) => {
-  const def = {
-    schema: 1, id: 'wall-gate', title: 'Wall gate', lane: 'coding', requires: [], inputs: {},
-    steps: [{ id: 'approve', title: 'Approve wall action', kind: 'gate', gate: 'approve', gate_summary: 'Approve the wall test action.' }],
-  };
-  const runId = await h.pipeline(def);
-  const gate = await until(() => h.db.prepare("SELECT * FROM gate WHERE run_id = ? AND status = 'waiting'").get(runId), 15000);
-  assert.ok(gate);
-  await w.click('#sheet-tab');
-  await w.wait('!document.querySelector("#sheet").classList.contains("closed")');
-  const approve = `[data-action="gate"][data-id="${gate.id}"][data-decision="approve"]`;
-  await w.wait(`document.querySelector(${JSON.stringify(approve)})`);
-  await w.click(approve);
-  await until(() => h.db.prepare('SELECT status FROM gate WHERE id = ?').get(gate.id)?.status === 'approved', 15000);
-  await w.wait(`document.querySelector('.gate[data-g="${gate.id}"] .verdict.ok')?.textContent.includes('Approved')`);
-  assert.equal(h.db.prepare('SELECT status FROM gate WHERE id = ?').get(gate.id).status, 'approved');
-  assert.match(await w.evaluate(`document.querySelector('.gate[data-g="${gate.id}"] .verdict.ok')?.textContent`), /Approved/);
 }));
 
 test('default theme is dither and search switches to persistent charcoal settings', options, async () => withWall(async (h, w) => {

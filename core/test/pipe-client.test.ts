@@ -13,7 +13,7 @@ test('a slow UI call waits for its reply and is never queued; UI clicks are not 
   const { corePipe } = await import('../src/paths.ts');
   const { encode, createDecoder } = await import('../src/pipe/framing.ts');
   const { isQueueable } = await import('../src/pipe/commands.ts');
-  for (const m of ['session.launch', 'session.resume', 'run.start', 'variant.combine']) assert.equal(isQueueable(m), false, m);
+  for (const m of ['session.launch', 'session.resume']) assert.equal(isQueueable(m), false, m);
   const server = net.createServer((s) => {
     s.on('data', createDecoder((msg) => {
       const id = (msg as { id: string }).id;

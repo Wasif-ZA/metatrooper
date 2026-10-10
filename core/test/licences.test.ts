@@ -13,7 +13,7 @@ test('M1-32 AGPL dirs carry AGPL-3.0 and MIT dirs carry MIT', () => {
       assert.equal(JSON.parse(read(`${d}/package.json`)).license, 'AGPL-3.0-only', `${d} package license`);
     }
   }
-  for (const d of ['sdk', 'pipelines']) {
+  for (const d of ['sdk']) {
     assert.match(read(`${d}/LICENSE`), /^MIT License/, `${d} LICENSE`);
   }
   assert.match(read('contracts/LICENSE-MIT'), /MIT License/);

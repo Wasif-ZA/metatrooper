@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
-import { homeDir } from '../paths.ts';
+import { homeDir, repoDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import { tx } from '../store/db.ts';
 import { E, RpcError } from '../pipe/errors.ts';
@@ -314,4 +314,28 @@ export function setPluginSecret(db: DatabaseSync, pluginId: string, name: string
   setSecret(db, pluginId, name, value);
   db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND text = ? AND resolved_at IS NULL")
     .run(nowIso(), pluginId, `set ${name} for ${pluginId}`);
+}
+
+/** Registers first-party plugins shipped in the repo's `plugins/` folder as source `builtin`, approved as declared. */
+export function syncBuiltinPlugins(db: DatabaseSync): void {
+  const dir = path.join(repoDir, 'plugins');
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir).sort()) {
+    const root = path.join(dir, name);
+    if (!fs.existsSync(path.join(root, MANIFEST_FILE))) continue;
+    let manifest: unknown;
+    try {
+      manifest = readManifest(root).manifest;
+    } catch {
+      continue;
+    }
+    if (validateManifest(manifest, root).length) continue;
+    const m = manifest as Manifest;
+    const existing = db.prepare('SELECT source FROM plugin WHERE id = ?').get(m.id) as { source: string } | undefined;
+    if (existing && existing.source !== 'builtin') continue;
+    db.prepare(
+      `INSERT INTO plugin (id, version, path, manifest, source, permissions, enabled, installed_at) VALUES (?, ?, ?, ?, 'builtin', ?, 1, ?)
+       ON CONFLICT(id) DO UPDATE SET version = excluded.version, path = excluded.path, manifest = excluded.manifest, permissions = excluded.permissions`,
+    ).run(m.id, m.version, root, JSON.stringify(m), JSON.stringify(m.permissions ?? []), nowIso());
+  }
 }

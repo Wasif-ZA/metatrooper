@@ -11,9 +11,6 @@
     "network",
     "run:write"
   ],
-  "pipelines": [
-    "pipelines/inspiration-board.json"
-  ],
   "actions": [
     {
       "id": "inspiration-board",

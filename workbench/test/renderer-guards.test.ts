@@ -57,15 +57,3 @@ test('the Git tab leaves Loading when git throws or no project is picked, and a 
   await gitDo('view');
   assert.equal(ui.gitBusy, null);
 });
-
-test('a gate card unlocks when gate.resolve throws', async () => {
-  const ui: any = { snap: { gates: [{ id: 'g1', action_hash: 'h' }] }, drafts: {} };
-  const timers: Array<() => void> = [];
-  const doc = { querySelector: () => null, querySelectorAll: () => [] };
-  const resolveGate = new Function('ui', 'rpc', 'document', 'CSS', 'wall', 'render', 'toast', 'setTimeout', `${fn('gateScan')}
-${fn('resolveGate')}; return resolveGate;`)(
-    ui, async () => { throw new Error('ipc gone'); }, doc, { escape: (s: string) => s }, { verdict: () => {} }, () => {}, () => {}, (f: () => void) => timers.push(f));
-  await resolveGate('g1', 'approve');
-  timers.forEach((f) => f());
-  assert.equal(ui.decided.g1, undefined);
-});

@@ -29,14 +29,6 @@ const USAGE = `usage: troop <command> [--json]
   owners [path]                 uncommitted files of the current project and the session that owns each
   focus|seen|hide <session>     act on a session by id or id prefix
   engines [--check]             show engine health (--check re-runs the checks)
-  run start <pipeline> [--project <path>] [--input key=value]...
-                                start a pipeline run; prints the run id
-  run wait <run> [--timeout <s>]
-                                block until the run pauses (gate, budget, loop-max, breaker, handoff) or ends
-  run status <run>              show a run's state and open gates
-  run cancel <run>              cancel a run and its sub-pipeline runs
-  run clear [--project <path>]  hide every finished run (all projects unless --project)
-  stop                          stop the core
   gate [--since <date>] [--until <date>]
                                 adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
   hooks install|uninstall [--codex] [--yes]
@@ -322,16 +314,6 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   return r.code;
 }
 
-interface RunRow { id: string; status: string; paused_why: string | null }
-
-function runRow(id: string): RunRow | null {
-  return withDb((db) => (db.prepare('SELECT id, status, paused_why FROM run WHERE id = ?').get(id) as RunRow | undefined) ?? null);
-}
-
-function waitingGates(id: string): Array<Record<string, unknown>> {
-  return withDb((db) => db.prepare("SELECT id, step_id, kind, action_hash, summary FROM gate WHERE run_id = ? AND status = 'waiting'").all(id) as Array<Record<string, unknown>>) ?? [];
-}
-
 function gateCmd(argv: string[]): number {
   const fail = (why: string) => { console.error(`troop gate: ${why}`); return 1; };
   const seen = new Set<string>();
@@ -360,54 +342,8 @@ function gateCmd(argv: string[]): number {
   return 0;
 }
 
-async function runCmd(a: Args, json: boolean): Promise<number> {
-  const [sub, target] = a.pos;
-  if (sub === 'start' && target) {
-    const inputs: Record<string, string> = {};
-    for (const kv of a.inputs) {
-      const i = kv.indexOf('=');
-      if (i < 1) { console.error(`--input needs key=value, got ${kv}`); return 2; }
-      inputs[kv.slice(0, i)] = kv.slice(i + 1);
-    }
-    const project = await openProject(a.opts.get('--project') ?? process.cwd(), json);
-    if (project.code || !project.id) return project.code || 1;
-    const r = await rpc('run.start', { pipeline_id: target, project_id: project.id, inputs, trigger: 'cli' }, json);
-    if (r.result) emit(json, r.result, String(r.result.run_id));
-    return r.code;
-  }
-  if (sub === 'cancel' && target) {
-    const r = await rpc('run.cancel', { run_id: target }, json);
-    if (r.result) emit(json, r.result, `cancelled ${target}`);
-    return r.code;
-  }
-  if (sub === 'clear') {
-    let project_id: string | undefined;
-    if (a.opts.has('--project')) {
-      const project = await openProject(a.opts.get('--project')!, json);
-      if (project.code || !project.id) return project.code || 1;
-      project_id = project.id;
-    }
-    const r = await rpc('run.clear', project_id ? { project_id } : {}, json);
-    if (r.result) emit(json, r.result, `cleared ${r.result.cleared} runs`);
-    return r.code;
-  }
-  if ((sub === 'wait' || sub === 'status') && target) {
-    const timeout = Number(a.opts.get('--timeout') ?? 0) * 1000;
-    const started = Date.now();
-    for (;;) {
-      const row = runRow(target);
-      if (!row) { console.error(`no run ${target}`); return 1; }
-      if (sub === 'status' || row.status !== 'running') {
-        const gates = waitingGates(target);
-        const out = { run_id: target, status: row.status, paused_why: row.paused_why, gates };
-        emit(json, out, `${row.status}${row.paused_why ? ` (${row.paused_why})` : ''}${gates.map((g) => `\n  gate ${g.id}: ${g.summary}`).join('')}`);
-        return sub === 'wait' && (row.status === 'failed' || row.status === 'cancelled') ? 1 : 0;
-      }
-      if (timeout && Date.now() - started > timeout) { console.error('timed out'); return 4; }
-      await new Promise((r) => setTimeout(r, 250));
-    }
-  }
-  console.error('usage: troop run start <pipeline> [--project <path>] [--input k=v] | wait <run> [--timeout <s>] | status <run> | cancel <run>');
+function runCmd(): number {
+  console.error('troop run: moved to the pipeline products');
   return 2;
 }
 
@@ -547,7 +483,7 @@ async function main(): Promise<number> {
     }
 
     case 'run':
-      return runCmd(a, json);
+      return runCmd();
 
     case 'gate':
       return gateCmd(rest);
