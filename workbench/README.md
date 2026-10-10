@@ -1,5 +1,7 @@
 # Workbench
 
+Windows and Linux (beta). Local only: no account, no telemetry.
+
 The Electron window over the core. It draws from direct reads of `~/.metatrooper/troop.db` and sends every
 change as a pipe command; it decides nothing itself.
 
