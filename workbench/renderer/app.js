@@ -445,13 +445,24 @@ function blankPipeline() {
 function renderPipelines() {
   const s = ui.snap;
   if (ui.editor) return renderEditor();
-  const rows = s.pipelines.map((p) => `<tr>
-    <td>${esc(p.title)}</td><td>${esc(p.id)}</td><td>${esc(p.source)}</td>
-    <td>${p.valid ? '<span class="state done">valid</span>' : `<span class="state failed" title="${esc(p.errors.join('\n'))}">${p.errors.length} error${p.errors.length === 1 ? '' : 's'}</span>`}</td>
-    <td>${p.source === 'project' ? `<button data-action="edit-pipeline" data-id="${esc(p.id)}">Edit</button>` : `<button data-action="copy-pipeline" data-id="${esc(p.id)}">Copy to project</button>`}</td></tr>`).join('');
-  return `<div class="toolbar"><button class="primary" data-action="new-pipeline">New pipeline</button></div>
-    <div class="panel">${s.pipelines.length ? `<table><thead><tr><th>Title</th><th>Id</th><th>Source</th><th>Checks</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty">No pipelines yet.</p>'}</div>
-    ${templateGallery(ui.templates)}`;
+  if (!s.pipelines.length) return `<div class="toolbar"><button class="primary" data-action="new-pipeline">New pipeline</button></div><p class="empty">No pipelines yet.</p>${templateGallery(ui.templates)}`;
+  const p = s.pipelines.find((x) => x.id === ui.pipeSel) || s.pipelines[0];
+  const runs = s.runs.filter((r) => !r.parent_run && r.pipeline_id === p.id).sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+  const steps = p.step_defs.map((d) => d.title || d.id);
+  const inputs = Object.keys(p.inputs || {});
+  const list = s.pipelines.map((x) => `<button class="link prow ${x.id === p.id ? 'on' : ''}" data-action="pipe-sel" data-id="${esc(x.id)}"><span class="grow ell">${esc(x.title)}</span>${x.valid ? '' : '<span class="meta warn">fix</span>'}</button>`).join('');
+  const tl = ui.templates || [];
+  const tpl = tl.map((t) => `<div class="prow"><span class="grow ell">${esc(t.title || t.id)}</span>${t.ready ? '' : `<span class="meta warn">needs ${esc(t.missing.join(', '))}</span>`}</div>`).join('');
+  const detail = `<div class="toolbar"><h3 style="margin:0" class="grow">${esc(p.title)}</h3>
+      ${p.valid ? `<button class="btn acc" data-action="pipe-run" data-id="${esc(p.id)}">Run</button>` : ''}
+      ${p.source === 'project' ? `<button class="btn" data-action="edit-pipeline" data-id="${esc(p.id)}">${p.valid ? 'Edit' : 'Fix'}</button>` : `<button class="btn" data-action="pipe-more" data-id="${esc(p.id)}" title="More">&#8943;</button>`}</div>
+    <div class="meta">${esc(steps.join(' > ') || 'no steps')}</div>
+    ${inputs.length ? `<div class="meta" style="margin-top:6px">Asks for: ${esc(inputs.join(', '))}</div>` : ''}
+    ${p.valid ? '' : `<div class="perr">${esc(p.errors.join('; '))}</div>`}
+    <h3 style="margin-top:14px">Last runs</h3>${runs.slice(0, 6).map((r) => `<div class="git-hist"><span class="grow">${esc(r.status)}</span><span class="meta">${esc(ago(r.started_at))}</span></div>`).join('') || '<p class="empty">Never run.</p>'}`;
+  return `<div class="pipes"><div class="plist"><div class="toolbar"><h3 style="margin:0" class="grow">Pipelines</h3><button class="btn sm" data-action="new-pipeline">+ New</button></div>${list}
+      <div class="toolbar" style="margin-top:12px"><h3 style="margin:0" class="grow">Templates</h3><span class="meta">${tl.filter((t) => t.ready).length} of ${tl.length} ready</span></div>${tpl || '<p class="empty">Loading templates.</p>'}</div>
+    <div class="pdetail">${detail}</div></div>`;
 }
 
 function templateGallery(list) {
@@ -592,6 +603,7 @@ async function gitDo(op, arg) {
   if (r && r.branch) ui.git = { ...r, project: id, at: Date.now() };
   if (op === 'commit' && r && !r.error) { ui.gitMsg = ''; toast('Committed.'); }
   if (op === 'push' && r && !r.error) toast('Pushed.');
+  if (op === 'pull' && r && !r.error) toast('Pulled.');
   render();
 }
 
@@ -608,19 +620,21 @@ function renderGit() {
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
   const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
     <span class="meta">${f.added === null ? '' : `+${f.added} -${f.deleted}`}</span>
-    <button data-action="${staged ? 'git-unstage' : 'git-stage'}" data-file="${esc(f.path)}" ${busy} title="${staged ? 'Unstage' : 'Stage'}">${staged ? '-' : '+'}</button></div>`;
-  const sync = [g.ahead ? `${g.ahead} to push` : '', g.behind ? `${g.behind} behind` : ''].filter(Boolean).join(', ');
+    <button class="btn sm" data-action="${staged ? 'git-unstage' : 'git-stage'}" data-file="${esc(f.path)}" ${busy}>${staged ? 'Unstage' : 'Stage'}</button></div>`;
+  const n = g.staged.length;
+  const history = (g.log || '').split('\n').filter(Boolean).map((l) => { const [subject, when] = l.split('\t'); return `<div class="git-hist"><span class="grow">${esc(subject)}</span><span class="meta">${esc(when || '')}</span></div>`; }).join('');
   return `<div class="panel">
-    <div class="toolbar"><h3 style="margin:0">${esc(g.branch)}</h3><span class="meta grow">${sync || 'up to date'}</span>
-      <button data-action="git-push" ${busy || (g.ahead ? '' : 'disabled')}>${ui.gitBusy === 'push' ? 'Pushing' : 'Push'}</button></div>
-    <textarea rows="3" id="git-msg" data-key="git-msg" placeholder="Commit message">${esc(ui.gitMsg || '')}</textarea>
-    <div class="actions"><button class="primary" data-action="git-commit" ${busy || (g.staged.length ? '' : 'disabled')}>${ui.gitBusy === 'commit' ? 'Committing' : `Commit${g.staged.length ? ` ${g.staged.length}` : ''}`}</button></div>
-    <div class="toolbar"><h3 style="margin:0" class="grow">Staged (${g.staged.length})</h3>${g.staged.length ? `<button data-action="git-unstage" data-file="" ${busy} title="Unstage all">-</button>` : ''}</div>
-    ${g.staged.map((f) => row(f, true)).join('')}
-    <div class="toolbar"><h3 style="margin:0" class="grow">Changes (${g.changes.length})</h3>${g.changes.length ? `<button data-action="git-stage" data-file="" ${busy} title="Stage all">+</button>` : ''}</div>
-    ${g.groups && g.groups.some((x) => x.key !== 'unclaimed') ? ownerGroupsHtml(g.groups, row, busy) : g.changes.map((f) => row(f, false)).join('')}
+    <div class="git-sync"><div class="toolbar"><h3 style="margin:0" class="grow">${esc(g.branch)}</h3><span class="meta">${g.ahead || g.behind ? 'origin' : 'up to date with origin'}</span></div>
+      <div class="actions"><button class="btn${g.ahead ? ' acc' : ''}" data-action="git-push" ${busy || (g.ahead ? '' : 'disabled')}>${ui.gitBusy === 'push' ? 'Pushing' : `Push${g.ahead ? ` ${g.ahead} commit${g.ahead === 1 ? '' : 's'}` : ''}`}</button>
+        <button class="btn" data-action="git-pull" ${busy || (g.behind ? '' : 'disabled')} title="Bring in commits from origin">${ui.gitBusy === 'pull' ? 'Pulling' : `Pull${g.behind ? ` ${g.behind} commit${g.behind === 1 ? '' : 's'}` : ''}`}</button></div></div>
+    <div class="toolbar"><h3 style="margin:0" class="grow">Changes (${g.changes.length})</h3>${g.changes.length ? `<button class="btn sm" data-action="git-stage" data-file="" ${busy}>Stage all</button>` : ''}</div>
+    ${g.groups && g.groups.some((x) => x.key !== 'unclaimed') ? ownerGroupsHtml(g.groups, row, busy) : g.changes.map((f) => row(f, false)).join('') || '<p class="empty">Nothing changed.</p>'}
+    <div class="toolbar" style="margin-top:12px"><h3 style="margin:0" class="grow">Staged (${n})</h3>${n ? `<button class="btn sm" data-action="git-unstage" data-file="" ${busy}>Unstage all</button>` : ''}</div>
+    ${g.staged.map((f) => row(f, true)).join('') || '<p class="empty">Stage a file above to commit it.</p>'}
+    <textarea rows="3" id="git-msg" data-key="git-msg" placeholder="Commit message (commits to ${esc(g.branch)})">${esc(ui.gitMsg || '')}</textarea>
+    <div class="actions"><button class="primary" data-action="git-commit" ${busy || (n ? '' : 'disabled')}>${ui.gitBusy === 'commit' ? 'Committing' : n ? `Commit ${n} file${n === 1 ? '' : 's'}` : 'Commit'}</button></div>
     ${ui.hbFile && ui.gitFile ? renderDiff() : ''}
-    <h3>History</h3><div class="log git-log">${esc(g.log || 'No commits yet.')}</div>
+    <h3 style="margin-top:14px">History</h3><div class="git-history">${history || '<p class="empty">No commits yet.</p>'}</div>
   </div>`;
 }
 
@@ -928,20 +942,23 @@ function renderTitle() {
   wall.roll(document.getElementById('needsN'), needsCount());
   const groups = limitGroups();
   const hot = groups.some((u) => u.ok.some((r) => r.used_pct >= 80));
-  setHtml('usage', `<button class="chip uchip${hot ? ' warn' : ''}" data-action="list" title="Usage">${groups.length ? groups.map((u) => {
+  const live = groups.filter((u) => u.ok.length);
+  setHtml('usage', live.length ? `<button class="chip uchip${hot ? ' warn' : ''}" data-action="list" title="Usage">${live.map((u) => {
     const r = u.ok[0];
-    return r ? `<span>${esc(u.provider)} <span class="mini"><i style="width:${Math.round(r.used_pct)}%"></i></span>${Math.round(r.used_pct)}%</span>` : `<span class="na">${esc(u.provider)} n/a</span>`;
-  }).join('') : '<span class="na">usage n/a</span>'}</button>
-    <div class="pop" role="tooltip"><h4><span>Usage</span><span>% used · resets in</span></h4>${limitRows('urow')}</div>`);
-  const eng = s.engines.filter((e) => e.light !== 'red');
-  const def = eng.find((e) => e.id === load('engine')) || eng[0];
-  setHtml('newagent', project() ? `${def ? `<span class="nsplit"><button class="btn acc" data-action="launch" data-engine="${esc(def.id)}" title="Start ${esc(def.id)} in this project">+ ${esc(def.id)}</button><button class="btn acc" data-action="launch-menu" title="Pick engine">v</button></span>` : ''}
-    ${ui.shellKinds.map((k) => `<button class="ib" data-action="shell-open" data-kind="${esc(k.kind)}" title="New ${esc(k.label)} tab">${esc(k.label)}</button>`).join('')}` : '');
+    return `<span>${esc(u.provider)} <span class="mini"><i style="width:${Math.round(r.used_pct)}%"></i></span>${Math.round(r.used_pct)}%</span>`;
+  }).join('')}</button>
+    <div class="pop" role="tooltip"><h4><span>Usage</span><span>% used · resets in</span></h4>${limitRows('urow')}</div>` : '');
+  setHtml('newagent', project() ? '<button class="btn acc" data-action="launch-menu" title="Start an agent or a terminal">+ New</button>' : '');
+  const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
+  if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 15000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
+  setHtml('branch', g ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
 }
+
+const INFO_KINDS = ['gate', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
 
 function needsCount() {
   const s = ui.snap;
-  return s.gates.length + waitingAll().length + s.needs_you.filter((n) => !n.read_at && !['gate', 'handoff'].includes(n.kind)).length;
+  return s.gates.length + waitingAll().length + s.needs_you.filter((n) => !n.read_at && !INFO_KINDS.includes(n.kind)).length;
 }
 
 function waitingAll() {
@@ -1054,12 +1071,36 @@ function loadSessionDiff(sel) {
   void api.sessionDiff(sel.id, ui.diffScope).then((data) => { if (ui.sdiff && ui.sdiff.key === key) { ui.sdiff.data = data; render(); } });
 }
 
+/** Every agent with changes, as chips over one file list; a file opens that agent's own diff. */
+function renderAllChanges(sel) {
+  const gits = ui.snap.git || {};
+  const agents = ui.snap.sessions.filter((x) => gits[x.id] && (gits[x.id].added || gits[x.id].deleted));
+  ui.allDiff = ui.allDiff || {};
+  for (const x of agents) {
+    const c = ui.allDiff[x.id];
+    if (!c || c.at < Date.now() - 10000) {
+      ui.allDiff[x.id] = { at: Date.now(), data: c ? c.data : null };
+      void api.sessionDiff(x.id, 'uncommitted').then((data) => { ui.allDiff[x.id].data = data; render(); });
+    }
+  }
+  const sum = agents.reduce((a, x) => [a[0] + gits[x.id].added, a[1] + gits[x.id].deleted], [0, 0]);
+  const chips = `<div class="toolbar"><button class="chip ${sel && !ui.diffAll ? '' : 'on'}" data-action="diff-all">All changes <span class="meta">+${sum[0]} -${sum[1]}</span></button>${agents.map((x) => `<button class="chip ${sel && !ui.diffAll && sel.id === x.id ? 'on' : ''}" data-action="pick" data-id="${esc(x.id)}">${esc(x.engine_id)} <span class="meta">+${gits[x.id].added} -${gits[x.id].deleted}</span></button>`).join('')}<span class="grow"></span><button class="btn sm" data-action="tab" data-tab="handback">Hand back</button></div>`;
+  if (sel && !ui.diffAll) return chips;
+  const files = agents.flatMap((x) => {
+    const d = ui.allDiff[x.id] && ui.allDiff[x.id].data;
+    return d && d.files ? d.files.map((f) => ({ ...f, who: x })) : [];
+  });
+  const rows = files.map((f) => `<div class="git-row"><button class="link grow" data-action="diff-open" data-id="${esc(f.who.id)}" data-file="${esc(f.path)}">${esc(f.path)}</button><span class="meta">${esc(f.who.engine_id)}</span><span class="meta">+${f.added ?? '?'} -${f.deleted ?? '?'}</span></div>`).join('');
+  return `${chips}${rows || (agents.length ? '<p class="empty">Loading.</p>' : '<p class="empty">No agent has changed anything yet. Your own changes are in the Git tab.</p>')}`;
+}
+
 function renderDiffTab(sel) {
-  if (!sel) return '<p class="empty">Pick an agent to see what it changed.</p>';
+  const head = renderAllChanges(sel);
+  if (!sel || ui.diffAll) return head;
   loadSessionDiff(sel);
   const d = ui.sdiff && ui.sdiff.data;
   const scopes = [['turn', 'Last turn'], ['uncommitted', 'Uncommitted'], ['branch', 'Whole branch']];
-  const bar = `<div class="toolbar">${scopes.map(([id, label]) => `<button class="chip ${ui.diffScope === id ? 'on' : ''}" data-action="diff-scope" data-scope="${id}">${label}</button>`).join('')}</div>`;
+  const bar = `${head}<div class="toolbar">${scopes.map(([id, label]) => `<button class="chip ${ui.diffScope === id ? 'on' : ''}" data-action="diff-scope" data-scope="${id}">${label}</button>`).join('')}</div>`;
   if (!d) return `${bar}<p class="empty">Loading.</p>`;
   if (d.error) return `${bar}<p class="empty">${esc(d.error)}</p>`;
   if (!d.files.length && !d.untracked.length) return `${bar}<p class="empty">No changes ${ui.diffScope === 'turn' ? 'in the last turn' : ui.diffScope === 'branch' ? 'on this branch' : 'since the last commit'}.</p>`;
@@ -1077,11 +1118,11 @@ function renderDiffTab(sel) {
 
 function renderStrip(sel) {
   const s = ui.snap;
-  const needs = s.needs_you.filter((n) => !n.read_at).length + waitingAll().length;
+  const needs = needsCount();
   const working = s.sessions.filter((x) => x.state === 'working').length;
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
-  setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox"><span class="dot waiting_for_you"></span>${needs}</span>` : '<span class="link" data-action="inbox" title="Inbox">0</span>');
+  setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox"><span class="dot waiting_for_you"></span>${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">Inbox</span>');
   setHtml('strip-info', sel ? `${esc(sel.engine_id)} · ${esc(sel.task || taskOf(sel))} · ${working} working` : `${working} working`);
   document.getElementById('diffN').textContent = n ? ` ${n}` : '';
   for (const b of document.querySelectorAll('#strip [data-action="tab"]')) b.classList.toggle('on', ui.split && ui.tab === b.dataset.tab);
@@ -1410,8 +1451,9 @@ async function onClick(e) {
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` (not ready: ${esc(x.fix || x.detail || 'check failed')})` : ''}</div>`).join('');
-      menu.style.left = `${Math.max(8, r.right - 160)}px`;
+      menu.innerHTML = `<div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
+        + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
+      menu.style.left = `${Math.max(8, r.right - 220)}px`;
       menu.style.top = `${r.bottom + 4}px`;
       menu.hidden = false;
       return;
@@ -1525,6 +1567,7 @@ async function onClick(e) {
       return;
     }
     case 'shell-open':
+      document.getElementById('menu').hidden = true;
       await openShell(el.dataset.kind);
       return;
     case 'pick-shell':
@@ -1613,6 +1656,9 @@ async function onClick(e) {
     case 'git-push':
       await gitDo('push');
       return;
+    case 'git-pull':
+      await gitDo('pull');
+      return;
     case 'git-file': {
       const file = el.dataset.file;
       ui.gitFile = true;
@@ -1645,6 +1691,17 @@ async function onClick(e) {
       save('diffScope', ui.diffScope);
       ui.sdFile = null;
       render();
+      return;
+    case 'diff-all':
+      ui.diffAll = true;
+      render();
+      return;
+    case 'diff-open':
+      ui.diffAll = false;
+      ui.diffScope = 'uncommitted';
+      ui.sdFile = el.dataset.file;
+      ui.hbDiff = undefined;
+      await pick(id);
       return;
     case 'sd-file':
       ui.sdFile = el.dataset.file;
@@ -1810,8 +1867,27 @@ async function onClick(e) {
     case 'new-pipeline':
       openEditor(blankPipeline());
       return;
+    case 'pipe-sel':
+      ui.pipeSel = id;
+      render();
+      return;
+    case 'pipe-run':
+      if (ui.pipelineId !== id) clearInputDrafts();
+      ui.pipelineId = id;
+      await openTab('runs');
+      return;
+    case 'pipe-more': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      menu.innerHTML = `<div class="item" data-action="copy-pipeline" data-id="${esc(id)}">Make my own copy</div>`;
+      menu.style.left = `${Math.max(8, r.right - 200)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
     case 'edit-pipeline':
     case 'copy-pipeline': {
+      document.getElementById('menu').hidden = true;
       const text = await api.readPipeline(id);
       if (!text) return toast('Could not read that pipeline file.', true);
       try {

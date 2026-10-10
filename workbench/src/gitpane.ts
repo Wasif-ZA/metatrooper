@@ -42,13 +42,13 @@ function counts(out: string): Map<string, [number | null, number | null]> {
   return m;
 }
 
-/** Branch, ahead/behind, staged and unstaged files with line counts, and the last 50 commits as a graph. */
+/** Branch, ahead/behind, staged and unstaged files with line counts, and the last 30 commits as subject TAB relative date. */
 export async function gitView(git: Run): Promise<GitView> {
   const [status, stagedOut, unstagedOut, log] = await Promise.all([
     git(['status', '--porcelain=v1', '-b', '-z']),
     git(['diff', '--cached', '--numstat']).catch(() => ''),
     git(['diff', '--numstat']),
-    git(['log', '--graph', '--date=short', '--format=%h %ad %s%d', '-50']).catch(() => ''),
+    git(['log', '--format=%s%x09%ar', '-30']).catch(() => ''),
   ]);
   const parts = status.split('\0');
   const head = parts.shift() ?? '';
@@ -91,6 +91,7 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> 
       await git(['commit', '-m', path.trim()]);
       return;
     case 'push': await git(['push']); return;
+    case 'pull': await git(['pull', '--ff-only']); return;
     default: throw new Error(`unknown git action ${op}`);
   }
 }
