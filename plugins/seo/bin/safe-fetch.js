@@ -68,7 +68,10 @@ function fetchOnce(u, opts, lookup, loopback, signal) {
       let size = 0;
       res.on('data', (c) => {
         size += c.length;
-        if (size > MAX_BYTES) return res.destroy(new Error(`response from ${u.hostname} is over ${MAX_BYTES} bytes`));
+        if (size > MAX_BYTES) {
+          reject(new Error(`response from ${u.hostname} is over ${MAX_BYTES} bytes`));
+          return res.destroy();
+        }
         chunks.push(c);
       });
       res.on('error', reject);
