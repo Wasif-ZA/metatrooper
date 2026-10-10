@@ -6,7 +6,7 @@ Depends on: nothing.
 
 ## What
 
-Core service: `schema.sql` (frozen first), event processor with redaction, state machine, `wt` launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, ACU refusal
+Core service: `schema.sql` (frozen first), event processor with redaction, state machine, `wt` launcher, session linking, engine registry and health, named-pipe server with run-once commands, queue, port leases, DPAPI secret store, schedules, `usage` ledger, licence files, private-folder refusal
 
 ## Source of truth
 
@@ -30,7 +30,7 @@ Core service: `schema.sql` (frozen first), event processor with redaction, state
 - [ ] M1-13. `hooks install` then `hooks uninstall` leaves `~/.claude/settings.json` and `~/.codex/config.toml` byte-identical; the Codex computer-use helper still receives every notify while installed.
 - [ ] M1-14. The UserPromptSubmit hook delivers a queued comment as the JSON in `events-and-hooks.md`; killing the hook before it prints leaves the comment for the next prompt (never lost); a normal run prints it once.
 - [ ] M1-18b. The same folder opened as `C:\Proj\` and `c:/proj` (on a case-insensitive volume) gets one `project_id`.
-- [ ] M1-30. `project.open` on a path containing `work/ACU` returns -32001.
+- [ ] M1-30. `project.open` on a path containing the private work folder returns -32001.
 - [ ] M1-32. `core/`, `workbench/`, `tray/` carry AGPL-3.0; `sdk/`, `pipelines/` and the MIT contract files carry MIT.
 
 ## Rules that bind every child

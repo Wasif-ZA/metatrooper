@@ -1,4 +1,4 @@
-# M5-10 Public docs, licences, privacy, the ACU rule as a setting
+# M5-10 Public docs, licences, privacy, the private path rule as a setting
 
 Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 2.5 CC days (1.0 + 0.5 + 0.25 + 0.25 + 0.5).
 
@@ -10,7 +10,7 @@ Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 2.5 C
 - LICENSE files exist in `core/`, `workbench/`, `sdk/`, `pipelines/`, `contracts/`; none at the root or in
   `plugins/*/`; no third-party notices. `workbench/renderer/vendor/gsap.min.js:4-6` carries GreenSock's standard
   licence (not OSI); the fonts in `vendor/fonts/` carry no OFL text.
-- `core/src/project.ts:32-36` and `core/src/sessions/launch.ts:36` hardcode the `work/ACU` path rule (D46, D48).
+- `core/src/project.ts:32-36` and `core/src/sessions/launch.ts:36` hardcode the private work folder path rule (D46, D48).
   The repo is public.
 
 ## What to build
@@ -26,15 +26,15 @@ Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 2.5 C
    CSS transitions.
 4. Privacy section: what `workbench/test/no-network.test.ts` proves and how to rerun it; every plugin with
    `network` and where it sends; the wpad exception; Pro activation as the second exception (M5-7).
-5. ACU rule as a setting (M5-D7): `sessions.ask_paths` (array, empty by default); `project.ts` and
-   `sessions/launch.ts` read it instead of the literal; `ask_near_acu` becomes `ask_near_paths`. Wasif's own
-   `~/.metatrooper/settings.json` gets `["<vault>/work/ACU"]`, so his behaviour does not change.
+5. Private path rule as a setting (M5-D7): `sessions.ask_paths` (array, empty by default); `project.ts` and
+   `sessions/launch.ts` read it instead of the literal; the engine flag becomes `ask_near_paths`. Wasif's own
+   `~/.metatrooper/settings.json` gets his private folder, so his behaviour does not change.
 6. `.github/ISSUE_TEMPLATE/bug.yml` (version, OS, a `logs/` excerpt with secrets removed), `SECURITY.md` with a
    private contact, `CONTRIBUTING.md` one page.
 
 ## Acceptance criteria
 
-- M5-10a. `grep -rn "work/ACU" core/src workbench/src` returns nothing; with `ask_paths` set to a folder, a session
+- M5-10a. A grep for the old literal path in `core/src` and `workbench/src` returns nothing; with `ask_paths` set to a folder, a session
   there starts in `ask` (the existing D46 tests pass against the setting).
 - M5-10b. Every folder that ships code holds a LICENSE, and THIRD-PARTY-NOTICES names every vendored file under
   `workbench/renderer/vendor/`.
@@ -42,5 +42,5 @@ Child of Milestone 5 in `spec.md`. Tag: BLOCKER (ships 2026-12-01). Effort 2.5 C
 
 ## Hand-back
 
-Decide what to scrub from the public repo (session counts in spec Context, ACU mentions in spec.md, M1-STATUS.md and
+Decide what to scrub from the public repo (session counts in spec Context, employer mentions in spec.md, M1-STATUS.md and
 `ide-layer-research/`); pick the support channel and the security contact.
