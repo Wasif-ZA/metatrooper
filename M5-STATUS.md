@@ -78,29 +78,19 @@ pipeline: the four coding built-ins 40 to 43 each (`ide-layer-research/m5-harden
 Gathered 2026-10-10T17:10+11:00. Every branch that only needed review and tests is merged; these need his hands, eyes,
 money or name. T2 was settled as M5-D16 and the GitHub milestone was created on 2026-10-09.
 
-On screen, with the app open:
-1. Look at the m4-harden gate card, then one spec-to-pr run (check-build is new in that path).
-2. The first real pr-review-fix (Pro) run, M5-06d.
-3. M3-01 real-engine runs, data-to-dashboard on a small CSV first.
-4. One workday in the app (UI-01), then the README GIFs (M5-11).
-5. Glance at the M5-12 remote MCP install screen and the M5-19 project bar (neither seen on screen yet).
+Trimmed 2026-10-10 on his word ("drop it if not really needed"); everything else is autonomous work.
 
-Setup only he can do:
-6. Dropped 2026-10-10: the agy sandbox login goes away with M5-D29 (code in Docker, agents on the host).
-7. A Windows 11 VM with Smart App Control on and a fresh standard account (M5-D24). Only after the signed installer
-   exists (item 10, then M5-2); DESKTOP-TSA6L47 is Windows 11 Home, which has no Hyper-V.
-8. `sudo apt install build-essential` in WSL Ubuntu (M5-D25).
-9. Accounts for social-scheduler. The test Gmail account is dropped: both Gmail pipelines left launch (M5-D2).
+1. One sitting with the app on screen, at the end: the m4-harden gate card, one spec-to-pr run, the first real
+   pr-review-fix run (M5-06d), the M3-01 real runs (data-to-dashboard first), and a glance at the M5-12 install
+   screen. Then one workday in the app (UI-01).
+2. After the certificate: a Windows 11 VM with Smart App Control on and a fresh standard account (M5-D24, M5-01a).
+   DESKTOP-TSA6L47 is Windows 11 Home, so no Hyper-V there.
+3. Money and outside contact, once there is a working model: buy the Certum certificate (M5-D23); send the two terms
+   questions in `ide-layer-research/m5-terms.md` (M5-D26); the M5-2 and M5-7 picks, Pro repo, Lemon Squeezy (M5-D20).
 
-Money and outside contact (wait until a working model, Wasif 2026-10-09):
-10. Buy the Certum code signing certificate and pass its identity check (M5-D23).
-11. Send the two terms questions in `ide-layer-research/m5-terms.md` to Anthropic and Google (M5-D26).
-12. M5-2 and M5-7 picks, then the Pro repo and Lemon Squeezy store (M5-D20).
-
-Calls on leftovers:
-13. Branch `troop/01m4dgvfjnnj5yw1gq064xyhaa-build-0`: a marketing site in `site/` built with Vite, which he does not
-    accept; keep it as a reference or delete it.
-14. A real test for the M5-8 rollback guard (see the teehee-c1 section); hand it to Codex once its sandbox can write.
+Dropped: the agy sandbox login (M5-D29); WSL `build-essential` (M5-9 CI on ubuntu-24.04 covers the core suite on
+Linux); the Gmail test account and social-scheduler accounts (their pipelines are not launch built-ins, M5-D1, M5-D2);
+the Vite site branch (M5-11 builds a plain page); README GIFs move to Claude (demo-capture on the M5-11 seed).
 
 ## teehee-c1 branches, merged 2026-10-10T17:00+11:00
 
