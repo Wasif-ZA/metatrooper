@@ -2,11 +2,12 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { buildGenerated, client, isolation, root, startCore, teardownCore, until } from './helpers.ts';
 import { agentsMdArgs, planArgs } from '../src/sessions/launch.ts';
 import { BUILT_IN } from '../src/engines/registry.ts';
 import { launchSession } from '../src/sessions/launch.ts';
+import { killAll } from '../src/terminal/index.ts';
 
 before(buildGenerated);
 
@@ -20,7 +21,7 @@ function fixture(files: Record<string, string> = {}) {
   mkdirSync(dir);
   for (const [name, content] of Object.entries(files)) {
     const file = join(dir, name);
-    mkdirSync(file.slice(0, file.lastIndexOf('/')), { recursive: true });
+    mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, content);
   }
   return dir;
@@ -146,6 +147,7 @@ test('core launch chooses AGENTS.md args from session cwd', async () => {
     try { return JSON.parse(readFileSync(argvFile, 'utf8')) as string[]; } catch { return undefined; }
   });
   assert.equal(withoutCwdAgents.includes('--append-system-prompt-file'), false);
+  killAll();
   db.close();
 });
 
