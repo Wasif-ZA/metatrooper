@@ -1,0 +1,596 @@
+[
+ {
+  "name": "git-status",
+  "summary": "branch, ahead/behind and changed files in two-letter short form",
+  "needs": "git",
+  "body": "git status --short --branch --untracked-files=normal",
+  "args": [
+   "[path...]"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "git-diff",
+  "summary": "unstaged diff: stat block then patch with 2 context lines, no colour or pager",
+  "needs": "git",
+  "body": "git --no-pager diff --no-color --stat -p -U2",
+  "args": [
+   "[rev] [-- path]"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "git-log",
+  "summary": "last 20 commits, one line each with short date and refs",
+  "needs": "git",
+  "body": "git log -n 20 --pretty=format:'%h %ad %d %s' --date=short --decorate=short",
+  "args": [
+   "[rev-range] [-- path]"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "pytest-quick",
+  "summary": "pytest, quiet, stop at first failure, short tracebacks, no .pytest_cache",
+  "needs": "pytest",
+  "body": "pytest -q -x --no-header --tb=short -p no:cacheprovider",
+  "args": [
+   "[path or -k expr]"
+  ],
+  "purity": "write",
+  "example": {
+   "args": [],
+   "expect_exit": 0,
+   "expect_out": "1 passed",
+   "setup": {
+    "test_ok.py": "def test_ok():\n    assert 1 + 1 == 2\n"
+   }
+  }
+ },
+ {
+  "name": "lines",
+  "summary": "print lines start..end of a file with line numbers, stops reading at end",
+  "needs": "awk",
+  "body": "awk -v a={2} -v b={3} 'NR>b{exit} NR>=a{printf \"%6d  %s\\n\", NR, $0}' {1}",
+  "args": [
+   "file",
+   "start",
+   "end"
+  ],
+  "purity": "read",
+  "example": {
+   "args": [
+    "notes.txt",
+    "2",
+    "3"
+   ],
+   "expect_exit": 0,
+   "expect_out": "     3  three",
+   "setup": {
+    "notes.txt": "one\ntwo\nthree\nfour\n"
+   }
+  },
+  "whole": true,
+  "shell": "bash"
+ },
+ {
+  "name": "outline",
+  "summary": "classes, functions and exports with line numbers (Python, JS, TS) instead of reading the whole file",
+  "needs": "grep",
+  "body": "grep -nE '^[[:space:]]*(export[[:space:]]+)?(default[[:space:]]+)?(async[[:space:]]+)?(def|class|function|interface|type|enum)[[:space:]]+[A-Za-z_]|^[[:space:]]*(export[[:space:]]+)?const[[:space:]]+[A-Za-z_]+[[:space:]]*=[[:space:]]*(async[[:space:]]*)?\\('",
+  "args": [
+   "file..."
+  ],
+  "purity": "read",
+  "example": {
+   "args": [
+    "m.py"
+   ],
+   "expect_exit": 0,
+   "expect_out": "3:    def run(self):",
+   "setup": {
+    "m.py": "import os\nclass Job:\n    def run(self):\n        return 1\n"
+   }
+  },
+  "whole": true,
+  "shell": "bash"
+ },
+ {
+  "name": "git-staged",
+  "summary": "staged diff (what a commit would contain): stat then patch",
+  "needs": "git",
+  "body": "git --no-pager diff --cached --no-color --stat -p -U2",
+  "args": [
+   "[-- path]"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "git-show",
+  "summary": "one commit: header, stat and patch with 2 context lines",
+  "needs": "git",
+  "body": "git --no-pager show --no-color --stat -p -U2 --date=short",
+  "args": [
+   "[commit]"
+  ],
+  "purity": "read",
+  "whole": true,
+  "choices": {
+   "1": "git log -n 10 --format='%h  %s'"
+  }
+ },
+ {
+  "name": "files",
+  "summary": "file paths matching a regex, tracked plus untracked, honouring .gitignore (fd stand-in)",
+  "needs": "git",
+  "body": "git ls-files --cached --others --exclude-standard | grep -iE -e {1}",
+  "args": [
+   "regex"
+  ],
+  "purity": "read",
+  "whole": true,
+  "shell": "bash"
+ },
+ {
+  "name": "gh-pr",
+  "summary": "pull request facts as JSON: state, branches, review decision, size, body",
+  "needs": "gh",
+  "body": "gh pr view --json number,title,state,isDraft,author,headRefName,baseRefName,mergeable,reviewDecision,additions,deletions,changedFiles,url,body",
+  "args": [
+   "[number|branch]"
+  ],
+  "purity": "external",
+  "whole": true,
+  "choices": {
+   "1": "gh pr list --limit 20 --json number,title --jq '.[] | \"\\(.number)  \\(.title)\"'"
+  }
+ },
+ {
+  "name": "gh-checks",
+  "summary": "CI checks on a PR: pass/fail/pending bucket, name, link (exit 8 while pending)",
+  "needs": "gh",
+  "body": "gh pr checks --json bucket,name,workflow,link --jq '.[] | \"\\(.bucket)\\t\\(.workflow)/\\(.name)\\t\\(.link)\"'",
+  "args": [
+   "[number|branch]"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "gh-run-failed",
+  "summary": "log of only the failed steps, last 150 lines; defaults to the newest failed run",
+  "needs": "gh",
+  "body": "f(){ id=${1:-$(gh run list --status failure --limit 1 --json databaseId --jq '.[0].databaseId')}; [ -n \"$id\" ] || { echo 'no failed runs'; return 0; }; echo \"run $id\"; gh run view \"$id\" --log-failed | tail -n 150; }; f",
+  "args": [
+   "[run-id]"
+  ],
+  "purity": "external",
+  "shell": "bash"
+ },
+ {
+  "name": "gh-pr-comments",
+  "summary": "inline review comments on a PR as path:line author: text",
+  "needs": "gh",
+  "body": "gh api --paginate repos/{owner}/{repo}/pulls/{1}/comments --jq '.[] | \"\\(.path):\\(.line // .original_line) \\(.user.login): \\(.body | gsub(\"\\n\"; \" \"))\"'",
+  "args": [
+   "number"
+  ],
+  "purity": "external",
+  "whole": true
+ },
+ {
+  "name": "git-changed",
+  "summary": "files this branch changed against a base (default origin/main), with A/M/D status",
+  "needs": "git",
+  "body": "f(){ git diff --name-status \"${1:-origin/main}...HEAD\"; }; f",
+  "args": [
+   "[base]"
+  ],
+  "purity": "read",
+  "shell": "bash"
+ },
+ {
+  "name": "http-json",
+  "summary": "GET a URL as JSON, follow redirects, then print HTTP status and time",
+  "needs": "curl",
+  "body": "curl -sS -L --max-time 20 -H 'Accept: application/json' -w '\\nHTTP %{http_code} %{time_total}s\\n' {1}",
+  "args": [
+   "url"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "npm-scripts",
+  "summary": "the scripts block of package.json in this folder",
+  "needs": "npm",
+  "body": "npm pkg get scripts",
+  "args": [],
+  "purity": "read",
+  "example": {
+   "args": [],
+   "expect_exit": 0,
+   "expect_out": "\"test\": \"node t.js\"",
+   "setup": {
+    "package.json": "{\"name\":\"x\",\"version\":\"1.0.0\",\"scripts\":{\"test\":\"node t.js\"}}"
+   }
+  },
+  "whole": true
+ },
+ {
+  "name": "npm-run",
+  "summary": "run a package.json script without npm's banner lines",
+  "needs": "npm",
+  "body": "npm run --silent",
+  "args": [
+   "script",
+   "[-- args]"
+  ],
+  "purity": "write",
+  "example": {
+   "args": [
+    "hello"
+   ],
+   "expect_exit": 0,
+   "expect_out": "hi-from-script",
+   "setup": {
+    "package.json": "{\"name\":\"x\",\"version\":\"1.0.0\",\"scripts\":{\"hello\":\"node -e \\\"console.log('hi-from-script')\\\"\"}}"
+   }
+  }
+ },
+ {
+  "name": "tsc-check",
+  "summary": "TypeScript type check with the project's own tsc, no emit, one error per line; never installs",
+  "needs": "npx",
+  "body": "npx --no -- tsc --noEmit --pretty false",
+  "args": [
+   "[-p tsconfig.json]"
+  ],
+  "purity": "read"
+ },
+ {
+  "name": "uv-run",
+  "summary": "run a command in the project's synced uv environment without progress noise",
+  "needs": "uv",
+  "body": "uv run --quiet --no-progress",
+  "args": [
+   "command..."
+  ],
+  "purity": "write"
+ },
+ {
+  "name": "uv-with",
+  "summary": "run a Python one-liner with a package available, no install into any project",
+  "needs": "uv",
+  "body": "uv run --quiet --no-progress --no-project --with {1} python -c {2}",
+  "args": [
+   "package",
+   "python-code"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "tex-build",
+  "summary": "build a LaTeX file to PDF next to it with tectonic, keeping the .log for errors",
+  "needs": "tectonic",
+  "body": "tectonic -X compile --keep-logs",
+  "args": [
+   "file.tex"
+  ],
+  "purity": "write"
+ },
+ {
+  "name": "tex-problems",
+  "summary": "build, then list LaTeX errors, undefined refs/citations and overfull boxes from the log",
+  "needs": "tectonic",
+  "body": "f(){ tectonic -X compile --keep-logs \"$1\" 2>&1 | grep -E '^error:'; rc=${PIPESTATUS[0]}; grep -nE '^!|undefined|Overfull|multiply defined' \"${1%.tex}.log\" | head -40; echo \"tectonic exit $rc\"; return $rc; }; f",
+  "args": [
+   "file.tex"
+  ],
+  "purity": "write",
+  "shell": "bash"
+ },
+ {
+  "name": "pytest-list",
+  "summary": "list test ids without running them",
+  "needs": "pytest",
+  "body": "pytest --collect-only -q --no-header -p no:cacheprovider",
+  "args": [
+   "[path or -k expr]"
+  ],
+  "purity": "read",
+  "example": {
+   "args": [],
+   "expect_exit": 0,
+   "expect_out": "test_ok.py::test_ok",
+   "setup": {
+    "test_ok.py": "def test_ok():\n    assert True\n"
+   }
+  },
+  "whole": true
+ },
+ {
+  "name": "pytest-lf",
+  "summary": "rerun only the tests that failed last time (writes .pytest_cache)",
+  "needs": "pytest",
+  "body": "pytest -q --lf --no-header --tb=short",
+  "args": [
+   "[path]"
+  ],
+  "purity": "write"
+ },
+ {
+  "name": "gh-prs",
+  "summary": "open pull requests, one tab-separated line each",
+  "needs": "gh",
+  "body": "gh pr list --limit 20 --json number,headRefName,author,isDraft,reviewDecision,title --jq '.[] | \"#\\(.number)\\t\\(.headRefName)\\t\\(.author.login)\\t\\(if .isDraft then \"draft\" else (.reviewDecision // \"-\") end)\\t\\(.title)\"'",
+  "args": [
+   "[--state all] [--author @me]"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "gh-issue",
+  "summary": "one issue as JSON with labels, body and comments",
+  "needs": "gh",
+  "body": "gh issue view --json number,title,state,author,labels,assignees,body,comments,url",
+  "args": [
+   "number"
+  ],
+  "purity": "external",
+  "whole": true
+ },
+ {
+  "name": "gh-issues",
+  "summary": "open issues, one tab-separated line each with labels",
+  "needs": "gh",
+  "body": "gh issue list --limit 30 --json number,labels,updatedAt,title --jq '.[] | \"#\\(.number)\\t\\(.updatedAt[:10])\\t\\([.labels[].name] | join(\",\"))\\t\\(.title)\"'",
+  "args": [
+   "[--label x] [--state all]"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "gh-runs",
+  "summary": "last 10 Actions runs: id, conclusion, workflow, branch",
+  "needs": "gh",
+  "body": "gh run list --limit 10 --json databaseId,status,conclusion,workflowName,headBranch,createdAt --jq '.[] | \"\\(.databaseId)\\t\\(.conclusion // .status)\\t\\(.workflowName)\\t\\(.headBranch)\\t\\(.createdAt[:16])\"'",
+  "args": [
+   "[--branch b] [--workflow w]"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "gh-pr-files",
+  "summary": "names of the files a PR changes",
+  "needs": "gh",
+  "body": "gh pr diff --name-only",
+  "args": [
+   "[number|branch]"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "diff-files",
+  "summary": "unified diff of any two files (not in a repo), exit 1 when they differ",
+  "needs": "git",
+  "body": "git --no-pager diff --no-index --no-color --stat -p -U2 -- {1} {2}",
+  "args": [
+   "file-a",
+   "file-b"
+  ],
+  "purity": "read",
+  "example": {
+   "args": [
+    "a.txt",
+    "b.txt"
+   ],
+   "expect_exit": 1,
+   "expect_out": "+beta",
+   "setup": {
+    "a.txt": "alpha\n",
+    "b.txt": "beta\n"
+   }
+  }
+ },
+ {
+  "name": "git-blame",
+  "summary": "who changed lines start..end, ignoring whitespace, short dates",
+  "needs": "git",
+  "body": "git blame -w --date=short -L {2},{3} -- {1}",
+  "args": [
+   "path",
+   "start",
+   "end"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "git-file-log",
+  "summary": "history of one file across renames, one line per commit",
+  "needs": "git",
+  "body": "git log -n 30 --follow --pretty=format:'%h %ad %an %s' --date=short -- {1}",
+  "args": [
+   "path"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "git-branches",
+  "summary": "local branches newest first with upstream ahead/behind and last subject",
+  "needs": "git",
+  "body": "git for-each-ref --sort=-committerdate --count=30 --format='%(refname:short)  %(committerdate:short)  %(upstream:short) %(upstream:track)  %(subject)' refs/heads",
+  "args": [],
+  "purity": "read"
+ },
+ {
+  "name": "git-hot",
+  "summary": "files touched most in the last N commits (default 50)",
+  "needs": "git",
+  "body": "f(){ git log -n \"${1:-50}\" --name-only --pretty=format: | grep -v '^$' | sort | uniq -c | sort -rn | head -25; }; f",
+  "args": [
+   "[n-commits]"
+  ],
+  "purity": "read",
+  "shell": "bash"
+ },
+ {
+  "name": "todos",
+  "summary": "TODO, FIXME, HACK, XXX and ponytail: markers in tracked text files",
+  "needs": "git",
+  "body": "git grep -n -I -E '\\b(TODO|FIXME|HACK|XXX)\\b|ponytail:'",
+  "args": [
+   "[path...]"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "loc-top",
+  "summary": "the 25 largest tracked files by line count",
+  "needs": "git",
+  "body": "git ls-files -z | xargs -0 wc -l 2>/dev/null | grep -v ' total$' | sort -rn | head -25",
+  "args": [],
+  "purity": "read",
+  "shell": "bash"
+ },
+ {
+  "name": "ruff-check",
+  "summary": "ruff lint, one line per problem, without installing ruff into the project",
+  "needs": "uvx",
+  "body": "uvx --quiet ruff check --output-format=concise",
+  "args": [
+   "[path...]"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "media-probe",
+  "summary": "duration, size, codecs, resolution, fps and audio channels of a media file as JSON",
+  "needs": "ffprobe",
+  "body": "ffprobe -v error -show_entries format=duration,size,bit_rate,format_name:stream=index,codec_type,codec_name,width,height,r_frame_rate,sample_rate,channels -of json=c=1",
+  "args": [
+   "file"
+  ],
+  "purity": "read",
+  "whole": true
+ },
+ {
+  "name": "video-sheet",
+  "summary": "contact sheet: one frame every 10 s, 4x4 grid, to see a whole video in one image",
+  "needs": "ffmpeg",
+  "body": "ffmpeg -v error -y -i {1} -vf 'fps=1/10,scale=320:-1,tile=4x4' -frames:v 1 {2}",
+  "args": [
+   "video",
+   "out.png"
+  ],
+  "purity": "write"
+ },
+ {
+  "name": "video-frame",
+  "summary": "save one frame at a timestamp (e.g. 00:01:30) as an image",
+  "needs": "ffmpeg",
+  "body": "ffmpeg -v error -y -ss {2} -i {1} -frames:v 1 {3}",
+  "args": [
+   "video",
+   "time",
+   "out.png"
+  ],
+  "purity": "write"
+ },
+ {
+  "name": "docker-ps",
+  "summary": "all containers: name, image, status, ports",
+  "needs": "docker",
+  "body": "docker ps -a --format 'table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}'",
+  "args": [],
+  "purity": "read"
+ },
+ {
+  "name": "compose-ps",
+  "summary": "compose services in this folder: service, state, ports",
+  "needs": "docker",
+  "body": "docker compose ps -a --format 'table {{.Service}}\\t{{.State}}\\t{{.Status}}\\t{{.Ports}}'",
+  "args": [],
+  "purity": "read"
+ },
+ {
+  "name": "compose-logs",
+  "summary": "last 100 log lines per compose service with timestamps, no colour",
+  "needs": "docker",
+  "body": "docker compose logs --no-color --timestamps --tail 100",
+  "args": [
+   "[service]"
+  ],
+  "purity": "read"
+ },
+ {
+  "name": "port",
+  "summary": "which process id is listening on a local port (Windows netstat)",
+  "needs": "netstat",
+  "body": "f(){ netstat -ano | grep LISTENING | grep -E \":$1[[:space:]]\"; }; f",
+  "args": [
+   "port"
+  ],
+  "purity": "read",
+  "shell": "bash"
+ },
+ {
+  "name": "npm-info",
+  "summary": "registry facts for a package: latest version, licence, repo, last publish",
+  "needs": "npm",
+  "body": "npm view --json {1} name version license repository.url homepage time.modified",
+  "args": [
+   "package"
+  ],
+  "purity": "external",
+  "whole": true
+ },
+ {
+  "name": "gh-search-repos",
+  "summary": "top 10 GitHub repos for a query by stars, with licence and last push",
+  "needs": "gh",
+  "body": "gh search repos --sort stars --limit 10 --json fullName,stargazersCount,license,pushedAt,description --jq '.[] | \"\\(.stargazersCount)\\t\\(.fullName)\\t\\(.license.key // \"-\")\\t\\(.pushedAt[:10])\\t\\(.description // \"\" | .[:80])\"'",
+  "args": [
+   "query"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "http-post-json",
+  "summary": "POST a JSON body, print the response and HTTP status",
+  "needs": "curl",
+  "body": "curl -sS --max-time 30 -H 'Content-Type: application/json' -d {2} -w '\\nHTTP %{http_code}\\n' {1}",
+  "args": [
+   "url",
+   "json-body"
+  ],
+  "purity": "external"
+ },
+ {
+  "name": "pw-test",
+  "summary": "Playwright tests with the one-line-per-test reporter, never installs",
+  "needs": "npx",
+  "body": "npx --no -- playwright test --reporter=line",
+  "args": [
+   "[file or -g title]"
+  ],
+  "purity": "write"
+ },
+ {
+  "name": "archive-ls",
+  "summary": "list the files inside a .zip, .tar, .tar.gz or .tgz",
+  "needs": "unzip",
+  "body": "f(){ case \"$1\" in *.zip) unzip -Z1 \"$1\";; *) tar -tf \"$1\";; esac; }; f",
+  "args": [
+   "archive"
+  ],
+  "purity": "read",
+  "whole": true,
+  "shell": "bash"
+ }
+]

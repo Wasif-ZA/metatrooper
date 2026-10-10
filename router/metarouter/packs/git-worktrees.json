@@ -1,0 +1,183 @@
+{
+ "pack": "git-worktrees",
+ "version": "2026.10",
+ "tier": "free",
+ "recipes": [
+  {
+   "name": "wt-list",
+   "summary": "every worktree of this repo with its branch",
+   "args": [],
+   "kind": "shell",
+   "body": "git worktree list --porcelain",
+   "purity": "read",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "worktree ",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-add",
+   "summary": "new worktree in folder {1} on a new branch {2}",
+   "args": [
+    "folder",
+    "branch"
+   ],
+   "kind": "shell",
+   "body": "git worktree add {1} -b {2}",
+   "purity": "write",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [
+     "wt-new",
+     "feat-x"
+    ],
+    "expect_exit": 0,
+    "expect_out": "",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-remove",
+   "summary": "remove worktree {1}; git refuses when it has changes",
+   "args": [
+    "folder"
+   ],
+   "kind": "shell",
+   "body": "git worktree remove {1}",
+   "purity": "write",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [
+     "no-such-worktree"
+    ],
+    "expect_exit": 128,
+    "expect_out": "is not a working tree",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-prune",
+   "summary": "forget worktrees whose folders are gone",
+   "args": [],
+   "kind": "shell",
+   "body": "git worktree prune -v",
+   "purity": "write",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-where",
+   "summary": "top folder of the worktree you are in",
+   "args": [],
+   "kind": "shell",
+   "body": "git rev-parse --show-toplevel",
+   "purity": "read",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "wt-where",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-is-linked",
+   "summary": "git dirs: both .git in the main checkout, a worktrees/ path in a linked one",
+   "args": [],
+   "kind": "shell",
+   "body": "git rev-parse --git-common-dir --git-dir",
+   "purity": "read",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": ".git",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-branch",
+   "summary": "current branch, or HEAD when detached",
+   "args": [],
+   "kind": "shell",
+   "body": "git rev-parse --abbrev-ref HEAD",
+   "purity": "read",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "main",
+    "repo": true
+   }
+  },
+  {
+   "name": "wt-status",
+   "summary": "short status with branch and upstream",
+   "args": [],
+   "kind": "shell",
+   "body": "git status --short --branch",
+   "purity": "read",
+   "needs": "git",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "## main",
+    "repo": true
+   }
+  }
+ ],
+ "hints": [
+  {
+   "id": "wt-branch-in-use",
+   "when": "fail",
+   "match": "is already (checked out|used by worktree) at",
+   "hint": "A branch can be checked out in one worktree only. Work in that worktree, or make a new branch: git worktree add <folder> -b <new-branch>"
+  },
+  {
+   "id": "wt-remove-dirty",
+   "when": "fail",
+   "match": "contains modified or untracked files, use --force",
+   "hint": "The worktree has changes. Commit or copy them first; --force deletes them for good"
+  },
+  {
+   "id": "wt-missing",
+   "when": "fail",
+   "match": "is a missing but (already registered|locked) worktree",
+   "hint": "The folder was deleted by hand but git still lists it. Run git worktree prune, then add again"
+  },
+  {
+   "id": "wt-branch-delete",
+   "when": "fail",
+   "match": "Cannot delete branch '[^']+' (checked out|used by worktree) at",
+   "hint": "Remove the worktree that has this branch first: git worktree remove <folder>, then delete the branch"
+  },
+  {
+   "id": "wt-moved-repo",
+   "when": "fail",
+   "match": "not a git repository: .*[/\\\\]worktrees[/\\\\]",
+   "hint": "This worktree points at a main repo that moved. From the main repo run: git worktree repair <folder>"
+  },
+  {
+   "id": "wt-shared-stash",
+   "when": "before",
+   "match": "git\\s+stash\\s+(pop|apply|drop)(\\s|$)",
+   "hint": "Every worktree of a repo shares one stash list, so another worktree may have pushed on top. Check git stash list and name the entry by its message or hash"
+  }
+ ]
+}

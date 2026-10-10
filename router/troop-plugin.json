@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "metarouter",
+  "version": "0.1.0",
+  "name": "metarouter",
+  "actions": [
+    {
+      "id": "ingest",
+      "run": ["metarouter", "ingest", "--no-save", "--json"],
+      "output_schema": {
+        "type": "object",
+        "required": ["shell_read_tokens", "saved_tokens"],
+        "properties": {
+          "shell_read_tokens": { "type": "integer" },
+          "saved_tokens": { "type": "integer" }
+        }
+      }
+    }
+  ]
+}

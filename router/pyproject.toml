@@ -1,0 +1,41 @@
+[project]
+name = "metarouter"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "Tool memory for coding agents: keep the commands that worked, run them by name, get short results"
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/Wasif-ZA/metarouter"
+Repository = "https://github.com/Wasif-ZA/metarouter"
+Issues = "https://github.com/Wasif-ZA/metarouter/issues"
+
+[project.scripts]
+metarouter = "metarouter.cli:entry"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["metarouter", "metarouter.recipes", "metarouter.browse"]
+
+[tool.setuptools.package-data]
+metarouter = ["mcp_catalog.json", "filters/*.json", "packs/*.json"]
+"metarouter.recipes" = ["catalog.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

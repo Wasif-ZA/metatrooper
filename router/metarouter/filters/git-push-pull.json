@@ -1,0 +1,37 @@
+{
+  "name": "git-push-pull",
+  "match_command": "git (push|pull|fetch)\\b",
+  "strip_lines_matching": [
+    "Enumerating objects",
+    "Counting objects",
+    "Compressing objects",
+    "Writing objects",
+    "Total \\d+",
+    "remote: Resolving",
+    "Delta compression"
+  ],
+  "keep_lines_matching": [
+    "[0-9a-fA-F]+\\.\\.[0-9a-fA-F]+\\s+\\S+\\s*->\\s*\\S+|->"
+  ],
+  "match_output": [
+    {
+      "pattern": "Already up to date",
+      "replace": "git: already up to date"
+    }
+  ],
+  "max_lines": null,
+  "tail_lines": null,
+  "on_empty": null,
+  "tests": [
+    {
+      "command": "git push origin main",
+      "input": "Enumerating objects: 8, done.\nCounting objects: 100% (8/8), done.\nDelta compression using up to 12 threads\nCompressing objects: 100% (4/4), done.\nWriting objects: 100% (5/5), 512 bytes | 512.00 KiB/s, done.\nTotal 5 (delta 3), reused 0 (delta 0), pack-reused 0\nTo github.com:example/repo.git\n   1a2b3c4..5d6e7f8  main -> main",
+      "expected": "   1a2b3c4..5d6e7f8  main -> main"
+    },
+    {
+      "command": "git pull origin main",
+      "input": "Already up to date.",
+      "expected": "git: already up to date"
+    }
+  ]
+}

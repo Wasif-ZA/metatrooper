@@ -1,0 +1,28 @@
+{
+  "name": "pytest",
+  "match_command": "(?:^|[;&|]\\s*)(?:\\S*python\\S*\\s+-m\\s+|uv run\\s+|\\S*[/\\\\])?pytest\\b",
+  "strip_lines_matching": [
+    "\\[\\s*\\d+%\\]"
+  ],
+  "keep_lines_matching": [
+    "\\b(?:FAILED|ERROR|error|Error|passed|failed|skipped)\\b",
+    "warnings summary",
+    "=+\\s+.*=+"
+  ],
+  "match_output": [],
+  "max_lines": null,
+  "tail_lines": null,
+  "on_empty": "pytest: no summary line found, read the log",
+  "tests": [
+    {
+      "command": "pytest -q",
+      "input": "tests/test_cli.py ....                                                   [ 80%]\ntests/test_cli.py .                                                      [100%]\n============================== warnings summary ===============================\ntests/test_cli.py:10: UserWarning: deprecated setting\n  warnings.warn(\"deprecated setting\")\n=========================== 5 passed, 1 warning in 0.10s ===========================",
+      "expected": "============================== warnings summary ===============================\n=========================== 5 passed, 1 warning in 0.10s ==========================="
+    },
+    {
+      "command": "pytest -k none",
+      "input": "rootdir: /repo\ncollecting ...\ncollected 12 items / 12 deselected / 0 selected",
+      "expected": "pytest: no summary line found, read the log"
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+ "pack": "python-pytest",
+ "version": "2026.10",
+ "tier": "free",
+ "recipes": [
+  {
+   "name": "py-which",
+   "summary": "the python that runs, and its version",
+   "args": [],
+   "kind": "shell",
+   "body": "python -c \"import sys; print(sys.executable, sys.version.split()[0])\"",
+   "purity": "read",
+   "needs": "python",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "python"
+   }
+  },
+  {
+   "name": "py-has",
+   "summary": "can this python import module {1}",
+   "args": [
+    "module"
+   ],
+   "kind": "shell",
+   "body": "python -c 'import importlib, sys; importlib.import_module(sys.argv[1]); print(\"ok\", sys.argv[1])' {1}",
+   "purity": "read",
+   "needs": "python",
+   "example": {
+    "setup": {},
+    "args": [
+     "json"
+    ],
+    "expect_exit": 0,
+    "expect_out": "ok json"
+   }
+  },
+  {
+   "name": "py-pkg",
+   "summary": "installed version and location of package {1}",
+   "args": [
+    "package"
+   ],
+   "kind": "shell",
+   "body": "python -m pip show {1}",
+   "purity": "read",
+   "needs": "python",
+   "example": {
+    "setup": {},
+    "args": [
+     "pip"
+    ],
+    "expect_exit": 0,
+    "expect_out": "Name: pip"
+   }
+  },
+  {
+   "name": "py-venv",
+   "summary": "True inside a virtual environment",
+   "args": [],
+   "kind": "shell",
+   "body": "python -c \"import sys; print(sys.prefix != sys.base_prefix)\"",
+   "purity": "read",
+   "needs": "python",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "e"
+   }
+  },
+  {
+   "name": "pt-collect",
+   "summary": "list the tests pytest finds under {1}, without running them",
+   "args": [
+    "path"
+   ],
+   "kind": "shell",
+   "body": "pytest --collect-only -q -p no:cacheprovider {1}",
+   "purity": "read",
+   "needs": "pytest",
+   "example": {
+    "setup": {
+     "test_demo.py": "def test_one():\n    assert True\n"
+    },
+    "args": [
+     "."
+    ],
+    "expect_exit": 0,
+    "expect_out": "test_demo.py::test_one"
+   }
+  },
+  {
+   "name": "pt-first-fail",
+   "summary": "run tests under {1}, stop at the first failure, short tracebacks",
+   "args": [
+    "path"
+   ],
+   "kind": "shell",
+   "body": "pytest -x -q --tb=short -p no:cacheprovider {1}",
+   "purity": "read",
+   "needs": "pytest",
+   "example": {
+    "setup": {
+     "test_demo.py": "def test_bad():\n    assert 1 == 2\n"
+    },
+    "args": [
+     "."
+    ],
+    "expect_exit": 1,
+    "expect_out": "1 failed"
+   }
+  },
+  {
+   "name": "pt-match",
+   "summary": "run only tests under {1} whose names match {2}",
+   "args": [
+    "path",
+    "expression"
+   ],
+   "kind": "shell",
+   "body": "pytest -q -p no:cacheprovider {1} -k {2}",
+   "purity": "read",
+   "needs": "pytest",
+   "example": {
+    "setup": {
+     "test_demo.py": "def test_keep():\n    pass\n\n\ndef test_other():\n    assert False\n"
+    },
+    "args": [
+     ".",
+     "keep"
+    ],
+    "expect_exit": 0,
+    "expect_out": "1 passed"
+   }
+  },
+  {
+   "name": "pt-slow",
+   "summary": "run tests under {1} and list the 5 slowest",
+   "args": [
+    "path"
+   ],
+   "kind": "shell",
+   "body": "pytest -q -p no:cacheprovider --durations=5 {1}",
+   "purity": "read",
+   "needs": "pytest",
+   "example": {
+    "setup": {
+     "test_demo.py": "def test_one():\n    pass\n"
+    },
+    "args": [
+     "."
+    ],
+    "expect_exit": 0,
+    "expect_out": "slowest"
+   }
+  }
+ ],
+ "hints": [
+  {
+   "id": "pytest-import-module",
+   "when": "fail",
+   "match": "ImportError while importing test module",
+   "hint": "pytest could not import the test file. Run python -m pytest from the project root (it puts the root on sys.path), or install the package with pip install -e ."
+  },
+  {
+   "id": "pytest-no-tests",
+   "when": "fail",
+   "match": "no tests ran",
+   "hint": "pytest found no tests. Files must be named test_*.py or *_test.py and functions test_*"
+  },
+  {
+   "id": "pytest-fixture",
+   "when": "fail",
+   "match": "fixture '\\w+' not found",
+   "hint": "A fixture in conftest.py applies only to its folder and below. Move it up, or check the name"
+  },
+  {
+   "id": "pip-externally-managed",
+   "when": "fail",
+   "match": "externally-managed-environment",
+   "hint": "This python belongs to the system. Make a venv (python -m venv .venv) and install there; avoid --break-system-packages"
+  },
+  {
+   "id": "pytest-cache-path",
+   "when": "fail",
+   "match": "could not create cache path",
+   "hint": "pytest cannot write .pytest_cache here. Add -p no:cacheprovider"
+  },
+  {
+   "id": "bare-pip",
+   "when": "before",
+   "match": "(^|[;&|]\\s*)pip3?\\s+install\\b",
+   "hint": "Bare pip can belong to a different python than the one that runs your code. Use <python> -m pip install so both match"
+  }
+ ]
+}

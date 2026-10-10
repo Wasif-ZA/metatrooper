@@ -1,0 +1,31 @@
+{
+  "name": "pip-install",
+  "match_command": "pip3? install|-m pip install",
+  "strip_lines_matching": [
+    "Requirement already satisfied",
+    "Collecting\\b",
+    "Downloading\\b",
+    "Using cached\\b",
+    "[━─━─]+\\s+\\d|\\b\\d+%(?:\\s|\\))|\\s*\\|\\s*\\d+/\\d+"
+  ],
+  "keep_lines_matching": [
+    "Successfully installed",
+    "\\b(?:ERROR|WARNING)\\b|(?i:error|warning)"
+  ],
+  "match_output": [],
+  "max_lines": null,
+  "tail_lines": null,
+  "on_empty": "pip: nothing new to install",
+  "tests": [
+    {
+      "command": "pip install requests",
+      "input": "Collecting requests\n  Downloading requests-2.31.0-py3-none-any.whl (62 kB)\n     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 62.6/62.6 kB 2.5 MB/s eta 0:00:00\nCollecting urllib3<3,>=1.21.1\n  Using cached urllib3-2.2.1-py3-none-any.whl (121 kB)\nWARNING: Target directory already exists\nSuccessfully installed certifi-2024.2.2 idna-3.7 requests-2.31.0 urllib3-2.2.1",
+      "expected": "WARNING: Target directory already exists\nSuccessfully installed certifi-2024.2.2 idna-3.7 requests-2.31.0 urllib3-2.2.1"
+    },
+    {
+      "command": "python -m pip install -r requirements.txt",
+      "input": "Requirement already satisfied: flask in /usr/lib/python3/dist-packages (3.0.2)\nRequirement already satisfied: werkzeug in /usr/lib/python3/dist-packages (3.0.1)",
+      "expected": "pip: nothing new to install"
+    }
+  ]
+}
