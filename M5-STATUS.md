@@ -86,10 +86,11 @@ On screen, with the app open:
 5. Glance at the M5-12 remote MCP install screen and the M5-19 project bar (neither seen on screen yet).
 
 Setup only he can do:
-6. `troop sandbox login agy` once (paste-a-code login), so sandbox step S7 can finish.
-7. A Hyper-V Windows 11 VM with Smart App Control on and a fresh standard account (M5-D24).
+6. Dropped 2026-10-10: the agy sandbox login goes away with M5-D29 (code in Docker, agents on the host).
+7. A Windows 11 VM with Smart App Control on and a fresh standard account (M5-D24). Only after the signed installer
+   exists (item 10, then M5-2); DESKTOP-TSA6L47 is Windows 11 Home, which has no Hyper-V.
 8. `sudo apt install build-essential` in WSL Ubuntu (M5-D25).
-9. A test Gmail account for the gmail plugin, and accounts for social-scheduler.
+9. Accounts for social-scheduler. The test Gmail account is dropped: both Gmail pipelines left launch (M5-D2).
 
 Money and outside contact (wait until a working model, Wasif 2026-10-09):
 10. Buy the Certum code signing certificate and pass its identity check (M5-D23).

@@ -1,5 +1,8 @@
 # Trooper sandbox host plugin
 
+Superseded 2026-10-10 by M5-D29 (spec.md): agents stay on the host; only the code they run goes into a per-project
+Docker container, with an Open sandbox button in the workbench. The agents-in-Docker plan below is history.
+
 Moved to M5 (launch) on 2026-10-09: every undone item here is M5 work now; its tag (BLOCKER or M5) is in `issues/m5-00-rebaseline.md`.
 
 Child sandbox-host of the MetaTrooper epic. Milestone 2, after the adoption gate. Effort: about 3 Claude Code days
