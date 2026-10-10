@@ -2,6 +2,7 @@
 
 const api = window.troop;
 const PROBE = new URLSearchParams(location.search).has('probe');
+const DEMO = new URLSearchParams(location.search).has('demo');
 const ROLES = ['trigger', 'ingest', 'research', 'plan', 'worker', 'review', 'verify', 'visual-check', 'gate', 'publish'];
 const KINDS = ['agent', 'action', 'pipeline', 'code', 'gate'];
 const STATE_WORDS = { starting: 'starting', working: 'working', waiting_for_you: 'waiting for you', done: 'done', idle: 'idle', unknown: 'state unknown', exited: 'exited' };
@@ -235,7 +236,7 @@ function renderVariants() {
     return `<div class="card ${v.status === 'picked' ? 'on' : ''} ${live ? '' : 'gone'}"${ready ? ` data-action="variant-pane" data-id="${esc(v.pane_id)}" title="Open this variant's live preview" style="cursor:pointer"` : ''}>
       <div class="toolbar"><b>Variant ${v.idx + 1}</b><span class="state ${esc(v.status)}">${esc(v.status)}</span>
         ${live && v.branch ? `<label class="meta"><input type="checkbox" data-action="variant-toggle" data-idx="${v.idx}" ${ui.combine.includes(v.idx) ? 'checked' : ''}> combine</label>` : ''}</div>
-      <div class="meta">${esc(v.engine_id || 'engine pending')} · ${esc(meter(v))}</div>
+      <div class="meta">${esc(v.engine_id || 'engine pending')} <span class="money">· ${esc(meter(v))}</span></div>
       ${where ? `<div class="meta">${where}</div>` : ''}
       <div class="actions">
         ${ready ? `<button data-action="variant-pane" data-id="${esc(v.pane_id)}">Pane</button>` : ''}
@@ -1243,7 +1244,7 @@ function tileMeta(x) {
   const g = (ui.snap.git || {})[x.id];
   const parts = [];
   if (g && g.branch) parts.push(`${g.branch} +${g.added} -${g.deleted}`);
-  if (x.tokens !== null && x.tokens !== undefined) parts.push(`${x.tokens.toLocaleString('en-US')} tok`);
+  if (x.tokens !== null && x.tokens !== undefined && !DEMO) parts.push(`${x.tokens.toLocaleString('en-US')} tok`);
   return parts.join('  ');
 }
 
@@ -2134,6 +2135,7 @@ document.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT') o
 observeLongTasks();
 setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
+if (DEMO) document.body.classList.add('demo');
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
 runScreen.init({ snap: () => ui.snap, stepsOf, api, gateButtons: (g) => gateButtons(g, false), scanHtml, gateScan, promote: (id) => pick(id, false), cancelButton, onClose: () => render() });

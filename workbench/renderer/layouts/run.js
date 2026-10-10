@@ -423,8 +423,8 @@ const runScreen = (() => {
         <div><span class="k">Run</span><span class="v"><span class="rid">${esc(m.run.id.slice(0, 8))}</span><span class="badge ${esc(st)}">${esc(st === 'waiting' ? 'needs you' : st)}</span></span></div>
         <div><span class="k">Pipeline</span><span class="v">${esc(m.title)}<span class="f">${esc(m.meta.lane || '')}</span></span></div>
         <div><span class="k">Elapsed</span><span class="v">${fmt(m.elapsed)}${m.meta.budget ? `<span class="bar" title="of ${m.meta.budget} min budget"><i style="width:${budget.toFixed(1)}%"></i></span><span class="f">${m.meta.budget}m</span>` : ''}</span></div>
-        <div><span class="k">Tokens</span><span class="v">${m.tokens ? m.tokens.toLocaleString('en-US') : '-'}</span></div>
-        <div><span class="k">Cost</span><span class="v">${m.usd ? `$${m.usd.toFixed(2)}` : '-'}</span></div>
+        <div class="money"><span class="k">Tokens</span><span class="v">${m.tokens ? m.tokens.toLocaleString('en-US') : '-'}</span></div>
+        <div class="money"><span class="k">Cost</span><span class="v">${m.usd ? `$${m.usd.toFixed(2)}` : '-'}</span></div>
         <div><span class="k">Steps</span><span class="v"><span class="cells">${cells}</span><span class="f">${m.done} of ${m.list.length}</span></span></div>
       </section>`;
     },

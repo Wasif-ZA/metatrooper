@@ -311,3 +311,5 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .req.missing { color: var(--wait); border: 1px dashed var(--wait); background: none; }
 .git-group { border-top: 1px dotted var(--line); padding-top: 6px; margin-top: 6px; }
 .git-group.shared .toolbar b { color: var(--wait); }
+/* METATROOPER_DEMO=1 hides meters and usage limits for capture */
+.demo .money, .demo #usage, .demo .lfoot { display: none !important; }
