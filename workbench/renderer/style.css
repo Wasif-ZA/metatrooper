@@ -54,15 +54,12 @@ body { position: relative; }
 .wall { position: absolute; inset: 0; isolation: isolate; z-index: 0; }
 .tile-body { padding: 6px 4px 4px 10px; background: var(--pane); border-radius: 0 0 var(--r) var(--r); contain: paint; }
 .pane.fold .tile-body { visibility: hidden; }
-.ph .act { display: none; }
-.pane.big .ph .act { display: flex; }
 .paired .pane.big .ph .act { display: none; }
-.ph .rs, .ph .sx { display: none; }
+.ph .rs { display: none; }
 .tile[data-state="exited"]:not(.shell) .ph .rs { display: inline-flex; height: 24px; padding: 0 8px; font-size: 10.5px; }
 .tile.closed .tile-body { opacity: .5; }
 .tile.outside .tile-body { opacity: .6; }
 .tile.outside .ph .rs { display: none; }
-.tile.shell .ph .sx { display: inline-block; color: var(--mute); padding: 0 6px; }
 .tile.shell .ph .pb, .tile.shell .ph .ub { display: none; }
 .pane.on:not(.big) { border-color: var(--body); }
 .ph { cursor: pointer; }
@@ -313,3 +310,24 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .git-group.shared .toolbar b { color: var(--wait); }
 /* METATROOPER_DEMO=1 hides meters and usage limits for capture */
 .demo .money, .demo #usage, .demo .lfoot { display: none !important; }
+.title .branch { display: inline-flex; align-items: center; gap: 5px; color: var(--body-strong); font-size: 12px; }
+.title .branch .s { color: var(--faint); margin-right: 2px; }
+.title .branch:empty { display: none; }
+.menu .mh { padding: 8px 14px 4px; color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+.strip .stab { all: unset; cursor: pointer; padding: 0 8px; height: 26px; display: inline-flex; align-items: center; gap: 5px; color: var(--mute); font-size: 11.5px; border-bottom: 2px solid transparent; flex: none; }
+.strip .stab:hover { color: var(--body-strong); }
+.strip .stab.on { color: var(--ink); border-bottom-color: var(--ink); }
+.git-sync { border: 1px var(--bstyle, dotted) var(--hairline-strong); border-radius: var(--r); padding: 10px 12px; margin-bottom: 12px; }
+.git-sync .actions { margin-top: 8px; }
+.git-hist { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px dotted var(--hairline); }
+.pipes { display: grid; grid-template-columns: minmax(200px, 34%) 1fr; gap: 16px; }
+.pipes .plist { border-right: 1px solid var(--hairline); padding-right: 12px; }
+.prow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 2px; text-align: left; }
+.prow.on { background: var(--canvas-soft); color: var(--ink); }
+.prow .warn, .meta.warn { color: var(--wait); }
+.perr { color: var(--del); margin-top: 6px; }
+.prow .grow, .git-hist .grow, .toolbar .grow { flex: 1; min-width: 0; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plist button.prow { padding: 6px 8px; display: flex; width: 100%; box-sizing: border-box; }
+.plist .prow .grow { flex: 1 1 40%; }
+.plist .prow .meta.warn { flex: 0 1 auto; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
