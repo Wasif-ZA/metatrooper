@@ -198,6 +198,15 @@ function appendLine(envName: string, value: unknown): void {
   } catch {}
 }
 
+/** Sets one key in ~/.metatrooper/settings.json; a new file starts with approval ask (M5-D6). */
+function writeSetting(section: string, key: string, value: unknown): void {
+  let raw: Record<string, any> = fs.existsSync(settingsFile()) ? {} : { sessions: { approval: 'ask' } };
+  try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
+  raw[section] = { ...(raw[section] && typeof raw[section] === 'object' ? raw[section] : {}), [key]: value };
+  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
+  fs.writeFileSync(settingsFile(), JSON.stringify(raw, null, 2));
+}
+
 function handlers(): void {
   const on = (channel: string, fn: (...args: any[]) => unknown) => {
     ipcMain.handle(channel, async (e, ...args) => {
@@ -517,15 +526,16 @@ function handlers(): void {
     attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
     return true;
   });
-  on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })) }));
+  on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
   on('setTheme', (name: unknown) => {
     if (typeof name !== 'string' || !settings().ui.themes[name]) return false;
-    let raw: Record<string, any> = {};
-    try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
-    raw.ui = { ...(raw.ui && typeof raw.ui === 'object' ? raw.ui : {}), theme: name };
-    fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
-    fs.writeFileSync(settingsFile(), JSON.stringify(raw, null, 2));
+    writeSetting('ui', 'theme', name);
     return activeTheme();
+  });
+  on('setApproval', (value: unknown) => {
+    if (value !== 'ask' && value !== 'contained') return false;
+    writeSetting('sessions', 'approval', value);
+    return true;
   });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });

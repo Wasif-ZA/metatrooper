@@ -9,7 +9,7 @@ export interface Snapshot {
   at: number;
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
-  engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean }>;
+  engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
   sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
   pipelines: Array<{ id: string; title: string; source: string; path: string; valid: boolean; errors: string[]; inputs: Record<string, unknown>; layout: string | null; background: boolean; step_defs: StepDef[] }>;
   runs: Array<{ id: string; pipeline_id: string; status: string; paused_why: string | null; started_at: string; ended_at: string | null; depth: number; parent_run: string | null }>;
@@ -32,6 +32,15 @@ export function light(check: { installed: number; auth: string } | null | undefi
   if (!check) return 'grey';
   if (!check.installed || check.auth === 'missing') return 'red';
   return check.auth === 'ok' ? 'green' : 'grey';
+}
+
+/** The one-line fix shown for a failed engine check. */
+export function engineFix(e: { id: string; install?: string; login?: string; min_version?: string }, detail: string | null): string | null {
+  if (detail === 'missing') return e.install ? `Install it: ${e.install}` : `Put ${e.id} on PATH`;
+  if (detail === 'too-old') return `Needs ${e.min_version} or newer${e.install ? `: ${e.install}` : ''}`;
+  if (detail === 'not-logged-in') return e.login ?? `Log in to ${e.id}`;
+  if (detail === 'timeout') return `${e.id} did not answer in 10 s; run it in a terminal, then Check again`;
+  return null;
 }
 
 const fileCache = new Map<string, PipelineFile>();
@@ -91,21 +100,29 @@ export function snapshot(db: DatabaseSync, projectId: string | null, runId: stri
   const age = Number.isNaN(beat) ? null : Math.max(0, now - beat);
 
   const engines = (db.prepare(
-    `SELECT e.id, e.plugin_id, e.spec_json, c.installed, c.version, c.auth, c.checked_at
+    `SELECT e.id, e.plugin_id, e.spec_json, c.installed, c.version, c.auth, c.checked_at, c.detail
      FROM engine e LEFT JOIN plugin p ON p.id = e.plugin_id
      LEFT JOIN engine_check c ON c.engine_id = e.id AND c.rowid = (SELECT rowid FROM engine_check WHERE engine_id = e.id ORDER BY julianday(checked_at) DESC LIMIT 1)
      WHERE e.plugin_id IS NULL OR p.enabled = 1
      ORDER BY e.cost_rank, e.id`,
-  ).all() as Array<Record<string, unknown>>).map((r) => ({
-    id: String(r.id),
-    light: light(r.checked_at ? { installed: Number(r.installed), auth: String(r.auth) } : null),
-    version: (r.version as string | null) ?? null,
-    auth: (r.auth as string | null) ?? null,
-    checked_at: (r.checked_at as string | null) ?? null,
-    plugin_id: (r.plugin_id as string | null) ?? null,
-    roles: parse<{ roles?: string[] }>(r.spec_json as string, {}).roles ?? [],
-    resumable: Boolean(parse<{ resume_args?: string[] }>(r.spec_json as string, {}).resume_args?.length),
-  }));
+  ).all() as Array<Record<string, unknown>>).map((r) => {
+    const spec = parse<{ roles?: string[]; resume_args?: string[]; install?: string; login?: string; min_version?: string }>(r.spec_json as string, {});
+    const detail = (r.detail as string | null) ?? null;
+    return {
+      id: String(r.id),
+      light: light(r.checked_at ? { installed: Number(r.installed), auth: String(r.auth) } : null),
+      version: (r.version as string | null) ?? null,
+      auth: (r.auth as string | null) ?? null,
+      checked_at: (r.checked_at as string | null) ?? null,
+      plugin_id: (r.plugin_id as string | null) ?? null,
+      roles: spec.roles ?? [],
+      resumable: Boolean(spec.resume_args?.length),
+      detail,
+      fix: engineFix({ ...spec, id: String(r.id) }, detail),
+      install: spec.install ?? null,
+      login: spec.login ?? null,
+    };
+  });
 
   const pipelines = (db.prepare('SELECT id, source, path, version, valid, errors FROM pipeline ORDER BY id').all() as Array<Record<string, unknown>>).map((r) => ({
     id: String(r.id),

@@ -12,6 +12,9 @@ export interface EngineSpec {
   prompt_arg?: string;
   resume_args?: string[];
   version_cmd: string[];
+  min_version?: string;
+  install?: string;
+  login?: string;
   auth_cmd?: string[];
   auth_ok?: { exit_code?: number; stdout_regex?: string };
   state_source: 'hooks' | 'notify' | 'file-activity' | 'process';
@@ -50,6 +53,7 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 export const BUILT_IN: EngineSpec[] = [
   {
     id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], version_cmd: ['claude', '--version'],
+    install: 'npm install -g @anthropic-ai/claude-code', login: 'claude, then /login',
     approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
     sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },
     state_source: 'hooks', mcp_attach: { kind: 'claude-mcp-config-flag' },
@@ -59,6 +63,7 @@ export const BUILT_IN: EngineSpec[] = [
   },
   {
     id: 'codex', command: 'codex', ask_near_acu: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
+    install: 'npm install -g @openai/codex', login: 'codex login',
     approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
     sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },
     auth_cmd: ['codex', 'login', 'status'], auth_ok: { exit_code: 0 },
@@ -68,6 +73,7 @@ export const BUILT_IN: EngineSpec[] = [
   },
   {
     id: 'agy', command: 'agy', ask_near_acu: true, prompt_arg: '--prompt-interactive', version_cmd: ['agy', '--version'],
+    install: 'Antigravity from antigravity.google, with agy on PATH', login: 'agy, then sign in',
     approval_profiles: { edits: ['--mode', 'accept-edits'], contained: ['--mode', 'accept-edits', '--sandbox'] },
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
     activity_waiting: { file: 'transcript.jsonl', last_line_regex: '"type":"PLANNER_RESPONSE".*"tool_calls":\\[\\{' },
