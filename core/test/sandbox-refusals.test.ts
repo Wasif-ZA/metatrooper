@@ -13,14 +13,15 @@ before(buildGenerated);
 const claude = BUILT_IN.find(engine => engine.id === 'claude')!;
 const fakeDocker = (dir: string, status: number) => writeFileSync(join(dir, 'image'), `process.exit(${status});\n`);
 
-test('sandboxRefusal rejects ACU paths and projects outside worktrees', () => {
+test('sandboxRefusal rejects ask paths and projects outside worktrees', () => {
   const home = mkdtempSync(join(os.tmpdir(), 'sandbox-refusal-'));
   try {
     process.env.METATROOPER_HOME = home;
     const runtime = () => 'docker';
     const outside = join(home, 'project');
-    const acu = join(home, 'work', 'ACU', 'project');
-    assert.match(sandboxRefusal(claude, acu, { runtime, now: Date.now })!, /ACU path/);
+    const inside = join(home, 'work', 'client', 'project');
+    writeFileSync(join(home, 'settings.json'), JSON.stringify({ sessions: { ask_paths: [join(home, 'work', 'client')] } }));
+    assert.match(sandboxRefusal(claude, inside, { runtime, now: Date.now })!, /ask path/);
     assert.match(sandboxRefusal(claude, outside, { runtime, now: Date.now })!, /MetaTrooper worktree/);
   } finally {
     delete process.env.METATROOPER_HOME;

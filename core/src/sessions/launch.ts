@@ -8,7 +8,7 @@ import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
 import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
-import { canonicalPath, containsAcu, isAcuPath } from '../project.ts';
+import { canonicalPath, isAskPath, nearAskPath } from '../project.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
 import { spoolDir } from '../sandbox/spool.ts';
@@ -28,15 +28,10 @@ export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', 
   return { argv, promptDelivered: false };
 }
 
-function underAcuTree(dir: string): boolean {
-  for (let d = dir; d.lastIndexOf('/') > 2; d = d.slice(0, d.lastIndexOf('/'))) if (containsAcu(d)) return true;
-  return false;
-}
-
-/** The approval a session in this folder starts with: ask in or around work/ACU for every engine (D46), and anywhere under a tree holding work/ACU for engines with ask_near_acu (D48). */
-export function folderApproval(dir: string, approval?: string, engine?: EngineSpec): string {
-  if (isAcuPath(dir) || containsAcu(dir)) return 'ask';
-  if (engine?.ask_near_acu && underAcuTree(dir)) return 'ask';
+/** The approval a session in this folder starts with: ask in or around a `sessions.ask_paths` folder for every engine (D46), and anywhere under a tree holding one for engines with ask_near_paths (D48). */
+export function folderApproval(dir: string, approval?: string, engine?: EngineSpec, askPaths: unknown[] = settings().sessions.ask_paths): string {
+  if (isAskPath(dir, askPaths)) return 'ask';
+  if (engine?.ask_near_paths && nearAskPath(dir, askPaths)) return 'ask';
   return approval ?? 'ask';
 }
 

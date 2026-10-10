@@ -20,7 +20,7 @@ export interface EngineSpec {
   activity_waiting?: { file?: string; last_line_regex: string };
   trust?: TrustSpec;
   approval_profiles?: Record<string, string[]>;
-  ask_near_acu?: boolean;
+  ask_near_paths?: boolean;
   settings?: { file: string; set: Record<string, string | number | boolean> };
   mcp_attach?: { kind: string; path?: string; env?: string; format?: 'mcpServers' | 'opencode-mcp'; template?: string[] };
   roles: string[];
@@ -58,7 +58,7 @@ export const BUILT_IN: EngineSpec[] = [
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
   },
   {
-    id: 'codex', command: 'codex', ask_near_acu: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
+    id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
     approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
     sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },
     auth_cmd: ['codex', 'login', 'status'], auth_ok: { exit_code: 0 },
@@ -67,7 +67,7 @@ export const BUILT_IN: EngineSpec[] = [
     trust: { kind: 'toml-table', file: '~/.codex/config.toml', at: ['projects'], set: { trust_level: 'trusted' }, path_style: 'windows-lower' },
   },
   {
-    id: 'agy', command: 'agy', ask_near_acu: true, prompt_arg: '--prompt-interactive', version_cmd: ['agy', '--version'],
+    id: 'agy', command: 'agy', ask_near_paths: true, prompt_arg: '--prompt-interactive', version_cmd: ['agy', '--version'],
     approval_profiles: { edits: ['--mode', 'accept-edits'], contained: ['--mode', 'accept-edits', '--sandbox'] },
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,
     activity_waiting: { file: 'transcript.jsonl', last_line_regex: '"type":"PLANNER_RESPONSE".*"tool_calls":\\[\\{' },

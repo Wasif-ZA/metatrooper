@@ -67,10 +67,11 @@ async function harness(mode: Mode, options: { plain?: boolean } = {}) {
 
 type Harness = Awaited<ReturnType<typeof harness>>;
 
-async function openProject(h: Harness, name: string, acu = false, near = false) {
+async function openProject(h: Harness, name: string, inside = false, near = false) {
   const project = near ? join(h.home, 'vault', 'projects', name) : join(h.home, name);
-  if (near) mkdirSync(join(h.home, 'vault', 'work', 'ACU'), { recursive: true });
-  mkdirSync(acu ? join(project, 'work', 'ACU') : project, { recursive: true });
+  const askPath = near ? join(h.home, 'vault', 'work', 'client') : join(project, 'work', 'client');
+  if (inside || near) writeFileSync(join(h.home, 'settings.json'), JSON.stringify({ sessions: { ask_paths: [askPath] } }));
+  mkdirSync(inside || near ? askPath : project, { recursive: true });
   const pipe = await client(h.prefix);
   try {
     const opened = await pipe.request('project.open', { path: project });
@@ -113,9 +114,9 @@ async function awaitRun(h: Harness, runId: string, status: string) {
   } finally { store.close(); }
 }
 
-async function runCase(mode: Mode, outputs = ['answer'], options: { plain?: boolean; acu?: boolean; near?: boolean } = {}) {
+async function runCase(mode: Mode, outputs = ['answer'], options: { plain?: boolean; inside?: boolean; near?: boolean } = {}) {
   const h = await harness(mode, options);
-  const { project, projectId } = await openProject(h, `case-${mode}`, options.acu, options.near);
+  const { project, projectId } = await openProject(h, `case-${mode}`, options.inside, options.near);
   writePipeline(project, `agy-${mode}`, outputs);
   return { h, runId: await startRun(h, `agy-${mode}`, projectId) };
 }
@@ -141,8 +142,8 @@ test('agy steps run agy itself in print mode with the step prompt, run folder an
   } finally { await h.teardown(); }
 });
 
-test('agy print steps use ask approval in a work/ACU folder', async () => {
-  const { h, runId } = await runCase('never', ['answer'], { acu: true });
+test('agy print steps use ask approval in a project holding an ask path', async () => {
+  const { h, runId } = await runCase('never', ['answer'], { inside: true });
   try {
     await awaitRun(h, runId, 'failed');
     const argv = JSON.parse(readFileSync(h.agyArgv, 'utf8')) as string[];
@@ -151,7 +152,7 @@ test('agy print steps use ask approval in a work/ACU folder', async () => {
   } finally { await h.teardown(); }
 });
 
-test('M1-39 agy print steps use ask approval in a project beside work/ACU', async () => {
+test('M1-39 agy print steps use ask approval in a project beside an ask path', async () => {
   const { h, runId } = await runCase('never', ['answer'], { near: true });
   try {
     await awaitRun(h, runId, 'failed');
