@@ -6,7 +6,8 @@ import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
-import { browserPipe, corePipe, dbFile, homeDir, uiKeyFile } from '../../core/src/paths.ts';
+import { browserPipe, corePipe, dbFile, homeDir, logsDir, uiKeyFile } from '../../core/src/paths.ts';
+import { captureProcessLog } from '../../core/src/log.ts';
 import { ulid } from '../../core/src/time.ts';
 import { PaneManager, ToolError, type PaneRow } from './browser/panes.ts';
 import { startBrowserServer } from './browser/server.ts';
@@ -23,6 +24,9 @@ import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts'
 import { refreshRowGit, rowGit } from './rowgit.ts';
 import { paneData } from '../../core/src/pipelines/panes.ts';
 import { runDetail, runShot } from './rundetail.ts';
+
+captureProcessLog('workbench', false);
+process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -530,6 +534,7 @@ function handlers(): void {
   on('readText', () => clipboard.readText());
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
+  on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
   on('copyText', (text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
     return true;
