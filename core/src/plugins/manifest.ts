@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoDir } from '../paths.ts';
 import { validate } from '../jsonschema.ts';
+import { secretStoreWarning } from '../secrets.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 
 export interface ActionSpec {
@@ -192,6 +193,8 @@ export function installScreen(m: Manifest, previous: string[] | null): InstallSc
     'Plugins run as you. Windows does not sandbox their files or network in this version; only secrets, browser and clipboard are enforced.',
   ];
   if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and MetaTrooper does not block it.');
+  const storeWarning = (m.permissions ?? []).some((p) => p.startsWith('secrets:')) ? secretStoreWarning() : null;
+  if (storeWarning) warnings.push(storeWarning);
   if (previous && (m.permissions ?? []).some((p) => !before.has(p))) warnings.push('This version asks for permissions the installed version did not have.');
   return {
     plugin: { id: m.id, name: m.name, version: m.version, description: m.description ?? '' },

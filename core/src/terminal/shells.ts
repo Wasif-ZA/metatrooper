@@ -3,7 +3,7 @@ import path from 'node:path';
 import { settings } from '../settings.ts';
 
 /** First existing executable: an absolute path as given, otherwise searched on PATH with PATHEXT. */
-function resolve(cmd: string): string | null {
+export function resolve(cmd: string): string | null {
   if (path.isAbsolute(cmd)) return fs.existsSync(cmd) ? cmd : null;
   const exts = process.platform === 'win32' ? ['', ...(process.env.PATHEXT ?? '.EXE').split(';')] : [''];
   for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {

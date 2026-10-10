@@ -32,7 +32,9 @@ export const DEFAULTS = {
     git_every_ms: 10_000,
     shells: {
       powershell: { label: 'PowerShell', command: ['pwsh.exe', '-NoLogo'], fallback: ['powershell.exe', '-NoLogo'] },
-      bash: { label: 'Git Bash', command: ['C:/Program Files/Git/bin/bash.exe', '--login', '-i'], fallback: [] as string[] },
+      bash: process.platform === 'win32'
+        ? { label: 'Git Bash', command: ['C:/Program Files/Git/bin/bash.exe', '--login', '-i'], fallback: [] as string[] }
+        : { label: 'Bash', command: ['bash', '--login', '-i'], fallback: [] as string[] },
     } as Record<string, { label: string; command: string[]; fallback: string[] }>,
   },
   ui: {
