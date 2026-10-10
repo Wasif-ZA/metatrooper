@@ -5,8 +5,8 @@ PackageLocale: en-US
 Publisher: Wasif Zaman
 PublisherUrl: https://github.com/Wasif-ZA
 PackageName: metarouter
-PackageUrl: https://github.com/Wasif-ZA/metarouter
-License: LICENCE-NOT-CHOSEN
+PackageUrl: https://github.com/Wasif-ZA/metatrooper/tree/main/router
+License: MIT
 ShortDescription: Tool memory for coding agents. Keep the commands that worked, run them by name, get short results.
 Moniker: metarouter
 Tags:

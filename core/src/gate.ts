@@ -158,8 +158,8 @@ function toolrouterMetric(argv: string[] | null, since: Date, until: Date): Metr
     stdout = execFileSync(argv[0], [...argv.slice(1), 'ingest', '--since', since.toISOString(), '--until', until.toISOString(), '--no-save', '--json'],
       { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
   } catch (e) {
-    const err = e as NodeJS.ErrnoException & { signal?: string };
-    if (err.code === 'ENOENT') return metric('A05', null, null, 'toolrouter not found');
+    const err = e as NodeJS.ErrnoException & { signal?: string; status?: number };
+    if (err.code === 'ENOENT' || err.status === 127) return metric('A05', null, null, 'toolrouter not found');
     if (err.code === 'ETIMEDOUT' || err.signal) return metric('A05', null, null, 'toolrouter timed out');
     return metric('A05', null, null, 'toolrouter failed');
   }

@@ -8,6 +8,9 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ### Added
 
+- metarouter joins the repo as `router/`, with its history. `troop route <args>` runs it with no separate install
+  (Python 3.11+, or `TROOP_PYTHON`); `troop gate` reads A-05 from the same copy; `router/` is also a plugin whose
+  `ingest` action now answers in the plugin contract shape. Its tests run in CI.
 - Release gate `tests/release.ps1`: version check, core and workbench suites, every opt-in suite, then the listener check.
 - CI on `windows-latest` and `ubuntu-24.04` for every push to main; a `v*` tag makes a draft release with SHA-256 checksums.
 - One version source in the root `package.json`, with `tests/version-check.mjs`.

@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 description = "Tool memory for coding agents: keep the commands that worked, run them by name, get short results"
 readme = "README.md"
+license = { text = "MIT" }
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -19,9 +20,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Wasif-ZA/metarouter"
-Repository = "https://github.com/Wasif-ZA/metarouter"
-Issues = "https://github.com/Wasif-ZA/metarouter/issues"
+Homepage = "https://github.com/Wasif-ZA/metatrooper/tree/main/router"
+Repository = "https://github.com/Wasif-ZA/metatrooper"
+Issues = "https://github.com/Wasif-ZA/metatrooper/issues"
 
 [project.scripts]
 metarouter = "metarouter.cli:entry"

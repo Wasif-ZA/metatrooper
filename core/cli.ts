@@ -10,7 +10,11 @@ import { call, type CallOutcome } from './src/pipe/client.ts';
 import { openReaderDb } from './src/store/db.ts';
 import { projectId, resolveProjectPath } from './src/project.ts';
 import { formatGate, measureGate, parseGateDate } from './src/gate.ts';
+import { repoDir } from './src/paths.ts';
 import { homedir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+
+const routerShim = join(repoDir, 'router', 'bin', 'metarouter.js');
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -39,6 +43,8 @@ const USAGE = `usage: troop <command> [--json]
   stop                          stop the core
   gate [--since <date>] [--until <date>]
                                 adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
+  route [args...]               metarouter, bundled in router/: recipes, trap hints and short shell output
+                                (troop route alone prints its menu; needs Python 3.11+, or TROOP_PYTHON)
   hooks install|uninstall [--codex] [--yes]
   sandbox build                 build the trooper image, the internal network and the egress proxy
   sandbox selftest              try every listed escape from a trooper container; exits 1 if any succeeds
@@ -354,7 +360,7 @@ function gateCmd(argv: string[]): number {
   if (since >= until) return fail('--since must be before --until');
   const db = openReaderDb();
   try {
-    const report = measureGate({ since, until, home: homedir(), db, toolrouter: ['metarouter'] });
+    const report = measureGate({ since, until, home: homedir(), db, toolrouter: [process.execPath, routerShim] });
     console.log(json ? JSON.stringify(report) : formatGate(report));
   } finally { db?.close(); }
   return 0;
@@ -551,6 +557,9 @@ async function main(): Promise<number> {
 
     case 'gate':
       return gateCmd(rest);
+
+    case 'route':
+      return spawnSync(process.execPath, [routerShim, ...rest], { stdio: 'inherit', windowsHide: true }).status ?? 1;
 
     case 'stop': {
       const r = await rpc('core.stop', {}, json);

@@ -270,6 +270,7 @@ troop run wait <run_id> --json
 | Add a plugin | `troop plugin install <folder\|git URL\|claude-import:<folder>>` |
 | Give a plugin a secret | `troop plugin secret <id> <NAME>` |
 | Usage numbers for the last 14 days | `troop gate` |
+| Run a saved recipe or get short shell output (metarouter) | `troop route run <recipe>`, `troop route exec -- <cmd>` |
 | Stop the core | `troop stop` |
 
 Add `--json` to any command for one line of JSON.
@@ -332,7 +333,8 @@ built-ins.
 
 Thirteen plugins ship in `plugins/`: `agent-reach`, `cite-check`, `data`, `deploy`, `desktop`, `docs-export`,
 `github`, `gmail`, `media`, `repo`, `security`, `seo` and `social-scheduler`, plus `optional/code-map`.
-[metarouter](https://github.com/Wasif-ZA/metarouter) plugs in as one more, for recipes and smaller shell output.
+[metarouter](router/README.md) ships in `router/`, for recipes and smaller shell output: `troop route <args>` runs it,
+and `troop plugin install router` adds it as a plugin.
 
 ## Pro
 
@@ -421,7 +423,7 @@ These are known and accepted for now; please do not file them as new bugs.
 | Folder | Licence |
 |---|---|
 | `core/`, `workbench/`, `sandbox/`, and anything without its own file (root `LICENSE`) | AGPL-3.0-only |
-| `sdk/`, `pipelines/`, `plugins/*/`, `skills/`, `engines/` | MIT |
+| `sdk/`, `pipelines/`, `plugins/*/`, `skills/`, `engines/`, `router/` | MIT |
 | `contracts/` | MIT for the public formats listed in `contracts/LICENSE-MIT`; the rest follows the root licence |
 | Third-party code and fonts in the app | their own licences, listed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) |
 

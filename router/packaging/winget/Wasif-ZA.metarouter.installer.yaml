@@ -8,7 +8,7 @@ NestedInstallerFiles:
     PortableCommandAlias: metarouter
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/Wasif-ZA/metarouter/releases/download/v0.1.0/metarouter-0.1.0-win-x64.zip
+    InstallerUrl: https://github.com/Wasif-ZA/metatrooper/releases/download/router-v0.1.0/metarouter-0.1.0-win-x64.zip
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
 ManifestType: installer
 ManifestVersion: 1.6.0

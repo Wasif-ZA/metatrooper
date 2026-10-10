@@ -42,7 +42,7 @@ shape.
 
 |        | Step            | Example                                                                 |
 | ------ | --------------- | ----------------------------------------------------------------------- |
-| **01** | Install it      | _`uv tool install git+https://github.com/Wasif-ZA/metarouter`_           |
+| **01** | Install it      | _`uv tool install "git+https://github.com/Wasif-ZA/metatrooper#subdirectory=router"`_           |
 | **02** | Tell your agent | _Paste [four lines](#use-with-claude-code-or-codex) into `CLAUDE.md` or `AGENTS.md`._ |
 | **03** | Work as normal  | _Once a week, `metarouter learn --review` and keep what is worth keeping._ |
 
@@ -50,7 +50,7 @@ shape.
 > **🦉 Or hand the whole thing to your agent.** Paste this into Claude Code or Codex:
 >
 > ```text
-> Install metarouter with `uv tool install git+https://github.com/Wasif-ZA/metarouter`.
+> Install metarouter with `uv tool install "git+https://github.com/Wasif-ZA/metatrooper#subdirectory=router"`.
 > Then add the "Use with Claude Code or Codex" lines from its README to my CLAUDE.md
 > (or AGENTS.md for Codex), and run `metarouter` to show me the menu.
 > ```
@@ -310,12 +310,19 @@ Open source. Runs on your machine. No account.
 Not on PyPI yet. Install from GitHub:
 
 ```sh
-uv tool install git+https://github.com/Wasif-ZA/metarouter
+uv tool install "git+https://github.com/Wasif-ZA/metatrooper#subdirectory=router"
 # or
-pip install git+https://github.com/Wasif-ZA/metarouter
+pip install "git+https://github.com/Wasif-ZA/metatrooper#subdirectory=router"
 ```
 
 Run `metarouter` for the menu.
+
+### Already running MetaTrooper
+
+Nothing to install. metarouter ships inside MetaTrooper as `router/`, and `troop route <args>` runs it with the
+first Python 3.11+ it finds (`py -3`, `python`, `python3`, or the path in `TROOP_PYTHON`). `troop route exec -- pytest`
+is `metarouter exec -- pytest`. `troop gate` reads its A-05 number from the same copy, and
+`troop plugin install router` adds it as a plugin for pipeline steps.
 
 ## Use with Claude Code or Codex
 
@@ -490,4 +497,5 @@ the shorter path.
 
 ## Tests
 
-Tests: `uv run --no-project --with pytest --with pillow python -m pytest -q`.
+Tests, from `router/`: `uv run --no-project --with pytest --with pillow python -m pytest -q`. CI runs them beside the
+MetaTrooper suites.
