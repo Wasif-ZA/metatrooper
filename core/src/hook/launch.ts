@@ -40,10 +40,11 @@ async function main(): Promise<void> {
   process.env.TROOP_SESSION_ID = sessionId;
   await Promise.race([recordLaunch(sessionId, a.engine || ''), new Promise((r) => setTimeout(r, 250))]);
   const resolved = resolveCommand(args[0]);
-  const quote = (s: string) => `"${s.replace(/"/g, '""')}"`;
-  const child = resolved
-    ? spawn(resolved[0], [...resolved.slice(1), ...args.slice(1)], { stdio: 'inherit', windowsHide: false })
-    : spawn([args[0], ...args.slice(1).map(quote)].join(' '), { stdio: 'inherit', shell: true, windowsHide: false });
+  if (!resolved) {
+    console.error(`troop launch: could not find ${args[0]} on PATH`);
+    process.exit(127);
+  }
+  const child = spawn(resolved[0], [...resolved.slice(1), ...args.slice(1)], { stdio: 'inherit', windowsHide: false });
   process.on('SIGINT', () => {});
   process.on('SIGBREAK', () => {});
   child.on('error', (e) => {
