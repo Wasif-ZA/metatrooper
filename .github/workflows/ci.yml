@@ -1,0 +1,59 @@
+# M5-9: both default suites on Windows and Linux; a v* tag also makes a draft release with SHA-256 checksums.
+name: ci
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node tests/version-check.mjs
+      - run: npm ci
+        working-directory: core
+      - run: npm ci
+        working-directory: workbench
+      - run: npm test
+        working-directory: core
+        env:
+          METATROOPER_FAKE_DPAPI: '1'
+      - run: npm test
+        working-directory: workbench
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+        working-directory: workbench
+      # The installer build comes with M5-1; signing (M5-2) and publishing stay manual.
+      - run: npm run dist --if-present
+        working-directory: workbench
+      - name: SHA-256 checksums
+        if: hashFiles('workbench/dist/*.exe') != ''
+        shell: pwsh
+        run: Get-ChildItem workbench/dist/*.exe | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content workbench/dist/SHA256SUMS.txt
+      - name: Draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = @(Get-ChildItem workbench/dist/*.exe, workbench/dist/SHA256SUMS.txt -ErrorAction SilentlyContinue | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME --draft --generate-notes @files

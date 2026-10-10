@@ -21,6 +21,7 @@ M5-19 is #68), each pointing at its issue file.
 | Child | Status | Evidence / notes |
 |---|---|---|
 | M5-0 re-baseline | DONE | 003139e. 16 BLOCKER, 52 M5, 5 CUT, 2 FROZEN rows |
+| M5-9 release gate, CI, versioning | CODE DONE | 2f418f0. tests/release.ps1 (parses in Windows PowerShell 5.1; version, whisper and listeners suites run here, full run not done while another agent held ports), tests/version-check.mjs (a changed plugin version exits 1, M5-09b), root package.json 0.1.0, repo plugin 1.0.0 to 0.1.0, CHANGELOG.md, .github/workflows/ci.yml. Review-bar "auto-opens once" already fixed by 03ee4bc (passes 3 of 3 alone) and kill-tree.ts already built by 8df0817. Owed: M5-09a two clean release runs, M5-09c CI green after a push, the installer build (M5-1 adds `npm run dist`) |
 | M5-1 to M5-11 | NOT STARTED | Specced in their issue files. M5-2 and M5-7 wait on Wasif's picks first |
 | M5-8 S5 secret scan | DONE on m4-harden | Built there as M4-4 by teehee-f8; not rebuilt |
 | M5-12 remote MCP | CODE DONE | 5f2aefd, review fixes 252f5fc. Tests by Codex: m5-remote-mcp.test.ts. Workbench install screen shows host and sign-in from `installScreen`; not seen on screen yet |
