@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaTrooper</title>
+<meta name="description" content="A PR reviewed by two engines, with proof. Windows and Linux, local, no account, no telemetry.">
+<style>
+:root {
+  --canvas: #161617; --canvas-soft: #1b1b1c; --canvas-deep: #0b0b0c; --pane: #0e0e0f;
+  --hairline: #2a2a2b; --hairline-strong: #4a4a4a;
+  --ink: #f2f2f2; --body: #b8b8b8; --mute: #8f8f8f; --faint: #6e6e6e; --wait: #ff7a1a;
+  --mono: 'Geist Mono', ui-monospace, Consolas, monospace;
+  --sans: 'Space Mono', ui-monospace, Consolas, monospace;
+  --dots: radial-gradient(circle, #363637 0 .9px, transparent 1.2px) 0 0/3px 3px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--canvas-deep); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+a { color: var(--ink); }
+main { max-width: 980px; margin: 0 auto; padding: 0 16px 64px; }
+header { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px dotted var(--hairline-strong); }
+.brand { color: var(--ink); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 14px; }
+.brand::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; background: radial-gradient(circle, var(--ink) 0 1px, transparent 1.3px) 0 0/4px 4px; }
+header .sp { flex: 1; }
+header a { font-size: 13px; color: var(--mute); text-decoration: none; }
+.hero { padding: 56px 0 40px; }
+.hero h1 { color: var(--ink); font-size: clamp(26px, 6vw, 44px); line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
+.facts { list-style: none; margin-top: 22px; font-family: var(--mono); font-size: 14px; color: var(--body); }
+.facts li::before { content: '\25CF'; color: var(--wait); margin-right: 10px; font-size: 10px; vertical-align: 2px; }
+.cta { display: inline-block; margin-top: 28px; padding: 10px 18px; border-radius: 5px; background: var(--ink); color: var(--canvas-deep); font-weight: 700; text-decoration: none; }
+section { padding: 40px 0; border-top: 1px dotted var(--hairline-strong); }
+h2 { color: var(--ink); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 18px; }
+h3 { color: var(--ink); font-size: 16px; margin-bottom: 6px; }
+p + p { margin-top: 10px; }
+.gifs { display: grid; gap: 28px; }
+figure { border: 1px solid var(--hairline); border-radius: 8px; background: var(--pane); overflow: hidden; }
+.frame { position: relative; aspect-ratio: 16 / 10; background: var(--dots), var(--canvas); display: grid; place-items: center; }
+.frame span { font-family: var(--mono); font-size: 13px; color: var(--faint); }
+.frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+figcaption { padding: 14px 16px; border-top: 1px solid var(--hairline); }
+.cols { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { padding: 18px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas); }
+.soon { display: inline-block; margin-left: 8px; padding: 0 8px; border: 1px solid var(--wait); border-radius: 3px; color: var(--wait); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; vertical-align: 2px; }
+.engines { font-family: var(--mono); color: var(--ink); }
+iframe { display: block; width: 100%; height: 260px; border: 0; margin-top: 16px; background: var(--canvas); border-radius: 8px; }
+footer { padding-top: 24px; border-top: 1px dotted var(--hairline-strong); font-size: 13px; color: var(--mute); }
+@media (max-width: 600px) { body { font-size: 14px; } .hero { padding: 36px 0 28px; } }
+</style>
+</head>
+<body>
+<main>
+<header><span class="brand">MetaTrooper</span><span class="sp"></span><a href="https://github.com/Wasif-ZA/metatrooper">Source</a></header>
+
+<div class="hero">
+  <h1>A PR reviewed by two engines, with proof.</h1>
+  <ul class="facts">
+    <li>Windows and Linux</li>
+    <li>Local, on your machine</li>
+    <li>No account, no telemetry</li>
+  </ul>
+  <a class="cta" href="#waitlist">Join the waitlist</a>
+</div>
+
+<section>
+  <h2>What it does</h2>
+  <p>MetaTrooper is a desktop workbench for the coding agents you already use. It runs them in the same window, lets two of them review the same change, and only calls a fix done when the fix carries proof: a test that fails without it and passes with it.</p>
+  <p>You stay in charge. A run stops at a gate whenever it needs your call, and nothing leaves your machine until you approve it.</p>
+</section>
+
+<section>
+  <h2>See it run</h2>
+  <div class="gifs">
+    <figure>
+      <div class="frame"><span>pr-review-fix.gif</span><img src="gifs/pr-review-fix.gif" alt="Two engines review a pull request, a third fixes what both found, and each fix is checked with proof" loading="lazy" onerror="this.remove()"></div>
+      <figcaption><h3>Review and fix with proof</h3><p>Two engines review the same branch. The findings both agree on are fixed, and every fix is checked before it is handed back.</p></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><span>gate-waiting.gif</span><img src="gifs/gate-waiting.gif" alt="A run paused at a gate, waiting for the user to pick which findings to fix" loading="lazy" onerror="this.remove()"></div>
+      <figcaption><h3>A gate waits for you</h3><p>The run pauses and shows what it wants to do next. Approve, edit or reject; it carries on from there.</p></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><span>spec-to-pr.gif</span><img src="gifs/spec-to-pr.gif" alt="A one-line idea becomes a spec, then a build, then a pull request" loading="lazy" onerror="this.remove()"></div>
+      <figcaption><h3>Spec in, PR out</h3><p>A one-line idea becomes a spec you approve, a build that passes its tests, and a pull request you approve before it opens.</p></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>How it is built</h2>
+  <div class="cols">
+    <div class="card"><h3>Your engines, your logins</h3><p>Works with the official command line tools you install and sign in to yourself: <span class="engines">Claude Code, Codex, Antigravity CLI</span>. MetaTrooper never reads or stores your login.</p></div>
+    <div class="card"><h3>Everything stays local</h3><p>Runs, reviews and history live in one folder on your machine. No server, no account, nothing sent home.</p></div>
+    <div class="card"><h3>Sandbox <span class="soon">Coming later</span></h3><p>Agents keep running on your machine as normal. The builds, tests and dev servers they start will run in one Docker container per project, with an Open sandbox button for a terminal into it and its files.</p></div>
+  </div>
+</section>
+
+<section id="waitlist">
+  <h2>Waitlist</h2>
+  <p>Leave your email and you will hear once, when the first build is ready to download.</p>
+  <!-- Tally form: replace TALLY_FORM_ID once the form exists -->
+  <iframe src="https://tally.so/embed/TALLY_FORM_ID?hideTitle=1&amp;transparentBackground=1" title="Waitlist form" loading="lazy"></iframe>
+</section>
+
+<footer>
+  <p>MetaTrooper is not affiliated with or endorsed by Anthropic, OpenAI or Google. Claude Code, Codex and Antigravity CLI are named only to say what it works with.</p>
+</footer>
+</main>
+</body>
+</html>

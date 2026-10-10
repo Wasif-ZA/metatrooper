@@ -607,7 +607,8 @@ function createWindow(): void {
       });
     },
   });
-  void win.loadFile(INDEX, process.env.METATROOPER_WORKBENCH_PROBE ? { query: { probe: '1' } } : {});
+  const query = { ...(process.env.METATROOPER_WORKBENCH_PROBE ? { probe: '1' } : {}), ...(process.env.METATROOPER_DEMO ? { demo: '1' } : {}) };
+  void win.loadFile(INDEX, { query });
 }
 
 const CORE_MAIN = path.join(here, '..', '..', 'core', 'src', 'main.ts');

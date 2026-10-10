@@ -16,7 +16,7 @@ runLayouts['pr-first'] = {
     return `<section class="prh">
         <div class="l"><h1><span class="ttl">${h.esc(m.title)}</span><span class="num">${h.esc(m.run.id.slice(0, 8))}</span></h1>
           <div class="prs"><span class="pill ${pill}">${pill}</span>${h.pr(m)}<b>troop</b><span>${sums ? `${sums.files} files, +${sums.add} -${sums.del}` : 'no changes yet'}</span></div></div>
-        <div class="r"><div class="stat"><span class="k">Elapsed</span><span class="v">${h.fmt(m.elapsed)}</span></div><div class="stat"><span class="k">Tokens</span><span class="v">${m.tokens ? m.tokens.toLocaleString('en-US') : '-'}</span></div><div class="stat"><span class="k">Cost</span><span class="v">${m.usd ? `$${m.usd.toFixed(2)}` : '-'}</span></div></div>
+        <div class="r"><div class="stat"><span class="k">Elapsed</span><span class="v">${h.fmt(m.elapsed)}</span></div><div class="stat money"><span class="k">Tokens</span><span class="v">${m.tokens ? m.tokens.toLocaleString('en-US') : '-'}</span></div><div class="stat money"><span class="k">Cost</span><span class="v">${m.usd ? `$${m.usd.toFixed(2)}` : '-'}</span></div></div>
       </section>
       <aside class="pc cl"><div class="pcard desc"><h3>Description${h.spec(m) ? '<span class="x">spec.md</span>' : ''}</h3>${desc || '<div class="empty">No agent steps.</div>'}</div>${h.inputs(m) ? `<div class="pcard"><h3>Asked for</h3>${h.inputs(m)}</div>` : ''}</aside>
       <main class="pc cc"><div class="pcard files"><h3>Files changed${sums ? `<span class="x">${sums.files}</span>` : ''}</h3><div class="fl" data-keep="pr-files">${h.files(m)}</div></div>${merge}</main>
