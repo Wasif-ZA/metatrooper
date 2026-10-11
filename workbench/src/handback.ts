@@ -31,7 +31,7 @@ export function draftMessage(files: Handback['files']): string {
 }
 
 export function handback(git: Git, opts: { base?: string; cwd?: string } = {}): Handback {
-  const range = opts.base ? [opts.base] : ['--cached'];
+  const range = [opts.base ?? '--cached', '--no-renames'];
   const stat = git(['diff', ...range, '--stat']).trimEnd();
   const raw = git(['diff', ...range, '--raw', '--no-abbrev', '-z']).split('\0');
   const modes = new Map<string, string>();

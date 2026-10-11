@@ -117,3 +117,10 @@ test('M2-03 a picked variant shows its worktree diff against the base, read-only
   assert.ok(calls.filter((a) => a[0] === 'diff').every((a) => a[1] === base && !a.includes('--cached')));
   assert.ok(h.command.startsWith(`git -C '${d}' commit -am `), h.command);
 });
+
+test('a staged rename lists the old and new path, never a blank row', () => {
+  const { d, g } = repo();
+  g('mv', 'a.txt', 'b.txt');
+  const h = handback(gitIn(d));
+  assert.deepEqual(h.files.map((f) => f.path).sort(), ['a.txt', 'b.txt']);
+});
