@@ -165,3 +165,10 @@ test('switching project drops the old project open file diff and picked comment'
   assert.equal(ui.projectId, 'p2');
   assert.deepEqual([ui.handback, ui.hbFile, ui.hbDiff, ui.hbLine, ui.gitFile, ui.comment], [undefined, null, undefined, null, false, null]);
 });
+
+test('the command palette opens before the first snapshot arrives', () => {
+  const ui: any = { snap: null, shellKinds: [], mode: 'single' };
+  const document = { body: { classList: { contains: () => false } } };
+  const paletteItems = new Function('ui', 'document', 'load', 'project', 'selectedSession', 'TABS', `${fn('paletteItems')}; return paletteItems;`)(ui, document, () => null, () => null, () => null, []);
+  assert.ok(Array.isArray(paletteItems()));
+});

@@ -679,6 +679,7 @@ async function saveSink() {
 
 function paletteItems() {
   const s = ui.snap;
+  if (!s) return [];
   const items = [];
   for (const x of s.sessions) items.push({ group: 'Agents', label: `${x.engine_id} ${taskOf(x)}`, meta: STATE_WORDS[x.state] || x.state, run: () => pick(x.id) });
   if (project()) for (const e of s.engines) if (e.light !== 'red') items.push({ group: 'Start', label: `New ${e.id} agent`, run: async () => { const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: e.id }); if (r.result) await pick(r.result.session_id); } });
