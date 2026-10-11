@@ -105,6 +105,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D75 | metarouter | Wasif, 2026-10-10, cut left to Claude: metarouter moves into this repo as `router/`, merged with its history, and stays Python. Porting 4,600 lines and 391 tests to TypeScript before the freeze buys nothing a user sees. One resolver, `router/bin/metarouter.js`, finds Python 3.11+ (`TROOP_PYTHON`, then `py -3`, `python`, `python3`) and runs the bundled copy, else an installed `metarouter`, else exits 127 saying what is missing. `troop route`, the gate's A-05 metric and the plugin action all go through it, so they always run the version beside the core. The `metarouter` command and the PyPI package keep their names; PyPI releases take `router-v*` tags so they never trigger the desk's `v*` release. `router/` is MIT like the other glue folders; metarouter had no licence before |
 | D76 | metarouter on by default | Wasif, 2026-10-11: metarouter is called by default from MetaTrooper. With `sessions.metarouter` (default true), every pty session gets `router/bin` first on `PATH`, where `metarouter` and `metarouter.cmd` run the bundled copy through the D75 resolver, and an engine with `instructions_arg` (Claude: `--append-system-prompt`) gets the same instruction block `metarouter init` writes. Codex and agy get the PATH only, until a flag for extra instructions is confirmed on each. Sandbox sessions are unchanged, because `router/` is not mounted there |
 | D77 | Milestone 7 | Claude, 2026-10-11, under the M7 brief Wasif asked to run; not yet confirmed by Wasif: the ideas D73 moved after the release become Milestone 7 (about 29 CC days from 2027-01-20). Every mined idea has a recorded fate in `ide-layer-research/idea-coverage.md`. Eight that change a security, data, dependency or native-binary line (lend a login, Google sign-in identity, pty host, bundled ConPTY, retention pruning, limits by probe, cua-driver, a Linux desktop sandbox) are not specced; the compose box is cut. Defaults chosen so nothing changes until a user opts in: no browser preset means every tool, `worktree.preserve` is empty, new agents still take the big slot, auto layout and shell integration are off, unset wall fractions keep today's formulas |
+| D78 | Desktop actions and focus | Wasif, 2026-10-11, after the M6-14 spike (`issues/m6-14-computer-use-spike.md`): UI Automation pattern actions move keyboard focus to the target window on WinUI and Win32 apps; the pointer never moves. So the driver uses window messages first (`WM_SETTEXT`, `PostMessage`), which the spike showed keep focus on controls with their own window handle, and patterns only for controls without one. After a pattern action that moved the foreground, the helper tries to give it back to the window that had it and reports whether that worked. The promise is narrowed to "your pointer stays yours" (Known limits) |
 
 ## Current state, verified 2026-10-10
 
@@ -450,20 +451,24 @@ request interception, full-page capture, point-to-comment) stays. `contracts/bro
 What it is, in plain words. Windows keeps a live list of every control on screen, with its name, type and position:
 UI Automation. A computer-use tool reads that list plus a screenshot of one window, lets the model pick a control,
 and sends the click or keystrokes to that window. Windows ships UI Automation itself, so MetaTrooper's driver needs
-nothing installed (D71). It acts through each control's own built-in actions, so your mouse and keyboard stay yours
-while it works.
+nothing installed (D71). It acts through window messages and each control's own built-in actions, so your pointer
+stays yours while it works; an action on a modern app can still move keyboard focus to it (D78).
 
 - **The driver** (M6-15). One long-lived PowerShell helper per core, `core/src/desktop/uia-helper.ps1`, loads
   `UIAutomationClient` and a small C# class compiled with `Add-Type` for screenshots and window rectangles. It talks
   to the MCP server over a named pipe, one JSON request per line. Reading: the control tree from
   `AutomationElement.FromHandle` (role, Name, AutomationId, `BoundingRectangle` in physical pixels, `IsPassword`),
-  and a window screenshot with `PrintWindow` (`PW_RENDERFULLCONTENT`), so a covered window still captures. Acting,
-  in this order: the control's pattern (`InvokePattern.Invoke` for a click, `ValuePattern.SetValue` for type,
-  `TogglePattern`, `SelectionItemPattern`, `ExpandCollapsePattern`, `ScrollPattern`); with no pattern, a
-  background `PostMessage` of `WM_LBUTTONDOWN`/`WM_LBUTTONUP` at the control's centre, or `WM_CHAR` per character.
-  `key` sends `WM_KEYDOWN`/`WM_KEYUP` with `PostMessage`. It never calls `SendInput`, which would move the real
-  pointer and need focus. After each action it re-reads the control and returns `confirmed` (the value, toggle state
-  or tree changed as expected) or `unverifiable`.
+  and a window screenshot with `PrintWindow` (`PW_RENDERFULLCONTENT`), so a covered window still captures. A first
+  read of a Chromium or Electron app returns only its frame, so `snapshot` reads again after 2 s when it gets fewer
+  than 20 nodes (M6-14). Acting, in this order (D78): a control with its own window handle gets window messages,
+  which keep focus (`WM_SETTEXT` for type, `PostMessage` of `BM_CLICK` or `WM_LBUTTONDOWN`/`WM_LBUTTONUP` at its
+  centre for a click, `WM_CHAR` per character); a control without one gets its pattern (`InvokePattern.Invoke` for
+  a click, `ValuePattern.SetValue` for type, `TogglePattern`, `SelectionItemPattern`, `ExpandCollapsePattern`,
+  `ScrollPattern`). When a pattern action moved the foreground, the helper calls `SetForegroundWindow` on the window
+  that had it and the result carries `focus_returned: true|false`. `key` sends `WM_KEYDOWN`/`WM_KEYUP` with
+  `PostMessage`. It never calls `SendInput`, which would move the real pointer and need focus. After each action it
+  re-reads the control and returns `confirmed` (the value, toggle state or tree changed as expected) or
+  `unverifiable`.
 - **Upgrade path.** If the built-in driver fails on apps Wasif really uses, cua-driver can replace the helper behind
   the same tools (D71); nothing else changes.
 
@@ -892,6 +897,9 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - An app that draws its own controls without UI Automation (some games, some custom toolkits) shows no tree; the
   agent gets screenshots only and every click there asks (first input in an unknown control).
 - Exclusive fullscreen apps may hide the desktop cursor overlay.
+- A pattern action on a WinUI or UWP control (no window handle of its own) moves keyboard focus to that window; a
+  key the user presses during it can land there. Windows may refuse the focus hand-back (`focus_returned: false`)
+  (D78, M6-14). Apps that expose no UI Automation tree (Discord in the spike) get screenshots only.
 - Token masking (M7-5) covers titles, last lines, logs and notifications. The tile body is the raw pty stream and
   shows a printed token as printed.
 - Grants and approvals do not stop a hostile process running as the user (Threat model).
