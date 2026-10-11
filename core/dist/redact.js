@@ -70,13 +70,13 @@ export function buildPayload(kind        , raw        )      {
     case 'claude.PostToolUse':
       return { ...tool(), response_length: lengthOf(r.tool_response) };
     case 'claude.UserPromptSubmit':
-      return { ...pick(r, ['session_id', 'cwd']), prompt_length: lengthOf(r.prompt) };
+      return { ...pick(r, ['session_id', 'transcript_path', 'cwd']), prompt_length: lengthOf(r.prompt) };
     case 'claude.Notification': {
       const msg = typeof r.message === 'string' ? r.message : '';
       return { ...pick(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
     }
     case 'claude.Stop':
-      return pick(r, ['session_id', 'cwd', 'stop_hook_active']);
+      return pick(r, ['session_id', 'transcript_path', 'cwd', 'stop_hook_active']);
     case 'claude.SessionEnd':
       return pick(r, ['session_id', 'cwd', 'reason']);
     case 'codex.turn':
@@ -126,11 +126,11 @@ export function rebuildPayload(kind        , built        )      {
     case 'claude.PostToolUse':
       return { ...tool(), response_length: n('response_length') };
     case 'claude.UserPromptSubmit':
-      return { ...strs(['session_id', 'cwd']), prompt_length: n('prompt_length') };
+      return { ...strs(['session_id', 'transcript_path', 'cwd']), prompt_length: n('prompt_length') };
     case 'claude.Notification':
       return { ...strs(['session_id', 'cwd', 'notification_type']), class: CLASSES.has(b.class          ) ? b.class : 'other', message_length: n('message_length') };
     case 'claude.Stop':
-      return { ...strs(['session_id', 'cwd']), stop_hook_active: b.stop_hook_active === true };
+      return { ...strs(['session_id', 'transcript_path', 'cwd']), stop_hook_active: b.stop_hook_active === true };
     case 'claude.SessionEnd':
       return strs(['session_id', 'cwd', 'reason']);
     case 'codex.turn':
