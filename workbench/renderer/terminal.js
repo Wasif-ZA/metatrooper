@@ -149,7 +149,7 @@ const termView = (() => {
     else if (m.op === 'output') { t.term.write(m.data, () => ack(sessionId, m.data.length)); onOutput(sessionId, m.data.length); }
     else if (m.op === 'exit') { t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
     else if (m.op === 'error' && m.code === 'no-session') t.term.write('\r\n[this session is not running]\r\n');
-    else if (m.op === 'closed' && !t.closed) { t.closed = true; t.el.classList.add('closed'); t.term.write('\r\n[disconnected from the core]\r\n'); }
+    else if (m.op === 'closed' && !t.closed) { t.closed = true; t.el.classList.add('closed'); t.term.write('\r\n[disconnected from the core]\r\n'); onExit(sessionId); }
   });
 
   function label(t, x) {

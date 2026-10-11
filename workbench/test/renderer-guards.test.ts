@@ -72,3 +72,16 @@ test('a waiting tile that leaves the wall stops its endless attention pulse', ()
   ctx.wall.decide([], null);
   assert.ok(endless.every((t) => t.killed));
 });
+
+test('a shell tile whose core connection drops is reported as exited', () => {
+  let onTerm: (id: string, m: unknown) => void = () => {};
+  const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, isConnected: true });
+  const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput() {}, termAttach: async () => {}, termDetach: async () => {} };
+  class Terminal { options = {}; loadAddon() {} registerLinkProvider() {} open() {} onData() {} attachCustomKeyEventHandler() {} write() {} focus() {} }
+  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} } });
+  vm.runInContext(`${readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8')}\nthis.termView = termView;`, ctx);
+  const exited: string[] = [];
+  ctx.termView.show({ mode: 'single', selected: 'sh_1', sessions: [{ id: 'sh_1', state: 'idle', words: 'shell', shell: true }], onExit: (id: string) => exited.push(id) });
+  onTerm('sh_1', { op: 'closed' });
+  assert.deepEqual(exited, ['sh_1']);
+});
