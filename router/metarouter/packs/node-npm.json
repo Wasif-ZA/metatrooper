@@ -1,0 +1,180 @@
+{
+ "pack": "node-npm",
+ "version": "2026.10",
+ "tier": "free",
+ "recipes": [
+  {
+   "name": "npm-scripts",
+   "summary": "list this package's npm scripts",
+   "args": [],
+   "kind": "shell",
+   "body": "npm run",
+   "purity": "read",
+   "needs": "npm",
+   "example": {
+    "setup": {
+     "package.json": "{\"name\": \"demo\", \"version\": \"1.0.0\", \"scripts\": {\"test\": \"echo ok\"}}"
+    },
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "test"
+   }
+  },
+  {
+   "name": "npm-script",
+   "summary": "run npm script {1} without npm's banner",
+   "args": [
+    "script"
+   ],
+   "kind": "shell",
+   "body": "npm run --silent {1}",
+   "purity": "read",
+   "needs": "npm",
+   "example": {
+    "setup": {
+     "package.json": "{\"name\": \"demo\", \"version\": \"1.0.0\", \"scripts\": {\"hello\": \"echo hi\"}}"
+    },
+    "args": [
+     "hello"
+    ],
+    "expect_exit": 0,
+    "expect_out": "hi"
+   }
+  },
+  {
+   "name": "npm-get",
+   "summary": "read field {1} from package.json",
+   "args": [
+    "field"
+   ],
+   "kind": "shell",
+   "body": "npm pkg get {1}",
+   "purity": "read",
+   "needs": "npm",
+   "example": {
+    "setup": {
+     "package.json": "{\"name\": \"demo\", \"version\": \"1.0.0\"}"
+    },
+    "args": [
+     "version"
+    ],
+    "expect_exit": 0,
+    "expect_out": "1.0.0"
+   }
+  },
+  {
+   "name": "npm-top",
+   "summary": "direct dependencies and their installed versions",
+   "args": [],
+   "kind": "shell",
+   "body": "npm ls --depth=0",
+   "purity": "read",
+   "needs": "npm",
+   "example": {
+    "setup": {
+     "package.json": "{\"name\": \"demo\", \"version\": \"1.0.0\"}"
+    },
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "demo@1.0.0"
+   }
+  },
+  {
+   "name": "npm-config",
+   "summary": "an npm setting, such as registry or prefix",
+   "args": [
+    "key"
+   ],
+   "kind": "shell",
+   "body": "npm config get {1}",
+   "purity": "read",
+   "needs": "npm",
+   "example": {
+    "setup": {},
+    "args": [
+     "registry"
+    ],
+    "expect_exit": 0,
+    "expect_out": "http"
+   }
+  },
+  {
+   "name": "node-eval",
+   "summary": "print the value of one JavaScript expression",
+   "args": [
+    "expression"
+   ],
+   "kind": "shell",
+   "body": "node -p {1}",
+   "purity": "read",
+   "needs": "node",
+   "example": {
+    "setup": {},
+    "args": [
+     "1 + 2"
+    ],
+    "expect_exit": 0,
+    "expect_out": "3"
+   }
+  },
+  {
+   "name": "node-version",
+   "summary": "node and npm versions",
+   "args": [],
+   "kind": "shell",
+   "body": "node -v && npm -v",
+   "purity": "read",
+   "needs": "node",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "v"
+   }
+  }
+ ],
+ "hints": [
+  {
+   "id": "npm-run-flags",
+   "when": "before",
+   "match": "npm\\s+run(-script)?\\s+[\\w:.-]+\\s+--?[a-zA-Z]",
+   "hint": "npm keeps flags written after the script name for itself. Put -- first: npm run <script> -- --fix"
+  },
+  {
+   "id": "npm-eresolve",
+   "when": "fail",
+   "match": "ERESOLVE (unable to resolve|could not resolve)",
+   "hint": "Two packages want different versions of a peer. Read the two names in the error and align them; --legacy-peer-deps hides the clash instead of fixing it"
+  },
+  {
+   "id": "npm-no-package-json",
+   "when": "fail",
+   "match": "ENOENT.*package\\.json|Could not read package\\.json",
+   "hint": "No package.json here. Run from the package's folder, or pass --prefix <folder>"
+  },
+  {
+   "id": "npm-missing-script",
+   "when": "fail",
+   "match": "Missing script: ",
+   "hint": "That script is not in package.json. List them: npm run"
+  },
+  {
+   "id": "npm-ci-sync",
+   "when": "fail",
+   "match": "can only install packages when your package\\.json and package-lock\\.json",
+   "hint": "The lock file is out of date. Run npm install, commit package-lock.json, then npm ci"
+  },
+  {
+   "id": "node-esm-cjs",
+   "when": "fail",
+   "match": "ERR_REQUIRE_ESM|Cannot use import statement outside a module",
+   "hint": "ES module and CommonJS are mixed. Set \"type\": \"module\" in package.json, rename to .mjs, or use import() for the ES module"
+  },
+  {
+   "id": "npm-ebusy",
+   "when": "fail",
+   "match": "\\b(EBUSY|EPERM)\\b.*(rename|unlink|rmdir)",
+   "hint": "A running process holds a file in node_modules: a dev server, watcher or editor. Stop that one process by pid and retry"
+  }
+ ]
+}

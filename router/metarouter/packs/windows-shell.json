@@ -1,0 +1,180 @@
+{
+ "pack": "windows-shell",
+ "version": "2026.10",
+ "tier": "free",
+ "recipes": [
+  {
+   "name": "ps",
+   "summary": "run one PowerShell command from bash, no profile",
+   "args": [
+    "command"
+   ],
+   "kind": "shell",
+   "body": "powershell -NoProfile -Command {1}",
+   "purity": "read",
+   "needs": "powershell",
+   "example": {
+    "setup": {},
+    "args": [
+     "Write-Output 42"
+    ],
+    "expect_exit": 0,
+    "expect_out": "42"
+   }
+  },
+  {
+   "name": "win-which",
+   "summary": "every place Windows finds a program on PATH",
+   "args": [
+    "program"
+   ],
+   "kind": "shell",
+   "body": "where.exe {1}",
+   "purity": "read",
+   "needs": "where",
+   "example": {
+    "setup": {},
+    "args": [
+     "cmd"
+    ],
+    "expect_exit": 0,
+    "expect_out": "cmd.exe"
+   }
+  },
+  {
+   "name": "win-path",
+   "summary": "turn a bash path into a Windows path",
+   "args": [
+    "path"
+   ],
+   "kind": "shell",
+   "body": "cygpath -w {1}",
+   "purity": "read",
+   "needs": "cygpath",
+   "example": {
+    "setup": {},
+    "args": [
+     "/c/Windows"
+    ],
+    "expect_exit": 0,
+    "expect_out": "Windows"
+   }
+  },
+  {
+   "name": "win-ver",
+   "summary": "Windows version",
+   "args": [],
+   "kind": "shell",
+   "body": "cmd //c ver",
+   "purity": "read",
+   "needs": "cmd",
+   "example": {
+    "setup": {},
+    "args": [],
+    "expect_exit": 0,
+    "expect_out": "Windows"
+   }
+  },
+  {
+   "name": "win-port",
+   "summary": "pid listening on port {1}",
+   "args": [
+    "port"
+   ],
+   "kind": "shell",
+   "body": "netstat -ano | grep LISTENING | grep -E -- \":{1}\\s\" || echo \"nothing listens on {1}\"",
+   "purity": "read",
+   "needs": "netstat",
+   "example": {
+    "setup": {},
+    "args": [
+     "1"
+    ],
+    "expect_exit": 0,
+    "expect_out": "nothing listens on 1"
+   }
+  },
+  {
+   "name": "win-proc",
+   "summary": "running processes matching {1}, with pid and memory",
+   "args": [
+    "name"
+   ],
+   "kind": "shell",
+   "body": "tasklist //FO TABLE //NH | grep -i -- {1}",
+   "purity": "read",
+   "needs": "tasklist",
+   "example": {
+    "setup": {},
+    "args": [
+     "bash"
+    ],
+    "expect_exit": 0,
+    "expect_out": "bash"
+   }
+  },
+  {
+   "name": "win-kill",
+   "summary": "stop one process by pid (never by image name)",
+   "args": [
+    "pid"
+   ],
+   "kind": "shell",
+   "body": "taskkill //PID {1} //F",
+   "purity": "destructive",
+   "needs": "taskkill",
+   "example": {
+    "setup": {},
+    "args": [
+     "999999"
+    ],
+    "expect_exit": 128,
+    "expect_out": "not found"
+   }
+  }
+ ],
+ "hints": [
+  {
+   "id": "cmd-single-slash",
+   "when": "before",
+   "match": "(^|[;&|]\\s*)cmd(\\.exe)?\\s+/[cCkK]\\b",
+   "hint": "Git Bash turns /c into a path. Use cmd //c \"<command>\" from bash"
+  },
+  {
+   "id": "taskkill-single-slash",
+   "when": "before",
+   "match": "taskkill(\\.exe)?\\s+/[A-Za-z]",
+   "hint": "Git Bash turns /PID into a path. Use taskkill //PID <pid> //F from bash"
+  },
+  {
+   "id": "not-recognized",
+   "when": "fail",
+   "match": "is not recognized as (an internal or external command|the name of a cmdlet)",
+   "hint": "That program is not on this shell's PATH. Bash and PowerShell can have different PATHs; find it with where.exe <name> and call it by full path"
+  },
+  {
+   "id": "ps51-and-and",
+   "when": "before",
+   "match": "powershell(\\.exe)?\\b.*\\s&&\\s",
+   "hint": "Windows PowerShell 5.1 has no && or ||. Use A; if ($?) { B }, or pwsh 7"
+  },
+  {
+   "id": "ps-exec-policy",
+   "when": "fail",
+   "match": "running scripts is disabled on this system",
+   "hint": "The execution policy blocks .ps1 files. For one run: powershell -NoProfile -ExecutionPolicy Bypass -File <script>"
+  },
+  {
+   "id": "crlf-bash",
+   "when": "fail",
+   "match": "\\$'\\\\r': command not found",
+   "hint": "The script has Windows line endings. Convert it: sed -i 's/\\r$//' <file>, and add *.sh text eol=lf to .gitattributes"
+  },
+  {
+   "id": "git-long-paths",
+   "when": "fail",
+   "match": "Filename too long",
+   "hint": "Windows path limit. Run git config --global core.longpaths true, then retry"
+  }
+ ]
+}

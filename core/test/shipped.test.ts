@@ -14,8 +14,8 @@ test('every shipped plugin manifest is valid', async () => {
   const { readManifest, validateManifest } = await import('../src/plugins/manifest.ts');
   try {
     const pluginsDir = path.join(repoDir, 'plugins');
-    for (const name of fs.readdirSync(pluginsDir)) {
-      const dir = path.join(pluginsDir, name);
+    for (const dir of [...fs.readdirSync(pluginsDir).map((n) => path.join(pluginsDir, n)), path.join(repoDir, 'router')]) {
+      const name = path.basename(dir);
       if (!fs.existsSync(path.join(dir, 'troop-plugin.json'))) continue;
       assert.deepEqual(validateManifest(readManifest(dir).manifest, dir), [], `plugin ${name}`);
     }

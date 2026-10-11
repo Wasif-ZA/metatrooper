@@ -14,6 +14,7 @@ export const DEFAULTS = {
   sessions: {
     approval: 'ask',
     ask_paths: [] as string[],
+    metarouter: true,
   },
   worktree: {
     npm_ci: true,

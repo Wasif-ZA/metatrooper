@@ -1,0 +1,26 @@
+{
+  "name": "curl",
+  "match_command": "(?:^|[;&|]\\s*)curl\\b",
+  "strip_lines_matching": [
+    "^\\s*% Total\\s+% Received",
+    "^\\s*Dload\\s+Upload",
+    "^\\s*\\d+\\s+\\S+\\s+\\d+\\s+\\S+\\s+\\d+\\s+\\d+\\s+\\S+\\s+\\S+\\s+\\S+:\\S+:\\S+"
+  ],
+  "keep_lines_matching": [],
+  "match_output": [],
+  "max_lines": null,
+  "tail_lines": null,
+  "on_empty": "curl: empty response",
+  "tests": [
+    {
+      "command": "curl -o x.zip https://example.com/x.zip",
+      "input": "  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n100  1256  100  1256    0     0   5023      0 --:--:-- --:--:-- --:--:--  5044",
+      "expected": "curl: empty response"
+    },
+    {
+      "command": "curl -s https://example.com/api",
+      "input": "{\"ok\": true}",
+      "expected": "{\"ok\": true}"
+    }
+  ]
+}
