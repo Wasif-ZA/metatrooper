@@ -45,6 +45,10 @@ interface Activity {
 
 const activity = new Map<string, Activity>();
 
+export function activitySessions(): string[] {
+  return [...activity.keys()];
+}
+
 function codexHome(): string {
   return path.join(os.homedir(), '.codex', 'sessions');
 }
