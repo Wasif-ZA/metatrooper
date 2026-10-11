@@ -1166,7 +1166,7 @@ async function onClick(e) {
       if (!l || !note.trim()) { toast('Write a note first.', true); return; }
       const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
       if (!r.ok) { toast(r.error, true); return; }
-      toast('Comment sent: on the clipboard, and in the session\'s next prompt for Claude.');
+      toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
       ui.hbLine = null;
       render();
       return;
@@ -1245,7 +1245,7 @@ async function onClick(e) {
       if (!note) return toast('Write a note first.', true);
       const r = await api.commentSave({ ...ui.comment, session_id, note });
       if (!r.ok) return toast(r.error, true);
-      toast('Comment sent: on the clipboard, and in the session\'s next prompt for Claude.');
+      toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
       ui.comment = null;
       render();
       return;
@@ -1394,7 +1394,7 @@ document.addEventListener('drop', async (e) => {
   const card = e.target.closest && e.target.closest('[data-drop-session]');
   if (!card || !e.dataTransfer.files.length) return;
   const r = await api.commentFiles(card.dataset.dropSession, e.dataTransfer.files);
-  toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: on the clipboard, and in the session's next prompt for Claude.` : r.error, !r.ok);
+  toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}` : r.error, !r.ok);
 });
 document.addEventListener('keydown', (e) => {
   const palette = !document.getElementById('palette').hidden;

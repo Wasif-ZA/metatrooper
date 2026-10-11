@@ -59,7 +59,7 @@ interface Pane {
   network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
   status: number | null;
   overlayShownUntil: number;
-  picking: ((node: number) => void) | null;
+  picking: ((node: number | null) => void) | null;
   parked: boolean;
   ready: Promise<void>;
   dialog: Dialog | null;
@@ -440,6 +440,7 @@ export class PaneManager {
     if (!pane) return;
     this.panes.delete(id);
     if (this.shown === id) this.shown = null;
+    pane.picking?.(null);
     try { pane.dbg.detach(); } catch {}
     if (!this.win.isDestroyed()) {
       this.win.contentView.removeChildView(pane.view);
@@ -859,16 +860,26 @@ export class PaneManager {
     fs.mkdirSync(dir, { recursive: true });
     const stamp = Date.now();
     const out: Record<number, string> = {};
-    for (const width of [390, 1280]) {
-      await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 });
-      await sleep(400);
-      const shot = await this.fullPage(pane);
-      const file = path.join(dir, `${stamp}-${label}-${width}.png`);
-      fs.writeFileSync(file, shot.png);
-      out[width] = file.split(String.fromCharCode(92)).join('/');
+    const failed: unknown[] = [];
+    try {
+      for (const width of [390, 1280]) {
+        await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 });
+        await sleep(400);
+        const shot = await this.fullPage(pane);
+        const file = path.join(dir, `${stamp}-${label}-${width}.png`);
+        fs.writeFileSync(file, shot.png);
+        out[width] = file.split(String.fromCharCode(92)).join('/');
+      }
+    } catch (e) {
+      failed.push(e);
     }
-    if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
-    else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+    try {
+      if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
+      else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+    } catch (e) {
+      failed.push(e);
+    }
+    if (failed.length) throw failed[0];
     return { url: pane.view.webContents.getURL(), w390_path: out[390], w1280_path: out[1280] };
   }
 
@@ -880,7 +891,8 @@ export class PaneManager {
       mode: 'searchForNode',
       highlightConfig: { showInfo: true, contentColor: { r: 47, g: 111, b: 228, a: 0.25 }, borderColor: { r: 47, g: 111, b: 228, a: 0.9 } },
     });
-    const node = await new Promise<number>((resolve) => { pane.picking = resolve; });
+    const node = await new Promise<number | null>((resolve) => { pane.picking?.(null); pane.picking = resolve; });
+    if (node === null) return;
     await this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} });
     const html = String((await this.cmd(pane, 'DOM.getOuterHTML', { backendNodeId: node })).outerHTML ?? '').slice(0, 2000);
     const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
@@ -913,6 +925,7 @@ export class PaneManager {
   cancelPick(id: string): void {
     const pane = this.panes.get(id);
     if (!pane || !pane.picking) return;
+    pane.picking(null);
     pane.picking = null;
     void this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} }).catch(() => {});
   }

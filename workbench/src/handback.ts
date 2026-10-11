@@ -1,6 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
-export type Git = (args: string[]) => string;
+export type Git = (args: string[]) => string | Promise<string>;
+
+const exec = promisify(execFile);
 
 export interface Handback {
   stat: string;
@@ -15,8 +18,18 @@ const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse']);
 export function gitIn(cwd: string): Git {
   return (args) => {
     if (!READ_ONLY.has(args[0])) throw new Error(`git ${args[0]} is not allowed in the hand-back tray`);
-    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return exec('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).then((r) => r.stdout);
   };
+}
+
+/** Files changed since `base` with line counts (null for binary), and untracked files, for the Diff tab. */
+export async function sessionChanges(git: Git, base: string): Promise<{ files: Array<{ path: string; added: number | null; deleted: number | null }>; untracked: string[] }> {
+  const [numstat, others] = await Promise.all([git(['diff', base, '--numstat', '--no-renames', '-z']), git(['ls-files', '--others', '--exclude-standard', '-z'])]);
+  const files = numstat.split('\0').filter(Boolean).map((l) => {
+    const [a, r, ...name] = l.split('\t');
+    return { path: name.join('\t'), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
+  });
+  return { files, untracked: others.split('\0').filter(Boolean) };
 }
 
 function shellQuote(s: string): string {
@@ -30,16 +43,22 @@ export function draftMessage(files: Handback['files']): string {
   return `Update ${names.join(', ')}${more}`;
 }
 
-export function handback(git: Git, opts: { base?: string; cwd?: string } = {}): Handback {
-  const range = opts.base ? [opts.base] : ['--cached'];
-  const stat = git(['diff', ...range, '--stat']).trimEnd();
-  const raw = git(['diff', ...range, '--raw', '--no-abbrev', '-z']).split('\0');
+export async function handback(git: Git, opts: { base?: string; cwd?: string } = {}): Promise<Handback> {
+  const range = [opts.base ?? '--cached', '--no-renames'];
+  const [statOut, rawOut, numstatOut, untrackedOut] = await Promise.all([
+    git(['diff', ...range, '--stat']),
+    git(['diff', ...range, '--raw', '--no-abbrev', '-z']),
+    git(['diff', ...range, '--numstat', '-z']),
+    git(['ls-files', '--others', '--exclude-standard', '-z']),
+  ]);
+  const stat = statOut.trimEnd();
+  const raw = rawOut.split('\0');
   const modes = new Map<string, string>();
   for (let i = 0; i + 1 < raw.length; i += 2) {
     const m = raw[i].match(/^:(\d+) (\d+) /);
     if (m) modes.set(raw[i + 1], m[1] === '160000' || m[2] === '160000' ? 'submodule' : 'x');
   }
-  const numstat = git(['diff', ...range, '--numstat', '-z']).split('\0').filter(Boolean);
+  const numstat = numstatOut.split('\0').filter(Boolean);
   const files: Handback['files'] = [];
   for (const line of numstat) {
     const m = line.match(/^(\S+)\t(\S+)\t(.*)$/);
@@ -53,7 +72,7 @@ export function handback(git: Git, opts: { base?: string; cwd?: string } = {}): 
       kind: submodule ? 'submodule' : binary ? 'binary' : 'text',
     });
   }
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean);
+  const untracked = untrackedOut.split('\0').filter(Boolean);
   const message = draftMessage(files);
   const command = opts.cwd ? `git -C ${shellQuote(opts.cwd)} commit -am ${shellQuote(message)}` : `git commit -m ${shellQuote(message)}`;
   return { stat, files, untracked, message, command };

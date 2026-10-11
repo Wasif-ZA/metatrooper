@@ -34,7 +34,7 @@ test('a terminal tile stops sending input once its connection closes', () => {
   const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput: (_id: string, d: string) => sent.push(d), termAttach: async () => {}, termDetach: async () => {} };
   class Terminal { written = ''; loadAddon() {} registerLinkProvider() {} open() {} onData(f: typeof onData) { onData = f; } attachCustomKeyEventHandler() {} write(s: string) { this.written += s; } focus() {} }
   const termSource = readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8');
-  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} } });
+  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} }, setTimeout() {} });
   vm.runInContext(`${termSource}\nthis.termView = termView;`, ctx);
   ctx.termView.show({ mode: 'single', selected: 's1', sessions: [{ id: 's1', state: 'working', words: '' }] });
   onData('a');
@@ -56,4 +56,105 @@ test('the Git tab leaves Loading when git throws or no project is picked, and a 
   ui.gitBusy = 'view';
   await gitDo('view');
   assert.equal(ui.gitBusy, null);
+});
+
+test('a waiting tile that leaves the wall stops its endless attention pulse', () => {
+  const node = (): any => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, after() {}, appendChild() {}, querySelector: () => node(), getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) });
+  const tile = node();
+  const endless: Array<{ killed: boolean }> = [];
+  const tween = (_t: unknown, v?: { repeat?: number }) => { const tw = { killed: false, kill() { tw.killed = true; } }; if (v?.repeat === -1) endless.push(tw); return tw; };
+  const gsap = { to: tween, set: tween, fromTo: (t: unknown, _f: unknown, v: { repeat?: number }) => tween(t, v), delayedCall: tween };
+  const ctx = vm.createContext({ gsap, termView: { tile: () => tile }, matchMedia: () => ({ matches: false }), document: { body: node(), querySelector: () => node(), createElement: () => ({ content: { firstChild: node() } }) }, addEventListener() {}, setInterval() {}, innerWidth: 1400, innerHeight: 900 });
+  vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
+  ctx.wall.decide([{ id: 's1', state: 'waiting_for_you' }], null);
+  ctx.wall.apply('single');
+  assert.equal(endless.length, 1);
+  ctx.wall.decide([], null);
+  assert.ok(endless.every((t) => t.killed));
+});
+
+function shellTile() {
+  let onTerm: (id: string, m: unknown) => void = () => {};
+  const timers: Array<() => void> = [];
+  const attaches: string[] = [];
+  const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, isConnected: true });
+  const sent: string[] = [];
+  let written = '';
+  let onData: (d: string) => void = () => {};
+  const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput: (_id: string, d: string) => { sent.push(d); }, termAttach: async (id: string) => { attaches.push(id); }, termDetach: async () => {} };
+  class Terminal { options = {}; loadAddon() {} registerLinkProvider() {} open() {} onData(f: typeof onData) { onData = f; } attachCustomKeyEventHandler() {} write(s: string) { written += s; } focus() {} }
+  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} }, setTimeout: (f: () => void) => timers.push(f), performance });
+  vm.runInContext(`${readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8')}\nthis.termView = termView;`, ctx);
+  const exited: string[] = [];
+  ctx.termView.show({ mode: 'single', selected: 'sh_1', sessions: [{ id: 'sh_1', state: 'idle', words: 'shell', shell: true }], onExit: (id: string) => exited.push(id) });
+  const tick = () => { for (const f of timers.splice(0)) f(); };
+  return { send: (m: unknown) => onTerm('sh_1', m), type: (d: string) => onData(d), tick, exited, attaches, sent, written: () => written };
+}
+
+test('a normal exit is reported once, with no disconnect note and no re-attach', () => {
+  const t = shellTile();
+  t.send({ op: 'exit', code: 0 });
+  t.send({ op: 'closed' });
+  t.tick();
+  assert.deepEqual(t.exited, ['sh_1']);
+  assert.deepEqual(t.attaches, []);
+  assert.ok(!t.written().includes('disconnected'));
+});
+
+
+test('a shell tile whose connection drops but whose shell is alive re-attaches instead of exiting', () => {
+  const t = shellTile();
+  t.send({ op: 'closed' });
+  t.tick();
+  assert.deepEqual(t.attaches, ['sh_1']);
+  t.send({ op: 'snapshot', data: '' });
+  assert.deepEqual(t.exited, []);
+});
+
+test('a shell tile is reported exited when the re-attach finds no shell or no core', () => {
+  const dead = shellTile();
+  dead.send({ op: 'closed' });
+  dead.tick();
+  dead.send({ op: 'error', code: 'no-session' });
+  dead.send({ op: 'closed' });
+  assert.deepEqual(dead.exited, ['sh_1']);
+  const offline = shellTile();
+  offline.send({ op: 'closed' });
+  offline.tick();
+  offline.send({ op: 'closed' });
+  assert.deepEqual(offline.exited, ['sh_1']);
+});
+
+test('the browser pane bounds are reported again once the split panel finishes sliding', () => {
+  const node = (): any => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, after() {}, appendChild() {}, remove() {}, querySelector: () => node(), getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) });
+  const tiles: Record<string, any> = { s1: node(), s2: node() };
+  const done: Array<() => void> = [];
+  const tween = (t: unknown, v?: { onComplete?: () => void }) => { if (t === '#split' && v?.onComplete) done.push(v.onComplete); return { kill() {} }; };
+  const gsap = { to: tween, set: tween, fromTo: (t: unknown, _f: unknown, v: object) => tween(t, v), delayedCall: tween };
+  let reported = 0;
+  const ctx = vm.createContext({ gsap, termView: { tile: (id: string) => tiles[id] }, matchMedia: () => ({ matches: false }), document: { body: node(), querySelector: () => node(), createElement: () => ({ content: { firstChild: node() } }) }, addEventListener() {}, setInterval() {}, innerWidth: 1400, innerHeight: 900, reportPaneBounds: () => { reported++; } });
+  vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
+  ctx.wall.decide([{ id: 's1', state: 'working' }, { id: 's2', state: 'working' }], null);
+  ctx.wall.apply('single');
+  ctx.wall.pair('s2');
+  for (const f of done) f();
+  assert.ok(reported > 0);
+});
+
+test('keys typed while a tile re-attaches are sent after it reconnects, or reported as dropped', () => {
+  const live = shellTile();
+  live.send({ op: 'closed' });
+  live.type('ab');
+  live.tick();
+  live.type('c');
+  assert.deepEqual(live.sent, []);
+  live.send({ op: 'snapshot', data: '' });
+  assert.equal(live.sent.join(''), 'abc');
+  const dead = shellTile();
+  dead.send({ op: 'closed' });
+  dead.type('x');
+  dead.tick();
+  dead.send({ op: 'closed' });
+  assert.deepEqual(dead.sent, []);
+  assert.match(dead.written(), /not sent/);
 });

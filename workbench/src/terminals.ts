@@ -33,8 +33,18 @@ export function attachTerm(sessionId: string, cols: number, rows: number, send: 
   s.on('error', gone);
 }
 
+const INPUT_CHUNK = 64 * 1024;
+
 export function termInput(sessionId: string, data: string): void {
-  conns.get(sessionId)?.write(JSON.stringify({ op: 'input', data }) + '\n');
+  const s = conns.get(sessionId);
+  if (!s) return;
+  for (let i = 0; i < data.length;) {
+    let end = Math.min(i + INPUT_CHUNK, data.length);
+    const c = data.charCodeAt(end - 1);
+    if (end < data.length && c >= 0xd800 && c <= 0xdbff) end--;
+    s.write(JSON.stringify({ op: 'input', data: data.slice(i, end) }) + '\n');
+    i = end;
+  }
 }
 
 export function termAck(sessionId: string, bytes: number): void {

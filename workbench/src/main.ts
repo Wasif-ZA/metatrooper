@@ -18,10 +18,10 @@ import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
-import { gitIn, handback } from './handback.ts';
+import { gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
-import { diffLineBody, filesBody } from './comments.ts';
+import { copied, diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
@@ -182,7 +182,7 @@ function trusted(e: IpcMainInvokeEvent): boolean {
   return url.startsWith('file:') && fileURLToPath(url.split(/[?#]/)[0]) === INDEX;
 }
 
-async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string }> {
+async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string; copied?: boolean }> {
   const rw = new DatabaseSync(dbFile());
   try {
     rw.exec('PRAGMA busy_timeout = 2000');
@@ -192,8 +192,8 @@ async function saveComment(id: string, sessionId: string, kind: 'element' | 'dif
   } finally {
     rw.close();
   }
-  await call('comment.deliver', { comment_id: id }, { ui: true });
-  return { ok: true, comment_id: id };
+  const out = await call('comment.deliver', { comment_id: id }, { ui: true });
+  return { ok: true, comment_id: id, copied: copied(out) };
 }
 
 function inside(root: string, file: string): boolean {
@@ -329,24 +329,24 @@ function handlers(): void {
     }
   });
 
-  on('handback', (projectId: unknown) => {
+  on('handback', async (projectId: unknown) => {
     const d = db();
     const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
     if (!project) return { error: 'pick a project first' };
     try {
-      return handback(gitIn(project.path));
+      return await handback(gitIn(project.path));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
 
-  on('handbackFile', (projectId: unknown, file: unknown) => {
+  on('handbackFile', async (projectId: unknown, file: unknown) => {
     const d = db();
     if (!d || typeof projectId !== 'string' || typeof file !== 'string') return null;
     const project = d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
     if (!project) return null;
     try {
-      return gitIn(project.path)(['diff', '--cached', '--', file]);
+      return await gitIn(project.path)(['diff', '--cached', '--', file]);
     } catch {
       return null;
     }
@@ -396,7 +396,7 @@ function handlers(): void {
     return row?.cwd ?? null;
   };
   /** The commit the Diff tab compares against: the turn's start, HEAD, or where the branch left the default branch. */
-  const diffBase = (sessionId: unknown, scope: unknown, cwd: string): string => {
+  const diffBase = async (sessionId: unknown, scope: unknown, cwd: string): Promise<string> => {
     const g = gitIn(cwd);
     if (scope === 'turn') {
       const d = db();
@@ -405,29 +405,24 @@ function handlers(): void {
     }
     if (scope === 'branch') {
       for (const ref of ['origin/HEAD', 'origin/main', 'main', 'origin/master', 'master']) {
-        try { return g(['merge-base', 'HEAD', ref]).trim(); } catch {}
+        try { return (await g(['merge-base', 'HEAD', ref])).trim(); } catch {}
       }
     }
     return 'HEAD';
   };
-  on('sessionDiff', (sessionId: unknown, scope: unknown) => {
+  on('sessionDiff', async (sessionId: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
-      const files = gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--numstat']).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
-        const [a, r, ...name] = l.split(String.fromCharCode(9));
-        return { path: name.join(String.fromCharCode(9)), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
-      });
-      const untracked = gitIn(cwd)(['ls-files', '--others', '--exclude-standard']).split(String.fromCharCode(10)).filter(Boolean);
-      return { files, untracked };
+      return await sessionChanges(gitIn(cwd), await diffBase(sessionId, scope, cwd));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
-  on('sessionDiffFile', (sessionId: unknown, file: unknown, scope: unknown) => {
+  on('sessionDiffFile', async (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd || typeof file !== 'string') return null;
-    try { return gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
+    try { return await gitIn(cwd)(['diff', await diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
   });
 
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
