@@ -1,6 +1,22 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 export const OFFLINE_AFTER_MS = 6000;
+
+/** Adds ctx_pct to each Claude session from <dir>/<native_id>.json, written by core/statusline.js. */
+export function withContext(snap: Snapshot, dir: string): Snapshot {
+  const sessions = snap.sessions.map((s) => {
+    if (s.engine_id !== 'claude' || !s.native_id || !/^[A-Za-z0-9_-]+$/.test(s.native_id)) return s;
+    try {
+      const pct = JSON.parse(fs.readFileSync(path.join(dir, `${s.native_id}.json`), 'utf8')).used_percentage;
+      return typeof pct === 'number' ? { ...s, ctx_pct: pct } : s;
+    } catch {
+      return s;
+    }
+  });
+  return { ...snap, sessions };
+}
 
 export type Light = 'green' | 'grey' | 'red';
 
@@ -9,7 +25,7 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null; ctx_used: number | null; ctx_model: string | null; ctx_window: number | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
@@ -36,14 +52,6 @@ export function engineFix(e: { id: string; install?: string; login?: string; min
   if (detail === 'not-logged-in') return e.login ?? `Log in to ${e.id}`;
   if (detail === 'timeout') return `${e.id} did not answer in 10 s; run it in a terminal, then Check again`;
   return null;
-}
-
-/** Context window in tokens by model id prefix; a model not listed shows no context chip. */
-export const CONTEXT_WINDOWS: Array<[string, number]> = [['claude-', 200000]];
-
-export function contextWindow(model: string | null): number | null {
-  const hit = model ? CONTEXT_WINDOWS.find(([prefix]) => model.startsWith(prefix)) : undefined;
-  return hit ? hit[1] : null;
 }
 
 function parse<T>(text: string | null, fallback: T): T {
@@ -92,11 +100,9 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     ? (db.prepare(
         `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at,
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
-           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
-           (SELECT COALESCE(tokens_in,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0) FROM usage u WHERE u.session_id = s.id ORDER BY u.id DESC LIMIT 1) AS ctx_used,
-           (SELECT model FROM usage u WHERE u.session_id = s.id ORDER BY u.id DESC LIMIT 1) AS ctx_model
+           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
-      ).all(projectId) as Snapshot['sessions']).map((s) => ({ ...s, ctx_window: contextWindow(s.ctx_model) }))
+      ).all(projectId) as Snapshot['sessions'])
     : [];
 
   const panes = projectId

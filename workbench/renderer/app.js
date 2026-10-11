@@ -818,10 +818,8 @@ function costChip(x) {
 }
 
 function ctxChip(x) {
-  if (!x.ctx_window || x.ctx_used === null || x.ctx_used === undefined) return null;
-  const pct = Math.round((100 * x.ctx_used) / x.ctx_window);
-  // Over 100% means the session runs a larger window than CONTEXT_WINDOWS lists.
-  if (pct > 100) return null;
+  if (typeof x.ctx_pct !== 'number') return null;
+  const pct = Math.round(x.ctx_pct);
   return pct >= 85 ? { text: `${pct}% context · compacts soon`, warn: true } : { text: `${pct}% context`, warn: false };
 }
 

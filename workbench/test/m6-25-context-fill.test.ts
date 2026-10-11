@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { CONTEXT_WINDOWS, contextWindow, snapshot } from '../src/queries.ts';
+import { snapshot, withContext } from '../src/queries.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
 const appSource = readFileSync(new URL('../renderer/app.js', import.meta.url), 'utf8');
@@ -26,7 +26,7 @@ function fixture() {
   return { dir, db, close: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
-test('M6-25a Claude tile shows 85% context compacts soon in orange, engine with no usage shows no chip', () => {
+test('M6-25 context fill chip from claude-context per session and terminal tile styling', () => {
   const f = fixture();
   try {
     const now = new Date().toISOString();
@@ -34,38 +34,30 @@ test('M6-25a Claude tile shows 85% context compacts soon in orange, engine with 
     f.db.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('claude', '{}', 1), ('codex', '{}', 2)").run();
 
     const insertSession = f.db.prepare(
-      'INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden, native_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     );
-    insertSession.run('s_claude_85', 'p1', 'claude', 'pty', 'working', now, now, 0);
-    insertSession.run('s_claude_50', 'p1', 'claude', 'pty', 'working', now, now, 0);
-    insertSession.run('s_codex_no_usage', 'p1', 'codex', 'pty', 'working', now, now, 0);
-    insertSession.run('s_unlisted', 'p1', 'claude', 'pty', 'working', now, now, 0);
-    insertSession.run('s_over_100', 'p1', 'claude', 'pty', 'working', now, now, 0);
+    insertSession.run('s_claude_85', 'p1', 'claude', 'pty', 'working', now, now, 0, 'c_85');
+    insertSession.run('s_claude_50', 'p1', 'claude', 'pty', 'working', now, now, 0, 'c_50');
+    insertSession.run('s_codex', 'p1', 'codex', 'pty', 'working', now, now, 0, 'c_codex');
+    insertSession.run('s_claude_nofile', 'p1', 'claude', 'pty', 'working', now, now, 0, 'c_nofile');
+    insertSession.run('s_claude_dotdot', 'p1', 'claude', 'pty', 'working', now, now, 0, '..');
+    insertSession.run('s_claude_slash', 'p1', 'claude', 'pty', 'working', now, now, 0, 'sub/id');
 
-    const claudeWindow = contextWindow('claude-opus-5-5');
-    assert.ok(claudeWindow !== null && claudeWindow > 0);
-    const target85 = Math.round(claudeWindow * 0.85);
-    const target50 = Math.round(claudeWindow * 0.50);
+    const contextDir = join(f.dir, 'claude-context');
+    mkdirSync(contextDir, { recursive: true });
+    writeFileSync(join(contextDir, 'c_85.json'), JSON.stringify({ used_percentage: 85 }));
+    writeFileSync(join(contextDir, 'c_50.json'), JSON.stringify({ used_percentage: 50 }));
+    writeFileSync(join(contextDir, 'c_codex.json'), JSON.stringify({ used_percentage: 75 }));
+    mkdirSync(join(contextDir, 'sub'), { recursive: true });
+    writeFileSync(join(contextDir, 'sub', 'id.json'), JSON.stringify({ used_percentage: 60 }));
+    writeFileSync(join(f.dir, '.json'), JSON.stringify({ used_percentage: 60 }));
+    writeFileSync(join(contextDir, '...json'), JSON.stringify({ used_percentage: 60 }));
 
-    const insertUsage = f.db.prepare(
-      'INSERT INTO usage (at, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    );
-    let seq = 0;
-    insertUsage.run(now, 's_claude_85', 'claude', 'local-cli', 'claude-opus-5-5', 1200, 300, 400, 100, 0.05, 'transcript', `k-${++seq}`);
-    insertUsage.run(now, 's_claude_85', 'claude', 'local-cli', 'claude-opus-5-5', target85 - 15000, 40000, 10000, 5000, 0.85, 'transcript', `k-${++seq}`);
-
-    insertUsage.run(now, 's_claude_50', 'claude', 'local-cli', 'claude-opus-5-5', target50 - 15000, 10000, 10000, 5000, 0.50, 'transcript', `k-${++seq}`);
-
-    insertUsage.run(now, 's_unlisted', 'claude', 'local-cli', 'gpt-5', 2000, 500, 0, 0, 0.02, 'transcript', `k-${++seq}`);
-
-    insertUsage.run(now, 's_over_100', 'claude', 'local-cli', 'claude-opus-5-5', claudeWindow + 10000, 5000, 0, 0, 1.20, 'transcript', `k-${++seq}`);
-
-    const snap = snapshot(f.db, 'p1');
+    const snap = withContext(snapshot(f.db, 'p1'), contextDir);
     const { ctxChip } = evaluateRenderer(appSource);
 
     const s85 = snap.sessions.find((s) => s.id === 's_claude_85')!;
-    assert.equal(s85.ctx_used, target85);
-    assert.equal(s85.ctx_window, claudeWindow);
+    assert.equal(s85.ctx_pct, 85);
     const chip85 = ctxChip(s85);
     assert.ok(chip85);
     assert.equal(chip85.warn, true);
@@ -73,27 +65,28 @@ test('M6-25a Claude tile shows 85% context compacts soon in orange, engine with 
     assert.ok(chip85.text.includes('compacts soon'));
 
     const s50 = snap.sessions.find((s) => s.id === 's_claude_50')!;
-    assert.equal(s50.ctx_used, target50);
-    assert.equal(s50.ctx_window, claudeWindow);
+    assert.equal(s50.ctx_pct, 50);
     const chip50 = ctxChip(s50);
     assert.ok(chip50);
     assert.equal(chip50.warn, false);
     assert.ok(chip50.text.includes('50%'));
     assert.ok(!chip50.text.includes('compacts soon'));
 
-    const sNoUsage = snap.sessions.find((s) => s.id === 's_codex_no_usage')!;
-    assert.equal(sNoUsage.ctx_used, null);
-    assert.equal(sNoUsage.ctx_window, null);
-    assert.equal(ctxChip(sNoUsage), null);
+    const sCodex = snap.sessions.find((s) => s.id === 's_codex')!;
+    assert.equal(sCodex.ctx_pct, undefined);
+    assert.equal(ctxChip(sCodex), null);
 
-    const sUnlisted = snap.sessions.find((s) => s.id === 's_unlisted')!;
-    assert.equal(sUnlisted.ctx_model, 'gpt-5');
-    assert.equal(sUnlisted.ctx_window, null);
-    assert.equal(ctxChip(sUnlisted), null);
+    const sNoFile = snap.sessions.find((s) => s.id === 's_claude_nofile')!;
+    assert.equal(sNoFile.ctx_pct, undefined);
+    assert.equal(ctxChip(sNoFile), null);
 
-    const sOver = snap.sessions.find((s) => s.id === 's_over_100')!;
-    assert.ok(sOver.ctx_used! > sOver.ctx_window!);
-    assert.equal(ctxChip(sOver), null);
+    const sDotDot = snap.sessions.find((s) => s.id === 's_claude_dotdot')!;
+    assert.equal(sDotDot.ctx_pct, undefined);
+    assert.equal(ctxChip(sDotDot), null);
+
+    const sSlash = snap.sessions.find((s) => s.id === 's_claude_slash')!;
+    assert.equal(sSlash.ctx_pct, undefined);
+    assert.equal(ctxChip(sSlash), null);
 
     assert.match(styleSource, /\.meta\.warn\b/);
     assert.match(terminalSource, /\.querySelector\(['"]\.tile-ctx['"]\)\.classList\.toggle\(['"]warn['"],/);
