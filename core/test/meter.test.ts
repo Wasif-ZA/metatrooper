@@ -270,6 +270,12 @@ test('a resumed codex session reading its old rollout from the start charges onl
     fs.appendFileSync(file, turn('2026-10-11T11:05:00Z', 't3', 450, 45));
     freshRead();
     assert.deepEqual(rows(), [['codex:new:t3', 150, 15]]);
+    const thread2 = '0199bbbb-1111-2222-3333-444455556666';
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, native_id) VALUES ('fast', 'p', 'codex', 'pty', 'working', 'x', '2026-10-11T12:00:00.000Z', ?)").run(thread2);
+    const file2 = path.join(home, `rollout-y-${thread2}.jsonl`);
+    fs.writeFileSync(file2, turn('2026-10-11T11:59:59.500Z', 'f1', 80, 8));
+    readCodexSession(db, 'fast', file2);
+    assert.deepEqual(db.prepare("SELECT dedupe_key, tokens_in FROM usage WHERE session_id = 'fast'").all().map((r: any) => [r.dedupe_key, r.tokens_in]), [['codex:fast:f1', 80]]);
   } finally {
     db.close();
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;

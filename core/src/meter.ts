@@ -118,6 +118,7 @@ export function readMeters(db: DatabaseSync): number {
 }
 
 interface Totals { input_tokens?: number; cached_input_tokens?: number; cache_write_input_tokens?: number; output_tokens?: number }
+const CLOCK_SLACK_MS = 2000;
 const codexFiles = new Map<string, string>();
 const codexTurns = new Map<string, { turn: string | null; model: string | null; base: Totals; last: Totals; before: boolean }>();
 
@@ -152,7 +153,7 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
     if (p?.type === 'task_started' && typeof p.turn_id === 'string') {
       st.turn = p.turn_id;
       st.base = st.last;
-      st.before = Date.parse(rec.timestamp) < startedMs;
+      st.before = Date.parse(rec.timestamp) < startedMs - CLOCK_SLACK_MS;
     }
     if (p?.type === 'token_count' && p.info?.total_token_usage && st.turn) {
       st.last = p.info.total_token_usage;
