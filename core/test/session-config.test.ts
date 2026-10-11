@@ -174,3 +174,14 @@ test('worktree.create keeps a branch with backslashes inside the worktrees folde
     db.close();
   }
 }));
+
+test('event lookups by session use an index on an existing database', () => withHome(async () => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const db = openCoreDb();
+  try {
+    const plan = (db.prepare("EXPLAIN QUERY PLAN SELECT at FROM event WHERE session_id = ? AND kind NOT LIKE 'term.%' ORDER BY julianday(at) DESC LIMIT 1").all('s') as Array<{ detail: string }>).map((r) => r.detail).join(' ');
+    assert.match(plan, /USING INDEX event_session_idx/);
+  } finally {
+    db.close();
+  }
+}));
