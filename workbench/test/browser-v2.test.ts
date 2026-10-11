@@ -120,12 +120,18 @@ test('M6-11 browser tools version 2 e2e contract', { skip: !runnable }, async ()
       // Clicking removed element old ref fails.
       ['clickRemoved', 'browser.click', { pane_id: userPaneId, ref: '@removable' }],
 
+      // Snapshot before navigating iframe.
+      ['snapBeforeNav', 'browser.snapshot', { pane_id: userPaneId }],
+
       // Navigate iframe to invalidate child frame refs.
       ['navIframe', 'browser.evaluate', { pane_id: userPaneId, expression: "document.getElementById('subframe').srcdoc = '<p>navigated</p>'" }],
       ['settleIframe', 'browser.wait_for', { pane_id: userPaneId, text: 'never-matching-text', timeout_ms: 600 }],
 
+      // Read iframe text to verify navigation.
+      ['frameText', 'browser.evaluate', { pane_id: userPaneId, expression: "document.getElementById('subframe').contentDocument.body.innerText" }],
+
       // Clicking old frame ref fails after frame navigation.
-      ['clickOldFrame', 'browser.click', { pane_id: userPaneId, ref: 'f1e4' }],
+      ['clickOldFrame', 'browser.click', { pane_id: userPaneId, ref: '@frame-btn' }],
 
       // Navigate to page with 20,000 elements.
       ['nav20k', 'browser.navigate', { pane_id: userPaneId, url: page20kUrl }],
@@ -169,6 +175,9 @@ test('M6-11 browser tools version 2 e2e contract', { skip: !runnable }, async ()
 
     // Clicking the removed element old ref fails with no longer on the page.
     assert.match(out.steps.clickRemoved.error?.message ?? '', /no longer on the page/);
+
+    // Verify frame content reflects navigation.
+    assert.ok(String(out.steps.frameText.result?.value ?? '').includes('navigated'));
 
     // Clicking the old frame ref after iframe navigation fails with no longer on the page.
     assert.match(out.steps.clickOldFrame.error?.message ?? '', /no longer on the page/);
