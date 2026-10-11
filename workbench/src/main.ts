@@ -21,7 +21,7 @@ import { dataVersion, snapshot, withContext, withLiveText, type LiveText, type S
 import { gitIn, handback } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
-import { diffLineBody, filesBody } from './comments.ts';
+import { copied, diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
@@ -182,7 +182,7 @@ function trusted(e: IpcMainInvokeEvent): boolean {
   return url.startsWith('file:') && fileURLToPath(url.split(/[?#]/)[0]) === INDEX;
 }
 
-async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string }> {
+async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string; copied?: boolean }> {
   const rw = new DatabaseSync(dbFile());
   try {
     rw.exec('PRAGMA busy_timeout = 2000');
@@ -192,8 +192,8 @@ async function saveComment(id: string, sessionId: string, kind: 'element' | 'dif
   } finally {
     rw.close();
   }
-  await call('comment.deliver', { comment_id: id }, { ui: true });
-  return { ok: true, comment_id: id };
+  const out = await call('comment.deliver', { comment_id: id }, { ui: true });
+  return { ok: true, comment_id: id, copied: copied(out) };
 }
 
 function inside(root: string, file: string): boolean {
