@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 
-export interface RowGit { branch: string | null; added: number; deleted: number }
+export interface RowGit { branch: string | null; added: number; deleted: number; changed: string[] }
 
 const cache = new Map<string, RowGit>();
 
@@ -10,8 +10,8 @@ function git(cwd: string, args: string[]): Promise<string> {
   });
 }
 
-/** Branch and lines added/removed against HEAD for each session folder; slow, so it runs on a timer, never per snapshot. */
-export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | null }>): Promise<boolean> {
+/** Branch, lines added/removed against HEAD, and the uncommitted paths the session owns (`owned`, from session.owners); slow, so it runs on a timer, never per snapshot. */
+export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | null }>, owned: Record<string, string[]> = {}): Promise<boolean> {
   let changed = false;
   for (const s of sessions) {
     if (!s.cwd) continue;
@@ -20,9 +20,10 @@ export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | 
       branch: branch.trim() || null,
       added: Number(/(\d+) insertion/.exec(stat)?.[1] ?? 0),
       deleted: Number(/(\d+) deletion/.exec(stat)?.[1] ?? 0),
+      changed: owned[s.id] ?? [],
     };
     const prev = cache.get(s.id);
-    if (!prev || prev.branch !== next.branch || prev.added !== next.added || prev.deleted !== next.deleted) changed = true;
+    if (!prev || prev.branch !== next.branch || prev.added !== next.added || prev.deleted !== next.deleted || JSON.stringify(prev.changed) !== JSON.stringify(next.changed)) changed = true;
     cache.set(s.id, next);
   }
   return changed;
