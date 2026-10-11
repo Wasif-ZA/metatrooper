@@ -21,7 +21,13 @@ function clearDeadSocket(pipePath: string): Promise<void> {
   });
 }
 
-export async function startPipeServer(pipePath: string, runner: CommandRunner, uiKey: string): Promise<net.Server> {
+export interface PipeReady {
+  runner: CommandRunner;
+  uiKey: string;
+}
+
+/** Binds the pipe at once; requests wait for `ready`, so the bind can serve as the single-instance lock before the database opens. */
+export async function startPipeServer(pipePath: string, ready: Promise<PipeReady>): Promise<net.Server> {
   await clearDeadSocket(pipePath);
   const server = net.createServer((socket) => {
     const conn: Conn = { ui: false };
@@ -37,6 +43,7 @@ export async function startPipeServer(pipePath: string, runner: CommandRunner, u
       }
       const params = (msg.params && typeof msg.params === 'object' ? msg.params : {}) as Record<string, unknown>;
       try {
+        const { runner, uiKey } = await ready;
         if (msg.method === 'ui.hello') {
           if (typeof params.ui_key !== 'string' || params.ui_key !== uiKey) throw new RpcError(E.NEEDS_UI, 'ui key does not match');
           conn.ui = true;

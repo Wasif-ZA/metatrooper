@@ -1,5 +1,5 @@
 import './log-core.ts';
-import { connect as netConnect, type Server } from 'node:net';
+import type { Server } from 'node:net';
 import { openCoreDb } from './store/db.ts';
 import { corePipe, termPipe } from './paths.ts';
 import { startTermServer } from './terminal/pipe.ts';
@@ -9,7 +9,8 @@ import { deliverPrompts } from './sessions/launch.ts';
 import { nowIso } from './time.ts';
 import { rotateUiKey } from './uikey.ts';
 import { CommandRunner } from './pipe/commands.ts';
-import { startPipeServer } from './pipe/server.ts';
+import { startPipeServer, type PipeReady } from './pipe/server.ts';
+import { PipeClient } from './pipe/client.ts';
 import { buildMethods } from './methods.ts';
 import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
@@ -19,27 +20,41 @@ import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters } from './meter.ts';
 import { readLimits } from './limits.ts';
 import { syncBuiltinPlugins } from './plugins/store.ts';
-import { settings } from './settings.ts';
+import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
 
-function coreAlreadyRunning(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = netConnect(corePipe());
-    const done = (v: boolean) => { socket.destroy(); resolve(v); };
-    socket.setTimeout(500, () => done(false));
-    socket.once('connect', () => done(true));
-    socket.once('error', () => done(false));
-  });
+/** The pid the running core reports through `core.ping`, or null when it does not answer within 3 s. */
+async function runningPid(): Promise<number | null> {
+  try {
+    const client = await PipeClient.connect(corePipe(), 1000);
+    try {
+      const reply = await Promise.race([client.send('core.ping').reply, new Promise<null>((r) => setTimeout(() => r(null), 3000))]);
+      const pid = (reply?.result as { pid?: unknown } | undefined)?.pid;
+      return typeof pid === 'number' ? pid : null;
+    } finally {
+      client.close();
+    }
+  } catch {
+    return null;
+  }
 }
 
 async function main(): Promise<void> {
-  if (await coreAlreadyRunning()) {
-    console.error(`metatrooper core is already running on ${corePipe()}`);
+  let ready!: (r: PipeReady) => void;
+  const pipeReady = new Promise<PipeReady>((resolve) => { ready = resolve; });
+  let server: Server;
+  try {
+    server = await startPipeServer(corePipe(), pipeReady);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw e;
+    const pid = await runningPid();
+    console.error(`core already running${pid === null ? '' : ` (pid ${pid})`}`);
     process.exit(1);
   }
+  clearSettingsTemps();
   const db = openCoreDb();
   const setMeta = db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
   setMeta.run('core_pid', String(process.pid));
@@ -50,14 +65,13 @@ async function main(): Promise<void> {
   syncBuiltinPlugins(db);
 
   const timers: NodeJS.Timeout[] = [];
-  let server: Server | null = null;
   let termServer: Server | null = null;
   let stopping = false;
   const stop = () => {
     if (stopping) return;
     stopping = true;
     for (const t of timers) clearInterval(t);
-    server?.close();
+    server.close();
     termServer?.close();
     term.killAll();
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
@@ -76,7 +90,7 @@ async function main(): Promise<void> {
   resolveSpentNotices(db);
 
   wireTermEvents(db);
-  server = await startPipeServer(corePipe(), commands, uiKey);
+  ready({ runner: commands, uiKey });
   termServer = await startTermServer(termPipe(), uiKey);
 
   const every = (ms: number, fn: () => unknown) => {

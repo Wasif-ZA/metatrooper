@@ -111,6 +111,60 @@ export function settings(): Settings {
   return value;
 }
 
+/** "settings.json does not parse, line N" when the file exists and is not JSON, else null. */
+export function settingsError(): string | null {
+  let text: string;
+  try { text = fs.readFileSync(settingsFile(), 'utf8'); } catch { return null; }
+  try {
+    JSON.parse(text);
+    return null;
+  } catch (e) {
+    const msg = (e as Error).message;
+    const line = /\(line (\d+)/.exec(msg)?.[1];
+    const pos = /position (\d+)/.exec(msg)?.[1];
+    const n = line ? Number(line) : pos ? text.slice(0, Number(pos)).split('\n').length : text.slice(0, badTokenAt(text)).split('\n').length;
+    return `settings.json does not parse, line ${n}`;
+  }
+}
+
+/** Index of the character V8 reports as "Unexpected token" without a position: the shortest prefix that fails that way ends there. */
+function badTokenAt(text: string): number {
+  const bad = (k: number) => { try { JSON.parse(text.slice(0, k)); return false; } catch (e) { return (e as Error).message.startsWith('Unexpected token'); } };
+  let lo = 0, hi = text.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (bad(mid)) hi = mid; else lo = mid + 1; }
+  return Math.max(0, lo - 1);
+}
+
+/** Sets `section.key` in settings.json by writing settings.json.tmp-<pid>, flushing it and renaming it over the file; refuses a file that does not parse. A new file starts with approval ask (M5-D6). */
+export function setSetting(section: string, key: string, value: unknown): void {
+  const file = settingsFile();
+  let raw: Record<string, any> = { sessions: { approval: 'ask' } };
+  if (fs.existsSync(file)) {
+    const error = settingsError();
+    if (error) throw new Error(error);
+    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+  raw[section] = { ...(raw[section] && typeof raw[section] === 'object' ? raw[section] : {}), [key]: value };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp-${process.pid}`;
+  const fd = fs.openSync(tmp, 'w');
+  try {
+    fs.writeSync(fd, JSON.stringify(raw, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, file);
+  cache = null;
+}
+
+/** Deletes settings.json.tmp-* files a stopped core left between its write and its rename. */
+export function clearSettingsTemps(): void {
+  try {
+    for (const name of fs.readdirSync(homeDir())) if (name.startsWith('settings.json.tmp-')) fs.rmSync(path.join(homeDir(), name), { force: true });
+  } catch {}
+}
+
 /** The active theme's values, falling back to the default theme for any missing key. */
 export function activeTheme(s = settings()): Record<string, string> {
   const base = DEFAULTS.ui.themes[DEFAULTS.ui.theme];

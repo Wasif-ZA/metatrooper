@@ -70,9 +70,9 @@ def human_out(out):
     return json.dumps(out, indent=1, ensure_ascii=False)
 
 
-def render(r, how):
+def render(r, how, text_ok=True):
     if how == "json":
-        if r.whole and isinstance(r.out, str) and not r.marker:
+        if text_ok and r.whole and isinstance(r.out, str) and not r.marker:
             lines = [] if r.ok else [f"[exit {r.exit}]"]
             lines.append(r.out[:-1] if r.out.endswith("\n") else r.out)
             lines += [f"{k}: {v}" for k, v in (("hint", r.hint), ("breaker", r.breaker), ("note", r.note)) if v]

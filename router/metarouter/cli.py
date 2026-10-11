@@ -104,6 +104,14 @@ def run_shell(cmd, force=None):
     return proc.returncode, proc.stdout or b"", round(time.monotonic() - start, 1)
 
 
+def run_argv(argv):
+    """Run argv with no shell in between. Return (exit, raw bytes, secs)."""
+    start = time.monotonic()
+    proc = subprocess.run([shutil.which(argv[0]) or argv[0], *argv[1:]], stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT)
+    return proc.returncode, proc.stdout or b"", round(time.monotonic() - start, 1)
+
+
 def recipe_choices(cmd):
     try:
         code, raw, _ = run_shell(cmd)
@@ -226,7 +234,7 @@ def build(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_labe
     return r
 
 
-def exec_lane(args):
+def exec_lane(args, argv=None):
     cut = args.index("--") if "--" in args else len(args)
     head, tail = args[:cut], args[cut:]
     whole = "--no-trunc" in head
@@ -248,10 +256,14 @@ def exec_lane(args):
     if refused:
         return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(cmd), note=refused)
     try:
-        code, raw, secs = run_shell(cmd, force) if force else run_shell(cmd)
+        if argv:
+            code, raw, secs = run_argv(argv)
+        else:
+            code, raw, secs = run_shell(cmd, force) if force else run_shell(cmd)
     except OSError as e:
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
-                      note=f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash or PowerShell path")
+                      note=f"could not start {argv[0]} ({e})" if argv else
+                      f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash or PowerShell path")
     if whole:
         r = finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
                    whole=True)
@@ -336,21 +348,20 @@ def run_lane(args):
     recipes = store.load()
     r = recipes.get(name)
     if not r:
+        rest = [a for a in args[1:] if a != "--background"]
         argv = fall_through(name, rest)
         if not argv:
             return no_recipe(name, recipes)
         plain = shlex.join(argv)
-        refused, warns = policy.verdict(plain)
-        if refused:
-            return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(plain), note=refused)
+        for text in (shlex.join([name, *rest]), plain):
+            refused, _ = policy.verdict(text)
+            if refused:
+                return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(text), note=refused)
         if background:
             from metarouter import jobs
             jid = jobs.start(["run", name, *rest], label=name)
             return Result(ok=True, lane="jobs", out={"job": jid, "collect": f"metarouter jobs {jid} --wait"})
-        if not is_powershell(shell()):
-            return exec_lane(["--", plain])
-        cmd = "& " + " ".join("'" + a.replace("'", "''") + "'" for a in argv)
-        return add_note(exec_lane(["--", cmd]), *warns)
+        return exec_lane(["--", plain], argv=argv)
     if store.needs_trust(r):
         if not yes:
             return Result(ok=False, lane="run", exit=2, recipe=name,
@@ -489,6 +500,13 @@ def jobs_lane(args):
     return Result(ok=code == 0, lane="jobs", exit=code, out={"job": jid, "status": s["status"]}, note=note)
 
 
+def quote_any(s):
+    """Quote s so bash and PowerShell both read it as one argument."""
+    if re.fullmatch(r"[\w./+-]+", s):
+        return s
+    return f'"{s}"' if not re.search(r'["$`\\]', s) else shlex.quote(s)
+
+
 def search_lane(args):
     words = [w.lower() for w in args]
     recipes = store.load()
@@ -504,7 +522,7 @@ def search_lane(args):
     if words and store.mode() == "auto":
         from metarouter import mcp
         root = store.project_root()
-        extra += [f"metarouter run {shlex.quote('./' + f.relative_to(root).as_posix())}    repo script" for f in repo_scripts()
+        extra += [f"metarouter run {quote_any('./' + f.relative_to(root).as_posix())}    repo script" for f in repo_scripts()
                   if any(w in f.name.lower() for w in words)][:5]
         extra += [f"metarouter mcp {ln}" for ln in mcp.catalog_lines(words, remote=False)[:5]]
         cached_lines = []
@@ -1169,7 +1187,7 @@ def log_call(rec):
         print(f"metarouter: call log not written ({type(e).__name__})", file=sys.stderr)
 
 
-def main(argv=None):
+def main(argv=None, text_ok=True):
     how_, argv = mode(list(sys.argv[1:] if argv is None else argv))
     verb, rest = (argv[0], argv[1:]) if argv else (None, [])
     if verb == "ingest":
@@ -1190,7 +1208,7 @@ def main(argv=None):
     else:
         r = unknown(verb)
     r = shield.guard(r)
-    out = render(r, how_)
+    out = render(r, how_, text_ok)
     if r.rec:
         log_call({**r.rec, "shown_bytes": len(out.encode("utf-8"))})
     try:
