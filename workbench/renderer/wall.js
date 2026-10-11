@@ -31,7 +31,7 @@ const wall = (() => {
       if (!s) { S[x.id] = { state: x.state, shell: x.shell, open: false, hist: Array(SPN).fill(0), lvl: 0 }; fx.push([x.id, null, x.state]); }
       else if (s.state !== x.state) { fx.push([x.id, s.state, x.state]); s.state = x.state; if (active(s)) s.open = false; }
     }
-    for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); delete S[id]; }
+    for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); pane(id)?._br?.kill(); delete S[id]; }
     BIG = BIG.filter((id) => S[id]);
     ORDER = ORDER.filter((id) => S[id] && !BIG.includes(id));
     for (const id of ids) if (!BIG.includes(id) && !ORDER.includes(id)) ORDER.push(id);

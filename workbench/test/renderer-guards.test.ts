@@ -57,3 +57,18 @@ test('the Git tab leaves Loading when git throws or no project is picked, and a 
   await gitDo('view');
   assert.equal(ui.gitBusy, null);
 });
+
+test('a waiting tile that leaves the wall stops its endless attention pulse', () => {
+  const node = (): any => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, after() {}, appendChild() {}, querySelector: () => node(), getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) });
+  const tile = node();
+  const endless: Array<{ killed: boolean }> = [];
+  const tween = (_t: unknown, v?: { repeat?: number }) => { const tw = { killed: false, kill() { tw.killed = true; } }; if (v?.repeat === -1) endless.push(tw); return tw; };
+  const gsap = { to: tween, set: tween, fromTo: (t: unknown, _f: unknown, v: { repeat?: number }) => tween(t, v), delayedCall: tween };
+  const ctx = vm.createContext({ gsap, termView: { tile: () => tile }, matchMedia: () => ({ matches: false }), document: { body: node(), querySelector: () => node(), createElement: () => ({ content: { firstChild: node() } }) }, addEventListener() {}, setInterval() {}, innerWidth: 1400, innerHeight: 900 });
+  vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
+  ctx.wall.decide([{ id: 's1', state: 'waiting_for_you' }], null);
+  ctx.wall.apply('single');
+  assert.equal(endless.length, 1);
+  ctx.wall.decide([], null);
+  assert.ok(endless.every((t) => t.killed));
+});
