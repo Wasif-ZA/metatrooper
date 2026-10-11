@@ -227,7 +227,9 @@ function reportPaneBounds() {
 async function startComment() {
   if (!ui.paneId) return;
   toast('Click the element you want to comment on.');
-  await api.panePick(ui.paneId);
+  const pane = ui.paneId;
+  ui.picking = pane;
+  try { await api.panePick(pane); } finally { if (ui.picking === pane) ui.picking = null; }
 }
 
 
@@ -867,6 +869,7 @@ function switchProject(id) {
   ui.hbLine = null;
   ui.gitFile = false;
   ui.comment = null;
+  if (ui.picking) { void api.panePickCancel(ui.picking); ui.picking = null; }
   save('projectId', id);
   setView();
 }

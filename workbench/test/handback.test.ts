@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, writeFileSync, readFileSync, readdirSync, chmodSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, chmodSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +71,7 @@ test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', async (
     for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
   const used = new Set(readFileSync(log, 'utf8').split('\n').filter(Boolean));
+  rmSync(bin, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   assert.ok(used.size > 0);
   for (const cmd of used) assert.ok(['diff', 'ls-files'].includes(cmd), cmd);
   assert.throws(() => gitIn(d)(['commit', '-m', 'x']), /not allowed/);

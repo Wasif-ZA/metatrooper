@@ -180,3 +180,13 @@ test('the Before/After image cache drops screenshots the snapshot no longer list
   renderCompare({ id: 'bp1' });
   assert.deepEqual(Object.keys(ui.images), ['b-390.png']);
 });
+
+test('switching project cancels a comment pick still waiting in the old project pane', () => {
+  const ui: any = { projectId: 'p1', picking: 'bp1' };
+  const cancelled: string[] = [];
+  const api = { panePickCancel: async (id: string) => { cancelled.push(id); } };
+  const switchProject = new Function('ui', 'api', 'save', 'setView', `${fn('switchProject')}; return switchProject;`)(ui, api, () => {}, () => {});
+  switchProject('p2');
+  assert.deepEqual(cancelled, ['bp1']);
+  assert.equal(ui.picking, null);
+});

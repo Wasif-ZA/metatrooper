@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gitIn, handback } from '../src/handback.ts';
@@ -52,6 +52,7 @@ test('every workbench git call runs with GIT_OPTIONAL_LOCKS=0, so it never takes
     for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
   const seen = readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  for (const dir of [bin, d]) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   assert.ok(seen.length >= 10, `only ${seen.length} git calls were logged`);
   assert.deepEqual([...new Set(seen)], ['0']);
 });
