@@ -119,7 +119,7 @@ export function readMeters(db: DatabaseSync): number {
 
 interface Totals { input_tokens?: number; cached_input_tokens?: number; cache_write_input_tokens?: number; output_tokens?: number }
 const codexFiles = new Map<string, string>();
-const codexTurns = new Map<string, { turn: string | null; model: string | null; base: Totals; last: Totals }>();
+const codexTurns = new Map<string, { turn: string | null; model: string | null; base: Totals; last: Totals; before: boolean }>();
 
 export function noteCodexSession(sessionId: string, file: string): void {
   codexFiles.set(sessionId, file);
@@ -129,10 +129,11 @@ export function noteCodexSession(sessionId: string, file: string): void {
 export function readCodexSession(db: DatabaseSync, sessionId: string, file: string): number {
   const lines = newLines(file);
   if (!lines) return 0;
-  const session = db.prepare('SELECT engine_id, run_id, step_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null } | undefined;
+  const session = db.prepare('SELECT engine_id, run_id, step_id, started_at FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null; started_at: string } | undefined;
   if (!session) return 0;
+  const startedMs = Date.parse(session.started_at);
   let st = codexTurns.get(file);
-  if (!st) codexTurns.set(file, (st = { turn: null, model: null, base: {}, last: {} }));
+  if (!st) codexTurns.set(file, (st = { turn: null, model: null, base: {}, last: {}, before: false }));
   const upsert = db.prepare(
     `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key)
      VALUES (?, ?, ?, ?, ?, 'local-cli', ?, ?, ?, ?, ?, ?, 'codex-session', ?)
@@ -151,9 +152,12 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
     if (p?.type === 'task_started' && typeof p.turn_id === 'string') {
       st.turn = p.turn_id;
       st.base = st.last;
+      st.before = Date.parse(rec.timestamp) < startedMs;
     }
     if (p?.type === 'token_count' && p.info?.total_token_usage && st.turn) {
       st.last = p.info.total_token_usage;
+      if ((st.last.input_tokens ?? 0) < (st.base.input_tokens ?? 0)) st.base = {};
+      if (st.before) continue;
       const cr = d('cached_input_tokens');
       const cw = d('cache_write_input_tokens');
       const i = d('input_tokens') - cr;
