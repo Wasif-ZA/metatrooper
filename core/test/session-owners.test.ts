@@ -622,3 +622,35 @@ test('an Edit on a file another session owns still warns when git does not answe
     await sleep(1600);
   } finally { await h.teardown(); }
 });
+
+test('a turn snapshot does not wait behind a stalled git in the shared queue', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-snapq-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { markTurnBase } = await import('../src/events/processor.ts');
+  const { gitAsync } = await import('../src/sessions/owners.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'a.txt': 'one\n' });
+    writeFileSync(join(repo, 'a.txt'), 'two\n');
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES ('s', 'p', 'claude', 'pty', ?, 'working', 'x', 'x')").run(repo);
+    const stalled = gitAsync(repo, ['hash-object', '--stdin'], 4000).catch(() => {});
+    const started = Date.now();
+    await markTurnBase(db, 's');
+    const took = Date.now() - started;
+    assert.ok((db.prepare("SELECT turn_base FROM session WHERE id = 's'").get() as { turn_base: string | null }).turn_base);
+    assert.ok(took < 2000, `snapshot waited ${took} ms`);
+    await stalled;
+  } finally {
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
