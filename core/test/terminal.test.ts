@@ -481,3 +481,19 @@ test('7 lastLine joins a line the terminal wrapped across rows', async () => {
     await until(() => !term.has(id));
   }
 });
+
+test('killing a terminal twice before it exits leaves the process running', async () => {
+  const script = [
+    "const term = await import('./core/src/terminal/index.ts');",
+    "term.open('twice', [process.execPath, '-e', 'setInterval(() => {}, 1000)'], process.cwd(), process.env);",
+    'await new Promise((r) => setTimeout(r, 1000));',
+    "term.kill('twice');",
+    "term.kill('twice');",
+    'await new Promise((r) => setTimeout(r, 1500));',
+    "console.log('alive');",
+    'process.exit(0);',
+  ].join('\n');
+  const r = await runNode(['--input-type=module', '-e', script], { ...process.env, NODE_OPTIONS: '' }) as { code: number; stdout: string };
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /alive/);
+});

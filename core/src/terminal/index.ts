@@ -138,7 +138,7 @@ export function resize(id: string, cols: number, rows: number): void {
 
 export function kill(id: string): void {
   const t = terms.get(id);
-  if (!t || t.exitCode !== null) return;
+  if (!t || t.exitCode !== null || t.killed) return;
   t.killed = true;
   try { t.proc.kill(); } catch {}
 }
