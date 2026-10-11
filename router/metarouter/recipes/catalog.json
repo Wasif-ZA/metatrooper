@@ -14,7 +14,7 @@
   "name": "git-diff",
   "summary": "unstaged diff: stat block then patch with 2 context lines, no colour or pager",
   "needs": "git",
-  "body": "git --no-pager diff --no-color --stat -p -U2",
+  "body": "git -c core.safecrlf=false --no-pager diff --no-color --stat -p -U2",
   "args": [
    "[rev] [-- path]"
   ],
@@ -102,7 +102,7 @@
   "name": "git-staged",
   "summary": "staged diff (what a commit would contain): stat then patch",
   "needs": "git",
-  "body": "git --no-pager diff --cached --no-color --stat -p -U2",
+  "body": "git -c core.safecrlf=false --no-pager diff --cached --no-color --stat -p -U2",
   "args": [
    "[-- path]"
   ],
@@ -244,7 +244,7 @@
   "name": "tsc-check",
   "summary": "TypeScript type check with the project's own tsc, no emit, one error per line; never installs",
   "needs": "npx",
-  "body": "npx --no -- tsc --noEmit --pretty false",
+  "body": "npx --no -p typescript -- tsc --noEmit --pretty false",
   "args": [
    "[-p tsconfig.json]"
   ],
@@ -451,9 +451,9 @@
  },
  {
   "name": "loc-top",
-  "summary": "the 25 largest tracked files by line count",
+  "summary": "the 25 largest tracked text files by line count, binaries skipped",
   "needs": "git",
-  "body": "git ls-files -z | xargs -0 wc -l 2>/dev/null | grep -v ' total$' | sort -rn | head -25",
+  "body": "git grep -I -c '' | sort -t: -k2,2 -rn | head -25",
   "args": [],
   "purity": "read",
   "shell": "bash"

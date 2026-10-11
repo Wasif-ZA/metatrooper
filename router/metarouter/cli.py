@@ -55,6 +55,8 @@ STALE_DAYS = 60
 HELP_LINES = 60
 EXE_EXT = {".exe", ".cmd", ".bat"} if os.name == "nt" else {""}
 SCRIPT_DIRS = ("scripts", "meta/scripts", "bin", "")
+SHELL_WORDS = {"cd", "for", "while", "if", "do", "export", "set", "source", ".", "eval", "exec", "echo", "true",
+               "false", "[", "test", "(", "{"}
 SCRIPT_EXT = (".sh", ".py", ".js", ".cjs", ".mjs", ".ps1")
 
 
@@ -918,13 +920,13 @@ def tools_lane(args):
     out = {}
     bins = {}
     for r in rows:
-        b = (r.get("shape") or "").split(" ")[0]
-        if r.get("lane") == "exec" and b:
+        b = (r.get("shape") or "").split(" ")[0].lower().removesuffix(".exe")
+        if r.get("lane") == "exec" and b and b not in SHELL_WORDS:
             local, total = bins.get(b, (0, 0))
             bins[b] = (local + (r.get("project") == here and r.get("exit") == 0), total + 1)
     if bins:
         out["cli"] = [f"{b}  ({n} calls, {k} ok here)" for b, (k, n) in
-                      sorted(bins.items(), key=lambda x: (-x[1][0], -x[1][1]))[:30]]
+                      sorted(bins.items(), key=lambda x: (-x[1][0], -x[1][1])) if shutil.which(b)][:30]
     for server in sorted(mcp.servers()):
         try:
             out[f"mcp:{server}"] = capped([mcp.one_line(t) for t in mcp.list_tools(server)],
