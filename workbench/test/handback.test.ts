@@ -62,16 +62,18 @@ test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', async (
   const { d } = repo();
   const bin = mkdtempSync(join(tmpdir(), 'hb-bin-'));
   const log = join(bin, 'log');
-  const vars = stubGit(bin, log);
-  const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
-  Object.assign(process.env, vars);
+  let used = new Set<string>();
+  let old: Record<string, string | undefined> = {};
   try {
+    const vars = stubGit(bin, log);
+    old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, vars);
     await handback(gitIn(d));
   } finally {
     for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    try { used = new Set(readFileSync(log, 'utf8').split('\n').filter(Boolean)); } catch {}
+    for (const dir of [bin, d]) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
-  const used = new Set(readFileSync(log, 'utf8').split('\n').filter(Boolean));
-  rmSync(bin, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   assert.ok(used.size > 0);
   for (const cmd of used) assert.ok(['diff', 'ls-files'].includes(cmd), cmd);
   assert.throws(() => gitIn(d)(['commit', '-m', 'x']), /not allowed/);

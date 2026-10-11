@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
-import { resolveCommand } from '../../core/src/hook/resolve.ts';
+import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
@@ -472,9 +472,9 @@ function handlers(): void {
     if (typeof target !== 'string') return false;
     if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }
     try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }
-    const code = resolveCommand('code');
+    const code = resolveLaunch('code');
     if (!code) { shell.showItemInFolder(target); return true; }
-    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', (e) => console.error(`could not open ${target}: ${e.message}`)).unref();
+    spawn(code.argv[0], [...code.argv.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ...code.env } }).on('error', (e) => console.error(`could not open ${target}: ${e.message}`)).unref();
     return true;
   });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
