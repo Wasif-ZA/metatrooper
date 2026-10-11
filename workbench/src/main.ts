@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
+import { resolveCommand } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
@@ -555,6 +556,24 @@ function handlers(): void {
     const file = path.join(dir, `${ulid()}.png`);
     fs.writeFileSync(file, png);
     return file;
+  });
+  on('linkCheck', (sessionId: unknown, candidates: unknown) => {
+    if (!Array.isArray(candidates)) return [];
+    const cwd = cwdOf(sessionId);
+    return candidates.slice(0, 50).map((c) => {
+      if (typeof c !== 'string' || c.length > 400) return null;
+      const file = path.isAbsolute(c) ? c : cwd ? path.resolve(cwd, c) : null;
+      try { return file && fs.statSync(file).isFile() ? file : null; } catch { return null; }
+    });
+  });
+  on('openLink', (target: unknown, line: unknown, col: unknown) => {
+    if (typeof target !== 'string') return false;
+    if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }
+    try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }
+    const code = resolveCommand('code');
+    if (!code) { shell.showItemInFolder(target); return true; }
+    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    return true;
   });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });

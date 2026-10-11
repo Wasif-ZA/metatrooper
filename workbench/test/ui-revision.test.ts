@@ -356,6 +356,19 @@ test('M6-08 pasting a clipboard image saves a PNG under paste/<session> and past
   } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
 });
 
+test('M6-08 paths that exist and URLs in terminal output become links; missing paths do not', options, async () => {
+  const h = await revisionHarness(); let w;
+  try {
+    const { session_id } = await h.launch('ticker');
+    w=await windowFor(h); await select(h, w, session_id);
+    const line = 'see seed.txt:1:2 and nope/missing.ts:3 at https://example.com/x';
+    const links = await w.evaluate(`termView.links(${JSON.stringify(session_id)}, ${JSON.stringify(line)})`);
+    assert.deepEqual(links.map((l: any) => [l.text, l.line, l.col]).sort(), [['https://example.com/x', 1, 1], ['seed.txt:1:2', 1, 2]]);
+    assert.equal(links.find((l: any) => l.text === 'seed.txt:1:2').target.toLowerCase(), join(h.project, 'seed.txt').toLowerCase());
+    assert.equal(await w.evaluate(`window.troop.openLink(${JSON.stringify(join(h.project, 'nope', 'missing.ts'))}, 1, 1)`), false);
+  } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
+});
+
 test('UI-10 a 10,000-row terminal snapshot is parsed in the window under 500 ms', options, async (t) => {
   const fake = `process.stdin.resume(); process.stdout.write(Array.from({length:10000},(_,i)=>'scrollback-row-'+String(i).padStart(5,'0')).join('\\r\\n')+'\\r\\n'); setInterval(()=>{},1000);`;
   const h=await revisionHarness(undefined,fake);let w;
