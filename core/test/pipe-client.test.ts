@@ -49,3 +49,18 @@ test('a finished call leaves no timer that keeps the process alive', async () =>
   assert.equal(r.stdout.trim(), 'reply');
   assert.ok(Date.now() - started < 10_000, `process lingered ${Date.now() - started} ms`);
 });
+
+test('a browser call fails at once when the browser drops the connection', async () => {
+  process.env.METATROOPER_PIPE_PREFIX = `mt-client-${randomUUID()}`;
+  const { browserCall } = await import('../src/browser/client.ts');
+  const { browserPipe } = await import('../src/paths.ts');
+  const server = net.createServer((s) => s.once('data', () => s.end()));
+  await new Promise<void>((r) => server.listen(browserPipe(), r));
+  try {
+    const started = Date.now();
+    await assert.rejects(browserCall('k', 'browser.capture', {}, 5000), (e: Error) => !/timed out/.test(e.message));
+    assert.ok(Date.now() - started < 2000);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
