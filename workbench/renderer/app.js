@@ -737,8 +737,14 @@ function tileMeta(x) {
   const g = (ui.snap.git || {})[x.id];
   const parts = [];
   if (g && g.branch) parts.push(`${g.branch} +${g.added} -${g.deleted}`);
-  if (x.tokens !== null && x.tokens !== undefined && !DEMO) parts.push(`${x.tokens.toLocaleString('en-US')} tok`);
+  if (!DEMO) parts.push(costChip(x));
   return parts.join('  ');
+}
+
+function costChip(x) {
+  if (x.tokens === null || x.tokens === undefined) return 'usage unknown';
+  const usd = x.usd === null || x.usd === undefined ? '' : ` · $${x.usd.toFixed(2)}`;
+  return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
 function render(focus = false) {
