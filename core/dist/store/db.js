@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { dbFile, homeDir, schemaFile } from '../paths.js';
+import { coreDir, dbFile, homeDir, schemaFile } from '../paths.js';
+import { nowIso } from '../time.js';
 
                               
 
@@ -43,7 +44,27 @@ export function openCoreDb()               {
   const schemaText = fs.readFileSync(schemaFile, 'utf8');
   for (const table of ['notify_sink', 'notify_delivery', 'approval']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
   db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
+  migrate(db);
   return db;
+}
+
+export const migrationsDir = path.join(coreDir, 'src', 'store', 'migrations');
+
+/** Applies each `NNN-<name>.sql` in `dir` not yet in `schema_migration`, in id order, one transaction each. */
+export function migrate(db              , dir = migrationsDir)           {
+  db.exec('CREATE TABLE IF NOT EXISTS schema_migration (id INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
+  const done = new Set((db.prepare('SELECT id FROM schema_migration').all()                         ).map((r) => Number(r.id)));
+  const applied           = [];
+  for (const file of fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort()) {
+    const id = Number(file.slice(0, 3));
+    if (done.has(id)) continue;
+    tx(db, () => {
+      db.exec(fs.readFileSync(path.join(dir, file), 'utf8'));
+      db.prepare('INSERT INTO schema_migration (id, applied_at) VALUES (?, ?)').run(id, nowIso());
+    });
+    applied.push(id);
+  }
+  return applied;
 }
 
 const V2_TABLES = ['session', 'event', 'comment', 'needs_you'];

@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { settings } from './settings.ts';
+import { DEFAULTS, setSetting, settings } from './settings.ts';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
@@ -16,7 +16,7 @@ import { liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
-import { homeDir } from './paths.ts';
+import { homeDir, repoDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
@@ -33,6 +33,8 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
   if (!required) return '';
   throw new RpcError(E.INVALID_PARAMS, `${key} is required`);
 }
+
+export const PROTOCOL = 1;
 
 export const MOVED_METHODS = [
   'run.start', 'run.cancel', 'run.clear', 'run.resume', 'run.item-set', 'gate.resolve', 'schedule.set', 'pipeline.validate',
@@ -57,10 +59,28 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('account.state', { handler: () => ({ state: 'signed_out' }) });
 
+  const startedAt = nowIso();
+  const version = String((JSON.parse(fs.readFileSync(path.join(repoDir, 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');
   m.set('core.ping', {
     handler: () => {
       const v = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      return { ok: true, pid: process.pid, schema_version: v.user_version };
+      return { ok: true, pid: process.pid, version, protocol: PROTOCOL, schema_version: v.user_version, started_at: startedAt };
+    },
+  });
+
+  m.set('settings.set', {
+    needsUi: true,
+    handler: (p) => {
+      const [section, key, ...rest] = str(p, 'key').split('.');
+      const base = (DEFAULTS as Record<string, unknown>)[section] as Record<string, unknown> | undefined;
+      if (!key || rest.length || !base || typeof base !== 'object' || !(key in base)) throw new RpcError(E.INVALID_PARAMS, 'key must be a known <section>.<name> setting');
+      if (typeof p.value !== typeof base[key] || p.value === null || Array.isArray(p.value) !== Array.isArray(base[key])) throw new RpcError(E.INVALID_PARAMS, `${section}.${key} must be a ${typeof base[key]}`);
+      try {
+        setSetting(section, key, p.value);
+      } catch (e) {
+        throw new RpcError(E.VALIDATION, (e as Error).message);
+      }
+      return {};
     },
   });
 

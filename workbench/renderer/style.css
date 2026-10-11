@@ -135,6 +135,9 @@ body.no-split .side-split { display: none; }
 .inbox .item:hover { background: var(--canvas); }
 .inbox .item.read { opacity: 0.6; }
 .inbox .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sink-form { display: grid; gap: 8px; padding: 8px 14px; border-top: 1px var(--bstyle) var(--hairline-strong); }
+.sink-form > label { display: grid; gap: 2px; color: var(--mute); font-size: 11px; }
+.sink-kinds { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; }
 .menu { position: fixed; background: var(--canvas-deep); border: 1px var(--bstyle) var(--hairline-strong); border-radius: var(--r); box-shadow: var(--float); z-index: 50; padding: 4px 0; min-width: 160px; }
 .menu .item { padding: 6px 14px; cursor: pointer; }
 .menu .item:hover { background: var(--canvas); }

@@ -3,6 +3,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
+import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
+import { resolveCommand } from '../../core/src/hook/resolve.ts';
+import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
@@ -20,7 +23,7 @@ import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts'
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
 import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
-import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
+import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
 
 captureProcessLog('workbench', false);
@@ -34,6 +37,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
+  'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -78,7 +82,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = { ...withLiveText(snapshot(d, view.projectId), liveText), git: rowGit() };
+    lastGood = { ...withLiveText(snapshot(d, view.projectId), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
@@ -158,6 +162,8 @@ function watch(): void {
       }
     }
     const s = read();
+    if (lastOnline === true && !s.core.online && ownCore && !closing) void restartOwnCore();
+    if (lastOnline === false && s.core.online) void checkCoreVersion().then(schedulePush);
     if (changed || s.core.online !== lastOnline) schedulePush();
     void pollLiveText();
   }, POLL_MS);
@@ -195,13 +201,11 @@ function appendLine(envName: string, value: unknown): void {
   } catch {}
 }
 
-/** Sets one key in ~/.metatrooper/settings.json; a new file starts with approval ask (M5-D6). */
-function writeSetting(section: string, key: string, value: unknown): void {
-  let raw: Record<string, any> = fs.existsSync(settingsFile()) ? {} : { sessions: { approval: 'ask' } };
-  try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch {}
-  raw[section] = { ...(raw[section] && typeof raw[section] === 'object' ? raw[section] : {}), [key]: value };
-  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
-  fs.writeFileSync(settingsFile(), JSON.stringify(raw, null, 2));
+/** Asks the core, the only writer of settings.json, to set one key; returns the core's error message, if any. */
+async function writeSetting(key: string, value: unknown): Promise<string | null> {
+  const out = await call('settings.set', { key, value }, { ui: true });
+  if (out.kind !== 'reply') return 'the core is offline, so the setting was not saved';
+  return out.reply.error ? out.reply.error.message : null;
 }
 
 function handlers(): void {
@@ -422,24 +426,54 @@ function handlers(): void {
   on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
     if (typeof sessionId !== 'string') return false;
     attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
-    return true;
+    return { windows_build: windowsBuild() };
   });
   on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
-  on('setTheme', (name: unknown) => {
-    if (typeof name !== 'string' || !settings().ui.themes[name]) return false;
-    writeSetting('ui', 'theme', name);
-    return activeTheme();
+  on('setTheme', async (name: unknown) => {
+    if (typeof name !== 'string' || !settings().ui.themes[name]) return { error: 'unknown theme' };
+    const error = await writeSetting('ui.theme', name);
+    return error ? { error } : activeTheme({ ...settings(), ui: { ...settings().ui, theme: name } });
   });
-  on('setApproval', (value: unknown) => {
-    if (value !== 'ask' && value !== 'contained') return false;
-    writeSetting('sessions', 'approval', value);
-    return true;
+  on('setApproval', async (value: unknown) => {
+    if (value !== 'ask' && value !== 'contained') return { error: 'approval must be ask or contained' };
+    const error = await writeSetting('sessions.approval', value);
+    return error ? { error } : { ok: true };
   });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
+  on('termAck', (sessionId: unknown, bytes: unknown) => { if (typeof sessionId === 'string' && typeof bytes === 'number') termAck(sessionId, bytes); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('readText', () => clipboard.readText());
+  on('pasteImage', async (sessionId: unknown) => {
+    if (typeof sessionId !== 'string') return null;
+    const item = (await clipboard.read()).find((i) => i.types.includes('image/png'));
+    if (!item) return null;
+    const png = Buffer.from(await ((await item.getType('image/png')) as Blob).arrayBuffer());
+    const dir = path.join(homeDir(), 'paste', sessionId.replace(/[^A-Za-z0-9-]/g, ''));
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${ulid()}.png`);
+    fs.writeFileSync(file, png);
+    return file;
+  });
+  on('linkCheck', (sessionId: unknown, candidates: unknown) => {
+    if (!Array.isArray(candidates)) return [];
+    const cwd = cwdOf(sessionId);
+    return candidates.slice(0, 50).map((c) => {
+      if (typeof c !== 'string' || c.length > 400) return null;
+      const file = path.isAbsolute(c) ? c : cwd ? path.resolve(cwd, c) : null;
+      try { return file && fs.statSync(file).isFile() ? file : null; } catch { return null; }
+    });
+  });
+  on('openLink', (target: unknown, line: unknown, col: unknown) => {
+    if (typeof target !== 'string') return false;
+    if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }
+    try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }
+    const code = resolveCommand('code');
+    if (!code) { shell.showItemInFolder(target); return true; }
+    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    return true;
+  });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
@@ -521,6 +555,40 @@ function createWindow(): void {
 
 const CORE_MAIN = path.join(here, '..', '..', 'core', 'src', 'main.ts');
 const APP_DIR = path.resolve(here, '..');
+const APP_VERSION = String((JSON.parse(fs.readFileSync(path.join(APP_DIR, '..', 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');
+
+let coreMismatch: string | null = null;
+let coreLog: string[] | null = null;
+const restarts: number[] = [];
+
+/** Compares the running core's version with this window's; a different one makes the window offer Restart core. */
+async function checkCoreVersion(): Promise<void> {
+  const out = await call('core.ping', {}, { ui: true });
+  if (out.kind !== 'reply' || out.reply.error) return;
+  const v = (out.reply.result as { version?: unknown }).version;
+  coreMismatch = v === APP_VERSION ? null : `core ${typeof v === 'string' ? v : '(older)'} is running; this window is ${APP_VERSION}`;
+}
+
+/** The last `n` lines of logs/core.log. */
+function coreLogTail(n: number): string[] {
+  try { return fs.readFileSync(path.join(logsDir(), 'core.log'), 'utf8').trimEnd().split(/\r?\n/).slice(-n); } catch { return ['logs/core.log could not be read']; }
+}
+
+/** Restarts a core this window started when it stops answering, at most 3 times in 60 s; after that it shows the core log instead. */
+async function restartOwnCore(): Promise<void> {
+  const now = Date.now();
+  while (restarts.length && now - restarts[0] > 60_000) restarts.shift();
+  if (restarts.length >= 3) {
+    coreLog = coreLogTail(20);
+    schedulePush();
+    return;
+  }
+  restarts.push(now);
+  coreLog = null;
+  await ensureCore();
+  await checkCoreVersion();
+  schedulePush();
+}
 
 function coreUp(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -555,7 +623,30 @@ function folderArg(argv: string[], cwd: string): string | null {
   return null;
 }
 
+export function needsYouLink(argv: string[]): string | null {
+  for (const a of argv) {
+    const m = /^metatrooper:\/\/needs-you\/([A-Za-z0-9_-]{1,64})\/?$/i.exec(a);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** Tests (METATROOPER_HOME set) and git worktrees (a .git file, not a folder) never take over the OS link handler. */
+function registersProtocol(): boolean {
+  if (process.env.METATROOPER_HOME) return false;
+  if (!process.defaultApp) return true;
+  try { return fs.statSync(path.join(APP_DIR, '..', '.git')).isDirectory(); } catch { return false; }
+}
+
+function openNeedsYou(id: string | null): void {
+  if (!id || !win) return;
+  const send = () => win?.webContents.send('open-needs-you', id);
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+  else send();
+}
+
 async function stopCore(): Promise<void> {
+  ownCore = false;
   await call('core.stop', {}, { ui: true });
   for (let i = 0; i < 40 && (await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
@@ -610,12 +701,18 @@ if (!app.requestSingleInstanceLock()) {
       win.focus();
     }
     void openFolder(folderArg(argv, cwd));
+    openNeedsYou(needsYouLink(argv));
   });
   app.whenReady().then(() => {
+    if (registersProtocol()) {
+      if (process.defaultApp) app.setAsDefaultProtocolClient('metatrooper', process.execPath, [APP_DIR]);
+      else app.setAsDefaultProtocolClient('metatrooper');
+    }
     lockDown();
     handlers();
     createWindow();
-    void ensureCore().then(() => openFolder(folderArg(process.argv, process.cwd())));
+    void ensureCore().then(checkCoreVersion).then(() => openFolder(folderArg(process.argv, process.cwd())));
+    openNeedsYou(needsYouLink(process.argv));
     watch();
     const gitTick = async () => {
       try {

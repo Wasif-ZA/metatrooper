@@ -76,7 +76,9 @@ Status moves `queued` -> `accepted` -> `running` -> `ok` or `error`. The core wr
 claims the row and `running` immediately before the first side effect (launching a process, writing a file,
 calling a plugin action).
 
-On start, before accepting new pipe requests, the core:
+On start the core first binds the pipe, which is the single-instance lock (M6-4). A second core whose bind fails
+prints "core already running (pid N)" and exits 1 before it opens `troop.db`. Requests that arrive while the
+first core is still starting wait for it. Then, before answering them, the core:
 
 1. Re-executes every `accepted` row in `at` order. No side effect has happened for these.
 2. Marks every `running` row `error` with `{"code":-32098,"message":"interrupted by core restart"}` and
@@ -114,6 +116,8 @@ Every other interaction is a database read.
 
 | Method | Params | Result |
 |---|---|---|
+| `core.ping` | `{}` | `{ok: true, pid, version, protocol, schema_version, started_at}`; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |
+| `settings.set` | `{key, value}` | `{}`; needs `ui.hello`. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) |
 | `account.state` | `{}` | `{state: "signed_out"}`: the only state until the cloud milestone; nothing prompts for sign-in |
 | `project.open` | `{path}` | `{project_id}`; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
 | `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path |
@@ -182,7 +186,8 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
 
 - NDJSON, UTF-8, one JSON object per line. One session per connection; a tile grid of 6 opens 6 connections.
 - Client to server: `{"op":"attach","session":"<id>","cols":120,"rows":40,"ui_key":"<ui.key>"}` first, then any
-  of `{"op":"input","data":"<string>"}`, `{"op":"resize","cols":N,"rows":N}`, `{"op":"detach"}`.
+  of `{"op":"input","data":"<string>"}`, `{"op":"resize","cols":N,"rows":N}`, `{"op":"ack","bytes":N}`,
+  `{"op":"detach"}`.
 - `attach` carries the ui key because input types into an agent, which is as strong as approving a gate. A
   wrong key gets `{"op":"error","code":"needs-ui"}` and the connection closes.
 - Server to client: `{"op":"snapshot","seq":0,"data":"<serialized terminal>"}` once, then
@@ -192,8 +197,13 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   taken, and only output the snapshot does not hold is sent after it.
 - `output` data is split on code-point boundaries, at most 64 KiB per message, written to xterm.js in `seq`
   order. No reassembly.
-- Slow viewer: more than 4 MiB unsent gets `{"op":"error","code":"slow-viewer"}` and the connection closes. The
-  window reattaches and gets a fresh snapshot. The pty never waits for a viewer.
+- Byte credit (M6-7): the client sends `ack` with the `data` length (UTF-16 code units) of each `snapshot` and
+  `output` once xterm.js has written it. The server keeps at most 64 KiB unacknowledged per connection and holds
+  the rest. When more than 1 MiB is held, the held output is dropped and, once the client's acks bring it back
+  under 64 KiB, the server sends a fresh `snapshot` (the client resets on it). The pty never waits for a viewer.
+- The core pauses a pty while its headless terminal is more than 1 MiB of output behind and resumes it under
+  256 KiB. With no viewer attached, replies the headless terminal generates to a program's queries go back to
+  the pty; with a viewer attached, the viewer answers.
 - An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
   ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;

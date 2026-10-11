@@ -16,6 +16,11 @@ CREATE TABLE meta (
 );
 -- rows: ('schema_version','1'), ('core_pid', ...), ('core_heartbeat', <ts, updated every 2 s>)
 
+CREATE TABLE schema_migration (                -- numbered migrations applied (core/src/store/migrations/NNN-<name>.sql, M6-4)
+  id         INTEGER PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
 CREATE TABLE project (
   id          TEXT PRIMARY KEY,               -- sha1 hex of the canonical path (see pipe-protocol.md, project.open)
   path        TEXT NOT NULL UNIQUE,

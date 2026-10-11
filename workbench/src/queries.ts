@@ -18,6 +18,9 @@ export interface Snapshot {
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
   git: Record<string, { branch: string | null; added: number; deleted: number }>;
+  settings_error?: string | null;
+  core_mismatch?: string | null;
+  core_log?: string[] | null;
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */
@@ -58,7 +61,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
      WHERE e.plugin_id IS NULL OR p.enabled = 1
      ORDER BY e.cost_rank, e.id`,
   ).all() as Array<Record<string, unknown>>).map((r) => {
-    const spec = parse<{ roles?: string[]; resume_args?: string[]; install?: string; login?: string; min_version?: string }>(r.spec_json as string, {});
+    const spec = parse<{ roles?: string[]; resume_args?: string[]; install?: string; login?: string; min_version?: string; shift_enter?: string }>(r.spec_json as string, {});
     const detail = (r.detail as string | null) ?? null;
     return {
       id: String(r.id),
@@ -69,6 +72,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
       plugin_id: (r.plugin_id as string | null) ?? null,
       roles: spec.roles ?? [],
       resumable: Boolean(spec.resume_args?.length),
+      shift_enter: spec.shift_enter === 'alt-enter' ? 'alt-enter' : 'paste',
       detail,
       fix: engineFix({ ...spec, id: String(r.id) }, detail),
       install: spec.install ?? null,
