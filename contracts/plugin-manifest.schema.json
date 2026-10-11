@@ -47,6 +47,7 @@
         "install": { "type": "string", "description": "Install command shown when the engine is missing." },
         "login": { "type": "string", "description": "Login command shown when auth_cmd fails." },
         "auth_cmd": { "type": "array", "items": { "type": "string" } },
+        "instructions_arg": { "type": "string", "description": "Flag that takes extra instruction text, e.g. --append-system-prompt. With sessions.metarouter on, sessions get the metarouter block through it." },
         "agents_md": {
           "type": "object",
           "additionalProperties": false,

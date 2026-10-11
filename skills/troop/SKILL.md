@@ -21,6 +21,14 @@ Use the `troop` CLI to run MetaTrooper pipelines. Always pass `--json` and read 
 A gate is a decision for the human. Report the gate summary to the user and stop. Do not resolve
 gates yourself; only the workbench UI can.
 
+## Tools and short output
+
+`troop route` is metarouter, bundled with MetaTrooper. Use it for shell commands whose output is long:
+`troop route exec -- <command>` prints the lines that matter and keeps the full log
+(`troop route log` reads it back). `troop route search <words>` finds a saved recipe and
+`troop route run <recipe> [args]` runs it. Inside a session MetaTrooper started, plain `metarouter` is the same
+bundled copy.
+
 ## Rules
 
 - Never commit, push or open PRs. Print the command for the user to run.

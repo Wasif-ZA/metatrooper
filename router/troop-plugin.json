@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "metarouter",
+  "version": "0.1.0",
+  "name": "metarouter",
+  "description": "Tool memory for the desk's agents: saved recipes, trap hints and short command output. Also on the CLI as troop route.",
+  "platforms": ["windows", "linux", "macos"],
+  "permissions": ["project:read"],
+  "actions": [
+    {
+      "id": "ingest",
+      "title": "Measure shell reads and tokens saved",
+      "run": ["bin/troop-action.js"],
+      "input_schema": { "type": "object", "properties": { "since": { "type": "string" }, "until": { "type": "string" } } },
+      "output_schema": {
+        "type": "object",
+        "required": ["shell_read_tokens", "saved_tokens"],
+        "properties": {
+          "shell_read_tokens": { "type": "integer" },
+          "saved_tokens": { "type": "integer" }
+        }
+      },
+      "timeout_seconds": 120
+    }
+  ]
+}
