@@ -76,6 +76,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   });
   proc.onExit(({ exitCode }) => {
     t.exitCode = exitCode;
+    if (!t.killed) releasePty(proc);
     for (const v of t.viewers) v.exit(exitCode);
     t.viewers.clear();
     hooks.onExit?.(id, exitCode, t.killed);
@@ -83,6 +84,16 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     head.write('', () => { head.dispose(); terms.delete(id); });
   });
   return proc.pid;
+}
+
+/** Frees the conout worker and pipes that node-pty 1.1 on Windows frees only in kill(); without this an exited process leaves them and its conhost.exe running. */
+function releasePty(proc: IPty): void {
+  const agent = (proc as unknown as { _agent?: { _conoutSocketWorker?: { dispose(): void }; _inSocket?: { destroy(): void }; _outSocket?: { destroy(): void } } })._agent;
+  try {
+    agent?._conoutSocketWorker?.dispose();
+    agent?._inSocket?.destroy();
+    agent?._outSocket?.destroy();
+  } catch {}
 }
 
 /** Whether the pty is paused because the headless terminal is more than PAUSE_BYTES behind. */
