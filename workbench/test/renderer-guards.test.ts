@@ -172,3 +172,11 @@ test('the command palette opens before the first snapshot arrives', () => {
   const paletteItems = new Function('ui', 'document', 'load', 'project', 'selectedSession', 'TABS', `${fn('paletteItems')}; return paletteItems;`)(ui, document, () => null, () => null, () => null, []);
   assert.ok(Array.isArray(paletteItems()));
 });
+
+test('the Before/After image cache drops screenshots the snapshot no longer lists', () => {
+  const shot = (id: string, label: string) => ({ id, pane_id: 'bp1', label, url: '', taken_at: '', w390_path: `${id}-390.png`, w1280_path: `${id}-1280.png` });
+  const ui: any = { swap: false, images: { 'old-390.png': 'data:old', 'b-390.png': 'data:b' }, snap: { snapshots: [shot('b', 'before'), shot('a', 'after')] } };
+  const renderCompare = new Function('ui', 'esc', 'ago', 'shotSrc', `${fn('renderCompare')}; return renderCompare;`)(ui, String, () => '', (f: string) => ui.images[f] ?? '');
+  renderCompare({ id: 'bp1' });
+  assert.deepEqual(Object.keys(ui.images), ['b-390.png']);
+});

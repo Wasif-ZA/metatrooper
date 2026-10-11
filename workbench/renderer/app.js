@@ -196,6 +196,8 @@ function shotSrc(file) {
 }
 
 function renderCompare(pane) {
+  const listed = new Set(ui.snap.snapshots.flatMap((x) => [x.w390_path, x.w1280_path]));
+  for (const f of Object.keys(ui.images)) if (!listed.has(f)) delete ui.images[f];
   const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
   const before = shots.find((x) => x.label === 'before');
   const after = shots.find((x) => x.label === 'after');
