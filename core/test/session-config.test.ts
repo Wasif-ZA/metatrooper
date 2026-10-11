@@ -185,3 +185,15 @@ test('event lookups by session use an index on an existing database', () => with
     db.close();
   }
 }));
+
+test('hook writers commit without a full fsync per event', () => withHome(async () => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { openWriterDb } = await import('../src/events/append.ts');
+  openCoreDb().close();
+  const db = openWriterDb()!;
+  try {
+    assert.equal((db.prepare('PRAGMA synchronous').get() as { synchronous: number }).synchronous, 1);
+  } finally {
+    db.close();
+  }
+}));
