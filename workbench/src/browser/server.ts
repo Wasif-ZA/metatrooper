@@ -5,7 +5,7 @@ import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTable } from '../../../core/src/browser/ancestry.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['navigate', 'back', 'snapshot', 'click', 'type', 'select', 'scroll', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
+const TOOLS = new Set(['navigate', 'back', 'snapshot', 'read', 'click', 'type', 'select', 'scroll', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
