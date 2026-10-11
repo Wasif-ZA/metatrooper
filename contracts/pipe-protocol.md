@@ -167,12 +167,11 @@ configuration is global. It sends that session id in a `browser.hello` request f
 bound to it and every later call on that connection is checked against it. A connection that has not said
 hello, or whose ancestry found no session, can only call `browser.panes` (empty) and gets -32030 for the rest.
 
-Every call carries `pane_id`. The workbench checks that the connection's session owns the pane (or that the
-pane belongs to the session's run and variant) before acting, else -32030. Tool schemas
+Every call carries `pane_id`. The workbench checks that the connection's session owns the pane before acting, else -32030. Tool schemas
 are in `browser-tools.md`.
 
 `browser.<tool>` for the 12 tools, plus `browser.panes` (lists panes this session may drive) and
-`browser.capture` (`{pane_id, label}`, used by the core for before/after, board captures and comments).
+`browser.capture` (`{pane_id, label}`, used by the core for before/after and comments).
 
 ## Terminal pipe
 

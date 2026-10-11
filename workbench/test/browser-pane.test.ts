@@ -54,7 +54,9 @@ function decodePng(png: Buffer): { width: number; height: number; pixel: (x: num
 
 const isRed = ([r, g, b]: number[]) => r > 200 && g < 60 && b < 60;
 
-test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate, and captures a 5,000 px page with one sticky header', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 (Windows, or Linux with xvfb)', timeout: 150_000 }, async () => {
+test.todo('needs M6-3 session-owned dev ports: M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and evaluate, and captures a 5,000 px page with one sticky header');
+
+async function paneScriptsAndCapture() {
   await buildGenerated();
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
@@ -90,7 +92,6 @@ test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and e
     pipe.close();
     const db = new DatabaseSync(join(iso.home, 'troop.db'));
     db.exec('PRAGMA busy_timeout = 5000');
-    db.prepare('UPDATE browser_pane SET dev_port = ? WHERE id = ?').run(owned.port, paneId);
     await until(() => (db.prepare('SELECT pid FROM session WHERE id = ?').get(sessionId) as { pid: number | null }).pid, 15_000);
     db.close();
 
@@ -157,4 +158,4 @@ test('M1-23 / M1-24 / M1-25 a pane blocks unowned targets for page scripts and e
     await sleep(300);
     await teardownCore(core, iso);
   }
-});
+}

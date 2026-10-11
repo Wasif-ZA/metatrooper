@@ -119,10 +119,6 @@ export class PaneManager {
     const owned = new Set<number>();
     const allow = new Set<string>();
     if (db) {
-      const rows = db.prepare(
-        'SELECT dev_port AS port FROM browser_pane WHERE project_id = ? AND dev_port IS NOT NULL',
-      ).all(projectId) as Array<{ port: number }>;
-      for (const r of rows) owned.add(Number(r.port));
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
       if (project) {
         try {
