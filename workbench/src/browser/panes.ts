@@ -106,7 +106,7 @@ export class PaneManager {
   private policyCache = new Map<string, { at: number; ctx: PolicyContext }>();
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
-  private asking = new Map<string, { key: string; cb: (ok: boolean) => void }>();
+  private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -185,7 +185,7 @@ export class PaneManager {
       const known = this.allowed.get(key);
       if (known !== undefined) return cb(known);
       const id = `perm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-      this.asking.set(id, { key, cb });
+      this.asking.set(id, { key, pane: pane.row.id, cb });
       const kinds = (details as { mediaTypes?: string[] }).mediaTypes;
       this.hooks.paneEvent({ kind: 'permission', pane_id: pane.row.id, id, origin, permission: perm === 'media' && kinds?.length ? kinds.join(' and ') : perm });
     });
@@ -441,6 +441,7 @@ export class PaneManager {
     this.panes.delete(id);
     if (this.shown === id) this.shown = null;
     pane.picking?.(null);
+    for (const [k, a] of this.asking) if (a.pane === id) { this.asking.delete(k); a.cb(false); }
     try { pane.dbg.detach(); } catch {}
     if (!this.win.isDestroyed()) {
       this.win.contentView.removeChildView(pane.view);

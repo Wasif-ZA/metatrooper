@@ -196,6 +196,8 @@ function shotSrc(file) {
 }
 
 function renderCompare(pane) {
+  const listed = new Set(ui.snap.snapshots.flatMap((x) => [x.w390_path, x.w1280_path]));
+  for (const f of Object.keys(ui.images)) if (!listed.has(f)) delete ui.images[f];
   const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
   const before = shots.find((x) => x.label === 'before');
   const after = shots.find((x) => x.label === 'after');
@@ -679,6 +681,7 @@ async function saveSink() {
 
 function paletteItems() {
   const s = ui.snap;
+  if (!s) return [];
   const items = [];
   for (const x of s.sessions) items.push({ group: 'Agents', label: `${x.engine_id} ${taskOf(x)}`, meta: STATE_WORDS[x.state] || x.state, run: () => pick(x.id) });
   if (project()) for (const e of s.engines) if (e.light !== 'red') items.push({ group: 'Start', label: `New ${e.id} agent`, run: async () => { const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: e.id }); if (r.result) await pick(r.result.session_id); } });
@@ -859,6 +862,11 @@ function setView() {
 function switchProject(id) {
   ui.projectId = id;
   ui.handback = undefined;
+  ui.hbFile = null;
+  ui.hbDiff = undefined;
+  ui.hbLine = null;
+  ui.gitFile = false;
+  ui.comment = null;
   save('projectId', id);
   setView();
 }
@@ -867,12 +875,7 @@ async function openFolder() {
   const dir = await api.pickFolder();
   if (!dir) return;
   const r = await rpc('project.open', { path: dir });
-  if (r.result) {
-    ui.projectId = r.result.project_id;
-    ui.handback = undefined;
-    save('projectId', ui.projectId);
-    setView();
-  }
+  if (r.result) switchProject(r.result.project_id);
 }
 
 async function onClick(e) {
@@ -1028,10 +1031,7 @@ async function onClick(e) {
       return;
     }
     case 'project':
-      ui.projectId = id;
-      ui.handback = undefined;
-      save('projectId', id);
-      setView();
+      switchProject(id);
       return;
     case 'tab':
       await openTab(el.dataset.tab);
@@ -1314,10 +1314,7 @@ function tickAges() {
 }
 
 api.onSelectProject((id) => {
-  ui.projectId = id;
-  ui.handback = undefined;
-  save('projectId', id);
-  setView();
+  switchProject(id);
   render();
 });
 

@@ -474,7 +474,7 @@ function handlers(): void {
     try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }
     const code = resolveCommand('code');
     if (!code) { shell.showItemInFolder(target); return true; }
-    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', (e) => console.error(`could not open ${target}: ${e.message}`)).unref();
     return true;
   });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
@@ -614,7 +614,7 @@ async function ensureCore(): Promise<void> {
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
-  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
+  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
   for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 

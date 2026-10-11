@@ -158,3 +158,25 @@ test('keys typed while a tile re-attaches are sent after it reconnects, or repor
   assert.deepEqual(dead.sent, []);
   assert.match(dead.written(), /not sent/);
 });
+test('switching project drops the old project open file diff and picked comment', () => {
+  const ui: any = { projectId: 'p1', handback: {}, hbFile: 'a.txt', hbDiff: 'diff', hbLine: 2, gitFile: true, comment: { pane_id: 'bp1' } };
+  const switchProject = new Function('ui', 'save', 'setView', `${fn('switchProject')}; return switchProject;`)(ui, () => {}, () => {});
+  switchProject('p2');
+  assert.equal(ui.projectId, 'p2');
+  assert.deepEqual([ui.handback, ui.hbFile, ui.hbDiff, ui.hbLine, ui.gitFile, ui.comment], [undefined, null, undefined, null, false, null]);
+});
+
+test('the command palette opens before the first snapshot arrives', () => {
+  const ui: any = { snap: null, shellKinds: [], mode: 'single' };
+  const document = { body: { classList: { contains: () => false } } };
+  const paletteItems = new Function('ui', 'document', 'load', 'project', 'selectedSession', 'TABS', `${fn('paletteItems')}; return paletteItems;`)(ui, document, () => null, () => null, () => null, []);
+  assert.ok(Array.isArray(paletteItems()));
+});
+
+test('the Before/After image cache drops screenshots the snapshot no longer lists', () => {
+  const shot = (id: string, label: string) => ({ id, pane_id: 'bp1', label, url: '', taken_at: '', w390_path: `${id}-390.png`, w1280_path: `${id}-1280.png` });
+  const ui: any = { swap: false, images: { 'old-390.png': 'data:old', 'b-390.png': 'data:b' }, snap: { snapshots: [shot('b', 'before'), shot('a', 'after')] } };
+  const renderCompare = new Function('ui', 'esc', 'ago', 'shotSrc', `${fn('renderCompare')}; return renderCompare;`)(ui, String, () => '', (f: string) => ui.images[f] ?? '');
+  renderCompare({ id: 'bp1' });
+  assert.deepEqual(Object.keys(ui.images), ['b-390.png']);
+});
