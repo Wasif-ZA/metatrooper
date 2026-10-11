@@ -7,12 +7,15 @@ import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
 export const EASE_MS = 150;
 const MAX_CAPTURE_PX = 16_384;
 const EVAL_CAP = 20 * 1024;
+const URL_KEEP = 2000;
+const IMAGE_BUDGET = MAX_LINE - 64 * 1024;
 const LOG_KEEP = 200;
 const PARKED_VIEWPORT = { width: 1280, height: 800 };
 const AGENT_PANE = 'bp_agent_';
@@ -393,7 +396,7 @@ export class PaneManager {
       return;
     }
     if (method === 'Network.requestWillBeSent') {
-      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: params.request.url, status: null, bytes: 0 });
+      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: logUrl(String(params.request.url)), status: null, bytes: 0 });
       if (pane.network.size > LOG_KEEP) pane.network.delete(pane.network.keys().next().value as string);
       return;
     }
@@ -830,9 +833,18 @@ export class PaneManager {
         const size = img.getSize();
         const k = MAX_IMAGE_SIDE / Math.max(size.width, size.height, 1);
         if (k < 1) img = img.resize({ width: Math.max(1, Math.floor(size.width * k)), height: Math.max(1, Math.floor(size.height * k)), quality: 'best' });
-        const out = img.getSize();
         const jpeg = a.format !== 'png';
-        return { data_base64: (jpeg ? img.toJPEG(80) : img.toPNG()).toString('base64'), mime: jpeg ? 'image/jpeg' : 'image/png', width: out.width, height: out.height, truncated };
+        const first = (jpeg ? img.toJPEG(80) : img.toPNG()).toString('base64');
+        if (first.length <= IMAGE_BUDGET) return { data_base64: first, mime: jpeg ? 'image/jpeg' : 'image/png', width: img.getSize().width, height: img.getSize().height, truncated };
+        const full = img.getSize();
+        for (const scale of [1, 0.75, 0.5, 0.35]) {
+          const small = scale === 1 ? img : img.resize({ width: Math.max(1, Math.floor(full.width * scale)), height: Math.max(1, Math.floor(full.height * scale)), quality: 'best' });
+          for (const q of [70, 50, 30]) {
+            const data = small.toJPEG(q).toString('base64');
+            if (data.length <= IMAGE_BUDGET) return { data_base64: data, mime: 'image/jpeg', width: small.getSize().width, height: small.getSize().height, truncated, reencoded: `JPEG q${q} at ${Math.round(scale * 100)}% to fit the 1 MiB limit` };
+          }
+        }
+        throw new ToolError(-32099, 'the screenshot does not fit in 1 MiB even as a small JPEG; screenshot one ref instead');
       }
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
@@ -943,6 +955,12 @@ export class PaneManager {
   contentsOf(id: string): WebContents | null {
     return this.panes.get(id)?.view.webContents ?? null;
   }
+}
+
+/** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
+function logUrl(url: string): string {
+  if (url.startsWith('data:')) return `data:${url.slice(5, url.indexOf(',') > 0 ? url.indexOf(',') : 5).slice(0, 100)}… (${url.length} chars)`;
+  return url.length > URL_KEEP ? `${url.slice(0, URL_KEEP)}… (${url.length} chars)` : url;
 }
 
 /** The browser action a key press in a user pane stands for, or null. */
