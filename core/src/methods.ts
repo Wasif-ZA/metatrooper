@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { settings } from './settings.ts';
+import { DEFAULTS, setSetting, settings } from './settings.ts';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
@@ -16,7 +16,7 @@ import { liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
-import { homeDir } from './paths.ts';
+import { homeDir, repoDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
@@ -34,12 +34,12 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
   throw new RpcError(E.INVALID_PARAMS, `${key} is required`);
 }
 
+export const PROTOCOL = 1;
+
 export const MOVED_METHODS = [
   'run.start', 'run.cancel', 'run.clear', 'run.resume', 'run.item-set', 'gate.resolve', 'schedule.set', 'pipeline.validate',
   'template.list', 'variant.pick', 'variant.discard', 'variant.combine', 'board.pin', 'board.remove',
 ];
-
-export const PROTOCOL_VERSION = 1;
 
 export interface MethodDecl {
   name: string;
@@ -51,7 +51,8 @@ export interface MethodDecl {
 }
 
 export const METHODS: MethodDecl[] = [
-  { name: 'core.ping', stable: true, params: '{}', result: '{ok, pid, schema_version, protocol}: `protocol` is the pipe protocol version, 1' },
+  { name: 'core.ping', stable: true, params: '{}', result: '{ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued' },
+  { name: 'settings.set', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION], params: '{key, value}', result: '{}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4)' },
   { name: 'core.stop', needsUi: true, params: '{}', result: '{}; the core exits a moment after replying' },
   { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
@@ -126,10 +127,27 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('account.state', { handler: () => ({ state: 'signed_out' }) });
 
+  const startedAt = nowIso();
+  const version = String((JSON.parse(fs.readFileSync(path.join(repoDir, 'package.json'), 'utf8')) as { version?: unknown }).version ?? '');
   m.set('core.ping', {
     handler: () => {
       const v = db.prepare('PRAGMA user_version').get() as { user_version: number };
-      return { ok: true, pid: process.pid, schema_version: v.user_version, protocol: PROTOCOL_VERSION };
+      return { ok: true, pid: process.pid, version, protocol: PROTOCOL, schema_version: v.user_version, started_at: startedAt };
+    },
+  });
+
+  m.set('settings.set', {
+    handler: (p) => {
+      const [section, key, ...rest] = str(p, 'key').split('.');
+      const base = (DEFAULTS as Record<string, unknown>)[section] as Record<string, unknown> | undefined;
+      if (!key || rest.length || !base || typeof base !== 'object' || !(key in base)) throw new RpcError(E.INVALID_PARAMS, 'key must be a known <section>.<name> setting');
+      if (typeof p.value !== typeof base[key] || p.value === null || Array.isArray(p.value) !== Array.isArray(base[key])) throw new RpcError(E.INVALID_PARAMS, `${section}.${key} must be a ${typeof base[key]}`);
+      try {
+        setSetting(section, key, p.value);
+      } catch (e) {
+        throw new RpcError(E.VALIDATION, (e as Error).message);
+      }
+      return {};
     },
   });
 

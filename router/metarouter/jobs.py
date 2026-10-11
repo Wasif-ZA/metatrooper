@@ -64,7 +64,7 @@ def _run(jid, argv):
     os.environ["METAROUTER_OUTPUT"] = "json"
     try:
         with contextlib.redirect_stdout(buf):
-            cli.main(argv)
+            cli.main(argv, text_ok=False)
         result = json.loads(buf.getvalue().strip().splitlines()[-1])
     except Exception as e:
         result = {"ok": False, "lane": "jobs", "exit": 1, "note": f"job runner failed: {type(e).__name__}: {e}"}

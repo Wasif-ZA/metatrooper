@@ -15,6 +15,7 @@ before(buildGenerated);
 // Literal list of all public methods declared in spec.
 const EXPECTED_METHODS = [
   'core.ping',
+  'settings.set',
   'core.stop',
   'account.state',
   'project.open',
@@ -80,6 +81,7 @@ const EXPECTED_MOVED = [
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
   'core.stop',
+  'settings.set',
   'needs.dismiss',
   'hooks.install',
   'hooks.uninstall',

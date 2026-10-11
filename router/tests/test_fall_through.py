@@ -403,7 +403,7 @@ def test_search_command_runs_the_named_file_when_stems_collide(
     expected = {python_path: "python-probe", js_path: "javascript-probe"}
     script_lines = [line for line in result.out.splitlines() if line.endswith("    repo script")]
     assert script_lines == [
-        f"metarouter run {shlex.quote('./' + path.relative_to(isolated_repo).as_posix())}    repo script"
+        f"metarouter run {cli.quote_any('./' + path.relative_to(isolated_repo).as_posix())}    repo script"
         for path in expected
     ]
     for line, (path, output) in zip(script_lines, expected.items()):
@@ -491,3 +491,198 @@ def test_add_note_drops_duplicates_and_preserves_note_order(isolated_repo):
 
     assert cli.add_note(result, "warning", None, "new", "new", "existing") is result
     assert result.note == "existing; warning; new"
+
+
+@pytest.mark.parametrize("shell_name", ["default", "powershell"])
+def test_complex_arguments_reach_fall_through_unchanged(
+    isolated_repo, monkeypatch, shell_name
+):
+    if shell_name == "powershell":
+        executable = cli.powershell()
+        if not executable:
+            pytest.skip("PowerShell is not available")
+        monkeypatch.setenv("METAROUTER_SHELL", executable)
+
+    body = "import json, sys\nprint(json.dumps(sys.argv[1:]))\n"
+    args = ['', 'a"b', '"two words"', "it's"]
+
+    write_script(isolated_repo, "scripts/mr-probe.py", body)
+    script_result = cli.run_lane(["mr-probe", *args])
+    assert script_result.ok is True
+    assert script_result.exit == 0
+    assert script_result.lane == "exec"
+    assert json.loads(script_result.out) == args
+
+    executable_path = Path(sys.executable)
+    monkeypatch.setenv("PATH", str(executable_path.parent) + os.pathsep + os.environ.get("PATH", ""))
+    cli_result = cli.run_lane([executable_path.name, "-c", body, *args])
+    assert cli_result.ok is True
+    assert cli_result.exit == 0
+    assert cli_result.lane == "exec"
+    assert json.loads(cli_result.out) == args
+
+
+def test_search_quotes_apostrophe_script_path_for_bash_and_powershell(
+    isolated_repo, monkeypatch
+):
+    write_script(isolated_repo, "scripts/it's probe.py")
+    monkeypatch.setattr(mcp, "catalog_lines", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(mcp, "cached_tools", lambda: {})
+    monkeypatch.setattr(cli, "path_bins", lambda: [])
+
+    result = cli.search_lane(["probe"])
+
+    assert result.ok is True
+    script_lines = [line for line in result.out.splitlines() if line.endswith("    repo script")]
+    assert len(script_lines) == 1
+    command, label = script_lines[0].rsplit("    ", 1)
+    argv = shlex.split(command)
+    assert label == "repo script"
+    assert argv[:2] == ["metarouter", "run"]
+    assert argv[2] == "./scripts/it's probe.py"
+    assert len(argv) == 3
+
+    quoted_path = command[len("metarouter run "):]
+    assert quoted_path == '"./scripts/it\'s probe.py"'
+
+    pwsh = cli.powershell()
+    if pwsh:
+        proc = subprocess.run(
+            [pwsh, "-NoProfile", "-Command", f"& {{ echo $args.Count }} {quoted_path}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert proc.stdout.strip() == "1"
+
+    assert cli.quote_any("scripts/probe.py") == "scripts/probe.py"
+    assert cli.quote_any("scripts/probe with spaces.py") == '"scripts/probe with spaces.py"'
+    assert cli.quote_any("scripts/it's probe.py") == '"scripts/it\'s probe.py"'
+    assert cli.quote_any("scripts/$probe.py") == "'scripts/$probe.py'"
+    assert cli.quote_any("probe.py") == "probe.py"
+    assert cli.quote_any("probe with space.py") == '"probe with space.py"'
+    assert cli.quote_any("it's probe.py") == '"it\'s probe.py"'
+    assert cli.quote_any("$probe.py") == "'$probe.py'"
+
+
+def test_fall_through_returns_127_when_run_argv_raises_os_error(
+    isolated_repo, monkeypatch
+):
+    write_script(isolated_repo, "scripts/mr-probe.py")
+
+    def broken_run_argv(argv):
+        raise OSError("failed to start")
+
+    monkeypatch.setattr(cli, "run_argv", broken_run_argv)
+    result = cli.run_lane(["mr-probe"])
+
+    assert result.ok is False
+    assert result.exit == 127
+    assert result.lane == "exec"
+    assert "could not start" in result.note
+    assert Path(sys.executable).as_posix() in result.note
+
+    executable = Path(sys.executable)
+    monkeypatch.setenv("PATH", str(executable.parent) + os.pathsep + os.environ.get("PATH", ""))
+    cli_result = cli.run_lane([executable.name, "-c", "print(1)"])
+    assert cli_result.ok is False
+    assert cli_result.exit == 127
+    assert cli_result.lane == "exec"
+    assert f"could not start {executable.name}" in cli_result.note
+
+
+def test_jobs_run_stores_successful_result_for_fall_through_and_seed_recipe(isolated_repo):
+    write_script(isolated_repo, "scripts/mr-probe.py", "print('repo-script-ran')\n")
+    jobs.folder().mkdir(parents=True, exist_ok=True)
+
+    jobs._run("job-probe-fallthrough", ["run", "mr-probe"])
+
+    stored_fallthrough = json.loads(
+        (jobs.folder() / "job-probe-fallthrough.result.json").read_text(encoding="utf-8")
+    )
+    assert stored_fallthrough["ok"] is True
+    assert stored_fallthrough["job"] == "job-probe-fallthrough"
+    assert stored_fallthrough["out"].strip() == "repo-script-ran"
+
+    demo = isolated_repo / "demo.json"
+    demo.write_text(json.dumps({"msg": "hello"}), encoding="utf-8")
+
+    jobs._run("job-probe-seed", ["run", "json", demo.name, ".msg"])
+
+    stored_seed = json.loads(
+        (jobs.folder() / "job-probe-seed.result.json").read_text(encoding="utf-8")
+    )
+    assert stored_seed["ok"] is True
+    assert stored_seed["job"] == "job-probe-seed"
+    assert stored_seed["out"] == "hello"
+
+
+def test_render_json_text_ok_false_emits_valid_json_for_whole_string_result():
+    result = cli.Result(ok=True, lane="exec", out="repo-script-ran", whole=True)
+
+    rendered_json = cli.render(result, "json", text_ok=False)
+    parsed = json.loads(rendered_json)
+    assert parsed["ok"] is True
+    assert parsed["out"] == "repo-script-ran"
+
+    rendered_plain = cli.render(result, "json")
+    assert rendered_plain == "repo-script-ran"
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(rendered_plain)
+
+
+def test_anchored_policy_refuses_fall_through_by_script_name(isolated_repo, capsys):
+    marker = isolated_repo / "executed.txt"
+    write_script(
+        isolated_repo, "scripts/mr-probe.py",
+        "from pathlib import Path\nPath('executed.txt').write_text('ran')\n",
+    )
+    policy_file = isolated_repo / ".metarouter" / "policy.json"
+    policy_file.parent.mkdir()
+    policy_file.write_text(json.dumps({"refuse": ["^mr-probe"]}), encoding="utf-8")
+
+    result = cli.run_lane(["mr-probe"])
+
+    assert result.ok is False
+    assert result.exit == 3
+    assert result.lane == "exec"
+    assert "refused by" in result.note
+    assert policy_file.as_posix() in result.note
+    assert "^mr-probe" in result.note
+    assert not marker.exists()
+
+    assert cli.main(["run", "mr-probe"]) == 3
+    assert not marker.exists()
+
+
+def test_fall_through_preserves_yes_argument_for_script(isolated_repo, capsys, monkeypatch):
+    write_script(
+        isolated_repo, "scripts/mr-probe.py",
+        "import json, sys\nprint(json.dumps(sys.argv[1:]))\n",
+    )
+
+    result = cli.run_lane(["mr-probe", "--yes", "x"])
+    assert result.ok is True
+    assert result.exit == 0
+    assert result.lane == "exec"
+    assert json.loads(result.out) == ["--yes", "x"]
+
+    exit_code = cli.main(["--json", "run", "mr-probe", "--yes", "x"])
+    captured = capsys.readouterr()
+    agent_res = agent_result(captured.out)
+    assert exit_code == 0
+    assert agent_res["ok"] is True
+    assert json.loads(agent_res["out"]) == ["--yes", "x"]
+
+    started = []
+    monkeypatch.setattr(jobs, "start", lambda argv, *, label: started.append((argv, label)) or "job-probe-yes")
+    bg_result = cli.run_lane(["mr-probe", "--background", "--yes", "x"])
+    assert bg_result.ok is True
+    assert bg_result.exit == 0
+    assert bg_result.lane == "jobs"
+    assert bg_result.out == {
+        "job": "job-probe-yes",
+        "collect": "metarouter jobs job-probe-yes --wait",
+    }
+    assert started == [(["run", "mr-probe", "--yes", "x"], "mr-probe")]
+

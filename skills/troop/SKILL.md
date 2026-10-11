@@ -22,6 +22,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 <!-- methods:start -->
 ```text
   core.ping              {}  (stable)
+  settings.set           {key, value}
   core.stop              {}
   account.state          {}
   project.open           {path}  (stable)

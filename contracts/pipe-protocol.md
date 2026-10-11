@@ -76,7 +76,9 @@ Status moves `queued` -> `accepted` -> `running` -> `ok` or `error`. The core wr
 claims the row and `running` immediately before the first side effect (launching a process, writing a file,
 calling a plugin action).
 
-On start, before accepting new pipe requests, the core:
+On start the core first binds the pipe, which is the single-instance lock (M6-4). A second core whose bind fails
+prints "core already running (pid N)" and exits 1 before it opens `troop.db`. Requests that arrive while the
+first core is still starting wait for it. Then, before answering them, the core:
 
 1. Re-executes every `accepted` row in `at` order. No side effect has happened for these.
 2. Marks every `running` row `error` with `{"code":-32098,"message":"interrupted by core restart"}` and
@@ -118,7 +120,8 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 <!-- methods:start -->
 | Method | Params | Result | Errors | Stable | Needs `ui.hello` |
 |---|---|---|---|---|---|
-| `core.ping` | `{}` | {ok, pid, schema_version, protocol}: `protocol` is the pipe protocol version, 1 |  | yes |  |
+| `core.ping` | `{}` | {ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |  | yes |  |
+| `settings.set` | `{key, value}` | {}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) | -32602, -32003 |  | yes |
 | `core.stop` | `{}` | {}; the core exits a moment after replying |  |  | yes |
 | `account.state` | `{}` | {state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in |  |  |  |
 | `project.open` | `{path}` | {project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` | -32002 | yes |  |
