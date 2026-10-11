@@ -82,7 +82,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('core.stop', { needsUi: true, handler: () => { setTimeout(ctl.stop, 10); return {}; } });
+  m.set('core.stop', { needsUi: true, handler: () => { setTimeout(() => ctl.stop(), 10); return {}; } });
 
   m.set('project.open', {
     handler: (p) => {

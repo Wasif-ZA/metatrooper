@@ -67,9 +67,10 @@ async function main(): Promise<void> {
   const timers: NodeJS.Timeout[] = [];
   let termServer: Server | null = null;
   let stopping = false;
-  const stop = () => {
+  const stop = (why = 'core.stop') => {
     if (stopping) return;
     stopping = true;
+    console.error(`core stopping: ${why}`);
     for (const t of timers) clearInterval(t);
     server.close();
     termServer?.close();
@@ -122,9 +123,8 @@ async function main(): Promise<void> {
   checkPids(db);
   void checkAll(db, activeEngines(db)).catch(() => {});
 
-  process.on('SIGINT', stop);
-  process.on('SIGTERM', stop);
-  process.on('SIGBREAK', stop);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'] as const) process.on(sig, () => stop(sig));
+  process.on('exit', (code) => console.error(`core exit ${code}`));
   console.log(`metatrooper core running (pid ${process.pid}) on ${corePipe()}. Press Ctrl+C to stop.`);
 }
 
