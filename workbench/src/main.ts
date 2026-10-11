@@ -545,6 +545,17 @@ function handlers(): void {
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('readText', () => clipboard.readText());
+  on('pasteImage', async (sessionId: unknown) => {
+    if (typeof sessionId !== 'string') return null;
+    const item = (await clipboard.read()).find((i) => i.types.includes('image/png'));
+    if (!item) return null;
+    const png = Buffer.from(await ((await item.getType('image/png')) as Blob).arrayBuffer());
+    const dir = path.join(homeDir(), 'paste', sessionId.replace(/[^A-Za-z0-9-]/g, ''));
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${ulid()}.png`);
+    fs.writeFileSync(file, png);
+    return file;
+  });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });

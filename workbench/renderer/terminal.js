@@ -44,7 +44,10 @@ const termView = (() => {
     const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
     term.onData((data) => { if (!t.closed && !t.outside) troop.termInput(sessionId, data); });
     const copy = () => { const s = term.getSelection(); if (!s) return false; void troop.copyText(s); term.clearSelection(); return true; };
-    const paste = () => troop.readText().then((s) => { if (s) term.paste(s); });
+    const paste = () => troop.readText().then((s) => {
+      if (s) return term.paste(s);
+      return troop.pasteImage(sessionId).then((p) => { if (p) term.paste(/[\s"]/.test(p) ? `"${p}"` : p); });
+    });
     const copyOnRelease = () => { const s = term.getSelection(); if (s) void troop.copyText(s); };
     body.addEventListener('mousedown', (e) => { if (e.button === 0) window.addEventListener('mouseup', copyOnRelease, { once: true }); });
     // The right button never reaches the program: Claude Code would paste it a second, slower time.
