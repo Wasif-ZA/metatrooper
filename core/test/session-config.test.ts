@@ -197,3 +197,19 @@ test('hook writers commit without a full fsync per event', () => withHome(async 
     db.close();
   }
 }));
+
+test('a settings file that is JSON but not an object falls back to defaults and is reported', () => withHome(async (home) => {
+  const { settings, settingsError, setSetting } = await import('../src/settings.ts');
+  const file = path.join(home, 'mt', 'settings.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  let stamp = Date.now() / 1000;
+  for (const body of ['null', '7', '[]']) {
+    fs.writeFileSync(file, body);
+    stamp += 5;
+    fs.utimesSync(file, stamp, stamp);
+    assert.equal(settings().sessions.approval, 'ask', body);
+    assert.equal(settingsError(), 'settings.json is not a JSON object', body);
+    assert.throws(() => setSetting('ui', 'theme', 'charcoal'), /not a JSON object/, body);
+    assert.equal(fs.readFileSync(file, 'utf8'), body);
+  }
+}));

@@ -102,7 +102,10 @@ export function settings(): Settings {
   let raw: Record<string, unknown> = {};
   let parsed = false;
   if (mtime >= 0) {
-    try { raw = JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); parsed = true; } catch {}
+    try {
+      const v = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
+      if (v && typeof v === 'object' && !Array.isArray(v)) { raw = v; parsed = true; }
+    } catch {}
   }
   const value = merge(DEFAULTS, raw) as Settings;
   // A settings file from before M5-D6 keeps the old contained default.
@@ -116,8 +119,8 @@ export function settingsError(): string | null {
   let text: string;
   try { text = fs.readFileSync(settingsFile(), 'utf8'); } catch { return null; }
   try {
-    JSON.parse(text);
-    return null;
+    const v = JSON.parse(text);
+    return v && typeof v === 'object' && !Array.isArray(v) ? null : 'settings.json is not a JSON object';
   } catch (e) {
     const msg = (e as Error).message;
     const line = /\(line (\d+)/.exec(msg)?.[1];
