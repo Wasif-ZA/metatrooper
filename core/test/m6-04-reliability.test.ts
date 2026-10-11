@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate, openCoreDb } from '../src/store/db.ts';
 import { settings, settingsError } from '../src/settings.ts';
-import { client, isolation, root, startCore, stopCore, teardownCore, uiHello, until, withEnv } from './helpers.ts';
+import { client, isolation, root, runNode, startCore, stopCore, teardownCore, uiHello, until, withEnv } from './helpers.ts';
+import { pathToFileURL } from 'node:url';
 
 function fixture(t) {
   const isolated = isolation();
@@ -326,4 +327,22 @@ test('core.ping keeps started_at fixed across pings separated beyond clock resol
   assert.equal(second.started_at, first.started_at);
   assert.ok(Date.parse(first.started_at) <= firstPingTime, 'started_at must not be later than the first ping');
   assert.ok(Date.parse(second.started_at) <= firstPingTime, 'started_at must not advance after the first ping');
+});
+
+test('processes opening an old-schema database at the same moment all succeed', { timeout: 120000 }, async (t) => {
+  const isolated = fixture(t);
+  const setup = openDb(isolated);
+  for (const [table, column] of [['needs_you', 'notified_at'], ['run', 'hidden'], ['gate', 'scan']]) setup.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+  setup.close();
+  const dbUrl = pathToFileURL(join(root, 'core/src/store/db.ts')).href;
+  for (let round = 0; round < 4; round++) {
+    const db = new DatabaseSync(join(isolated.home, 'troop.db'));
+    if (round > 0) for (const [table, column] of [['needs_you', 'notified_at'], ['run', 'hidden'], ['gate', 'scan']]) db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+    db.close();
+    const startAt = Date.now() + 1500;
+    const script = `const { openCoreDb } = await import(${JSON.stringify(dbUrl)}); while (Date.now() < ${startAt}) {} try { openCoreDb().close(); console.log('ok'); } catch (e) { console.log('fail ' + e.message); }`;
+    const runs = await Promise.all(Array.from({ length: 8 }, () => runNode(['--input-type=module', '-e', script], { ...isolated.env, NODE_OPTIONS: '' }) as Promise<{ stdout: string }>));
+    const failures = runs.map((r) => r.stdout.trim()).filter((s) => s !== 'ok');
+    assert.deepEqual(failures, [], `round ${round}`);
+  }
 });

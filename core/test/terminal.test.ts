@@ -514,3 +514,17 @@ test('a viewer detached before its attach snapshot lands gets no later output', 
     await until(() => !term.has(id));
   }
 });
+
+test('a terminal whose process exits on its own leaves nothing that keeps the core alive', { skip: process.platform !== 'win32' }, async () => {
+  const script = [
+    "process.env.METATROOPER_HOME = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'troop-ptyexit-'));",
+    "const term = await import('./core/src/terminal/index.ts');",
+    "term.setTermHooks({ onExit: (id, code) => console.log('exit ' + code) });",
+    "term.open('self', [process.execPath, '-e', 'process.exit(3)'], process.cwd(), process.env);",
+  ].join('\n');
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, env: { ...process.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 8000, windowsHide: true });
+  assert.equal(r.error, undefined, 'process was still running after 8 s');
+  assert.match(r.stdout, /exit 3/);
+  assert.equal(r.status, 0);
+});
