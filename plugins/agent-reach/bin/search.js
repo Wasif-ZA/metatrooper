@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { exaSearch } from './inspiration-board.js';
 import { safeFetch } from './safe-fetch.js';
 
@@ -121,7 +120,7 @@ export async function sources(input, get = fetchHtml) {
   return { out: input.out, prospects: index.length, with_pages: index.filter((e) => e.pages.length).length, pages: index.reduce((n, e) => n + e.pages.length, 0) };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   try {
     const req = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
     const fn = process.argv[2] === 'sources' ? sources : search;

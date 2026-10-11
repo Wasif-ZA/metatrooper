@@ -117,7 +117,7 @@ export async function replay(diffName, mode) {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (import.meta.main) {
   const diffName = arg('diff');
   const mode = arg('mode');
   if (!['small', 'medium', 'large'].includes(diffName) || !['before', 'after'].includes(mode)) {
