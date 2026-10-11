@@ -71,6 +71,39 @@ test('statusline wrapper keeps the last Claude reading when a tick has no rate_l
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).rate_limits.five_hour.used_percentage, 12);
 });
 
+test('statusline wrapper records context fill and delegates to user statusline', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-sl-ctx-'));
+  const script = path.join(import.meta.dirname, '..', 'statusline.js');
+  const run = (d: object, args: string[] = [], env: Record<string, string> = {}) =>
+    spawnSync(process.execPath, [script, ...args], {
+      input: JSON.stringify(d),
+      encoding: 'utf8',
+      env: { ...process.env, METATROOPER_HOME: home, ...env },
+    });
+
+  run({ session_id: 's_abc-123', context_window: { used_percentage: 73 } });
+  const f1 = path.join(home, 'claude-context', 's_abc-123.json');
+  assert.ok(fs.existsSync(f1));
+  assert.equal(JSON.parse(fs.readFileSync(f1, 'utf8')).used_percentage, 73);
+
+  run({ session_id: 'sub/id', context_window: { used_percentage: 50 } });
+  run({ session_id: '..', context_window: { used_percentage: 50 } });
+  run({ session_id: '../escape', context_window: { used_percentage: 50 } });
+  run({ session_id: 'dots..id', context_window: { used_percentage: 50 } });
+  assert.deepEqual(fs.readdirSync(path.join(home, 'claude-context')), ['s_abc-123.json']);
+
+  const settingsFile = path.join(home, 'settings.json');
+  fs.writeFileSync(settingsFile, JSON.stringify({ statusLine: { command: 'node -e "console.log(\'MARKER_OUTPUT\')"' } }));
+  const rUser = run({}, ['--user-statusline'], { METATROOPER_CLAUDE_SETTINGS: settingsFile });
+  assert.ok(rUser.stdout.includes('MARKER_OUTPUT'));
+
+  fs.writeFileSync(settingsFile, JSON.stringify({ statusLine: { command: 'node -e "console.log(\'MARKER_RECURSE\')" statusline.js' } }));
+  const rRecurse = run({ model: { display_name: 'Claude Test' }, context_window: { used_percentage: 42 } }, ['--user-statusline'], { METATROOPER_CLAUDE_SETTINGS: settingsFile });
+  assert.ok(!rRecurse.stdout.includes('MARKER_RECURSE'));
+  assert.ok(rRecurse.stdout.includes('Claude Test'));
+  assert.ok(rRecurse.stdout.includes('ctx 42%'));
+});
+
 test('window names follow the minutes', () => {
   assert.deepEqual([300, 1440, 10080, 90].map(windowName), ['5h', 'daily', 'weekly', '90m']);
 });

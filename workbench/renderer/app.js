@@ -817,11 +817,17 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function ctxChip(x) {
+  if (typeof x.ctx_pct !== 'number') return null;
+  const pct = Math.round(x.ctx_pct);
+  return pct >= 85 ? { text: `${pct}% context · compacts soon`, warn: true } : { text: `${pct}% context`, warn: false };
+}
+
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();

@@ -1,6 +1,22 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 export const OFFLINE_AFTER_MS = 6000;
+
+/** Adds ctx_pct to each Claude session from <dir>/<native_id>.json, written by core/statusline.js. */
+export function withContext(snap: Snapshot, dir: string): Snapshot {
+  const sessions = snap.sessions.map((s) => {
+    if (s.engine_id !== 'claude' || !s.native_id || !/^[A-Za-z0-9_-]+$/.test(s.native_id)) return s;
+    try {
+      const pct = JSON.parse(fs.readFileSync(path.join(dir, `${s.native_id}.json`), 'utf8')).used_percentage;
+      return typeof pct === 'number' ? { ...s, ctx_pct: pct } : s;
+    } catch {
+      return s;
+    }
+  });
+  return { ...snap, sessions };
+}
 
 export type Light = 'green' | 'grey' | 'red';
 
@@ -9,7 +25,7 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;

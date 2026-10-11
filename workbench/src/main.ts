@@ -17,7 +17,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, snapshot, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { dataVersion, snapshot, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { gitIn, handback } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
@@ -82,7 +82,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = { ...withLiveText(snapshot(d, view.projectId), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
+    lastGood = { ...withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
