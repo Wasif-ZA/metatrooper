@@ -1,0 +1,1 @@
+-- 001: the M5 schema as built by schema.sql and the add-column steps in db.ts. Records it as applied; changes nothing.

@@ -38,7 +38,7 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 
 | Method | Params | Result |
 |---|---|---|
-| `core.ping` | `{}` | `{ok: true, pid, schema_version}`; never queued |
+| `core.ping` | `{}` | `{ok: true, pid, version, protocol, schema_version, started_at}`; never queued |
 | `core.stop` | `{}` | `{}`; the core finishes the current command and exits; needs `ui.hello` |
 
 ## Pure functions tests may import
