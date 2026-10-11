@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { Writable } from 'node:stream';
 import readline from 'node:readline/promises';
 import { installClaude, installCodex, installEngineSettings, lineDiff, planClaudeInstall, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './src/hooks/install.ts';
@@ -282,7 +282,7 @@ interface Job {
   approval?: string;
 }
 
-async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string }> {
+async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string; root?: string }> {
   let canonical: string;
   try {
     canonical = resolveProjectPath(dir);
@@ -295,7 +295,7 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
   }
   const opened = await rpc('project.open', { path: canonical }, json);
   if (opened.code) return { code: opened.code };
-  return { code: 0, id: String(opened.result?.project_id ?? projectId(canonical)) };
+  return { code: 0, id: String(opened.result?.project_id ?? projectId(canonical)), root: canonical };
 }
 
 async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: string) => void): Promise<number> {
@@ -459,7 +459,8 @@ async function main(): Promise<number> {
       if (repo.code) return repo.code;
       const r = await rpc('session.owners', { project_id: repo.id }, json);
       if (r.code) return r.code;
-      const want = a.pos[0] ? a.pos[0].split('\\').join('/').replace(/^\.\//, '') : '';
+      const base = fs.realpathSync.native(a.opts.get('--project') ?? process.cwd());
+      const want = a.pos[0] ? relative(repo.root!, resolve(base, a.pos[0])).split('\\').join('/') : '';
       const paths = ((r.result?.paths ?? []) as Array<{ path: string; owners: Array<{ id: string; title: string; state: string }>; shared: boolean; unclaimed: boolean }>)
         .filter((x) => !want || x.path === want || x.path.startsWith(`${want.replace(/\/$/, '')}/`));
       if (json) console.log(JSON.stringify(paths));

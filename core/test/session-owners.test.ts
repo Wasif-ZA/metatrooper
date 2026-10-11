@@ -312,3 +312,11 @@ test('claims from other repositories never push a still-dirty file out of the ow
     assert.ok(warned.ms < 240, `hook took ${Math.round(warned.ms)} ms`);
   } finally { await h.teardown(); }
 });
+
+test('troop owners takes an absolute path to a file in the project', async () => {
+  const h = await ownersHarness();
+  try {
+    writeFileSync(join(h.repo, 'a.txt'), 'changed\n');
+    assert.deepEqual((await h.owners(join(h.repo, 'a.txt'))).map((r) => r.path), ['a.txt']);
+  } finally { await h.teardown(); }
+});
