@@ -140,3 +140,21 @@ test('the browser pane bounds are reported again once the split panel finishes s
   for (const f of done) f();
   assert.ok(reported > 0);
 });
+
+test('keys typed while a tile re-attaches are sent after it reconnects, or reported as dropped', () => {
+  const live = shellTile();
+  live.send({ op: 'closed' });
+  live.type('ab');
+  live.tick();
+  live.type('c');
+  assert.deepEqual(live.sent, []);
+  live.send({ op: 'snapshot', data: '' });
+  assert.equal(live.sent.join(''), 'abc');
+  const dead = shellTile();
+  dead.send({ op: 'closed' });
+  dead.type('x');
+  dead.tick();
+  dead.send({ op: 'closed' });
+  assert.deepEqual(dead.sent, []);
+  assert.match(dead.written(), /not sent/);
+});
