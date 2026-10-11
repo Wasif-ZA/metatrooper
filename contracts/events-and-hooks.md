@@ -214,3 +214,13 @@ The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
 
 Once a session is `exited`, the core reads its spool a last time, drops any unfinished last line, and deletes the
 spool folder. Only the claude hook kinds and `codex.turn` are accepted from a spool.
+
+## Notification sinks (outbound)
+
+`core/src/notify.ts` reads `needs_you` rows every 2 s and sends each new row once to every enabled sink whose
+`kinds` include the row's kind. The message is a fixed template: kind, the row's one-line text, and the link
+`metatrooper://needs-you/<id>`. Methods and shapes: `notify.sink.*` in `pipe-protocol.md`.
+
+The workbench sets sinks up from the command palette ("Notification sinks"). The destination is asked for on every
+save and is never shown again. The workbench registers `metatrooper://`; opening `metatrooper://needs-you/<id>`
+focuses the window and opens that item, or the inbox when the item is already resolved.

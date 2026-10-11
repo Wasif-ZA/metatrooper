@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld('troop', {
   setApproval: (value) => ipcRenderer.invoke('setApproval', value),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
   termResize: (sessionId, cols, rows) => ipcRenderer.invoke('termResize', sessionId, cols, rows),
+  termAck: (sessionId, bytes) => ipcRenderer.invoke('termAck', sessionId, bytes),
+  pasteImage: (sessionId) => ipcRenderer.invoke('pasteImage', sessionId),
+  linkCheck: (sessionId, candidates) => ipcRenderer.invoke('linkCheck', sessionId, candidates),
+  openLink: (target, line, col) => ipcRenderer.invoke('openLink', target, line, col),
   termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),
   onTerm: (fn) => {
     const listener = (_e, sessionId, msg) => fn(sessionId, msg);
@@ -53,6 +57,11 @@ contextBridge.exposeInMainWorld('troop', {
     const listener = (_e, id) => fn(id);
     ipcRenderer.on('select-project', listener);
     return () => ipcRenderer.removeListener('select-project', listener);
+  },
+  onOpenNeedsYou: (fn) => {
+    const listener = (_e, id) => fn(id);
+    ipcRenderer.on('open-needs-you', listener);
+    return () => ipcRenderer.removeListener('open-needs-you', listener);
   },
   onSnapshot: (fn) => {
     const listener = (_e, s) => fn(s);
