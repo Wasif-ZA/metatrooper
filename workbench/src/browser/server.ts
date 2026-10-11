@@ -5,7 +5,7 @@ import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTable } from '../../../core/src/browser/ancestry.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['navigate', 'back', 'snapshot', 'click', 'type', 'select', 'scroll', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
+const TOOLS = new Set(['navigate', 'back', 'snapshot', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
@@ -102,7 +102,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         for (let i = 0; i < 40 && !deps.panes.has(paneId); i++) await new Promise((r) => setTimeout(r, 50));
       }
       const result = await deps.panes.tool(paneId, tool, { ...params, _session: bound.sessionId });
-      return send({ jsonrpc: '2.0', id, result });
+      return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: bound.sessionId, pane_id: paneId } : result });
     };
 
     const decode = createDecoder((raw) => {

@@ -110,14 +110,34 @@ CREATE INDEX comment_prompt_idx ON comment (session_id, prompt_at);
 CREATE TABLE needs_you (
   id           TEXT PRIMARY KEY,
   at           TEXT NOT NULL,
-  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','spool-too-large','uncommitted','other')),
-  ref          TEXT,                           -- gate id, command id, schedule id, run id, plugin id, or session id
+  kind         TEXT NOT NULL CHECK (kind IN ('gate','interrupted-command','missed-schedule','run-failed','missing-secret','handoff','budget','done','failed','spool-too-large','uncommitted','approval','other')),
+  ref          TEXT,                           -- approval id, gate id, command id, schedule id, run id, plugin id, or session id
   text         TEXT NOT NULL,
   resolved_at  TEXT,
   read_at      TEXT,                           -- seen in the notification inbox; NULL counts in the status strip
   notified_at  TEXT                            -- sent to the notification sinks; "<iso> failed" or "<iso> skipped" when it was not delivered
 );
 CREATE INDEX needs_you_open_idx ON needs_you (resolved_at, at);
+
+-- One agent input action held for a person (M6-2, D61). Written by the core only; decided only by approval.resolve
+-- over a ui.hello connection. Rules, scopes and the hash are in contracts/approvals.md.
+CREATE TABLE approval (
+  id           TEXT PRIMARY KEY,               -- 'ap_<ulid>'
+  session_id   TEXT NOT NULL REFERENCES session(id),
+  surface      TEXT NOT NULL CHECK (surface IN ('browser','desktop')),
+  target       TEXT NOT NULL,                  -- browser: origin; desktop: grant id
+  control      TEXT,                           -- canonical JSON {automation_id, name, role}, redacted; NULL when no control
+  action       TEXT NOT NULL,                  -- tool name: click, type, key, select, scroll, navigate
+  action_hash  TEXT NOT NULL,
+  summary      TEXT NOT NULL,                  -- in words, redacted: "click Send in example.com"
+  reason       TEXT NOT NULL,                  -- which D61 rule fired
+  shot         TEXT,                           -- path of a redacted crop of the target
+  status       TEXT NOT NULL CHECK (status IN ('waiting','approved','rejected','expired')),
+  scope        TEXT CHECK (scope IN ('once','session')),
+  created_at   TEXT NOT NULL,
+  decided_at   TEXT
+);
+CREATE INDEX approval_session_idx ON approval (session_id, status);
 
 -- Where needs-you rows are sent. The destination is in the secret store under plugin id core-notify, never here.
 CREATE TABLE notify_sink (

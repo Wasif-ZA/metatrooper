@@ -639,8 +639,81 @@ export class PaneManager {
     return this.race(pane, this.run(pane, name, a));
   }
 
+  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. */
+  private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean }> {
+    let origin = '';
+    try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
+    const contextId = await this.isolated(pane);
+    let objectId: string | undefined;
+    let backendNodeId: number | undefined;
+    if (a.tool === 'key') {
+      const r = await this.cmd(pane, 'Runtime.evaluate', { expression: 'document.activeElement && document.activeElement !== document.body ? document.activeElement : null', contextId });
+      objectId = r.result?.objectId;
+      if (objectId) backendNodeId = (await this.cmd(pane, 'DOM.describeNode', { objectId })).node?.backendNodeId;
+    } else if (a.ref !== undefined) {
+      backendNodeId = this.node(pane, a.ref);
+      objectId = (await this.cmd(pane, 'DOM.resolveNode', { backendNodeId, executionContextId: contextId }).catch(() => {
+        throw new ToolError(-32602, `ref ${String(a.ref)} is no longer on the page; call snapshot again`);
+      })).object?.objectId;
+    }
+    if (!objectId || !backendNodeId) return { origin, control: null, password: false };
+    const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
+      objectId,
+      returnByValue: true,
+      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password" }; }',
+    });
+    const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
+    const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
+    const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true };
+  }
+
+  /** Fails when the control's name or id differs from `expect`, the control an approval was given for. */
+  private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
+    if (!a.expect || typeof a.expect !== 'object') return;
+    const now = (await this.describe(pane, { ...a, tool })).control;
+    if ((now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
+      throw new ToolError(-32035, 'the control changed since it was checked; nothing was sent');
+    }
+  }
+
+  private async pressKeys(pane: Pane, keys: string): Promise<void> {
+    const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
+    const key = parts.pop() ?? '';
+    const MODS: Record<string, number> = { alt: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
+    let modifiers = 0;
+    for (const m of parts) {
+      const bit = MODS[m.toLowerCase()];
+      if (!bit) throw new ToolError(-32602, `unknown modifier ${m}`);
+      modifiers |= bit;
+    }
+    const NAMED: Record<string, [string, string, number, string?]> = {
+      enter: ['Enter', 'Enter', 13, '\r'], return: ['Enter', 'Enter', 13, '\r'], tab: ['Tab', 'Tab', 9], escape: ['Escape', 'Escape', 27], esc: ['Escape', 'Escape', 27],
+      backspace: ['Backspace', 'Backspace', 8], delete: ['Delete', 'Delete', 46], space: [' ', 'Space', 32, ' '], arrowup: ['ArrowUp', 'ArrowUp', 38],
+      arrowdown: ['ArrowDown', 'ArrowDown', 40], arrowleft: ['ArrowLeft', 'ArrowLeft', 37], arrowright: ['ArrowRight', 'ArrowRight', 39],
+      home: ['Home', 'Home', 36], end: ['End', 'End', 35], pageup: ['PageUp', 'PageUp', 33], pagedown: ['PageDown', 'PageDown', 34],
+    };
+    let def = NAMED[key.toLowerCase()];
+    if (!def && key.length === 1) {
+      const up = key.toUpperCase();
+      def = [key, /[A-Z]/.test(up) ? `Key${up}` : /\d/.test(key) ? `Digit${key}` : '', up.charCodeAt(0), key];
+    }
+    if (!def) throw new ToolError(-32602, `unknown key ${key}`);
+    const [k, code, vk, text] = def;
+    const typed = text !== undefined && !(modifiers & 7) ? { text } : {};
+    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: typed.text !== undefined ? 'keyDown' : 'rawKeyDown', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...typed });
+    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+  }
+
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
+    if (name === 'describe') return this.describe(pane, a);
+    if (['click', 'type', 'select', 'key'].includes(name)) await this.recheck(pane, name, a);
     switch (name) {
+      case 'key': {
+        if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
+        await this.pressKeys(pane, a.keys);
+        return { ok: true };
+      }
       case 'navigate': {
         if (typeof a.url !== 'string') throw new ToolError(-32602, 'url is required');
         await this.load(pane, a.url);

@@ -25,6 +25,7 @@ import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
+import { Approvals } from './approvals.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -42,6 +43,7 @@ export interface CoreControl {
   engines: () => EngineSpec[];
   stop: () => void;
   uiKey: string;
+  approvalTimeoutMs?: number;
 }
 
 function int(p: Record<string, unknown>, key: string): number {
@@ -433,6 +435,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return { clipboard_at: at, typed: Boolean(typed) };
     },
   });
+
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs);
+  m.set('approval.check', { handler: (p) => approvals.check(p) });
+  m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 
   for (const name of MOVED_METHODS) m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, 'moved to the pipeline products'); } });
 

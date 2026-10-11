@@ -402,12 +402,23 @@ function selectedSession() {
   return s.find((x) => x.id === ui.snap.selected) || s.find((x) => x.id === ui.localSel) || liveSessions()[0] || null;
 }
 
+function approvalCard(a, i) {
+  const x = ui.snap.sessions.find((y) => y.id === a.session_id);
+  return `<div class="gate${i === 0 ? ' cur' : ''}" data-approval="${esc(a.id)}">
+    <div class="gt"><span class="dm"></span><b>${esc(x ? taskOf(x) : a.session_id)}</b><span data-short="${esc(a.created_at)}">${esc(short(a.created_at))}</span></div>
+    <div class="gs">${esc(a.summary)}</div>
+    <div class="gd">${esc(a.reason)}</div>
+    <div class="ga"><button class="btn acc" data-action="approval" data-id="${esc(a.id)}" data-decision="approve" data-scope="once">Approve once</button><button class="btn" data-action="approval" data-id="${esc(a.id)}" data-decision="approve" data-scope="session">Approve for this session</button><button class="btn" data-action="approval" data-id="${esc(a.id)}" data-decision="reject">Reject</button></div>
+  </div>`;
+}
+
 function renderSheet() {
-  wall.roll(document.getElementById('sheetN'), 0);
-  document.getElementById('sheetT').textContent = 'Nothing needs you';
+  const list = ui.snap.approvals || [];
+  wall.roll(document.getElementById('sheetN'), list.length);
+  document.getElementById('sheetT').textContent = list.length ? `${list.length === 1 ? 'An agent action waits' : `${list.length} agent actions wait`} for you` : 'Nothing needs you';
   setHtml('sheetRuns', '');
   setHtml('sheetAct', '');
-  setHtml('gates', '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">Nothing needs you.</div>');
+  setHtml('gates', list.length ? list.map(approvalCard).join('') : '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">Nothing needs you.</div>');
 }
 
 function resumeButton(x) {
@@ -463,11 +474,11 @@ function renderTitle() {
   setHtml('branch', g && g.branch ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
 }
 
-const INFO_KINDS = ['gate', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
+const INFO_KINDS = ['gate', 'approval', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
 
 function needsCount() {
   const s = ui.snap;
-  return waitingAll().length + s.needs_you.filter((n) => !n.read_at && !INFO_KINDS.includes(n.kind)).length;
+  return waitingAll().length + (s.approvals || []).length + s.needs_you.filter((n) => !n.read_at && !INFO_KINDS.includes(n.kind)).length;
 }
 
 function waitingAll() {
@@ -1143,6 +1154,11 @@ async function onClick(e) {
     case 'dismiss':
       await rpc('needs.dismiss', { id });
       return;
+    case 'approval': {
+      const decision = el.dataset.decision;
+      if ((await rpc('approval.resolve', { approval_id: id, decision, ...(el.dataset.scope ? { scope: el.dataset.scope } : {}) })).result) wall.verdict(el.closest('.gate'), decision === 'approve');
+      return;
+    }
   }
 }
 

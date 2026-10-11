@@ -40,7 +40,8 @@ export function openCoreDb(): DatabaseSync {
   if (!gateCols.includes('override_reason')) db.exec('ALTER TABLE gate ADD COLUMN override_reason TEXT');
   if (!(db.prepare('PRAGMA table_info(needs_you)').all() as Array<{ name: string }>).some((c) => c.name === 'notified_at')) db.exec('ALTER TABLE needs_you ADD COLUMN notified_at TEXT');
   const schemaText = fs.readFileSync(schemaFile, 'utf8');
-  for (const table of ['notify_sink', 'notify_delivery']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+  for (const table of ['notify_sink', 'notify_delivery', 'approval']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+  db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
   return db;
 }
 
@@ -77,7 +78,7 @@ function rebuildTable(db: DatabaseSync, schema: string, t: string, select: (col:
 /** Rebuilds session, comment, needs_you and plugin once when their CHECKs predate a host or kind schema.sql now allows. */
 export function allowSandbox(db: DatabaseSync): void {
   const sql = (t: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(t) as { sql: string } | undefined)?.sql ?? '';
-  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'uncommitted'"], ['plugin', "'registry-import'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
+  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'approval'"], ['plugin', "'registry-import'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
   if (!stale.length) return;
   const schema = fs.readFileSync(schemaFile, 'utf8');
   db.exec('PRAGMA foreign_keys = OFF');

@@ -33,7 +33,7 @@ const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
-  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
+  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -56,7 +56,7 @@ function db(): DatabaseSync | null {
 }
 
 function emptySnapshot(): Snapshot {
-  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], needs_you: [], panes: [], snapshots: [], limits: [], selected: null, git: {} };
+  return { at: Date.now(), core: { online: false, pid: null, heartbeat_age_ms: null }, projects: [], engines: [], sessions: [], needs_you: [], approvals: [], panes: [], snapshots: [], limits: [], selected: null, git: {} };
 }
 
 let lastGood: Snapshot | null = null;
