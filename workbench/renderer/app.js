@@ -812,11 +812,19 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function ctxChip(x) {
+  if (!x.ctx_window || x.ctx_used === null || x.ctx_used === undefined) return null;
+  const pct = Math.round((100 * x.ctx_used) / x.ctx_window);
+  // Over 100% means the session runs a larger window than CONTEXT_WINDOWS lists.
+  if (pct > 100) return null;
+  return pct >= 85 ? { text: `${pct}% context · compacts soon`, warn: true } : { text: `${pct}% context`, warn: false };
+}
+
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();
