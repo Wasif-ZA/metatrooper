@@ -290,6 +290,10 @@ default:
 { "sessions": { "ask_paths": ["C:/Users/you/notes/work/client"] } }
 ```
 
+Every session also runs with metarouter on by default: `router/bin` goes first on its `PATH`, so `metarouter` is the
+bundled copy, and Claude sessions are told to send shell commands through it. Turn it off with
+`{ "sessions": { "metarouter": false } }`.
+
 </details>
 
 ## How it works

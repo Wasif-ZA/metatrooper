@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { coreDir } from '../paths.ts';
+import { coreDir, repoDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { mcpAttachArgs, mcpAttachEnv, sweepSessionFiles } from '../plugins/mcp.ts';
@@ -33,6 +33,24 @@ export function folderApproval(dir: string, approval?: string, engine?: EngineSp
   if (isAskPath(dir, askPaths)) return 'ask';
   if (engine?.ask_near_paths && nearAskPath(dir, askPaths)) return 'ask';
   return approval ?? 'ask';
+}
+
+export const METAROUTER_BLOCK = `## Tools
+Run shell commands through metarouter.
+- Look for a saved recipe first: \`metarouter search <words>\`, then \`metarouter run <recipe> ...\`.
+- Anything else: \`metarouter exec -- "<command>"\`. Read the short result; it names the full log.
+- A command that worked and will be needed again: \`metarouter add <name> -- '<command, {1} for arguments>'\`.
+- If metarouter is missing or errors, run the plain command.`;
+
+/** With `sessions.metarouter` on: router/bin first on PATH, so `metarouter` is the bundled copy, and the engine's instructions arg carrying METAROUTER_BLOCK. */
+export function metarouterLaunch(engine: EngineSpec, on = settings().sessions.metarouter, base: NodeJS.ProcessEnv = process.env): { args: string[]; env: Record<string, string> } {
+  if (!on) return { args: [], env: {} };
+  const key = Object.keys(base).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const bin = path.join(repoDir, 'router', 'bin');
+  return {
+    args: engine.instructions_arg ? [engine.instructions_arg, METAROUTER_BLOCK] : [],
+    env: { [key]: base[key] ? `${bin}${path.delimiter}${base[key]}` : bin },
+  };
 }
 
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
@@ -68,10 +86,11 @@ export function launchSession(
   } else {
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
+    const router = metarouterLaunch(opts.engine);
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
-    env = mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval });
+    env = { ...router.env, ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
   }
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');

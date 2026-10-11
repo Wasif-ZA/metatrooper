@@ -4,11 +4,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const shim = path.join(root, 'router', 'bin', 'metarouter.js');
-const { findPython } = await import(shim);
+const { findPython } = await import(pathToFileURL(shim).href);
 const hasPython = findPython() !== null;
 
 function env(extra: Record<string, string> = {}) {
@@ -46,4 +46,25 @@ test('troop gate reads A-05 from the bundled metarouter', { skip: !hasPython && 
   const r = spawnSync(process.execPath, ['core/cli.ts', 'gate', '--json'], { cwd: root, env: env(), encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   assert.notEqual(JSON.parse(r.stdout).A05.reason, 'toolrouter not found');
+});
+
+test('sessions get the bundled metarouter first on PATH, and claude gets the metarouter block', async () => {
+  const { metarouterLaunch, METAROUTER_BLOCK } = await import('../src/sessions/launch.ts');
+  const { BUILT_IN } = await import('../src/engines/registry.ts');
+  const claude = BUILT_IN.find((e) => e.id === 'claude')!;
+  const codex = BUILT_IN.find((e) => e.id === 'codex')!;
+  const bin = path.join(root, 'router', 'bin');
+  const on = metarouterLaunch(claude, true, { Path: 'X' });
+  assert.deepEqual(on.args, ['--append-system-prompt', METAROUTER_BLOCK]);
+  assert.deepEqual(on.env, { Path: `${bin}${path.delimiter}X` });
+  assert.deepEqual(metarouterLaunch(codex, true, { PATH: 'X' }).args, []);
+  assert.deepEqual(metarouterLaunch(claude, false), { args: [], env: {} });
+});
+
+test('metarouter on a session PATH runs the bundled copy', { skip: !hasPython && 'no Python 3.11+' }, async () => {
+  const { metarouterLaunch } = await import('../src/sessions/launch.ts');
+  const e = env();
+  const r = spawnSync('metarouter', ['list', '--json'], { env: { ...e, ...metarouterLaunch({ id: 'x' } as never, true, e).env }, encoding: 'utf8', shell: true });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).ok, true);
 });
