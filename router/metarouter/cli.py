@@ -54,6 +54,8 @@ LIST_ROWS = 10
 STALE_DAYS = 60
 HELP_LINES = 60
 EXE_EXT = {".exe", ".cmd", ".bat"} if os.name == "nt" else {""}
+SCRIPT_DIRS = ("scripts", "meta/scripts", "bin", "")
+SCRIPT_EXT = (".sh", ".py", ".js", ".cjs", ".mjs", ".ps1")
 
 
 def bash():
@@ -259,7 +261,7 @@ def exec_lane(args):
 
 
 def add_note(r, *notes):
-    r.note = "; ".join(filter(None, [r.note, *notes])) or None
+    r.note = "; ".join(dict.fromkeys(filter(None, [*(r.note or "").split("; "), *notes]))) or None
     return r
 
 
@@ -268,6 +270,58 @@ def no_recipe(name, recipes):
     tip = f"Did you mean: metarouter run {store.signature(recipes[near[0]])}" if near else \
         f"Try: metarouter search {name}"
     return Result(ok=False, lane="run", exit=2, note=f'no recipe "{name}". {tip}')
+
+
+def repo_scripts():
+    root = store.project_root()
+    if not root:
+        return []
+    found = []
+    for d in SCRIPT_DIRS:
+        try:
+            found += sorted(f for f in (root / d).iterdir() if f.is_file() and f.suffix.lower() in SCRIPT_EXT
+                            and f.resolve().is_relative_to(root))
+        except OSError:
+            continue
+    return found
+
+
+def is_path(name):
+    return "/" in name or "\\" in name
+
+
+def find_script(name):
+    root = store.project_root()
+    if not root:
+        return None
+    if is_path(name):
+        for base in (Path.cwd(), root):
+            p = (base / name).resolve()
+            if p.is_file() and p.suffix.lower() in SCRIPT_EXT and p.is_relative_to(root):
+                return p
+        return None
+    for f in repo_scripts():
+        if f.name == name or f.stem == name:
+            return f
+    return None
+
+
+def script_command(path, rest):
+    ext = path.suffix.lower()
+    runner = {".sh": [bash() or "bash"], ".py": [sys.executable], ".ps1": [powershell() or "powershell", "-NoProfile",
+              "-File"]}.get(ext, ["node"])
+    argv = [Path(a).as_posix() if os.path.isabs(a) else a for a in runner] + [path.as_posix(), *rest]
+    return argv
+
+
+def fall_through(name, rest):
+    """In auto mode, an argv for a repo script or a PATH CLI called name, or None."""
+    if store.mode() != "auto":
+        return None
+    if not is_path(name) and shutil.which(name):
+        return [name, *rest]
+    script = find_script(name)
+    return script_command(script, rest) if script else None
 
 
 def run_lane(args):
@@ -280,7 +334,21 @@ def run_lane(args):
     recipes = store.load()
     r = recipes.get(name)
     if not r:
-        return no_recipe(name, recipes)
+        argv = fall_through(name, rest)
+        if not argv:
+            return no_recipe(name, recipes)
+        plain = shlex.join(argv)
+        refused, warns = policy.verdict(plain)
+        if refused:
+            return Result(ok=False, lane="exec", exit=3, cmd=shrink.clip(plain), note=refused)
+        if background:
+            from metarouter import jobs
+            jid = jobs.start(["run", name, *rest], label=name)
+            return Result(ok=True, lane="jobs", out={"job": jid, "collect": f"metarouter jobs {jid} --wait"})
+        if not is_powershell(shell()):
+            return exec_lane(["--", plain])
+        cmd = "& " + " ".join("'" + a.replace("'", "''") + "'" for a in argv)
+        return add_note(exec_lane(["--", cmd]), *warns)
     if store.needs_trust(r):
         if not yes:
             return Result(ok=False, lane="run", exit=2, recipe=name,
@@ -433,6 +501,9 @@ def search_lane(args):
     extra = []
     if words and store.mode() == "auto":
         from metarouter import mcp
+        root = store.project_root()
+        extra += [f"metarouter run {shlex.quote('./' + f.relative_to(root).as_posix())}    repo script" for f in repo_scripts()
+                  if any(w in f.name.lower() for w in words)][:5]
         extra += [f"metarouter mcp {ln}" for ln in mcp.catalog_lines(words, remote=False)[:5]]
         cached_lines = []
         for sname, sdata in sorted(mcp.cached_tools().items()):
