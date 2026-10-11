@@ -97,4 +97,5 @@ Inbound approvals later: 3 CC days, after the cloud relay decision.
   retries; `<iso> skipped` older than 24 hours; `<iso> no-sink` no enabled sink wants its kind.
 - Webhook delivery refuses redirects, so an https destination can never forward the message to plain http.
 - Queries order by `rowid`, never by an offset timestamp as text (the M1 DST rule).
-- Not built yet: the workbench settings pane, the `metatrooper://` link handler, quiet hours.
+- Settings pane (palette item "Notification sinks") and the `metatrooper://needs-you/<id>` handler: built on
+  `m5-15-sink-ui`, 2026-10-11. Quiet hours: not built.
