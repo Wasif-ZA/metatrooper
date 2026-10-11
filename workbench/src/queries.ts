@@ -17,6 +17,9 @@ export interface Snapshot {
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
   git: Record<string, { branch: string | null; added: number; deleted: number }>;
+  settings_error?: string | null;
+  core_mismatch?: string | null;
+  core_log?: string[] | null;
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */

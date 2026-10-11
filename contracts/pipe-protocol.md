@@ -76,7 +76,9 @@ Status moves `queued` -> `accepted` -> `running` -> `ok` or `error`. The core wr
 claims the row and `running` immediately before the first side effect (launching a process, writing a file,
 calling a plugin action).
 
-On start, before accepting new pipe requests, the core:
+On start the core first binds the pipe, which is the single-instance lock (M6-4). A second core whose bind fails
+prints "core already running (pid N)" and exits 1 before it opens `troop.db`. Requests that arrive while the
+first core is still starting wait for it. Then, before answering them, the core:
 
 1. Re-executes every `accepted` row in `at` order. No side effect has happened for these.
 2. Marks every `running` row `error` with `{"code":-32098,"message":"interrupted by core restart"}` and
@@ -114,6 +116,8 @@ Every other interaction is a database read.
 
 | Method | Params | Result |
 |---|---|---|
+| `core.ping` | `{}` | `{ok: true, pid, version, protocol, schema_version, started_at}`; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |
+| `settings.set` | `{key, value}` | `{}`; needs `ui.hello`. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) |
 | `account.state` | `{}` | `{state: "signed_out"}`: the only state until the cloud milestone; nothing prompts for sign-in |
 | `project.open` | `{path}` | `{project_id}`; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
 | `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path |

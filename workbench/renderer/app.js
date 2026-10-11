@@ -349,7 +349,7 @@ function applyLook(look) {
 
 async function setLook(id) {
   const theme = await api.setTheme(id);
-  if (!theme) return;
+  if (!theme || theme.error) { if (theme) toast(theme.error, true); return; }
   applyLook({ ...ui.settingsLook, theme });
   render();
 }
@@ -444,8 +444,13 @@ function limitRows(cls) {
 function renderTitle() {
   const s = ui.snap;
   const age = s.core.heartbeat_age_ms;
-  setHtml('core', s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
-    : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`);
+  const warn = [
+    s.settings_error ? `<span class="badge offline" title="The core runs on defaults and will not overwrite the file">${esc(s.settings_error)}</span>` : '',
+    s.core_mismatch ? `<span class="badge offline">${esc(s.core_mismatch)}</span> <button class="link" data-action="restart-core">Restart core</button>` : '',
+    s.core_log ? `<span class="badge offline" title="${esc(s.core_log.join('\n'))}">core stopped 3 times in 60 s; hover for the log</span> <button class="link" data-action="open-logs">Open logs</button>` : '',
+  ].filter(Boolean).join(' ');
+  setHtml('core', (s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
+    : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`) + (warn ? ` ${warn}` : ''));
   const cur = s.projects.find((p) => p.id === ui.projectId);
   setHtml('project-pick', `${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}${cur ? `<span class="meta">${esc(liveCounts(cur.id))}</span>` : ''} <svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`);
   wall.roll(document.getElementById('needsN'), needsCount());
@@ -948,8 +953,18 @@ async function onClick(e) {
     case 'check-engines':
       await rpc('engines.check', {});
       return;
-    case 'first-approval':
-      if (await api.setApproval(el.dataset.value)) { ui.settingsLook.firstRun = false; render(); }
+    case 'first-approval': {
+      const r = await api.setApproval(el.dataset.value);
+      if (r && r.ok) { ui.settingsLook.firstRun = false; render(); } else if (r) toast(r.error, true);
+      return;
+    }
+    case 'restart-core':
+      toast('Restarting core');
+      await api.restartCore();
+      toast('Core restarted');
+      return;
+    case 'open-logs':
+      await api.openLogs();
       return;
     case 'launch': {
       document.getElementById('menu').hidden = true;
