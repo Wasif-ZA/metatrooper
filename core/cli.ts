@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { Writable } from 'node:stream';
 import readline from 'node:readline/promises';
 import { installClaude, installCodex, installEngineSettings, lineDiff, planClaudeInstall, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './src/hooks/install.ts';
@@ -257,7 +257,7 @@ function withDb<T>(fn: (db: NonNullable<ReturnType<typeof openReaderDb>>) => T):
 }
 
 function resolveSession(prefix: string): string | null {
-  const rows = withDb((db) => db.prepare('SELECT id FROM session WHERE id LIKE ? ORDER BY julianday(started_at) DESC').all(`${prefix}%`) as Array<{ id: string }>) ?? [];
+  const rows = withDb((db) => db.prepare("SELECT id FROM session WHERE id LIKE ? ESCAPE '\\' ORDER BY julianday(started_at) DESC").all(`${prefix.replace(/[\\%_]/g, '\\$&')}%`) as Array<{ id: string }>) ?? [];
   if (rows.length === 1) return rows[0].id;
   console.error(rows.length ? `${prefix} matches ${rows.length} sessions; give more of the id` : `no session matches ${prefix}`);
   return null;
@@ -282,7 +282,7 @@ interface Job {
   approval?: string;
 }
 
-async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string }> {
+async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string; root?: string }> {
   let canonical: string;
   try {
     canonical = resolveProjectPath(dir);
@@ -293,9 +293,9 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
     console.error(`folder not found: ${dir}`);
     return { code: 1 };
   }
-  const opened = await rpc('project.open', { path: dir }, json);
+  const opened = await rpc('project.open', { path: canonical }, json);
   if (opened.code) return { code: opened.code };
-  return { code: 0, id: String(opened.result?.project_id ?? projectId(canonical)) };
+  return { code: 0, id: String(opened.result?.project_id ?? projectId(canonical)), root: canonical };
 }
 
 async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: string) => void): Promise<number> {
@@ -412,7 +412,7 @@ async function main(): Promise<number> {
     }
 
     case 'open': {
-      const r = await rpc('project.open', { path: a.pos[0] ?? process.cwd() }, json);
+      const r = await rpc('project.open', { path: resolve(a.pos[0] ?? '.') }, json);
       if (r.result) emit(r.result, String(r.result.project_id));
       return r.code;
     }
@@ -450,7 +450,7 @@ async function main(): Promise<number> {
         ).all(a.flags.has('--all') ? 1 : 0) as Array<Record<string, unknown>>,
       ) ?? [];
       if (json) console.log(JSON.stringify(rows));
-      else table(rows.map((r) => ({ ...r, id: String(r.id).slice(0, 8) })), ['id', 'engine', 'host', 'state', 'project', 'window', 'state_at']);
+      else table(rows.map((r) => ({ ...r, id: String(r.id).slice(0, 8) })), ['id', 'engine', 'host', 'state', 'project', 'state_at']);
       return 0;
     }
 
@@ -459,7 +459,12 @@ async function main(): Promise<number> {
       if (repo.code) return repo.code;
       const r = await rpc('session.owners', { project_id: repo.id }, json);
       if (r.code) return r.code;
-      const want = a.pos[0] ? a.pos[0].split('\\').join('/').replace(/^\.\//, '') : '';
+      if (!r.result) {
+        console.error('owners needs the core running: start it with `troop start`');
+        return 3;
+      }
+      const base = fs.realpathSync.native(a.opts.get('--project') ?? process.cwd());
+      const want = a.pos[0] ? relative(repo.root!, resolve(base, a.pos[0])).split('\\').join('/') : '';
       const paths = ((r.result?.paths ?? []) as Array<{ path: string; owners: Array<{ id: string; title: string; state: string }>; shared: boolean; unclaimed: boolean }>)
         .filter((x) => !want || x.path === want || x.path.startsWith(`${want.replace(/\/$/, '')}/`));
       if (json) console.log(JSON.stringify(paths));

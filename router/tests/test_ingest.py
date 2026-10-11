@@ -306,3 +306,11 @@ def test_main(tmp_path, capsys):
     captured = capsys.readouterr()
     expected_tokens = len(text) // 4
     assert f"{expected_tokens:,} tokens" in captured.out
+
+
+def test_main_saves_under_metarouter_home(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "mh"))
+    (tmp_path / "mh").mkdir()
+    main(["ingest", "--root", str(tmp_path / "none")], how="json")
+    saved = json.loads(capsys.readouterr().out)["out"]["saved"]
+    assert Path(saved).parent == tmp_path / "mh"

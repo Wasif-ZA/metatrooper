@@ -42,6 +42,6 @@ export function run(args, opts = {}) {
   return r;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   process.exitCode = run(process.argv.slice(2)).status ?? 1;
 }

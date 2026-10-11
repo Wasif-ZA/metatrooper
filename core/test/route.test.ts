@@ -68,3 +68,10 @@ test('metarouter on a session PATH runs the bundled copy', { skip: !hasPython &&
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).ok, true);
 });
+
+test('metarouter.js run through a junction still runs and reports its exit code', { skip: !hasPython && 'no Python 3.11+' }, () => {
+  const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'troop-route-link-')), 'bin');
+  fs.symlinkSync(path.dirname(shim), link, 'junction');
+  const r = spawnSync(process.execPath, [path.join(link, 'metarouter.js'), 'no-such-verb'], { env: env(), encoding: 'utf8' });
+  assert.equal(r.status, 2, r.stderr);
+});
