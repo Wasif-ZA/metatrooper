@@ -2,11 +2,15 @@ import { createRequire } from 'node:module';
 import type { IPty } from 'node-pty';
 import { settings } from '../settings.ts';
 import { PARENT_SESSION_ENV } from './parent-env.ts';
+import { windowsBuild } from './windows-build.ts';
 
 const require = createRequire(import.meta.url);
 const pty = require('node-pty') as typeof import('node-pty');
 const { Terminal } = require('@xterm/headless') as typeof import('@xterm/headless');
 const { SerializeAddon } = require('@xterm/addon-serialize') as typeof import('@xterm/addon-serialize');
+
+export const PAUSE_BYTES = 1024 * 1024;
+export const RESUME_BYTES = 256 * 1024;
 
 export interface Viewer {
   snapshot(data: string): void;
@@ -23,6 +27,8 @@ interface Term {
   killed: boolean;
   written: number;
   parsed: number;
+  behind: number;
+  paused: boolean;
 }
 
 export interface TermHooks {
@@ -46,16 +52,24 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   const cleanEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase())) cleanEnv[k] = v;
   const proc = pty.spawn(argv[0], argv.slice(1), { name: 'xterm-256color', cols, rows, cwd, env: cleanEnv, useConpty: true });
-  const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true });
+  const build = windowsBuild();
+  const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true, ...(build ? { windowsPty: { backend: 'conpty' as const, buildNumber: build } } : {}) });
   const ser = new SerializeAddon();
   head.loadAddon(ser);
-  const t: Term = { proc, head, ser, viewers: new Set(), exitCode: null, killed: false, written: 0, parsed: 0 };
+  const t: Term = { proc, head, ser, viewers: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false };
   terms.set(id, t);
   head.onBell(() => hooks.onBell?.(id));
   head.onTitleChange((title) => hooks.onTitle?.(id, title.slice(0, 200)));
+  head.onData((reply) => { if (t.viewers.size === 0 && t.exitCode === null) t.proc.write(reply); });
   proc.onData((data) => {
     const n = ++t.written;
-    head.write(data, () => { t.parsed = n; });
+    t.behind += data.length;
+    if (!t.paused && t.behind > PAUSE_BYTES) { t.paused = true; t.proc.pause(); }
+    head.write(data, () => {
+      t.parsed = n;
+      t.behind -= data.length;
+      if (t.paused && t.behind < RESUME_BYTES && t.exitCode === null) { t.paused = false; t.proc.resume(); }
+    });
     for (const v of t.viewers) v.output(data);
     hooks.onOutput?.(id);
   });
@@ -68,6 +82,11 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     head.write('', () => { head.dispose(); terms.delete(id); });
   });
   return proc.pid;
+}
+
+/** Whether the pty is paused because the headless terminal is more than PAUSE_BYTES behind. */
+export function paused(id: string): boolean {
+  return terms.get(id)?.paused ?? false;
 }
 
 export function has(id: string): boolean {

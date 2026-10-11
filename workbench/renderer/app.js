@@ -608,6 +608,70 @@ function renderInbox() {
   setHtml('inbox-list', asks + rows || '<p class="empty" style="padding:6px 14px">Nothing here.</p>');
 }
 
+async function openNeedsYou(id, fallback = true) {
+  const n = ui.snap.needs_you.find((y) => y.id === id);
+  if (!n) {
+    if (fallback) { document.getElementById('inbox').hidden = false; renderInbox(); }
+    return;
+  }
+  if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
+  else if (n.kind === 'uncommitted') { await rpc('needs_you.mark-read', { id }, true); await openTab('git'); }
+  else { await rpc('needs_you.mark-read', { id }, true); wall.setSheet(true); }
+}
+
+const SINK_KINDS = ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command'];
+const SINK_DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret'];
+const SINK_ALL_KINDS = ['gate', 'interrupted-command', 'missed-schedule', 'run-failed', 'missing-secret', 'handoff', 'budget', 'done', 'failed', 'spool-too-large', 'other'];
+const SINK_DEST_HINT = {
+  ntfy: 'https://ntfy.sh/your-topic',
+  'slack-webhook': 'Slack incoming webhook URL',
+  'discord-webhook': 'Discord webhook URL',
+  'teams-workflow': 'Teams Workflows webhook URL',
+  webhook: 'https:// URL that takes a JSON POST',
+  command: 'JSON argv, e.g. ["apprise","-b"]',
+};
+
+async function openSinks() {
+  const r = await rpc('notify.sink.list', {});
+  if (!r.result) return;
+  ui.sinks = r.result.sinks;
+  ui.sinkEdit = ui.sinks.length ? null : { kinds: SINK_DEFAULT_KINDS, enabled: true };
+  document.getElementById('sinks').hidden = false;
+  renderSinks();
+}
+
+function renderSinks() {
+  const rows = ui.sinks.map((s) => `<div class="item">
+      <span class="dot ${s.enabled ? 'done' : 'exited'}"></span>
+      <span class="grow">${esc(s.name)}<span class="meta"> · ${esc(s.kind)} · ${esc(s.kinds.join(', '))}${s.enabled ? '' : ' · off'}</span></span>
+      <button class="link" data-action="sink-test" data-id="${esc(s.id)}">Test</button><button class="link" data-action="sink-edit" data-id="${esc(s.id)}">Edit</button><button class="link" data-action="sink-remove" data-id="${esc(s.id)}">Remove</button></div>`).join('');
+  const e = ui.sinkEdit;
+  const kind = e && e.kind ? e.kind : SINK_KINDS[0];
+  const form = e ? `<div class="sink-form">
+      <label>Kind <select id="sink-kind"${e.id ? ' disabled' : ''}>${SINK_KINDS.map((k) => `<option${k === kind ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+      <label>Name <input id="sink-name" value="${esc(e.name || '')}" placeholder="${esc(kind)}"></label>
+      <label>Destination <input id="sink-dest" type="password" autocomplete="off" placeholder="${esc(e.id ? 'Enter it again; it is never shown' : SINK_DEST_HINT[kind])}"></label>
+      <div class="sink-kinds">${SINK_ALL_KINDS.map((k) => `<label><input type="checkbox" class="sink-k" value="${k}"${e.kinds.includes(k) ? ' checked' : ''}> ${k}</label>`).join('')}</div>
+      <label><input type="checkbox" id="sink-on"${e.enabled ? ' checked' : ''}> Enabled</label>
+      <div><button class="primary" data-action="sink-save">Save</button> <button class="link" data-action="sink-cancel">Cancel</button></div></div>`
+    : '<div style="padding:6px 14px"><button class="link" data-action="sink-new">Add a sink</button></div>';
+  setHtml('sinks-list', (rows || '<p class="empty" style="padding:6px 14px">No sinks yet.</p>') + form);
+}
+
+async function saveSink() {
+  const e = ui.sinkEdit;
+  const params = {
+    kind: e.id ? e.kind : document.getElementById('sink-kind').value,
+    dest: document.getElementById('sink-dest').value.trim(),
+    kinds: [...document.querySelectorAll('.sink-k:checked')].map((c) => c.value),
+    enabled: document.getElementById('sink-on').checked,
+  };
+  const name = document.getElementById('sink-name').value.trim();
+  if (name) params.name = name;
+  if (e.id) params.id = e.id;
+  if ((await rpc('notify.sink.set', params)).result) { toast('Sink saved.'); await openSinks(); }
+}
+
 function paletteItems() {
   const s = ui.snap;
   const items = [];
@@ -632,6 +696,7 @@ function paletteItems() {
   items.push({ group: 'Core', label: 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
   items.push({ group: 'Core', label: 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
+  items.push({ group: 'Core', label: 'Notification sinks (Slack, ntfy, webhooks)', run: openSinks });
   return items;
 }
 
@@ -737,8 +802,14 @@ function tileMeta(x) {
   const g = (ui.snap.git || {})[x.id];
   const parts = [];
   if (g && g.branch) parts.push(`${g.branch} +${g.added} -${g.deleted}`);
-  if (x.tokens !== null && x.tokens !== undefined && !DEMO) parts.push(`${x.tokens.toLocaleString('en-US')} tok`);
+  if (!DEMO) parts.push(costChip(x));
   return parts.join('  ');
+}
+
+function costChip(x) {
+  if (x.tokens === null || x.tokens === undefined) return 'usage unknown';
+  const usd = x.usd === null || x.usd === undefined ? '' : ` · $${x.usd.toFixed(2)}`;
+  return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
 function render(focus = false) {
@@ -893,15 +964,33 @@ async function onClick(e) {
     case 'inbox-unread':
       await rpc('needs_you.mark-unread', { id });
       return;
-    case 'inbox-open': {
-      const n = ui.snap.needs_you.find((y) => y.id === id);
+    case 'inbox-open':
       document.getElementById('inbox').hidden = true;
-      if (!n) return;
-      if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
-      else if (n.kind === 'uncommitted') { await rpc('needs_you.mark-read', { id }, true); await openTab('git'); }
-      else { await rpc('needs_you.mark-read', { id }, true); wall.setSheet(true); }
+      await openNeedsYou(id, false);
+      return;
+    case 'sink-new':
+      ui.sinkEdit = { kinds: SINK_DEFAULT_KINDS, enabled: true };
+      renderSinks();
+      return;
+    case 'sink-edit':
+      ui.sinkEdit = ui.sinks.find((x) => x.id === id);
+      renderSinks();
+      return;
+    case 'sink-cancel':
+      ui.sinkEdit = null;
+      renderSinks();
+      return;
+    case 'sink-save':
+      await saveSink();
+      return;
+    case 'sink-test': {
+      const r = await rpc('notify.sink.test', { id });
+      if (r.result) toast(r.result.ok ? 'Test sent.' : `Test failed: ${r.result.error}`, !r.result.ok);
       return;
     }
+    case 'sink-remove':
+      if ((await rpc('notify.sink.remove', { id })).result) await openSinks();
+      return;
     case 'resume': {
       const r = await rpc('session.resume', { session_id: id });
       if (r.result) await pick(r.result.session_id);
@@ -1153,6 +1242,10 @@ function onInput(e) {
     renderPalette();
     return;
   }
+  if (el.id === 'sink-kind') {
+    document.getElementById('sink-dest').placeholder = SINK_DEST_HINT[el.value];
+    return;
+  }
   if (el.dataset.action === 'project-pick') {
     if (e.type !== 'change' || !el.value) return;
     switchProject(el.value);
@@ -1207,6 +1300,11 @@ api.onSelectProject((id) => {
   render();
 });
 
+api.onOpenNeedsYou((id) => {
+  if (ui.snap) void openNeedsYou(id);
+  else ui.pendingNeedsYou = id;
+});
+
 api.onSnapshot(async (s) => {
   ui.snap = s;
   if (ui.projectId && !s.projects.some((p) => p.id === ui.projectId)) {
@@ -1216,6 +1314,11 @@ api.onSnapshot(async (s) => {
   if (!ui.projectId && s.projects[0]) {
     ui.projectId = s.projects[0].id;
     setView();
+  }
+  if (ui.pendingNeedsYou) {
+    const id = ui.pendingNeedsYou;
+    ui.pendingNeedsYou = null;
+    await openNeedsYou(id);
   }
   if (ui.pendingPick && s.sessions.some((x) => x.id === ui.pendingPick)) {
     const id = ui.pendingPick;
@@ -1235,6 +1338,7 @@ document.addEventListener('click', (e) => {
   if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
   if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
   if (!document.getElementById('inbox').hidden && !e.target.closest('#inbox') && !e.target.closest('[data-action="inbox"]')) document.getElementById('inbox').hidden = true;
+  if (!document.getElementById('sinks').hidden && !e.target.closest('#sinks') && !e.target.closest('[data-palette]')) document.getElementById('sinks').hidden = true;
   void onClick(e);
 });
 document.addEventListener('contextmenu', (e) => {

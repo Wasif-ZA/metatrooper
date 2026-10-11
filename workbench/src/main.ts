@@ -3,6 +3,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
+import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
+import { resolveCommand } from '../../core/src/hook/resolve.ts';
+import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
@@ -34,6 +37,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
+  'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -422,7 +426,7 @@ function handlers(): void {
   on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
     if (typeof sessionId !== 'string') return false;
     attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
-    return true;
+    return { windows_build: windowsBuild() };
   });
   on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
   on('setTheme', (name: unknown) => {
@@ -437,9 +441,39 @@ function handlers(): void {
   });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
+  on('termAck', (sessionId: unknown, bytes: unknown) => { if (typeof sessionId === 'string' && typeof bytes === 'number') termAck(sessionId, bytes); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('readText', () => clipboard.readText());
+  on('pasteImage', async (sessionId: unknown) => {
+    if (typeof sessionId !== 'string') return null;
+    const item = (await clipboard.read()).find((i) => i.types.includes('image/png'));
+    if (!item) return null;
+    const png = Buffer.from(await ((await item.getType('image/png')) as Blob).arrayBuffer());
+    const dir = path.join(homeDir(), 'paste', sessionId.replace(/[^A-Za-z0-9-]/g, ''));
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${ulid()}.png`);
+    fs.writeFileSync(file, png);
+    return file;
+  });
+  on('linkCheck', (sessionId: unknown, candidates: unknown) => {
+    if (!Array.isArray(candidates)) return [];
+    const cwd = cwdOf(sessionId);
+    return candidates.slice(0, 50).map((c) => {
+      if (typeof c !== 'string' || c.length > 400) return null;
+      const file = path.isAbsolute(c) ? c : cwd ? path.resolve(cwd, c) : null;
+      try { return file && fs.statSync(file).isFile() ? file : null; } catch { return null; }
+    });
+  });
+  on('openLink', (target: unknown, line: unknown, col: unknown) => {
+    if (typeof target !== 'string') return false;
+    if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }
+    try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }
+    const code = resolveCommand('code');
+    if (!code) { shell.showItemInFolder(target); return true; }
+    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    return true;
+  });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
@@ -555,6 +589,28 @@ function folderArg(argv: string[], cwd: string): string | null {
   return null;
 }
 
+export function needsYouLink(argv: string[]): string | null {
+  for (const a of argv) {
+    const m = /^metatrooper:\/\/needs-you\/([A-Za-z0-9_-]{1,64})\/?$/i.exec(a);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** Tests (METATROOPER_HOME set) and git worktrees (a .git file, not a folder) never take over the OS link handler. */
+function registersProtocol(): boolean {
+  if (process.env.METATROOPER_HOME) return false;
+  if (!process.defaultApp) return true;
+  try { return fs.statSync(path.join(APP_DIR, '..', '.git')).isDirectory(); } catch { return false; }
+}
+
+function openNeedsYou(id: string | null): void {
+  if (!id || !win) return;
+  const send = () => win?.webContents.send('open-needs-you', id);
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+  else send();
+}
+
 async function stopCore(): Promise<void> {
   await call('core.stop', {}, { ui: true });
   for (let i = 0; i < 40 && (await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
@@ -610,12 +666,18 @@ if (!app.requestSingleInstanceLock()) {
       win.focus();
     }
     void openFolder(folderArg(argv, cwd));
+    openNeedsYou(needsYouLink(argv));
   });
   app.whenReady().then(() => {
+    if (registersProtocol()) {
+      if (process.defaultApp) app.setAsDefaultProtocolClient('metatrooper', process.execPath, [APP_DIR]);
+      else app.setAsDefaultProtocolClient('metatrooper');
+    }
     lockDown();
     handlers();
     createWindow();
     void ensureCore().then(() => openFolder(folderArg(process.argv, process.cwd())));
+    openNeedsYou(needsYouLink(process.argv));
     watch();
     const gitTick = async () => {
       try {
