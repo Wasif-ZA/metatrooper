@@ -1283,10 +1283,11 @@ recorded fate in `ide-layer-research/idea-coverage.md`: built, in M6, in M7, or 
 
 - Each of these changes a security, data, dependency or native-binary line that Wasif sets, so none is specced:
   lend a login to an agent pane (browser-control 16), a Firefox identity for Google sign-in (browser-pane 16), a pty
-  host that survives a core upgrade (core-services 3), bundled ConPTY (core 5), retention pruning of event and
-  command rows (core-services 9), reading limits by a probe (core-sessions 7), cua-driver as the desktop driver
-  (computer-use best 1, with agent-cursor 10, which needs its feed), and a Linux desktop sandbox (computer-use best
-  4).
+  host that survives a core upgrade (core-services 3), bundled ConPTY (core 5), reading limits by a probe
+  (core-sessions 7), cua-driver as the desktop driver (computer-use best 1, with agent-cursor 10, which needs its
+  feed), and a Linux desktop sandbox (computer-use best 4).
+- Decided 2026-10-11: no retention pruning (core-services 9). Event and command rows are kept forever; only the
+  existing startup delete of `term.title` events stays.
 - Cut: the compose box (wall-terminal 17), which the idea rates low confidence and agent tiles cannot use; the JSON
   split tree (wall-layout 11), which the idea itself says to build only if M7-7's fractions prove too thin; spline
   cursors (agent-cursor 13), only for streaming cursors to another screen.
