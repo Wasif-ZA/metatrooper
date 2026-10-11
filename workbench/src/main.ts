@@ -20,7 +20,7 @@ import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
-import { owners, repoOf } from '../../core/src/sessions/owners.ts';
+import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
@@ -381,9 +381,9 @@ function handlers(): void {
     }
     try {
       const view = await viewOf(project.path);
-      const repo = repoOf(project.path);
+      const repo = await repoOfAsync(project.path);
       let groups: GitView['groups'];
-      try { if (repo && d) groups = ownerGroups(view.changes, owners(d, repo)); } catch {}
+      try { if (repo && d) groups = ownerGroups(view.changes, await ownersAsync(d, repo)); } catch {}
       return { ...view, groups, error };
     } catch (e) {
       return { error: why(e) };
