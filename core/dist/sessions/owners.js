@@ -210,7 +210,7 @@ export function claimTurn(db              , sessionId        , endSeq        , t
   return claim;
 }
 
-const PATHS_PER_LOG = 200;
+const LOG_ARG_CHARS = 8000;
 
 function claimedPaths(claims         , dirty          )           {
   return dirty.filter((p) => latestClaim(claims, p));
@@ -226,11 +226,18 @@ function parseCommitTimes(text        , into                     )       {
   }
 }
 
+/** One `git log` per group of paths whose names stay under LOG_ARG_CHARS, well inside the 32,767-character Windows command line. */
 function logBatches(paths          )             {
   const out             = [];
-  for (let i = 0; i < paths.length; i += PATHS_PER_LOG) {
-    out.push(['log', '-z', '--no-renames', '--name-only', '--diff-merges=dense-combined', '--format=%x01%ct', '--', ...paths.slice(i, i + PATHS_PER_LOG)]);
+  const flush = (group          ) => out.push(['--literal-pathspecs', 'log', '-z', '--no-renames', '--name-only', '--diff-merges=dense-combined', '--format=%x01%ct', '--', ...group]);
+  let group           = [];
+  let chars = 0;
+  for (const p of paths) {
+    if (group.length && chars + p.length + 3 > LOG_ARG_CHARS) { flush(group); group = []; chars = 0; }
+    group.push(p);
+    chars += p.length + 3;
   }
+  if (group.length) flush(group);
   return out;
 }
 

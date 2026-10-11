@@ -429,3 +429,21 @@ test('a HEAD commit with an older committer date does not hide a newer commit of
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('commit times survive claimed paths whose names together exceed the Windows command line', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { commitTimes } = await import('../src/sessions/owners.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'troop-long-'));
+  try {
+    const names = Array.from({ length: 200 }, (_, i) => `${String(i).padStart(3, '0')}-${'n'.repeat(160)}.txt`);
+    gitRepo(dir, Object.fromEntries(names.map((n) => [n, 'x\n'])));
+    assert.ok(names.join(' ').length > 32_767);
+    const head = Number(execFileSync('git', ['log', '-1', '--format=%ct'], { cwd: dir, encoding: 'utf8' }).trim()) * 1000;
+    const times = commitTimes(dir, names);
+    assert.equal(times.size, names.length);
+    assert.ok([...times.values()].every((t) => t === head));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
