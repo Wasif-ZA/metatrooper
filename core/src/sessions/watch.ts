@@ -104,7 +104,7 @@ const THREAD = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\
 function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
   const startMs = Date.parse(s.started_at);
   if (s.native_id) {
-    const hit = walkNewest(codexHome(), (p) => p.endsWith(`${s.native_id}.jsonl`), startMs - 60_000);
+    const hit = walkNewest(codexHome(), (p) => p.endsWith(`${s.native_id}.jsonl`), 0);
     return hit[0] ?? null;
   }
   const dir = s.cwd ?? s.project_path;

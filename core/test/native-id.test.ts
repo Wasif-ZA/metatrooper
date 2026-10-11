@@ -178,3 +178,21 @@ test('a codex session never links a rollout another session already owns', async
     assert.equal(t.native('c2'), other);
   } finally { t.done(); }
 });
+
+test('a codex session with a known thread id links its rollout even when the file is days old', { skip: process.platform !== 'win32' && 'sets the file creation time with PowerShell' }, async () => {
+  const t = await setup();
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const { activitySessions } = await import('../src/sessions/watch.ts');
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '09');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `rollout-2026-10-09T10-00-00-${CODEX_ID}.jsonl`);
+    fs.writeFileSync(file, JSON.stringify({ type: 'session_meta', payload: { cwd: path.join(t.home, 'proj') } }) + '\n');
+    execFileSync('powershell', ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${file}').CreationTime = (Get-Date).AddDays(-2)`]);
+    assert.ok(fs.statSync(file).birthtimeMs < Date.now() - 86_400_000);
+    t.addSession('c-res', 'codex', Date.now() - 1000);
+    t.db.prepare('UPDATE session SET native_id = ? WHERE id = ?').run(CODEX_ID, 'c-res');
+    t.checkActivity(t.db);
+    assert.ok(activitySessions().includes('c-res'));
+  } finally { t.done(); }
+});
