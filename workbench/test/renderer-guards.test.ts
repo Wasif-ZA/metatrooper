@@ -34,7 +34,7 @@ test('a terminal tile stops sending input once its connection closes', () => {
   const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput: (_id: string, d: string) => sent.push(d), termAttach: async () => {}, termDetach: async () => {} };
   class Terminal { written = ''; loadAddon() {} registerLinkProvider() {} open() {} onData(f: typeof onData) { onData = f; } attachCustomKeyEventHandler() {} write(s: string) { this.written += s; } focus() {} }
   const termSource = readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8');
-  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} } });
+  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} }, setTimeout() {} });
   vm.runInContext(`${termSource}\nthis.termView = termView;`, ctx);
   ctx.termView.show({ mode: 'single', selected: 's1', sessions: [{ id: 's1', state: 'working', words: '' }] });
   onData('a');
@@ -73,17 +73,42 @@ test('a waiting tile that leaves the wall stops its endless attention pulse', ()
   assert.ok(endless.every((t) => t.killed));
 });
 
-test('a shell tile whose core connection drops is reported as exited', () => {
+function shellTile() {
   let onTerm: (id: string, m: unknown) => void = () => {};
+  const timers: Array<() => void> = [];
+  const attaches: string[] = [];
   const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, isConnected: true });
-  const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput() {}, termAttach: async () => {}, termDetach: async () => {} };
+  const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput() {}, termAttach: async (id: string) => { attaches.push(id); }, termDetach: async () => {} };
   class Terminal { options = {}; loadAddon() {} registerLinkProvider() {} open() {} onData() {} attachCustomKeyEventHandler() {} write() {} focus() {} }
-  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} } });
+  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} }, setTimeout: (f: () => void) => timers.push(f), performance });
   vm.runInContext(`${readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8')}\nthis.termView = termView;`, ctx);
   const exited: string[] = [];
   ctx.termView.show({ mode: 'single', selected: 'sh_1', sessions: [{ id: 'sh_1', state: 'idle', words: 'shell', shell: true }], onExit: (id: string) => exited.push(id) });
-  onTerm('sh_1', { op: 'closed' });
-  assert.deepEqual(exited, ['sh_1']);
+  const tick = () => { for (const f of timers.splice(0)) f(); };
+  return { send: (m: unknown) => onTerm('sh_1', m), tick, exited, attaches };
+}
+
+test('a shell tile whose connection drops but whose shell is alive re-attaches instead of exiting', () => {
+  const t = shellTile();
+  t.send({ op: 'closed' });
+  t.tick();
+  assert.deepEqual(t.attaches, ['sh_1']);
+  t.send({ op: 'snapshot', data: '' });
+  assert.deepEqual(t.exited, []);
+});
+
+test('a shell tile is reported exited when the re-attach finds no shell or no core', () => {
+  const dead = shellTile();
+  dead.send({ op: 'closed' });
+  dead.tick();
+  dead.send({ op: 'error', code: 'no-session' });
+  dead.send({ op: 'closed' });
+  assert.deepEqual(dead.exited, ['sh_1']);
+  const offline = shellTile();
+  offline.send({ op: 'closed' });
+  offline.tick();
+  offline.send({ op: 'closed' });
+  assert.deepEqual(offline.exited, ['sh_1']);
 });
 
 test('the browser pane bounds are reported again once the split panel finishes sliding', () => {
