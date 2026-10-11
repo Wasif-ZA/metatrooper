@@ -21,13 +21,13 @@ function repo() {
   return { d, g };
 }
 
-test('M1-27 tray lists staged stat, binary by name, untracked separately', () => {
+test('M1-27 tray lists staged stat, binary by name, untracked separately', async () => {
   const { d, g } = repo();
   writeFileSync(join(d, 'a.txt'), 'one\ntwo\n');
   writeFileSync(join(d, 'b.bin'), Buffer.from([0, 1, 2, 0, 3]));
   writeFileSync(join(d, 'new.txt'), 'x');
   g('add', 'a.txt', 'b.bin');
-  const h = handback(gitIn(d));
+  const h = await handback(gitIn(d));
   assert.match(h.stat, /a\.txt/);
   assert.equal(h.files.find((f) => f.path === 'b.bin')?.kind, 'binary');
   assert.equal(h.files.find((f) => f.path === 'a.txt')?.added, 1);
@@ -57,7 +57,7 @@ process.exit(r.status ?? 1);
   return { PATH: `${bin};${process.env.PATH}`, NODE_OPTIONS: `--require ${JSON.stringify(stub)}` };
 }
 
-test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', () => {
+test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', async () => {
   const { d } = repo();
   const bin = mkdtempSync(join(tmpdir(), 'hb-bin-'));
   const log = join(bin, 'log');
@@ -65,7 +65,7 @@ test('M1-27 tray only ever invokes read-only git (stubbed git on PATH)', () => {
   const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
   Object.assign(process.env, vars);
   try {
-    handback(gitIn(d));
+    await handback(gitIn(d));
   } finally {
     for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
@@ -93,7 +93,7 @@ test('M1-27 no commit/push/rebase execution path in workbench source', () => {
   }
 });
 
-test('M2-03 a picked variant shows its worktree diff against the base, read-only, with a commit -am command in that worktree', () => {
+test('M2-03 a picked variant shows its worktree diff against the base, read-only, with a commit -am command in that worktree', async () => {
   const d = mkdtempSync(join(tmpdir(), 'hb-variant-'));
   const g = (...a: string[]) => execFileSync('git', a, { cwd: d, encoding: 'utf8' });
   g('init', '-q');
@@ -110,7 +110,7 @@ test('M2-03 a picked variant shows its worktree diff against the base, read-only
   writeFileSync(join(d, 'new.txt'), 'n\n');
   const calls: string[][] = [];
   const git = gitIn(d);
-  const h = handback((args) => { calls.push(args); return git(args); }, { base, cwd: d });
+  const h = await handback((args) => { calls.push(args); return git(args); }, { base, cwd: d });
   assert.deepEqual(h.files.map((f) => f.path).sort(), ['committed.txt', 'kept.txt']);
   assert.deepEqual(h.untracked, ['new.txt']);
   assert.ok(calls.every((a) => a[0] === 'diff' || a[0] === 'ls-files'), JSON.stringify(calls));
@@ -118,9 +118,16 @@ test('M2-03 a picked variant shows its worktree diff against the base, read-only
   assert.ok(h.command.startsWith(`git -C '${d}' commit -am `), h.command);
 });
 
-test('a staged rename lists the old and new path, never a blank row', () => {
+test('a staged rename lists the old and new path, never a blank row', async () => {
   const { d, g } = repo();
   g('mv', 'a.txt', 'b.txt');
-  const h = handback(gitIn(d));
+  const h = await handback(gitIn(d));
   assert.deepEqual(h.files.map((f) => f.path).sort(), ['a.txt', 'b.txt']);
+});
+
+test('tray git runs async, so a big repo does not block the window', async () => {
+  const { d } = repo();
+  const out = gitIn(d)(['ls-files']);
+  assert.ok(out instanceof Promise);
+  assert.equal(await out, 'a.txt\n');
 });

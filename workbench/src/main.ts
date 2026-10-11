@@ -329,24 +329,24 @@ function handlers(): void {
     }
   });
 
-  on('handback', (projectId: unknown) => {
+  on('handback', async (projectId: unknown) => {
     const d = db();
     const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
     if (!project) return { error: 'pick a project first' };
     try {
-      return handback(gitIn(project.path));
+      return await handback(gitIn(project.path));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
 
-  on('handbackFile', (projectId: unknown, file: unknown) => {
+  on('handbackFile', async (projectId: unknown, file: unknown) => {
     const d = db();
     if (!d || typeof projectId !== 'string' || typeof file !== 'string') return null;
     const project = d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
     if (!project) return null;
     try {
-      return gitIn(project.path)(['diff', '--cached', '--', file]);
+      return await gitIn(project.path)(['diff', '--cached', '--', file]);
     } catch {
       return null;
     }
@@ -396,7 +396,7 @@ function handlers(): void {
     return row?.cwd ?? null;
   };
   /** The commit the Diff tab compares against: the turn's start, HEAD, or where the branch left the default branch. */
-  const diffBase = (sessionId: unknown, scope: unknown, cwd: string): string => {
+  const diffBase = async (sessionId: unknown, scope: unknown, cwd: string): Promise<string> => {
     const g = gitIn(cwd);
     if (scope === 'turn') {
       const d = db();
@@ -405,29 +405,29 @@ function handlers(): void {
     }
     if (scope === 'branch') {
       for (const ref of ['origin/HEAD', 'origin/main', 'main', 'origin/master', 'master']) {
-        try { return g(['merge-base', 'HEAD', ref]).trim(); } catch {}
+        try { return (await g(['merge-base', 'HEAD', ref])).trim(); } catch {}
       }
     }
     return 'HEAD';
   };
-  on('sessionDiff', (sessionId: unknown, scope: unknown) => {
+  on('sessionDiff', async (sessionId: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
-      const files = gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--numstat']).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
+      const files = (await gitIn(cwd)(['diff', await diffBase(sessionId, scope, cwd), '--numstat'])).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
         const [a, r, ...name] = l.split(String.fromCharCode(9));
         return { path: name.join(String.fromCharCode(9)), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
       });
-      const untracked = gitIn(cwd)(['ls-files', '--others', '--exclude-standard']).split(String.fromCharCode(10)).filter(Boolean);
+      const untracked = (await gitIn(cwd)(['ls-files', '--others', '--exclude-standard'])).split(String.fromCharCode(10)).filter(Boolean);
       return { files, untracked };
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
-  on('sessionDiffFile', (sessionId: unknown, file: unknown, scope: unknown) => {
+  on('sessionDiffFile', async (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd || typeof file !== 'string') return null;
-    try { return gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
+    try { return await gitIn(cwd)(['diff', await diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
   });
 
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
