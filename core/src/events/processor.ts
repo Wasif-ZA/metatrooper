@@ -4,7 +4,7 @@ import { nowIso, ulid } from '../time.ts';
 import { nextState } from './state.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
-import { claimTurn, labelOf, notice, owners, projectFor, repoOf } from '../sessions/owners.ts';
+import { claimTurn, labelOf, notice, owners, ownersAsync, projectFor, repoOf, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 
 interface EventRow {
@@ -142,14 +142,29 @@ function handBack(db: DatabaseSync, sessionId: string, titles: Record<string, st
   notice(db, row.parent_id, `child:${sessionId}`, lines.join('\n'));
 }
 
-/** Resolves an open uncommitted row once its session owns no uncommitted path. */
-export function resolveUncommitted(db: DatabaseSync): void {
-  const rows = db.prepare("SELECT id, ref FROM needs_you WHERE kind = 'uncommitted' AND resolved_at IS NULL").all() as Array<{ id: string; ref: string }>;
-  for (const r of rows) {
-    try {
-      const owned = ownedBy(db, r.ref, {});
-      if (!owned || !owned.paths.length) db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ?').run(nowIso(), r.id);
-    } catch {}
+let resolving = false;
+
+/** Resolves an open uncommitted row once its session owns no uncommitted path; git runs off the event loop, one pass at a time, each repo once per pass. */
+export async function resolveUncommitted(db: DatabaseSync): Promise<void> {
+  if (resolving) return;
+  resolving = true;
+  try {
+    const rows = db.prepare("SELECT id, ref FROM needs_you WHERE kind = 'uncommitted' AND resolved_at IS NULL").all() as Array<{ id: string; ref: string }>;
+    const repos = new Map<string, Promise<string | null>>();
+    const owned = new Map<string, Promise<OwnedPath[]>>();
+    const resolve = db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL');
+    for (const r of rows) {
+      try {
+        const cwd = (db.prepare('SELECT cwd FROM session WHERE id = ?').get(r.ref) as { cwd: string | null } | undefined)?.cwd ?? null;
+        if (!repos.has(cwd ?? '')) repos.set(cwd ?? '', repoOfAsync(cwd));
+        const repo = await repos.get(cwd ?? '')!;
+        if (repo && !owned.has(repo)) owned.set(repo, ownersAsync(db, repo));
+        const paths = repo ? await owned.get(repo)! : [];
+        if (!paths.some((o) => o.owners.some((x) => x.id === r.ref))) resolve.run(nowIso(), r.id);
+      } catch {}
+    }
+  } finally {
+    resolving = false;
   }
 }
 

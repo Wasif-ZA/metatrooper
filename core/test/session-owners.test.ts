@@ -342,3 +342,36 @@ test('batched commit times match one git log per file, including a file last cha
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('resolveUncommitted runs git off the event loop: it returns first, then resolves only the row whose session owns nothing', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-resolve-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { resolveUncommitted } = await import('../src/events/processor.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'a.txt': 'one\n', 'b.txt': 'one\n' });
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: repo, encoding: 'utf8' }).trim();
+    writeFileSync(join(repo, 'a.txt'), 'two\n');
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    for (const id of ['owner', 'idle']) db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES (?, 'p', 'claude', 'pty', ?, 'idle', 'x', 'x')").run(id, repo);
+    const at = new Date(Date.now() + 60_000).toISOString();
+    db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', 'owner', 'core.claim', ?, 1)").run(at, JSON.stringify({ repo: top, turn_base: null, from: at, at, files: [{ path: 'a.txt', owners: ['owner'], shared: false }] }));
+    for (const id of ['owner', 'idle']) db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, 'x', 'uncommitted', ?, 't')").run(`n-${id}`, id);
+    const open = () => (db.prepare("SELECT ref FROM needs_you WHERE kind = 'uncommitted' AND resolved_at IS NULL ORDER BY ref").all() as Array<{ ref: string }>).map((r) => r.ref);
+    const pass = resolveUncommitted(db);
+    assert.deepEqual(open(), ['idle', 'owner']);
+    await pass;
+    assert.deepEqual(open(), ['owner']);
+  } finally {
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
