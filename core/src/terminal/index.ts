@@ -23,6 +23,7 @@ interface Term {
   head: InstanceType<typeof Terminal>;
   ser: InstanceType<typeof SerializeAddon>;
   viewers: Set<Viewer>;
+  attaching: Set<Viewer>;
   exitCode: number | null;
   killed: boolean;
   written: number;
@@ -56,7 +57,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true, ...(build ? { windowsPty: { backend: 'conpty' as const, buildNumber: build } } : {}) });
   const ser = new SerializeAddon();
   head.loadAddon(ser);
-  const t: Term = { proc, head, ser, viewers: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false };
+  const t: Term = { proc, head, ser, viewers: new Set(), attaching: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false };
   terms.set(id, t);
   head.onBell(() => hooks.onBell?.(id));
   head.onTitleChange((title) => hooks.onTitle?.(id, title.slice(0, 200)));
@@ -162,8 +163,10 @@ export function attach(id: string, viewer: Viewer): boolean {
     exit: (code) => { exited = code; },
   };
   t.viewers.add(buffering);
+  t.attaching.add(viewer);
   t.head.write('', () => {
     t.viewers.delete(buffering);
+    if (!t.attaching.delete(viewer)) return;
     viewer.snapshot(t.ser.serialize());
     for (const [n, data] of pending) if (n > t.parsed) viewer.output(data);
     if (exited !== null) viewer.exit(exited);
@@ -173,7 +176,9 @@ export function attach(id: string, viewer: Viewer): boolean {
 }
 
 export function detach(id: string, viewer: Viewer): void {
-  terms.get(id)?.viewers.delete(viewer);
+  const t = terms.get(id);
+  t?.viewers.delete(viewer);
+  t?.attaching.delete(viewer);
 }
 
 export function killAll(): void {

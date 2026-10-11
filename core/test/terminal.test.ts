@@ -497,3 +497,20 @@ test('killing a terminal twice before it exits leaves the process running', asyn
   assert.equal(r.code, 0);
   assert.match(r.stdout, /alive/);
 });
+
+test('a viewer detached before its attach snapshot lands gets no later output', async () => {
+  const id = `race-${randomUUID()}`;
+  term.open(id, [process.execPath, '-e', 'setInterval(() => console.log("tick"), 50)'], process.cwd(), process.env);
+  try {
+    await until(async () => (await term.snapshot(id))?.includes('tick'));
+    let after = 0;
+    const viewer = { snapshot() {}, output() { after++; }, exit() {} };
+    assert.equal(term.attach(id, viewer), true);
+    term.detach(id, viewer);
+    await sleep(400);
+    assert.equal(after, 0);
+  } finally {
+    term.kill(id);
+    await until(() => !term.has(id));
+  }
+});
