@@ -860,6 +860,7 @@ export class PaneManager {
     fs.mkdirSync(dir, { recursive: true });
     const stamp = Date.now();
     const out: Record<number, string> = {};
+    const failed: unknown[] = [];
     try {
       for (const width of [390, 1280]) {
         await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 });
@@ -869,10 +870,16 @@ export class PaneManager {
         fs.writeFileSync(file, shot.png);
         out[width] = file.split(String.fromCharCode(92)).join('/');
       }
-    } finally {
+    } catch (e) {
+      failed.push(e);
+    }
+    try {
       if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
       else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+    } catch (e) {
+      failed.push(e);
     }
+    if (failed.length) throw failed[0];
     return { url: pane.view.webContents.getURL(), w390_path: out[390], w1280_path: out[1280] };
   }
 
