@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, runNode, scriptedGh, sleep, startCore, teardownCore, until } from './helpers.ts';
+import { buildGenerated, client, isolation, runNode, scriptedGh, sleep, startCore, teardownCore, uiHello, until } from './helpers.ts';
 
 before(buildGenerated);
 
@@ -652,5 +652,52 @@ test('a turn snapshot does not wait behind a stalled git in the shared queue', a
     db.close();
     if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('core.stop waits for a queued turn claim before closing the database', { timeout: 60000 }, async () => {
+  const { copyFileSync, mkdirSync: mk } = await import('node:fs');
+  const { delimiter } = await import('node:path');
+  const isolated = isolation();
+  const bin = join(isolated.home, 'slow-git');
+  mk(bin, { recursive: true });
+  const realGit = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['git'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim();
+  scriptedGh(bin, `import { spawnSync } from 'node:child_process';\nawait new Promise((r) => setTimeout(r, 400));\nconst r = spawnSync(${JSON.stringify(realGit)}, process.argv.slice(2), { stdio: 'inherit' });\nprocess.exit(r.status ?? 1);\n`);
+  if (process.platform === 'win32') { copyFileSync(join(bin, 'gh.exe'), join(bin, 'git.exe')); copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); }
+  else { copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); writeFileSync(join(bin, 'git'), `#!/bin/sh\nexec node '${join(bin, 'git.mjs')}' "$@"\n`, { mode: 0o755 }); }
+  const registry = join(isolated.home, 'engines.json');
+  writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli', version_cmd: [process.execPath, '--version'] }]));
+  const sleeper = join(isolated.home, 'sleeper.js');
+  writeFileSync(sleeper, 'setTimeout(() => {}, 600000);\n');
+  const pathKey = Object.keys(isolated.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry, [pathKey]: `${bin}${delimiter}${isolated.env[pathKey] ?? ''}` };
+  const core = await startCore({ ...isolated, env });
+  const repo = join(isolated.home, 'repo');
+  gitRepo(repo, { 'a.txt': 'one\n' });
+  const db = store(isolated.home);
+  try {
+    const p = await client(isolated.prefix);
+    const projectId = (await p.request('project.open', { path: repo })).result.project_id;
+    const id = (await p.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: sleeper })).result.session_id as string;
+    p.close();
+    const hook = (kind: string, body: Record<string, unknown>) => runNode(['core/event.js', `claude.${kind}`], { ...env, TROOP_SESSION_ID: id }, JSON.stringify({ cwd: repo, session_id: 'native-x', ...body }));
+    await hook('UserPromptSubmit', { prompt: 'go' });
+    await until(() => (db.prepare('SELECT turn_base FROM session WHERE id = ?').get(id) as { turn_base: string | null }).turn_base !== null, 15000);
+    writeFileSync(join(repo, 'a.txt'), 'changed\n');
+    await hook('Stop', {});
+    await until(() => db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind = 'claude.Stop' AND processed = 1").get(id), 5000);
+    const claims = () => (db.prepare("SELECT count(*) AS n FROM event WHERE kind = 'core.claim' AND session_id = ?").get(id) as { n: number }).n;
+    assert.equal(claims(), 0);
+    const exited = new Promise((r) => core.once('exit', r));
+    const s = await client(isolated.prefix);
+    await uiHello(s, isolated.home);
+    await s.request('core.stop');
+    s.close();
+    await Promise.race([exited, sleep(15000)]);
+    assert.notEqual(core.exitCode, null);
+    assert.equal(claims(), 1);
+  } finally {
+    db.close();
+    await teardownCore(core, isolated);
   }
 });

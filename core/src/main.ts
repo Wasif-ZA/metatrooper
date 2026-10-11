@@ -14,7 +14,7 @@ import { PipeClient } from './pipe/client.ts';
 import { buildMethods } from './methods.ts';
 import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
-import { processEvents, resolveSpentNotices, resolveUncommitted } from './events/processor.ts';
+import { processEvents, resolveSpentNotices, resolveUncommitted, turnJobsIdle } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters } from './meter.ts';
@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   const timers: NodeJS.Timeout[] = [];
   let termServer: Server | null = null;
   let stopping = false;
-  const stop = (why = 'core.stop') => {
+  const stop = async (why = 'core.stop') => {
     if (stopping) return;
     stopping = true;
     console.error(`core stopping: ${why}`);
@@ -75,6 +75,7 @@ async function main(): Promise<void> {
     server.close();
     termServer?.close();
     term.killAll();
+    await Promise.race([turnJobsIdle(), new Promise((r) => setTimeout(r, 5000))]);
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
     db.close();
     process.exit(0);
