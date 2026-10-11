@@ -22,6 +22,16 @@ export function gitIn(cwd: string): Git {
   };
 }
 
+/** Files changed since `base` with line counts (null for binary), and untracked files, for the Diff tab. */
+export async function sessionChanges(git: Git, base: string): Promise<{ files: Array<{ path: string; added: number | null; deleted: number | null }>; untracked: string[] }> {
+  const [numstat, others] = await Promise.all([git(['diff', base, '--numstat', '--no-renames', '-z']), git(['ls-files', '--others', '--exclude-standard', '-z'])]);
+  const files = numstat.split('\0').filter(Boolean).map((l) => {
+    const [a, r, ...name] = l.split('\t');
+    return { path: name.join('\t'), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
+  });
+  return { files, untracked: others.split('\0').filter(Boolean) };
+}
+
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }

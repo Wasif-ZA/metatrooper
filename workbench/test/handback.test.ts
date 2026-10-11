@@ -5,6 +5,7 @@ import { copyFileSync, mkdtempSync, writeFileSync, readFileSync, readdirSync, ch
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as hb from '../src/handback.ts';
 import { handback, gitIn } from '../src/handback.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -130,4 +131,18 @@ test('tray git runs async, so a big repo does not block the window', async () =>
   const out = gitIn(d)(['ls-files']);
   assert.ok(out instanceof Promise);
   assert.equal(await out, 'a.txt\n');
+});
+
+test('the Diff tab keeps line counts for non-ASCII paths and lists non-ASCII untracked files', async () => {
+  const { d, g } = repo();
+  writeFileSync(join(d, 'cafÃ©.txt'), 'one\n');
+  g('add', '.');
+  g('commit', '-qm', 'cafe');
+  writeFileSync(join(d, 'cafÃ©.txt'), 'one\ntwo\n');
+  writeFileSync(join(d, 'Ã¼.txt'), 'new\n');
+  const sessionChanges = (hb as Record<string, any>).sessionChanges;
+  assert.equal(typeof sessionChanges, 'function');
+  const r = await sessionChanges(gitIn(d), 'HEAD');
+  assert.deepEqual(r.files, [{ path: 'cafÃ©.txt', added: 1, deleted: 0 }]);
+  assert.deepEqual(r.untracked, ['Ã¼.txt']);
 });

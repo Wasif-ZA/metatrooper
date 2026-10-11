@@ -18,7 +18,7 @@ import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
-import { gitIn, handback } from './handback.ts';
+import { gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, filesBody } from './comments.ts';
@@ -414,12 +414,7 @@ function handlers(): void {
     const cwd = cwdOf(sessionId);
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
-      const files = (await gitIn(cwd)(['diff', await diffBase(sessionId, scope, cwd), '--numstat'])).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
-        const [a, r, ...name] = l.split(String.fromCharCode(9));
-        return { path: name.join(String.fromCharCode(9)), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
-      });
-      const untracked = (await gitIn(cwd)(['ls-files', '--others', '--exclude-standard'])).split(String.fromCharCode(10)).filter(Boolean);
-      return { files, untracked };
+      return await sessionChanges(gitIn(cwd), await diffBase(sessionId, scope, cwd));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
