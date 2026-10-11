@@ -336,7 +336,7 @@ test('batched commit times match one git log per file, including a file last cha
     const files = ['a.txt', 'b.txt'];
     const single = Object.fromEntries(files.map((f) => [f, Number(execFileSync('git', ['log', '-1', '--format=%ct', '--', f], { cwd: dir, encoding: 'utf8' }).trim()) * 1000]));
     assert.equal(single['a.txt'], (t0 + 30) * 1000);
-    const batch = commitTimes(dir, files, t0 * 1000);
+    const batch = commitTimes(dir, files);
     assert.deepEqual(Object.fromEntries(files.map((f) => [f, batch.get(f)])), single);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -407,5 +407,25 @@ test('markTurnBase never takes the index lock and records the same tree a plain 
     db.close();
     if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('a HEAD commit with an older committer date does not hide a newer commit of a claimed path', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { commitTimes } = await import('../src/sessions/owners.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'troop-skew-'));
+  try {
+    gitRepo(dir, { 'x.txt': '0\n', 'z.txt': '0\n' });
+    const t0 = Math.floor(Date.now() / 1000) - 7200;
+    const git = (s: number, ...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore', env: { ...process.env, GIT_AUTHOR_DATE: `${t0 + s} +0000`, GIT_COMMITTER_DATE: `${t0 + s} +0000` } });
+    writeFileSync(join(dir, 'x.txt'), 'after claim\n');
+    git(40, 'commit', '-qam', 'x after claim');
+    writeFileSync(join(dir, 'z.txt'), 'skewed\n');
+    git(1, 'commit', '-qam', 'skewed head');
+    const claimAt = (t0 + 30) * 1000;
+    assert.equal(commitTimes(dir, ['x.txt']).get('x.txt'), (t0 + 40) * 1000);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

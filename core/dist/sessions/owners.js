@@ -212,18 +212,8 @@ export function claimTurn(db              , sessionId        , endSeq        , t
 
 const PATHS_PER_LOG = 200;
 
-/** The dirty paths some claim names, and the oldest of those claims' times in ms (NaN when there is none). */
-function claimedPaths(claims         , dirty          )                                     {
-  const paths           = [];
-  let since = NaN;
-  for (const p of dirty) {
-    const c = latestClaim(claims, p);
-    if (!c) continue;
-    paths.push(p);
-    const at = Date.parse(c.at);
-    if (Number.isNaN(since) || at < since) since = at;
-  }
-  return { paths, since };
+function claimedPaths(claims         , dirty          )           {
+  return dirty.filter((p) => latestClaim(claims, p));
 }
 
 /** Newest commit time in ms per path from `git log -z --name-only --format=%x01%ct`, which lists newest first. */
@@ -236,27 +226,26 @@ function parseCommitTimes(text        , into                     )       {
   }
 }
 
-function logBatches(paths          , sinceMs        )             {
-  if (Number.isNaN(sinceMs)) return [];
+function logBatches(paths          )             {
   const out             = [];
   for (let i = 0; i < paths.length; i += PATHS_PER_LOG) {
-    out.push(['log', '-z', '--no-renames', '--name-only', '--diff-merges=dense-combined', '--format=%x01%ct', `--since=${Math.floor(sinceMs / 1000) - 1}`, '--', ...paths.slice(i, i + PATHS_PER_LOG)]);
+    out.push(['log', '-z', '--no-renames', '--name-only', '--diff-merges=dense-combined', '--format=%x01%ct', '--', ...paths.slice(i, i + PATHS_PER_LOG)]);
   }
   return out;
 }
 
-/** Last commit time in ms of each path committed since `sinceMs`; a path missing from the map counts as never committed. */
-export function commitTimes(repo        , paths          , sinceMs        )                      {
+/** Last commit time in ms of each path; a path missing from the map was never committed. The whole history is walked, since --since stops at the first commit with an older date. */
+export function commitTimes(repo        , paths          )                      {
   const out = new Map                ();
-  for (const args of logBatches(paths, sinceMs)) {
+  for (const args of logBatches(paths)) {
     try { parseCommitTimes(git(repo, args), out); } catch {}
   }
   return out;
 }
 
-export async function commitTimesAsync(repo        , paths          , sinceMs        )                               {
+export async function commitTimesAsync(repo        , paths          )                               {
   const out = new Map                ();
-  for (const args of logBatches(paths, sinceMs)) {
+  for (const args of logBatches(paths)) {
     try { parseCommitTimes(await gitAsync(repo, args), out); } catch {}
   }
   return out;
@@ -266,15 +255,13 @@ export async function commitTimesAsync(repo        , paths          , sinceMs   
 export function owners(db              , repo        , titles                                     = {})              {
   const claims = claimsOf(db, repo);
   const dirty = dirtyPaths(repo);
-  const { paths, since } = claimedPaths(claims, dirty);
-  return ownersFrom(db, claims, dirty, commitTimes(repo, paths, since), titles);
+  return ownersFrom(db, claims, dirty, commitTimes(repo, claimedPaths(claims, dirty)), titles);
 }
 
 export async function ownersAsync(db              , repo        , titles                                     = {})                       {
   const dirty = await dirtyPathsAsync(repo);
   const claims = claimsOf(db, repo);
-  const { paths, since } = claimedPaths(claims, dirty);
-  return ownersFrom(db, claims, dirty, await commitTimesAsync(repo, paths, since), titles);
+  return ownersFrom(db, claims, dirty, await commitTimesAsync(repo, claimedPaths(claims, dirty)), titles);
 }
 
 /** owners() once the git facts are in hand: `times` holds each claimed path's last commit time in ms. */
