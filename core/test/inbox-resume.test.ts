@@ -334,3 +334,26 @@ test('project.clear hides finished sessions and runs and keeps live ones', async
     } finally { check.close(); }
   } finally { await h.teardown(); }
 });
+
+test('resuming a codex session keeps its thread id on the new row', async () => {
+  const h = await fakeHarness([{
+    id: 'codex', command: process.execPath, args: ['-e', 'setTimeout(()=>{},500)'], prompt_arg: 'positional', resume_args: ['resume', '{native_id}'],
+    state_source: 'process', roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli', version_cmd: [process.execPath, '--version'],
+  }]);
+  try {
+    const projectPath = join(h.home, 'codex-resume');
+    mkdirSync(projectPath, { recursive: true });
+    const projectId = await openProject(h.prefix, projectPath);
+    const db = database(h.home);
+    try { insertSession(db, 'old-codex', projectId, 'codex', 'exited', projectPath, 'thread-77'); } finally { db.close(); }
+    const pipe = await client(h.prefix);
+    try {
+      const r = await pipe.request('session.resume', { session_id: 'old-codex' });
+      assert.equal(r.result.resumed, true);
+      const check = database(h.home, true);
+      try {
+        assert.equal((check.prepare('SELECT native_id FROM session WHERE id = ?').get(r.result.session_id) as { native_id: string | null }).native_id, 'thread-77');
+      } finally { check.close(); }
+    } finally { pipe.close(); }
+  } finally { await teardownCore(h.core, h); }
+});
