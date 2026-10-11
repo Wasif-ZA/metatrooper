@@ -35,7 +35,7 @@ export function runIn(cwd: string): Run {
 
 function counts(out: string): Map<string, [number | null, number | null]> {
   const m = new Map<string, [number | null, number | null]>();
-  for (const line of out.split('\n')) {
+  for (const line of out.split('\0')) {
     const [a, d, ...name] = line.split('\t');
     if (name.length) m.set(name.join('\t'), [a === '-' ? null : Number(a), d === '-' ? null : Number(d)]);
   }
@@ -46,8 +46,8 @@ function counts(out: string): Map<string, [number | null, number | null]> {
 export async function gitView(git: Run): Promise<GitView> {
   const [status, stagedOut, unstagedOut, log] = await Promise.all([
     git(['status', '--porcelain=v1', '-b', '-z']),
-    git(['diff', '--cached', '--numstat']).catch(() => ''),
-    git(['diff', '--numstat']),
+    git(['diff', '--cached', '--numstat', '--no-renames', '-z']).catch(() => ''),
+    git(['diff', '--numstat', '--no-renames', '-z']),
     git(['log', '--format=%s%x09%ar', '-30']).catch(() => ''),
   ]);
   const parts = status.split('\0');
