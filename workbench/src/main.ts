@@ -30,6 +30,12 @@ captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
 app.on('render-process-gone', (_e, wc, d) => console.error(`render-process-gone ${d.reason} exit ${d.exitCode} ${wc.getURL().slice(0, 200)}`));
 app.on('child-process-gone', (_e, d) => console.error(`child-process-gone ${d.type} ${d.reason} exit ${d.exitCode}`));
+let lagAt = Date.now();
+setInterval(() => {
+  const lag = Date.now() - lagAt - 500;
+  if (lag > 1000) console.error(`main thread stalled ${lag} ms`);
+  lagAt = Date.now();
+}, 500).unref();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -528,6 +534,8 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.on('unresponsive', () => console.error('window unresponsive'));
+  win.on('responsive', () => console.error('window responsive again'));
   win.on('close', (e) => {
     if (closing || !ownCore) return;
     e.preventDefault();
