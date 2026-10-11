@@ -20,6 +20,11 @@ const termView = (() => {
   let onExit = () => {};
   let onOutput = () => {};
 
+  function shiftEnter(engineId) {
+    const engines = typeof ui !== 'undefined' && ui.snap ? ui.snap.engines : [];
+    return engines.find((x) => x.id === engineId)?.shift_enter || 'paste';
+  }
+
   function xtermTheme() {
     const t = look.theme;
     return { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: `${t.accent}55` };
@@ -46,6 +51,11 @@ const termView = (() => {
     for (const type of ['mousedown', 'mouseup']) body.addEventListener(type, (e) => { if (e.button === 2) e.stopPropagation(); }, true);
     body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); void paste(); });
     term.attachCustomKeyEventHandler((e) => {
+      if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !el.classList.contains('shell')) {
+        if (e.type === 'keydown' && !t.closed && !t.outside) troop.termInput(sessionId, shiftEnter(t.engine) === 'alt-enter' ? '\x1b\r' : '\x1b[200~\n\x1b[201~');
+        e.preventDefault();
+        return false;
+      }
       if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
       const k = e.key.toLowerCase();
       if (k === 'c' && (e.shiftKey || term.hasSelection())) { copy(); e.preventDefault(); return false; }
@@ -111,6 +121,7 @@ const termView = (() => {
     const set = (sel, text) => { const e = t.el.querySelector(sel); if (e.textContent !== text) e.textContent = text; };
     t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
     set('.tile-engine', x.engine_id);
+    t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);
     set('.tile-last', x.last || '');
     set('.tile-state', x.words);
