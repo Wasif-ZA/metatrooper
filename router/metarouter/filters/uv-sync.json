@@ -1,0 +1,38 @@
+{
+  "name": "uv-sync",
+  "match_command": "uv (sync|pip install|add)\\b",
+  "strip_lines_matching": [
+    "Resolved \\d+ packages?",
+    "Prepared\\b",
+    "Audited\\b",
+    "[━─━─]+|\\b\\d+/\\d+\\b"
+  ],
+  "keep_lines_matching": [
+    "Installed\\b",
+    "Uninstalled\\b",
+    "^\\s*\\+\\s+",
+    "^\\s*-\\s+",
+    "(?i)error"
+  ],
+  "match_output": [
+    {
+      "pattern": "^Audited \\d+ packages?[^\\n]*\\s*$",
+      "replace": "uv: up to date"
+    }
+  ],
+  "max_lines": null,
+  "tail_lines": null,
+  "on_empty": null,
+  "tests": [
+    {
+      "command": "uv sync",
+      "input": "Resolved 30 packages in 210ms\nPrepared 2 packages in 50ms\nUninstalled 1 package in 1ms\n - old-dep==0.9.0\nInstalled 2 packages in 4ms\n + new-dep==1.0.0\n + other-dep==2.1.0\nAudited 31 packages in 2ms",
+      "expected": "Uninstalled 1 package in 1ms\n - old-dep==0.9.0\nInstalled 2 packages in 4ms\n + new-dep==1.0.0\n + other-dep==2.1.0"
+    },
+    {
+      "command": "uv sync",
+      "input": "Audited 31 packages in 2ms\n",
+      "expected": "uv: up to date"
+    }
+  ]
+}

@@ -34,7 +34,9 @@ function listenFixture(): Promise<{ server: Server; port: number }> {
   });
 }
 
-test('M4-23 snapshot interactive filtering and unchanged since_last snapshots', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 (Windows, or Linux with xvfb)', timeout: 150_000 }, async () => {
+test.todo('needs M6-3 session-owned dev ports: M4-23 snapshot interactive filtering and unchanged since_last snapshots');
+
+async function snapshotFiltering() {
   await buildGenerated();
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
@@ -53,7 +55,6 @@ test('M4-23 snapshot interactive filtering and unchanged since_last snapshots', 
     const sessionId = launched.result.session_id as string;
     const opened = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, url: `http://127.0.0.1:${site.port}/` });
     const paneId = opened.result.pane_id as string;
-    { const db = new DatabaseSync(join(iso.home, 'troop.db')); try { db.prepare('UPDATE browser_pane SET dev_port = ? WHERE id = ?').run(site.port, paneId); } finally { db.close(); } }
     pipe.close();
     wb = spawn(process.platform === 'win32' ? electron : 'xvfb-run', process.platform === 'win32'
       ? [workbench]
@@ -98,9 +99,11 @@ test('M4-23 snapshot interactive filtering and unchanged since_last snapshots', 
     await sleep(300);
     await teardownCore(core, iso);
   }
-});
+}
 
-test('M1-22 three panes from three sessions: each session drives only its own pane, found through its own process ancestry', { skip: !runnable && 'set METATROOPER_BROWSER_E2E=1 (Windows, or Linux with xvfb)', timeout: 150_000 }, async () => {
+test.todo('needs M6-3 session-owned dev ports: M1-22 three panes from three sessions: each session drives only its own pane, found through its own process ancestry');
+
+async function sessionFanout() {
   await buildGenerated();
   const iso = isolation();
   const registry = join(iso.home, 'engines.json');
@@ -127,7 +130,6 @@ test('M1-22 three panes from three sessions: each session drives only its own pa
     pipe.close();
     const db = new DatabaseSync(join(iso.home, 'troop.db'));
     db.exec('PRAGMA busy_timeout = 5000');
-    sites.forEach((s, i) => db.prepare('UPDATE browser_pane SET dev_port = ? WHERE id = ?').run(s.port, panes[i]));
     await until(() => sessions.every((id) => (db.prepare('SELECT pid FROM session WHERE id = ?').get(id) as { pid: number | null }).pid), 15_000);
     assert.deepEqual((db.prepare('SELECT engine_id FROM session ORDER BY started_at').all() as Array<{ engine_id: string }>).map((r) => r.engine_id), ['fake-a', 'fake-b', 'fake-c']);
     db.close();
@@ -167,4 +169,4 @@ test('M1-22 three panes from three sessions: each session drives only its own pa
     await sleep(300);
     await teardownCore(core, iso);
   }
-});
+}

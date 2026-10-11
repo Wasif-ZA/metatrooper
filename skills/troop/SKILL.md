@@ -20,6 +20,14 @@ Use the `troop` CLI to work with MetaTrooper's core. Always pass `--json` and re
 A session in `waiting_for_you` needs the human. Report it to the user and stop. Do not answer
 another agent's prompt yourself.
 
+## Tools and short output
+
+`troop route` is metarouter, bundled with MetaTrooper. Use it for shell commands whose output is long:
+`troop route exec -- <command>` prints the lines that matter and keeps the full log
+(`troop route log` reads it back). `troop route search <words>` finds a saved recipe and
+`troop route run <recipe> [args]` runs it. Inside a session MetaTrooper started, plain `metarouter` is the same
+bundled copy.
+
 ## Rules
 
 - Never commit, push or open PRs. Print the command for the user to run.

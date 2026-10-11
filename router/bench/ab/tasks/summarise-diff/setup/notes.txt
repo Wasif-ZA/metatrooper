@@ -1,0 +1,2 @@
+Initial project notes.
+All services operational.

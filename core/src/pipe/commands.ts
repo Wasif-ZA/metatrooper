@@ -62,7 +62,7 @@ export class CommandRunner {
 
   async call(req: Request, ctx: CallContext): Promise<unknown> {
     const spec = this.methods.get(req.method);
-    if (!spec) throw new RpcError(E.METHOD_NOT_FOUND, `unknown method ${req.method}`);
+    if (!spec) throw new RpcError(E.METHOD_NOT_FOUND, /^(run|variant)\./.test(req.method) ? 'moved to the pipeline products' : `unknown method ${req.method}`);
     if (spec.needsUi && !ctx.ui) throw new RpcError(E.NEEDS_UI, `${req.method} needs a trusted UI connection (ui.hello)`);
     if (!isQueueable(req.method)) return spec.handler(req.params, ctx);
     return this.runOnce(req, spec, ctx);

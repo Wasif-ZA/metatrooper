@@ -29,6 +29,12 @@ jobs:
           METATROOPER_FAKE_DPAPI: '1'
       - run: npm test
         working-directory: workbench
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest pillow
+      - run: python -m pytest -q
+        working-directory: router
 
   release:
     needs: test
