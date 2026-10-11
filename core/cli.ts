@@ -12,7 +12,8 @@ import { projectId, resolveProjectPath } from './src/project.ts';
 import { formatGate, measureGate, parseGateDate } from './src/gate.ts';
 import { repoDir } from './src/paths.ts';
 import { homedir } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { PARENT_SESSION_ENV } from './src/terminal/parent-env.ts';
 
 const routerShim = join(repoDir, 'router', 'bin', 'metarouter.js');
 
@@ -21,7 +22,8 @@ process.on('warning', () => {});
 
 const USAGE = `usage: troop <command> [--json]
 
-  serve                         run the core service in this terminal
+  start                         start the core in the background, detached from this terminal
+  serve                         run the core service in this terminal (Ctrl+C stops it)
   ping                          check the core is up
   open [path]                   register a project folder (default: current folder)
   launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]
@@ -228,7 +230,7 @@ async function rpc(method: string, params: Record<string, unknown>, json: boolea
   });
   if (out.kind === 'offline') {
     if (json) console.log(JSON.stringify({ error: { code: -32099, message: 'core offline' } }));
-    else console.error('core offline: start it with `troop serve`');
+    else console.error('core offline: start it with `troop start`');
     return { code: 3 };
   }
   if (out.kind === 'queued') {
@@ -304,7 +306,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
     const wt = await rpc('worktree.create', { project_id: repo.id, branch: job.worktree }, json);
     if (wt.code) return wt.code;
     if (!wt.result) {
-      console.error('--worktree needs the core running: start it with `troop serve`');
+      console.error('--worktree needs the core running: start it with `troop start`');
       return 3;
     }
     const opened = await openProject(String(wt.result.path), json);
@@ -363,6 +365,20 @@ async function main(): Promise<number> {
     case 'serve':
       await import('./src/main.ts');
       return -1;
+
+    case 'start': {
+      const up = async () => { const o = await call('core.ping', {}); return o.kind === 'reply' && !o.reply.error ? (o.reply.result as { pid: number }) : null; };
+      let r = await up();
+      if (r) { emit(r, `core already up, pid ${r.pid}`); return 0; }
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
+      const coreDir = join(repoDir, 'core');
+      spawn(process.execPath, [join(coreDir, 'src', 'main.ts')], { cwd: coreDir, detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
+      for (let i = 0; i < 40 && !(r = await up()); i++) await new Promise((res) => setTimeout(res, 250));
+      if (!r) { console.error('core did not come up in 10 s; see logs/core.log'); return 1; }
+      emit(r, `core started, pid ${r.pid}`);
+      return 0;
+    }
 
     case 'hooks':
       return hooks(a.pos[0] ?? '', a.flags);
