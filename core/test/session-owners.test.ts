@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, runNode, sleep, startCore, teardownCore, until } from './helpers.ts';
+import { buildGenerated, client, isolation, runNode, scriptedGh, sleep, startCore, teardownCore, uiHello, until } from './helpers.ts';
 
 before(buildGenerated);
 
@@ -599,5 +599,113 @@ test('a claim another session writes while a turn is being claimed is either see
     db.close();
     if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('an Edit on a file another session owns still warns when git does not answer in time', async () => {
+  const { copyFileSync, mkdirSync: mk } = await import('node:fs');
+  const { delimiter } = await import('node:path');
+  const h = await ownersHarness();
+  try {
+    const a = await h.launch();
+    const b = await h.launch();
+    await h.turnStart(a, 'native-a');
+    await sleep(20);
+    writeFileSync(join(h.repo, 'a.txt'), 'changed by a\n');
+    await h.hook('Stop', { session_id: 'native-a' }, a);
+    await until(() => h.claims(a).length === 1, 10000);
+    await h.turnStart(a, 'native-a');
+    const bin = join(h.home, 'slow-git');
+    mk(bin, { recursive: true });
+    scriptedGh(bin, 'setTimeout(() => {}, 1500);\n');
+    if (process.platform === 'win32') { copyFileSync(join(bin, 'gh.exe'), join(bin, 'git.exe')); copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); }
+    else { copyFileSync(join(bin, 'gh'), join(bin, 'git')); copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); writeFileSync(join(bin, 'git'), `#!/bin/sh\nexec node '${join(bin, 'git.mjs')}' "$@"\n`, { mode: 0o755 }); }
+    const pathKey = Object.keys(h.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+    const env = { ...h.env, TROOP_SESSION_ID: b, [pathKey]: `${bin}${delimiter}${h.env[pathKey] ?? ''}` };
+    const warned = await runNode(['core/event.js', 'claude.PreToolUse'], env, JSON.stringify({ cwd: h.repo, session_id: 'native-b', tool_name: 'Edit', tool_input: { file_path: join(h.repo, 'a.txt') } })) as { code: number; stdout: string };
+    assert.equal(warned.code, 0);
+    const text: string = JSON.parse(warned.stdout).hookSpecificOutput.additionalContext;
+    assert.ok(text.includes('a.txt may have uncommitted changes (git did not answer in time to confirm) from session '), text);
+    assert.ok(text.includes(`(${a.slice(0, 8)}), state working`), text);
+    await sleep(1600);
+  } finally { await h.teardown(); }
+});
+
+test('a turn snapshot does not wait behind a stalled git in the shared queue', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-snapq-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { markTurnBase } = await import('../src/events/processor.ts');
+  const { gitAsync } = await import('../src/sessions/owners.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'a.txt': 'one\n' });
+    writeFileSync(join(repo, 'a.txt'), 'two\n');
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES ('s', 'p', 'claude', 'pty', ?, 'working', 'x', 'x')").run(repo);
+    const stalled = gitAsync(repo, ['hash-object', '--stdin'], 4000).catch(() => {});
+    const started = Date.now();
+    await markTurnBase(db, 's');
+    const took = Date.now() - started;
+    assert.ok((db.prepare("SELECT turn_base FROM session WHERE id = 's'").get() as { turn_base: string | null }).turn_base);
+    assert.ok(took < 2000, `snapshot waited ${took} ms`);
+    await stalled;
+  } finally {
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('core.stop waits for a queued turn claim before closing the database', { timeout: 60000 }, async () => {
+  const { copyFileSync, mkdirSync: mk } = await import('node:fs');
+  const { delimiter } = await import('node:path');
+  const isolated = isolation();
+  const bin = join(isolated.home, 'slow-git');
+  mk(bin, { recursive: true });
+  const realGit = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['git'], { encoding: 'utf8' }).split(/\r?\n/)[0].trim();
+  scriptedGh(bin, `import { spawnSync } from 'node:child_process';\nawait new Promise((r) => setTimeout(r, 400));\nconst r = spawnSync(${JSON.stringify(realGit)}, process.argv.slice(2), { stdio: 'inherit' });\nprocess.exit(r.status ?? 1);\n`);
+  if (process.platform === 'win32') { copyFileSync(join(bin, 'gh.exe'), join(bin, 'git.exe')); copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); }
+  else { copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); writeFileSync(join(bin, 'git'), `#!/bin/sh\nexec node '${join(bin, 'git.mjs')}' "$@"\n`, { mode: 0o755 }); }
+  const registry = join(isolated.home, 'engines.json');
+  writeFileSync(registry, JSON.stringify([{ id: 'fake', command: process.execPath, prompt_arg: 'positional', state_source: 'hooks', roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli', version_cmd: [process.execPath, '--version'] }]));
+  const sleeper = join(isolated.home, 'sleeper.js');
+  writeFileSync(sleeper, 'setTimeout(() => {}, 600000);\n');
+  const pathKey = Object.keys(isolated.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const env = { ...isolated.env, METATROOPER_ENGINES: registry, [pathKey]: `${bin}${delimiter}${isolated.env[pathKey] ?? ''}` };
+  const core = await startCore({ ...isolated, env });
+  const repo = join(isolated.home, 'repo');
+  gitRepo(repo, { 'a.txt': 'one\n' });
+  const db = store(isolated.home);
+  try {
+    const p = await client(isolated.prefix);
+    const projectId = (await p.request('project.open', { path: repo })).result.project_id;
+    const id = (await p.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: sleeper })).result.session_id as string;
+    p.close();
+    const hook = (kind: string, body: Record<string, unknown>) => runNode(['core/event.js', `claude.${kind}`], { ...env, TROOP_SESSION_ID: id }, JSON.stringify({ cwd: repo, session_id: 'native-x', ...body }));
+    await hook('UserPromptSubmit', { prompt: 'go' });
+    await until(() => (db.prepare('SELECT turn_base FROM session WHERE id = ?').get(id) as { turn_base: string | null }).turn_base !== null, 15000);
+    writeFileSync(join(repo, 'a.txt'), 'changed\n');
+    await hook('Stop', {});
+    await until(() => db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind = 'claude.Stop' AND processed = 1").get(id), 5000);
+    const claims = () => (db.prepare("SELECT count(*) AS n FROM event WHERE kind = 'core.claim' AND session_id = ?").get(id) as { n: number }).n;
+    assert.equal(claims(), 0);
+    const exited = new Promise((r) => core.once('exit', r));
+    const s = await client(isolated.prefix);
+    await uiHello(s, isolated.home);
+    await s.request('core.stop');
+    s.close();
+    await Promise.race([exited, sleep(15000)]);
+    assert.notEqual(core.exitCode, null);
+    assert.equal(claims(), 1);
+  } finally {
+    db.close();
+    await teardownCore(core, isolated);
   }
 });

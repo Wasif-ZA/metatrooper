@@ -65,8 +65,10 @@ export function readClaudeTranscript(db: DatabaseSync, sessionId: string, transc
     const u = m.usage;
     const t = { i: u.input_tokens ?? 0, o: u.output_tokens ?? 0, cr: u.cache_read_input_tokens ?? 0, cw: u.cache_creation_input_tokens ?? 0 };
     const model = typeof m.model === 'string' ? m.model : null;
-    upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, model, t.i, t.o, t.cr, t.cw, usdFor(model, t.i, t.o, t.cr, t.cw), m.id);
-    n++;
+    try {
+      upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, model, t.i, t.o, t.cr, t.cw, usdFor(model, t.i, t.o, t.cr, t.cw), m.id);
+      n++;
+    } catch {}
   }
   return n;
 }
@@ -156,8 +158,10 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
       const cw = d('cache_write_input_tokens');
       const i = d('input_tokens') - cr;
       const o = d('output_tokens');
-      upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), `codex:${sessionId}:${st.turn}`);
-      n++;
+      try {
+        upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), `codex:${sessionId}:${st.turn}`);
+        n++;
+      } catch {}
     }
   }
   return n;
@@ -187,8 +191,10 @@ export function readAgyTranscript(db: DatabaseSync, sessionId: string, file: str
     try { rec = JSON.parse(line); } catch { continue; }
     if (typeof rec?.input_tokens !== 'number' || rec.step_index === undefined) continue;
     const cr = rec.cache_read_tokens ?? 0;
-    upsert.run(rec.created_at ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, Math.max(0, rec.input_tokens - cr), rec.output_tokens ?? 0, cr, `agy:${sessionId}:${rec.step_index}`);
-    n++;
+    try {
+      upsert.run(rec.created_at ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, Math.max(0, rec.input_tokens - cr), rec.output_tokens ?? 0, cr, `agy:${sessionId}:${rec.step_index}`);
+      n++;
+    } catch {}
   }
   return n;
 }

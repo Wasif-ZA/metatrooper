@@ -215,7 +215,7 @@ function setTurnBase(db: DatabaseSync, sessionId: string, base: string | null): 
 async function turnSnapshot(db: DatabaseSync, sessionId: string): Promise<string | null> {
   const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;
   if (!row?.cwd) return null;
-  const git = async (args: string[], env: Record<string, string> = {}) => (await gitAsync(row.cwd!, args, 5000, env)).trim();
+  const git = async (args: string[], env: Record<string, string> = {}) => (await gitAsync(row.cwd!, args, 5000, env, false)).trim();
   const index = path.join(os.tmpdir(), `troop-index-${ulid()}`);
   try {
     await fs.promises.copyFile(path.resolve(row.cwd, await git(['rev-parse', '--git-path', 'index'])), index);

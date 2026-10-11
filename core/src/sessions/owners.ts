@@ -24,10 +24,12 @@ function git(cwd: string, args: string[], timeout = 5000): string {
 const execFileAsync = promisify(execFile);
 let gitTail: Promise<unknown> = Promise.resolve();
 
-/** Runs git off the event loop, one process at a time: a spawn blocks the loop about 2.5 ms alone and about 10 ms each when several start together. */
-export async function gitAsync(cwd: string, args: string[], timeout = 5000, env: Record<string, string> = {}): Promise<string> {
+/** Runs git off the event loop, one process at a time: a spawn blocks the loop about 2.5 ms alone and about 10 ms each when several start together. `queued: false` skips the queue for a call that must not wait. */
+export async function gitAsync(cwd: string, args: string[], timeout = 5000, env: Record<string, string> = {}, queued = true): Promise<string> {
   const options = gitOptions(cwd, timeout);
-  const run = gitTail.then(() => execFileAsync('git', args, { ...options, env: { ...options.env, ...env } }));
+  const spawn = () => execFileAsync('git', args, { ...options, env: { ...options.env, ...env } });
+  if (!queued) return (await spawn()).stdout;
+  const run = gitTail.then(spawn);
   gitTail = run.catch(() => {});
   return (await run).stdout;
 }

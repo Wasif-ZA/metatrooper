@@ -78,13 +78,15 @@ async function warnOwner(db              , sessionId        , payload           
   const { execFileSync } = await import('node:child_process');
   const path = await import('node:path');
   const abs = path.resolve(cwd, file);
+  let confirmed = true;
   try {
     const left = Math.max(30, BUDGET_MS - (Date.now() - started) - 40);
     if (!execFileSync('git', ['status', '--porcelain', '--', path.basename(abs)], { cwd: path.dirname(abs), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: left, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).trim()) return;
   } catch {
-    return;
+    confirmed = false;
   }
-  const text = `${file} has uncommitted changes from session ${labelOf(db, other.id)}, state ${other.state}. Edit only your own lines; do not reformat or revert the file.`;
+  const changes = confirmed ? 'has uncommitted changes' : 'may have uncommitted changes (git did not answer in time to confirm)';
+  const text = `${file} ${changes} from session ${labelOf(db, other.id)}, state ${other.state}. Edit only your own lines; do not reformat or revert the file.`;
   const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: text } }) + '\n';
   await new Promise      ((resolve) => process.stdout.write(line, () => resolve()));
 }
