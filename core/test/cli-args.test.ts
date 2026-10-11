@@ -60,3 +60,22 @@ test('troop sessions prints no column the query never fills', () => {
     assert.deepEqual(r.stdout.split('\n')[0].trim().split(/\s+/), ['id', 'engine', 'host', 'state', 'project', 'state_at']);
   } finally { rmSync(iso.home, { recursive: true, force: true }); }
 });
+
+test('a session prefix matches literally: % and _ are not wildcards', () => {
+  const iso = isolation();
+  try {
+    const db = new DatabaseSync(join(iso.home, 'troop.db'));
+    try {
+      db.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+      const at = new Date().toISOString();
+      db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p', iso.home, 'proj', at, at);
+      db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)').run('codex', '{}', 1, 'local-cli');
+      db.prepare('INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('abc123', 'p', 'codex', 'pty', 'idle', at, at);
+    } finally { db.close(); }
+    for (const prefix of ['%', 'a_c']) {
+      const r = spawnSync(process.execPath, [cli, 'focus', prefix], { cwd: root, env: iso.env, encoding: 'utf8', windowsHide: true });
+      assert.equal(r.status, 1, `${prefix}: ${r.stderr}`);
+      assert.match(r.stderr, /no session matches/);
+    }
+  } finally { rmSync(iso.home, { recursive: true, force: true }); }
+});
