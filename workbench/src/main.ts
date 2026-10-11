@@ -3,6 +3,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
+import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
+import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
@@ -422,7 +424,7 @@ function handlers(): void {
   on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
     if (typeof sessionId !== 'string') return false;
     attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
-    return true;
+    return { windows_build: windowsBuild() };
   });
   on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
   on('setTheme', (name: unknown) => {
@@ -437,6 +439,7 @@ function handlers(): void {
   });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
+  on('termAck', (sessionId: unknown, bytes: unknown) => { if (typeof sessionId === 'string' && typeof bytes === 'number') termAck(sessionId, bytes); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('readText', () => clipboard.readText());
