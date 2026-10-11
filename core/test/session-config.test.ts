@@ -213,3 +213,14 @@ test('a settings file that is JSON but not an object falls back to defaults and 
     assert.equal(fs.readFileSync(file, 'utf8'), body);
   }
 }));
+
+test('uninstalling engine settings restores a key whose original value was null and removes one that was absent', () => withHome(async (home) => {
+  const { installEngineSettings, uninstallEngineSettings } = await import('../src/hooks/install.ts');
+  const file = path.join(home, 'engine-settings.json');
+  fs.writeFileSync(file, JSON.stringify({ a: null, b: 1 }));
+  const engines = [{ id: 'e', settings: { file, set: { a: 5, c: 7 } } }] as any[];
+  installEngineSettings(engines);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { a: 5, b: 1, c: 7 });
+  uninstallEngineSettings();
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { a: null, b: 1 });
+}));
