@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -48,17 +50,39 @@ def decide(tool_input):
     return {**tool_input, "limit": LINE_LIMIT}
 
 
+RAW = re.compile(r"^\s*MR_RAW=1\b|^\s*(cd|export|source|\.)\s[^;&|\n]*$|\bmetarouter\b|\brm\s|\bgit\s+(add|commit|push|reset|rebase|clean|checkout|restore|stash|merge|tag|branch)\b")
+
+
+def wrap_bash(tool_input, cwd=""):
+    """Return the Bash input with its command run through metarouter exec, or None to leave it raw."""
+    from metarouter.log import private
+
+    cmd = tool_input.get("command") or ""
+    if not cmd.strip() or tool_input.get("run_in_background") or RAW.search(cmd) or private(cmd) or private(cwd):
+        return None
+    quoted = "'" + cmd.replace("'", "'\\''") + "'"
+    return {**tool_input, "command": f"metarouter exec -- {quoted}"}
+
+
 def main():
     try:
         event = json.load(sys.stdin)
-        if event.get("tool_name") != "Read":
+        tool = event.get("tool_name")
+        if tool == "Bash":
+            if os.environ.get("METAROUTER_HOOK") == "off":
+                return
+            updated = wrap_bash(event.get("tool_input") or {}, event.get("cwd") or "")
+            decision = {}
+        elif tool == "Read":
+            updated = decide(event.get("tool_input") or {})
+            decision = {"permissionDecision": "allow"}
+        else:
             return
-        updated = decide(event.get("tool_input") or {})
         if updated is None:
             return
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
+            **decision,
             "updatedInput": updated,
         }}))
     except Exception:

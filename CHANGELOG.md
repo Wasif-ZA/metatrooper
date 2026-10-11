@@ -13,6 +13,9 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
   `ingest` action now answers in the plugin contract shape. Its tests run in CI.
 - metarouter is on by default in every session the desk starts: `router/bin` first on `PATH`, and Claude sessions get
   the metarouter block through `--append-system-prompt`. `sessions.metarouter: false` turns it off.
+- Opt-in Claude Code hook `python -m metarouter.hook` (PreToolUse, matcher Bash) runs plain Bash commands through
+  `metarouter exec`. It leaves bare cd/export/source, git writes, rm, background commands, private-pattern matches
+  and `MR_RAW=1` commands raw, and sets no permission decision. `METAROUTER_HOOK=off` disables it.
 - Release gate `tests/release.ps1`: version check, core and workbench suites, every opt-in suite, then the listener check.
 - CI on `windows-latest` and `ubuntu-24.04` for every push to main; a `v*` tag makes a draft release with SHA-256 checksums.
 - One version source in the root `package.json`, with `tests/version-check.mjs`.

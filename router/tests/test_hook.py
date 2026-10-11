@@ -81,7 +81,7 @@ def test_decide_missing_file_and_missing_path(tmp_path):
 
 
 def test_main_non_read_tool(monkeypatch, capsys):
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}})
+    payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": "a.txt", "content": "x"}})
     monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
     hook.main()
     out, err = capsys.readouterr()
