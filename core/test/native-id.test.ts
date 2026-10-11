@@ -141,3 +141,40 @@ test('an exited session is dropped from the activity watch', async () => {
     assert.equal(activitySessions().includes('a-exit'), false);
   } finally { t.done(); }
 });
+
+test('two codex sessions started together in one folder never share a rollout', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '11');
+    fs.mkdirSync(dir, { recursive: true });
+    const proj = path.join(t.home, 'proj');
+    const started = Date.now() - 1000;
+    t.addSession('c1', 'codex', started);
+    t.addSession('c2', 'codex', started);
+    for (const id of [CODEX_ID, '0199bbbb-1111-2222-3333-444455556666']) {
+      fs.writeFileSync(path.join(dir, `rollout-2026-10-11T00-00-00-${id}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: proj } }) + '\n');
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    t.checkActivity(t.db);
+    assert.ok(t.native('c1') === null || t.native('c1') !== t.native('c2'), `both linked to ${t.native('c1')}`);
+  } finally { t.done(); }
+});
+
+test('a codex session never links a rollout another session already owns', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '11');
+    fs.mkdirSync(dir, { recursive: true });
+    const proj = path.join(t.home, 'proj');
+    const other = '0199bbbb-1111-2222-3333-444455556666';
+    for (const id of [other, CODEX_ID]) {
+      fs.writeFileSync(path.join(dir, `rollout-2026-10-11T00-00-00-${id}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: proj } }) + '\n');
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    t.addSession('c1', 'codex', Date.now() - 1000);
+    t.db.prepare('UPDATE session SET native_id = ? WHERE id = ?').run(CODEX_ID, 'c1');
+    t.addSession('c2', 'codex', Date.now() - 1000);
+    t.checkActivity(t.db);
+    assert.equal(t.native('c2'), other);
+  } finally { t.done(); }
+});
