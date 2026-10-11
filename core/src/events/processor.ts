@@ -152,9 +152,11 @@ export async function resolveUncommitted(db: DatabaseSync): Promise<void> {
   if (resolving) return;
   resolving = true;
   try {
+    const watermark = (db.prepare('SELECT max(seq) AS m FROM event').get() as { m: number | null }).m ?? 0;
     const rows = db.prepare("SELECT id, ref FROM needs_you WHERE kind = 'uncommitted' AND resolved_at IS NULL").all() as Array<{ id: string; ref: string }>;
     const repos = new Map<string, Promise<string | null>>();
     const owned = new Map<string, Promise<OwnedPath[]>>();
+    const claimedSince = db.prepare("SELECT 1 FROM event WHERE kind = 'core.claim' AND session_id = ? AND seq > ? LIMIT 1");
     const resolve = db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL');
     for (const r of rows) {
       try {
@@ -163,7 +165,7 @@ export async function resolveUncommitted(db: DatabaseSync): Promise<void> {
         const repo = await repos.get(cwd ?? '')!;
         if (repo && !owned.has(repo)) owned.set(repo, ownersAsync(db, repo));
         const paths = repo ? await owned.get(repo)! : [];
-        if (!paths.some((o) => o.owners.some((x) => x.id === r.ref))) resolve.run(nowIso(), r.id);
+        if (!paths.some((o) => o.owners.some((x) => x.id === r.ref)) && !claimedSince.get(r.ref, watermark)) resolve.run(nowIso(), r.id);
       } catch {}
     }
   } finally {

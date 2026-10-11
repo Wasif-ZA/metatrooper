@@ -447,3 +447,50 @@ test('commit times survive claimed paths whose names together exceed the Windows
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a claim that lands during a resolve pass keeps its session row open until the next pass', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-resolve-race-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { resolveUncommitted } = await import('../src/events/processor.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'a.txt': 'one\n' });
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: repo, encoding: 'utf8' }).trim();
+    writeFileSync(join(repo, 'a.txt'), 'two\n');
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES ('s', 'p', 'claude', 'pty', ?, 'idle', 'x', 'x')").run(repo);
+    db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES ('n-s', 'x', 'uncommitted', 's', 't')").run();
+    const at = new Date(Date.now() + 60_000).toISOString();
+    let injected = false;
+    const seam = new Proxy(db, {
+      get(target, key) {
+        if (key === 'prepare') return (sql: string) => {
+          if (!injected && sql === 'SELECT state FROM session WHERE id = ?') {
+            injected = true;
+            target.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', 's', 'core.claim', ?, 1)").run(at, JSON.stringify({ repo: top, turn_base: null, from: at, at, files: [{ path: 'a.txt', owners: ['s'], shared: false }] }));
+          }
+          return target.prepare(sql);
+        };
+        const value = Reflect.get(target, key);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await resolveUncommitted(seam);
+    assert.ok(injected);
+    const open = () => db.prepare("SELECT resolved_at FROM needs_you WHERE id = 'n-s'").get() as { resolved_at: string | null };
+    assert.equal(open().resolved_at, null);
+    await resolveUncommitted(db);
+    assert.equal(open().resolved_at, null);
+  } finally {
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
