@@ -32,7 +32,7 @@ test('a terminal tile stops sending input once its connection closes', () => {
   let onData: (d: string) => void = () => {};
   const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, isConnected: true });
   const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput: (_id: string, d: string) => sent.push(d), termAttach: async () => {}, termDetach: async () => {} };
-  class Terminal { written = ''; loadAddon() {} open() {} onData(f: typeof onData) { onData = f; } attachCustomKeyEventHandler() {} write(s: string) { this.written += s; } focus() {} }
+  class Terminal { written = ''; loadAddon() {} registerLinkProvider() {} open() {} onData(f: typeof onData) { onData = f; } attachCustomKeyEventHandler() {} write(s: string) { this.written += s; } focus() {} }
   const termSource = readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8');
   const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} } });
   vm.runInContext(`${termSource}\nthis.termView = termView;`, ctx);
