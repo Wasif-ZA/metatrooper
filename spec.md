@@ -390,7 +390,9 @@ Added:
   mouse click in the big tile; it queues and glides in after.
 - **Tile chips.** "Open preview" (D60), "driving: <window>" while an agent holds a desktop grant, the approval
   count, the cost chip (M6-20) and the changed-files count (M6-21).
-- **Agent input** (M6-8). Shift+Enter sends a newline as a bracketed paste of `\n`, never Enter. A pasted or dropped
+- **Agent input** (M6-8). Shift+Enter in an agent tile sends the engine's newline, never Enter: a bracketed paste
+  of `\n` by default, or ESC CR when the engine file sets `shift_enter: alt-enter` (Codex drops a pasted lone
+  newline; checked live 2026-10-11). A pasted or dropped
   image is saved to `~/.metatrooper/paste/<session>/<ulid>.png` and its path is pasted. File paths,
   `path:line:col` and URLs in terminal output are links, checked on disk before they are underlined.
 - **Terminal speed** (M6-7). Both xterms set `windowsPty: {backend: 'conpty', buildNumber}`. The core answers
