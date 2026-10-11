@@ -164,6 +164,12 @@ test('worktree.create keeps a branch with backslashes inside the worktrees folde
     const branch = ['..', '..', 'outside'].join(String.fromCharCode(92));
     try { m.get('worktree.create')!.handler({ project_id, branch }, { ui: false, origin: 'test' }); } catch {}
     assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
+    fs.mkdirSync(path.join(home, 'mt', 'worktrees', project_id, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'mt', 'worktrees', '.git'), { recursive: true });
+    for (const name of ['..', '.']) {
+      assert.throws(() => m.get('worktree.create')!.handler({ project_id, branch: name }, { ui: false, origin: 'test' }), { message: /branch/ }, name);
+    }
+    assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
   } finally {
     db.close();
   }
