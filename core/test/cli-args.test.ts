@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { projectId, resolveProjectPath } from '../src/project.ts';
@@ -41,5 +41,22 @@ test('offline, launch --worktree and owners queue nothing that has a side effect
       const methods = (db.prepare('SELECT method FROM command').all() as Array<{ method: string }>).map((x) => x.method);
       assert.deepEqual(methods.filter((m) => m !== 'project.open'), []);
     } finally { db.close(); }
+  } finally { rmSync(iso.home, { recursive: true, force: true }); }
+});
+
+test('troop sessions prints no column the query never fills', () => {
+  const iso = isolation();
+  try {
+    const db = new DatabaseSync(join(iso.home, 'troop.db'));
+    try {
+      db.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+      const at = new Date().toISOString();
+      db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p', iso.home, 'proj', at, at);
+      db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)').run('codex', '{}', 1, 'local-cli');
+      db.prepare('INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('s1234567890', 'p', 'codex', 'pty', 'idle', at, at);
+    } finally { db.close(); }
+    const r = spawnSync(process.execPath, [cli, 'sessions'], { cwd: root, env: iso.env, encoding: 'utf8', windowsHide: true });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(r.stdout.split('\n')[0].trim().split(/\s+/), ['id', 'engine', 'host', 'state', 'project', 'state_at']);
   } finally { rmSync(iso.home, { recursive: true, force: true }); }
 });

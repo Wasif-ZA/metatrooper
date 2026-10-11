@@ -450,7 +450,7 @@ async function main(): Promise<number> {
         ).all(a.flags.has('--all') ? 1 : 0) as Array<Record<string, unknown>>,
       ) ?? [];
       if (json) console.log(JSON.stringify(rows));
-      else table(rows.map((r) => ({ ...r, id: String(r.id).slice(0, 8) })), ['id', 'engine', 'host', 'state', 'project', 'window', 'state_at']);
+      else table(rows.map((r) => ({ ...r, id: String(r.id).slice(0, 8) })), ['id', 'engine', 'host', 'state', 'project', 'state_at']);
       return 0;
     }
 
