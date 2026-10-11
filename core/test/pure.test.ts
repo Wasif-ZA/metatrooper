@@ -138,6 +138,16 @@ test('framing round trips chunked and multiple lines and rejects over 1 MiB', ()
   assert.throws(() => oversized('x'.repeat(1024 * 1024 + 1) + '\n'), { name: 'LineTooLong' });
 });
 
+test('framing keeps a multi-byte character split across two buffer chunks', () => {
+  const messages = [];
+  const decode = createDecoder(message => messages.push(message));
+  const wire = Buffer.from(encode({ text: 'é' }));
+  const cut = wire.indexOf(0xc3) + 1;
+  decode(wire.subarray(0, cut));
+  decode(wire.subarray(cut));
+  assert.deepEqual(messages, [{ text: 'é' }]);
+});
+
 test('shell redaction drops env-assignment prefixes and values', () => {
   const bash = redactToolInput('Bash', { command: 'GITHUB_TOKEN=PRIVATE_MARKER A=1 gh pr list' });
   assert.equal(bash.first_word, 'gh');
