@@ -40,19 +40,21 @@ test('every workbench git call runs with GIT_OPTIONAL_LOCKS=0, so it never takes
   g('commit', '-qm', 'init');
   const bin = mkdtempSync(join(tmpdir(), 'git-locks-bin-'));
   const log = join(bin, 'log');
-  writeFileSync(log, '');
-  const vars = loggingGit(bin, log);
-  const old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
-  Object.assign(process.env, vars);
+  let seen: string[] = [];
+  let old: Record<string, string | undefined> = {};
   try {
+    writeFileSync(log, '');
+    const vars = loggingGit(bin, log);
+    old = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, vars);
     await handback(gitIn(d));
     await gitView(runIn(d));
     await refreshRowGit([{ id: 's', cwd: d }]);
   } finally {
     for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    try { seen = readFileSync(log, 'utf8').split('\n').filter(Boolean); } catch {}
+    for (const dir of [bin, d]) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
-  const seen = readFileSync(log, 'utf8').split('\n').filter(Boolean);
-  for (const dir of [bin, d]) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   assert.ok(seen.length >= 10, `only ${seen.length} git calls were logged`);
   assert.deepEqual([...new Set(seen)], ['0']);
 });
