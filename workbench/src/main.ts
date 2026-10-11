@@ -37,6 +37,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
+  'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -588,6 +589,21 @@ function folderArg(argv: string[], cwd: string): string | null {
   return null;
 }
 
+export function needsYouLink(argv: string[]): string | null {
+  for (const a of argv) {
+    const m = /^metatrooper:\/\/needs-you\/([A-Za-z0-9_-]{1,64})\/?$/i.exec(a);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function openNeedsYou(id: string | null): void {
+  if (!id || !win) return;
+  const send = () => win?.webContents.send('open-needs-you', id);
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+  else send();
+}
+
 async function stopCore(): Promise<void> {
   await call('core.stop', {}, { ui: true });
   for (let i = 0; i < 40 && (await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
@@ -643,12 +659,19 @@ if (!app.requestSingleInstanceLock()) {
       win.focus();
     }
     void openFolder(folderArg(argv, cwd));
+    openNeedsYou(needsYouLink(argv));
   });
   app.whenReady().then(() => {
+    // Tests set METATROOPER_HOME; skip writing the OS protocol handler then.
+    if (!process.env.METATROOPER_HOME) {
+      if (process.defaultApp) app.setAsDefaultProtocolClient('metatrooper', process.execPath, [APP_DIR]);
+      else app.setAsDefaultProtocolClient('metatrooper');
+    }
     lockDown();
     handlers();
     createWindow();
     void ensureCore().then(() => openFolder(folderArg(process.argv, process.cwd())));
+    openNeedsYou(needsYouLink(process.argv));
     watch();
     const gitTick = async () => {
       try {
