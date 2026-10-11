@@ -147,10 +147,11 @@ const termView = (() => {
     if (!t) return;
     if (m.op === 'snapshot') { t.retried = false; t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); ack(sessionId, m.data.length); }); }
     else if (m.op === 'output') { t.term.write(m.data, () => ack(sessionId, m.data.length)); onOutput(sessionId, m.data.length); }
-    else if (m.op === 'exit') { t.gone = true; t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
+    else if (m.op === 'exit') { t.gone = t.exited = true; t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
     else if (m.op === 'error' && m.code === 'no-session') { t.gone = true; t.term.write('\r\n[this session is not running]\r\n'); }
     else if (m.op === 'closed' && !t.closed) {
       t.closed = true;
+      if (t.exited) return;
       // one re-attach decides it: a live terminal answers with a snapshot, a dead one or an offline core closes again
       if (!t.gone && !t.retried) { t.retried = true; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
       t.el.classList.add('closed');

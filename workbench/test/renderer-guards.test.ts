@@ -78,15 +78,29 @@ function shellTile() {
   const timers: Array<() => void> = [];
   const attaches: string[] = [];
   const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, isConnected: true });
-  const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput() {}, termAttach: async (id: string) => { attaches.push(id); }, termDetach: async () => {} };
-  class Terminal { options = {}; loadAddon() {} registerLinkProvider() {} open() {} onData() {} attachCustomKeyEventHandler() {} write() {} focus() {} }
+  const sent: string[] = [];
+  let written = '';
+  let onData: (d: string) => void = () => {};
+  const troop = { onTerm: (f: typeof onTerm) => { onTerm = f; }, termInput: (_id: string, d: string) => { sent.push(d); }, termAttach: async (id: string) => { attaches.push(id); }, termDetach: async () => {} };
+  class Terminal { options = {}; loadAddon() {} registerLinkProvider() {} open() {} onData(f: typeof onData) { onData = f; } attachCustomKeyEventHandler() {} write(s: string) { written += s; } focus() {} }
   const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver: class { observe() {} }, setTimeout: (f: () => void) => timers.push(f), performance });
   vm.runInContext(`${readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8')}\nthis.termView = termView;`, ctx);
   const exited: string[] = [];
   ctx.termView.show({ mode: 'single', selected: 'sh_1', sessions: [{ id: 'sh_1', state: 'idle', words: 'shell', shell: true }], onExit: (id: string) => exited.push(id) });
   const tick = () => { for (const f of timers.splice(0)) f(); };
-  return { send: (m: unknown) => onTerm('sh_1', m), tick, exited, attaches };
+  return { send: (m: unknown) => onTerm('sh_1', m), type: (d: string) => onData(d), tick, exited, attaches, sent, written: () => written };
 }
+
+test('a normal exit is reported once, with no disconnect note and no re-attach', () => {
+  const t = shellTile();
+  t.send({ op: 'exit', code: 0 });
+  t.send({ op: 'closed' });
+  t.tick();
+  assert.deepEqual(t.exited, ['sh_1']);
+  assert.deepEqual(t.attaches, []);
+  assert.ok(!t.written().includes('disconnected'));
+});
+
 
 test('a shell tile whose connection drops but whose shell is alive re-attaches instead of exiting', () => {
   const t = shellTile();
