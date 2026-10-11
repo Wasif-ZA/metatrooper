@@ -127,7 +127,7 @@ const wall = (() => {
     const to = (sel, v) => gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power2.inOut', overwrite: 'auto' } : {}) });
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
-    to('#split', { left: RX });
+    to('#split', { left: RX, onComplete: () => reportPaneBounds() });
     fitSearch();
   }
 

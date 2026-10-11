@@ -85,3 +85,19 @@ test('a shell tile whose core connection drops is reported as exited', () => {
   onTerm('sh_1', { op: 'closed' });
   assert.deepEqual(exited, ['sh_1']);
 });
+
+test('the browser pane bounds are reported again once the split panel finishes sliding', () => {
+  const node = (): any => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, after() {}, appendChild() {}, remove() {}, querySelector: () => node(), getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) });
+  const tiles: Record<string, any> = { s1: node(), s2: node() };
+  const done: Array<() => void> = [];
+  const tween = (t: unknown, v?: { onComplete?: () => void }) => { if (t === '#split' && v?.onComplete) done.push(v.onComplete); return { kill() {} }; };
+  const gsap = { to: tween, set: tween, fromTo: (t: unknown, _f: unknown, v: object) => tween(t, v), delayedCall: tween };
+  let reported = 0;
+  const ctx = vm.createContext({ gsap, termView: { tile: (id: string) => tiles[id] }, matchMedia: () => ({ matches: false }), document: { body: node(), querySelector: () => node(), createElement: () => ({ content: { firstChild: node() } }) }, addEventListener() {}, setInterval() {}, innerWidth: 1400, innerHeight: 900, reportPaneBounds: () => { reported++; } });
+  vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
+  ctx.wall.decide([{ id: 's1', state: 'working' }, { id: 's2', state: 'working' }], null);
+  ctx.wall.apply('single');
+  ctx.wall.pair('s2');
+  for (const f of done) f();
+  assert.ok(reported > 0);
+});
