@@ -564,6 +564,13 @@ export function needsYouLink(argv: string[]): string | null {
   return null;
 }
 
+/** Tests (METATROOPER_HOME set) and git worktrees (a .git file, not a folder) never take over the OS link handler. */
+function registersProtocol(): boolean {
+  if (process.env.METATROOPER_HOME) return false;
+  if (!process.defaultApp) return true;
+  try { return fs.statSync(path.join(APP_DIR, '..', '.git')).isDirectory(); } catch { return false; }
+}
+
 function openNeedsYou(id: string | null): void {
   if (!id || !win) return;
   const send = () => win?.webContents.send('open-needs-you', id);
@@ -629,8 +636,7 @@ if (!app.requestSingleInstanceLock()) {
     openNeedsYou(needsYouLink(argv));
   });
   app.whenReady().then(() => {
-    // Tests set METATROOPER_HOME; skip writing the OS protocol handler then.
-    if (!process.env.METATROOPER_HOME) {
+    if (registersProtocol()) {
       if (process.defaultApp) app.setAsDefaultProtocolClient('metatrooper', process.execPath, [APP_DIR]);
       else app.setAsDefaultProtocolClient('metatrooper');
     }
