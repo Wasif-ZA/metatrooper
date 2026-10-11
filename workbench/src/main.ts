@@ -35,6 +35,7 @@ const DEBOUNCE_MS = 50;
 const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
+  'session.search',
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',

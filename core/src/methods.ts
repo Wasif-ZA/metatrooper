@@ -154,6 +154,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
   m.set('session.live-text', { handler: () => liveText() });
+  m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50) }) });
 
   m.set('session.focus', {
     handler: (p) => {

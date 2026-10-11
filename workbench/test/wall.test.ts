@@ -138,3 +138,26 @@ test('default theme is dither and search switches to persistent charcoal setting
   await until(() => { try { return JSON.parse(readFileSync(settingsPath, 'utf8')).ui.theme === 'charcoal'; } catch { return false; } }, 10000);
   assert.equal(JSON.parse(readFileSync(settingsPath, 'utf8')).ui.theme, 'charcoal');
 }));
+
+test('M6-19a a unique marker printed in one of 4 tiles is found by Ctrl+K within 1 s and opens that tile at the line', options, async () => {
+  const printer = 'const m = process.argv[2]; for (let i = 0; i < 300; i++) console.log("filler-a-" + i); if (m && m.startsWith("MARK")) console.log(m); for (let i = 0; i < 300; i++) console.log("filler-b-" + i); setInterval(() => {}, 1000);';
+  const h = await revisionHarness(undefined, printer); let w: Awaited<ReturnType<typeof windowFor>> | undefined;
+  try {
+    w = await windowFor(h);
+    const marker = `MARK${Date.now().toString(36)}Q`;
+    const target = (await h.pipe.request('session.launch', { project_id: h.projectId, engine_id: 'fake', prompt: marker })).result.session_id;
+    for (let i = 0; i < 3; i++) await h.pipe.request('session.launch', { project_id: h.projectId, engine_id: 'fake', prompt: 'other' });
+    await w.wait("document.querySelectorAll('#centre .tile').length === 4");
+    await w.wait(`!wall.isBig(${JSON.stringify(target)})`);
+    await w.key('k', 'KeyK', 2);
+    await w.wait('document.activeElement === document.querySelector("#palette-input")');
+    const ms = await w.evaluate(`new Promise((resolve) => { const start = performance.now(); const i = document.querySelector('#palette-input'); i.value = ${JSON.stringify(marker.toLowerCase())}; i.dispatchEvent(new Event('input', { bubbles: true }));
+      const tick = () => ui.paletteItems.some((x) => x.group === 'Scrollback') ? resolve(performance.now() - start) : performance.now() - start > 5000 ? resolve(null) : setTimeout(tick, 10); tick(); })`);
+    assert.ok(ms !== null && ms < 1000, `found in ${ms} ms`);
+    assert.deepEqual(await w.evaluate('ui.paletteItems.map((x) => [x.group, x.label])'), [['Scrollback', marker]]);
+    await w.key('Enter', 'Enter');
+    const tile = `document.querySelector('#centre .tile[data-id=${JSON.stringify(target)}] .xterm-rows')`;
+    await w.wait(`wall.isBig(${JSON.stringify(target)}) && ${tile}.textContent.includes(${JSON.stringify(marker)})`);
+    assert.ok(!(await w.evaluate(`${tile}.textContent.includes('filler-b-299')`)));
+  } finally { await w?.close(); await h.close(); }
+});
