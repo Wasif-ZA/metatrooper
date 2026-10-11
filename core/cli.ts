@@ -257,7 +257,7 @@ function withDb<T>(fn: (db: NonNullable<ReturnType<typeof openReaderDb>>) => T):
 }
 
 function resolveSession(prefix: string): string | null {
-  const rows = withDb((db) => db.prepare('SELECT id FROM session WHERE id LIKE ? ESCAPE '\\' ORDER BY julianday(started_at) DESC').all(`${prefix.replace(/[\\%_]/g, '\\$&')}%`) as Array<{ id: string }>) ?? [];
+  const rows = withDb((db) => db.prepare("SELECT id FROM session WHERE id LIKE ? ESCAPE '\\' ORDER BY julianday(started_at) DESC").all(`${prefix.replace(/[\\%_]/g, '\\$&')}%`) as Array<{ id: string }>) ?? [];
   if (rows.length === 1) return rows[0].id;
   console.error(rows.length ? `${prefix} matches ${rows.length} sessions; give more of the id` : `no session matches ${prefix}`);
   return null;
