@@ -397,7 +397,7 @@ test('markTurnBase never takes the index lock and records the same tree a plain 
     db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES ('s', 'p', 'claude', 'pty', ?, 'working', 'x', 'x')").run(repo);
     const lock = join(repo, '.git', 'index.lock');
     writeFileSync(lock, '');
-    markTurnBase(db, 's');
+    await markTurnBase(db, 's');
     assert.ok(existsSync(lock));
     rmSync(lock);
     const base = (db.prepare("SELECT turn_base FROM session WHERE id = 's'").get() as { turn_base: string | null }).turn_base;
@@ -488,6 +488,105 @@ test('a claim that lands during a resolve pass keeps its session row open until 
     assert.equal(open().resolved_at, null);
     await resolveUncommitted(db);
     assert.equal(open().resolved_at, null);
+  } finally {
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('a turn end and the next turn start in one batch: each claim records its own turn base', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-turnorder-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { processEvents, turnJobsIdle } = await import('../src/events/processor.ts');
+  const { appendEvent } = await import('../src/events/append.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'a.txt': 'one\n' });
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES ('s', 'p', 'claude', 'pty', ?, 'idle', 'x', 'x')").run(repo);
+    const ev = (kind: string) => appendEvent(kind, 's', { session_id: 'native-s', cwd: repo }, db);
+    const base = () => (db.prepare("SELECT turn_base FROM session WHERE id = 's'").get() as { turn_base: string | null }).turn_base;
+    writeFileSync(join(repo, 'a.txt'), 'turn one\n');
+    ev('claude.UserPromptSubmit');
+    processEvents(db);
+    await turnJobsIdle();
+    const first = base();
+    writeFileSync(join(repo, 'a.txt'), 'turn two\n');
+    ev('claude.Stop');
+    ev('claude.UserPromptSubmit');
+    processEvents(db);
+    await turnJobsIdle();
+    const second = base();
+    ev('claude.Stop');
+    processEvents(db);
+    await turnJobsIdle();
+    assert.ok(first && second && first !== second);
+    const claims = (db.prepare("SELECT payload FROM event WHERE kind = 'core.claim' AND session_id = 's' ORDER BY seq").all() as Array<{ payload: string }>).map((r) => JSON.parse(r.payload).turn_base);
+    assert.deepEqual(claims, [first, second]);
+  } finally {
+    await turnJobsIdle();
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('a claim another session writes while a turn is being claimed is either seen or written after it', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-claimrace-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { claimTurn } = await import('../src/sessions/owners.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'f.txt': 'one\n' });
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: repo, encoding: 'utf8' }).trim();
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+    writeFileSync(join(repo, 'f.txt'), 'two\n');
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    for (const id of ['A', 'B', 'C']) db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at, turn_base) VALUES (?, 'p', 'claude', 'pty', ?, 'idle', 'x', 'x', ?)").run(id, repo, head);
+    const claim = (id: string, at: string) => db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.claim', ?, 1)").run(at, id, JSON.stringify({ repo: top, turn_base: head, from: at, at, files: [{ path: 'f.txt', owners: [id], shared: false }] }));
+    const t = Date.now() + 60_000;
+    claim('A', new Date(t).toISOString());
+    const start = db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', 'B', 'claude.UserPromptSubmit', '{}', 1)").run(new Date(t + 1000).toISOString());
+    const stop = db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'claude-hook', 'B', 'claude.Stop', '{}', 1)").run(new Date(t + 2000).toISOString());
+    assert.ok(start.lastInsertRowid);
+    let scheduled = false;
+    const seam = new Proxy(db, {
+      get(target, key) {
+        if (key === 'prepare') return (sql: string) => {
+          if (!scheduled && sql.startsWith("SELECT seq, session_id, payload FROM event WHERE kind = 'core.claim'")) {
+            scheduled = true;
+            setImmediate(() => claim('C', new Date(t + 3000).toISOString()));
+          }
+          return target.prepare(sql);
+        };
+        const value = Reflect.get(target, key);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await claimTurn(seam, 'B', Number(stop.lastInsertRowid));
+    await new Promise((r) => setImmediate(r));
+    const rows = db.prepare("SELECT seq, session_id, payload FROM event WHERE kind = 'core.claim' ORDER BY seq").all() as Array<{ seq: number; session_id: string; payload: string }>;
+    const b = rows.find((r) => r.session_id === 'B')!;
+    const c = rows.find((r) => r.session_id === 'C')!;
+    assert.ok(b && c);
+    const bOwners = JSON.parse(b.payload).files[0].owners as string[];
+    if (c.seq < b.seq) assert.ok(bOwners.includes('C'), `B claimed after C but owners are ${bOwners}`);
+    else assert.deepEqual(bOwners.sort(), ['A', 'B']);
   } finally {
     db.close();
     if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
