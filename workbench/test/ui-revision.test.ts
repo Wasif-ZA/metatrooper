@@ -292,6 +292,29 @@ test('UI-10 six live grid terminals echo input under 50 ms at median and p90', o
   } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
 });
 
+test('M6-07a a 50 MB print in one tile keeps another tile echoing under 100 ms', options, async (t) => {
+  const fake = `process.stdin.resume(); process.stdin.on('data',d=>{const s=d.toString(); if(!s.includes('FLOOD')) return process.stdout.write('ECHO:'+s); const l='f'.repeat(1023)+'\\r\\n'; let n=0; const go=()=>{while(n<51200){n++; if(!process.stdout.write(l)) return process.stdout.once('drain',go);} process.stdout.write('FLOOD-DONE\\r\\n');}; go();});`;
+  const h = await revisionHarness(undefined, fake); let w;
+  try {
+    const ids=[(await h.launch('fake')).session_id,(await h.launch('fake')).session_id];
+    w=await windowFor(h);
+    await w.key('g','KeyG',2); await w.wait('ui.mode === "grid"');
+    await w.wait('document.querySelectorAll(".tile .xterm-screen").length === 2');
+    await w.evaluate(`window.troop.termInput(${JSON.stringify(ids[1])},'FLOOD\\r')`);
+    const durations:number[]=[];
+    for(let i=0;i<20;i++){
+      const value=`flood-${i}`;
+      const elapsed=await w.evaluate(`termView.timeEcho(${JSON.stringify(ids[0])},${JSON.stringify(value+'\r')},${JSON.stringify('ECHO:'+value)})`);
+      assert.notEqual(elapsed,null,`xterm parsed ${value}`);
+      durations.push(elapsed);
+    }
+    const flooding=await w.evaluate(`!(termView.ids().includes(${JSON.stringify(ids[1])}) && document.querySelector('.tile[data-id=${JSON.stringify(ids[1])}] .xterm-rows')?.innerText.includes('FLOOD-DONE'))`);
+    durations.sort((a,b)=>a-b);
+    t.diagnostic(`echo during flood: median=${durations[10].toFixed(1)} ms, max=${durations[19].toFixed(1)} ms, still flooding at the end: ${flooding}`);
+    assert.ok(durations[19]<100,`echo max ${durations[19].toFixed(1)} ms`);
+  } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
+});
+
 test('UI-10 a 10,000-row terminal snapshot is parsed in the window under 500 ms', options, async (t) => {
   const fake = `process.stdin.resume(); process.stdout.write(Array.from({length:10000},(_,i)=>'scrollback-row-'+String(i).padStart(5,'0')).join('\\r\\n')+'\\r\\n'); setInterval(()=>{},1000);`;
   const h=await revisionHarness(undefined,fake);let w;
