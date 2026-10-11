@@ -859,6 +859,11 @@ function setView() {
 function switchProject(id) {
   ui.projectId = id;
   ui.handback = undefined;
+  ui.hbFile = null;
+  ui.hbDiff = undefined;
+  ui.hbLine = null;
+  ui.gitFile = false;
+  ui.comment = null;
   save('projectId', id);
   setView();
 }
@@ -867,12 +872,7 @@ async function openFolder() {
   const dir = await api.pickFolder();
   if (!dir) return;
   const r = await rpc('project.open', { path: dir });
-  if (r.result) {
-    ui.projectId = r.result.project_id;
-    ui.handback = undefined;
-    save('projectId', ui.projectId);
-    setView();
-  }
+  if (r.result) switchProject(r.result.project_id);
 }
 
 async function onClick(e) {
@@ -1028,10 +1028,7 @@ async function onClick(e) {
       return;
     }
     case 'project':
-      ui.projectId = id;
-      ui.handback = undefined;
-      save('projectId', id);
-      setView();
+      switchProject(id);
       return;
     case 'tab':
       await openTab(el.dataset.tab);
@@ -1314,10 +1311,7 @@ function tickAges() {
 }
 
 api.onSelectProject((id) => {
-  ui.projectId = id;
-  ui.handback = undefined;
-  save('projectId', id);
-  setView();
+  switchProject(id);
   render();
 });
 

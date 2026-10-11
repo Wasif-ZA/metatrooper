@@ -158,3 +158,10 @@ test('keys typed while a tile re-attaches are sent after it reconnects, or repor
   assert.deepEqual(dead.sent, []);
   assert.match(dead.written(), /not sent/);
 });
+test('switching project drops the old project open file diff and picked comment', () => {
+  const ui: any = { projectId: 'p1', handback: {}, hbFile: 'a.txt', hbDiff: 'diff', hbLine: 2, gitFile: true, comment: { pane_id: 'bp1' } };
+  const switchProject = new Function('ui', 'save', 'setView', `${fn('switchProject')}; return switchProject;`)(ui, () => {}, () => {});
+  switchProject('p2');
+  assert.equal(ui.projectId, 'p2');
+  assert.deepEqual([ui.handback, ui.hbFile, ui.hbDiff, ui.hbLine, ui.gitFile, ui.comment], [undefined, null, undefined, null, false, null]);
+});
