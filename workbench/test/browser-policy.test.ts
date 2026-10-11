@@ -12,7 +12,7 @@ test('M6-1 pane dev_port does not grant an agent loopback access', async () => {
     },
     load(url, context, nextLoad) {
       return url === 'test:electron'
-        ? { format: 'module', source: 'export const app = {}, clipboard = {}, Menu = {}, session = {}, WebContentsView = {};', shortCircuit: true }
+        ? { format: 'module', source: 'export const app = {}, clipboard = {}, Menu = {}, nativeImage = {}, session = {}, WebContentsView = {};', shortCircuit: true }
         : nextLoad(url, context);
     },
   });

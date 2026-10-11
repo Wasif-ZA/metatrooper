@@ -15,6 +15,11 @@ function priceFor(model: string | null): Price | null {
   return prices[model] ?? Object.entries(prices).find(([k]) => k.endsWith('*') && model.startsWith(k.slice(0, -1)))?.[1] ?? null;
 }
 
+/** Token estimate for text sent to an agent: one token per 3 UTF-8 bytes, rounded up. */
+export function tokenCount(text: string): number {
+  return Math.ceil(Buffer.byteLength(text, 'utf8') / 3);
+}
+
 export function usdFor(model: string | null, inT: number, outT: number, cacheRead: number, cacheWrite: number): number | null {
   const p = priceFor(model);
   if (!p) return null;
