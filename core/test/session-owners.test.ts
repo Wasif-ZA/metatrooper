@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, runNode, sleep, startCore, teardownCore, until } from './helpers.ts';
+import { buildGenerated, client, isolation, runNode, scriptedGh, sleep, startCore, teardownCore, until } from './helpers.ts';
 
 before(buildGenerated);
 
@@ -592,4 +592,33 @@ test('a claim another session writes while a turn is being claimed is either see
     if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+test('an Edit on a file another session owns still warns when git does not answer in time', async () => {
+  const { copyFileSync, mkdirSync: mk } = await import('node:fs');
+  const { delimiter } = await import('node:path');
+  const h = await ownersHarness();
+  try {
+    const a = await h.launch();
+    const b = await h.launch();
+    await h.turnStart(a, 'native-a');
+    await sleep(20);
+    writeFileSync(join(h.repo, 'a.txt'), 'changed by a\n');
+    await h.hook('Stop', { session_id: 'native-a' }, a);
+    await until(() => h.claims(a).length === 1, 10000);
+    await h.turnStart(a, 'native-a');
+    const bin = join(h.home, 'slow-git');
+    mk(bin, { recursive: true });
+    scriptedGh(bin, 'setTimeout(() => {}, 1500);\n');
+    if (process.platform === 'win32') { copyFileSync(join(bin, 'gh.exe'), join(bin, 'git.exe')); copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); }
+    else { copyFileSync(join(bin, 'gh'), join(bin, 'git')); copyFileSync(join(bin, 'gh.mjs'), join(bin, 'git.mjs')); writeFileSync(join(bin, 'git'), `#!/bin/sh\nexec node '${join(bin, 'git.mjs')}' "$@"\n`, { mode: 0o755 }); }
+    const pathKey = Object.keys(h.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+    const env = { ...h.env, TROOP_SESSION_ID: b, [pathKey]: `${bin}${delimiter}${h.env[pathKey] ?? ''}` };
+    const warned = await runNode(['core/event.js', 'claude.PreToolUse'], env, JSON.stringify({ cwd: h.repo, session_id: 'native-b', tool_name: 'Edit', tool_input: { file_path: join(h.repo, 'a.txt') } })) as { code: number; stdout: string };
+    assert.equal(warned.code, 0);
+    const text: string = JSON.parse(warned.stdout).hookSpecificOutput.additionalContext;
+    assert.ok(text.includes('a.txt may have uncommitted changes (git did not answer in time to confirm) from session '), text);
+    assert.ok(text.includes(`(${a.slice(0, 8)}), state working`), text);
+    await sleep(1600);
+  } finally { await h.teardown(); }
 });
