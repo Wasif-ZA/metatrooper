@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { execFileSync } from 'node:child_process';
 import { nowIso, ulid } from '../time.ts';
@@ -181,9 +184,13 @@ export function resolveSpentNotices(db: DatabaseSync): void {
 export function markTurnBase(db: DatabaseSync, sessionId: string): void {
   const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;
   if (!row?.cwd) return;
-  const git = (args: string[]) => execFileSync('git', args, { cwd: row.cwd!, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: 5000 }).trim();
+  const git = (args: string[], env = process.env) => execFileSync('git', args, { cwd: row.cwd!, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: 5000, env }).trim();
+  const index = path.join(os.tmpdir(), `troop-index-${ulid()}`);
   try {
-    const base = git(['stash', 'create']) || git(['rev-parse', 'HEAD']);
+    fs.copyFileSync(path.resolve(row.cwd, git(['rev-parse', '--git-path', 'index'])), index);
+    const base = git(['stash', 'create'], { ...process.env, GIT_INDEX_FILE: index }) || git(['rev-parse', 'HEAD']);
     db.prepare('UPDATE session SET turn_base = ? WHERE id = ?').run(base, sessionId);
-  } catch {}
+  } catch {} finally {
+    fs.rmSync(index, { force: true });
+  }
 }

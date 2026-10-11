@@ -375,3 +375,37 @@ test('resolveUncommitted runs git off the event loop: it returns first, then res
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('markTurnBase never takes the index lock and records the same tree a plain stash create would', async () => {
+  const { mkdtempSync, rmSync, existsSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const home = mkdtempSync(join(tmpdir(), 'troop-turnbase-'));
+  const prior = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { markTurnBase } = await import('../src/events/processor.ts');
+  const db = openCoreDb();
+  try {
+    const repo = join(home, 'repo');
+    gitRepo(repo, { 'a.txt': 'one\n' });
+    writeFileSync(join(repo, 'a.txt'), 'two\n');
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const expectedTree = git('rev-parse', `${git('stash', 'create')}^{tree}`);
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(repo);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, cwd, state, state_at, started_at) VALUES ('s', 'p', 'claude', 'pty', ?, 'working', 'x', 'x')").run(repo);
+    const lock = join(repo, '.git', 'index.lock');
+    writeFileSync(lock, '');
+    markTurnBase(db, 's');
+    assert.ok(existsSync(lock));
+    rmSync(lock);
+    const base = (db.prepare("SELECT turn_base FROM session WHERE id = 's'").get() as { turn_base: string | null }).turn_base;
+    assert.ok(base);
+    assert.equal(git('rev-parse', `${base}^{tree}`), expectedTree);
+  } finally {
+    db.close();
+    if (prior === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = prior;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
