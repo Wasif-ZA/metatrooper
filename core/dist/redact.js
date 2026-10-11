@@ -141,7 +141,7 @@ export function rebuildPayload(kind        , built        )      {
 }
 
 const NOTIFY_LABEL                         = {
-  gate: 'approval needed', handoff: 'handoff waiting', 'run-failed': 'run failed', budget: 'budget limit', 'missing-secret': 'secret missing', other: 'needs you',
+  gate: 'approval needed', approval: 'approval needed', handoff: 'handoff waiting', 'run-failed': 'run failed', budget: 'budget limit', 'missing-secret': 'secret missing', other: 'needs you',
 };
 
 /** The one-line message a notification sink receives: a fixed label plus the item text with URLs, paths and token-like strings removed. */
@@ -154,6 +154,27 @@ export function notifyText(kind        , text        )         {
     .trim()
     .slice(0, 160);
   return `MetaTrooper (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
+}
+
+export const CREDENTIAL_PATTERNS           = [
+  /\bgh[pousr]_[A-Za-z0-9]{30,}/,
+  /\bgithub_pat_\w{20,}/,
+  /\bsk-[A-Za-z0-9_-]{20,}/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
+  /\bAIza[0-9A-Za-z_-]{35}/,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /(?=[A-Za-z0-9_+/=-]*[0-9])(?=[A-Za-z0-9_+/=-]*[a-z])(?=[A-Za-z0-9_+/=-]*[A-Z])[A-Za-z0-9_+/=-]{32,}/,
+];
+
+export function looksLikeCredential(text        )          {
+  return CREDENTIAL_PATTERNS.some((re) => re.test(text));
+}
+
+/** Replaces every credential-pattern match in text with [secret]. */
+export function redactCredentials(text        )         {
+  return CREDENTIAL_PATTERNS.reduce((out, re) => out.replace(new RegExp(re.source, 'g'), '[secret]'), text);
 }
 
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
