@@ -439,14 +439,17 @@ export class PaneManager {
     const pane = this.panes.get(id);
     if (!pane) return;
     this.panes.delete(id);
+    if (this.shown === id) this.shown = null;
     try { pane.dbg.detach(); } catch {}
-    this.win.contentView.removeChildView(pane.view);
-    try { this.win.contentView.removeChildView(pane.overlay); } catch {}
+    if (!this.win.isDestroyed()) {
+      this.win.contentView.removeChildView(pane.view);
+      try { this.win.contentView.removeChildView(pane.overlay); } catch {}
+    }
+    if (!pane.overlay.webContents.isDestroyed()) pane.overlay.webContents.close();
+    if (pane.view.webContents.isDestroyed()) return;
     const ses = pane.view.webContents.session;
     pane.view.webContents.close();
-    pane.overlay.webContents.close();
     if (id.startsWith(AGENT_PANE)) void ses.clearStorageData().catch(() => {});
-    if (this.shown === id) this.shown = null;
   }
 
   /** Shows one pane in the given window area; null bounds hide every pane. */
