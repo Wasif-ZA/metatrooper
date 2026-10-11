@@ -3,6 +3,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
+import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
+import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { DatabaseSync } from 'node:sqlite';
@@ -22,8 +24,6 @@ import { diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
-import { termAck } from './terminals.ts';
-import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { paneData } from '../../core/src/pipelines/panes.ts';
 import { runDetail, runShot } from './rundetail.ts';
 
