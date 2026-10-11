@@ -1,4 +1,5 @@
-export type SessionState = 'starting' | 'working' | 'waiting_for_you' | 'done' | 'idle' | 'unknown' | 'exited';
+export const SESSION_STATES = ['starting', 'working', 'waiting_for_you', 'done', 'idle', 'unknown', 'exited'] as const;
+export type SessionState = (typeof SESSION_STATES)[number];
 
 export interface StateEvent {
   kind: string;
