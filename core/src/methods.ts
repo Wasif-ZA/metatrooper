@@ -284,7 +284,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       const branch = str(p, 'branch', false) || `troop/${ulid().toLowerCase()}`;
       const base = str(p, 'base', false) || 'HEAD';
-      const dir = path.join(homeDir(), 'worktrees', project.id, branch.replace(/[\/]/g, '-'));
+      const dir = path.join(homeDir(), 'worktrees', project.id, branch.replace(/[\\/]/g, '-'));
       fs.mkdirSync(path.dirname(dir), { recursive: true });
       if (fs.existsSync(path.join(dir, '.git'))) {
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());

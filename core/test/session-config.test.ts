@@ -147,3 +147,24 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
   }
   assert.equal(fs.readFileSync(config, 'utf8'), '');
 }));
+
+test('worktree.create keeps a branch with backslashes inside the worktrees folder', () => withHome(async (home) => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { buildMethods } = await import('../src/methods.ts');
+  const list = path.join(home, 'trusted.json');
+  fs.writeFileSync(list, JSON.stringify({ trusted: [] }));
+  const engines = [{ id: 'a', trust: { kind: 'json-list', file: list, at: ['trusted'], path_style: 'posix' } }] as any[];
+  const proj = path.join(home, 'proj');
+  fs.mkdirSync(proj);
+  fs.mkdirSync(path.join(home, 'mt', 'outside', '.git'), { recursive: true });
+  const db = openCoreDb();
+  try {
+    const m = buildMethods(db, { engines: () => engines, stop: () => {}, uiKey: 'k' });
+    const { project_id } = m.get('project.open')!.handler({ path: proj }, { ui: false, origin: 'test' }) as { project_id: string };
+    const branch = ['..', '..', 'outside'].join(String.fromCharCode(92));
+    try { m.get('worktree.create')!.handler({ project_id, branch }, { ui: false, origin: 'test' }); } catch {}
+    assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
+  } finally {
+    db.close();
+  }
+}));
