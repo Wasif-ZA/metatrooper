@@ -227,9 +227,9 @@ function reportPaneBounds() {
 async function startComment() {
   if (!ui.paneId) return;
   toast('Click the element you want to comment on.');
-  const pane = ui.paneId;
-  ui.picking = pane;
-  try { await api.panePick(pane); } finally { if (ui.picking === pane) ui.picking = null; }
+  const pick = { pane: ui.paneId };
+  ui.picking = pick;
+  try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) ui.picking = null; }
 }
 
 
@@ -869,7 +869,7 @@ function switchProject(id) {
   ui.hbLine = null;
   ui.gitFile = false;
   ui.comment = null;
-  if (ui.picking) { void api.panePickCancel(ui.picking); ui.picking = null; }
+  if (ui.picking) { void api.panePickCancel(ui.picking.pane); ui.picking = null; }
   save('projectId', id);
   setView();
 }
