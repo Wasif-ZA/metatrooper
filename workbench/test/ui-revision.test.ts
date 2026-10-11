@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { existsSync, readFileSync, writeFileSync, openSync, closeSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, openSync, closeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { root, runNode, sleep, until } from '../../core/test/helpers.ts';
@@ -180,6 +180,60 @@ test('M6-07a a 50 MB print in one tile keeps another tile echoing under 100 ms',
     durations.sort((a,b)=>a-b);
     t.diagnostic(`echo during flood: median=${durations[10].toFixed(1)} ms, max=${durations[19].toFixed(1)} ms, still flooding at the end: ${flooding}`);
     assert.ok(durations[19]<100,`echo max ${durations[19].toFixed(1)} ms`);
+  } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
+});
+
+test('M6-08 Shift+Enter in an agent tile sends the engine newline (bracketed paste, or ESC CR), never Enter', options, async () => {
+  const fake = `process.stdin.setRawMode?.(true); process.stdin.resume(); process.stdin.on('data',d=>process.stdout.write('RAW:'+JSON.stringify(d.toString())+'\\r\\n'));`;
+  const h = await revisionHarness(undefined, fake); let w;
+  try {
+    const { session_id } = await h.launch('fake');
+    w=await windowFor(h); await select(h, w, session_id);
+    await w.wait('document.querySelector(".tile.on .xterm-screen")');
+    await w.evaluate('document.querySelector(".tile.on .xterm-helper-textarea").focus()');
+    await w.key('Enter','Enter',8);
+    await w.wait('termView.state(20).tail.join("\\n").includes("RAW:")');
+    const tail=await w.evaluate('termView.state(20).tail.join("\\n")');
+    assert.match(tail, /RAW:"\\u001b\[200~\\n\\u001b\[201~"/);
+    assert.doesNotMatch(tail, /RAW:"\\r"/);
+    h.db.prepare("UPDATE engine SET spec_json = json_set(spec_json, '$.shift_enter', 'alt-enter') WHERE id = 'fake'").run();
+    await w.wait('ui.snap.engines.find(e => e.id === "fake")?.shift_enter === "alt-enter"');
+    await w.key('Enter','Enter',8);
+    await w.wait('termView.state(20).tail.join("\\n").includes("RAW:\\"\\\\u001b\\\\r\\"")');
+  } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
+});
+
+test('M6-08 pasting a clipboard image saves a PNG under paste/<session> and pastes its path', options, async () => {
+  const fake = `process.stdin.resume(); process.stdin.on('data',d=>process.stdout.write('RAW:'+JSON.stringify(d.toString())+'\\r\\n'));`;
+  const h = await revisionHarness(undefined, fake); let w;
+  try {
+    const { session_id } = await h.launch('fake');
+    w=await windowFor(h); await select(h, w, session_id);
+    await w.wait('document.querySelector(".tile.on .xterm-screen")');
+    await w.evaluate('document.querySelector(".tile.on .xterm-helper-textarea").focus()');
+    await w.send('Browser.grantPermissions', { permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
+    await w.evaluate(`(async()=>{const c=document.createElement('canvas');c.width=8;c.height=8;c.getContext('2d').fillRect(0,0,8,8);const b=await new Promise(r=>c.toBlob(r,'image/png'));await navigator.clipboard.write([new ClipboardItem({'image/png':b})]);return true})()`);
+    await w.key('v','KeyV',2);
+    await w.wait('termView.state(20).tail.join("").includes(".png")');
+    const dir = join(h.iso.home, 'paste', session_id);
+    const files = readdirSync(dir);
+    assert.equal(files.length, 1);
+    assert.equal(readFileSync(join(dir, files[0])).subarray(1,4).toString(), 'PNG');
+    const tail = (await w.evaluate('termView.state(20).tail.join("")')).replaceAll('\\\\', '\\');
+    assert.ok(tail.includes(files[0]), tail);
+  } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
+});
+
+test('M6-08 paths that exist and URLs in terminal output become links; missing paths do not', options, async () => {
+  const h = await revisionHarness(); let w;
+  try {
+    const { session_id } = await h.launch('ticker');
+    w=await windowFor(h); await select(h, w, session_id);
+    const line = 'see seed.txt:1:2 and nope/missing.ts:3 at https://example.com/x';
+    const links = await w.evaluate(`termView.links(${JSON.stringify(session_id)}, ${JSON.stringify(line)})`);
+    assert.deepEqual(links.map((l: any) => [l.text, l.line, l.col]).sort(), [['https://example.com/x', 1, 1], ['seed.txt:1:2', 1, 2]]);
+    assert.equal(links.find((l: any) => l.text === 'seed.txt:1:2').target.toLowerCase(), join(h.project, 'seed.txt').toLowerCase());
+    assert.equal(await w.evaluate(`window.troop.openLink(${JSON.stringify(join(h.project, 'nope', 'missing.ts'))}, 1, 1)`), false);
   } catch (error) { console.error(error); throw error; } finally { await w?.close(); await h.close(); }
 });
 

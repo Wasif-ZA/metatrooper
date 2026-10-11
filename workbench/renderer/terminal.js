@@ -20,6 +20,32 @@ const termView = (() => {
   let onExit = () => {};
   let onOutput = () => {};
 
+  function shiftEnter(engineId) {
+    const engines = typeof ui !== 'undefined' && ui.snap ? ui.snap.engines : [];
+    return engines.find((x) => x.id === engineId)?.shift_enter || 'paste';
+  }
+
+  const URL_RE = /https?:\/\/[^\s<>"'`)\]]+/g;
+  const PATH_RE = /(?:[A-Za-z]:)?(?:[\\/]?[\w.@-]+[\\/])+[\w.@-]+\.\w{1,8}(?::\d+(?::\d+)?)?|[\w.@-]+\.\w{1,8}:\d+(?::\d+)?/g;
+  const checked = new Map();
+
+  /** URLs and existing file paths (with optional :line:col) in one row of text; paths are checked on disk by the main process. */
+  function linksFor(sessionId, text) {
+    const urls = [...text.matchAll(URL_RE)].map((m) => ({ start: m.index, text: m[0], target: m[0], line: 1, col: 1 }));
+    const inUrl = (i) => urls.some((u) => i >= u.start && i < u.start + u.text.length);
+    const paths = [...text.matchAll(PATH_RE)].filter((m) => !inUrl(m.index)).map((m) => {
+      const [, file, line, col] = m[0].match(/^(.*?)(?::(\d+))?(?::(\d+))?$/);
+      return { start: m.index, text: m[0], file, line: Number(line) || 1, col: Number(col) || 1 };
+    });
+    if (!paths.length) return Promise.resolve(urls);
+    const key = `${sessionId}\n${text}`;
+    if (!checked.has(key)) {
+      if (checked.size > 200) checked.clear();
+      checked.set(key, troop.linkCheck(sessionId, paths.map((p) => p.file)));
+    }
+    return checked.get(key).then((found) => [...urls, ...paths.flatMap((p, i) => (found[i] ? [{ ...p, target: found[i] }] : []))]);
+  }
+
   function xtermTheme() {
     const t = look.theme;
     return { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: `${t.accent}55` };
@@ -38,14 +64,33 @@ const termView = (() => {
     term.open(body);
     const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
     term.onData((data) => { if (!t.closed && !t.outside) troop.termInput(sessionId, data); });
+    term.registerLinkProvider({
+      provideLinks(y, cb) {
+        const text = term.buffer.active.getLine(y - 1)?.translateToString(true) || '';
+        if (!text.trim()) return cb(undefined);
+        linksFor(sessionId, text).then((links) => cb(links.length ? links.map((l) => ({
+          range: { start: { x: l.start + 1, y }, end: { x: l.start + l.text.length, y } },
+          text: l.text,
+          activate: (e) => { if (e.ctrlKey || e.metaKey) void troop.openLink(l.target, l.line, l.col); },
+        })) : undefined), () => cb(undefined));
+      },
+    });
     const copy = () => { const s = term.getSelection(); if (!s) return false; void troop.copyText(s); term.clearSelection(); return true; };
-    const paste = () => troop.readText().then((s) => { if (s) term.paste(s); });
+    const paste = () => troop.readText().then((s) => {
+      if (s) return term.paste(s);
+      return troop.pasteImage(sessionId).then((p) => { if (p) term.paste(/[\s"]/.test(p) ? `"${p}"` : p); });
+    });
     const copyOnRelease = () => { const s = term.getSelection(); if (s) void troop.copyText(s); };
     body.addEventListener('mousedown', (e) => { if (e.button === 0) window.addEventListener('mouseup', copyOnRelease, { once: true }); });
     // The right button never reaches the program: Claude Code would paste it a second, slower time.
     for (const type of ['mousedown', 'mouseup']) body.addEventListener(type, (e) => { if (e.button === 2) e.stopPropagation(); }, true);
     body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); void paste(); });
     term.attachCustomKeyEventHandler((e) => {
+      if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !el.classList.contains('shell')) {
+        if (e.type === 'keydown' && !t.closed && !t.outside) troop.termInput(sessionId, shiftEnter(t.engine) === 'alt-enter' ? '\x1b\r' : '\x1b[200~\n\x1b[201~');
+        e.preventDefault();
+        return false;
+      }
       if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
       const k = e.key.toLowerCase();
       if (k === 'c' && (e.shiftKey || term.hasSelection())) { copy(); e.preventDefault(); return false; }
@@ -111,6 +156,7 @@ const termView = (() => {
     const set = (sel, text) => { const e = t.el.querySelector(sel); if (e.textContent !== text) e.textContent = text; };
     t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
     set('.tile-engine', x.engine_id);
+    t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);
     set('.tile-last', x.last || '');
     set('.tile-state', x.words);
@@ -206,5 +252,5 @@ const termView = (() => {
     });
   }
 
-  return { show, setLook, type, state, timeEcho, tile, refit, ids: () => [...terms.keys()] };
+  return { show, setLook, type, state, timeEcho, tile, refit, links: linksFor, ids: () => [...terms.keys()] };
 })();
