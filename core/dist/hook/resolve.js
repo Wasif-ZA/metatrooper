@@ -16,17 +16,27 @@ function onPath(name        )                {
   return null;
 }
 
-/** Turns a command name into argv that can be spawned without a shell: npm .cmd shims are unwrapped to their target. */
+/** Turns a command name into argv that can be spawned without a shell: npm .cmd shims are unwrapped to their target. Null for a shim that also needs environment variables; resolveLaunch returns those. */
 export function resolveCommand(name        )                  {
+  const r = resolveLaunch(name);
+  return r && Object.keys(r.env).length === 0 ? r.argv : null;
+}
+
+/** resolveCommand plus the environment the shim sets: VS Code's code.cmd runs `..\Code.exe ..\<hash>\resources\app\out\cli.js` with ELECTRON_RUN_AS_NODE=1. */
+export function resolveLaunch(name        )                                                         {
   const explicit = path.isAbsolute(name) || name.includes('/') || name.includes(BS);
   const found = explicit ? (fs.existsSync(name) && fs.statSync(name).isFile() ? name : null) : onPath(name);
   if (!found) return null;
-  if (!/\.(cmd|bat)$/i.test(found)) return [found];
+  if (!/\.(cmd|bat)$/i.test(found)) return { argv: [found], env: {} };
   const text = fs.readFileSync(found, 'utf8');
+  const dir = path.dirname(found);
+  const local = (rel        ) => path.resolve(dir, rel.replace(/^\\/, '').split(BS).join(path.sep));
+  const electron = /^\s*set\s+ELECTRON_RUN_AS_NODE=1\s*$/im.test(text) && /"%~dp0([^"]+\.exe)"\s+"%~dp0([^"]+\.js)"/i.exec(text);
+  if (electron) return { argv: [local(electron[1]), local(electron[2])], env: { ELECTRON_RUN_AS_NODE: '1' } };
   const targets = [...text.matchAll(/"%dp0%\\([^"]+\.(?:js|cjs|mjs|exe))"|%~dp0\\([^"]+\.(?:js|cjs|mjs))"/gi)]
     .map((m) => m[1] ?? m[2])
     .filter((t) => !/(^|\\)node\.exe$/i.test(t));
   if (targets.length === 0) return null;
-  const target = path.join(path.dirname(found), targets[targets.length - 1].split(BS).join(path.sep));
-  return /\.exe$/i.test(target) ? [target] : [process.execPath, target];
+  const target = path.join(dir, targets[targets.length - 1].split(BS).join(path.sep));
+  return { argv: /\.exe$/i.test(target) ? [target] : [process.execPath, target], env: {} };
 }

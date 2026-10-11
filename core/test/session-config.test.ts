@@ -147,3 +147,69 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
   }
   assert.equal(fs.readFileSync(config, 'utf8'), '');
 }));
+
+test('worktree.create keeps a branch with backslashes inside the worktrees folder', () => withHome(async (home) => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { buildMethods } = await import('../src/methods.ts');
+  const list = path.join(home, 'trusted.json');
+  fs.writeFileSync(list, JSON.stringify({ trusted: [] }));
+  const engines = [{ id: 'a', trust: { kind: 'json-list', file: list, at: ['trusted'], path_style: 'posix' } }] as any[];
+  const proj = path.join(home, 'proj');
+  fs.mkdirSync(proj);
+  fs.mkdirSync(path.join(home, 'mt', 'outside', '.git'), { recursive: true });
+  const db = openCoreDb();
+  try {
+    const m = buildMethods(db, { engines: () => engines, stop: () => {}, uiKey: 'k' });
+    const { project_id } = m.get('project.open')!.handler({ path: proj }, { ui: false, origin: 'test' }) as { project_id: string };
+    const branch = ['..', '..', 'outside'].join(String.fromCharCode(92));
+    try { m.get('worktree.create')!.handler({ project_id, branch }, { ui: false, origin: 'test' }); } catch {}
+    assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
+    fs.mkdirSync(path.join(home, 'mt', 'worktrees', project_id, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'mt', 'worktrees', '.git'), { recursive: true });
+    for (const name of ['..', '.']) {
+      assert.throws(() => m.get('worktree.create')!.handler({ project_id, branch: name }, { ui: false, origin: 'test' }), { message: /branch/ }, name);
+    }
+    assert.deepEqual(JSON.parse(fs.readFileSync(list, 'utf8')).trusted, []);
+  } finally {
+    db.close();
+  }
+}));
+
+test('event lookups by session use an index on an existing database', () => withHome(async () => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const db = openCoreDb();
+  try {
+    const plan = (db.prepare("EXPLAIN QUERY PLAN SELECT at FROM event WHERE session_id = ? AND kind NOT LIKE 'term.%' ORDER BY julianday(at) DESC LIMIT 1").all('s') as Array<{ detail: string }>).map((r) => r.detail).join(' ');
+    assert.match(plan, /USING INDEX event_session_idx/);
+  } finally {
+    db.close();
+  }
+}));
+
+test('hook writers commit without a full fsync per event', () => withHome(async () => {
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { openWriterDb } = await import('../src/events/append.ts');
+  openCoreDb().close();
+  const db = openWriterDb()!;
+  try {
+    assert.equal((db.prepare('PRAGMA synchronous').get() as { synchronous: number }).synchronous, 1);
+  } finally {
+    db.close();
+  }
+}));
+
+test('a settings file that is JSON but not an object falls back to defaults and is reported', () => withHome(async (home) => {
+  const { settings, settingsError, setSetting } = await import('../src/settings.ts');
+  const file = path.join(home, 'mt', 'settings.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  let stamp = Date.now() / 1000;
+  for (const body of ['null', '7', '[]']) {
+    fs.writeFileSync(file, body);
+    stamp += 5;
+    fs.utimesSync(file, stamp, stamp);
+    assert.equal(settings().sessions.approval, 'ask', body);
+    assert.equal(settingsError(), 'settings.json is not a JSON object', body);
+    assert.throws(() => setSetting('ui', 'theme', 'charcoal'), /not a JSON object/, body);
+    assert.equal(fs.readFileSync(file, 'utf8'), body);
+  }
+}));

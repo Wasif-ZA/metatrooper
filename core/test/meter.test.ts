@@ -211,3 +211,29 @@ test('H9 a gpt- model without its own price gets the gpt-* fallback, and agy tra
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+test('a transcript line with a value SQLite cannot store is skipped and the lines after it still count', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-meter-bad-'));
+  const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  process.env.METATROOPER_HOME = path.join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { readClaudeTranscript, sessionTokens } = await import('../src/meter.ts');
+  const db = openCoreDb();
+  try {
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s3', 'p', 'claude', 'pty', 'working', 'x', 'x')").run();
+    const file = path.join(home, 'bad.jsonl');
+    const bad = JSON.stringify({ timestamp: 'x', message: { id: 'b1', model: 'claude-sonnet-5-5', usage: { input_tokens: { n: 1 }, output_tokens: 1 } } });
+    const good = JSON.stringify({ timestamp: 'x', message: { id: 'g1', model: 'claude-sonnet-5-5', usage: { input_tokens: 40, output_tokens: 4 } } });
+    fs.writeFileSync(file, `${bad}\n${good}\n`);
+    assert.equal(readClaudeTranscript(db, 's3', file), 1);
+    assert.deepEqual(sessionTokens(db, 's3'), { in: 40, out: 4, cache_read: 0, cache_write: 0 });
+  } finally {
+    db.close();
+    for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});

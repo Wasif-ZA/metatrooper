@@ -127,3 +127,17 @@ test('H9 a codex session started in a worktree links to the rollout whose cwd is
     assert.equal(t.native('c-wt'), CODEX_ID);
   } finally { t.done(); }
 });
+
+test('an exited session is dropped from the activity watch', async () => {
+  const t = await setup();
+  try {
+    const { activitySessions } = await import('../src/sessions/watch.ts');
+    fs.mkdirSync(path.join(t.home, '.gemini', 'antigravity-cli', 'brain', 'conv-one'), { recursive: true });
+    t.addSession('a-exit', 'agy', Date.now() - 1000);
+    t.checkActivity(t.db);
+    assert.ok(activitySessions().includes('a-exit'));
+    t.db.prepare("UPDATE session SET state = 'exited' WHERE id = 'a-exit'").run();
+    t.checkActivity(t.db);
+    assert.equal(activitySessions().includes('a-exit'), false);
+  } finally { t.done(); }
+});

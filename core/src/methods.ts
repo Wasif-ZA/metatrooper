@@ -284,7 +284,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       const branch = str(p, 'branch', false) || `troop/${ulid().toLowerCase()}`;
       const base = str(p, 'base', false) || 'HEAD';
-      const dir = path.join(homeDir(), 'worktrees', project.id, branch.replace(/[\/]/g, '-'));
+      const root = path.join(homeDir(), 'worktrees', project.id);
+      const dir = path.join(root, branch.replace(/[\\/]/g, '-'));
+      if (path.dirname(dir) !== root || dir === root) throw new RpcError(E.INVALID_PARAMS, `branch ${branch} does not name a folder under the worktrees folder`);
       fs.mkdirSync(path.dirname(dir), { recursive: true });
       if (fs.existsSync(path.join(dir, '.git'))) {
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());

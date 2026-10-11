@@ -24,3 +24,8 @@ test('notification_type is kept and the message text is not', () => {
   assert.equal(p.message, undefined);
   assert.equal(p.title, undefined);
 });
+
+test('a secret that contains another secret is redacted whole', async () => {
+  const { redactSecretValues } = await import('../src/redact.ts');
+  assert.equal(redactSecretValues('key abcdefgh end', ['abcd', 'abcdefgh']), 'key [secret] end');
+});

@@ -1,10 +1,12 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { execFileSync } from 'node:child_process';
 import { nowIso, ulid } from '../time.ts';
 import { nextState } from './state.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
-import { claimTurn, labelOf, notice, owners, projectFor, repoOf } from '../sessions/owners.ts';
+import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 
 interface EventRow {
@@ -46,9 +48,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
-  const turnStarts: string[] = [];
-  const turnEnds: Array<[string, number]> = [];
-  const exits: string[] = [];
+  const turns: TurnJob[] = [];
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const ev of rows) {
@@ -79,12 +79,12 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
         }
         const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
-        if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turnEnds.push([ev.session_id, ev.seq]);
+        if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
-          if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); exits.push(ev.session_id); }
+          if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
-          if (next === 'working') turnStarts.push(ev.session_id);
+          if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);
         }
       }
@@ -95,27 +95,50 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     db.exec('ROLLBACK');
     throw e;
   }
-  for (const id of new Set(turnStarts)) markTurnBase(db, id);
-  if (turnEnds.length || exits.length) {
-    const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title]));
-    for (const [id, seq] of turnEnds) try { claimTurn(db, id, seq, titles); } catch {}
-    for (const id of new Set([...exits, ...turnEnds.filter(([id]) => (getSession.get(id) as SessionRow | undefined)?.state === 'idle').map(([id]) => id)])) try { leftBehind(db, id, titles); } catch {}
-    for (const id of new Set(exits)) try { handBack(db, id, titles); } catch {}
+  for (const job of turns) {
+    if (job.kind === 'start') {
+      const snapshot = turnSnapshot(db, job.id);
+      chain(job.id, async () => setTurnBase(db, job.id, await snapshot));
+      continue;
+    }
+    const idle = job.kind === 'end' && (getSession.get(job.id) as SessionRow | undefined)?.state === 'idle';
+    chain(job.id, async () => {
+      const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title]));
+      if (job.kind === 'end') try { await claimTurn(db, job.id, job.seq, titles); } catch {}
+      if (job.kind === 'exit' || idle) try { await leftBehind(db, job.id, titles); } catch {}
+      if (job.kind === 'exit') try { await handBack(db, job.id, titles); } catch {}
+    });
   }
   return rows.length;
 }
 
+interface TurnJob { kind: 'start' | 'end' | 'exit'; id: string; seq: number }
+
+const chains = new Map<string, Promise<void>>();
+
+/** Runs a session's turn jobs one after another in event order; different sessions run side by side. */
+function chain(sessionId: string, job: () => Promise<unknown>): void {
+  const tail = (chains.get(sessionId) ?? Promise.resolve()).then(job).then(() => {}, () => {});
+  chains.set(sessionId, tail);
+  void tail.then(() => { if (chains.get(sessionId) === tail) chains.delete(sessionId); });
+}
+
+/** Resolves once every queued turn job has finished. */
+export async function turnJobsIdle(): Promise<void> {
+  while (chains.size) await Promise.all(chains.values());
+}
+
 /** Paths in the session's repository that it still owns uncommitted. */
-function ownedBy(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): { repo: string; paths: string[] } | null {
+async function ownedBy(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): Promise<{ repo: string; paths: string[] } | null> {
   const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;
-  const repo = repoOf(row?.cwd ?? null);
+  const repo = await repoOfAsync(row?.cwd ?? null);
   if (!repo) return null;
-  return { repo, paths: owners(db, repo, titles).filter((o) => o.owners.some((x) => x.id === sessionId)).map((o) => o.path) };
+  return { repo, paths: (await ownersAsync(db, repo, titles)).filter((o) => o.owners.some((x) => x.id === sessionId)).map((o) => o.path) };
 }
 
 /** A Needs you row when an ended session leaves files it owns uncommitted. */
-function leftBehind(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): void {
-  const owned = ownedBy(db, sessionId, titles);
+async function leftBehind(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): Promise<void> {
+  const owned = await ownedBy(db, sessionId, titles);
   if (!owned?.paths.length) return;
   const n = owned.paths.length;
   db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, 'uncommitted', ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = 'uncommitted' AND resolved_at IS NULL)")
@@ -123,16 +146,16 @@ function leftBehind(db: DatabaseSync, sessionId: string, titles: Record<string, 
 }
 
 /** One notice to the parent of an exited session: its owned paths, whether each is committed, its last line and transcript. */
-function handBack(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): void {
+async function handBack(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): Promise<void> {
   const row = db.prepare('SELECT parent_id, cwd FROM session WHERE id = ?').get(sessionId) as { parent_id: string | null; cwd: string | null } | undefined;
   if (!row?.parent_id) return;
-  const repo = repoOf(row.cwd);
+  const repo = await repoOfAsync(row.cwd);
   const claimed = new Set<string>();
   for (const r of db.prepare("SELECT payload FROM event WHERE kind = 'core.claim' AND session_id = ?").all(sessionId) as Array<{ payload: string }>) {
     try { for (const f of JSON.parse(r.payload).files) claimed.add(f.path); } catch {}
   }
   let dirty = new Set<string>();
-  try { if (repo) dirty = new Set(owners(db, repo, titles).map((o) => o.path)); } catch {}
+  try { if (repo) dirty = new Set((await ownersAsync(db, repo, titles)).map((o) => o.path)); } catch {}
   const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(sessionId) as { t: string } | undefined)?.t;
   const last = liveText()[sessionId]?.line;
   const files = [...claimed].sort().map((f) => `${f} (${dirty.has(f) ? 'uncommitted' : 'committed'})`);
@@ -142,14 +165,31 @@ function handBack(db: DatabaseSync, sessionId: string, titles: Record<string, st
   notice(db, row.parent_id, `child:${sessionId}`, lines.join('\n'));
 }
 
-/** Resolves an open uncommitted row once its session owns no uncommitted path. */
-export function resolveUncommitted(db: DatabaseSync): void {
-  const rows = db.prepare("SELECT id, ref FROM needs_you WHERE kind = 'uncommitted' AND resolved_at IS NULL").all() as Array<{ id: string; ref: string }>;
-  for (const r of rows) {
-    try {
-      const owned = ownedBy(db, r.ref, {});
-      if (!owned || !owned.paths.length) db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ?').run(nowIso(), r.id);
-    } catch {}
+let resolving = false;
+
+/** Resolves an open uncommitted row once its session owns no uncommitted path; git runs off the event loop, one pass at a time, each repo once per pass. */
+export async function resolveUncommitted(db: DatabaseSync): Promise<void> {
+  if (resolving) return;
+  resolving = true;
+  try {
+    const watermark = (db.prepare('SELECT max(seq) AS m FROM event').get() as { m: number | null }).m ?? 0;
+    const rows = db.prepare("SELECT id, ref FROM needs_you WHERE kind = 'uncommitted' AND resolved_at IS NULL").all() as Array<{ id: string; ref: string }>;
+    const repos = new Map<string, Promise<string | null>>();
+    const owned = new Map<string, Promise<OwnedPath[]>>();
+    const claimedSince = db.prepare("SELECT 1 FROM event WHERE kind = 'core.claim' AND session_id = ? AND seq > ? LIMIT 1");
+    const resolve = db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL');
+    for (const r of rows) {
+      try {
+        const cwd = (db.prepare('SELECT cwd FROM session WHERE id = ?').get(r.ref) as { cwd: string | null } | undefined)?.cwd ?? null;
+        if (!repos.has(cwd ?? '')) repos.set(cwd ?? '', repoOfAsync(cwd));
+        const repo = await repos.get(cwd ?? '')!;
+        if (repo && !owned.has(repo)) owned.set(repo, ownersAsync(db, repo));
+        const paths = repo ? await owned.get(repo)! : [];
+        if (!paths.some((o) => o.owners.some((x) => x.id === r.ref)) && !claimedSince.get(r.ref, watermark)) resolve.run(nowIso(), r.id);
+      } catch {}
+    }
+  } finally {
+    resolving = false;
   }
 }
 
@@ -163,12 +203,26 @@ export function resolveSpentNotices(db: DatabaseSync): void {
 }
 
 /** Records what the session's folder looked like when a turn started, so the Diff tab can show only that turn. */
-export function markTurnBase(db: DatabaseSync, sessionId: string): void {
+export async function markTurnBase(db: DatabaseSync, sessionId: string): Promise<void> {
+  setTurnBase(db, sessionId, await turnSnapshot(db, sessionId));
+}
+
+function setTurnBase(db: DatabaseSync, sessionId: string, base: string | null): void {
+  if (base) db.prepare('UPDATE session SET turn_base = ? WHERE id = ?').run(base, sessionId);
+}
+
+/** A commit of the session's folder as it is now, from a copy of the index so the user's index.lock is never taken; null outside a repository. */
+async function turnSnapshot(db: DatabaseSync, sessionId: string): Promise<string | null> {
   const row = db.prepare('SELECT cwd FROM session WHERE id = ?').get(sessionId) as { cwd: string | null } | undefined;
-  if (!row?.cwd) return;
-  const git = (args: string[]) => execFileSync('git', args, { cwd: row.cwd!, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: 5000 }).trim();
+  if (!row?.cwd) return null;
+  const git = async (args: string[], env: Record<string, string> = {}) => (await gitAsync(row.cwd!, args, 5000, env, false)).trim();
+  const index = path.join(os.tmpdir(), `troop-index-${ulid()}`);
   try {
-    const base = git(['stash', 'create']) || git(['rev-parse', 'HEAD']);
-    db.prepare('UPDATE session SET turn_base = ? WHERE id = ?').run(base, sessionId);
-  } catch {}
+    await fs.promises.copyFile(path.resolve(row.cwd, await git(['rev-parse', '--git-path', 'index'])), index);
+    return (await git(['stash', 'create'], { GIT_INDEX_FILE: index })) || (await git(['rev-parse', 'HEAD']));
+  } catch {
+    return null;
+  } finally {
+    await fs.promises.rm(index, { force: true }).catch(() => {});
+  }
 }
