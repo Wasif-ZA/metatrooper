@@ -237,3 +237,41 @@ test('a transcript line with a value SQLite cannot store is skipped and the line
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+test('a resumed codex session reading its old rollout from the start charges only turns after it started', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-meter-resume-'));
+  const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, METATROOPER_HOME: process.env.METATROOPER_HOME };
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  process.env.METATROOPER_HOME = path.join(home, 'mt');
+  const { openCoreDb } = await import('../src/store/db.ts');
+  const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+  const { readCodexSession } = await import('../src/meter.ts');
+  const { execFileSync } = await import('node:child_process');
+  const { pathToFileURL } = await import('node:url');
+  const db = openCoreDb();
+  try {
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+    const thread = '0199aaaa-1111-2222-3333-444455556666';
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, native_id) VALUES ('old', 'p', 'codex', 'pty', 'exited', 'x', '2026-10-11T09:59:00Z', ?)").run(thread);
+    const file = path.join(home, `rollout-x-${thread}.jsonl`);
+    const ev = (at: string, payload: object) => JSON.stringify({ type: 'event_msg', timestamp: at, payload }) + '\n';
+    const turn = (at: string, id: string, input: number, output: number) => ev(at, { type: 'task_started', turn_id: id }) + ev(at, { type: 'token_count', info: { total_token_usage: { input_tokens: input, output_tokens: output } } });
+    fs.writeFileSync(file, turn('2026-10-11T10:00:00Z', 't1', 100, 10) + turn('2026-10-11T10:01:00Z', 't2', 300, 30));
+    readCodexSession(db, 'old', file);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, native_id) VALUES ('new', 'p', 'codex', 'pty', 'working', 'x', '2026-10-11T11:00:00Z', ?)").run(thread);
+    const meter = pathToFileURL(path.resolve(import.meta.dirname, '../src/meter.ts')).href;
+    const store = pathToFileURL(path.resolve(import.meta.dirname, '../src/store/db.ts')).href;
+    const freshRead = () => execFileSync(process.execPath, ['--input-type=module', '-e', `const { openCoreDb } = await import(${JSON.stringify(store)}); const { readCodexSession } = await import(${JSON.stringify(meter)}); const d = openCoreDb(); readCodexSession(d, 'new', ${JSON.stringify(file)}); d.close();`], { env: process.env });
+    const rows = () => db.prepare("SELECT dedupe_key, tokens_in, tokens_out FROM usage WHERE session_id = 'new' ORDER BY dedupe_key").all().map((r: any) => [r.dedupe_key, r.tokens_in, r.tokens_out]);
+    freshRead();
+    assert.deepEqual(rows(), []);
+    fs.appendFileSync(file, turn('2026-10-11T11:05:00Z', 't3', 450, 45));
+    freshRead();
+    assert.deepEqual(rows(), [['codex:new:t3', 150, 15]]);
+  } finally {
+    db.close();
+    for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});
