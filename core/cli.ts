@@ -459,6 +459,10 @@ async function main(): Promise<number> {
       if (repo.code) return repo.code;
       const r = await rpc('session.owners', { project_id: repo.id }, json);
       if (r.code) return r.code;
+      if (!r.result) {
+        console.error('owners needs the core running: start it with `troop start`');
+        return 3;
+      }
       const base = fs.realpathSync.native(a.opts.get('--project') ?? process.cwd());
       const want = a.pos[0] ? relative(repo.root!, resolve(base, a.pos[0])).split('\\').join('/') : '';
       const paths = ((r.result?.paths ?? []) as Array<{ path: string; owners: Array<{ id: string; title: string; state: string }>; shared: boolean; unclaimed: boolean }>)
