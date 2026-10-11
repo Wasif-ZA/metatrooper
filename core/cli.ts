@@ -293,7 +293,7 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
     console.error(`folder not found: ${dir}`);
     return { code: 1 };
   }
-  const opened = await rpc('project.open', { path: dir }, json);
+  const opened = await rpc('project.open', { path: canonical }, json);
   if (opened.code) return { code: opened.code };
   return { code: 0, id: String(opened.result?.project_id ?? projectId(canonical)) };
 }
@@ -412,7 +412,7 @@ async function main(): Promise<number> {
     }
 
     case 'open': {
-      const r = await rpc('project.open', { path: a.pos[0] ?? process.cwd() }, json);
+      const r = await rpc('project.open', { path: resolve(a.pos[0] ?? '.') }, json);
       if (r.result) emit(r.result, String(r.result.project_id));
       return r.code;
     }
