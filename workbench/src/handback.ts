@@ -18,7 +18,7 @@ const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse']);
 export function gitIn(cwd: string): Git {
   return (args) => {
     if (!READ_ONLY.has(args[0])) throw new Error(`git ${args[0]} is not allowed in the hand-back tray`);
-    return exec('git', args, { cwd, encoding: 'utf8', windowsHide: true }).then((r) => r.stdout);
+    return exec('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).then((r) => r.stdout);
   };
 }
 

@@ -30,7 +30,7 @@ export function ownerGroups(changes: GitFile[], owned: OwnedPath[]): OwnerGroup[
 }
 
 export function runIn(cwd: string): Run {
-  return async (args) => (await exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, windowsHide: true })).stdout;
+  return async (args) => (await exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })).stdout;
 }
 
 function counts(out: string): Map<string, [number | null, number | null]> {
