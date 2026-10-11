@@ -34,7 +34,12 @@ test('Claude hooks travel in a per-session settings file and the global settings
   assert.ok(args[0].startsWith('--settings='));
   const file = args[0].slice('--settings='.length);
   assert.equal(path.resolve(file), path.join(home, 'mt', 'mcp', 'S1.settings.json'));
-  const hooks = JSON.parse(fs.readFileSync(file, 'utf8')).hooks;
+  const s1 = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(s1.statusLine);
+  assert.ok(s1.statusLine.command.includes('--user-statusline'));
+  assert.match(s1.statusLine.command, /statusline\.js/);
+  const hooks = s1.hooks;
+  assert.ok(hooks);
   assert.deepEqual(Object.keys(hooks), ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd']);
   assert.equal(hooks.PreToolUse[0].matcher, '*');
   assert.match(hooks.Stop[0].hooks[0].command, /event\.js" claude\.Stop$/);
@@ -42,7 +47,16 @@ test('Claude hooks travel in a per-session settings file and the global settings
   assert.deepEqual(sessionHookArgs({ ...claude, mcp_attach: undefined }, 'S2'), []);
 
   installClaude();
-  assert.deepEqual(sessionHookArgs(claude, 'S3'), []);
+  const args3 = sessionHookArgs(claude, 'S3');
+  assert.equal(args3.length, 1);
+  assert.ok(args3[0].startsWith('--settings='));
+  const file3 = args3[0].slice('--settings='.length);
+  assert.equal(path.resolve(file3), path.join(home, 'mt', 'mcp', 'S3.settings.json'));
+  const s3 = JSON.parse(fs.readFileSync(file3, 'utf8'));
+  assert.ok(s3.statusLine);
+  assert.ok(s3.statusLine.command.includes('--user-statusline'));
+  assert.match(s3.statusLine.command, /statusline\.js/);
+  assert.equal('hooks' in s3, false);
   uninstallClaude();
 }));
 

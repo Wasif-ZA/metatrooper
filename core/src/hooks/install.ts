@@ -92,13 +92,16 @@ function globalClaudeHooks(): boolean {
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
+/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
 export function sessionHookArgs(engine: EngineSpec, sessionId: string): string[] {
   if (engine.mcp_attach?.kind === 'codex-config') return codexNotifyArgs();
-  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag' || globalClaudeHooks()) return [];
+  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return [];
+  const script = path.join(coreDir, 'statusline.js').split(String.fromCharCode(92)).join('/');
+  const settings: Json = { statusLine: { type: 'command', command: `node "${script}" --user-statusline`, padding: 0 } };
+  if (!globalClaudeHooks()) settings.hooks = Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]]));
   const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ hooks: Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]])) }, null, 2) + '\n');
+  fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
   return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
 
