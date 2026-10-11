@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, ulid } from '../time.ts';
 
@@ -14,8 +15,21 @@ const LIVE = "('starting','working','waiting_for_you','done','idle','unknown')";
 
 export const normPath = (p: string) => (process.platform === 'win32' ? p.split('\\').join('/').toLowerCase() : p);
 
+const gitOptions = (cwd: string, timeout: number) => ({ cwd, encoding: 'utf8' as const, windowsHide: true, timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+
 function git(cwd: string, args: string[], timeout = 5000): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+  return execFileSync('git', args, { ...gitOptions(cwd, timeout), stdio: ['ignore', 'pipe', 'ignore'] });
+}
+
+const execFileAsync = promisify(execFile);
+let gitTail: Promise<unknown> = Promise.resolve();
+
+/** Runs git off the event loop, one process at a time: a spawn blocks the loop about 2.5 ms alone and about 10 ms each when several start together. */
+export async function gitAsync(cwd: string, args: string[], timeout = 5000, env: Record<string, string> = {}): Promise<string> {
+  const options = gitOptions(cwd, timeout);
+  const run = gitTail.then(() => execFileAsync('git', args, { ...options, env: { ...options.env, ...env } }));
+  gitTail = run.catch(() => {});
+  return (await run).stdout;
 }
 
 /** The repository root holding `cwd`, or null when it is not in a git work tree. */
@@ -23,6 +37,15 @@ export function repoOf(cwd: string | null): string | null {
   if (!cwd) return null;
   try {
     return git(cwd, ['rev-parse', '--show-toplevel']).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function repoOfAsync(cwd: string | null): Promise<string | null> {
+  if (!cwd) return null;
+  try {
+    return (await gitAsync(cwd, ['rev-parse', '--show-toplevel'])).trim() || null;
   } catch {
     return null;
   }
@@ -40,12 +63,14 @@ export function projectFor(projects: Array<{ id: string; path: string }>, cwd: s
 }
 
 /** Repo-relative paths changed since `turnBase`, plus untracked files modified at or after `sinceMs`. */
-export function turnChanges(repo: string, turnBase: string | null, sinceMs: number): string[] {
+export async function turnChanges(repo: string, turnBase: string | null, sinceMs: number): Promise<string[]> {
+  const [diff, untracked] = await Promise.all([
+    turnBase ? gitAsync(repo, ['diff', '--name-only', '-z', turnBase]) : '',
+    gitAsync(repo, ['ls-files', '--others', '--exclude-standard', '-z', '--full-name']),
+  ]);
   const out = new Set<string>();
-  if (turnBase) {
-    for (const f of git(repo, ['diff', '--name-only', '-z', turnBase]).split('\0')) if (f) out.add(f);
-  }
-  for (const f of git(repo, ['ls-files', '--others', '--exclude-standard', '-z', '--full-name']).split('\0')) {
+  for (const f of diff.split('\0')) if (f) out.add(f);
+  for (const f of untracked.split('\0')) {
     if (!f) continue;
     try {
       if (fs.statSync(path.join(repo, f)).mtimeMs >= sinceMs) out.add(f);
@@ -55,8 +80,18 @@ export function turnChanges(repo: string, turnBase: string | null, sinceMs: numb
 }
 
 /** Uncommitted repo-relative paths, from `git status --porcelain -z`. */
+const STATUS_ARGS = ['status', '--porcelain', '-z', '--untracked-files=all'];
+
 export function dirtyPaths(repo: string): string[] {
-  const parts = git(repo, ['status', '--porcelain', '-z', '--untracked-files=all']).split('\0');
+  return parseStatus(git(repo, STATUS_ARGS));
+}
+
+export async function dirtyPathsAsync(repo: string): Promise<string[]> {
+  return parseStatus(await gitAsync(repo, STATUS_ARGS));
+}
+
+function parseStatus(text: string): string[] {
+  const parts = text.split('\0');
   const out: string[] = [];
   for (let i = 0; i < parts.length; i++) {
     const e = parts[i];
@@ -105,21 +140,12 @@ export function notice(db: DatabaseSync, sessionId: string, key: string, text: s
   return true;
 }
 
-function lastCommitMs(repo: string, file: string): number {
-  try {
-    const t = git(repo, ['log', '-1', '--format=%ct', '--', file]).trim();
-    return t ? Number(t) * 1000 : 0;
-  } catch {
-    return 0;
-  }
-}
-
 interface TurnSession { id: string; cwd: string | null; turn_base: string | null; state: string }
 
-/** Claims the files a session changed in the turn that just ended as one `core.claim` event; null outside a git repository. */
-export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, titles: Record<string, string | undefined> = {}): Claim | null {
+/** Claims the files a session changed in the turn that just ended as one `core.claim` event; null outside a git repository. Git runs async; the claim is written last. */
+export async function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, titles: Record<string, string | undefined> = {}): Promise<Claim | null> {
   const s = db.prepare('SELECT id, cwd, turn_base, state FROM session WHERE id = ?').get(sessionId) as TurnSession | undefined;
-  const repo = repoOf(s?.cwd ?? null);
+  const repo = await repoOfAsync(s?.cwd ?? null);
   if (!s || !repo) return null;
   const start = db.prepare("SELECT seq, at FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.UserPromptSubmit','core.activity','launch') ORDER BY seq DESC LIMIT 1").get(sessionId, endSeq) as { seq: number; at: string } | undefined;
   const end = db.prepare('SELECT at FROM event WHERE seq = ?').get(endSeq) as { at: string } | undefined;
@@ -127,14 +153,20 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
   const at = end?.at ?? nowIso();
   let changed: string[];
   try {
-    const dirty = new Set(dirtyPaths(repo));
-    changed = turnChanges(repo, s.turn_base, Date.parse(from)).filter((f) => dirty.has(f));
+    const [dirtyList, turn] = await Promise.all([dirtyPathsAsync(repo), turnChanges(repo, s.turn_base, Date.parse(from))]);
+    const dirty = new Set(dirtyList);
+    changed = turn.filter((f) => dirty.has(f));
   } catch {
     return null;
   }
   const key = normPath(repo);
-  const others = (db.prepare(`SELECT id, cwd, state FROM session WHERE id != ? AND state IN ${LIVE}`).all(sessionId) as Array<{ id: string; cwd: string | null; state: string }>)
-    .filter((o) => { const r = repoOf(o.cwd); return r !== null && normPath(r) === key; });
+  const live = db.prepare(`SELECT id, cwd, state FROM session WHERE id != ? AND state IN ${LIVE}`).all(sessionId) as Array<{ id: string; cwd: string | null; state: string }>;
+  const repoByCwd = new Map<string, Promise<string | null>>();
+  for (const o of live) if (!repoByCwd.has(o.cwd ?? '')) repoByCwd.set(o.cwd ?? '', repoOfAsync(o.cwd));
+  const repos = await Promise.all(live.map((o) => repoByCwd.get(o.cwd ?? '')!));
+  const others = live.filter((_, i) => repos[i] !== null && normPath(repos[i]!) === key);
+  const times = await commitTimesAsync(repo, changed);
+  // nothing awaits from here to the insert
   const overlapping = others.filter((o) => o.state === 'working' || o.state === 'waiting_for_you'
     || db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind LIKE 'claude.%' AND julianday(at) >= julianday(?) AND julianday(at) <= julianday(?) LIMIT 1").get(o.id, from, at));
   const hints = new Map<string, Set<string>>();
@@ -146,7 +178,7 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
     return hints.get(id)!.has(normPath(path.join(repo, file)));
   };
   const prior = claimsOf(db, repo);
-  const live = new Set(others.map((o) => o.id));
+  const liveIds = new Set(others.map((o) => o.id));
   const files: ClaimFile[] = [];
   for (const f of changed) {
     let owners = [sessionId];
@@ -157,8 +189,8 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
     }
     const before = latestClaim(prior, f);
     if (before) {
-      const still = before.owners.filter((id) => live.has(id) && !owners.includes(id));
-      if (still.length && lastCommitMs(repo, f) < Date.parse(before.at)) owners = [...owners, ...still];
+      const still = before.owners.filter((id) => liveIds.has(id) && !owners.includes(id));
+      if (still.length && (times.get(f) ?? 0) < Date.parse(before.at)) owners = [...owners, ...still];
     }
     files.push({ path: f, owners, shared: owners.length > 1 });
   }
@@ -181,13 +213,73 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
   return claim;
 }
 
+const LOG_ARG_CHARS = 8000;
+
+function claimedPaths(claims: Claim[], dirty: string[]): string[] {
+  return dirty.filter((p) => latestClaim(claims, p));
+}
+
+/** Newest commit time in ms per path from `git log -z --name-only --format=%x01%ct`, which lists newest first. */
+function parseCommitTimes(text: string, into: Map<string, number>): void {
+  let at = 0;
+  for (const token of text.split('\0')) {
+    if (token.startsWith('\x01')) { at = Number(token.slice(1)) * 1000; continue; }
+    const name = token.startsWith('\n') ? token.slice(1) : token;
+    if (name && !into.has(name)) into.set(name, at);
+  }
+}
+
+/** One `git log` per group of paths whose names stay under LOG_ARG_CHARS, well inside the 32,767-character Windows command line. */
+function logBatches(paths: string[]): string[][] {
+  const out: string[][] = [];
+  const flush = (group: string[]) => out.push(['--literal-pathspecs', 'log', '-z', '--no-renames', '--name-only', '--diff-merges=dense-combined', '--format=%x01%ct', '--', ...group]);
+  let group: string[] = [];
+  let chars = 0;
+  for (const p of paths) {
+    if (group.length && chars + p.length + 3 > LOG_ARG_CHARS) { flush(group); group = []; chars = 0; }
+    group.push(p);
+    chars += p.length + 3;
+  }
+  if (group.length) flush(group);
+  return out;
+}
+
+/** Last commit time in ms of each path; a path missing from the map was never committed. The whole history is walked, since --since stops at the first commit with an older date. */
+export function commitTimes(repo: string, paths: string[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const args of logBatches(paths)) {
+    try { parseCommitTimes(git(repo, args), out); } catch {}
+  }
+  return out;
+}
+
+export async function commitTimesAsync(repo: string, paths: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const args of logBatches(paths)) {
+    try { parseCommitTimes(await gitAsync(repo, args), out); } catch {}
+  }
+  return out;
+}
+
 /** Owner of each uncommitted path in `repo`: the latest claim naming it, unless the path was committed after that claim. */
 export function owners(db: DatabaseSync, repo: string, titles: Record<string, string | undefined> = {}): OwnedPath[] {
   const claims = claimsOf(db, repo);
+  const dirty = dirtyPaths(repo);
+  return ownersFrom(db, claims, dirty, commitTimes(repo, claimedPaths(claims, dirty)), titles);
+}
+
+export async function ownersAsync(db: DatabaseSync, repo: string, titles: Record<string, string | undefined> = {}): Promise<OwnedPath[]> {
+  const dirty = await dirtyPathsAsync(repo);
+  const claims = claimsOf(db, repo);
+  return ownersFrom(db, claims, dirty, await commitTimesAsync(repo, claimedPaths(claims, dirty)), titles);
+}
+
+/** owners() once the git facts are in hand: `times` holds each claimed path's last commit time in ms. */
+export function ownersFrom(db: DatabaseSync, claims: Claim[], dirty: string[], times: Map<string, number>, titles: Record<string, string | undefined> = {}): OwnedPath[] {
   const session = db.prepare('SELECT state FROM session WHERE id = ?');
-  return dirtyPaths(repo).map((p) => {
+  return dirty.map((p) => {
     const c = latestClaim(claims, p);
-    if (!c || lastCommitMs(repo, p) >= Date.parse(c.at)) return { path: p, owners: [], shared: false, unclaimed: true };
+    if (!c || (times.get(p) ?? 0) >= Date.parse(c.at)) return { path: p, owners: [], shared: false, unclaimed: true };
     const list = c.owners.map((id) => ({ id, title: labelOf(db, id, titles), state: (session.get(id) as { state: string } | undefined)?.state ?? 'unknown' }));
     return { path: p, owners: list, shared: c.shared, unclaimed: false };
   });

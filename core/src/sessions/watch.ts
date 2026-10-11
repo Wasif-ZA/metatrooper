@@ -45,6 +45,10 @@ interface Activity {
 
 const activity = new Map<string, Activity>();
 
+export function activitySessions(): string[] {
+  return [...activity.keys()];
+}
+
 function codexHome(): string {
   return path.join(os.homedir(), '.codex', 'sessions');
 }
@@ -197,6 +201,8 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
        WHERE s.state != 'exited' AND s.engine_id IN ('codex','agy')`,
     )
     .all() as unknown as SessionRow[];
+  const open = new Set(rows.map((s) => s.id));
+  for (const id of activity.keys()) if (!open.has(id)) activity.delete(id);
   for (const s of rows) {
     let a = activity.get(s.id);
     if (!a || !a.file) {

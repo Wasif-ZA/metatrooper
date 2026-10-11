@@ -17,7 +17,7 @@ export function openWriterDb(busyMs = 200)                      {
   const file = dbFile();
   if (!fs.existsSync(file)) return null;
   const db = new DatabaseSync(file);
-  db.exec(`PRAGMA busy_timeout = ${busyMs};`);
+  db.exec(`PRAGMA busy_timeout = ${busyMs}; PRAGMA synchronous = NORMAL;`);
   return db;
 }
 

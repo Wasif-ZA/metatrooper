@@ -159,6 +159,6 @@ export function notifyText(kind        , text        )         {
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
 export function redactSecretValues(text        , values                  )         {
   let out = text;
-  for (const v of values) if (v.length >= 4) out = out.split(v).join('[secret]');
+  for (const v of [...values].sort((a, b) => b.length - a.length)) if (v.length >= 4) out = out.split(v).join('[secret]');
   return out;
 }

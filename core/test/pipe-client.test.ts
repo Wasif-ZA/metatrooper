@@ -29,3 +29,38 @@ test('a slow UI call waits for its reply and is never queued; UI clicks are not 
     await new Promise<void>((r) => server.close(() => r()));
   }
 });
+
+test('a finished call leaves no timer that keeps the process alive', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const script = [
+    "const net = await import('node:net');",
+    "const { call } = await import('./src/pipe/client.ts');",
+    "const { corePipe } = await import('./src/paths.ts');",
+    "const { encode, createDecoder } = await import('./src/pipe/framing.ts');",
+    "const server = net.createServer((s) => s.on('data', createDecoder((m) => s.end(encode({ jsonrpc: '2.0', id: m.id, result: {} })))));",
+    'await new Promise((r) => server.listen(corePipe(), r));',
+    "const out = await call('core.ping');",
+    'server.close();',
+    'console.log(out.kind);',
+  ].join('\n');
+  const env = { ...process.env, METATROOPER_HOME: path.join(os.tmpdir(), `mt-client-${randomUUID()}`), METATROOPER_PIPE_PREFIX: `mt-client-${randomUUID()}` };
+  const started = Date.now();
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: path.join(import.meta.dirname, '..'), env, encoding: 'utf8', timeout: 20_000 });
+  assert.equal(r.stdout.trim(), 'reply');
+  assert.ok(Date.now() - started < 10_000, `process lingered ${Date.now() - started} ms`);
+});
+
+test('a browser call fails at once when the browser drops the connection', async () => {
+  process.env.METATROOPER_PIPE_PREFIX = `mt-client-${randomUUID()}`;
+  const { browserCall } = await import('../src/browser/client.ts');
+  const { browserPipe } = await import('../src/paths.ts');
+  const server = net.createServer((s) => s.once('data', () => s.end()));
+  await new Promise<void>((r) => server.listen(browserPipe(), r));
+  try {
+    const started = Date.now();
+    await assert.rejects(browserCall('k', 'browser.capture', {}, 5000), (e: Error) => !/timed out/.test(e.message));
+    assert.ok(Date.now() - started < 2000);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+});
