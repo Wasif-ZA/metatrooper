@@ -77,7 +77,9 @@ const termView = (() => {
     t.attachMs = null;
     t.closed = false;
     t.el.classList.remove('closed');
-    void troop.termAttach(t.id, t.term.cols, t.term.rows);
+    void troop.termAttach(t.id, t.term.cols, t.term.rows).then((r) => {
+      if (r && r.windows_build && !t.term.options.windowsPty?.backend) t.term.options.windowsPty = { backend: 'conpty', buildNumber: r.windows_build };
+    });
   }
 
   function drop(sessionId) {
@@ -89,13 +91,18 @@ const termView = (() => {
     terms.delete(sessionId);
   }
 
+  const acks = new Map();
+  function ack(sessionId, n) {
+    if (!acks.size) setTimeout(() => { for (const [id, bytes] of acks) void troop.termAck(id, bytes); acks.clear(); }, 0);
+    acks.set(sessionId, (acks.get(sessionId) || 0) + n);
+  }
+
   troop.onTerm((sessionId, m) => {
     const t = terms.get(sessionId);
     if (!t) return;
-    if (m.op === 'snapshot') { t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); }); }
-    else if (m.op === 'output') { t.term.write(m.data); onOutput(sessionId, m.data.length); }
+    if (m.op === 'snapshot') { t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); ack(sessionId, m.data.length); }); }
+    else if (m.op === 'output') { t.term.write(m.data, () => ack(sessionId, m.data.length)); onOutput(sessionId, m.data.length); }
     else if (m.op === 'exit') { t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
-    else if (m.op === 'error' && m.code === 'slow-viewer') attach(t);
     else if (m.op === 'error' && m.code === 'no-session') t.term.write('\r\n[this session is not running]\r\n');
     else if (m.op === 'closed' && !t.closed) { t.closed = true; t.el.classList.add('closed'); t.term.write('\r\n[disconnected from the core]\r\n'); }
   });

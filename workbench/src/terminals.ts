@@ -37,6 +37,11 @@ export function termInput(sessionId: string, data: string): void {
   conns.get(sessionId)?.write(JSON.stringify({ op: 'input', data }) + '\n');
 }
 
+export function termAck(sessionId: string, bytes: number): void {
+  conns.get(sessionId)?.write(JSON.stringify({ op: 'ack', bytes }) + '
+');
+}
+
 export function termResize(sessionId: string, cols: number, rows: number): void {
   conns.get(sessionId)?.write(JSON.stringify({ op: 'resize', cols, rows }) + '\n');
 }

@@ -190,7 +190,8 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
 
 - NDJSON, UTF-8, one JSON object per line. One session per connection; a tile grid of 6 opens 6 connections.
 - Client to server: `{"op":"attach","session":"<id>","cols":120,"rows":40,"ui_key":"<ui.key>"}` first, then any
-  of `{"op":"input","data":"<string>"}`, `{"op":"resize","cols":N,"rows":N}`, `{"op":"detach"}`.
+  of `{"op":"input","data":"<string>"}`, `{"op":"resize","cols":N,"rows":N}`, `{"op":"ack","bytes":N}`,
+  `{"op":"detach"}`.
 - `attach` carries the ui key because input types into an agent, which is as strong as approving a gate. A
   wrong key gets `{"op":"error","code":"needs-ui"}` and the connection closes.
 - Server to client: `{"op":"snapshot","seq":0,"data":"<serialized terminal>"}` once, then
@@ -200,8 +201,13 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   taken, and only output the snapshot does not hold is sent after it.
 - `output` data is split on code-point boundaries, at most 64 KiB per message, written to xterm.js in `seq`
   order. No reassembly.
-- Slow viewer: more than 4 MiB unsent gets `{"op":"error","code":"slow-viewer"}` and the connection closes. The
-  window reattaches and gets a fresh snapshot. The pty never waits for a viewer.
+- Byte credit (M6-7): the client sends `ack` with the `data` length (UTF-16 code units) of each `snapshot` and
+  `output` once xterm.js has written it. The server keeps at most 64 KiB unacknowledged per connection and holds
+  the rest. When more than 1 MiB is held, the held output is dropped and, once the client's acks bring it back
+  under 64 KiB, the server sends a fresh `snapshot` (the client resets on it). The pty never waits for a viewer.
+- The core pauses a pty while its headless terminal is more than 1 MiB of output behind and resumes it under
+  256 KiB. With no viewer attached, replies the headless terminal generates to a program's queries go back to
+  the pty; with a viewer attached, the viewer answers.
 - An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
   ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;

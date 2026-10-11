@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('troop', {
   setApproval: (value) => ipcRenderer.invoke('setApproval', value),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
   termResize: (sessionId, cols, rows) => ipcRenderer.invoke('termResize', sessionId, cols, rows),
+  termAck: (sessionId, bytes) => ipcRenderer.invoke('termAck', sessionId, bytes),
   termDetach: (sessionId) => ipcRenderer.invoke('termDetach', sessionId),
   onTerm: (fn) => {
     const listener = (_e, sessionId, msg) => fn(sessionId, msg);

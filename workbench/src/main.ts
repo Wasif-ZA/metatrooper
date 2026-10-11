@@ -19,7 +19,8 @@ import { gitIn, handback } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { owners, repoOf } from '../../core/src/sessions/owners.ts';
 import { diffLineBody, filesBody } from './comments.ts';
-import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
+import { attachTerm, detachTerm, termAck, termInput, termResize } from './terminals.ts';
+import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { activeTheme, settings, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
 import { paneData } from '../../core/src/pipelines/panes.ts';
@@ -524,7 +525,7 @@ function handlers(): void {
   on('termAttach', (sessionId: unknown, cols: unknown, rows: unknown) => {
     if (typeof sessionId !== 'string') return false;
     attachTerm(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows), (sid, msg) => { if (win && !win.isDestroyed()) win.webContents.send('term', sid, msg); });
-    return true;
+    return { windows_build: windowsBuild() };
   });
   on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
   on('setTheme', (name: unknown) => {
@@ -539,6 +540,7 @@ function handlers(): void {
   });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
+  on('termAck', (sessionId: unknown, bytes: unknown) => { if (typeof sessionId === 'string' && typeof bytes === 'number') termAck(sessionId, bytes); });
   on('termDetach', (sessionId: unknown) => { if (typeof sessionId === 'string') detachTerm(sessionId); });
 
   on('readText', () => clipboard.readText());

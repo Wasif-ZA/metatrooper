@@ -267,52 +267,6 @@ test('5 splitChunks respects its maximum without splitting a surrogate pair', ()
   }
 });
 
-test('6 a terminal viewer that does not read is dropped with slow-viewer at the configured limit', async () => {
-  writeTerminalSettings({ scrollback: 8_000, chunk_bytes: 4096, slow_viewer_bytes: 1024, bell_silent_ms: 80 });
-  const { settings } = await import('../src/settings.ts');
-  assert.equal(settings().terminal.slow_viewer_bytes, 1024);
-  const prefix = `slow-${randomUUID().replaceAll('-', '')}`;
-  const path = pipePath(`${prefix}-term`);
-  const key = 'slow-key';
-  const id = `slow-${randomUUID()}`;
-  const flood = "for(let i=0;i<7000;i++)process.stdout.write(`${String(i).padStart(4,'0')}-${'x'.repeat(980)}\\r\\n`);setInterval(()=>{},1000)";
-  term.open(id, [process.execPath, '-e', flood], moduleHome.home, process.env, 1000, 24);
-  const server = await termPipe.startTermServer(path, key);
-  let socket: Socket | undefined;
-  try {
-    await until(async () => ((await term.snapshot(id))?.length ?? 0) > 5_000_000, 10_000);
-    socket = connect(path);
-    await new Promise<void>((resolve, reject) => {
-      socket!.once('connect', resolve);
-      socket!.once('error', reject);
-    });
-    let closed = false;
-    let received = '';
-    socket.on('close', () => { closed = true; });
-    socket.setEncoding('utf8');
-    socket.on('data', (chunk) => {
-      received += chunk;
-      socket!.pause();
-      setTimeout(() => socket?.resume(), 25);
-    });
-    socket.write(JSON.stringify({ op: 'attach', session: id, cols: 1000, rows: 24, ui_key: key }) + '\n');
-    try {
-      await until(() => received.includes('"code":"slow-viewer"'), 8000);
-    } catch (cause) {
-      throw new Error(`slow-viewer was not sent after the client received ${received.length} characters (closed=${closed})`, { cause });
-    }
-    assert.match(received, /"op":"error","code":"slow-viewer"/);
-    await until(() => closed, 3000);
-  } finally {
-    socket?.destroy();
-    term.kill(id);
-    await until(() => !term.has(id), 5000);
-    await closeServer(server);
-    if (process.platform !== 'win32') rmSync(path, { force: true });
-    writeTerminalSettings({ scrollback: 200, chunk_bytes: 16, slow_viewer_bytes: 4 * 1024 * 1024, bell_silent_ms: 80 });
-  }
-});
-
 test('7 bells count only after non-terminal silence, then output returns waiting_for_you to working', async () => {
   writeTerminalSettings({ scrollback: 20, chunk_bytes: 16, slow_viewer_bytes: 4 * 1024 * 1024, bell_silent_ms: 500 });
   const { openCoreDb } = await import('../src/store/db.ts');
