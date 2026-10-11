@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { projectId, resolveProjectPath } from '../src/project.ts';
 import { harness, isolation, root } from './helpers.ts';
 
@@ -25,5 +26,20 @@ test('troop owners with the core offline says so instead of printing (none)', as
     const r = spawnSync(process.execPath, [cli, 'owners'], { cwd: root, env: iso.env, encoding: 'utf8', windowsHide: true });
     assert.equal(r.status, 3, r.stdout);
     assert.doesNotMatch(r.stdout, /\(none\)/);
+  } finally { rmSync(iso.home, { recursive: true, force: true }); }
+});
+
+test('offline, launch --worktree and owners queue nothing that has a side effect or needs a reply', async () => {
+  const iso = isolation();
+  try {
+    for (const args of [['launch', 'claude', '--worktree', 'b'], ['owners']]) {
+      const r = spawnSync(process.execPath, [cli, ...args], { cwd: root, env: iso.env, encoding: 'utf8', windowsHide: true });
+      assert.equal(r.status, 3, r.stderr);
+    }
+    const db = new DatabaseSync(join(iso.home, 'troop.db'), { readOnly: true });
+    try {
+      const methods = (db.prepare('SELECT method FROM command').all() as Array<{ method: string }>).map((x) => x.method);
+      assert.deepEqual(methods.filter((m) => m !== 'project.open'), []);
+    } finally { db.close(); }
   } finally { rmSync(iso.home, { recursive: true, force: true }); }
 });
