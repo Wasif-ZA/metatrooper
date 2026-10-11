@@ -28,6 +28,8 @@ import { refreshRowGit, rowGit } from './rowgit.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
+app.on('render-process-gone', (_e, wc, d) => console.error(`render-process-gone ${d.reason} exit ${d.exitCode} ${wc.getURL().slice(0, 200)}`));
+app.on('child-process-gone', (_e, d) => console.error(`child-process-gone ${d.type} ${d.reason} exit ${d.exitCode}`));
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
