@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, ulid } from '../time.ts';
 
@@ -14,8 +15,16 @@ const LIVE = "('starting','working','waiting_for_you','done','idle','unknown')";
 
 export const normPath = (p: string) => (process.platform === 'win32' ? p.split('\\').join('/').toLowerCase() : p);
 
+const gitOptions = (cwd: string, timeout: number) => ({ cwd, encoding: 'utf8' as const, windowsHide: true, timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+
 function git(cwd: string, args: string[], timeout = 5000): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+  return execFileSync('git', args, { ...gitOptions(cwd, timeout), stdio: ['ignore', 'pipe', 'ignore'] });
+}
+
+const execFileAsync = promisify(execFile);
+
+async function gitAsync(cwd: string, args: string[], timeout = 5000): Promise<string> {
+  return (await execFileAsync('git', args, gitOptions(cwd, timeout))).stdout;
 }
 
 /** The repository root holding `cwd`, or null when it is not in a git work tree. */
@@ -23,6 +32,15 @@ export function repoOf(cwd: string | null): string | null {
   if (!cwd) return null;
   try {
     return git(cwd, ['rev-parse', '--show-toplevel']).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function repoOfAsync(cwd: string | null): Promise<string | null> {
+  if (!cwd) return null;
+  try {
+    return (await gitAsync(cwd, ['rev-parse', '--show-toplevel'])).trim() || null;
   } catch {
     return null;
   }
@@ -55,8 +73,18 @@ export function turnChanges(repo: string, turnBase: string | null, sinceMs: numb
 }
 
 /** Uncommitted repo-relative paths, from `git status --porcelain -z`. */
+const STATUS_ARGS = ['status', '--porcelain', '-z', '--untracked-files=all'];
+
 export function dirtyPaths(repo: string): string[] {
-  const parts = git(repo, ['status', '--porcelain', '-z', '--untracked-files=all']).split('\0');
+  return parseStatus(git(repo, STATUS_ARGS));
+}
+
+export async function dirtyPathsAsync(repo: string): Promise<string[]> {
+  return parseStatus(await gitAsync(repo, STATUS_ARGS));
+}
+
+function parseStatus(text: string): string[] {
+  const parts = text.split('\0');
   const out: string[] = [];
   for (let i = 0; i < parts.length; i++) {
     const e = parts[i];
@@ -181,13 +209,79 @@ export function claimTurn(db: DatabaseSync, sessionId: string, endSeq: number, t
   return claim;
 }
 
+const PATHS_PER_LOG = 200;
+
+/** The dirty paths some claim names, and the oldest of those claims' times in ms (NaN when there is none). */
+function claimedPaths(claims: Claim[], dirty: string[]): { paths: string[]; since: number } {
+  const paths: string[] = [];
+  let since = NaN;
+  for (const p of dirty) {
+    const c = latestClaim(claims, p);
+    if (!c) continue;
+    paths.push(p);
+    const at = Date.parse(c.at);
+    if (Number.isNaN(since) || at < since) since = at;
+  }
+  return { paths, since };
+}
+
+/** Newest commit time in ms per path from `git log -z --name-only --format=%x01%ct`, which lists newest first. */
+function parseCommitTimes(text: string, into: Map<string, number>): void {
+  let at = 0;
+  for (const token of text.split('\0')) {
+    if (token.startsWith('\x01')) { at = Number(token.slice(1)) * 1000; continue; }
+    const name = token.startsWith('\n') ? token.slice(1) : token;
+    if (name && !into.has(name)) into.set(name, at);
+  }
+}
+
+function logBatches(paths: string[], sinceMs: number): string[][] {
+  if (Number.isNaN(sinceMs)) return [];
+  const out: string[][] = [];
+  for (let i = 0; i < paths.length; i += PATHS_PER_LOG) {
+    out.push(['log', '-z', '--no-renames', '--name-only', '--diff-merges=dense-combined', '--format=%x01%ct', `--since=${Math.floor(sinceMs / 1000) - 1}`, '--', ...paths.slice(i, i + PATHS_PER_LOG)]);
+  }
+  return out;
+}
+
+/** Last commit time in ms of each path committed since `sinceMs`; a path missing from the map counts as never committed. */
+export function commitTimes(repo: string, paths: string[], sinceMs: number): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const args of logBatches(paths, sinceMs)) {
+    try { parseCommitTimes(git(repo, args), out); } catch {}
+  }
+  return out;
+}
+
+export async function commitTimesAsync(repo: string, paths: string[], sinceMs: number): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const args of logBatches(paths, sinceMs)) {
+    try { parseCommitTimes(await gitAsync(repo, args), out); } catch {}
+  }
+  return out;
+}
+
 /** Owner of each uncommitted path in `repo`: the latest claim naming it, unless the path was committed after that claim. */
 export function owners(db: DatabaseSync, repo: string, titles: Record<string, string | undefined> = {}): OwnedPath[] {
   const claims = claimsOf(db, repo);
+  const dirty = dirtyPaths(repo);
+  const { paths, since } = claimedPaths(claims, dirty);
+  return ownersFrom(db, claims, dirty, commitTimes(repo, paths, since), titles);
+}
+
+export async function ownersAsync(db: DatabaseSync, repo: string, titles: Record<string, string | undefined> = {}): Promise<OwnedPath[]> {
+  const dirty = await dirtyPathsAsync(repo);
+  const claims = claimsOf(db, repo);
+  const { paths, since } = claimedPaths(claims, dirty);
+  return ownersFrom(db, claims, dirty, await commitTimesAsync(repo, paths, since), titles);
+}
+
+/** owners() once the git facts are in hand: `times` holds each claimed path's last commit time in ms. */
+export function ownersFrom(db: DatabaseSync, claims: Claim[], dirty: string[], times: Map<string, number>, titles: Record<string, string | undefined> = {}): OwnedPath[] {
   const session = db.prepare('SELECT state FROM session WHERE id = ?');
-  return dirtyPaths(repo).map((p) => {
+  return dirty.map((p) => {
     const c = latestClaim(claims, p);
-    if (!c || lastCommitMs(repo, p) >= Date.parse(c.at)) return { path: p, owners: [], shared: false, unclaimed: true };
+    if (!c || (times.get(p) ?? 0) >= Date.parse(c.at)) return { path: p, owners: [], shared: false, unclaimed: true };
     const list = c.owners.map((id) => ({ id, title: labelOf(db, id, titles), state: (session.get(id) as { state: string } | undefined)?.state ?? 'unknown' }));
     return { path: p, owners: list, shared: c.shared, unclaimed: false };
   });

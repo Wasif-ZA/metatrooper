@@ -312,3 +312,33 @@ test('claims from other repositories never push a still-dirty file out of the ow
     assert.ok(warned.ms < 240, `hook took ${Math.round(warned.ms)} ms`);
   } finally { await h.teardown(); }
 });
+
+test('batched commit times match one git log per file, including a file last changed by a conflict-resolving merge', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { commitTimes } = await import('../src/sessions/owners.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'troop-ctimes-'));
+  try {
+    gitRepo(dir, { 'a.txt': 'base\n', 'b.txt': 'base\n' });
+    const t0 = Math.floor(Date.now() / 1000) - 3600;
+    const at = (s: number) => ({ ...process.env, GIT_AUTHOR_DATE: `${t0 + s} +0000`, GIT_COMMITTER_DATE: `${t0 + s} +0000` });
+    const git = (s: number, ...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore', env: at(s) });
+    git(10, 'checkout', '-q', '-b', 'side');
+    writeFileSync(join(dir, 'a.txt'), 'side\n');
+    git(10, 'commit', '-qam', 'side');
+    git(20, 'checkout', '-q', 'main');
+    writeFileSync(join(dir, 'a.txt'), 'main\n');
+    writeFileSync(join(dir, 'b.txt'), 'main\n');
+    git(20, 'commit', '-qam', 'main');
+    try { git(30, 'merge', '-q', 'side'); } catch {}
+    writeFileSync(join(dir, 'a.txt'), 'resolved\n');
+    git(30, 'commit', '-qam', 'merge');
+    const files = ['a.txt', 'b.txt'];
+    const single = Object.fromEntries(files.map((f) => [f, Number(execFileSync('git', ['log', '-1', '--format=%ct', '--', f], { cwd: dir, encoding: 'utf8' }).trim()) * 1000]));
+    assert.equal(single['a.txt'], (t0 + 30) * 1000);
+    const batch = commitTimes(dir, files, t0 * 1000);
+    assert.deepEqual(Object.fromEntries(files.map((f) => [f, batch.get(f)])), single);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
