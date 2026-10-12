@@ -97,14 +97,23 @@ export function summaryOf(p: CheckParams): string {
   return redactCredentials(`${verb} ${what || 'the page'} in ${where}`.replace(/\s+/g, ' ').trim()).slice(0, 300);
 }
 
+export interface ApprovalHooks {
+  /** The take-over flag for this session (D62). */
+  paused?: (sessionId: string) => boolean;
+  /** Whether a desktop target is a live grant of this session. */
+  granted?: (sessionId: string, target: string) => boolean;
+}
+
 export class Approvals {
   private db: DatabaseSync;
   private timeoutMs: number;
+  private hooks: ApprovalHooks;
   private waiters = new Map<string, (d: 'approved' | 'rejected' | 'expired') => void>();
 
-  constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS) {
+  constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS, hooks: ApprovalHooks = {}) {
     this.db = db;
     this.timeoutMs = timeoutMs;
+    this.hooks = hooks;
     for (const r of db.prepare("SELECT id FROM approval WHERE status = 'waiting'").all() as Array<{ id: string }>) this.finish(r.id, 'expired');
   }
 
@@ -123,6 +132,8 @@ export class Approvals {
     const hash = actionHash(p);
     if (p.action_hash !== undefined && p.action_hash !== hash) throw new RpcError(E.INVALID_PARAMS, 'action_hash does not match the action');
     if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(p.session_id)) return { decision: 'deny', reason: 'unknown or ended session' };
+    if (this.hooks.paused?.(p.session_id)) return { decision: 'deny', reason: 'paused by the user' };
+    if (p.surface === 'desktop' && this.hooks.granted && !this.hooks.granted(p.session_id, p.target)) return { decision: 'deny', reason: 'window not granted; ask the user to give it to you' };
     const reason = riskReason(p);
     if (!reason) return { decision: 'allow' };
     const control = p.control ? redactCredentials(canonicalJson(p.control)) : null;

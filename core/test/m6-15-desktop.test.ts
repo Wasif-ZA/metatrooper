@@ -1,0 +1,268 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { client, isolation, root, sleep, startCore, stopCore, teardownCore, uiHello, until } from './helpers.ts';
+import { covers, sameWindow, type GrantRow, type WindowInfo } from '../src/grants.ts';
+import { isQueueable } from '../src/pipe/commands.ts';
+import { migrate } from '../src/store/db.ts';
+
+const UI_PID = 999_001;
+const NOTEPAD = { hwnd: 100, pid: 4100, process_start: '2026-10-12T01:00:00.000Z', exe: 'Notepad.exe', title: 'Untitled - Notepad', controls: [{ role: 'document', name: 'Text editor', automation_id: 'RichEditD2DPT' }, { role: 'menuitem', name: 'File', automation_id: 'File' }] };
+const SAVE_AS = { hwnd: 101, owner: 100, pid: 4100, process_start: NOTEPAD.process_start, exe: 'Notepad.exe', title: 'Save as', class: '#32770', file_dialog: true, controls: [{ role: 'edit', name: 'File name:', automation_id: '1001' }, { role: 'button', name: 'Save', automation_id: '1' }] };
+const CALC = { hwnd: 200, pid: 4200, process_start: '2026-10-12T01:00:01.000Z', exe: 'CalculatorApp.exe', title: 'Calculator', controls: [{ role: 'button', name: 'Seven', automation_id: 'num7Button' }] };
+const WORKBENCH = { hwnd: 300, pid: UI_PID, process_start: '2026-10-12T00:59:00.000Z', exe: 'electron.exe', title: 'MetaTrooper', controls: [] };
+
+function setup(windows: object[], delayMs = 0) {
+  const iso = isolation();
+  const statePath = join(iso.home, 'fake-uia.json');
+  const logPath = join(iso.home, 'fake-uia.log');
+  writeFileSync(statePath, JSON.stringify({ windows }));
+  iso.env = { ...iso.env, METATROOPER_UIA_HELPER: join(root, 'core', 'test', 'fake-uia-helper.js'), FAKE_UIA_STATE: statePath, FAKE_UIA_LOG: logPath, FAKE_UIA_DELAY_MS: String(delayMs) };
+  const setWindows = (w: object[]) => writeFileSync(statePath, JSON.stringify({ windows: w }));
+  const inputs = () => (existsSync(logPath) ? readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+  return { iso, setWindows, inputs };
+}
+
+/** Two live sessions whose launcher pid is this test process, so the core's ancestry check passes. */
+function seed(home: string) {
+  const db = new DatabaseSync(join(home, 'troop.db'));
+  db.exec('PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = OFF');
+  const now = new Date().toISOString();
+  db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p1', '/p1', 'p1', ?, ?)").run(now, now);
+  for (const id of ['s1', 's2']) db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, hidden, started_at, pid) VALUES (?, 'p1', 'fake', 'pty', 'working', ?, 0, ?, ?)").run(id, now, now, process.pid);
+  return db;
+}
+
+/** Clears the seeded pids, since teardownCore kills session pids and these name the test process itself. */
+function release(db: DatabaseSync) {
+  db.prepare('UPDATE session SET pid = NULL').run();
+  db.close();
+}
+
+const call = (pipe: any, method: string, params: object, timeout = 15_000) => pipe.request(method, params, { timeout });
+const me = (session_id: string) => ({ session_id, pid: process.pid });
+
+async function connect(iso: any) {
+  const agent = await client(iso.prefix);
+  const ui = await client(iso.prefix);
+  await uiHello(ui, iso.home);
+  assert.deepEqual((await call(ui, 'desktop.ui-window', { pid: UI_PID })).result, {});
+  return { agent, ui };
+}
+
+/** Describes, checks, then acts, as metatrooper-desktop does; returns the act reply. */
+async function act(agent: any, session_id: string, params: Record<string, unknown>) {
+  const d = await call(agent, 'desktop.describe', { ...me(session_id), window: params.window, ref: params.ref });
+  if (d.error) return d;
+  const expect = { ...(d.result.control ?? {}), password: d.result.password, file_dialog: d.result.file_dialog, grant_id: d.result.grant_id };
+  return call(agent, 'desktop.act', { ...me(session_id), ...params, expect }, 60_000);
+}
+
+test('M6-15 unit: a grant covers its window and owned windows with the same pid and process start, nothing else', () => {
+  const g: GrantRow = { id: 'gr_1', session_id: 's1', hwnd: 100, pid: 1, process_start: 't0', exe: 'a.exe', title: 'A', created_at: 't', ended_at: null };
+  const w = (o: Partial<WindowInfo>): WindowInfo => ({ alive: true, hwnd: 100, root: 100, pid: 1, process_start: 't0', exe: 'a.exe', title: 'A', class: '', owner_chain: [], file_dialog: false, elevated: false, rect: [0, 0, 1, 1], minimized: false, ...o });
+  assert.equal(covers(g, w({})), true);
+  assert.equal(covers(g, w({ hwnd: 101, root: 101, owner_chain: [100] })), true, 'owned dialog');
+  assert.equal(covers(g, w({ hwnd: 102, root: 102, owner_chain: [101, 100] })), true, 'owned by an owned window');
+  assert.equal(covers(g, w({ hwnd: 101, root: 101, owner_chain: [100], pid: 2 })), false, 'owner chain from another process');
+  assert.equal(covers(g, w({ process_start: 't1' })), false, 'same handle and pid, new process');
+  assert.equal(covers(g, w({ pid: 2 })), false, 'same handle, other process');
+  assert.equal(covers(g, w({ alive: false })), false);
+  assert.equal(covers(g, w({ elevated: true })), false);
+  assert.equal(covers(g, w({ hwnd: 200, root: 200 })), false);
+  assert.equal(sameWindow(g, w({ hwnd: 101, root: 101, owner_chain: [100] })), false);
+  assert.equal(isQueueable('desktop.act'), false, 'typed text never reaches the command queue');
+  assert.equal(isQueueable('grant.window'), false);
+  assert.equal(isQueueable('takeover.pause'), false);
+});
+
+test('M6-15 migration 003 gives an older database the grant table schema.sql defines', () => {
+  const old = new DatabaseSync(':memory:');
+  const fresh = new DatabaseSync(':memory:');
+  try {
+    old.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8').replace(/CREATE TABLE grant \([\s\S]*?\n\);\nCREATE INDEX grant_live_idx[^\n]*\n/, ''));
+    assert.equal(old.prepare("SELECT 1 FROM sqlite_master WHERE name = 'grant'").get(), undefined);
+    assert.ok(migrate(old).includes(3));
+    fresh.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+    const sql = (d: DatabaseSync) => d.prepare("SELECT name, sql FROM sqlite_master WHERE name IN ('grant', 'grant_live_idx') ORDER BY name").all();
+    assert.equal(sql(old).length, 2);
+    assert.deepEqual(sql(old), sql(fresh));
+  } finally {
+    old.close();
+    fresh.close();
+  }
+});
+
+test('M6-15a: a session granted Notepad types into it; Calculator is not granted; every input in Save As asks', async () => {
+  const { iso, inputs } = setup([NOTEPAD, SAVE_AS, CALC, WORKBENCH]);
+  let core = await startCore(iso);
+  const db = seed(iso.home);
+  const { agent, ui } = await connect(iso);
+  try {
+    // Nothing granted yet: every call fails the same way
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted; ask the user to give it to you/);
+    assert.deepEqual((await call(agent, 'desktop.windows', me('s1'))).result, { windows: [] });
+
+    // grant.window needs ui.hello
+    assert.equal((await call(agent, 'grant.window', { session_id: 's1', hwnd: 100 })).error.code, -32012);
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.match(grant, /^gr_/);
+    const row = db.prepare('SELECT * FROM grant WHERE id = ?').get(grant) as any;
+    assert.equal(row.pid, 4100);
+    assert.equal(row.process_start, NOTEPAD.process_start);
+    assert.equal(row.ended_at, null);
+
+    // windows lists the grant and the Save As dialog it owns
+    const listed = (await call(agent, 'desktop.windows', me('s1'))).result.windows;
+    assert.deepEqual(listed.map((w: any) => [w.window, w.owner, w.grant_id]), [[100, 0, grant], [101, 100, grant]]);
+
+    // Typing into Notepad lands; plain typing needs no approval
+    const check = { session_id: 's1', surface: 'desktop', target: grant, action: 'type', args: { window: 100, ref: 'e1', text: 'hello world' }, control: { automation_id: 'RichEditD2DPT', name: 'Text editor', role: 'document' } };
+    assert.deepEqual((await call(agent, 'approval.check', check)).result, { decision: 'allow' });
+    const typed = await act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text: 'hello world' });
+    assert.equal(typed.result.status, 'confirmed');
+    assert.deepEqual(inputs().filter((i) => i.op === 'set_text').map((i) => i.value), ['hello wo', 'hello world']);
+
+    // Calculator, not granted: describe, act and approval.check all refuse
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 200, ref: 'e1' })).error.message, /window not granted/);
+    assert.match((await call(agent, 'desktop.act', { ...me('s1'), window: 200, ref: 'e1', action: 'click', expect: { name: 'Seven', automation_id: 'num7Button', role: 'button' } })).error.message, /window not granted/);
+    assert.match((await call(agent, 'desktop.snapshot', { ...me('s1'), window: 200 })).error.message, /window not granted/);
+    assert.deepEqual((await call(agent, 'approval.check', { ...check, target: 'gr_not_mine' })).result, { decision: 'deny', reason: 'window not granted; ask the user to give it to you' });
+    assert.equal(inputs().filter((i) => i.hwnd === 200).length, 0);
+
+    // Another session cannot use s1's grant
+    assert.match((await call(agent, 'desktop.describe', { ...me('s2'), window: 100, ref: 'e1' })).error.message, /window not granted/);
+    assert.deepEqual((await call(agent, 'approval.check', { ...check, session_id: 's2' })).result.decision, 'deny');
+
+    // Save As is reachable, and every input in it raises an approval
+    const d = (await call(agent, 'desktop.describe', { ...me('s1'), window: 101, ref: 'e1' })).result;
+    assert.equal(d.grant_id, grant);
+    assert.equal(d.file_dialog, true);
+    for (const [action, args, control] of [
+      ['type', { window: 101, ref: 'e1', text: 'notes.txt' }, SAVE_AS.controls[0]],
+      ['click', { window: 101, ref: 'e2' }, SAVE_AS.controls[1]],
+      ['key', { window: 101, keys: 'Tab' }, null],
+    ] as const) {
+      const pending = call(agent, 'approval.check', { session_id: 's1', surface: 'desktop', target: grant, action, args, control, file_dialog: true });
+      const waiting = await until(() => db.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 5000);
+      assert.equal(waiting.reason, 'file dialog');
+      assert.equal(waiting.target, grant);
+      // session scope is refused for file dialogs, so the next input asks again
+      assert.equal((await call(ui, 'approval.resolve', { approval_id: waiting.id, decision: 'approve', scope: 'session' })).result.scope, 'once');
+      assert.equal((await pending).result.decision, 'approved');
+    }
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM approval WHERE reason = 'file dialog'").get().n, 3);
+
+    // A call that skipped the check (expect without file_dialog) is not sent
+    const skipped = await call(agent, 'desktop.act', { ...me('s1'), window: 101, ref: 'e2', action: 'click', expect: { name: 'Save', automation_id: '1', role: 'button' } });
+    assert.equal(skipped.error.code, -32035);
+    assert.equal(inputs().filter((i) => i.hwnd === 101).length, 0);
+
+    // The caller must descend from the session's launcher
+    assert.match((await call(agent, 'desktop.windows', { session_id: 's1', pid: 4 })).error.message, /not an ancestor/);
+  } finally {
+    agent.close(); ui.close(); release(db);
+    await teardownCore(core, iso);
+  }
+});
+
+test('M6-15b: after the core acknowledges Ctrl+Alt+Q, no further character of a 2,000-character type lands', async () => {
+  const { iso, inputs } = setup([NOTEPAD, CALC, WORKBENCH], 5);
+  const core = await startCore(iso);
+  const db = seed(iso.home);
+  const { agent, ui } = await connect(iso);
+  try {
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const text = 'abcdefghij'.repeat(200);
+    const typing = act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text });
+    await until(() => inputs().length >= 20, 10_000);
+    const ack = await call(ui, 'takeover.pause', {});
+    assert.ok(ack.result.paused_at);
+    const atAck = inputs().filter((i) => i.op === 'set_text');
+    const lengthAtAck = atAck.at(-1).value.length;
+    await sleep(2000);
+    const later = inputs().filter((i) => i.op === 'set_text');
+    assert.equal(later.length, atAck.length, 'no chunk after the acknowledgement');
+    assert.equal(later.at(-1).value.length, lengthAtAck);
+    assert.ok(lengthAtAck < text.length);
+    assert.ok(later.every((i) => i.value.length <= 2000) && later.every((i, n) => n === 0 || i.value.length - later[n - 1].value.length <= 8), 'chunks of at most 8 characters');
+    const r = await typing;
+    assert.match(r.error.message, new RegExp(`paused by the user; ${lengthAtAck} of 2000 characters were typed`));
+
+    // Paused everywhere: desktop calls, and approval.check on both surfaces
+    assert.match((await act(agent, 's1', { window: 100, ref: 'e2', action: 'click' })).error.message, /paused by the user/);
+    assert.deepEqual((await call(agent, 'approval.check', { session_id: 's1', surface: 'browser', target: 'https://example.com', action: 'click', args: {}, control: null })).result, { decision: 'deny', reason: 'paused by the user' });
+    assert.deepEqual((await call(agent, 'approval.check', { session_id: 's2', surface: 'desktop', target: grant, action: 'click', args: {}, control: null })).result.reason, 'paused by the user');
+    assert.ok(db.prepare("SELECT value FROM meta WHERE key = 'takeover_paused_at'").get());
+
+    // Resume is per session
+    assert.equal((await call(agent, 'takeover.resume', { session_id: 's1' })).error.code, -32012);
+    assert.deepEqual((await call(ui, 'takeover.resume', { session_id: 's1' })).result, {});
+    assert.equal((await act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text: 'ok' })).result.status, 'confirmed');
+    assert.equal((await call(agent, 'approval.check', { session_id: 's2', surface: 'browser', target: 'https://example.com', action: 'click', args: {}, control: null })).result.reason, 'paused by the user');
+
+    // A second pause stops the resumed session again
+    await call(ui, 'takeover.pause', {});
+    assert.match((await act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text: 'no' })).error.message, /paused by the user/);
+  } finally {
+    agent.close(); ui.close(); release(db);
+    await teardownCore(core, iso);
+  }
+});
+
+test('M6-15c: the workbench is never granted, a closed window ends its grant, a reused handle is not granted, and a restart ends every grant', async () => {
+  const { iso, setWindows } = setup([NOTEPAD, CALC, WORKBENCH]);
+  let core = await startCore(iso);
+  const db = seed(iso.home);
+  let { agent, ui } = await connect(iso);
+  try {
+    // The workbench never appears and cannot be granted or named
+    const candidates = (await call(ui, 'grant.candidates', {})).result.windows;
+    assert.deepEqual(candidates.map((w: any) => w.hwnd).sort(), [100, 200]);
+    assert.equal((await call(ui, 'grant.window', { session_id: 's1', hwnd: 300 })).error.code, -32003);
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.ok(!(await call(agent, 'desktop.windows', me('s1'))).result.windows.some((w: any) => w.window === 300));
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 300 })).error.message, /window not granted/);
+    assert.match((await call(agent, 'desktop.screenshot', { ...me('s1'), window: 300 })).error.message, /window not granted/);
+    assert.equal((await call(ui, 'grant.live', {})).result.grants[0].id, grant);
+
+    // Close Notepad: the grant ends within the 500 ms check
+    setWindows([CALC, WORKBENCH]);
+    await until(() => (db.prepare('SELECT ended_at FROM grant WHERE id = ?').get(grant) as any).ended_at, 3000);
+    // A new window that gets the same handle, in another process, is not granted
+    setWindows([{ ...NOTEPAD, pid: 5100, process_start: '2026-10-12T02:00:00.000Z', title: 'New window' }, CALC, WORKBENCH]);
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted/);
+    assert.deepEqual((await call(agent, 'desktop.windows', me('s1'))).result, { windows: [] });
+
+    // Same handle reused before the check ran: the call itself ends the grant
+    setWindows([NOTEPAD, CALC, WORKBENCH]);
+    const second = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    setWindows([{ ...NOTEPAD, process_start: '2026-10-12T03:00:00.000Z' }, CALC, WORKBENCH]);
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted/);
+    assert.ok((db.prepare('SELECT ended_at FROM grant WHERE id = ?').get(second) as any).ended_at);
+
+    // Revoke ends a grant
+    setWindows([NOTEPAD, CALC, WORKBENCH]);
+    const third = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.deepEqual((await call(ui, 'grant.revoke', { grant_id: third })).result, {});
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted/);
+
+    // After a core restart no grant is live
+    const fourth = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.equal((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).result.grant_id, fourth);
+    agent.close(); ui.close();
+    await stopCore(core, iso);
+    core = await startCore(iso);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get() as any).n, 0);
+    // The restarted core marks the seeded sessions gone; bring s1 back so only the grant rule is under test
+    db.prepare("UPDATE session SET ended_at = NULL, state = 'working', pid = ? WHERE id = 's1'").run(process.pid);
+    ({ agent, ui } = await connect(iso));
+    assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted/);
+    assert.deepEqual((await call(ui, 'grant.live', {})).result, { grants: [] });
+  } finally {
+    agent.close(); ui.close(); release(db);
+    await teardownCore(core, iso);
+  }
+});

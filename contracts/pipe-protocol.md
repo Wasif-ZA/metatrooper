@@ -168,6 +168,19 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |
 | `approval.check` | `{session_id, surface, target, action, args, control, password?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`) |  |  |  |
 | `approval.resolve` | `{approval_id, decision, scope?}` | {status, scope}; -32010 when the row is not `waiting` | -32010 |  | yes |
+| `desktop.ui-window` | `{pid}` | {}; the workbench's process id, whose windows are never listed or granted (`contracts/desktop-tools.md`) |  |  | yes |
+| `grant.candidates` | `{}` | {windows: [{hwnd, title, exe, pid}]}: visible top-level windows that may be granted |  |  | yes |
+| `grant.window` | `{session_id, hwnd}` | {grant_id}; -32003 for the workbench, an elevated window, a gone window or a non top-level window | -32002, -32003 |  | yes |
+| `grant.revoke` | `{grant_id}` | {}; ends the grant | -32002 |  | yes |
+| `grant.live` | `{}` | {grants: [{id, session_id, hwnd, title, rect, minimized}]}; `rect` is `[x, y, w, h]` in physical pixels from the last 500 ms check |  |  | yes |
+| `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |
+| `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only | -32002 |  | yes |
+| `desktop.windows` | `{session_id, pid}` | {windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued | -32030 |  |  |
+| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
+| `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |
+| `desktop.screenshot` | `{session_id, pid, window}` | {data_base64, mime, width, height}: JPEG, no side over 1,568 px | -32030 |  |  |
+| `desktop.find` | `{session_id, pid, window, text}` | {found}: whether a node Name or value contains `text` | -32030 |  |  |
+| `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | {status, focus_returned?}; `type` goes in chunks of at most 8 characters with the take-over flag checked before each; -32030 "paused by the user"; -32035 when the control no longer matches `expect`; never queued | -32030, -32602 |  |  |
 | `run.start`, `run.cancel`, `run.clear`, `run.resume`, `run.item-set`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.pick`, `variant.discard`, `variant.combine`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) | -32601 | | |
 <!-- methods:end -->
 

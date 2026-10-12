@@ -32,7 +32,7 @@ export const NOT_QUEUED = new Set([
 ]);
 
 export function isQueueable(method        )          {
-  return !NOT_QUEUED.has(method) && !method.startsWith('browser.');
+  return !NOT_QUEUED.has(method) && !/^(browser|desktop|grant|takeover)\./.test(method);
 }
 
 export const SENSITIVE_PARAMS = ['prompt', 'body'];

@@ -26,6 +26,7 @@ import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
 import { Approvals } from './approvals.ts';
+import { Desktop } from './desktop/driver.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -100,6 +101,19 @@ export const METHODS: MethodDecl[] = [
   { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
   { name: 'approval.check', params: '{session_id, surface, target, action, args, control, password?, file_dialog?, action_hash?}', result: '{decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`)' },
   { name: 'approval.resolve', needsUi: true, errors: [E.GATE_STALE], params: '{approval_id, decision, scope?}', result: '{status, scope}; -32010 when the row is not `waiting`' },
+  { name: 'desktop.ui-window', needsUi: true, params: '{pid}', result: "{}; the workbench's process id, whose windows are never listed or granted (`contracts/desktop-tools.md`)" },
+  { name: 'grant.candidates', needsUi: true, params: '{}', result: '{windows: [{hwnd, title, exe, pid}]}: visible top-level windows that may be granted' },
+  { name: 'grant.window', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{session_id, hwnd}', result: '{grant_id}; -32003 for the workbench, an elevated window, a gone window or a non top-level window' },
+  { name: 'grant.revoke', needsUi: true, errors: [E.NOT_FOUND], params: '{grant_id}', result: '{}; ends the grant' },
+  { name: 'grant.live', needsUi: true, params: '{}', result: '{grants: [{id, session_id, hwnd, title, rect, minimized}]}; `rect` is `[x, y, w, h]` in physical pixels from the last 500 ms check' },
+  { name: 'takeover.pause', needsUi: true, params: '{}', result: '{paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight' },
+  { name: 'takeover.resume', needsUi: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; clears the take-over flag for that session only' },
+  { name: 'desktop.windows', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid}', result: "{windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued" },
+  { name: 'desktop.describe', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, ref?}', result: '{grant_id, control, password, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you"' },
+  { name: 'desktop.snapshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, max_nodes?}', result: '{text, nodes}: the UI Automation tree with refs' },
+  { name: 'desktop.screenshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window}', result: '{data_base64, mime, width, height}: JPEG, no side over 1,568 px' },
+  { name: 'desktop.find', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, text}', result: '{found}: whether a node Name or value contains `text`' },
+  { name: 'desktop.act', errors: [E.PANE_NOT_OWNED, E.INVALID_PARAMS], params: '{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}', result: '{status, focus_returned?}; `type` goes in chunks of at most 8 characters with the take-over flag checked before each; -32030 "paused by the user"; -32035 when the control no longer matches `expect`; never queued' },
 ];
 
 const cell = (s: string) => s.split('|').join('\\|');
@@ -120,6 +134,7 @@ export interface CoreControl {
   stop: () => void;
   uiKey: string;
   approvalTimeoutMs?: number;
+  desktop?: Desktop;
 }
 
 function int(p: Record<string, unknown>, key: string): number {
@@ -578,7 +593,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  const approvals = new Approvals(db, ctl.approvalTimeoutMs);
+  const desktop = ctl.desktop ?? new Desktop(db);
+  desktop.methods(m);
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
   m.set('approval.check', { handler: (p) => approvals.check(p) });
   m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 

@@ -16,6 +16,9 @@ export const DEFAULTS = {
     ask_paths: [] as string[],
     metarouter: true,
   },
+  desktop: {
+    takeover_key: 'Control+Alt+Q',
+  },
   worktree: {
     npm_ci: true,
     stale_days: 7,
