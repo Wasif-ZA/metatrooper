@@ -182,14 +182,16 @@ export function removeSessionFiles(sessionId: string): void {
   try { fs.rmSync(path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`), { force: true }); } catch {}
 }
 
-/** Deletes per-session files whose session has exited or no longer exists. */
+/** Deletes per-session files whose session has exited or no longer exists; only entries named the way removeSessionFiles names them are touched. */
 export function sweepSessionFiles(db: DatabaseSync): void {
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
-  for (const dir of [path.join(homeDir(), 'mcp'), path.join(homeDir(), 'engines', 'gemini')]) {
+  const dirs: Array<[string, RegExp, boolean]> = [[path.join(homeDir(), 'mcp'), /^[^.]+(.settings)?.json$/, true], [path.join(homeDir(), 'engines', 'gemini'), /^[^.]+.json$/, false]];
+  for (const [dir, file, dirsToo] of dirs) {
     if (!fs.existsSync(dir)) continue;
-    for (const name of fs.readdirSync(dir)) {
-      const s = get.get(name.split('.')[0]) as { state: string } | undefined;
-      if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!(entry.isDirectory() ? dirsToo && !entry.name.includes('.') : entry.isFile() && file.test(entry.name))) continue;
+      const s = get.get(entry.name.split('.')[0]) as { state: string } | undefined;
+      if (!s || s.state === 'exited') fs.rmSync(path.join(dir, entry.name), { recursive: true, force: true });
     }
   }
 }
