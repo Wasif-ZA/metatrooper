@@ -120,6 +120,10 @@ export class PaneManager {
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
+  /** Error page data: URL to the URL that failed, so going back or forward to an error entry restores errorFor. */
+  private errorPages = new Map<string, string>();
+  /** Panes with a pick walk in flight; arrow keys that arrive meanwhile (auto-repeat) are dropped. */
+  private walking = new Set<string>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -262,7 +266,8 @@ export class PaneManager {
     wc.on('will-redirect', (e, url) => { stop(e, url); });
     wc.on('will-frame-navigate', (e) => stop(e as unknown as Electron.Event, e.url));
     wc.on('input-event', (_e, input) => {
-      if (/^(mouseDown|mouseUp|rawKeyDown|keyDown)$/.test(input.type)) pane.clickedAt = Date.now();
+      // one stamp per press: mouseUp, keyDown and auto-repeat would re-arm the gate after an open consumed it
+      if ((input.type === 'mouseDown' || input.type === 'rawKeyDown') && !input.modifiers?.includes('isautorepeat')) pane.clickedAt = Date.now();
     });
     wc.setWindowOpenHandler(({ url, disposition }) => {
       if (!/^https?:/.test(url)) return { action: 'deny' };
@@ -284,7 +289,10 @@ export class PaneManager {
       pane.cursors.clear();
       pane.pickStack = [];
       pane.navs++;
-      if (url.startsWith('data:')) return;
+      if (url.startsWith('data:')) {
+        pane.errorFor = this.errorPages.get(url) ?? pane.errorFor;
+        return;
+      }
       pane.status = code;
       pane.errorFor = null;
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
@@ -341,7 +349,11 @@ export class PaneManager {
     if (wc.isDestroyed()) return;
     pane.errorFor = url;
     this.log(pane, 'error', `${ERROR_TEXT[kind]?.[0] ?? 'This page did not load'}: ${url} ${detail}`);
-    void wc.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorPage(kind, url, detail))}`).catch(() => {});
+    const page = `data:text/html;charset=utf-8,${encodeURIComponent(errorPage(kind, url, detail))}`;
+    this.errorPages.delete(page);
+    this.errorPages.set(page, url);
+    if (this.errorPages.size > 50) this.errorPages.delete(this.errorPages.keys().next().value!);
+    void wc.loadURL(page).catch(() => {});
   }
 
   /** Loads a URL again after an error page, re-attaching the debugger first when the renderer crashed. */
@@ -355,6 +367,12 @@ export class PaneManager {
 
   /** A popup keeps its opener; it may not navigate off the web or open windows of its own, and it closes with its pane. */
   private guardPopup(pane: Pane, child: BrowserWindow): void {
+    // the address policy lives on the pane's session; a popup in any other session would have none
+    if (child.webContents.session !== pane.view.webContents.session) {
+      this.log(pane, 'blocked', `MetaTrooper closed a window that did not share the pane's session: ${child.webContents.getURL()}`);
+      child.close();
+      return;
+    }
     pane.popups.add(child);
     child.on('closed', () => pane.popups.delete(child));
     const cwc = child.webContents;
@@ -791,10 +809,15 @@ export class PaneManager {
           await this.attach(pane);
           pane.crashed = null;
         }
+        const [prev, navs] = [pane.errorFor, pane.navs];
         pane.errorFor = null;
         const out = await this.answer(pane, session, async () => {
           await this.load(pane, a.url);
           return { status: pane.status };
+        }).catch((e) => {
+          // nothing loaded (a blocked URL): the error page is still on screen
+          if (pane.navs === navs) pane.errorFor ??= prev;
+          throw e;
         });
         if (pane.errorFor) throw new ToolError(-32099, `could not load ${pane.errorFor}; the pane shows the error`);
         return out;
@@ -990,6 +1013,16 @@ export class PaneManager {
   /** Arrow keys on a pick: up moves to the element's parent (stopping at body), down goes back to the child it came from. */
   async walkPick(id: string, dir: 'up' | 'down'): Promise<boolean> {
     const pane = this.pane(id);
+    if (this.walking.has(id)) return false;
+    this.walking.add(id);
+    try {
+      return await this.walkOnce(pane, dir);
+    } finally {
+      this.walking.delete(id);
+    }
+  }
+
+  private async walkOnce(pane: Pane, dir: 'up' | 'down'): Promise<boolean> {
     const stack = pane.pickStack;
     if (!stack.length) return false;
     if (dir === 'down') {
@@ -1003,6 +1036,7 @@ export class PaneManager {
       });
       if (!up.result?.objectId) return false;
       const { node } = await this.cmd(pane, 'DOM.describeNode', { objectId: up.result.objectId });
+      if (pane.pickStack !== stack) return false;
       stack.push(node.backendNodeId);
     }
     await this.describe(pane, stack[stack.length - 1]);

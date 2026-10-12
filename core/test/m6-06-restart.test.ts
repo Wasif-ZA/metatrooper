@@ -75,11 +75,13 @@ test('M6-06a resumes at most 3 at once, 2 s plus jitter apart, and the 4th once 
   assert.ok(f.launches[3].at < 30_000);
 });
 
-test('M6-06a a session that leaves starting frees its slot at once', async () => {
+test('M6-06a sessions that leave starting at once still let no more than 3 start in any 10 s window', async () => {
   const f = fakeResumer(['a', 'b', 'c', 'd'].map((id) => ({ id, engine: 'x' })));
-  await f.run(60_000, () => { for (const l of f.launches) if (f.now() - l.at >= 1000) f.states[l.id] = 'idle'; });
+  const most = await f.run(60_000, () => { for (const l of f.launches) if (f.now() - l.at >= 1000) f.states[l.id] = 'idle'; });
   assert.equal(f.launches.length, 4);
-  assert.ok(f.launches[3].at < R.WINDOW_MS, JSON.stringify(f.launches));
+  assert.ok(most <= R.MAX_AT_ONCE, `in flight ${most}`);
+  assert.ok(f.launches[3].at - f.launches[0].at >= R.WINDOW_MS, JSON.stringify(f.launches));
+  assert.ok(f.launches[3].at < 30_000);
 });
 
 test('M6-06b two auth_error screens stop that engine and raise one item; other engines still resume', async () => {
@@ -197,7 +199,7 @@ function resumedRows(db: DatabaseSync) {
     .all() as Array<{ id: string; old: string; started_at: string; engine_id: string }>;
 }
 
-test('M6-06a killing the core brings 4 live sessions back within 30 s, never more than 3 resuming at once', { timeout: 90_000 }, async () => {
+test('M6-06a killing the core brings 4 live sessions back within 30 s, never more than 3 starting in any 10 s', { timeout: 90_000 }, async () => {
   const h = await killedAndRestarted([engine('one', STAY), engine('two', STAY), engine('three', STAY)], ['one', 'two', 'three', 'one']);
   try {
     await until(() => resumedRows(h.db).length === 4, 30_000);

@@ -71,16 +71,22 @@ r.noClickDenied = wc.openHandler!({ url: 'https://ad.example/', disposition: 'fo
 wc.emit('input-event', {}, { type: 'mouseDown' });
 r.clickOpensOnePane = wc.openHandler!({ url: 'https://docs.example/', disposition: 'foreground-tab' }).action === 'deny' && opened.join() === 'https://docs.example/';
 r.secondOpenNeedsAnotherClick = wc.openHandler!({ url: 'https://ad.example/2', disposition: 'foreground-tab' }).action === 'deny' && opened.length === 1;
+wc.emit('input-event', {}, { type: 'mouseUp' });
+wc.emit('input-event', {}, { type: 'keyDown' });
+wc.emit('input-event', {}, { type: 'rawKeyDown', modifiers: ['isautorepeat'] });
+r.mouseUpAndRepeatDoNotRearm = wc.openHandler!({ url: 'https://ad.example/4', disposition: 'foreground-tab' }).action === 'deny' && opened.length === 1;
+wc.emit('input-event', {}, { type: 'rawKeyDown' });
+r.keyPressOpensOne = wc.openHandler!({ url: 'https://docs.example/key', disposition: 'foreground-tab' }).action === 'deny' && opened.join() === 'https://docs.example/,https://docs.example/key';
 
 const agent = fakePane('bp_agent_1');
 await internal.clickAt(agent.pane, 1, 1);
 const agentOpen = agent.wc.openHandler!({ url: 'https://ad.example/3', disposition: 'foreground-tab' });
 r.agentClickCounts = agentOpen.action === 'deny' && agent.pane.clickedAt === 0 && !agent.pane.console.some((c) => c.text.includes('without a click'));
 
-wc.emit('input-event', {}, { type: 'mouseUp' });
+wc.emit('input-event', {}, { type: 'mouseDown' });
 const popup = wc.openHandler!({ url: 'https://login.example/oauth', disposition: 'new-window' });
 r.popupKeepsOpener = popup.action === 'allow' && popup.overrideBrowserWindowOptions.parent === win && popup.overrideBrowserWindowOptions.webPreferences.sandbox === true && popup.overrideBrowserWindowOptions.webPreferences.nodeIntegration === false;
-const childWc = Object.assign(new EventEmitter(), { openHandler: null as any, setWindowOpenHandler(h: any) { this.openHandler = h; }, getURL: () => 'https://login.example/oauth' });
+const childWc = Object.assign(new EventEmitter(), { openHandler: null as any, setWindowOpenHandler(h: any) { this.openHandler = h; }, getURL: () => 'https://login.example/oauth', session: wc.session });
 let childClosed = false;
 const child = Object.assign(new EventEmitter(), { webContents: childWc, isDestroyed: () => childClosed, close() { childClosed = true; this.emit('closed'); } });
 wc.emit('did-create-window', child);
@@ -89,6 +95,10 @@ childWc.emit('will-navigate', { preventDefault() { fileNav = true; } }, 'file://
 let webNav = false;
 childWc.emit('will-navigate', { preventDefault() { webNav = true; } }, 'https://login.example/callback');
 r.popupGuarded = fileNav && !webNav && childWc.openHandler({ url: 'https://x.example/' }).action === 'deny' && pane.popups.has(child);
+let strayClosed = false;
+const stray = { webContents: Object.assign(new EventEmitter(), { setWindowOpenHandler() {}, getURL: () => 'http://127.0.0.1:9/', session: {} }), isDestroyed: () => strayClosed, close() { strayClosed = true; }, on() {} };
+wc.emit('did-create-window', stray);
+r.popupInOtherSessionClosed = strayClosed && !pane.popups.has(stray);
 
 wc.emit('did-navigate', {}, 'https://start.example/', 200);
 wc.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://nowhere.invalid/', true);
@@ -100,6 +110,16 @@ wc.emit('did-navigate', {}, wc.url, -1);
 events.length = 0;
 wc.emit('did-stop-loading');
 r.errorPageKeepsUrl = urlChanged.length === before && pane.errorFor === 'https://nowhere.invalid/' && events.at(-1)?.url === 'https://nowhere.invalid/' && (pane as any).status === 200;
+const errorEntry = wc.url;
+wc.url = 'https://start.example/';
+wc.emit('did-navigate', {}, wc.url, 200);
+const backCleared = pane.errorFor === null;
+wc.url = errorEntry;
+wc.emit('did-navigate', {}, errorEntry, -1);
+const reloadsBeforeForward = wc.reloads;
+pm.act('bp_user', 'reload');
+await new Promise((res) => setTimeout(res, 50));
+r.forwardToErrorPageKeepsUrl = backCleared && pane.errorFor === 'https://nowhere.invalid/' && wc.reloads === reloadsBeforeForward;
 
 wc.emit('did-fail-load', {}, -202, 'ERR_CERT_AUTHORITY_INVALID', 'https://self-signed.example/', true);
 r.certificatePage = decodeURIComponent(wc.loads.at(-1)!).includes('This page is not secure');
@@ -128,6 +148,9 @@ dead.wc.loadURL = function (u: string) {
 };
 const navError = await pm.tool('bp_agent_2', 'navigate', { url: 'https://93.184.216.35/' }).then(() => '', (e: Error) => e.message);
 r.navigateToDeadHostFails = navError.startsWith('could not load https://93.184.216.35/');
+dead.pane.errorFor = 'https://93.184.216.35/';
+const blockedCode = await pm.tool('bp_agent_2', 'navigate', { url: 'http://127.0.0.1:9/' }).then(() => 0, (e: { code: number }) => e.code);
+r.blockedNavigateKeepsErrorUrl = blockedCode === -32031 && dead.pane.errorFor === 'https://93.184.216.35/';
 
 const evil = errorPage('load', 'https://x.example/"><script>alert(1)</script>', '<img src=x onerror=alert(1)>');
 r.errorPageEscapes = !evil.includes('<script>alert') && !evil.includes('<img src=x');
@@ -139,6 +162,8 @@ r.walkStopsBelowHtml = !(await pm.walkPick('bp_user', 'up')) && pane.pickStack.j
 r.walkDown = (await pm.walkPick('bp_user', 'down')) && pane.pickStack.join() === '10,20' && picked.at(-1)?.selector === 'sel20';
 await pm.walkPick('bp_user', 'down');
 r.walkDownAtClickedIsNoop = !(await pm.walkPick('bp_user', 'down')) && pane.pickStack.join() === '10';
+const overlapping = await Promise.all([pm.walkPick('bp_user', 'up'), pm.walkPick('bp_user', 'up')]);
+r.overlappingWalksStepOnce = overlapping.filter(Boolean).length === 1 && pane.pickStack.join() === '10,20';
 
 pm.closeAll();
 r.popupClosesWithPane = childClosed && pane.popups.size === 0;
