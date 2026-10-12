@@ -33,13 +33,23 @@ export function parseNetstat(out: string): Map<number, Set<number>> {
   return ports;
 }
 
-/** The listening-port table now. Windows only; elsewhere it is empty. */
-export function listening(): Promise<Map<number, Set<number>>> {
-  if (process.platform !== 'win32') return Promise.resolve(new Map());
-  return new Promise((resolve) => execFile('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }, (_e, out) => resolve(parseNetstat(out || ''))));
+/** The processes this module asks; tests replace them. */
+export const probe = {
+  /** `netstat -ano` output. Windows only; elsewhere it is empty. */
+  netstat(): Promise<string> {
+    if (process.platform !== 'win32') return Promise.resolve('');
+    return new Promise((resolve) => execFile('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }, (_e, out) => resolve(out || '')));
+  },
+  parentTableAsync,
+};
+
+/** The listening-port table now. */
+export async function listening(): Promise<Map<number, Set<number>>> {
+  return parseNetstat(await probe.netstat());
 }
 
-interface Pending { session: string; project: string; port: number; url: string; had: boolean; until: number }
+/** `had`: the port was listening at the print; null until a fresh netstat says, when the snapshot was stale at the print. */
+interface Pending { session: string; project: string; port: number; url: string; had: boolean | null; until: number }
 
 /** `ancestry` when the pid descends from the pty, `printed` when the port was not listening at the print, otherwise null. */
 export function ownership(pid: number, root: number | null, parents: Map<number, number>, hadAtPrint: boolean): 'ancestry' | 'printed' | null {
@@ -72,7 +82,7 @@ export function scanOutput(db: DatabaseSync, sessionId: string, data: string): v
   for (const { url, port } of urls) {
     const key = `${sessionId}:${port}`;
     if (pending.has(key) || (refused.get(key) ?? 0) > Date.now() || ready.get(sessionId, port)) continue;
-    pending.set(key, { session: sessionId, project: s.project_id, port, url, had: Date.now() - snapshotAt > SNAPSHOT_FRESH_MS || snapshot.has(port), until: Date.now() + WATCH_MS });
+    pending.set(key, { session: sessionId, project: s.project_id, port, url, had: Date.now() - snapshotAt > SNAPSHOT_FRESH_MS ? null : snapshot.has(port), until: Date.now() + WATCH_MS });
     added = true;
   }
   if (!added) return;
@@ -97,7 +107,7 @@ export function pollDevServers(db: DatabaseSync): Promise<void> {
 
 async function decide(db: DatabaseSync): Promise<void> {
   if (!pending.size && !anyOpen()) return;
-  const early = fresh ? parentTableAsync() : null;
+  const early = fresh ? probe.parentTableAsync() : null;
   fresh = false;
   const now = await listening();
   snapshot = now;
@@ -105,13 +115,14 @@ async function decide(db: DatabaseSync): Promise<void> {
   let parents: Map<number, number> | null = null;
   for (const [key, p] of [...pending]) {
     if (Date.now() > p.until) { pending.delete(key); continue; }
+    p.had ??= now.has(p.port);
     const pids = now.get(p.port);
     if (!pids?.size) continue;
     pending.delete(key);
     if (pids.size > 1) { refused.set(key, Date.now() + WATCH_MS); continue; }
     const [pid] = pids;
-    parents ??= await (early ?? parentTableAsync());
-    if (!parents.has(pid)) parents = await parentTableAsync();
+    parents ??= await (early ?? probe.parentTableAsync());
+    if (!parents.has(pid)) parents = await probe.parentTableAsync();
     const by = ownership(pid, ptyPid(p.session), parents, p.had);
     if (!by) { refused.set(key, Date.now() + WATCH_MS); continue; }
     db.prepare("INSERT INTO session_dev_server (id, session_id, project_id, port, url, pid, matched_by, status, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?)")
