@@ -14,7 +14,7 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
--- rows: ('schema_version','1'), ('core_pid', ...), ('core_heartbeat', <ts, updated every 2 s>)
+-- rows: ('schema_version','1'), ('core_pid', ...), ('core_heartbeat', <ts, updated every 2 s>), ('resume_pending', <JSON [{id, engine}] of sessions not yet resumed after a restart>)
 
 CREATE TABLE schema_migration (                -- numbered migrations applied (core/src/store/migrations/NNN-<name>.sql, M6-4)
   id         INTEGER PRIMARY KEY,
@@ -26,7 +26,9 @@ CREATE TABLE project (
   path        TEXT NOT NULL UNIQUE,
   name        TEXT NOT NULL,
   opened_at   TEXT NOT NULL,
-  last_opened TEXT NOT NULL
+  last_opened TEXT NOT NULL,
+  hidden      INTEGER NOT NULL DEFAULT 0,     -- 1: a worktree whose folder is gone or that the sweep removed; kept for its references (pipe-protocol.md, Worktree sweep)
+  older       INTEGER NOT NULL DEFAULT 0      -- 1: a stale worktree the sweep kept because it is dirty or unmerged
 );
 
 CREATE TABLE engine (

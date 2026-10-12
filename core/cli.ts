@@ -50,6 +50,11 @@ const USAGE = `usage: troop <command> [--json]
   plugin remove <id>            remove a plugin, its engines and its secrets
   plugin secret <id> <NAME>     set a secret the plugin was approved for (value read from the terminal)`;
 
+async function usage(): Promise<string> {
+  const { methodHelp } = await import('./src/methods.ts');
+  return `${USAGE}\n\npipe methods (\\\\.\\pipe\\metatrooper, JSON-RPC; see contracts/pipe-protocol.md):\n${methodHelp()}`;
+}
+
 interface Args {
   pos: string[];
   flags: Set<string>;
@@ -524,8 +529,13 @@ async function main(): Promise<number> {
       return r.code;
     }
 
+    case '--help':
+    case 'help':
+      console.log(await usage());
+      return 0;
+
     default:
-      console.error(USAGE);
+      console.error(await usage());
       return 2;
   }
 }
