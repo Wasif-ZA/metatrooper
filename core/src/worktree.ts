@@ -48,7 +48,7 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
   const set = db.prepare('UPDATE project SET hidden = ?, older = ? WHERE id = ?');
   const liveNow = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
   for (const r of rows) {
-    const parts = r.path.toLowerCase().startsWith(root) ? r.path.slice(root.length).split('/') : [];
+    const parts = r.path.toLowerCase().startsWith(root.toLowerCase()) ? r.path.slice(root.length).split('/') : [];
     if (parts.length !== 2 || !parts[0] || !parts[1]) continue;
     try {
       if (!fs.existsSync(r.path)) {

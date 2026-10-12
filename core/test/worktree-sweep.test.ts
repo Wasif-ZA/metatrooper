@@ -5,14 +5,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-wt-sweep-'));
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-WT-Sweep-'));
 process.env.METATROOPER_HOME = home;
 const { openCoreDb } = await import('../src/store/db.ts');
-const { resolveProjectPath, worktreesRoot } = await import('../src/project.ts');
+const { canonicalPath, resolveProjectPath, worktreesRoot } = await import('../src/project.ts');
 const { sweepWorktrees } = await import('../src/worktree.ts');
 
 const git = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@x.example', '-c', 'user.name=T', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 const iso = (ms: number) => new Date(ms).toISOString();
+
+test('the worktrees root keeps its real case, so filesystem calls on it work on a case-sensitive filesystem', () => {
+  assert.equal(worktreesRoot(), canonicalPath(path.join(home, 'worktrees')) + '/');
+});
 
 test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dirty or unmerged ones as older, and leaves fresh, live and outside ones alone', async () => {
   const now = Date.now();

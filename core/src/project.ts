@@ -65,7 +65,7 @@ export function resolveProjectPath(input: string): string {
   return canonicalPath(top);
 }
 
-/** `<home>/worktrees/` canonical and lower-cased: the folder MetaTrooper makes worktrees in, and the only one its sweep touches. */
+/** `<home>/worktrees/` canonical, in its real case for filesystem calls (lower-case it only to compare): the folder MetaTrooper makes worktrees in, and the only one its sweep touches. */
 export function worktreesRoot(): string {
-  return canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
+  return canonicalPath(path.join(homeDir(), 'worktrees')) + '/';
 }
