@@ -65,7 +65,7 @@ export function setSecret(db: DatabaseSync, pluginId: string, name: string, valu
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.writeFileSync(file, blob, { encoding: 'utf8', mode: 0o600 });
   if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
-  if (!pluginId.startsWith('core-')) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
+  if (pluginId !== 'core-notify' && pluginId !== BROWSER_SECRETS) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
   cache.set(`${pluginId}/${name}`, value);
 }
 
