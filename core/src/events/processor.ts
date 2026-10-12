@@ -3,11 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, ulid } from '../time.ts';
-import { nextState } from './state.ts';
+import { nextState, stateChanged } from './state.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface EventRow {
   seq: number;
@@ -49,6 +51,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
   const turns: TurnJob[] = [];
+  const changed: Array<[string, string]> = [];
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const ev of rows) {
@@ -56,7 +59,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       try { payload = JSON.parse(ev.payload); } catch {}
       if (!ev.session_id && ev.kind.startsWith('claude.') && typeof payload.session_id === 'string') {
         const known = byNative.get(payload.session_id) as { id: string } | undefined;
-        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
+        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && UUID.test(payload.session_id) && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
         if (project) {
           const id = ulid();
           adopt.run(id, project.id, payload.session_id, payload.cwd as string, ev.at, ev.at);
@@ -76,12 +79,15 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
-          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
+          // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
+          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
+          if (ev.kind === 'claude.PostToolUse' || ev.kind === 'claude.Stop' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
         }
         const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
+          changed.push([ev.session_id, next]);
           if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
@@ -95,6 +101,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     db.exec('ROLLBACK');
     throw e;
   }
+  for (const [id, state] of changed) stateChanged(id, state);
   for (const job of turns) {
     if (job.kind === 'start') {
       const snapshot = turnSnapshot(db, job.id);

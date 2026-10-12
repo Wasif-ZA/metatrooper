@@ -5,7 +5,7 @@ const { PaneManager } = await import('../../src/browser/panes.ts');
 
 const gone = { isDestroyed: () => true };
 const pm = new PaneManager({ isDestroyed: () => true } as never, {} as never);
-const fake = () => ({ row: { id: 'p' }, picking: null, view: { webContents: gone }, overlay: { webContents: gone }, dbg: { sendCommand: async () => ({}), detach() {} } });
+const fake = () => ({ row: { id: 'p' }, picking: null, popups: new Set(), view: { webContents: gone }, overlay: { webContents: gone }, dbg: { sendCommand: async () => ({}), detach() {} } });
 const panes = (pm as unknown as { panes: Map<string, unknown> }).panes;
 
 const settles = (p: Promise<unknown>) => Promise.race([p.then(() => true, () => true), new Promise((r) => setTimeout(() => r(false), 200))]);

@@ -1,5 +1,8 @@
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import type { IPty } from 'node-pty';
+import { homeDir } from '../paths.ts';
 import { settings } from '../settings.ts';
 import { PARENT_SESSION_ENV } from './parent-env.ts';
 import { windowsBuild } from './windows-build.ts';
@@ -30,6 +33,7 @@ interface Term {
   parsed: number;
   behind: number;
   paused: boolean;
+  at: number;
 }
 
 export interface TermHooks {
@@ -63,13 +67,14 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true, ...(build ? { windowsPty: { backend: 'conpty' as const, buildNumber: build } } : {}) });
   const ser = new SerializeAddon();
   head.loadAddon(ser);
-  const t: Term = { proc, head, ser, viewers: new Set(), attaching: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false };
+  const t: Term = { proc, head, ser, viewers: new Set(), attaching: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false, at: 0 };
   terms.set(id, t);
   head.onBell(() => hooks.onBell?.(id));
   head.onTitleChange((title) => hooks.onTitle?.(id, title.slice(0, 200)));
   head.onData((reply) => { if (t.viewers.size === 0 && t.exitCode === null) t.proc.write(reply); });
   proc.onData((data) => {
     const n = ++t.written;
+    t.at = Date.now();
     t.behind += data.length;
     if (!t.paused && t.behind > PAUSE_BYTES) { t.paused = true; t.proc.pause(); }
     head.write(data, () => {
@@ -87,8 +92,8 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     for (const v of t.viewers) v.exit(exitCode);
     t.viewers.clear();
     hooks.onExit?.(id, exitCode, t.killed);
-    // head.write is async; dispose after pending writes flush
-    head.write('', () => { head.dispose(); terms.delete(id); });
+    // head.write is async; save the last screen and dispose after pending writes flush
+    head.write('', () => { saveScreen(id, t); head.dispose(); terms.delete(id); });
   });
   return proc.pid;
 }
@@ -144,6 +149,29 @@ export function lastLine(id: string, max: number): Promise<string | null> {
     }
     resolve(null);
   }));
+}
+
+export interface Hit { session_id: string; line: number; text: string }
+
+/** Lines (wrapped rows joined) of every live terminal, or only those in `only`, that contain `query`, ignoring case; most recent terminal and line first. */
+export async function search(query: string, max: number, only?: Set<string>): Promise<Hit[]> {
+  const q = query.toLowerCase();
+  const live = [...terms].filter(([id, t]) => t.exitCode === null && (!only || only.has(id))).sort(([, a], [, b]) => b.at - a.at);
+  await Promise.all(live.map(([, t]) => new Promise<void>((r) => t.head.write('', r))));
+  const hits: Hit[] = [];
+  for (const [id, t] of live) {
+    const b = t.head.buffer.active;
+    for (let i = b.length - 1; i >= 0 && hits.length < max; i--) {
+      let line = b.getLine(i)?.translateToString(true) ?? '';
+      while (i > 0 && b.getLine(i)?.isWrapped) line = (b.getLine(--i)?.translateToString(true) ?? '') + line;
+      if (!line.toLowerCase().includes(q)) continue;
+      // 300 characters around the match, so a match late in a long line still shows in the preview
+      const text = line.trim();
+      const from = Math.max(0, Math.min(text.toLowerCase().indexOf(q) - 100, text.length - 300));
+      hits.push({ session_id: id, line: i, text: text.slice(from, from + 300) });
+    }
+  }
+  return hits;
 }
 
 export function bracketedPaste(id: string): boolean {
@@ -211,4 +239,58 @@ export function detach(id: string, viewer: Viewer): void {
 
 export function killAll(): void {
   for (const id of terms.keys()) kill(id);
+}
+
+export const SCREEN_ROWS = 200;
+
+export interface SavedScreen { code: number | null; screen: string; text: string }
+
+export function screensDir(): string {
+  return path.join(homeDir(), 'screens');
+}
+
+const screenFile = (id: string) => path.join(screensDir(), `${id.replace(/[^\w-]/g, '_')}.json`);
+
+/** The last SCREEN_ROWS rows of the headless terminal as plain text. */
+function textOf(t: Term): string {
+  const b = t.head.buffer.active;
+  const rows: string[] = [];
+  for (let i = Math.max(0, b.length - SCREEN_ROWS); i < b.length; i++) rows.push(b.getLine(i)?.translateToString(true) ?? '');
+  return rows.join('\n').replace(/\s+$/, '');
+}
+
+/** Writes the terminal's last SCREEN_ROWS rows, serialized and as plain text, to screens/<id>.json. */
+function saveScreen(id: string, t: Term): void {
+  try {
+    const saved: SavedScreen = { code: t.exitCode, screen: t.ser.serialize({ scrollback: Math.max(0, SCREEN_ROWS - t.head.rows) }), text: textOf(t) };
+    fs.mkdirSync(screensDir(), { recursive: true });
+    fs.writeFileSync(screenFile(id), JSON.stringify(saved));
+  } catch {}
+}
+
+/** The screen saved when the session's terminal ended, or null. */
+export function savedScreen(id: string): SavedScreen | null {
+  try { return JSON.parse(fs.readFileSync(screenFile(id), 'utf8')) as SavedScreen; } catch { return null; }
+}
+
+/** Plain text of the last SCREEN_ROWS rows: from the live terminal once pending output is parsed, else from the saved screen. */
+export function screenText(id: string): Promise<string | null> {
+  const t = terms.get(id);
+  if (!t) return Promise.resolve(savedScreen(id)?.text ?? null);
+  return new Promise((resolve) => t.head.write('', () => resolve(textOf(t))));
+}
+
+/** Saves the screen of every open terminal, for a core that is about to stop. */
+export async function saveAllScreens(): Promise<void> {
+  await Promise.all([...terms].map(([id, t]) => new Promise<void>((resolve) => t.head.write('', () => { saveScreen(id, t); resolve(); }))));
+}
+
+/** Deletes saved screens older than `days`. */
+export function pruneScreens(days = 30, now = Date.now()): void {
+  try {
+    for (const name of fs.readdirSync(screensDir())) {
+      const file = path.join(screensDir(), name);
+      if (now - fs.statSync(file).mtimeMs > days * 86_400_000) fs.rmSync(file, { force: true });
+    }
+  } catch {}
 }

@@ -44,6 +44,7 @@ export const DEFAULTS = {
     split_width: 420,
     toast_ms: 3500,
     error_toast_ms: 7000,
+    layout: {} as Record<string, unknown>,
     themes: {
       dither: {
         label: 'Dither', look: 'dither', scheme: 'dark', bg: '#0b0b0c', panel: '#161617', panel2: '#1b1b1c', line: '#2a2a2b', line_strong: '#4a4a4a',

@@ -106,6 +106,8 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D76 | metarouter on by default | Wasif, 2026-10-11: metarouter is called by default from MetaTrooper. With `sessions.metarouter` (default true), every pty session gets `router/bin` first on `PATH`, where `metarouter` and `metarouter.cmd` run the bundled copy through the D75 resolver, and an engine with `instructions_arg` (Claude: `--append-system-prompt`) gets the same instruction block `metarouter init` writes. Codex and agy get the PATH only, until a flag for extra instructions is confirmed on each. Sandbox sessions are unchanged, because `router/` is not mounted there |
 | D77 | Milestone 7 | Claude, 2026-10-11, under the M7 brief Wasif asked to run; not yet confirmed by Wasif: the ideas D73 moved after the release become Milestone 7 (about 29 CC days from 2027-01-20). Every mined idea has a recorded fate in `ide-layer-research/idea-coverage.md`. Eight that change a security, data, dependency or native-binary line (lend a login, Google sign-in identity, pty host, bundled ConPTY, retention pruning, limits by probe, cua-driver, a Linux desktop sandbox) are not specced; the compose box is cut. Defaults chosen so nothing changes until a user opts in: no browser preset means every tool, `worktree.preserve` is empty, new agents still take the big slot, auto layout and shell integration are off, unset wall fractions keep today's formulas |
 | D78 | Desktop actions and focus | Wasif, 2026-10-11, after the M6-14 spike (`issues/m6-14-computer-use-spike.md`): UI Automation pattern actions move keyboard focus to the target window on WinUI and Win32 apps; the pointer never moves. So the driver uses window messages first (`WM_SETTEXT`, `PostMessage`), which the spike showed keep focus on controls with their own window handle, and patterns only for controls without one. After a pattern action that moved the foreground, the helper tries to give it back to the window that had it and reports whether that worked. The promise is narrowed to "your pointer stays yours" (Known limits) |
+| D79 | Files panel | Wasif, 2026-10-12, in a /spec session: MetaTrooper gets a light file viewer, not an IDE (M7-9). It docks in the second big slot beside the focused tile, as Warp and Claude Code desktop do, and shows only that session's `cwd`. Tabs open read-only; `Edit` unlocks one tab, and a save refuses when the file changed on disk or another live session owns it (`ownersAsync`) until the user confirms. Real editing goes to VS Code through the existing `openLink`. No language servers. After the release, so Milestone 6 is unchanged |
+| D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
 
 ## Current state, verified 2026-10-10
 
@@ -930,7 +932,7 @@ Deferred by Wasif on 2026-10-10, nothing waits on them before the freeze:
 - Phone control and the metered cloud: later epics.
 - macOS testing.
 
-## Milestone 7: after the release (about 29 CC days, from 2027-01-20)
+## Milestone 7: after the release (about 32 CC days, from 2027-01-20)
 
 Specced 2026-10-11 from the ideas D73 moved after the release (D77). Each item names its idea in the idea mine
 (`<lane> <n>`), and every file and line it names was checked against the code at e68b1a9. Nothing here starts
@@ -948,6 +950,7 @@ before the public release on 2027-01-19, and nothing here changes Milestone 6.
 | M7-6 | Sessions: Gemini usage, pi state, exit ladder, prompt check, turn refs, quiet phone alerts, worktree files | High | 2.5 | M6-5, M6-10, M6-20, M6-21 |
 | M7-7 | Wall layout: splitters, fractions, auto layout, drag to pair, fold stack, palette ranking | Medium | 5.0 | M7-8, M6-6, M6-7, M6-9, M6-19 |
 | M7-8 | Terminal: paste, shell marks, batching, OSC text, resize, copy output, graphemes, find, screen reader, anchor | Medium | 3.5 | M6-7, M6-8, M6-19 |
+| M7-9 | Files panel: read the agent's worktree beside its tile, guarded save, VS Code handoff (D79, D80) | Medium | 2.75 | M6-21 |
 
 Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
 
@@ -961,9 +964,11 @@ Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
   3.75 + 1.25 = 5.0.
 - M7-8: wall-terminal 8 and 13 are M: 2 x 0.75 = 1.5; 7, 10, 11, 12, 14, 15, 16 and 18 are S: 8 x 0.25 = 2.0.
   1.5 + 2.0 = 3.5.
-- Build: 2.75 + 9.5 + 2.0 + 2.5 + 5.0 + 3.5 = 25.25 CC days.
-- Review, merge and two-engine checks at 15%: 25.25 x 0.15 = 3.8 CC days.
-- Total: 25.25 + 3.8 = 29.05, about 29 CC days.
+- M7-9: added 2026-10-12 (D79), sized by part in `issues/m7-09-files-panel.md`: 0.25 + 0.75 + 0.5 + 0.75 + 0.25 +
+  0.25 = 2.75.
+- Build: 2.75 + 9.5 + 2.0 + 2.5 + 5.0 + 3.5 + 2.75 = 28.0 CC days.
+- Review, merge and two-engine checks at 15%: 28.0 x 0.15 = 4.2 CC days.
+- Total: 28.0 + 4.2 = 32.2, about 32 CC days.
 - Calendar, at M6's pace of 1 CC day per calendar day: 29 days from 2027-01-20 is 2027-02-17 (12 days left in
   January, 20 to 31, then 17 in February: 12 + 17 = 29).
 
