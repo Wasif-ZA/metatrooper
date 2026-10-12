@@ -1,6 +1,6 @@
 # M6-6 report: everything comes back after a restart
 
-Branch `m6-6-restart`, commits `d38f7a9` (core) and `8b47d8f` (workbench). Nothing is merged, pushed or rebased.
+Branch `m6-6-restart`, commits `d38f7a9` (core), `8b47d8f` (workbench), `4d1f82d` (report) and `783829b` (fixes after review). Nothing is merged, pushed or rebased.
 
 ## Criteria
 
@@ -28,6 +28,14 @@ What was built:
   reopens the shells that died with it.
 - While tiles are still coming back, `state()` saves the saved layout (with the ids of tiles already back), so a
   second restart in that window loses nothing. Saved ids that have not come back after 60 s are dropped.
+- Fixed after review (`783829b`):
+  - A tile is matched to the saved layout by its own id first, then by its `resumed_from`. Before this, a layout
+    saved after one restart did not rebuild after the next.
+  - Saved shells go into the shell list as exited placeholders before they are reopened. If the first reopen hits
+    a core that is already gone (its heartbeat counts as online for up to 6 s), it runs again once a new core pid
+    shows up.
+  - Before resuming a session that is not `exited` yet, the resumer processes pending events once, so the
+    session is not dropped.
 
 Evidence:
 
@@ -43,8 +51,11 @@ Evidence:
   freeing as soon as a session leaves `starting`.
 - `workbench/test/m6-06-layout.test.ts`. The first wall has a big slot, a pair, an opened done tile and a shell.
   A fresh wall restores that layout from all 120 arrival orders of the resumed tiles and the reopened shell. Big,
-  pair, `pair_at`, order and open tiles match every time. Two more tests cover a tile still missing from the saved
-  layout, and `seedLayout`, `reopenShell`, `saveLayout` and `coreRestarted`.
+  pair, `pair_at`, order and open tiles match every time. For each order, a third wall then restores the layout the
+  second wall saved, as a workbench-only restart does, and gets the same layout. Three more tests cover:
+  - a tile still missing from the saved layout;
+  - `seedLayout`, `reopenShell`, `saveLayout` and `coreRestarted`;
+  - a shell reopen that meets a dead core and is retried once a new core is up.
 
 ### M6-06b: two `auth_error` failures stop that engine and raise one needs-you item; an exited session shows its saved last screen
 
@@ -79,15 +90,19 @@ Evidence:
 | Command | Result |
 |---|---|
 | `cd core && node --test test/m6-06-restart.test.ts` | 8 pass, 0 fail (28 s) |
-| `cd workbench && node --test test/m6-06-layout.test.ts test/renderer-guards.test.ts` | 17 pass, 0 fail |
+| `cd workbench && node --test test/m6-06-layout.test.ts test/renderer-guards.test.ts` | 18 pass, 0 fail (after `783829b`) |
+| `cd core && node --test test/m6-06-restart.test.ts`, rerun after `783829b` | 8 pass, 0 fail |
 | `cd core && node --test "test/*.test.ts"` | 345 tests: 340 pass, 4 skipped, 1 fail. The failure is `m5-notify.test.ts` "M5-15a/b new gate..." with `notify.sink.set timed out` under full-suite load. Rerun on its own: 8 of 8 pass. It does not touch this change. |
 | `cd workbench && node --test --test-concurrency=1 "test/*.test.ts"` | 97 tests: 61 pass, 0 fail, 32 skipped (the opt-in Electron suites) |
+
+The two full-suite runs above were made before `783829b`. That commit touches only `wall.js`, `seedLayout` and
+the resumer, and both M6-6 test files were rerun after it.
 
 Mutation run (D65). Each mutation was applied, the M6-6 test file run, then the file restored:
 
 - killed: the cap raised to 4; `>=` changed to `>` on the auth threshold; the 2 s gap removed; the saved-screen
   branch removed from the term pipe; the save at exit removed; seeding removed from `wall.decide`; restoring opened
-  tiles removed.
+  tiles removed; matching saved tiles only by `resumed_from`; the exited-shell placeholder.
 - survived: removing `markGone(db, wereLive)` from `main.ts`. `checkPids` also marks rows with dead pids exited
   before the first resume tick, so `markGone` only guards that race and the case of a launcher pid that is still
   alive. No test separates the two.
