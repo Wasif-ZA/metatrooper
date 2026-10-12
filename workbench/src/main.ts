@@ -109,6 +109,8 @@ function syncPanes(): void {
 }
 
 let toasted: Set<string> | null = null;
+/** The tile the renderer shows big, reported on every change; ui_selection lags behind shell picks and project switches. */
+let focused: string | null = null;
 
 /** The session a needs-you row is about, from the snapshot or else the database, with its live terminal title. */
 function sessionOf(s: Snapshot, n: Snapshot['needs_you'][number]) {
@@ -131,7 +133,7 @@ function toastNew(s: Snapshot): void {
     if (toasted.has(n.id) || n.read_at) continue;
     toasted.add(n.id);
     if (!Notification.isSupported()) continue;
-    const toast = toastFor(n, sessionOf(s, n), { window: !!win && !win.isDestroyed() && win.isFocused(), session: s.selected });
+    const toast = toastFor(n, sessionOf(s, n), { window: !!win && !win.isDestroyed() && win.isFocused(), session: focused });
     if (!toast) continue;
     const note = new Notification({ ...toast, silent: false });
     note.on('click', () => {
@@ -243,6 +245,11 @@ function handlers(): void {
   on('view', (v: { projectId?: unknown }) => {
     view = { projectId: typeof v?.projectId === 'string' ? v.projectId : null };
     push();
+    return true;
+  });
+
+  on('focus', (id: unknown) => {
+    focused = typeof id === 'string' ? id : null;
     return true;
   });
 

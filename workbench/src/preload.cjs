@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('troop', {
   view: (v) => ipcRenderer.invoke('view', v),
+  focus: (id) => ipcRenderer.invoke('focus', id),
   call: (method, params) => ipcRenderer.invoke('call', method, params),
   pickFolder: () => ipcRenderer.invoke('pickFolder'),
   handback: (projectId) => ipcRenderer.invoke('handback', projectId),
