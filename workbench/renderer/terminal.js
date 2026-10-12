@@ -1,7 +1,7 @@
 // Live terminals: one xterm.js instance per shown session, fed from the core's terminal pipe through the main process.
 const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div class="r1">
   <span class="dot"></span><b class="tile-engine eng"></b><span class="tile-task task"></span>
-  <span class="tile-state badge"></span>
+  <span class="tile-state badge"></span><span class="tile-previews"></span>
   <span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
   <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
@@ -172,6 +172,10 @@ const termView = (() => {
     }
   });
 
+  function escapeAttr(v) {
+    return String(v).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  }
+
   function label(t, x) {
     const set = (sel, text) => { const e = t.el.querySelector(sel); if (e.textContent !== text) e.textContent = text; };
     t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
@@ -183,6 +187,9 @@ const termView = (() => {
     set('.tile-meta', x.meta || '');
     set('.tile-ctx', x.ctx ? x.ctx.text : '');
     t.el.querySelector('.tile-ctx').classList.toggle('warn', Boolean(x.ctx && x.ctx.warn));
+    const previews = (x.previews || []).map((d) => `<button class="btn" data-action="open-preview" data-url="${escapeAttr(d.url)}" title="Open ${escapeAttr(d.url)} in this agent's browser pane">Open preview${x.previews.length > 1 ? ` :${d.port}` : ''}</button>`).join('');
+    const box = t.el.querySelector('.tile-previews');
+    if (box.innerHTML !== previews) box.innerHTML = previews;
     t.el.dataset.state = x.state;
     t.el.classList.toggle('shell', Boolean(x.shell));
     const tx = t.el.querySelector('.tx');
