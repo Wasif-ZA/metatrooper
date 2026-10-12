@@ -232,7 +232,8 @@ because an engine may not pass its environment to hooks; it prints nothing.
 - `codex-config` (prefix `codex`): one `-c hooks.<Event>=[{hooks=[{type="command",command="..."}]}]` override per
   event on the launch command line. `config.toml` is never edited and `--dangerously-bypass-hook-trust` is never used.
   The built-in Codex engine declares no `hooks` until the trust spike in
-  `issues/m6-05-state-from-each-engine-s-hooks-with-the.md` passes; until then it keeps the notify wrapper below.
+  `issues/m6-05-state-from-each-engine-s-hooks-with-the.md` passes; until then it keeps the notify wrapper below. A
+  Codex engine that declares hooks gets them instead of the per-session notify wrapper, not both.
 - `gemini-system-settings` (prefix `gemini`): the core writes `~/.metatrooper/engines/gemini/<session id>.json`
   holding only `{"hooks": {...}}` (one group per event, `timeout` 5000 ms) and launches with
   `GEMINI_CLI_SYSTEM_SETTINGS_PATH` set to it. `~/.gemini/settings.json` is never touched. The file is deleted when
@@ -244,7 +245,7 @@ because an engine may not pass its environment to hooks; it prints nothing.
 
 ## Codex notify wrapper
 
-A Codex session launched by MetaTrooper gets the wrapper per session as `-c notify=[...]`, wrapping the
+A Codex session launched by MetaTrooper, when its engine declares no `hooks`, gets the wrapper per session as `-c notify=[...]`, wrapping the
 user's own `notify` with any MetaTrooper wrapper peeled off; launching never edits `config.toml`. The install
 below is optional, for users who want the wrapper in every Codex run.
 

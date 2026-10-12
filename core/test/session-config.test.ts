@@ -168,6 +168,8 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
   fs.writeFileSync(config, text);
   const codex = { ...claude, id: 'codex', state_source: 'notify' as const, mcp_attach: { kind: 'codex-config' } };
   assert.deepEqual(sessionHookArgs(codex, 'C1'), ['-c', `notify=[${['node', script, inner].map((v) => JSON.stringify(v)).join(', ')}]`]);
+  const hooked = sessionHookArgs({ ...codex, hooks: { kind: 'codex-config', events: ['Stop'] } }, 'C1');
+  assert.deepEqual(hooked.filter((a) => a !== '-c').map((a) => a.split('=')[0]), ['hooks.Stop']);
   const db = openCoreDb();
   try {
     assert.deepEqual(mcpAttachArgs(db, codex, 'C1', true), []);

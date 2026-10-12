@@ -100,10 +100,10 @@ function globalClaudeHooks(): Set<string> {
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper and declared Codex hooks, so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
+/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or the declared Codex hooks (else the Codex notify wrapper), so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
 export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: string | null = null): string[] {
   const codexHooks = engine.hooks?.kind === 'codex-config' ? codexHookArgs(engine.hooks.events, sessionId) : [];
-  if (engine.mcp_attach?.kind === 'codex-config') return [...codexNotifyArgs(), ...codexHooks];
+  if (engine.mcp_attach?.kind === 'codex-config') return codexHooks.length ? codexHooks : codexNotifyArgs();
   if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return codexHooks;
   const script = path.join(coreDir, 'statusline.js').split(String.fromCharCode(92)).join('/');
   const settings: Json = { statusLine: { type: 'command', command: `node "${script}" --user-statusline`, padding: 0 } };
