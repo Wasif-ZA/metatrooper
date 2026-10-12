@@ -182,3 +182,37 @@ Left for Wasif:
 - The opt-in desktop end-to-end tests (`METATROOPER_DESKTOP_E2E=1`) were not rerun, because they send real input to
   this desktop. The fix only drops lines that arrive while no grant is live, and those tests always hold a grant.
 - Everything under "Left for Wasif" in the earlier sections still stands.
+
+## Review fixes, round 3
+
+`git merge main` said "Already up to date", so there is no merge commit. Codex found nothing this round. Gemini
+raised four findings. I checked each one against the code, `spec.md` and the M6-15 branch, and none of them is real,
+so this round has no code commits. I did not touch `input-hook.ps1`, so I did not need to run the desktop e2e tests
+or rebuild `core/dist`.
+
+| # | Finding | Verdict | Evidence |
+|---|---|---|---|
+| 1 | HIGH: an action that never calls `endAction()` keeps `end: Infinity` and mutes the watcher for good | **Not real** | On this branch only the tests call `beginAction`/`endAction`. The wiring planned for M6-15 (see "Left for Wasif" item 1) calls `endAction` in a `finally`, so a rejection, a timeout or a thrown error still ends the action. Each await in M6-15's `Desktop.act` (`m6-15-computer-use:core/src/desktop/driver.ts`) settles: every `helper.request` has a 30 s timeout (`HELPER_TIMEOUT_MS`), and a stopped helper rejects all pending calls. `serial()` only waits on earlier calls, and those are bounded the same way. The suggested TTL would cause a new bug: a long `type` runs as many 8-character `set_text` chunks inside one action, so any fixed TTL could expire mid-action and raise "input from another program" for the agent's own typing |
+| 2 | MEDIUM: `raise()` sets `takeover_paused_at` again when an item for that window is already open | **Not real; this is what the spec asks for** | D70 (spec line 99) says injected input with no action in flight raises the item **and**, with `desktop.watch_pause` on, sets the pause flag. Spec lines 524-526 say that for unmatched injected input the core "raises the needs-you item and sets the pause flag". The open-item check stops duplicate items, not the pause. If the user resumes while another program keeps scripting that window, pausing again is the protection D70 asks for. The open item still names the window, so the user can see why |
+| 3 | MEDIUM: if a UI Automation subscription throws, `subscribed.WaitOne()` hangs until `READY_MS` (15 s) | **Not real** | An exception nobody catches on any .NET thread ends the process. I tested this in Windows PowerShell 5.1 with a probe that copies the helper's structure: `Add-Type`, a background MTA thread that throws before `subscribed.Set()`, and the main thread in `WaitOne()`. The process exited with code 1 within 1 s, not 15. That fires `exit` in `Watcher.start`, `fail()` runs, and `input_watcher` goes to `off` at once. That is the M6-22b path, already tested. The hooks thread works the same way |
+| 4 | MEDIUM: injected mouse events report `GetForegroundWindow()`, not the window under the cursor | **Not real; this is what the spec asks for** | D70 (spec line 99) says the item is raised "naming the foreground window". Spec line 523 says the helper reports each injected event "with its time and the foreground window". The helper does what the spec says. A note for Wasif is below |
+
+Sibling check: there is no other module-level state with no upper bound (`actions` is the only map, and
+`endAction` prunes it). The helper has one other thread that can fail before signalling, the hooks thread. If
+`SetWindowsHookEx` fails, the helper returns 2 at once. If that thread throws, the process exits, as in finding 3.
+
+Suites, from Git Bash with Git `usr/bin` on PATH:
+
+- Core: `cd core && node --test "test/*.test.ts"` gave **417 tests, 411 pass, 0 fail, 6 skipped**. This matches round
+  2, and the skips are the same opt-in or environment-bound tests.
+- Workbench: `cd workbench && npm test` gave **131 tests, 92 pass, 0 fail, 35 skipped (Electron e2e, opt-in), 4
+  todo**.
+
+Left for Wasif:
+
+- Finding 4 is a spec choice you could revisit. For a mouse click injected into a window behind another one, the item
+  names the foreground window, not the window that got the click. To name the window under the cursor, the helper
+  would read the point from `MSLLHOOKSTRUCT` and call `WindowFromPoint` plus `GetAncestor(GA_ROOT)`. That would change
+  D70's wording.
+- Finding 1 depends on the M6-15 wiring keeping `endAction` in a `finally`. Keep it there when you merge.
+- Everything under "Left for Wasif" in the earlier sections still stands.
