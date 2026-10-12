@@ -129,7 +129,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}` | {session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path | -32002, -32003, -32020, -32040 | yes |  |
 | `session.list` | `{project_id?, all?: bool}` | {sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true` |  | yes |  |
 | `session.wait` | `{session_id, states: [state, ...], timeout_ms}` | {state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms` | -32602, -32002 | yes |  |
-| `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` | -32002, -32602 | yes |  |
+| `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id | -32002, -32602 | yes |  |
 | `session.focus` | `{session_id}` | {focused: bool} | -32002 | yes |  |
 | `session.live-text` | `{}` | {<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |  | yes |  |
 | `session.search` | `{query, session_ids?}` | {hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |  |  | yes |
@@ -218,6 +218,10 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   256 KiB. With no viewer attached, replies the headless terminal generates to a program's queries go back to
   the pty; with a viewer attached, the viewer answers.
 - An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
-  ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
+  ignored. `attach` to a session whose terminal has ended and whose last screen was saved
+  (`~/.metatrooper/screens/<session>.json`, the last 200 rows, written when the pty exits and when the core stops)
+  gets that screen as `{"op":"snapshot","seq":0,"data":...}`, then `{"op":"exit","code":<exit code or "unknown">}`, and
+  closes. `attach` to an unknown session, or an ended one with no saved screen, gets
+  `{"op":"error","code":"no-session"}` and closes. Saved screens older than 30 days are deleted at core start.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;
   input from any goes to the pty; the latest `resize` wins.

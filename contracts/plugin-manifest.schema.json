@@ -41,6 +41,7 @@
           "type": "string"
         },
         "resume_args": { "type": "array", "items": { "type": "string" }, "description": "Arguments that resume an earlier session; {native_id} is replaced by its id. Omit if the CLI cannot resume." },
+        "auth_error": { "type": "string", "maxLength": 200, "description": "Regex, matched case-insensitively against the last 200 rows of a resumed session's screen, that means the engine needs signing in. After 2 matches the core stops resuming the engine and raises one needs-you item." },
         "version_cmd": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "min_version": { "type": "string", "description": "Lowest version that works; an older one shows as too-old." },
         "install": { "type": "string", "description": "Install command shown when the engine is missing." },

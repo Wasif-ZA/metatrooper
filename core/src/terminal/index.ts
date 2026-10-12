@@ -1,5 +1,8 @@
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import type { IPty } from 'node-pty';
+import { homeDir } from '../paths.ts';
 import { settings } from '../settings.ts';
 import { PARENT_SESSION_ENV } from './parent-env.ts';
 import { windowsBuild } from './windows-build.ts';
@@ -89,8 +92,8 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     for (const v of t.viewers) v.exit(exitCode);
     t.viewers.clear();
     hooks.onExit?.(id, exitCode, t.killed);
-    // head.write is async; dispose after pending writes flush
-    head.write('', () => { head.dispose(); terms.delete(id); });
+    // head.write is async; save the last screen and dispose after pending writes flush
+    head.write('', () => { saveScreen(id, t); head.dispose(); terms.delete(id); });
   });
   return proc.pid;
 }
@@ -226,4 +229,58 @@ export function detach(id: string, viewer: Viewer): void {
 
 export function killAll(): void {
   for (const id of terms.keys()) kill(id);
+}
+
+export const SCREEN_ROWS = 200;
+
+export interface SavedScreen { code: number | null; screen: string; text: string }
+
+export function screensDir(): string {
+  return path.join(homeDir(), 'screens');
+}
+
+const screenFile = (id: string) => path.join(screensDir(), `${id.replace(/[^\w-]/g, '_')}.json`);
+
+/** The last SCREEN_ROWS rows of the headless terminal as plain text. */
+function textOf(t: Term): string {
+  const b = t.head.buffer.active;
+  const rows: string[] = [];
+  for (let i = Math.max(0, b.length - SCREEN_ROWS); i < b.length; i++) rows.push(b.getLine(i)?.translateToString(true) ?? '');
+  return rows.join('\n').replace(/\s+$/, '');
+}
+
+/** Writes the terminal's last SCREEN_ROWS rows, serialized and as plain text, to screens/<id>.json. */
+function saveScreen(id: string, t: Term): void {
+  try {
+    const saved: SavedScreen = { code: t.exitCode, screen: t.ser.serialize({ scrollback: Math.max(0, SCREEN_ROWS - t.head.rows) }), text: textOf(t) };
+    fs.mkdirSync(screensDir(), { recursive: true });
+    fs.writeFileSync(screenFile(id), JSON.stringify(saved));
+  } catch {}
+}
+
+/** The screen saved when the session's terminal ended, or null. */
+export function savedScreen(id: string): SavedScreen | null {
+  try { return JSON.parse(fs.readFileSync(screenFile(id), 'utf8')) as SavedScreen; } catch { return null; }
+}
+
+/** Plain text of the last SCREEN_ROWS rows: from the live terminal once pending output is parsed, else from the saved screen. */
+export function screenText(id: string): Promise<string | null> {
+  const t = terms.get(id);
+  if (!t) return Promise.resolve(savedScreen(id)?.text ?? null);
+  return new Promise((resolve) => t.head.write('', () => resolve(textOf(t))));
+}
+
+/** Saves the screen of every open terminal, for a core that is about to stop. */
+export async function saveAllScreens(): Promise<void> {
+  await Promise.all([...terms].map(([id, t]) => new Promise<void>((resolve) => t.head.write('', () => { saveScreen(id, t); resolve(); }))));
+}
+
+/** Deletes saved screens older than `days`. */
+export function pruneScreens(days = 30, now = Date.now()): void {
+  try {
+    for (const name of fs.readdirSync(screensDir())) {
+      const file = path.join(screensDir(), name);
+      if (now - fs.statSync(file).mtimeMs > days * 86_400_000) fs.rmSync(file, { force: true });
+    }
+  } catch {}
 }

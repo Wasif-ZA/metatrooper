@@ -18,13 +18,13 @@ import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { dataVersion, snapshot, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
-import { gitIn, handback, sessionChanges } from './handback.ts';
+import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
-import { refreshRowGit, rowGit } from './rowgit.ts';
+import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -445,7 +445,7 @@ function handlers(): void {
   on('sessionDiffFile', async (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd || typeof file !== 'string') return null;
-    try { return await gitIn(cwd)(['diff', await diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
+    try { return await fileDiff(gitIn(cwd), await diffBase(sessionId, scope, cwd), file); } catch { return null; }
   });
 
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -464,6 +464,12 @@ function handlers(): void {
     if (value !== 'ask' && value !== 'contained') return { error: 'approval must be ask or contained' };
     const error = await writeSetting('sessions.approval', value);
     return error ? { error } : { ok: true };
+  });
+  let layoutWrites = Promise.resolve<unknown>(null);
+  on('saveLayout', (projectId: unknown, layout: unknown) => {
+    if (typeof projectId !== 'string' || !layout || typeof layout !== 'object' || Array.isArray(layout) || JSON.stringify(layout).length > 64 * 1024) return { error: 'bad layout' };
+    layoutWrites = layoutWrites.catch(() => null).then(() => writeSetting('ui.layout', { ...settings().ui.layout, [projectId]: layout }));
+    return layoutWrites.then((error) => (error ? { error } : { ok: true }));
   });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
@@ -744,8 +750,10 @@ if (!app.requestSingleInstanceLock()) {
     watch();
     const gitTick = async () => {
       try {
-        const live = (lastGood?.sessions ?? []).filter((x) => x.state !== 'exited').map((x) => ({ id: x.id, cwd: x.cwd }));
-        if (await refreshRowGit(live)) push();
+        const all = lastGood?.sessions ?? [];
+        const live = all.filter((x) => x.state !== 'exited').map((x) => ({ id: x.id, cwd: x.cwd }));
+        const d = db();
+        if (await refreshRowGit(live, d ? await ownedIn(d, all.map((x) => x.cwd)) : {})) push();
       } catch {}
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
