@@ -357,6 +357,7 @@ r.navigateAfterUrlCheck = outcome(await resolving);
 r.loadedAfterUrlCheck = paneLoads;
 pm.act('bp_agent_1', 'give-back');
 delete internal.paneCtx;
+delete (wc as Record<string, unknown>).loadURL;
 
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
