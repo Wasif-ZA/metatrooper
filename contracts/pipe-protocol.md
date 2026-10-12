@@ -221,6 +221,11 @@ are in `browser-tools.md`.
 `browser.<tool>` for the 12 tools, plus `browser.panes` (lists panes this session may drive) and
 `browser.capture` (`{pane_id, label}`, used by the core for before/after and comments).
 
+`cursor.glide` (`{session, target_rect_px, caption}`, from `metatrooper-desktop` before each desktop input, M6-15):
+`session` must be the connection's bound session, else -32030; result `{arrived: true}` once the session's cursor
+reached the target (M6-18 draws it; until then the reply is immediate). `metatrooper-desktop` binds with the same
+`browser.hello`.
+
 ## Terminal pipe
 
 A second pipe, `<prefix>-term` next to the main pipe (`metatrooper-term` by default), carries terminal bytes.

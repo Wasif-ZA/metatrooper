@@ -1,12 +1,8 @@
-import net from 'node:net';
-import { browserPipe } from '../paths.ts';
-import { openReaderDb } from '../store/db.ts';
-import { createDecoder, encode } from '../pipe/framing.ts';
-import { ancestors, parentTable } from '../browser/ancestry.ts';
 import { call as coreCall } from '../pipe/client.ts';
 import { actionHash, APPROVAL_TIMEOUT_MS, type Control } from '../approvals.ts';
+import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
+import { serveMcp } from './mcp-stdio.ts';
 
-const CALL_TIMEOUT_MS = 30_000;
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
 const pane = { pane_id: { type: 'string', description: 'From panes; may be omitted when this session owns exactly one pane.' } };
@@ -34,92 +30,10 @@ const TOOLS: Array<{ name: string; description: string; inputSchema: Record<stri
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
-/** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
-function findSession(): string | null {
-  const db = openReaderDb();
-  if (!db) return null;
-  try {
-    const rows = db.prepare('SELECT id, pid FROM session WHERE pid IS NOT NULL AND ended_at IS NULL').all() as Array<{ id: string; pid: number }>;
-    const byPid = new Map(rows.map((r) => [r.pid, r.id]));
-    for (const pid of ancestors(process.pid, parentTable())) {
-      const id = byPid.get(pid);
-      if (id) return id;
-    }
-    return null;
-  } finally {
-    db.close();
-  }
-}
-
-class Browser {
-  private socket: net.Socket | null = null;
-  private pending = new Map<string, (r: { result?: unknown; error?: { code: number; message: string } }) => void>();
-  private next = 0;
-  private sessionId: string | null | undefined;
-
-  private connect(): Promise<net.Socket> {
-    if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
-    return new Promise((resolve, reject) => {
-      const s = net.connect(browserPipe());
-      const decode = createDecoder((raw) => {
-        const r = raw as { id?: string; result?: unknown; error?: { code: number; message: string } };
-        const w = typeof r.id === 'string' ? this.pending.get(r.id) : undefined;
-        if (w) {
-          this.pending.delete(r.id as string);
-          w(r);
-        }
-      });
-      s.on('data', (c) => { try { decode(c); } catch {} });
-      const drop = () => {
-        this.socket = null;
-        for (const w of this.pending.values()) w({ error: { code: -32099, message: UNAVAILABLE } });
-        this.pending.clear();
-      };
-      s.once('error', () => { drop(); reject(new Error(UNAVAILABLE)); });
-      s.once('close', drop);
-      s.once('connect', async () => {
-        this.socket = s;
-        this.sessionId ??= findSession();
-        if (this.sessionId) {
-          const r = await this.raw('browser.hello', { session_id: this.sessionId, pid: process.pid });
-          if (r.error) this.sessionId = null;
-        }
-        resolve(s);
-      });
-    });
-  }
-
-  private raw(method: string, params: Record<string, unknown>): Promise<{ result?: unknown; error?: { code: number; message: string } }> {
-    const id = `b${process.pid}-${++this.next}`;
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        resolve({ error: { code: -32099, message: `${method} timed out after 30 s` } });
-      }, CALL_TIMEOUT_MS);
-      this.pending.set(id, (r) => { clearTimeout(timer); resolve(r); });
-      this.socket?.write(encode({ jsonrpc: '2.0', id, method, params }));
-    });
-  }
-
-  async call(method: string, params: Record<string, unknown>): Promise<{ result?: unknown; error?: { code: number; message: string } }> {
-    try {
-      await this.connect();
-    } catch {
-      return { error: { code: -32099, message: UNAVAILABLE } };
-    }
-    return this.raw(method, params);
-  }
-}
-
-const browser = new Browser();
-
-function send(msg: object): void {
-  process.stdout.write(JSON.stringify(msg) + '\n');
-}
+const browser = new WorkbenchPipe(UNAVAILABLE);
 
 const CHECKED = new Set(['click', 'type', 'select', 'key']);
 const CONTROL_CHANGED = -32035;
-type Reply = { result?: unknown; error?: { code: number; message: string } };
 
 /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. */
 async function checkedCall(name: string, args: Record<string, unknown>): Promise<Reply> {
@@ -156,39 +70,4 @@ async function toolCall(name: string, args: Record<string, unknown>): Promise<ob
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 
-async function handle(msg: { id?: unknown; method?: string; params?: Record<string, unknown> }): Promise<void> {
-  const reply = (result: unknown) => { if (msg.id !== undefined) send({ jsonrpc: '2.0', id: msg.id, result }); };
-  switch (msg.method) {
-    case 'initialize':
-      return reply({
-        protocolVersion: typeof msg.params?.protocolVersion === 'string' ? msg.params.protocolVersion : '2025-06-18',
-        capabilities: { tools: {} },
-        serverInfo: { name: 'metatrooper-browser', version: '1.0.0' },
-      });
-    case 'ping':
-      return reply({});
-    case 'tools/list':
-      return reply({ tools: TOOLS });
-    case 'tools/call':
-      return reply(await toolCall(String(msg.params?.name ?? ''), (msg.params?.arguments ?? {}) as Record<string, unknown>));
-    default:
-      if (msg.id !== undefined && msg.method) send({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: `unknown method ${msg.method}` } });
-  }
-}
-
-let buf = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk: string) => {
-  buf += chunk;
-  for (let i; (i = buf.indexOf('\n')) >= 0;) {
-    const line = buf.slice(0, i).trim();
-    buf = buf.slice(i + 1);
-    if (!line) continue;
-    try {
-      void handle(JSON.parse(line));
-    } catch {
-      send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'parse error' } });
-    }
-  }
-});
-process.stdin.on('end', () => process.exit(0));
+serveMcp('metatrooper-browser', TOOLS, toolCall);

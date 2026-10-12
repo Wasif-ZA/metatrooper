@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { client, isolation, root, sleep, startCore, stopCore, teardownCore, uiHello, until } from './helpers.ts';
+import net from 'node:net';
+import readline from 'node:readline';
+import { spawn } from 'node:child_process';
+import { buildGenerated, client, isolation, pipePath, root, sleep, startCore, stopCore, teardownCore, uiHello, until } from './helpers.ts';
+import { createDecoder, encode } from '../src/pipe/framing.ts';
+import { mcpAttachArgs } from '../src/plugins/mcp.ts';
 import { covers, sameWindow, type GrantRow, type WindowInfo } from '../src/grants.ts';
 import { isQueueable } from '../src/pipe/commands.ts';
 import { migrate } from '../src/store/db.ts';
@@ -76,6 +81,102 @@ test('M6-15 unit: a grant covers its window and owned windows with the same pid 
   assert.equal(isQueueable('desktop.act'), false, 'typed text never reaches the command queue');
   assert.equal(isQueueable('grant.window'), false);
   assert.equal(isQueueable('takeover.pause'), false);
+});
+
+/** A stand-in for the workbench's `\\.\pipe\<prefix>-browser`: binds sessions and answers cursor.glide, recording when. */
+async function fakeWorkbench(prefix: string, log: string) {
+  const glides: Array<{ at: number; params: any }> = [];
+  const server = net.createServer((socket) => {
+    let bound: string | null = null;
+    socket.on('data', createDecoder((raw: any) => {
+      const reply = (result: unknown) => socket.write(encode({ jsonrpc: '2.0', id: raw.id, result }));
+      if (raw.method === 'browser.hello') { bound = raw.params.session_id; return reply({ ok: true, bound: 'session' }); }
+      if (raw.method === 'cursor.glide' && raw.params.session === bound) { glides.push({ at: Date.now(), params: raw.params }); appendFileSync(log, JSON.stringify({ op: 'glide' }) + '\n'); return reply({ arrived: true }); }
+      socket.write(encode({ jsonrpc: '2.0', id: raw.id, error: { code: -32601, message: 'no' } }));
+    }));
+    socket.on('error', () => {});
+  });
+  await new Promise<void>((r) => server.listen(pipePath(`${prefix}-browser`), r));
+  return { glides, close: () => new Promise<void>((r) => server.close(() => r())) };
+}
+
+/** metatrooper-desktop as a child of this process, which is the seeded session's launcher. */
+function desktopMcp(env: Record<string, string | undefined>) {
+  const child = spawn(process.execPath, [join(root, 'core', 'metatrooper-desktop.js')], { env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  const waiting = new Map<number, (m: any) => void>();
+  let n = 0;
+  readline.createInterface({ input: child.stdout! }).on('line', (l) => { const m = JSON.parse(l); waiting.get(m.id)?.(m); waiting.delete(m.id); });
+  const rpc = (method: string, params: object = {}) => new Promise<any>((resolve) => { const id = ++n; waiting.set(id, resolve); child.stdin!.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); });
+  const tool = async (name: string, args: object = {}) => (await rpc('tools/call', { name, arguments: args })).result;
+  return { rpc, tool, close: () => child.kill() };
+}
+
+test('M6-15 metatrooper-desktop: workbench closed, then describe, approval, glide and act in that order', async () => {
+  await buildGenerated();
+  const { iso, inputs } = setup([NOTEPAD, SAVE_AS, CALC, WORKBENCH]);
+  const core = await startCore(iso);
+  const db = seed(iso.home);
+  db.prepare("UPDATE session SET pid = NULL WHERE id = 's2'").run();
+  const { agent, ui } = await connect(iso);
+  const mcp = desktopMcp(iso.env);
+  let wb: Awaited<ReturnType<typeof fakeWorkbench>> | null = null;
+  try {
+    const listed = (await mcp.rpc('tools/list')).result.tools.map((t: any) => t.name);
+    assert.deepEqual(listed, ['windows', 'snapshot', 'screenshot', 'click', 'type', 'key', 'scroll', 'wait_for']);
+    // Workbench closed: every tool fails the same way, reads included
+    for (const [name, args] of [['windows', {}], ['snapshot', { window: 100 }], ['type', { window: 100, ref: 'e1', text: 'x' }]] as const) {
+      const r = await mcp.tool(name, args);
+      assert.equal(r.isError, true);
+      assert.equal(r.content[0].text, 'desktop not available: the MetaTrooper workbench is closed');
+    }
+
+    wb = await fakeWorkbench(iso.prefix, iso.env.FAKE_UIA_LOG!);
+    assert.match((await mcp.tool('snapshot', { window: 100 })).content[0].text, /window not granted; ask the user to give it to you/);
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.deepEqual(JSON.parse((await mcp.tool('windows')).content[0].text).windows.map((w: any) => w.window), [100, 101]);
+    assert.match((await mcp.tool('snapshot', { window: 100 })).content[0].text, /document "Text editor" \[ref=e1\]/);
+    assert.equal((await mcp.tool('screenshot', { window: 100 })).content[0].type, 'image');
+    assert.equal(JSON.parse((await mcp.tool('wait_for', { window: 100, text: 'File', timeout_ms: 1000 })).content[0].text).found, true);
+
+    const typed = await mcp.tool('type', { window: 100, ref: 'e1', text: 'hello' });
+    assert.equal(JSON.parse(typed.content[0].text).status, 'confirmed');
+    assert.equal(wb.glides.length, 1);
+    assert.deepEqual(wb.glides[0].params, { session: 's1', target_rect_px: [10, 10, 50, 20], caption: 'type 5 characters' });
+    assert.deepEqual(inputs().map((i) => i.op), ['glide', 'set_text'], 'the cursor arrives before the input lands');
+
+    assert.equal((await mcp.tool('click', { window: 200, ref: 'e1' })).content[0].text, 'window not granted; ask the user to give it to you');
+
+    // Save As: the click waits for a person; rejecting it sends nothing
+    const pending = mcp.tool('click', { window: 101, ref: 'e2' });
+    const waiting = await until(() => db.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 5000);
+    assert.equal(waiting.reason, 'file dialog');
+    assert.equal(waiting.target, grant);
+    await call(ui, 'approval.resolve', { approval_id: waiting.id, decision: 'reject' });
+    assert.equal((await pending).content[0].text, 'not approved: the user rejected this action');
+    assert.equal(inputs().filter((i) => i.hwnd === 101).length, 0);
+
+    await call(ui, 'takeover.pause', {});
+    assert.equal((await mcp.tool('key', { window: 100, keys: 'Tab' })).content[0].text, 'paused by the user');
+  } finally {
+    mcp.close(); await wb?.close();
+    agent.close(); ui.close(); release(db);
+    await teardownCore(core, iso);
+  }
+});
+
+test('M6-15 attach: metatrooper-desktop joins Windows sessions while the desktop plugin is enabled, never contained or isolated ones', { skip: process.platform !== 'win32' }, () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec("CREATE TABLE plugin (id TEXT, enabled INTEGER, manifest TEXT, path TEXT, source TEXT, permissions TEXT, version TEXT, installed_at TEXT); INSERT INTO plugin (id, enabled, manifest, path, source, permissions, version, installed_at) VALUES ('desktop', 1, '{}', '', 'builtin', '[]', '1', '')");
+  const engine = { id: 'codex', mcp_attach: { kind: 'codex-config' } } as any;
+  const names = (approval: string) => mcpAttachArgs(db, engine, 's1', false, { approval }).filter((a) => a.includes('metatrooper-desktop.command'));
+  assert.equal(names('ask').length, 1);
+  assert.match(mcpAttachArgs(db, engine, 's1', false, { approval: 'ask' }).join(' '), /metatrooper-desktop\.args=.*metatrooper-desktop\.js/);
+  assert.equal(names('contained').length, 0);
+  assert.equal(names('isolated').length, 0);
+  assert.equal(mcpAttachArgs(db, engine, 's1', false, { approval: 'ask', pipeline: true }).filter((a) => a.includes('metatrooper-desktop')).length, 0);
+  db.exec("UPDATE plugin SET enabled = 0 WHERE id = 'desktop'");
+  assert.equal(names('ask').length, 0, 'disabling the desktop plugin detaches it');
+  db.close();
 });
 
 test('M6-15 the real UI Automation helper compiles and answers read-only requests', { skip: process.platform !== 'win32' }, async () => {

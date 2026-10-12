@@ -514,9 +514,11 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
           assert.ok(!config.includes(literal));
           const codex = withEnv({ METATROOPER_HOME: h.home }, () => mcpAttachArgs(db, { ...claude, id: 'codex', mcp_attach: { kind: 'codex-config' } }, 'S2', true));
           assert.ok(!existsSync(codexConfig));
-          assert.equal(codex.filter((a) => a === '-c').length, 2);
+          // metatrooper-browser, plus metatrooper-desktop from the built-in desktop plugin on Windows (M6-15)
+          assert.equal(codex.filter((a) => a === '-c').length, process.platform === 'win32' ? 4 : 2);
           assert.match(codex[1], /^mcp_servers\.metatrooper-browser\.command=".*"$/);
           assert.match(codex[3], /^mcp_servers\.metatrooper-browser\.args=\[".*metatrooper-browser\.js"\]$/);
+          if (process.platform === 'win32') assert.match(codex[7], /^mcp_servers\.metatrooper-desktop\.args=\[".*metatrooper-desktop\.js"\]$/);
           assert.ok(!codex.join(' ').includes(literal));
         } finally {
           if (previousCodexPath === undefined) delete process.env.METATROOPER_CODEX_CONFIG;

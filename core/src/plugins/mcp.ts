@@ -74,6 +74,20 @@ export function browserServerPath(): string {
   return path.join(coreDir, 'metatrooper-browser.js');
 }
 
+export function desktopServerPath(): string {
+  return path.join(coreDir, 'metatrooper-desktop.js');
+}
+
+/** `metatrooper-desktop` joins Windows sessions while the built-in `desktop` plugin is enabled, never a pipeline step or a contained or isolated session. */
+function wantsDesktop(db: DatabaseSync, ctx: AttachContext): boolean {
+  if (process.platform !== 'win32' || ctx.pipeline || ctx.approval === 'contained' || ctx.approval === 'isolated') return false;
+  try {
+    return Boolean((db.prepare("SELECT enabled FROM plugin WHERE id = 'desktop'").get() as { enabled: number } | undefined)?.enabled);
+  } catch {
+    return false;
+  }
+}
+
 export interface AttachContext {
   pipeline?: boolean;
   approval?: string;
@@ -108,6 +122,7 @@ function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, c
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
   const servers: AttachServer[] = [
     ...(browser ? [{ name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
+    ...(wantsDesktop(db, ctx) ? [{ name: 'metatrooper-desktop', args: [desktopServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
     ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId], http: e.http })),
   ];
   return { node, servers };
