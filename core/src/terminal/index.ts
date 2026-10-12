@@ -113,6 +113,11 @@ export function ptyPid(id: string): number | null {
   return terms.get(id)?.proc.pid ?? null;
 }
 
+/** Whether any terminal is open. */
+export function anyOpen(): boolean {
+  return terms.size > 0;
+}
+
 export function has(id: string): boolean {
   const t = terms.get(id);
   return !!t && t.exitCode === null;

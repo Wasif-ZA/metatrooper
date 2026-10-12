@@ -2,10 +2,12 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:net';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, isolation, sleep, until } from './helpers.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { buildGenerated, isolation, root, sleep, until } from './helpers.ts';
+import { migrate } from '../src/store/db.ts';
 import { ownership, parseNetstat, parseUrls } from '../src/devservers.ts';
 
 const windows = process.platform === 'win32';
@@ -182,5 +184,24 @@ test('M6-03 leasePort leases from session_port, skipping leased and listening po
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM session_port WHERE session_id = ?').get(id)!.n, 0);
   } finally {
     busy.close();
+  }
+});
+
+test('M6-03 migration 002 upgrades an M6-4 database to the tables schema.sql defines', () => {
+  const before = execFileSync('git', ['show', 'ce27246~1:contracts/schema.sql'], { cwd: root, encoding: 'utf8' });
+  assert.doesNotMatch(before, /session_dev_server/);
+  const old = new DatabaseSync(':memory:');
+  const fresh = new DatabaseSync(':memory:');
+  try {
+    old.exec(before);
+    assert.deepEqual(migrate(old), [1, 2]);
+    assert.deepEqual(old.prepare('PRAGMA foreign_key_check').all(), []);
+    fresh.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+    const sql = (d: DatabaseSync) => d.prepare("SELECT name, sql FROM sqlite_master WHERE name IN ('session_port', 'session_dev_server') ORDER BY name").all();
+    assert.equal(sql(old).length, 2);
+    assert.deepEqual(sql(old), sql(fresh));
+  } finally {
+    old.close();
+    fresh.close();
   }
 });

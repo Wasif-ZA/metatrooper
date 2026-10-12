@@ -191,7 +191,8 @@ export class PaneManager {
     ses.webRequest.onBeforeRequest((details, cb) => {
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
-      checkUrl(details.url, this.paneCtx(this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined))).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
+      const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
+      checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null })).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
     });
     ses.on('will-download', (e, item, wc) => {
       const pane = this.byContents(wc);

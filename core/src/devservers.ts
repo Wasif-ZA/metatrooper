@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { ancestors, parentTableAsync } from './browser/ancestry.ts';
-import { ptyPid } from './terminal/index.ts';
+import { anyOpen, ptyPid } from './terminal/index.ts';
 import { nowIso, ulid } from './time.ts';
 
 export const WATCH_MS = 60_000;
@@ -52,6 +52,8 @@ const SNAPSHOT_FRESH_MS = 3000;
 let snapshot = new Map<number, Set<number>>();
 let snapshotAt = 0;
 const pending = new Map<string, Pending>();
+/** Session and port pairs decided as not owned, until when they are not watched again. */
+const refused = new Map<string, number>();
 const tails = new Map<string, string>();
 let running: Promise<void> | null = null;
 let fresh = false;
@@ -69,7 +71,7 @@ export function scanOutput(db: DatabaseSync, sessionId: string, data: string): v
   let added = false;
   for (const { url, port } of urls) {
     const key = `${sessionId}:${port}`;
-    if (pending.has(key) || ready.get(sessionId, port)) continue;
+    if (pending.has(key) || (refused.get(key) ?? 0) > Date.now() || ready.get(sessionId, port)) continue;
     pending.set(key, { session: sessionId, project: s.project_id, port, url, had: Date.now() - snapshotAt > SNAPSHOT_FRESH_MS || snapshot.has(port), until: Date.now() + WATCH_MS });
     added = true;
   }
@@ -94,6 +96,7 @@ export function pollDevServers(db: DatabaseSync): Promise<void> {
 }
 
 async function decide(db: DatabaseSync): Promise<void> {
+  if (!pending.size && !anyOpen()) return;
   const early = fresh ? parentTableAsync() : null;
   fresh = false;
   const now = await listening();
@@ -105,12 +108,12 @@ async function decide(db: DatabaseSync): Promise<void> {
     const pids = now.get(p.port);
     if (!pids?.size) continue;
     pending.delete(key);
-    if (pids.size > 1) continue;
+    if (pids.size > 1) { refused.set(key, Date.now() + WATCH_MS); continue; }
     const [pid] = pids;
     parents ??= await (early ?? parentTableAsync());
     if (!parents.has(pid)) parents = await parentTableAsync();
     const by = ownership(pid, ptyPid(p.session), parents, p.had);
-    if (!by) continue;
+    if (!by) { refused.set(key, Date.now() + WATCH_MS); continue; }
     db.prepare("INSERT INTO session_dev_server (id, session_id, project_id, port, url, pid, matched_by, status, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?)")
       .run(`ds_${ulid()}`, p.session, p.project, p.port, p.url, pid, by, nowIso());
   }
@@ -132,5 +135,6 @@ export async function sweepDevServers(db: DatabaseSync): Promise<void> {
 export function devServersGone(db: DatabaseSync, sessionId: string): void {
   tails.delete(sessionId);
   for (const [key, p] of pending) if (p.session === sessionId) pending.delete(key);
+  for (const key of refused.keys()) if (key.startsWith(`${sessionId}:`)) refused.delete(key);
   db.prepare("UPDATE session_dev_server SET status = 'stopped' WHERE session_id = ? AND status = 'ready'").run(sessionId);
 }

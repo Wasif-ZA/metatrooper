@@ -189,7 +189,7 @@ const termView = (() => {
     t.el.querySelector('.tile-ctx').classList.toggle('warn', Boolean(x.ctx && x.ctx.warn));
     const previews = (x.previews || []).map((d) => `<button class="btn" data-action="open-preview" data-url="${escapeAttr(d.url)}" title="Open ${escapeAttr(d.url)} in this agent's browser pane">Open preview${x.previews.length > 1 ? ` :${d.port}` : ''}</button>`).join('');
     const box = t.el.querySelector('.tile-previews');
-    if (box.innerHTML !== previews) box.innerHTML = previews;
+    if (t.previewsHtml !== previews) { t.previewsHtml = previews; box.innerHTML = previews; }
     t.el.dataset.state = x.state;
     t.el.classList.toggle('shell', Boolean(x.shell));
     const tx = t.el.querySelector('.tx');
