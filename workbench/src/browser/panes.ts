@@ -104,6 +104,11 @@ interface Pane {
   secretOnPage: boolean;
   /** An agent `evaluate` ran in the page now loaded; its listeners can outlive it, so no secret is filled until the main frame navigates. */
   scripted: boolean;
+  /** The user had the page now loaded through a handoff (Wasif, 2026-10-13): they may have signed in, and a script can encode
+   * a cookie past any scrub, so evaluate is off until the main frame navigates. */
+  handedBack: boolean;
+  /** Give back was pressed while the main frame was loading; the page it commits counts as handed back. */
+  handBackNext: boolean;
 }
 
 interface Dialog {
@@ -282,7 +287,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -345,9 +350,7 @@ export class PaneManager {
       pane.lastSnapshot.clear();
       pane.cursors.clear();
       pane.pickStack = [];
-      pane.secretOnPage = false;
-      pane.scripted = false;
-      pane.navs++;
+      this.committed(pane);
       if (url.startsWith('data:')) {
         pane.errorFor = this.errorPages.get(url) ?? pane.errorFor;
         return;
@@ -490,7 +493,12 @@ export class PaneManager {
         break;
       }
       case 'find-stop': wc.stopFindInPage('keepSelection'); break;
-      case 'give-back': pane.handoff = null; break;
+      case 'give-back':
+        if (pane.handoff === null) break;
+        pane.handoff = null;
+        pane.handedBack = true;
+        pane.handBackNext = wc.isLoadingMainFrame();
+        break;
       default: return;
     }
     this.emitState(pane);
@@ -575,6 +583,15 @@ export class PaneManager {
   private log(pane: Pane, level: string, text: string): void {
     pane.console.push({ at: Date.now(), level, text: whole(text).slice(0, 2000) });
     if (pane.console.length > LOG_KEEP) pane.console.splice(0, pane.console.length - LOG_KEEP);
+  }
+
+  /** The main frame committed a new document: what was marked on the old one goes with it. */
+  private committed(pane: Pane): void {
+    pane.secretOnPage = false;
+    pane.scripted = false;
+    pane.handedBack = pane.handBackNext;
+    pane.handBackNext = false;
+    pane.navs++;
   }
 
   private cmd(pane: Pane, method: string, params: Record<string, unknown> = {}): Promise<any> {
@@ -1191,10 +1208,14 @@ ame, after checking the ref's field is a password field on the origin saved with
       }
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
-        if (pane.secretOnPage) throw new ToolError(-32037, 'evaluate is off on a page a secret was typed into; navigate first');
+        if (pane.handedBack) throw new ToolError(-32038, 'evaluate is off on a page the user had through a handoff; navigate first');
+        if (pane.secretOnPage) throw new ToolError(-32038, 'evaluate is off on a page a secret was typed into; navigate first');
         pane.scripted = true;
         // a navigation while it waits clears the flag, and the script may then run in, or leave a listener on, the new page
-        const value = scrubDeep(await this.evalIsolated(pane, a.expression, pane.navs).finally(() => { pane.scripted = true; }), knownSecretValues());
+        const raw = await this.evalIsolated(pane, a.expression, pane.navs).finally(() => { pane.scripted = true; });
+        // the user may have signed in while it ran
+        if (pane.handoff !== null || pane.handedBack) throw new ToolError(-32038, 'the user took the pane while evaluate ran; its result is dropped');
+        const value = scrubDeep(raw, knownSecretValues());
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };

@@ -76,6 +76,14 @@ box fails with "not visible".
   recheck before dispatch and every `Input.*` command fail with -32036. A `navigate` or `back` still reading its first
   snapshot, or a `navigate` still checking its URL (DNS included), does not load, and a script-run tool (`evaluate`, `read`, `scroll`, `wait_for`) does not run its script, once
   the handoff lands; both fail with -32036. A screenshot already in flight still completes.
+  After Give back, `evaluate` on the page then loaded fails with -32038 `evaluate is off on a page the user had through a
+  handoff; navigate first` until the main frame navigates to a new document (`did-navigate`; an in-page navigation
+  keeps the document). If Give back is pressed while the main frame is loading, the page that load commits counts too.
+  An `evaluate` running when the handoff lands fails with -32038 `the user took the pane while evaluate ran; its result
+  is dropped`. This is Wasif's decision (2026-10-13): the user may have signed in, and a script can encode a cookie or
+  token before returning it, which no output scrub can catch, so evaluate is refused rather than scrubbed. Other tools
+  work after Give back. The refusal is per document, not per origin: after a navigation, the origin's cookies are
+  readable by `evaluate` again.
 - **Origins.** The origin of an input is that of the control's own frame: the pane's for the main frame, the child
   frame's otherwise. A child frame whose origin is not an http(s) origin (opaque, detached) fails with -32030 and nothing
   is sent. For `key`, when focus is inside a frame the main frame cannot read, the origin is that frame's
@@ -104,7 +112,8 @@ box fails with "not visible".
   scripted until the next navigation (fail closed, even when nothing ran). The fixed
   scripts of `read`, `scroll` and `wait_for` do not count, and are not bound (`wait_for` waits across loads). The
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
-  fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
+  fails with -32038 `evaluate is off on a page a secret was typed into; navigate first` until the main frame navigates,
+  since a script could read the field (the same rule as after Give back, above). A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
 - **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
   agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the

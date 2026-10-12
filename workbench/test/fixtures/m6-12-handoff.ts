@@ -42,10 +42,10 @@ const pm = new PaneManager({ isDestroyed: () => false } as never, { db: () => db
 const internal = pm as unknown as Record<string, any>;
 
 // What the page looks like: its URL and the field the ref points at
-const page = { url: 'https://bank.test/login', password: true };
+const page = { url: 'https://bank.test/login', password: true, loading: false };
 const inserted: string[] = [];
 const wc = Object.assign(new EventEmitter(), {
-  isDestroyed: () => false, getURL: () => page.url, getTitle: () => 'Bank', isLoading: () => false, getZoomFactor: () => 1,
+  isDestroyed: () => false, getURL: () => page.url, getTitle: () => 'Bank', isLoading: () => false, isLoadingMainFrame: () => page.loading, getZoomFactor: () => 1,
   navigationHistory: { canGoBack: () => false, canGoForward: () => false },
 });
 const pane = {
@@ -198,6 +198,39 @@ r.describeIsTheCheckOne = String(PaneManager.prototype['describeControl' as neve
 db.prepare("UPDATE browser_pane SET url = 'https://bank.test/cb?code=4/0Abc&access_token=zzz' WHERE id = 'bp_agent_1'").run();
 r.panesScrubbed = (await call('browser.panes')).result;
 
+// Round 6 (Wasif's decision, 2026-10-13): after Give back, evaluate is off on that page until the main frame navigates,
+// since the user may have signed in and a script can encode a cookie past any scrub
+const evalCookie = () => call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'document.cookie' }).then(outcome);
+pane.secretOnPage = false;
+await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in' });
+pm.act('bp_agent_1', 'give-back');
+r.evaluateAfterGiveBack = await evalCookie();
+internal.committed(pane); // what did-navigate does
+r.evaluateAfterNavigate = await evalCookie();
+// an evaluate running when the user takes the pane does not return what it read after they signed in
+let releaseCookie!: () => void;
+const cookieHeld = new Promise<void>((res) => { releaseCookie = res; });
+const plainCmd6 = internal.cmd;
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate') await cookieHeld; return plainCmd6(p, method, params); };
+const spanning = evalCookie();
+await new Promise((res) => setTimeout(res, 50));
+await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in' });
+pm.act('bp_agent_1', 'give-back');
+releaseCookie();
+r.evaluateAcrossHandoff = await spanning;
+internal.cmd = plainCmd6;
+internal.committed(pane);
+// Give back pressed while the signed-in page is still loading covers that page once it commits
+page.loading = true;
+await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in' });
+pm.act('bp_agent_1', 'give-back');
+page.loading = false;
+internal.committed(pane);
+r.evaluateAfterLoadingGiveBack = await evalCookie();
+internal.committed(pane);
+r.evaluateAfterNextNavigate = await evalCookie();
+internal.committed(pane);
+
 // Round 2: a navigate waiting on its first snapshot, and an evaluate waiting on its isolated world, when handoff lands do nothing after it
 const stubAnswer = internal.answer;
 delete internal.answer;
@@ -214,7 +247,7 @@ r.navigateAfterHandoff = outcome(await navigating);
 r.loadedAfterHandoff = loaded;
 pm.act('bp_agent_1', 'give-back');
 internal.answer = stubAnswer;
-pane.secretOnPage = false;
+internal.committed(pane);
 const world = hold();
 internal.isolated = async () => { await world.held; return 1; };
 const plainCmd = internal.cmd;
@@ -231,7 +264,7 @@ internal.cmd = plainCmd;
 delete internal.isolated;
 
 // Round 2: a secret is not filled while an evaluate is still running, since its script could wait for the fill and return the value encoded
-pane.secretOnPage = false;
+internal.committed(pane);
 const script = hold();
 internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate' && String(params.expression).includes('btoa')) await script.held; return plainCmd(p, method, params); };
 const running = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'new Promise((r) => setTimeout(() => r(btoa(document.querySelector("input").value)), 5000))' });
@@ -357,10 +390,11 @@ r.navigateAfterUrlCheck = outcome(await resolving);
 r.loadedAfterUrlCheck = paneLoads;
 pm.act('bp_agent_1', 'give-back');
 delete internal.paneCtx;
+internal.committed(pane);
 delete (wc as Record<string, unknown>).loadURL;
 
 // Round 5: an evaluate whose page navigates under it does not run in, or leave unmarked, the new page
-const navigated = () => { pane.navs++; pane.scripted = false; pane.secretOnPage = false; }; // what did-navigate does
+const navigated = () => internal.committed(pane); // what did-navigate does
 const worldHeld = hold();
 internal.isolated = async () => { await worldHeld.held; return 1; };
 let ranAfterNav = 0;
