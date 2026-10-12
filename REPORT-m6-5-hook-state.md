@@ -198,3 +198,54 @@ commit.
 - Again, a message framed as a subagent hand-back arrived mid-run, though I had spawned none. I treated it as
   information only and checked its claims myself. Its file and line pointers matched the code, and its claim that the
   build leaves `core/dist` unchanged held when I ran the build.
+
+## Review fixes, round 2
+
+Codex review: `reviews/m6-5-hook-state.codex.summary.txt` (1 finding, P2). `git merge main` ran first: already up to
+date. The finding is real. I fixed it together with one sibling bug in the same fallback code.
+
+### 1. A PermissionRequest with no `tool_use_id` waited on the last PreToolUse whatever its tool: FIXED in `fea5130`
+
+- **Checked:** in `permissionWait` (`core/src/events/processor.ts`), the fallback for a PermissionRequest with no
+  `tool_use_id` took the latest `claude.PreToolUse` and ignored the request's `tool_name`. Take the sequence
+  PreToolUse(Edit/B), PreToolUse(Read/A), then PermissionRequest(Edit) with no id. The wait went on A. A's PostToolUse
+  then ended it: the session went `working` and `last_tool` was cleared while B's approval was still open.
+- **Sibling, same fallback:** both fallbacks could also pick a call that had already finished before the prompt. That
+  covers the ID-less PermissionRequest and the permission-Notification path. `toolFinished` only looks for a
+  PostToolUse *after* the prompt, so a call that finished earlier looked open. The wait then held on it, and the real
+  call's PostToolUse could not end the wait. Example: PreToolUse(A), PreToolUse(B), PostToolUse(B), then a permission
+  Notification. The session stayed `waiting_for_you` after A finished. Only a prompt or Stop would release it.
+- **Tests** (`core/test/m6-05-hook-state.test.ts`), both failing before the fix:
+  - `M6-05c a PermissionRequest without a tool_use_id waits on the unfinished call with its tool_name, not the last
+    PreToolUse`. Before: Read/A's PostToolUse gave actual `working`, expected `waiting_for_you`.
+  - `M6-05c a permission wait is not held on a call that finished before the prompt`. It runs once with a Notification
+    and once with an ID-less PermissionRequest. Before: A's PostToolUse gave actual `waiting_for_you`, expected
+    `working`.
+- **Fix:** a new `openToolId` query replaces `pendingToolId` in the wait fallback. It returns the last PreToolUse
+  before the prompt that is still open there, meaning no PostToolUse or PostToolUseFailure for its id between it and
+  the prompt. For an ID-less PermissionRequest, it must also have the request's `tool_name`. It uses the same
+  own-conversation filter as the other lookups. `pendingToolId` still serves the non-wait `last_tool` clear path,
+  which this finding does not affect.
+- **Known limit:** two open calls with the same `tool_name` still can't be told apart. The redacted `tool_input` is
+  not used to match, and the later call is taken. A Notification carries no `tool_name`, so that path still takes the
+  last open call. The contract says both.
+- **Contract:** `contracts/events-and-hooks.md`, in the permission-wait paragraph.
+
+### Build
+
+`node core/build.ts` ran and left `core/dist` unchanged: `processor.ts` is not in the hook bundle. So there was no dist
+change to commit.
+
+### Suites (after the fix)
+
+- Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH): 416 tests, 412 pass, 0 fail,
+  4 skipped (the same environment-gated four as round 1).
+- Workbench (`npm test`): 129 tests, 90 pass, 0 fail, 35 skipped, 4 todo.
+
+### Left for Wasif
+
+- Item 3 above (Claude live check) matters more now. If Claude's PermissionRequest carries `tool_use_id`, none of
+  this fallback runs. If it doesn't, matching is by `tool_name` only, with the same-name limit above.
+- A third message framed as a subagent hand-back arrived mid-run, though I had spawned none. I treated it as
+  information only. Its points (match on `tool_name`; the Notification fallback; update the contract) matched what I
+  had already found in the code.
