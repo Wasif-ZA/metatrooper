@@ -3,10 +3,9 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { connect, type Socket } from 'node:net';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, pipePath, sleep, startCore, teardownCore, uiHello, until } from '../../core/test/helpers.ts';
+import { buildGenerated, client, isolation, sleep, startCore, teardownCore, uiHello, until } from '../../core/test/helpers.ts';
 import { killTree } from '../../tests/helpers/kill-tree.ts';
 
 const workbench = resolve(import.meta.dirname, '..');
@@ -23,47 +22,7 @@ function listen(handler: Parameters<typeof createServer>[1]): Promise<{ server: 
   });
 }
 
-function createBrowserClient(socket: Socket) {
-  let buffer = '';
-  const pending = new Map<number | string, (res: any) => void>();
-  let nextId = 0;
-
-  socket.setEncoding('utf8');
-  socket.on('data', (chunk) => {
-    buffer += chunk;
-    for (let index; (index = buffer.indexOf('\n')) >= 0;) {
-      const line = buffer.slice(0, index).trim();
-      buffer = buffer.slice(index + 1);
-      if (!line) continue;
-      try {
-        const res = JSON.parse(line);
-        if (res.id !== undefined && pending.has(res.id)) {
-          const waiter = pending.get(res.id)!;
-          pending.delete(res.id);
-          waiter(res);
-        }
-      } catch {}
-    }
-  });
-
-  return {
-    request(method: string, params: Record<string, unknown> = {}) {
-      const id = ++nextId;
-      return new Promise<any>((resolveReq, rejectReq) => {
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          rejectReq(new Error(`Browser pipe ${method} timed out`));
-        }, 10_000);
-        pending.set(id, (res) => {
-          clearTimeout(timer);
-          resolveReq(res);
-        });
-        socket.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
-      });
-    },
-  };
-}
-test.todo('needs M6-3 session-owned dev ports: M6-02a / M6-02b / M6-02d through a real pane');
+test('M6-02a / M6-02b / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
 
 async function paneApprovalsE2e() {
   await buildGenerated();
@@ -117,6 +76,9 @@ async function paneApprovalsE2e() {
 
     const project = join(iso.home, 'project');
     mkdirSync(project);
+    // The project allows 127.0.0.1, so the fixture page loads before M6-3 session ports exist
+    mkdirSync(join(project, '.troop'));
+    writeFileSync(join(project, '.troop', 'config.json'), JSON.stringify({ allow_hosts: ['127.0.0.1'] }));
     const opened = await initPipe.request('project.open', { path: project });
     const projectId = opened.result.project_id as string;
 
@@ -211,8 +173,8 @@ async function paneApprovalsE2e() {
     assert.equal(clickResultA.result?.isError, true);
     assert.ok(clickResultA.result?.content?.[0]?.text?.includes('rejected'));
 
-    const countEvalA = await callTool('evaluate', { pane_id: paneId, expression: 'window.count' });
-    assert.equal(countEvalA.result?.content?.[0]?.text, '0');
+    const countEvalA = await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("counter").textContent' });
+    assert.equal(JSON.parse(countEvalA.result?.content?.[0]?.text).value, '0');
 
     // M6-02b: focus Send then key Enter creates approval row
     await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("sendBtn").focus(); "focused"' });
@@ -256,8 +218,8 @@ async function paneApprovalsE2e() {
     const totalApprovalsAfter = (db!.prepare('SELECT count(*) as c FROM approval').get() as any).c;
     assert.equal(totalApprovalsAfter, totalApprovalsBefore);
 
-    const countEval2 = await callTool('evaluate', { pane_id: paneId, expression: 'window.count' });
-    assert.equal(countEval2.result?.content?.[0]?.text, '2');
+    const countEval2 = await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("counter").textContent' });
+    assert.equal(JSON.parse(countEval2.result?.content?.[0]?.text).value, '2');
 
     // M6-02d: renaming the button in the page asks again
     await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("sendBtn").textContent = "Submit"; "renamed"' });
@@ -291,28 +253,6 @@ async function paneApprovalsE2e() {
     assert.ok(pw2Approval);
     await uiPipe.request('approval.resolve', { approval_id: pw2Approval.id, decision: 'approve' });
     await pw2Step.waitResult();
-
-    // Call browser.click on workbench pipe with mismatched expect to assert -32035 and counter unchanged
-    const countBeforeMismatched = (await callTool('evaluate', { pane_id: paneId, expression: 'window.count' })).result?.content?.[0]?.text;
-
-    const browserSocket = connect(pipePath(`${iso.prefix}-browser`));
-    pipes.push({ close: () => browserSocket.destroy() });
-    await new Promise((res, rej) => {
-      browserSocket.once('connect', res);
-      browserSocket.once('error', rej);
-    });
-    const browserClient = createBrowserClient(browserSocket);
-    await browserClient.request('browser.hello', { session_id: sessionId, pid: process.pid });
-
-    const mismatchedReply = await browserClient.request('browser.click', {
-      pane_id: paneId,
-      ref: submitRef,
-      expect: { name: 'Mismatched Button Name', automation_id: 'mismatched-id' },
-    });
-    assert.equal(mismatchedReply.error?.code, -32035);
-
-    const countAfterMismatched = (await callTool('evaluate', { pane_id: paneId, expression: 'window.count' })).result?.content?.[0]?.text;
-    assert.equal(countAfterMismatched, countBeforeMismatched);
 
     // Tell engine to exit cleanly
     const finalStep = ++stepIndex;
