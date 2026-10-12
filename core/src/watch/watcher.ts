@@ -101,6 +101,8 @@ export class Watcher {
     child.on('error', fail);
     child.on('exit', fail);
     readline.createInterface({ input: child.stdout! }).on('line', (line) => {
+      // Recheck the grants first: if the last one ended since the last tick, this stops the helper and drops the line.
+      if (this.child === child) this.tick();
       if (this.child !== child) return;
       let msg: (WatchEvent & { ready?: boolean }) | null = null;
       try { msg = JSON.parse(line); } catch { return; }
