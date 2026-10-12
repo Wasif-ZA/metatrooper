@@ -32,7 +32,7 @@ export interface Snapshot {
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
-  git: Record<string, { branch: string | null; added: number; deleted: number }>;
+  git: Record<string, { branch: string | null; added: number; deleted: number; changed: string[] }>;
   settings_error?: string | null;
   core_mismatch?: string | null;
   core_log?: string[] | null;

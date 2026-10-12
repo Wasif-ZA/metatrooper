@@ -631,7 +631,7 @@ function renderDiffTab(sel) {
   if (!d) return `${bar}<p class="empty">Loading.</p>`;
   if (d.error) return `${bar}<p class="empty">${esc(d.error)}</p>`;
   if (!d.files.length && !d.untracked.length) return `${bar}<p class="empty">No changes ${ui.diffScope === 'turn' ? 'in the last turn' : ui.diffScope === 'branch' ? 'on this branch' : 'since the last commit'}.</p>`;
-  if (!ui.sdFile || !d.files.some((f) => f.path === ui.sdFile)) ui.sdFile = d.files[0] ? d.files[0].path : null;
+  if (!ui.sdFile || !(d.files.some((f) => f.path === ui.sdFile) || d.untracked.includes(ui.sdFile))) ui.sdFile = d.files[0] ? d.files[0].path : null;
   const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}:${ui.diffScope}`;
   if (ui.sdFile && ui.sdKey !== want) {
     ui.sdKey = want;
@@ -908,6 +908,11 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function changedFiles(id) {
+  const g = (ui.snap.git || {})[id];
+  return g && Array.isArray(g.changed) ? g.changed : [];
+}
+
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
   const pct = Math.round(x.ctx_pct);
@@ -920,7 +925,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   const sel = selectedSession();
@@ -1004,6 +1009,25 @@ async function onClick(e) {
       if (r.result) await pick(r.result.session_id);
       return;
     }
+    case 'changed-menu': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
+      menu.style.left = `${Math.max(8, r.right - 260)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
+    case 'changed-open':
+      document.getElementById('menu').hidden = true;
+      ui.diffAll = false;
+      ui.diffScope = 'uncommitted';
+      ui.sdFile = el.dataset.file;
+      ui.sdiff = null;
+      ui.hbDiff = undefined;
+      await pick(id);
+      await openTab('diff');
+      return;
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
