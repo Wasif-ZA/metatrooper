@@ -5,7 +5,8 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
 ## Flow
 
 1. Before every input call (browser: `click`, `type`, `select`, `key`), the MCP server describes the target: the
-   pane's origin and the control the call acts on (the ref's node, or the focused element for `key`).
+   pane's origin and the control the call acts on (the ref's node, or the focused element for `key`, found through
+   open shadow roots and same-origin frames).
 2. It sends `approval.check` to the core and waits (up to 120 s plus a margin) for the answer.
 3. `allow` or `approved`: it sends the call with `expect: {name, automation_id}`, the control it checked. The
    workbench re-reads the control right before dispatch; a different Name or AutomationId fails with -32035 and
@@ -18,7 +19,7 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
 
 | Method | Params | Result |
 |---|---|---|
-| `approval.check` | `{session_id, surface: "browser"\|"desktop", target, action, args, control, password?, file_dialog?, action_hash?}` | `{decision: "allow"}`, `{decision: "deny", reason}`, or `{decision: "approved"\|"rejected"\|"expired", approval_id}` once the row is decided. Never queued. -32602 when `action_hash` is given and differs from the core's own hash |
+| `approval.check` | `{session_id, surface: "browser"\|"desktop", target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | `{decision: "allow"}`, `{decision: "deny", reason}`, or `{decision: "approved"\|"rejected"\|"expired", approval_id}` once the row is decided. Never queued. -32602 when `action_hash` is given and differs from the core's own hash |
 | `approval.resolve` | `{approval_id, decision: "approve"\|"reject", scope?: "once"\|"session"}` | `{status, scope}`; needs `ui.hello` (-32012); -32002 unknown id; -32010 when the row is not `waiting` |
 
 `target` is the origin for the browser and the grant id for the desktop. `control` is
@@ -32,6 +33,7 @@ The first matching rule is the row's `reason`. No match means `allow`.
 | Reason | When | Session scope |
 |---|---|---|
 | `file dialog` | `file_dialog: true` (desktop) | never; asks every time |
+| `hidden control` | `key` of Enter, Space or a Ctrl/Alt/Meta shortcut while focus is in a cross-origin frame or a closed shadow root (`hidden: true`), so the control cannot be named | never |
 | `password field` | `type` into a password field (`type=password`, UI Automation `IsPassword`) | never |
 | `credential text` | `type` whose text matches a credential pattern (`CREDENTIAL_PATTERNS`, or a 32+ character token run mixing digits, lower and upper case, in `core/src/redact.ts`) | never |
 | `credential field` | `type` into a control whose Name or AutomationId has the word password, passcode, token, secret, key, cvv or card | never |

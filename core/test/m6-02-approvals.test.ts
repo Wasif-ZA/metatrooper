@@ -94,6 +94,13 @@ test('rule table matches risky actions and allows safe actions', () => {
   assert.equal(riskReason({ ...base, surface: 'desktop', action: 'click', file_dialog: true, control: null }), 'file dialog');
 });
 
+test('Enter while focus is in a frame or closed shadow root that cannot be named asks every time; Tab there does not', () => {
+  const base = { session_id: 's1', surface: 'browser', target: 'http://127.0.0.1', control: null, hidden: true };
+  assert.equal(riskReason({ ...base, action: 'key', args: { keys: 'Enter' } }), 'hidden control');
+  assert.equal(riskReason({ ...base, action: 'key', args: { keys: 'Control+Enter' } }), 'hidden control');
+  assert.equal(riskReason({ ...base, action: 'key', args: { keys: 'Tab' } }), null);
+});
+
 test('M6-02a: Send click creates waiting approval and needs_you, rejecting resolves both', async () => {
   const iso = isolation();
   const core = await startCore(iso);

@@ -126,9 +126,9 @@ async function checkedCall(name: string, args: Record<string, unknown>): Promise
   for (let attempt = 0; attempt < 3; attempt++) {
     const d = await browser.call('browser.describe', { ...args, tool: name });
     if (d.error) return d;
-    const { session_id, origin, control, password } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean };
+    const { session_id, origin, control, password, hidden } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean; hidden: boolean };
     const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
-    const out = await coreCall('approval.check', { ...check, password, action_hash: actionHash(check) }, { waitMs: APPROVAL_TIMEOUT_MS + 10_000 });
+    const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: APPROVAL_TIMEOUT_MS + 10_000 });
     if (out.kind !== 'reply') return { error: { code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' } };
     if (out.reply.error) return { error: out.reply.error };
     const v = out.reply.result as { decision: string; reason?: string };

@@ -27,6 +27,22 @@ const SNAPSHOT_TOKENS = 4000;
 const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
+/** The focused element through open shadow roots and same-origin frames; 'hidden' when focus is in a frame this world cannot read. */
+const FOCUSED = `(() => {
+  let e = document.activeElement;
+  for (;;) {
+    if (!e || e === e.ownerDocument.body) return null;
+    if (e.shadowRoot && e.shadowRoot.activeElement) { e = e.shadowRoot.activeElement; continue; }
+    if (e.tagName === 'IFRAME' || e.tagName === 'FRAME') {
+      let d = null;
+      try { d = e.contentDocument; } catch {}
+      if (!d) return 'hidden';
+      e = d.activeElement;
+      continue;
+    }
+    return e;
+  }
+})()`;
 
 export class ToolError extends Error {
   code: number;
@@ -704,22 +720,27 @@ export class PaneManager {
     return this.race(pane, this.run(pane, name, a));
   }
 
-  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. */
-  private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean }> {
+  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
+  private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
     let objectId: string | undefined;
     let backendNodeId: number | undefined;
     if (a.tool === 'key') {
-      const r = await this.cmd(pane, 'Runtime.evaluate', { expression: 'document.activeElement && document.activeElement !== document.body ? document.activeElement : null', contextId: await this.isolated(pane) });
+      const r = await this.cmd(pane, 'Runtime.evaluate', { expression: FOCUSED, contextId: await this.isolated(pane) });
+      if (r.result?.value === 'hidden') return { origin, control: null, password: false, hidden: true };
       objectId = r.result?.objectId;
-      if (objectId) backendNodeId = (await this.cmd(pane, 'DOM.describeNode', { objectId })).node?.backendNodeId;
+      if (objectId) {
+        const node = (await this.cmd(pane, 'DOM.describeNode', { objectId, pierce: true })).node;
+        if (node?.shadowRoots?.some((s: any) => s.shadowRootType === 'closed')) return { origin, control: null, password: false, hidden: true };
+        backendNodeId = node?.backendNodeId;
+      }
     } else if (a.ref !== undefined) {
       const t = this.node(pane, a.ref);
       backendNodeId = t.backendNodeId;
       objectId = await this.resolve(pane, t, a.ref);
     }
-    if (!objectId || !backendNodeId) return { origin, control: null, password: false };
+    if (!objectId || !backendNodeId) return { origin, control: null, password: false, hidden: false };
     const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId,
       returnByValue: true,
@@ -728,7 +749,7 @@ export class PaneManager {
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
     const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
     const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
-    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true };
+    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
   }
 
   /** Fails when the control's name or id differs from `expect`, the control an approval was given for. */

@@ -19,6 +19,7 @@ export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate'] 
                                 
                           
                      
+                   
                         
                        
  
@@ -57,7 +58,7 @@ export function actionHash(p                                                    
 const RISKY_NAME = /\b(send|submit|pay|buy|purchase|order|checkout|delete|remove|erase|publish|post|transfer|authori[sz]e|confirm)\b/i;
 const CREDENTIAL_LABEL = /\b(password|passcode|token|secret|key|cvv|card)s?\b/i;
 const ACTIVATING_KEY = /^(enter|return|space| )$/i;
-const ALWAYS = new Set(['password field', 'credential text', 'credential field', 'file dialog']);
+const ALWAYS = new Set(['password field', 'credential text', 'credential field', 'file dialog', 'hidden control']);
 
 const words = (s        ) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_\-.]+/g, ' ');
 const riskyControl = (c                ) => Boolean(c && (RISKY_NAME.test(words(c.name)) || RISKY_NAME.test(words(c.automation_id))));
@@ -80,7 +81,9 @@ export function riskReason(p             )                {
   if (p.action === 'key') {
     const keys = typeof p.args.keys === 'string' ? p.args.keys : '';
     const last = keys.split('+').pop()?.trim() ?? '';
-    if ((ACTIVATING_KEY.test(last) || isShortcut(keys)) && riskyControl(c)) return `risky control: ${c .name || c .automation_id}`;
+    if (!ACTIVATING_KEY.test(last) && !isShortcut(keys)) return null;
+    if (p.hidden) return 'hidden control';
+    if (riskyControl(c)) return `risky control: ${c .name || c .automation_id}`;
     return null;
   }
   if (['click', 'select', 'type'].includes(p.action) && riskyControl(c)) return `risky control: ${c .name || c .automation_id}`;
@@ -178,6 +181,7 @@ function parseCheck(raw                         )              {
     args,
     control: normalControl(raw.control),
     password: raw.password === true,
+    hidden: raw.hidden === true,
     file_dialog: raw.file_dialog === true,
     action_hash: typeof raw.action_hash === 'string' ? raw.action_hash : undefined,
   };

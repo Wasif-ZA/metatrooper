@@ -51,8 +51,18 @@ async function paneApprovalsE2e() {
   <input id="pw" type="password" />
   <label for="plain">Notes</label>
   <input id="plain" type="text" />
+  <send-box></send-box>
+  <iframe id="frame" srcdoc="<button id='frameSend'>Send</button>"></iframe>
+  <div id="closedHost"></div>
+  <button id="focusClosed">Focus hidden</button>
   <script>
     window.count = 0;
+    customElements.define('send-box', class extends HTMLElement {
+      constructor() { super(); this.attachShadow({ mode: 'open' }).innerHTML = '<button id="shadowSend">Send</button>'; }
+    });
+    const closed = document.getElementById('closedHost').attachShadow({ mode: 'closed' });
+    closed.innerHTML = '<button>Go</button>';
+    document.getElementById('focusClosed').onclick = () => closed.querySelector('button').focus();
   </script>
 </body>
 </html>`;
@@ -253,6 +263,24 @@ async function paneApprovalsE2e() {
     assert.ok(pw2Approval);
     await uiPipe.request('approval.resolve', { approval_id: pw2Approval.id, decision: 'approve' });
     await pw2Step.waitResult();
+
+    // Enter asks when focus is on a Send button inside an open shadow root or a same-origin frame
+    async function keyAsks(focus: string, reason: string) {
+      await callTool('evaluate', { pane_id: paneId, expression: `${focus}; "focused"` });
+      const step = sendStep('key', { pane_id: paneId, keys: 'Enter' });
+      const row = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 15_000);
+      assert.equal(row.reason, reason);
+      await uiPipe.request('approval.resolve', { approval_id: row.id, decision: 'reject' });
+      assert.equal((await step.waitResult()).result?.isError, true);
+    }
+    await keyAsks('document.querySelector("send-box").shadowRoot.getElementById("shadowSend").focus()', 'risky control: Send');
+    await keyAsks('document.getElementById("frame").contentDocument.getElementById("frameSend").focus()', 'risky control: Send');
+
+    // Enter asks every time when focus is in a closed shadow root, whose control cannot be named
+    const focusClosedRef = (await callTool('snapshot', { pane_id: paneId })).result?.content?.[0]?.text.split(/\r?\n/).find((l: string) => l.includes('"Focus hidden"'))?.match(/\[ref=(e\d+)\]/)?.[1];
+    assert.equal((await callTool('click', { pane_id: paneId, ref: focusClosedRef })).result?.isError, undefined);
+    await keyAsks('"already focused"', 'hidden control');
+
 
     // M6-02c: a click left waiting for the real 120 s returns "not approved in time" and the row reads expired
     const expireStart = Date.now();
