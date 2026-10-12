@@ -6,10 +6,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { owners } from '../../core/src/sessions/owners.ts';
+import { isQueueable } from '../../core/src/pipe/commands.ts';
 import { ownedBy, refreshRowGit, rowGit } from '../src/rowgit.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
 const appSource = readFileSync(new URL('../renderer/app.js', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
 const termSource = readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8');
 
 const fn = (name: string) => appSource.match(new RegExp(`^function ${name}\\([^]*?\\r?\\n}\\r?\\n`, 'm'))![0];
@@ -64,6 +66,9 @@ test('M6-21a a session that edits 3 files shows "3 changed"; committing one show
     assert.equal(await refreshRowGit(live, ownedBy(owners(db, root))), false, 'no push when nothing moved');
 
     assert.equal(tileLabel({}, 's_none'), '');
+    assert.match(mainSource, /call\('session\.owners', \{ project_id: view\.projectId \}\)/);
+    assert.match(mainSource, /refreshRowGit\(live, await ownedBySession\(\)\)/);
+    assert.equal(isQueueable('session.owners'), false, 'a git-tick read is never spooled while the core is down');
     assert.match(termSource, /set\('\.tile-changed', x\.changed \? `\$\{x\.changed\} changed` : ''\)/);
     assert.match(termSource, /data-action="changed-menu"/);
     assert.match(appSource, /case 'changed-open':[^]*?ui\.diffScope = 'uncommitted';[^]*?ui\.sdFile = el\.dataset\.file;[^]*?openTab\('diff'\)/);

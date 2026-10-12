@@ -23,7 +23,7 @@ export interface MethodSpec {
 }
 
 export const NOT_QUEUED = new Set([
-  'core.ping', 'core.stop', 'ui.hello', 'session.focus', 'session.live-text', 'engines.check',
+  'core.ping', 'core.stop', 'ui.hello', 'session.focus', 'session.live-text', 'session.owners', 'engines.check',
   'plugin.preview', 'plugin.install', 'plugin.secret.set', 'mcp.resolve', 'notify.sink.set',
   'session.launch', 'session.resume',
 ]);
