@@ -35,17 +35,18 @@ export function parseNetstat(out: string): Map<number, Set<number>> {
 
 /** The processes this module asks; tests replace them. */
 export const probe = {
-  /** `netstat -ano` output. Windows only; elsewhere it is empty. */
-  netstat(): Promise<string> {
-    if (process.platform !== 'win32') return Promise.resolve('');
-    return new Promise((resolve) => execFile('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }, (_e, out) => resolve(out || '')));
+  /** `netstat -ano` output; null off Windows or when netstat fails or times out. */
+  netstat(): Promise<string | null> {
+    if (process.platform !== 'win32') return Promise.resolve(null);
+    return new Promise((resolve) => execFile('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }, (e, out) => resolve(e ? null : out)));
   },
   parentTableAsync,
 };
 
-/** The listening-port table now. */
-export async function listening(): Promise<Map<number, Set<number>>> {
-  return parseNetstat(await probe.netstat());
+/** The listening-port table now; null when it could not be read. */
+export async function listening(): Promise<Map<number, Set<number>> | null> {
+  const out = await probe.netstat();
+  return out === null ? null : parseNetstat(out);
 }
 
 /** `had`: the port was listening at the print; null until a fresh netstat says, when the snapshot was stale at the print. */
@@ -110,6 +111,7 @@ async function decide(db: DatabaseSync): Promise<void> {
   const early = fresh ? probe.parentTableAsync() : null;
   fresh = false;
   const now = await listening();
+  if (!now) return;
   snapshot = now;
   snapshotAt = Date.now();
   let parents: Map<number, number> | null = null;
@@ -136,6 +138,7 @@ export async function sweepDevServers(db: DatabaseSync): Promise<void> {
   const rows = db.prepare("SELECT d.id, d.port, d.pid, s.ended_at FROM session_dev_server d JOIN session s ON s.id = d.session_id WHERE d.status = 'ready'").all() as Array<{ id: string; port: number; pid: number | null; ended_at: string | null }>;
   if (!rows.length) return;
   const now = await listening();
+  if (!now) return;
   const stop = db.prepare("UPDATE session_dev_server SET status = 'stopped' WHERE id = ?");
   for (const r of rows) {
     const pids = now.get(r.port);
