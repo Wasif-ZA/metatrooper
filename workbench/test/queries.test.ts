@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -117,6 +117,30 @@ test('M1-06 every query the window runs per snapshot has p95 under 1 ms (3 live 
     const slow = [...times].map(([sql, ms]) => [sql.replace(/\s+/g, ' ').slice(0, 80), ms.sort((a, b) => a - b)[Math.floor(ms.length * 0.95)]] as const).filter(([, p]) => p >= 1);
     assert.ok(times.size > 5, `only ${times.size} queries timed`);
     assert.deepEqual(slow, []);
+  } finally {
+    f.close();
+  }
+});
+
+test('the project menu leaves out gone folders and worktrees with no .git, but keeps plain folders and the open one', () => {
+  const f = fixture();
+  try {
+    const d = f.db;
+    const now = iso(Date.now());
+    const wt = join(f.dir, '.metatrooper', 'worktrees', 'h');
+    const live = join(wt, 'live');
+    const empty = join(wt, 'empty');
+    mkdirSync(live, { recursive: true });
+    writeFileSync(join(live, '.git'), 'gitdir: x');
+    mkdirSync(empty, { recursive: true });
+    const add = d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)');
+    add.run('live', live, 'live', now, now);
+    add.run('empty', empty, 'empty', now, now);
+    add.run('gone', join(wt, 'gone'), 'gone', now, now);
+    add.run('plain', f.dir, 'plain', now, now);
+    add.run('missing', join(f.dir, 'nope'), 'missing', now, now);
+    assert.deepEqual(snapshot(d, null).projects.map((p) => p.id).sort(), ['live', 'plain']);
+    assert.deepEqual(snapshot(d, 'gone').projects.map((p) => p.id).sort(), ['gone', 'live', 'plain']);
   } finally {
     f.close();
   }

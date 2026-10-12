@@ -63,6 +63,12 @@ function parse<T>(text: string | null, fallback: T): T {
   }
 }
 
+/** A project folder that is gone, or a MetaTrooper worktree that no longer holds a `.git` entry; the menu leaves it out. */
+export function goneCheckout(p: string): boolean {
+  if (!fs.existsSync(p)) return true;
+  return /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p) && !fs.existsSync(path.join(p, '.git'));
+}
+
 /** Everything the workbench draws, read in one pass from a read-only connection. `projectId` scopes sessions and panes. */
 export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.now()): Snapshot {
   const meta = Object.fromEntries((db.prepare("SELECT key, value FROM meta WHERE key IN ('core_pid','core_heartbeat')").all() as Array<{ key: string; value: string }>).map((r) => [r.key, r.value]));
@@ -120,7 +126,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    projects: db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects'],
+    projects: (db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
     engines,
     sessions,
     needs_you,
