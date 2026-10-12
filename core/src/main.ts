@@ -14,7 +14,7 @@ import { PipeClient } from './pipe/client.ts';
 import { buildMethods } from './methods.ts';
 import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
-import { processEvents, resolveSpentNotices, resolveUncommitted } from './events/processor.ts';
+import { processEvents, resolveSpentNotices, resolveUncommitted, turnJobsIdle } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters } from './meter.ts';
@@ -67,13 +67,15 @@ async function main(): Promise<void> {
   const timers: NodeJS.Timeout[] = [];
   let termServer: Server | null = null;
   let stopping = false;
-  const stop = () => {
+  const stop = async (why = 'core.stop') => {
     if (stopping) return;
     stopping = true;
+    console.error(`core stopping: ${why}`);
     for (const t of timers) clearInterval(t);
     server.close();
     termServer?.close();
     term.killAll();
+    await Promise.race([turnJobsIdle(), new Promise((r) => setTimeout(r, 5000))]);
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
     db.close();
     process.exit(0);
@@ -122,9 +124,8 @@ async function main(): Promise<void> {
   checkPids(db);
   void checkAll(db, activeEngines(db)).catch(() => {});
 
-  process.on('SIGINT', stop);
-  process.on('SIGTERM', stop);
-  process.on('SIGBREAK', stop);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'] as const) process.on(sig, () => stop(sig));
+  process.on('exit', (code) => console.error(`core exit ${code}`));
   console.log(`metatrooper core running (pid ${process.pid}) on ${corePipe()}. Press Ctrl+C to stop.`);
 }
 

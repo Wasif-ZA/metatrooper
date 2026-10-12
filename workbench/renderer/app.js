@@ -196,6 +196,8 @@ function shotSrc(file) {
 }
 
 function renderCompare(pane) {
+  const listed = new Set(ui.snap.snapshots.flatMap((x) => [x.w390_path, x.w1280_path]));
+  for (const f of Object.keys(ui.images)) if (!listed.has(f)) delete ui.images[f];
   const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
   const before = shots.find((x) => x.label === 'before');
   const after = shots.find((x) => x.label === 'after');
@@ -225,7 +227,9 @@ function reportPaneBounds() {
 async function startComment() {
   if (!ui.paneId) return;
   toast('Click the element you want to comment on.');
-  await api.panePick(ui.paneId);
+  const pick = { pane: ui.paneId };
+  ui.picking = pick;
+  try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) ui.picking = null; }
 }
 
 
@@ -690,6 +694,7 @@ async function saveSink() {
 
 function paletteItems() {
   const s = ui.snap;
+  if (!s) return [];
   const items = [];
   for (const x of s.sessions) items.push({ group: 'Agents', label: `${x.engine_id} ${taskOf(x)}`, meta: STATE_WORDS[x.state] || x.state, run: () => pick(x.id) });
   if (project()) for (const e of s.engines) if (e.light !== 'red') items.push({ group: 'Start', label: `New ${e.id} agent`, run: async () => { const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: e.id }); if (r.result) await pick(r.result.session_id); } });
@@ -724,7 +729,7 @@ const CMD_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" st
 
 function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
-  const all = paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q));
+  const all = [...paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -738,6 +743,29 @@ function renderPalette() {
   if (cur) cur.scrollIntoView({ block: 'nearest' });
 }
 
+function scrollbackItems(q) {
+  const rows = [...ui.snap.sessions, ...shellRows()];
+  return (ui.scrollHits || []).flatMap((h) => {
+    const x = rows.find((r) => r.id === h.session_id);
+    return x && q && h.text.toLowerCase().includes(q) ? [{ group: 'Scrollback', label: h.text, meta: x.engine_id, run: () => openHit(h) }] : [];
+  });
+}
+
+async function openHit(h) {
+  if (h.session_id.startsWith('sh_')) selectShell(h.session_id); else await pick(h.session_id);
+  await termView.reveal(h.session_id, h.line, h.text);
+}
+
+let scrollTimer = 0;
+function searchScrollback() {
+  clearTimeout(scrollTimer);
+  const q = document.getElementById('palette-input').value.trim();
+  if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
+    const r = await rpc('session.search', { query: q, session_ids: [...ui.snap.sessions, ...shellRows()].map((x) => x.id) }, true);
+    if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
+  }, 100);
+}
+
 function openPalette() {
   const el = document.getElementById('palette');
   const input = document.getElementById('palette-input');
@@ -745,6 +773,7 @@ function openPalette() {
     el.hidden = false;
     input.value = '';
     ui.paletteAt = 0;
+    ui.scrollHits = [];
     wall.openSearch();
     renderPalette();
   }
@@ -808,6 +837,16 @@ async function pick(id, focus = true) {
   render(focus);
 }
 
+function waitReason(x) {
+  return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
+}
+
+function oldestWaiting(sessions) {
+  const w = sessions.filter((x) => x.state === 'waiting_for_you');
+  w.sort((a, b) => Date.parse(a.state_at) - Date.parse(b.state_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return w[0] || null;
+}
+
 function onTilePick(id, e) {
   if (wall.toggleOpen(id) || wall.isBig(id)) return;
   if (e && e.shiftKey) { wall.pair(id); return; }
@@ -828,12 +867,19 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function ctxChip(x) {
+  if (typeof x.ctx_pct !== 'number') return null;
+  const pct = Math.round(x.ctx_pct);
+  return pct >= 85 ? { text: `${pct}% context · compacts soon`, warn: true } : { text: `${pct}% context`, warn: false };
+}
+
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
+  reportFocus(big);
   const sel = selectedSession();
   renderTitle();
   renderList(sel);
@@ -856,6 +902,13 @@ function render(focus = false) {
   if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: termView.state(), layout: { tab: ui.tab, split: ui.split, mode: ui.mode, rows: document.querySelectorAll('.srow').length, start: !document.getElementById('start').hidden } });
 }
 
+// Main suppresses toasts for this tile, so it must be the one on screen, not the last session.focus.
+function reportFocus(id) {
+  if (id === ui.focused) return;
+  ui.focused = id;
+  void api.focus(id);
+}
+
 function setView() {
   void api.view({ projectId: ui.projectId });
 }
@@ -864,6 +917,12 @@ function setView() {
 function switchProject(id) {
   ui.projectId = id;
   ui.handback = undefined;
+  ui.hbFile = null;
+  ui.hbDiff = undefined;
+  ui.hbLine = null;
+  ui.gitFile = false;
+  ui.comment = null;
+  if (ui.picking) { void api.panePickCancel(ui.picking.pane); ui.picking = null; }
   save('projectId', id);
   setView();
 }
@@ -872,12 +931,7 @@ async function openFolder() {
   const dir = await api.pickFolder();
   if (!dir) return;
   const r = await rpc('project.open', { path: dir });
-  if (r.result) {
-    ui.projectId = r.result.project_id;
-    ui.handback = undefined;
-    save('projectId', ui.projectId);
-    setView();
-  }
+  if (r.result) switchProject(r.result.project_id);
 }
 
 async function onClick(e) {
@@ -1033,10 +1087,7 @@ async function onClick(e) {
       return;
     }
     case 'project':
-      ui.projectId = id;
-      ui.handback = undefined;
-      save('projectId', id);
-      setView();
+      switchProject(id);
       return;
     case 'tab':
       await openTab(el.dataset.tab);
@@ -1171,7 +1222,7 @@ async function onClick(e) {
       if (!l || !note.trim()) { toast('Write a note first.', true); return; }
       const r = await api.commentDiffLine({ session_id, note, file: ui.hbFile, line: l.line, text: l.text });
       if (!r.ok) { toast(r.error, true); return; }
-      toast('Comment sent: on the clipboard, and in the session\'s next prompt for Claude.');
+      toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
       ui.hbLine = null;
       render();
       return;
@@ -1250,7 +1301,7 @@ async function onClick(e) {
       if (!note) return toast('Write a note first.', true);
       const r = await api.commentSave({ ...ui.comment, session_id, note });
       if (!r.ok) return toast(r.error, true);
-      toast('Comment sent: on the clipboard, and in the session\'s next prompt for Claude.');
+      toast(`Comment sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}`);
       ui.comment = null;
       render();
       return;
@@ -1271,6 +1322,7 @@ function onInput(e) {
   if (el.id === 'palette-input') {
     ui.paletteAt = 0;
     renderPalette();
+    searchScrollback();
     return;
   }
   if (el.id === 'sink-kind') {
@@ -1324,10 +1376,7 @@ function tickAges() {
 }
 
 api.onSelectProject((id) => {
-  ui.projectId = id;
-  ui.handback = undefined;
-  save('projectId', id);
-  setView();
+  switchProject(id);
   render();
 });
 
@@ -1404,7 +1453,7 @@ document.addEventListener('drop', async (e) => {
   const card = e.target.closest && e.target.closest('[data-drop-session]');
   if (!card || !e.dataTransfer.files.length) return;
   const r = await api.commentFiles(card.dataset.dropSession, e.dataTransfer.files);
-  toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: on the clipboard, and in the session's next prompt for Claude.` : r.error, !r.ok);
+  toast(r.ok ? `${e.dataTransfer.files.length} file path(s) sent: in the session's next prompt for Claude.${r.copied ? ' Also on the clipboard.' : ''}` : r.error, !r.ok);
 });
 document.addEventListener('keydown', (e) => {
   const palette = !document.getElementById('palette').hidden;
@@ -1531,6 +1580,16 @@ function browserKeys(e) {
   void api.paneAct(ui.paneId, act);
 }
 document.addEventListener('keydown', browserKeys, true);
+
+function wallKeys(e) {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const x = oldestWaiting(ui.snap.sessions);
+  if (x) void pick(x.id);
+}
+document.addEventListener('keydown', wallKeys, true);
+wall.onWake(() => render());
 
 api.onPaneEvent((ev) => {
   if (!ev || typeof ev.pane_id !== 'string') return;

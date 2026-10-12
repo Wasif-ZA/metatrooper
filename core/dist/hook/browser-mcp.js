@@ -11,23 +11,29 @@ const CALL_TIMEOUT_MS = 30_000;
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
 const pane = { pane_id: { type: 'string', description: 'From panes; may be omitted when this session owns exactly one pane.' } };
-const TOOLS                                                                                     = [
+const budget = {
+  max_tokens: { type: 'integer', default: 4000 },
+  continue: { type: 'string', description: 'The cursor named at the end of a cut answer; returns the next part.' },
+};
+const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'console', 'network', 'wait_for']);
+const TOOLS                                                                                                                            = [
   { name: 'panes', description: 'List the browser panes this session may drive.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
-  { name: 'back', description: 'Go back one page.', inputSchema: { type: 'object', properties: { ...pane } } },
-  { name: 'snapshot', description: 'Accessibility tree as text; actionable nodes carry [ref=eN]. interactive: only nodes with a ref and their ancestors. since_last: only lines not in your previous snapshot of this pane.', inputSchema: { type: 'object', properties: { ...pane, max_nodes: { type: 'integer', default: 400 }, interactive: { type: 'boolean', default: false }, since_last: { type: 'boolean', default: false } } } },
-  { name: 'click', description: 'Click the node with this ref.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
-  { name: 'type', description: 'Replace the text of the node with this ref.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
+  { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
+  { name: 'back', description: 'Go back one page. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane } } },
+  { name: 'snapshot', description: 'Accessibility tree as text, child frames and shadow roots included; actionable nodes carry [ref=e12], or [ref=f1e12] inside a frame. interactive: only nodes with a ref and their ancestors. since_last: lines added (+) and removed (-) since your previous snapshot of this pane. scope_ref: only the subtree under that ref.', inputSchema: { type: 'object', properties: { ...pane, ...budget, scope_ref: { type: 'string' }, interactive: { type: 'boolean', default: false }, since_last: { type: 'boolean', default: false } } } },
+  { name: 'read', description: 'The main text of the page, one line per block; search keeps only lines containing it.', inputSchema: { type: 'object', properties: { ...pane, ...budget, search: { type: 'string' } } } },
+  { name: 'click', description: 'Click the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
+  { name: 'type', description: 'Replace the text of the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
   { name: 'key', description: 'Press a key or chord on the focused element, e.g. "Enter", "Tab", "Control+A".', inputSchema: { type: 'object', properties: { ...pane, keys: { type: 'string' } }, required: ['keys'] } },
-  { name: 'select', description: 'Choose an option in a select element.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
+  { name: 'select', description: 'Choose an option in a select element. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
   { name: 'scroll', description: 'Scroll the page, or a node into view.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['dy'] } },
   { name: 'wait_for', description: 'Wait until text or a ref appears.', inputSchema: { type: 'object', properties: { ...pane, text: { type: 'string' }, ref: { type: 'string' }, timeout_ms: { type: 'integer', default: 10000 } } } },
-  { name: 'screenshot', description: 'PNG of the viewport, or the full page.', inputSchema: { type: 'object', properties: { ...pane, full_page: { type: 'boolean', default: false } } } },
+  { name: 'screenshot', description: 'JPEG of the viewport, the full page, or one element (ref); no side over 1,568 px.', inputSchema: { type: 'object', properties: { ...pane, full_page: { type: 'boolean', default: false }, ref: { type: 'string' }, format: { type: 'string', enum: ['jpeg', 'png'], default: 'jpeg' } } } },
   { name: 'evaluate', description: 'Run a JavaScript expression in an isolated world; result capped at 20 KB.', inputSchema: { type: 'object', properties: { ...pane, expression: { type: 'string' } }, required: ['expression'] } },
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
-];
+].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
 /** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
 function findSession()                {
@@ -141,13 +147,13 @@ async function toolCall(name        , args                         )            
   const { expect: _drop, ...clean } = args ?? {};
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
-  const result = r.result                                                                           ;
-  if (name === 'screenshot' && result?.png_base64) {
-    const content           = [{ type: 'image', data: result.png_base64, mimeType: 'image/png' }];
+  const result = r.result                                                                                           ;
+  if (name === 'screenshot' && result?.data_base64) {
+    const content           = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
     if (result.truncated) content.push({ type: 'text', text: 'truncated: the page is taller than 16,384 px' });
     return { content };
   }
-  if (name === 'snapshot' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+  if ((name === 'snapshot' || name === 'read') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 

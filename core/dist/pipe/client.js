@@ -119,10 +119,12 @@ export async function call(method        , params                          = {},
           enqueue(id, method, params);
         }, QUEUE_AFTER_MS)
       : null;
+    let wait                            ;
     const waited = await Promise.race([
       reply,
-      new Promise      ((r) => setTimeout(() => r(null), opts.waitMs ?? 30_000)),
+      new Promise      ((r) => { wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); }),
     ]);
+    clearTimeout(wait);
     if (timer) clearTimeout(timer);
     if (waited) return { kind: 'reply', reply: waited };
     if (!queued) return { kind: 'offline' };

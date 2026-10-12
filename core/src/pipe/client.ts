@@ -118,10 +118,12 @@ export async function call(method: string, params: Record<string, unknown> = {},
           enqueue(id, method, params);
         }, QUEUE_AFTER_MS)
       : null;
+    let wait: NodeJS.Timeout | undefined;
     const waited = await Promise.race([
       reply,
-      new Promise<null>((r) => setTimeout(() => r(null), opts.waitMs ?? 30_000)),
+      new Promise<null>((r) => { wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); }),
     ]);
+    clearTimeout(wait);
     if (timer) clearTimeout(timer);
     if (waited) return { kind: 'reply', reply: waited };
     if (!queued) return { kind: 'offline' };

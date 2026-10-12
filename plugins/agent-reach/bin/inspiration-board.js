@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const STOPWORDS = new Set(
   'a an and the for with of to in on at by from is are be it its this that as or our we you your their they them into over under about site page website design make build want wants need needs should like feel looks look using use'.split(' '),
@@ -113,7 +112,7 @@ async function main() {
   process.stdout.write(JSON.stringify({ ok: true, outputs: { references } }) + '\n');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   main().catch((e) => {
     process.stdout.write(JSON.stringify({ ok: false, error: { message: e.message, retryable: true } }) + '\n');
     process.exit(1);

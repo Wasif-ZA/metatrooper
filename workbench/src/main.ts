@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
-import { resolveCommand } from '../../core/src/hook/resolve.ts';
+import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
@@ -17,17 +17,25 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, snapshot, withLiveText, type LiveText, type Snapshot } from './queries.ts';
-import { gitIn, handback } from './handback.ts';
+import { dataVersion, snapshot, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
-import { owners, repoOf } from '../../core/src/sessions/owners.ts';
-import { diffLineBody, filesBody } from './comments.ts';
+import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
+import { copied, diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { refreshRowGit, rowGit } from './rowgit.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
+app.on('render-process-gone', (_e, wc, d) => console.error(`render-process-gone ${d.reason} exit ${d.exitCode} ${wc.getURL().slice(0, 200)}`));
+app.on('child-process-gone', (_e, d) => console.error(`child-process-gone ${d.type} ${d.reason} exit ${d.exitCode}`));
+let lagAt = Date.now();
+setInterval(() => {
+  const lag = Date.now() - lagAt - 500;
+  if (lag > 1000) console.error(`main thread stalled ${lag} ms`);
+  lagAt = Date.now();
+}, 500).unref();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(here, '..', 'renderer', 'index.html');
@@ -35,6 +43,7 @@ const DEBOUNCE_MS = 50;
 const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
+  'session.search',
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'project.clear', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
@@ -82,7 +91,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = { ...withLiveText(snapshot(d, view.projectId), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
+    lastGood = { ...withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
@@ -100,6 +109,21 @@ function syncPanes(): void {
 }
 
 let toasted: Set<string> | null = null;
+/** The tile the renderer shows big, reported on every change; ui_selection lags behind shell picks and project switches. */
+let focused: string | null = null;
+
+/** The session a needs-you row is about, from the snapshot or else the database, with its live terminal title. */
+function sessionOf(s: Snapshot, n: Snapshot['needs_you'][number]) {
+  if (n.kind !== 'done' && n.kind !== 'failed' && n.kind !== 'uncommitted') return null;
+  const hit = [...s.sessions, ...(s.live ?? [])].find((x) => x.id === n.ref);
+  if (hit) return hit;
+  try {
+    const row = db()?.prepare('SELECT engine_id, cwd, step_id, started_at FROM session WHERE id = ?').get(n.ref) as { engine_id: string; cwd: string | null; step_id: string | null; started_at: string } | undefined;
+    return row ? { ...row, title: n.ref ? liveText[n.ref]?.title ?? null : null } : null;
+  } catch {
+    return null;
+  }
+}
 
 /** One Windows toast per new needs-you row; clicking it shows the window and selects the session it is about. */
 function toastNew(s: Snapshot): void {
@@ -109,7 +133,9 @@ function toastNew(s: Snapshot): void {
     if (toasted.has(n.id) || n.read_at) continue;
     toasted.add(n.id);
     if (!Notification.isSupported()) continue;
-    const note = new Notification({ title: n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you', body: n.text, silent: false });
+    const toast = toastFor(n, sessionOf(s, n), { window: !!win && !win.isDestroyed() && win.isFocused(), session: focused });
+    if (!toast) continue;
+    const note = new Notification({ ...toast, silent: false });
     note.on('click', () => {
       if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
       const target = n.kind === 'done' || n.kind === 'failed' ? n.ref : null;
@@ -174,7 +200,7 @@ function trusted(e: IpcMainInvokeEvent): boolean {
   return url.startsWith('file:') && fileURLToPath(url.split(/[?#]/)[0]) === INDEX;
 }
 
-async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string }> {
+async function saveComment(id: string, sessionId: string, kind: 'element' | 'diff-line' | 'file', body: string, crop: string | null): Promise<{ ok: boolean; error?: string; comment_id?: string; copied?: boolean }> {
   const rw = new DatabaseSync(dbFile());
   try {
     rw.exec('PRAGMA busy_timeout = 2000');
@@ -184,8 +210,8 @@ async function saveComment(id: string, sessionId: string, kind: 'element' | 'dif
   } finally {
     rw.close();
   }
-  await call('comment.deliver', { comment_id: id }, { ui: true });
-  return { ok: true, comment_id: id };
+  const out = await call('comment.deliver', { comment_id: id }, { ui: true });
+  return { ok: true, comment_id: id, copied: copied(out) };
 }
 
 function inside(root: string, file: string): boolean {
@@ -219,6 +245,11 @@ function handlers(): void {
   on('view', (v: { projectId?: unknown }) => {
     view = { projectId: typeof v?.projectId === 'string' ? v.projectId : null };
     push();
+    return true;
+  });
+
+  on('focus', (id: unknown) => {
+    focused = typeof id === 'string' ? id : null;
     return true;
   });
 
@@ -321,24 +352,24 @@ function handlers(): void {
     }
   });
 
-  on('handback', (projectId: unknown) => {
+  on('handback', async (projectId: unknown) => {
     const d = db();
     const project = d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined) : undefined;
     if (!project) return { error: 'pick a project first' };
     try {
-      return handback(gitIn(project.path));
+      return await handback(gitIn(project.path));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
 
-  on('handbackFile', (projectId: unknown, file: unknown) => {
+  on('handbackFile', async (projectId: unknown, file: unknown) => {
     const d = db();
     if (!d || typeof projectId !== 'string' || typeof file !== 'string') return null;
     const project = d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
     if (!project) return null;
     try {
-      return gitIn(project.path)(['diff', '--cached', '--', file]);
+      return await gitIn(project.path)(['diff', '--cached', '--', file]);
     } catch {
       return null;
     }
@@ -373,9 +404,9 @@ function handlers(): void {
     }
     try {
       const view = await viewOf(project.path);
-      const repo = repoOf(project.path);
+      const repo = await repoOfAsync(project.path);
       let groups: GitView['groups'];
-      try { if (repo && d) groups = ownerGroups(view.changes, owners(d, repo)); } catch {}
+      try { if (repo && d) groups = ownerGroups(view.changes, await ownersAsync(d, repo)); } catch {}
       return { ...view, groups, error };
     } catch (e) {
       return { error: why(e) };
@@ -388,7 +419,7 @@ function handlers(): void {
     return row?.cwd ?? null;
   };
   /** The commit the Diff tab compares against: the turn's start, HEAD, or where the branch left the default branch. */
-  const diffBase = (sessionId: unknown, scope: unknown, cwd: string): string => {
+  const diffBase = async (sessionId: unknown, scope: unknown, cwd: string): Promise<string> => {
     const g = gitIn(cwd);
     if (scope === 'turn') {
       const d = db();
@@ -397,29 +428,24 @@ function handlers(): void {
     }
     if (scope === 'branch') {
       for (const ref of ['origin/HEAD', 'origin/main', 'main', 'origin/master', 'master']) {
-        try { return g(['merge-base', 'HEAD', ref]).trim(); } catch {}
+        try { return (await g(['merge-base', 'HEAD', ref])).trim(); } catch {}
       }
     }
     return 'HEAD';
   };
-  on('sessionDiff', (sessionId: unknown, scope: unknown) => {
+  on('sessionDiff', async (sessionId: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd) return { error: 'this session has no folder recorded' };
     try {
-      const files = gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--numstat']).split(String.fromCharCode(10)).filter(Boolean).map((l) => {
-        const [a, r, ...name] = l.split(String.fromCharCode(9));
-        return { path: name.join(String.fromCharCode(9)), added: a === '-' ? null : Number(a), deleted: r === '-' ? null : Number(r) };
-      });
-      const untracked = gitIn(cwd)(['ls-files', '--others', '--exclude-standard']).split(String.fromCharCode(10)).filter(Boolean);
-      return { files, untracked };
+      return await sessionChanges(gitIn(cwd), await diffBase(sessionId, scope, cwd));
     } catch (e) {
       return { error: (e as Error).message.split(String.fromCharCode(10))[0] };
     }
   });
-  on('sessionDiffFile', (sessionId: unknown, file: unknown, scope: unknown) => {
+  on('sessionDiffFile', async (sessionId: unknown, file: unknown, scope: unknown) => {
     const cwd = cwdOf(sessionId);
     if (!cwd || typeof file !== 'string') return null;
-    try { return gitIn(cwd)(['diff', diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
+    try { return await gitIn(cwd)(['diff', await diffBase(sessionId, scope, cwd), '--', file]); } catch { return null; }
   });
 
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -469,9 +495,9 @@ function handlers(): void {
     if (typeof target !== 'string') return false;
     if (/^https?:\/\//.test(target)) { void shell.openExternal(target); return true; }
     try { if (!fs.statSync(target).isFile()) return false; } catch { return false; }
-    const code = resolveCommand('code');
+    const code = resolveLaunch('code');
     if (!code) { shell.showItemInFolder(target); return true; }
-    spawn(code[0], [...code.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    spawn(code.argv[0], [...code.argv.slice(1), '-g', `${target}:${num(line, 1)}:${num(col, 1)}`], { detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ...code.env } }).on('error', (e) => console.error(`could not open ${target}: ${e.message}`)).unref();
     return true;
   });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
@@ -526,6 +552,8 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.on('unresponsive', () => console.error('window unresponsive'));
+  win.on('responsive', () => console.error('window responsive again'));
   win.on('close', (e) => {
     if (closing || !ownCore) return;
     e.preventDefault();
@@ -609,7 +637,7 @@ async function ensureCore(): Promise<void> {
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
-  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).unref();
+  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
   for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 

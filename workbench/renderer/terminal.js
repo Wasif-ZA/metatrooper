@@ -6,7 +6,7 @@ const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div clas
   <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
   <button class="tx" data-action="hide" title="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
-  <div class="r2"><span class="tile-last fl"></span><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-meta meta"></span></div>
+  <div class="r2"><span class="tile-last fl"></span><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span></div>
   <span class="shim"><i></i></span></div><div class="tile-body"></div>`;
 
 const termView = (() => {
@@ -63,7 +63,12 @@ const termView = (() => {
     term.loadAddon(fit);
     term.open(body);
     const t = { id: sessionId, el, term, fit, attachAt: 0, attachMs: null, cols: 0, rows: 0 };
-    term.onData((data) => { if (!t.closed && !t.outside) troop.termInput(sessionId, data); });
+    const send = (data) => {
+      if (t.outside) return;
+      if (t.held !== undefined) t.held += data;
+      else if (!t.closed) troop.termInput(sessionId, data);
+    };
+    term.onData(send);
     term.registerLinkProvider({
       provideLinks(y, cb) {
         const text = term.buffer.active.getLine(y - 1)?.translateToString(true) || '';
@@ -87,7 +92,7 @@ const termView = (() => {
     body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); void paste(); });
     term.attachCustomKeyEventHandler((e) => {
       if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !el.classList.contains('shell')) {
-        if (e.type === 'keydown' && !t.closed && !t.outside) troop.termInput(sessionId, shiftEnter(t.engine) === 'alt-enter' ? '\x1b\r' : '\x1b[200~\n\x1b[201~');
+        if (e.type === 'keydown') send(shiftEnter(t.engine) === 'alt-enter' ? '\x1b\r' : '\x1b[200~\n\x1b[201~');
         e.preventDefault();
         return false;
       }
@@ -145,11 +150,26 @@ const termView = (() => {
   troop.onTerm((sessionId, m) => {
     const t = terms.get(sessionId);
     if (!t) return;
-    if (m.op === 'snapshot') { t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); ack(sessionId, m.data.length); }); }
+    if (m.op === 'snapshot') {
+      t.retried = false;
+      t.term.write('\x1bc' + m.data, () => { t.attachMs = Math.round(performance.now() - t.attachAt); ack(sessionId, m.data.length); });
+      if (t.held) troop.termInput(sessionId, t.held);
+      t.held = undefined;
+    }
     else if (m.op === 'output') { t.term.write(m.data, () => ack(sessionId, m.data.length)); onOutput(sessionId, m.data.length); }
-    else if (m.op === 'exit') { t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
-    else if (m.op === 'error' && m.code === 'no-session') t.term.write('\r\n[this session is not running]\r\n');
-    else if (m.op === 'closed' && !t.closed) { t.closed = true; t.el.classList.add('closed'); t.term.write('\r\n[disconnected from the core]\r\n'); }
+    else if (m.op === 'exit') { t.gone = t.exited = true; t.term.write(`\r\n[exited with code ${m.code}]\r\n`); onExit(sessionId); }
+    else if (m.op === 'error' && m.code === 'no-session') { t.gone = true; t.term.write('\r\n[this session is not running]\r\n'); }
+    else if (m.op === 'closed' && !t.closed) {
+      t.closed = true;
+      if (t.exited) return;
+      // one re-attach decides it: a live terminal answers with a snapshot, a dead one or an offline core closes again
+      if (!t.gone && !t.retried) { t.retried = true; t.held = ''; setTimeout(() => { if (terms.get(sessionId) === t && t.closed) attach(t); }, 500); return; }
+      t.el.classList.add('closed');
+      t.term.write('\r\n[disconnected from the core]\r\n');
+      if (t.held) t.term.write(`[${t.held.length} typed characters were not sent]\r\n`);
+      t.held = undefined;
+      onExit(sessionId);
+    }
   });
 
   function label(t, x) {
@@ -161,6 +181,8 @@ const termView = (() => {
     set('.tile-last', x.last || '');
     set('.tile-state', x.words);
     set('.tile-meta', x.meta || '');
+    set('.tile-ctx', x.ctx ? x.ctx.text : '');
+    t.el.querySelector('.tile-ctx').classList.toggle('warn', Boolean(x.ctx && x.ctx.warn));
     t.el.dataset.state = x.state;
     t.el.classList.toggle('shell', Boolean(x.shell));
     const tx = t.el.querySelector('.tx');
@@ -221,6 +243,29 @@ const termView = (() => {
     if (id && terms.has(id)) troop.termInput(id, text);
   }
 
+  /** Scrolls a tile to the line containing `text` nearest row `near`, waiting up to 2 s for its snapshot. */
+  function reveal(id, near, text) {
+    const t = terms.get(id);
+    if (!t) return Promise.resolve(false);
+    const want = text.toLowerCase();
+    const find = () => {
+      const b = t.term.buffer.active;
+      let best = -1;
+      for (let i = b.length - 1; i >= 0; i--) {
+        let line = b.getLine(i)?.translateToString(true) ?? '';
+        while (i > 0 && b.getLine(i)?.isWrapped) line = (b.getLine(--i)?.translateToString(true) ?? '') + line;
+        if (line.toLowerCase().includes(want) && (best < 0 || Math.abs(i - near) < Math.abs(best - near))) best = i;
+      }
+      if (best >= 0) t.term.scrollToLine(best);
+      return best >= 0;
+    };
+    if (find()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const sub = t.term.onWriteParsed(() => { if (find()) { sub.dispose(); clearTimeout(timer); resolve(true); } });
+      const timer = setTimeout(() => { sub.dispose(); resolve(false); }, 2000);
+    });
+  }
+
   /** Selected session, its attach time and its last `n` non-empty rows, for the test probe. */
   function state(n = 5) {
     const t = terms.get(selected);
@@ -252,5 +297,5 @@ const termView = (() => {
     });
   }
 
-  return { show, setLook, type, state, timeEcho, tile, refit, links: linksFor, ids: () => [...terms.keys()] };
+  return { show, setLook, type, state, timeEcho, reveal, tile, refit, links: linksFor, ids: () => [...terms.keys()] };
 })();

@@ -1,6 +1,6 @@
 # metatrooper-browser MCP tools
 
-Version 1. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
+Version 2. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
 "browser not available: the MetaTrooper workbench is closed". It never hangs.
 
@@ -17,16 +17,17 @@ action". A control that changed between the check and the dispatch fails with -3
 | Tool | Input | Output |
 |---|---|---|
 | `panes` | `{}` | `[{pane_id, url, dev_port}]` for panes this session may drive |
-| `navigate` | `{pane_id, url}` | `{url, title, status}`; opens an agent pane when the session has none |
-| `back` | `{pane_id}` | `{url}` |
-| `snapshot` | `{pane_id, max_nodes?: int = 400, interactive?: bool, since_last?: bool}` | accessibility tree as text, each actionable node tagged `[ref=e12]`; `interactive` keeps only nodes with a ref and their ancestors; `since_last` keeps only lines not in this session's previous snapshot of the pane (ref ids ignored; cleared on navigate) |
-| `click` | `{pane_id, ref}` | `{ok}`; fails with -32033 and clicks nothing when the element is disabled, outside the viewport, or covered by another element |
-| `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}`; replaces the field's text (select all, then insert); same checks as `click` |
-| `select` | `{pane_id, ref, value}` | `{ok}`; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
+| `navigate` | `{pane_id, url}` | `{url, title, status}` plus the page state (below); opens an agent pane when the session has none |
+| `back` | `{pane_id}` | the page state (below) |
+| `snapshot` | `{pane_id, max_tokens?: int = 4000, scope_ref?, interactive?: bool, since_last?: bool, continue?}` | `{text, continue?}`: accessibility tree as text, each actionable node tagged `[ref=e12]` (main frame) or `[ref=f2e12]` (child frame `f2`); same-origin child frames are nested under their `Iframe` line and open shadow roots are included; `scope_ref` keeps the subtree under that ref; `interactive` keeps only nodes with a ref and their ancestors; `since_last` returns `+ line` for each line added and `- line` for each line removed since this session's previous snapshot of the pane with the same `interactive` and `scope_ref` (cleared on navigate) |
+| `read` | `{pane_id, search?, max_tokens?: int = 4000, continue?}` | `{text, continue?}`: the `innerText` of `main`, `[role=main]`, `article` or `body`, one trimmed non-empty line per block; `search` keeps lines containing it, case-insensitive |
+| `click` | `{pane_id, ref}` | `{ok}` plus the page state; fails with -32033 and clicks nothing when the element is disabled, outside the viewport, or covered by another element |
+| `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}` plus the page state; replaces the field's text (select all, then insert); same checks as `click` |
+| `select` | `{pane_id, ref, value}` | `{ok}` plus the page state; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
 | `key` | `{pane_id, keys}` | `{ok}`; presses a key or chord on the focused element (`Enter`, `Tab`, `Escape`, `Space`, arrows, one character, with `Control+`, `Alt+`, `Shift+`, `Meta+`) |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
-| `screenshot` | `{pane_id, full_page?: bool = false}` | PNG image content |
+| `screenshot` | `{pane_id, full_page?: bool = false, ref?, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
@@ -37,6 +38,32 @@ that opens a dialog while it runs returns `{ok: true, dialog: {type, message}}` 
 
 A ref whose element has left the page fails with "no longer on the page; call snapshot again"; one with no layout
 box fails with "not visible".
+
+## Version 2 (M6-11)
+
+- **Refs.** A ref is kept for the life of its element: keyed by frame id plus `backendDOMNodeId`, so two snapshots
+  of an unchanged page give the same refs. Ref numbers are never reused while the pane is open. When the main frame
+  navigates every ref ends; when a child frame navigates or is detached (`Page.frameNavigated`,
+  `Page.frameDetached`) that frame's refs end. An ended ref, and a ref whose element is no longer connected, fails
+  with "no longer on the page; call snapshot again". Frame tags (`f1`, `f2`) are kept per frame for the pane's life.
+- **Frames and shadow roots.** `snapshot` reads `Accessibility.getFullAXTree` per frame from `Page.getFrameTree` and
+  nests each child frame under the line of its owner (`DOM.getFrameOwner`). A frame whose tree cannot be read
+  (cross-origin, out of process) is left out. Actions on a frame ref resolve the node in an isolated world of that
+  frame, and the covered check runs in the element's own document or shadow root.
+- **Budget.** `max_tokens` (200 to 100,000, default 4,000) is counted with `tokenCount` in `core/src/meter.ts`
+  (one token per 3 UTF-8 bytes, rounded up). Order: `scope_ref`, then `interactive`, then `since_last`, then the
+  budget. When cut, the text ends with the line `(cut at N tokens; call snapshot with continue="cN" for the rest)`
+  inside the budget, and `continue` is set; calling the same tool with only `continue` (and optionally
+  `max_tokens`) returns the next part. The 8 newest cursors per pane are kept; navigation clears them.
+- **Page state after an action.** `navigate`, `back`, `click`, `type` and `select` wait up to 1 s for the page to
+  stop loading, then return `url`, `title`, `dialog` when one is open, `errors` (console errors since the action
+  started, last 20) and `changes`: the `since_last` diff of the interactive snapshot against this session's previous
+  interactive snapshot (or the whole interactive snapshot after a navigation), cut at 1,000 tokens with `continue`.
+- **Tool hints.** `tools/list` gives `panes`, `snapshot`, `screenshot`, `read`, `console`, `network` and `wait_for`
+  `annotations: {readOnlyHint: true}`, and every other tool `{readOnlyHint: false, destructiveHint: true}`.
+- **Crashes.** After `render-process-gone` every tool fails at once with -32034 "the page crashed; call navigate to
+  load it again"; `navigate` reloads the renderer, re-attaches the debugger with interception on, then loads. After
+  `unresponsive`, every tool fails with -32034 "the page is not responding" until `responsive`.
 
 ## How a tool runs
 

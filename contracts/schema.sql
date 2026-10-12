@@ -84,6 +84,7 @@ CREATE TABLE event (
 );
 CREATE INDEX event_unprocessed_idx ON event (processed, seq);
 CREATE INDEX event_kind_idx ON event (kind, seq);
+CREATE INDEX event_session_idx ON event (session_id, seq);
 
 -- Queue 2: commands that could not be delivered over the pipe within 300 ms.
 CREATE TABLE command (

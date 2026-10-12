@@ -7,13 +7,12 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from metarouter import calls
-from metarouter.log import no_private_warning, private
+from metarouter.log import home, no_private_warning, private
 
 IMAGE_TOKENS = 1500
 CAPS = (400, 800, 2000, 4000)
 BIG_READ_TOKENS = 10_000  # about 40 KB at four bytes per token
 DEFAULT_ROOT = Path.home() / ".claude" / "projects"
-OUT_DIR = Path.home() / ".metarouter"
 
 
 def result_cost(content):
@@ -212,8 +211,8 @@ def main(argv=None, how="human"):
     s["saved_tokens"] = saved_tokens(calls.read(), args.since, args.until)
     out = None
     if not args.no_save:
-        OUT_DIR.mkdir(exist_ok=True)
-        out = OUT_DIR / f"ingest-{time.strftime('%Y%m%dT%H%M%S')}.json"
+        home().mkdir(parents=True, exist_ok=True)
+        out = home() / f"ingest-{time.strftime('%Y%m%dT%H%M%S')}.json"
         out.write_text(json.dumps({"since": args.since, "transcripts": n_files, **s}, indent=1),
                        encoding="utf-8")
     warning = no_private_warning()

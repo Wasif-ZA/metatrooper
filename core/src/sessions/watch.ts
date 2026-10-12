@@ -45,6 +45,10 @@ interface Activity {
 
 const activity = new Map<string, Activity>();
 
+export function activitySessions(): string[] {
+  return [...activity.keys()];
+}
+
 function codexHome(): string {
   return path.join(os.homedir(), '.codex', 'sessions');
 }
@@ -95,14 +99,22 @@ function sameDir(a: string, b: string): boolean {
   return norm(a) === norm(b);
 }
 
+const THREAD = /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
+
 function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
   const startMs = Date.parse(s.started_at);
   if (s.native_id) {
-    const hit = walkNewest(codexHome(), (p) => p.endsWith(`${s.native_id}.jsonl`), startMs - 60_000);
+    const hit = walkNewest(codexHome(), (p) => p.endsWith(`${s.native_id}.jsonl`), 0);
     return hit[0] ?? null;
   }
+  const dir = s.cwd ?? s.project_path;
+  const twins = db.prepare("SELECT s.started_at, COALESCE(s.cwd, p.path) AS dir FROM session s JOIN project p ON p.id = s.project_id WHERE s.engine_id = 'codex' AND s.native_id IS NULL AND s.state != 'exited' AND s.id != ?").all(s.id) as Array<{ started_at: string; dir: string }>;
+  if (twins.some((o) => sameDir(o.dir, dir) && Math.abs(Date.parse(o.started_at) - startMs) <= 30_000)) return null;
+  const taken = new Set((db.prepare("SELECT native_id FROM session WHERE engine_id = 'codex' AND native_id IS NOT NULL AND id != ?").all(s.id) as Array<{ native_id: string }>).map((r) => r.native_id.toLowerCase()));
   const candidates = walkNewest(codexHome(), (p) => /rollout-.*\.jsonl$/.test(p), startMs - 1000).filter((p) => {
     try {
+      const id = THREAD.exec(p)?.[1];
+      if (id && taken.has(id.toLowerCase())) return false;
       const meta = JSON.parse(firstLine(p));
       const cwd = meta?.payload?.cwd ?? meta?.cwd;
       return typeof cwd === 'string' && (sameDir(cwd, s.project_path) || (s.cwd !== null && sameDir(cwd, s.cwd))) && fs.statSync(p).birthtimeMs <= startMs + 30_000;
@@ -112,7 +124,7 @@ function linkCodex(db: DatabaseSync, s: SessionRow): string | null {
   });
   candidates.sort((a, b) => fs.statSync(b).birthtimeMs - fs.statSync(a).birthtimeMs);
   const hit = candidates[0] ?? null;
-  const thread = hit && /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i.exec(hit);
+  const thread = hit && THREAD.exec(hit);
   if (thread) db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(thread[1], s.id);
   return hit;
 }
@@ -197,6 +209,8 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
        WHERE s.state != 'exited' AND s.engine_id IN ('codex','agy')`,
     )
     .all() as unknown as SessionRow[];
+  const open = new Set(rows.map((s) => s.id));
+  for (const id of activity.keys()) if (!open.has(id)) activity.delete(id);
   for (const s of rows) {
     let a = activity.get(s.id);
     if (!a || !a.file) {

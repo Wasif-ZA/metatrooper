@@ -14,7 +14,7 @@ type Json = Record<string, any>;
 interface State {
   claude?: { file: string; original: string | null; installed: string; absentEvents: string[] };
   codex?: { file: string; original: string; installed: string; previous: string[] | null };
-  settings?: Record<string, { file: string; previous: Record<string, unknown> }>;
+  settings?: Record<string, { file: string; previous: Record<string, unknown>; absent?: string[] }>;
   setup?: Record<string, string>;
 }
 
@@ -92,13 +92,16 @@ function globalClaudeHooks(): boolean {
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
+/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
 export function sessionHookArgs(engine: EngineSpec, sessionId: string): string[] {
   if (engine.mcp_attach?.kind === 'codex-config') return codexNotifyArgs();
-  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag' || globalClaudeHooks()) return [];
+  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return [];
+  const script = path.join(coreDir, 'statusline.js').split(String.fromCharCode(92)).join('/');
+  const settings: Json = { statusLine: { type: 'command', command: `node "${script}" --user-statusline`, padding: 0 } };
+  if (!globalClaudeHooks()) settings.hooks = Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]]));
   const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ hooks: Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]])) }, null, 2) + '\n');
+  fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
   return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
 
@@ -228,9 +231,12 @@ export function installEngineSettings(engines: EngineSpec[]): Plan[] {
     if (!fs.existsSync(file)) continue;
     const before = fs.readFileSync(file, 'utf8');
     const doc: Json = JSON.parse(before);
-    const record = state.settings[e.id] ?? { file, previous: {} };
+    const record = state.settings[e.id] ?? { file, previous: {}, absent: [] };
     for (const [k, v] of Object.entries(e.settings.set)) {
-      if (!(k in record.previous)) record.previous[k] = k in doc ? doc[k] : null;
+      if (!(k in record.previous) && !record.absent?.includes(k)) {
+        if (k in doc) record.previous[k] = doc[k];
+        else (record.absent ??= []).push(k);
+      }
       doc[k] = v;
     }
     const after = JSON.stringify(doc, null, 2);
@@ -245,7 +251,7 @@ export function installEngineSettings(engines: EngineSpec[]): Plan[] {
   return plans;
 }
 
-/** Puts back the values installEngineSettings replaced; a key that did not exist before is removed. */
+/** Puts back the values installEngineSettings replaced; a key that did not exist before is removed. A record saved without `absent` used null for both, so its nulls are removed. */
 export function uninstallEngineSettings(): Plan[] {
   const state = readState();
   const plans: Plan[] = [];
@@ -253,8 +259,9 @@ export function uninstallEngineSettings(): Plan[] {
     if (!fs.existsSync(rec.file)) continue;
     const before = fs.readFileSync(rec.file, 'utf8');
     const doc: Json = JSON.parse(before);
+    for (const k of rec.absent ?? []) delete doc[k];
     for (const [k, v] of Object.entries(rec.previous)) {
-      if (v === null) delete doc[k];
+      if (v === null && !rec.absent) delete doc[k];
       else doc[k] = v;
     }
     const after = JSON.stringify(doc, null, 2);

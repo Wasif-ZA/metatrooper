@@ -52,7 +52,7 @@ Totals: 89 built or in M6, 54 in M7 (some partly M6), 14 left out, cut or moved.
 | core-services 6 | Watch the core with a crash-loop cap and show why a start failed | S | M6-4 restart owner: 3 in 60 s, last 20 log lines |
 | core-services 7 | Replace the ALTER-if-missing chain with numbered migrations and a history table | M | M6-4 numbered migrations |
 | core-services 8 | Declare each pipe method once, with params, and generate the CLI listing and skill from it | M | M6-17 one method list |
-| core-services 9 | Prune event and command rows on a retention window | S | Left out: deletes data by default, Wasif decides |
+| core-services 9 | Prune event and command rows on a retention window | S | Cut 2026-10-11: Wasif keeps event and command rows forever |
 | core-services 10 | Label sandbox containers, add --init, and sweep orphans at start | S | M7-5 |
 | core-services 11 | Mask token-shaped strings with keyword-gated rules before they reach the screen, logs and notifications | M | M7-5 |
 | core-services 12 | Checkpoint the WAL by size first and read the result | S | M7-5 (result read; 30 s TRUNCATE kept) |

@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import net from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
-import { ancestors, parentTable } from '../../../core/src/browser/ancestry.ts';
+import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['navigate', 'back', 'snapshot', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
+const TOOLS = new Set(['navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
@@ -63,7 +63,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
           ? (db.prepare('SELECT id, pid FROM session WHERE id = ? AND ended_at IS NULL').get(params.session_id) as { id: string; pid: number | null } | undefined)
           : undefined;
         if (!s || !s.pid || !Number.isInteger(params.pid)) return fail(id, -32030, 'unknown session');
-        if (!ancestors(Number(params.pid), parentTable()).includes(s.pid)) return fail(id, -32030, 'that session is not an ancestor of the caller');
+        if (!ancestors(Number(params.pid), await parentTableAsync()).includes(s.pid)) return fail(id, -32030, 'that session is not an ancestor of the caller');
         bound = { kind: 'session', sessionId: s.id };
         return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'session' } });
       }

@@ -23,3 +23,11 @@ test('every shipped plugin manifest is valid', async () => {
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+test('every test file tests/release.ps1 names exists', () => {
+  const root = path.resolve(import.meta.dirname, '..', '..');
+  const ps1 = fs.readFileSync(path.join(root, 'tests', 'release.ps1'), 'utf8');
+  for (const [, dir, cmd] of ps1.matchAll(/dir = '(\w+)'; cmd = '([^']*)'/g)) {
+    for (const file of cmd.match(/test\/[\w.-]+\.test\.ts/g) ?? []) assert.ok(fs.existsSync(path.join(root, dir, file)), `${dir}/${file}`);
+  }
+});

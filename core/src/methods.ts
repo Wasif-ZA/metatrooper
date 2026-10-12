@@ -84,7 +84,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('core.stop', { needsUi: true, handler: () => { setTimeout(ctl.stop, 10); return {}; } });
+  m.set('core.stop', { needsUi: true, handler: () => { setTimeout(() => ctl.stop(), 10); return {}; } });
 
   m.set('project.open', {
     handler: (p) => {
@@ -176,6 +176,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
   m.set('session.live-text', { handler: () => liveText() });
+  m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50, Array.isArray(p.session_ids) ? new Set(p.session_ids.filter((x): x is string => typeof x === 'string')) : undefined) }) });
 
   m.set('session.focus', {
     handler: (p) => {
@@ -226,6 +227,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const resumed = Boolean(engine.resume_args && old.native_id);
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
+      if (resumed && engine.id === 'codex') db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(old.native_id, r.session_id);
       resumedAs.set(oldId, r.session_id);
       return { ...r, resumed, ...(resumed ? {} : { notice: 'No saved conversation, starting fresh.' }) };
     },
@@ -286,7 +288,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       const branch = str(p, 'branch', false) || `troop/${ulid().toLowerCase()}`;
       const base = str(p, 'base', false) || 'HEAD';
-      const dir = path.join(homeDir(), 'worktrees', project.id, branch.replace(/[\/]/g, '-'));
+      const root = path.join(homeDir(), 'worktrees', project.id);
+      const dir = path.join(root, branch.replace(/[\\/]/g, '-'));
+      if (path.dirname(dir) !== root || dir === root) throw new RpcError(E.INVALID_PARAMS, `branch ${branch} does not name a folder under the worktrees folder`);
       fs.mkdirSync(path.dirname(dir), { recursive: true });
       if (fs.existsSync(path.join(dir, '.git'))) {
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());

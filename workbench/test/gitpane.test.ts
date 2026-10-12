@@ -79,3 +79,21 @@ test('M4-30 git tab groups changes by owner; a shared file is only in the shared
   await assert.rejects(gitAct(git, 'stage-group', ['ok', 3]), /nothing to stage/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('git tab: staged renames and non-ASCII paths keep their line counts', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gitpane-'));
+  const git = runIn(dir);
+  await git(['init', '-q', '-b', 'main']);
+  await git(['config', 'user.email', 't@example.com']);
+  await git(['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(dir, 'old.txt'), 'one\ntwo\n');
+  await git(['add', '.']);
+  await git(['commit', '-qm', 'init']);
+  await git(['mv', 'old.txt', 'new.txt']);
+  fs.writeFileSync(path.join(dir, 'cafÃ©.txt'), 'x\n');
+  await git(['add', '.']);
+  const v = await gitView(git);
+  const counts = Object.fromEntries(v.staged.map((f) => [f.path, [f.added, f.deleted]]));
+  assert.deepEqual(counts['new.txt'], [2, 0]);
+  assert.deepEqual(counts['cafÃ©.txt'], [1, 0]);
+});
