@@ -86,8 +86,8 @@ box fails with "not visible".
 - **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
   (or `troop browser secret <NAME> <origin>`). A value under 4 characters is refused when saved (-32602), since output
   scrubbing skips values that short. The value is stored in the DPAPI store under plugin id `core-browser`; the
-  origin it may be typed into is saved in plain text beside it. Right before `Input.insertText`, after the click and the
-  approval recheck, the workbench main process checks that the origin of the field's own frame is the saved one and the
+  origin it may be typed into is saved in plain text beside it. Right before `Input.insertText`, after the click, the
+  approval recheck, and the focus and select-all (whose page handlers could change the field), the workbench main process checks that the origin of the field's own frame is the saved one and the
   ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed.
   A decrypted value is cached only until its stored file changes, so saving the name again (from the core) is seen by the
   next fill. Saving removes the origin file while the value changes, and the fill reads the origin again after the

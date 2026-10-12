@@ -277,6 +277,24 @@ r.focusInChildFrameOffField = outcome(await call('browser.type', secret));
 r.childFrameTyped = inserted.length - typedBefore;
 internal.target = plainTarget;
 
+// Round 3: a page handler for the focus or select-all can turn the field into a plain one or move it to another origin, so both are checked again after them
+focusDoc.activeElement = theField;
+const changeOnSelectAll = (change: () => void) => {
+  internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => {
+    if (method === 'Input.dispatchKeyEvent' && params.commands?.includes('selectAll')) change();
+    return plainCmd(p, method, params);
+  };
+};
+const flippedBefore = inserted.length;
+changeOnSelectAll(() => { page.password = false; });
+r.fieldTurnedPlainOnSelectAll = outcome(await call('browser.type', secret));
+page.password = true;
+changeOnSelectAll(() => { page.url = 'https://evil.test/login'; });
+r.fieldChangedOriginOnSelectAll = outcome(await call('browser.type', secret));
+page.url = 'https://bank.test/login';
+r.nothingTypedAfterFieldChanged = inserted.length === flippedBefore;
+internal.cmd = plainCmd;
+
 // Round 2: a key with focus inside a frame this world cannot read is checked against that frame's origin
 delete internal.describeControl;
 focusDoc.activeElement = element('IFRAME', { backendNodeId: 11, frameId: 'child' }, { contentDocument: null });

@@ -1090,12 +1090,14 @@ ame, after checking the ref's field is a password field on the origin saved with
         return this.answer(pane, session, async () => {
           const { node, x, y } = await this.target(pane, a.ref);
           await this.clickAt(pane, x, y, recheck);
-          const text = secret ? await this.secretValue(pane, secret, a.ref) : a.text;
+          let text = a.text;
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
           if (secret) {
+            // the page's handlers for the focus and select-all may have made it a plain field or moved it to another origin
+            text = await this.secretValue(pane, secret, a.ref);
             await this.focusOn(pane, node, a.ref);
             // a script, running or done, can have left a listener that copies the value encoded, past the scrub
             if (pane.scripted) throw new ToolError(-32037, 'evaluate has run on this page; navigate first, nothing was typed');
