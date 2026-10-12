@@ -78,7 +78,9 @@ box fails with "not visible".
   the handoff lands; both fail with -32036. A screenshot already in flight still completes.
   After Give back, `evaluate` on the page then loaded fails with -32038 `evaluate is off on a page the user had through a
   handoff; navigate first` until the main frame navigates to a new document (`did-navigate`; an in-page navigation
-  keeps the document). If Give back is pressed while the main frame is loading, the page that load commits counts too.
+  keeps the document). If Give back is pressed while the main frame is still loading (`isLoadingMainFrame()`, which stays
+  true after the commit until the load finishes), the next document to commit counts as handed back too, so after a
+  sign-in the agent's first navigation may also leave `evaluate` off; the one after clears it.
   An `evaluate` running when the handoff lands fails with -32038 `the user took the pane while evaluate ran; its result
   is dropped`. This is Wasif's decision (2026-10-13): the user may have signed in, and a script can encode a cookie or
   token before returning it, which no output scrub can catch, so evaluate is refused rather than scrubbed. Other tools
