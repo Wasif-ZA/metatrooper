@@ -209,3 +209,21 @@ test('M6-15 the workbench may call the grant and resume methods, and the take-ov
   assert.equal(DEFAULTS.desktop.takeover_key, 'Control+Alt+Q');
   assert.match(mainSource, /globalShortcut\.register\(takeover,[^\n]*takeover\.pause/);
 });
+
+test('M6-15 the workbench tells every new core its pid, once per core pid', async () => {
+  const body = fn('tellCoreOurPid', mainSource).replace(/: Promise<void>|: number \| null/g, '');
+  const sent: number[] = [];
+  let reply: any = { kind: 'reply', reply: { result: {} } };
+  const make = new Function('call', 'process', `let toldPid = null;\n${body}; return tellCoreOurPid;`);
+  const tell = make(async (_m: string, p: any) => { sent.push(p.pid); return reply; }, { pid: 4242 });
+  await tell(null);
+  await tell(100);
+  await tell(100);
+  assert.deepEqual(sent, [4242], 'once for core 100');
+  reply = { kind: 'offline' };
+  await tell(200);
+  reply = { kind: 'reply', reply: { result: {} } };
+  await tell(200);
+  await tell(200);
+  assert.deepEqual(sent, [4242, 4242, 4242], 'a restarted core (new pid) is told again, retried until it answers');
+});

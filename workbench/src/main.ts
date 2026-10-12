@@ -165,6 +165,14 @@ function schedulePush(): void {
   }, DEBOUNCE_MS);
 }
 
+let toldPid: number | null = null;
+/** Tells each core that starts (a new `core.pid`) this process's pid, so it never lists or grants the workbench's windows (M6-15). */
+async function tellCoreOurPid(corePid: number | null): Promise<void> {
+  if (!corePid || corePid === toldPid) return;
+  const out = await call('desktop.ui-window', { pid: process.pid }, { ui: true });
+  if (out.kind === 'reply' && !out.reply.error) toldPid = corePid;
+}
+
 /** Watches the data folder for troop.db* writes, and polls PRAGMA data_version and the heartbeat every second. */
 function watch(): void {
   const dir = homeDir();
@@ -190,6 +198,7 @@ function watch(): void {
       }
     }
     const s = read();
+    void tellCoreOurPid(s.core.pid);
     if (lastOnline === true && !s.core.online && ownCore && !closing) void restartOwnCore();
     if (lastOnline === false && s.core.online) void checkCoreVersion().then(schedulePush);
     if (changed || s.core.online !== lastOnline) schedulePush();
@@ -609,8 +618,6 @@ const restarts: number[] = [];
 
 /** Compares the running core's version with this window's; a different one makes the window offer Restart core. */
 async function checkCoreVersion(): Promise<void> {
-  // The core never lists or grants windows of this process (M6-15)
-  void call('desktop.ui-window', { pid: process.pid }, { ui: true });
   const out = await call('core.ping', {}, { ui: true });
   if (out.kind !== 'reply' || out.reply.error) return;
   const v = (out.reply.result as { version?: unknown }).version;

@@ -294,6 +294,7 @@ test('M6-15a: a session granted Notepad types into it; Calculator is not granted
       const waiting = await until(() => db.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 5000);
       assert.equal(waiting.reason, 'file dialog');
       assert.equal(waiting.target, grant);
+      assert.match(waiting.summary, / in Untitled - Notepad$/, 'the card names the window, not the grant id');
       // session scope is refused for file dialogs, so the next input asks again
       assert.equal((await call(ui, 'approval.resolve', { approval_id: waiting.id, decision: 'approve', scope: 'session' })).result.scope, 'once');
       assert.equal((await pending).result.decision, 'approved');

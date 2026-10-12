@@ -31,7 +31,7 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 |---|---|---|
 | `windows` | `{}` | `{windows: [{window, title, exe, grant_id, owner}]}`: each granted window, then each open window it owns (`owner` = the handle it hangs from, 0 for the granted window) |
 | `snapshot` | `{window, max_nodes?: 400}` | UI Automation tree as text, one node per line, `[ref=e12]` on each node; refs live until the next snapshot of that window. A read with fewer than 20 nodes is read again after 2 s (Chromium and Electron apps build their tree on first ask) |
-| `screenshot` | `{window}` | JPEG of that window through `PrintWindow(PW_RENDERFULLCONTENT)`, so a covered window still captures; no side over 1,568 px |
+| `screenshot` | `{window}` | JPEG of that window through `PrintWindow(PW_RENDERFULLCONTENT)`, so a covered window still captures; no side over 1,568 px, and quality then size lowered until the base64 is at most 900,000 characters, since replies travel a pipe whose lines stop at 1 MiB |
 | `click` | `{window, ref}` | `{status, focus_returned?}` |
 | `type` | `{window, ref, text}` | `{status, focus_returned?}`; replaces the control's text |
 | `key` | `{window, keys}` | `{status}`; keys like `Enter`, `Tab`, `Control+S` |
@@ -135,6 +135,10 @@ among its ancestors.
   2 frames a second) beside its agent's tile.
 
 ## Known limits
+
+- A process that calls `desktop.act` on the core pipe directly, with an `expect` that matches the control and
+  without `approval.check`, is not stopped; the grant and the pause flag still apply (Threat model: a hostile
+  same-user process is out of scope, as in `approvals.md`).
 
 - A pattern action on a WinUI or UWP control moves keyboard focus to that window for a moment (D78); Windows may
   refuse the hand-back (`focus_returned: false`).

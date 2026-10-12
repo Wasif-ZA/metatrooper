@@ -62,7 +62,7 @@ namespace TroopUia {
     const uint GA_ROOT = 2, GW_OWNER = 4, PW_RENDERFULLCONTENT = 2;
     const uint WM_SETTEXT = 0x000C, WM_GETTEXT = 0x000D, WM_GETTEXTLENGTH = 0x000E, WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_CHAR = 0x0102;
     const uint WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, BM_CLICK = 0x00F5;
-    const int MAX_SIDE = 1568;
+    const int MAX_SIDE = 1568, MAX_BASE64 = 900000;
     static readonly JavaScriptSerializer J = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
     static readonly Dictionary<long, Dictionary<string, AutomationElement>> Refs = new Dictionary<long, Dictionary<string, AutomationElement>>();
 
@@ -259,15 +259,21 @@ namespace TroopUia {
           try { Native.PrintWindow(h, hdc, PW_RENDERFULLCONTENT); } finally { g.ReleaseHdc(hdc); }
         }
         double scale = Math.Min(1.0, (double)MAX_SIDE / Math.Max(rc[2], rc[3]));
-        int w = Math.Max(1, (int)(rc[2] * scale)), hh = Math.Max(1, (int)(rc[3] * scale));
-        using (var outBmp = new Bitmap(w, hh)) {
-          using (var g = Graphics.FromImage(outBmp)) { g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.DrawImage(bmp, 0, 0, w, hh); }
-          var codec = ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
-          var ps = new EncoderParameters(1); ps.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 80L);
-          using (var ms = new MemoryStream()) {
-            outBmp.Save(ms, codec, ps);
-            return new Dictionary<string, object> { { "data_base64", Convert.ToBase64String(ms.ToArray()) }, { "mime", "image/jpeg" }, { "width", w }, { "height", hh } };
+        var codec = ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
+        long[] qualities = { 80L, 60L, 45L };
+        for (int attempt = 0; ; attempt++) {
+          int w = Math.Max(1, (int)(rc[2] * scale)), hh = Math.Max(1, (int)(rc[3] * scale));
+          using (var outBmp = new Bitmap(w, hh)) {
+            using (var g = Graphics.FromImage(outBmp)) { g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.DrawImage(bmp, 0, 0, w, hh); }
+            var ps = new EncoderParameters(1); ps.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, qualities[Math.Min(attempt, qualities.Length - 1)]);
+            using (var ms = new MemoryStream()) {
+              outBmp.Save(ms, codec, ps);
+              string data = Convert.ToBase64String(ms.ToArray());
+              // the reply travels the core pipe, whose lines stop at 1 MiB
+              if (data.Length <= MAX_BASE64 || w <= 64) return new Dictionary<string, object> { { "data_base64", data }, { "mime", "image/jpeg" }, { "width", w }, { "height", hh } };
+            }
           }
+          if (attempt >= qualities.Length - 1) scale *= 0.75;
         }
       }
     }

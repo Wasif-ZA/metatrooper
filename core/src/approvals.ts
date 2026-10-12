@@ -89,12 +89,13 @@ export function riskReason(p: CheckParams): string | null {
   return null;
 }
 
-export function summaryOf(p: CheckParams): string {
+/** "click Send in example.com"; a desktop action names its window (`windowTitle`) instead of the grant id. */
+export function summaryOf(p: CheckParams, windowTitle?: string): string {
   const what = p.control ? (p.control.name || p.control.automation_id || p.control.role) : '';
-  let where = p.target;
-  try { where = new URL(p.target).host || p.target; } catch {}
+  let where = windowTitle || p.target;
+  if (!windowTitle) try { where = new URL(p.target).host || p.target; } catch {}
   const verb = p.action === 'type' ? 'type into' : p.action === 'key' ? `press ${typeof p.args.keys === 'string' ? p.args.keys : ''} on` : p.action;
-  return redactCredentials(`${verb} ${what || 'the page'} in ${where}`.replace(/\s+/g, ' ').trim()).slice(0, 300);
+  return redactCredentials(`${verb} ${what || (p.surface === 'desktop' ? 'the window' : 'the page')} in ${where}`.replace(/\s+/g, ' ').trim()).slice(0, 300);
 }
 
 export interface ApprovalHooks {
@@ -145,7 +146,9 @@ export class Approvals {
     }
     const id = `ap_${ulid()}`;
     const now = nowIso();
-    const summary = summaryOf(p);
+    let title: string | undefined;
+    if (p.surface === 'desktop') try { title = (this.db.prepare('SELECT title FROM grant WHERE id = ?').get(p.target) as { title: string } | undefined)?.title; } catch {}
+    const summary = summaryOf(p, title);
     this.db.prepare(
       "INSERT INTO approval (id, session_id, surface, target, control, action, action_hash, summary, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)",
     ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, redactCredentials(reason), now);
