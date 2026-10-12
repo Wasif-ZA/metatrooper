@@ -172,7 +172,7 @@ function userNotify(text: string): string[] | null {
   return previous;
 }
 
-/** The command a per-session engine hook runs: event.js with the kind `<prefix>.<Event>` and the session id on the command line, since an engine may not pass its environment to hooks. */
+/** The command a per-session engine hook runs: event.js with the kind `<prefix>.<Event>` and the session id on the command line. */
 function engineHookCommand(prefix: string, event: string, sessionId: string): string {
   return `node "${eventScript()}" ${prefix}.${event} --session ${sessionId}`;
 }
@@ -186,7 +186,7 @@ export function geminiSettingsFile(sessionId: string): string {
   return path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`);
 }
 
-/** Environment for engines whose hooks travel in a per-session file: the Gemini CLI system settings file holding only MetaTrooper's hooks, so ~/.gemini/settings.json is never touched. */
+/** Environment for engines whose hooks travel in a per-session file: the Gemini CLI system settings file holding only MetaTrooper's hooks. */
 export function sessionHookEnv(engine: EngineSpec, sessionId: string): Record<string, string> {
   if (engine.hooks?.kind !== 'gemini-system-settings') return {};
   const file = geminiSettingsFile(sessionId);

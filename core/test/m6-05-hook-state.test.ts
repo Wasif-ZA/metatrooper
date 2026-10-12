@@ -198,9 +198,14 @@ test('the Codex and Gemini hook payloads keep only the allowlisted fields', asyn
   assert.deepEqual(buildPayload('claude.PermissionRequest', { ...raw, tool_name: 'Bash', tool_use_id: 'u', tool_input: { command: 'rm -rf /' } }).tool_input, { first_word: 'rm', length: 8 });
 });
 
-test('the shipped Codex engine sends no -c hooks until the trust spike passes; a Gemini engine file declares its hooks', async () => {
+test('the shipped Codex and Gemini engines declare no hooks until their blockers in the M6-5 issue clear, and a hooks entry passes the engine schema', async () => {
   const { BUILT_IN, dataEngines } = await import('../src/engines/registry.ts');
+  const { engineSchemaErrors } = await import('../src/plugins/manifest.ts');
   const { root } = await import('./helpers.ts');
-  assert.equal(BUILT_IN.find((e) => e.id === 'codex')!.hooks, undefined);
-  assert.deepEqual(dataEngines(join(root, 'engines')).find((e) => e.id === 'gemini')!.hooks, { kind: 'gemini-system-settings', events: GEMINI_EVENTS });
+  const codex = BUILT_IN.find((e) => e.id === 'codex')!;
+  const gemini = dataEngines(join(root, 'engines')).find((e) => e.id === 'gemini')!;
+  assert.equal(codex.hooks, undefined);
+  assert.equal(gemini.hooks, undefined);
+  assert.deepEqual(engineSchemaErrors({ ...gemini, hooks: { kind: 'gemini-system-settings', events: GEMINI_EVENTS } }), []);
+  assert.notDeepEqual(engineSchemaErrors({ ...gemini, hooks: { kind: 'gemini-system-settings', events: ['After Agent; rm'] } }), []);
 });
