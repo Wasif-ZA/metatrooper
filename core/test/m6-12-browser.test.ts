@@ -185,6 +185,27 @@ test('M6-12 a browser secret decrypted only in another process is scrubbed from 
   assert.ok(!needs.text.includes(marker));
 });
 
+test('M6-12 a browser secret saved again by another process is read again, not served from this process cache', async () => {
+  const { getSecret } = await import('../src/secrets.ts');
+  const { browserSecretOrigin } = await import('../src/browser/secret-origin.ts');
+  const src = (f: string) => JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', 'src', f)).href);
+  const save = (origin: string, value: string) => {
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      const { openCoreDb } = await import(${src('store/db.ts')});
+      const { setBrowserSecret } = await import(${src('secrets.ts')});
+      const db = openCoreDb();
+      setBrowserSecret(db, 'ROTATED', process.env.M612_ORIGIN, process.env.M612_VALUE);
+      db.close();
+    `], { encoding: 'utf8', env: { ...process.env, M612_ORIGIN: origin, M612_VALUE: value } });
+    assert.equal(r.status, 0, r.stderr);
+  };
+  save('https://old.test', 'first-value-1');
+  assert.equal(getSecret('core-browser', 'ROTATED'), 'first-value-1');
+  save('https://new.test', 'second-value-2');
+  assert.equal(browserSecretOrigin('ROTATED'), 'https://new.test');
+  assert.equal(getSecret('core-browser', 'ROTATED'), 'second-value-2');
+});
+
 test('M6-12 a checked tool the MCP server stops before dispatch (denied, core offline) reports its outcome to the workbench for the audit row', async () => {
   const { browserPipe, corePipe } = await import('../src/paths.ts');
   const { createDecoder, encode } = await import('../src/pipe/framing.ts');

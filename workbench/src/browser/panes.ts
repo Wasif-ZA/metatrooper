@@ -881,6 +881,8 @@ ame, after checking the ref's field is a password field on the origin saved with
     if (!d.password) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
     const value = getSecret(BROWSER_SECRETS, name);
     if (!value) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
+    // saved again meanwhile: the value read may not be the one saved for the origin checked
+    if (browserSecretOrigin(name) !== saved) throw new ToolError(-32037, `secret ${name} was saved again while it was being typed; nothing was typed`);
     return value;
   }
 

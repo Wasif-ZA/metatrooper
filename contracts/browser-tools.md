@@ -85,7 +85,10 @@ box fails with "not visible".
   scrubbing skips values that short. The value is stored in the DPAPI store under plugin id `core-browser`; the
   origin it may be typed into is saved in plain text beside it. Right before `Input.insertText`, after the click and the
   approval recheck, the workbench main process checks that the origin of the field's own frame is the saved one and the
-  ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed. The
+  ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed.
+  A decrypted value is cached only until its stored file changes, so saving the name again (from the core) is seen by the
+  next fill. Saving removes the origin file while the value changes, and the fill reads the origin again after the
+  value; if it differs, the call fails with -32037. The
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
   fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
