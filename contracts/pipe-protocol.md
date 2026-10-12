@@ -99,7 +99,7 @@ survives in the WAL for at most about 30 s.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `session.live-text`, `engines.check`, every `browser.*` method, and the methods that carry
+`session.focus`, `session.live-text`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
 secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
 written to the `command` table.
 
@@ -132,6 +132,7 @@ Every other interaction is a database read.
 | `session.focus` | `{session_id}` | `{focused: bool}` |
 | `session.seen` | `{session_id}` | `{}`; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` |
 | `session.live-text` | `{}` | `{<session_id>: {line?, title?}}`: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |
+| `session.search` | `{query}` | `{hits: [{session_id, line, text}]}`: lines of every live terminal's headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50; needs `ui.hello`. `line` is the buffer row the line starts on; `text` is its first 300 characters. Never queued and never written to the database (M6-19) |
 | `ui.hello` | `{ui_key}` | `{ok}`; marks this connection as a trusted UI connection (see Access) |
 | `engines.check` | `{}` | `{}` (results land in `engine_check`) |
 | `plugin.preview` | `{source}` | `{valid, errors, manifest_hash, source, screen}`; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |

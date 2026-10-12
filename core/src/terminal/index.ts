@@ -30,6 +30,7 @@ interface Term {
   parsed: number;
   behind: number;
   paused: boolean;
+  at: number;
 }
 
 export interface TermHooks {
@@ -63,13 +64,14 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   const head = new Terminal({ cols, rows, scrollback: settings().terminal.scrollback, allowProposedApi: true, ...(build ? { windowsPty: { backend: 'conpty' as const, buildNumber: build } } : {}) });
   const ser = new SerializeAddon();
   head.loadAddon(ser);
-  const t: Term = { proc, head, ser, viewers: new Set(), attaching: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false };
+  const t: Term = { proc, head, ser, viewers: new Set(), attaching: new Set(), exitCode: null, killed: false, written: 0, parsed: 0, behind: 0, paused: false, at: 0 };
   terms.set(id, t);
   head.onBell(() => hooks.onBell?.(id));
   head.onTitleChange((title) => hooks.onTitle?.(id, title.slice(0, 200)));
   head.onData((reply) => { if (t.viewers.size === 0 && t.exitCode === null) t.proc.write(reply); });
   proc.onData((data) => {
     const n = ++t.written;
+    t.at = Date.now();
     t.behind += data.length;
     if (!t.paused && t.behind > PAUSE_BYTES) { t.paused = true; t.proc.pause(); }
     head.write(data, () => {
@@ -134,6 +136,25 @@ export function lastLine(id: string, max: number): Promise<string | null> {
     }
     resolve(null);
   }));
+}
+
+export interface Hit { session_id: string; line: number; text: string }
+
+/** Lines (wrapped rows joined) of every live terminal that contain `query`, ignoring case; most recent terminal and line first. */
+export async function search(query: string, max: number): Promise<Hit[]> {
+  const q = query.toLowerCase();
+  const live = [...terms].filter(([, t]) => t.exitCode === null).sort(([, a], [, b]) => b.at - a.at);
+  await Promise.all(live.map(([, t]) => new Promise<void>((r) => t.head.write('', r))));
+  const hits: Hit[] = [];
+  for (const [id, t] of live) {
+    const b = t.head.buffer.active;
+    for (let i = b.length - 1; i >= 0 && hits.length < max; i--) {
+      let line = b.getLine(i)?.translateToString(true) ?? '';
+      while (i > 0 && b.getLine(i)?.isWrapped) line = (b.getLine(--i)?.translateToString(true) ?? '') + line;
+      if (line.toLowerCase().includes(q)) hits.push({ session_id: id, line: i, text: line.trim().slice(0, 300) });
+    }
+  }
+  return hits;
 }
 
 export function bracketedPaste(id: string): boolean {

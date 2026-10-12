@@ -718,7 +718,7 @@ const CMD_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" st
 
 function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
-  const all = paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q));
+  const all = [...paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -732,6 +732,29 @@ function renderPalette() {
   if (cur) cur.scrollIntoView({ block: 'nearest' });
 }
 
+function scrollbackItems(q) {
+  const rows = [...ui.snap.sessions, ...shellRows()];
+  return (ui.scrollHits || []).flatMap((h) => {
+    const x = rows.find((r) => r.id === h.session_id);
+    return x && q && h.text.toLowerCase().includes(q) ? [{ group: 'Scrollback', label: h.text, meta: x.engine_id, run: () => openHit(h) }] : [];
+  });
+}
+
+async function openHit(h) {
+  if (h.session_id.startsWith('sh_')) selectShell(h.session_id); else await pick(h.session_id);
+  await termView.reveal(h.session_id, h.line, h.text);
+}
+
+let scrollTimer = 0;
+function searchScrollback() {
+  clearTimeout(scrollTimer);
+  const q = document.getElementById('palette-input').value.trim();
+  if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
+    const r = await rpc('session.search', { query: q }, true);
+    if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
+  }, 100);
+}
+
 function openPalette() {
   const el = document.getElementById('palette');
   const input = document.getElementById('palette-input');
@@ -739,6 +762,7 @@ function openPalette() {
     el.hidden = false;
     input.value = '';
     ui.paletteAt = 0;
+    ui.scrollHits = [];
     wall.openSearch();
     renderPalette();
   }
@@ -1274,6 +1298,7 @@ function onInput(e) {
   if (el.id === 'palette-input') {
     ui.paletteAt = 0;
     renderPalette();
+    searchScrollback();
     return;
   }
   if (el.id === 'sink-kind') {
