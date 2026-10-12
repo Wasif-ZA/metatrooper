@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, harness, runNode, sleep } from './helpers.ts';
 import { GENERATED, block } from '../gen-methods.ts';
-import { buildMethods } from '../src/methods.ts';
+import { METHODS, buildMethods } from '../src/methods.ts';
 import { call } from '../src/pipe/client.ts';
 
 // Rebuild generated fixtures before running public API tests.
@@ -139,6 +139,8 @@ test('buildMethods key set equals METHODS names minus ui.hello plus MOVED_METHOD
   const dummyCtl = { engines: () => [], stop: () => {}, uiKey: 'test_key' };
   // Build methods map for verification.
   const methods = buildMethods(dummyDb, dummyCtl);
+  // Verify declared METHODS names match the literal list.
+  assert.deepEqual(METHODS.map((d) => d.name), EXPECTED_METHODS);
   // Compute expected keys minus ui.hello plus moved methods.
   const expectedKeys = [...EXPECTED_METHODS.filter((m) => m !== 'ui.hello'), ...EXPECTED_MOVED].sort();
   // Verify returned method names match expected key set.
