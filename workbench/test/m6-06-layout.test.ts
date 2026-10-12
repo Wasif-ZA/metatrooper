@@ -116,3 +116,18 @@ test('M6-06a a shell whose reopen meets a dead core opens once the new core is u
   await new Promise((r) => setTimeout(r, 10));
   assert.deepEqual(plain(ui.shells).map((x: any) => [x.id, x.from]), [['sh_new', 'sh_old']]);
 });
+
+const appWith = (ui: any, wall: any, rpc: any, api: any = {}) => new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null;\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('saveLayout')}\n${fn('coreRestarted')}\nreturn { seedLayout, saveLayout, coreRestarted };`)(ui, wall, rpc, () => {}, api);
+const tick = () => new Promise((r) => setTimeout(r, 10));
+
+test('M6-06a a shell saved in the big slot stays there on reopen instead of the selected agent', async () => {
+  const w = freshWall();
+  const layout = { big: ['sh_old'], order: ['a'], open: [], pair_at: 0, shells: [{ id: 'sh_old', kind: 'bash' }] };
+  const ui: any = { projectId: 'p', snap: { core: { online: true, pid: 1 }, selected: 'a' }, settingsLook: { ui: { layout: { p: layout } } }, shells: [], shellKinds: [], shellSel: null };
+  const app = appWith(ui, w, async () => ({ result: { shell_id: 'sh_new', label: 'Git Bash', cwd: 'C:/p' } }));
+  const tiles = () => [{ id: 'a', state: 'working' }, ...ui.shells.map((x: any) => ({ id: x.id, from: x.from, state: x.exited ? 'exited' : 'idle', shell: true }))];
+  app.seedLayout();
+  assert.equal(w.decide(tiles(), ui.shellSel || ui.snap.selected), 'sh_old');
+  await tick();
+  assert.equal(w.decide(tiles(), ui.shellSel || ui.snap.selected), 'sh_new');
+});

@@ -408,8 +408,10 @@ function seedLayout() {
   for (const sh of shells) {
     if (!sh || typeof sh.id !== 'string' || typeof sh.kind !== 'string' || ui.shells.some((x) => x.id === sh.id)) continue;
     const kind = ui.shellKinds.find((k) => k.kind === sh.kind);
-    ui.shells.push({ id: sh.id, label: kind ? kind.label : sh.kind, cwd: '', project_id: ui.projectId, kind: sh.kind, exited: true });
-    void reopenShell(sh);
+    const row = { id: sh.id, label: kind ? kind.label : sh.kind, cwd: '', project_id: ui.projectId, kind: sh.kind, exited: true };
+    ui.shells.push(row);
+    if (saved.big?.[0] === sh.id) ui.shellSel = sh.id;
+    void reopenShell(row);
   }
 }
 
