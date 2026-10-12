@@ -888,6 +888,23 @@ ame, after checking the ref's field is a password field on the origin saved with
     return value;
   }
 
+  /** Fails unless focus is still on the ref's node: `Input.insertText` types into whatever has focus, and the page's own handlers for the focus and select-all may have moved it. */
+  private async focusOn(pane: Pane, node: Target, ref: unknown): Promise<void> {
+    const r = await this.cmd(pane, 'Runtime.evaluate', { expression: FOCUSED, contextId: await this.isolated(pane) });
+    const focused = r.result?.objectId ? (await this.cmd(pane, 'DOM.describeNode', { objectId: r.result.objectId })).node : null;
+    if (focused && focused.backendNodeId === node.backendNodeId) return;
+    // a field in a frame the main frame cannot read: focus must be in that frame, and in its own document on the field
+    if (focused?.frameId && focused.frameId === node.frameId) {
+      const own = await this.cmd(pane, 'Runtime.callFunctionOn', {
+        objectId: await this.resolve(pane, node, ref),
+        returnByValue: true,
+        functionDeclaration: 'function () { let a = this.ownerDocument.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; return a === this; }',
+      });
+      if (own.result?.value === true) return;
+    }
+    throw new ToolError(-32037, 'focus moved off the field; nothing was typed');
+  }
+
   /** The security origin of a frame of the pane, or '' when it is not in the frame tree. */
   private async frameOrigin(pane: Pane, frameId: string): Promise<string> {
     const find = (t: any): string => (t.frame.id === frameId ? String(t.frame.securityOrigin ?? '') : (t.childFrames ?? []).map(find).find(Boolean) ?? '');
@@ -1078,6 +1095,7 @@ ame, after checking the ref's field is a password field on the origin saved with
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
           if (secret) {
+            await this.focusOn(pane, node, a.ref);
             // a script already running could wait for the fill and return the value encoded, past the scrub
             if (pane.evaluating) throw new ToolError(-32037, 'evaluate is running on this page; nothing was typed');
             pane.secretOnPage = true;

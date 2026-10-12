@@ -233,7 +233,7 @@ delete internal.isolated;
 // Round 2: a secret is not filled while an evaluate is still running, since its script could wait for the fill and return the value encoded
 pane.secretOnPage = false;
 const script = hold();
-internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate') await script.held; return plainCmd(p, method, params); };
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate' && String(params.expression).includes('btoa')) await script.held; return plainCmd(p, method, params); };
 const running = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'new Promise((r) => setTimeout(() => r(btoa(document.querySelector("input").value)), 5000))' });
 await new Promise((res) => setTimeout(res, 50));
 const filledBefore = inserted.length;
@@ -243,7 +243,33 @@ script.release();
 r.evaluateFinished = outcome(await running);
 internal.cmd = plainCmd;
 
+// Round 2: Input.insertText types into whatever has focus, so a secret is typed only when focus is still on the checked field
 const theField = focusDoc.activeElement;
+const moveFocusOnSelectAll = (to: Record<string, unknown>) => {
+  internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => {
+    if (method === 'Input.dispatchKeyEvent' && params.commands?.includes('selectAll')) focusDoc.activeElement = to;
+    return plainCmd(p, method, params);
+  };
+};
+const typedBefore = inserted.length;
+moveFocusOnSelectAll(element('INPUT', { backendNodeId: 9 }));
+r.focusMovedToPlainField = outcome(await call('browser.type', secret));
+focusDoc.activeElement = theField;
+moveFocusOnSelectAll(element('IFRAME', { backendNodeId: 11, frameId: 'child' }, { contentDocument: null }));
+r.focusMovedIntoOtherFrame = outcome(await call('browser.type', secret));
+r.nothingTypedAfterFocusMoved = inserted.length === typedBefore;
+internal.cmd = plainCmd;
+// a field inside a cross-origin child frame: focus is in that frame and, in the frame's own document, on the field
+const plainTarget = internal.target;
+internal.target = async () => ({ node: { backendNodeId: 7, frameId: 'child' }, x: 1, y: 1 });
+focusDoc.activeElement = element('IFRAME', { backendNodeId: 11, frameId: 'child' }, { contentDocument: null });
+field = { nodeType: 1, id: 'pw', tagName: 'INPUT', type: 'password' };
+field.ownerDocument = { activeElement: field };
+r.focusInChildFrameOnField = outcome(await call('browser.type', secret));
+field.ownerDocument = { activeElement: { tagName: 'INPUT' } };
+r.focusInChildFrameOffField = outcome(await call('browser.type', secret));
+r.childFrameTyped = inserted.length - typedBefore;
+internal.target = plainTarget;
 
 // Round 2: a key with focus inside a frame this world cannot read is checked against that frame's origin
 delete internal.describe;

@@ -91,7 +91,10 @@ box fails with "not visible".
   ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed.
   A decrypted value is cached only until its stored file changes, so saving the name again (from the core) is seen by the
   next fill. Saving removes the origin file while the value changes, and the fill reads the origin again after the
-  value; if it differs, the call fails with -32037. While an `evaluate` on the pane is still running (its script can
+  value; if it differs, the call fails with -32037. The last step before `Input.insertText`, which types into whatever has
+  focus, checks focus is still on the ref's node (after the focus and select-all, whose page handlers could move it); for
+  a field in a frame the main frame cannot read, focus must be in that frame and, in its own document, on the field.
+  Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. While an `evaluate` on the pane is still running (its script can
   await for up to 10 s), a fill fails with -32037 `evaluate is running on this page; nothing was typed`, since the
   script could wait for the value and return it encoded past the scrub. The
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
