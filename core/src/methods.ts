@@ -174,6 +174,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
   m.set('session.live-text', { handler: () => liveText() });
+  m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50, Array.isArray(p.session_ids) ? new Set(p.session_ids.filter((x): x is string => typeof x === 'string')) : undefined) }) });
 
   m.set('session.focus', {
     handler: (p) => {
@@ -225,6 +226,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
       if (resumed && engine.id === 'codex') db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(old.native_id, r.session_id);
+      appendEvent('core.resumed', r.session_id, { from: oldId }, db);
       resumedAs.set(oldId, r.session_id);
       return { ...r, resumed, ...(resumed ? {} : { notice: 'No saved conversation, starting fresh.' }) };
     },

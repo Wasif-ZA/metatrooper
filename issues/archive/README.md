@@ -61,3 +61,13 @@ left for `../suite-of-products/` (each product's `issues/`, plus `shared/` and `
 | status-and-notifications-live-stub.md, terminal-core-live-stub.md, zero-setup-tools-live-stub.md | Live stubs for done UI revision children | prunable: yes |
 | ui-port-epic.md | Wall and pipeline layouts port, done; pipeline half moved out | prunable: no, kept as design history |
 | 15-pipeline-runner.md, 18-two-engine-review.md, step-list.md, result-panes.md, spec-2026-09-29-pipeline-ide.md | Moved to ../suite-of-products on 2026-10-10 | gone from this folder |
+
+## Archived 2026-10-12
+
+Closed on GitHub already; the files lagged behind. Its `sync 31` line left `issues/sync-issues.sh`.
+
+| File | What | Verdict |
+|---|---|---|
+| 31-signed-installer.md | SignPath installer signing, rejected 2026-10-08; replaced by M5-2 | prunable: no, M5-2 cites it |
+| m5-10-public-docs.md | Public docs, licences, privacy, ACU rule as a setting (#59), done | prunable: no, kept as design history |
+| m5-15-notification-sink.md | One notification sink (#64), done; quiet hours not built | prunable: no, kept as design history |

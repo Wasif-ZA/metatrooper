@@ -23,6 +23,7 @@ import { syncBuiltinPlugins } from './plugins/store.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
 import { sweepWorktrees } from './worktree.ts';
+import { coreResumer, liveAtStart, markGone } from './sessions/resume-all.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -60,6 +61,8 @@ async function main(): Promise<void> {
   const setMeta = db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
   setMeta.run('core_pid', String(process.pid));
   setMeta.run('core_heartbeat', nowIso());
+  const wereLive = liveAtStart(db);
+  term.pruneScreens();
 
   const engines = loadEngines();
   syncEngines(db, engines);
@@ -75,6 +78,7 @@ async function main(): Promise<void> {
     for (const t of timers) clearInterval(t);
     server.close();
     termServer?.close();
+    await Promise.race([term.saveAllScreens(), new Promise((r) => setTimeout(r, 2000))]);
     term.killAll();
     await Promise.race([turnJobsIdle(), new Promise((r) => setTimeout(r, 5000))]);
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
@@ -88,6 +92,7 @@ async function main(): Promise<void> {
   const home = settings().projects.default;
   if (home) try { methods.get('project.open')!.handler({ path: home }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
   await commands.recover();
+  markGone(db, wereLive);
   try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
   processEvents(db);
   resolveSpentNotices(db);
@@ -124,6 +129,9 @@ async function main(): Promise<void> {
   every(600_000, () => checkAll(db, activeEngines(db)));
   try { sweepWorktrees(db, activeEngines(db)); } catch {}
   every(3_600_000, () => sweepWorktrees(db, activeEngines(db)));
+  const resumer = coreResumer(db, wereLive, async (id) => (await methods.get('session.resume')!.handler({ session_id: id })) as { session_id: string });
+  const resuming = setInterval(() => { if (resumer.done()) clearInterval(resuming); else void resumer.tick().catch(() => {}); }, 250);
+  timers.push(resuming);
   checkPids(db);
   void checkAll(db, activeEngines(db)).catch(() => {});
 

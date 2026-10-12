@@ -122,24 +122,29 @@ test('M1-06 every query the window runs per snapshot has p95 under 1 ms (3 live 
   }
 });
 
-test('the project list leaves out hidden rows and worktrees whose folder is gone, and carries the older mark', () => {
+test('the project menu leaves out hidden rows, gone folders and worktrees with no .git, keeps the open one, and carries the older mark', () => {
   const f = fixture();
-  const prev = process.env.METATROOPER_HOME;
-  process.env.METATROOPER_HOME = f.dir;
   try {
+    const d = f.db;
     const now = iso(Date.now());
-    const root = join(f.dir, 'worktrees', 'p1').replace(/\\/g, '/');
-    mkdirSync(join(f.dir, 'worktrees', 'p1', 'kept'), { recursive: true });
-    const add = (id: string, p: string, hidden = 0, older = 0) => f.db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened, hidden, older) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, p, id, now, now, hidden, older);
-    add('p1', '/repo');
-    add('kept', `${root}/kept`, 0, 1);
-    add('gone', `${root}/gone`);
-    add('removed', `${root}/removed`, 1);
-    add('elsewhere', '/no/such/folder');
-    assert.deepEqual(snapshot(f.db, null).projects.map((p) => [p.id, p.older]).sort(), [['elsewhere', 0], ['kept', 1], ['p1', 0]]);
+    const wt = join(f.dir, '.metatrooper', 'worktrees', 'h');
+    const live = join(wt, 'live');
+    const empty = join(wt, 'empty');
+    const stale = join(wt, 'stale');
+    for (const dir of [live, stale]) { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, '.git'), 'gitdir: x'); }
+    mkdirSync(empty, { recursive: true });
+    const add = (id: string, p: string, hidden = 0, older = 0) => d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened, hidden, older) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, p, id, now, now, hidden, older);
+    add('live', live);
+    add('stale', stale, 0, 1);
+    add('empty', empty);
+    add('gone', join(wt, 'gone'));
+    add('removed', join(wt, 'removed'), 1);
+    add('plain', f.dir);
+    add('missing', join(f.dir, 'nope'));
+    assert.deepEqual(snapshot(d, null).projects.map((p) => [p.id, p.older]).sort(), [['live', 0], ['plain', 0], ['stale', 1]]);
+    assert.deepEqual(snapshot(d, 'gone').projects.map((p) => p.id).sort(), ['gone', 'live', 'plain', 'stale']);
+    assert.deepEqual(snapshot(d, 'removed').projects.map((p) => p.id).sort(), ['live', 'plain', 'removed', 'stale']);
   } finally {
-    if (prev === undefined) delete process.env.METATROOPER_HOME;
-    else process.env.METATROOPER_HOME = prev;
     f.close();
   }
 });

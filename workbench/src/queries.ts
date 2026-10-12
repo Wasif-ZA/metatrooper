@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { worktreesRoot } from '../../core/src/project.ts';
 
 export const OFFLINE_AFTER_MS = 6000;
 
@@ -26,14 +25,14 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null; ctx_pct?: number | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
-  git: Record<string, { branch: string | null; added: number; deleted: number }>;
+  git: Record<string, { branch: string | null; added: number; deleted: number; changed: string[] }>;
   settings_error?: string | null;
   core_mismatch?: string | null;
   core_log?: string[] | null;
@@ -62,6 +61,12 @@ function parse<T>(text: string | null, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+/** A project folder that is gone, or a MetaTrooper worktree that no longer holds a `.git` entry; the menu leaves it out. */
+export function goneCheckout(p: string): boolean {
+  if (!fs.existsSync(p)) return true;
+  return /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p) && !fs.existsSync(path.join(p, '.git'));
 }
 
 /** Everything the workbench draws, read in one pass from a read-only connection. `projectId` scopes sessions and panes. */
@@ -101,7 +106,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     ? (db.prepare(
         `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at,
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
-           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd
+           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
+           (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
       ).all(projectId) as Snapshot['sessions'])
     : [];
@@ -116,15 +122,13 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
       ).all(projectId) as Snapshot['snapshots'])
     : [];
 
-  // A worktree whose folder is gone leaves the menu now; the core's sweep hides its row within the hour.
-  const worktrees = worktreesRoot();
   const needs_you = db.prepare('SELECT id, at, kind, ref, text, read_at FROM needs_you WHERE resolved_at IS NULL ORDER BY julianday(at) DESC LIMIT 100').all() as Snapshot['needs_you'];
 
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    projects: (db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects'])
-      .filter((p) => !p.path.toLowerCase().startsWith(worktrees) || fs.existsSync(p.path)),
+    // Shown: the open project, else a row the core's sweep has not hidden whose checkout is still there.
+    projects: (db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
     engines,
     sessions,
     needs_you,
@@ -135,6 +139,26 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,
     limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
   };
+}
+
+type TaskRow = { engine_id: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string };
+
+/** A session's task line, as its tile shows it: the terminal title, else the pipeline step, else where and when it opened. */
+export function taskOf(x: TaskRow): string {
+  const t = (x.title || '').trim();
+  if (t && !/[\\/]/.test(t)) return t;
+  if (x.step_id) return x.step_id;
+  const folder = (x.cwd || '').split(/[\\/]/).filter(Boolean).pop();
+  const at = Date.parse(x.started_at);
+  const when = Number.isNaN(at) ? '' : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  return [folder && `in ${folder}`, when && `opened ${when}`].filter(Boolean).join(', ') || 'new session';
+}
+
+/** The OS toast for a needs-you row, or null when its session's tile is focused while the window has focus. */
+export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | null, focused: { window: boolean; session: string | null }): { title: string; body: string } | null {
+  if (session && focused.window && n.ref === focused.session) return null;
+  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you';
+  return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
 }
 
 export function dataVersion(db: DatabaseSync): number {

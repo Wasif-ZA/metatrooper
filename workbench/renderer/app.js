@@ -394,8 +394,60 @@ function liveSessions() {
 }
 
 function shellRows() {
-  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true }));
+  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true, from: x.from }));
 }
+
+/** Once per project, after the core is up: hands the saved wall layout to the wall and opens its saved shells again. */
+function seedLayout() {
+  if (!ui.settingsLook || !ui.projectId || ui.seeded === ui.projectId || !ui.snap.core.online) return;
+  ui.seeded = ui.projectId;
+  ui.corePid = ui.snap.core.pid;
+  const saved = (ui.settingsLook.ui.layout || {})[ui.projectId];
+  wall.restore(saved);
+  const shells = saved && Array.isArray(saved.shells) ? saved.shells : [];
+  for (const sh of shells) {
+    if (!sh || typeof sh.id !== 'string' || typeof sh.kind !== 'string' || ui.shells.some((x) => x.id === sh.id || x.from === sh.id)) continue;
+    const kind = ui.shellKinds.find((k) => k.kind === sh.kind);
+    const row = { id: sh.id, label: kind ? kind.label : sh.kind, cwd: '', project_id: ui.projectId, kind: sh.kind, exited: true };
+    ui.shells.push(row);
+    if (saved.big?.[0] === sh.id) ui.shellSel = sh.id;
+    void reopenShell(row);
+  }
+}
+
+/** After a core restart: the wall keeps its layout for the resumed sessions, and the shells of every project that died with the core open again. */
+function coreRestarted() {
+  if (!ui.snap.core.online || !ui.corePid || ui.snap.core.pid === ui.corePid) return;
+  ui.corePid = ui.snap.core.pid;
+  if (ui.seeded === ui.projectId) wall.restore(wall.state());
+  for (const sh of ui.shells.filter((x) => x.kind)) void reopenShell(sh);
+}
+
+async function reopenShell(sh) {
+  const projectId = sh.project_id;
+  const r = await rpc('shell.open', { project_id: projectId, kind: sh.kind }, true);
+  if (!r.result) return;
+  ui.shells = ui.shells.filter((x) => x.id !== sh.id);
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: projectId, kind: sh.kind, from: sh.id });
+  if (ui.shellSel === sh.id) ui.shellSel = r.result.shell_id;
+  render();
+}
+
+let layoutSent = '';
+const layoutTimers = {};
+/** Saves the wall layout and the project's shells through settings.set, 500 ms after the last change. */
+function saveLayout() {
+  const projectId = ui.projectId;
+  if (!projectId || ui.seeded !== projectId || !ui.settingsLook) return;
+  const layout = { ...wall.state(), shells: ui.shells.filter((x) => x.project_id === projectId && x.kind).map((x) => ({ id: x.id, kind: x.kind })) };
+  const text = projectId + JSON.stringify(layout);
+  if (text === layoutSent) return;
+  layoutSent = text;
+  ui.settingsLook.ui.layout = { ...(ui.settingsLook.ui.layout || {}), [projectId]: layout };
+  clearTimeout(layoutTimers[projectId]);
+  layoutTimers[projectId] = setTimeout(() => void api.saveLayout(projectId, layout), 500);
+}
+wall.onChange(saveLayout);
 
 function selectedSession() {
   const big = wall.big();
@@ -579,7 +631,7 @@ function renderDiffTab(sel) {
   if (!d) return `${bar}<p class="empty">Loading.</p>`;
   if (d.error) return `${bar}<p class="empty">${esc(d.error)}</p>`;
   if (!d.files.length && !d.untracked.length) return `${bar}<p class="empty">No changes ${ui.diffScope === 'turn' ? 'in the last turn' : ui.diffScope === 'branch' ? 'on this branch' : 'since the last commit'}.</p>`;
-  if (!ui.sdFile || !d.files.some((f) => f.path === ui.sdFile)) ui.sdFile = d.files[0] ? d.files[0].path : null;
+  if (!ui.sdFile || !(d.files.some((f) => f.path === ui.sdFile) || d.untracked.includes(ui.sdFile))) ui.sdFile = d.files[0] ? d.files[0].path : null;
   const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}:${ui.diffScope}`;
   if (ui.sdFile && ui.sdKey !== want) {
     ui.sdKey = want;
@@ -718,7 +770,7 @@ const CMD_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" st
 
 function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
-  const all = paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q));
+  const all = [...paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -732,6 +784,29 @@ function renderPalette() {
   if (cur) cur.scrollIntoView({ block: 'nearest' });
 }
 
+function scrollbackItems(q) {
+  const rows = [...ui.snap.sessions, ...shellRows()];
+  return (ui.scrollHits || []).flatMap((h) => {
+    const x = rows.find((r) => r.id === h.session_id);
+    return x && q && h.text.toLowerCase().includes(q) ? [{ group: 'Scrollback', label: h.text, meta: x.engine_id, run: () => openHit(h) }] : [];
+  });
+}
+
+async function openHit(h) {
+  if (h.session_id.startsWith('sh_')) selectShell(h.session_id); else await pick(h.session_id);
+  await termView.reveal(h.session_id, h.line, h.text);
+}
+
+let scrollTimer = 0;
+function searchScrollback() {
+  clearTimeout(scrollTimer);
+  const q = document.getElementById('palette-input').value.trim();
+  if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
+    const r = await rpc('session.search', { query: q, session_ids: [...ui.snap.sessions, ...shellRows()].map((x) => x.id) }, true);
+    if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
+  }, 100);
+}
+
 function openPalette() {
   const el = document.getElementById('palette');
   const input = document.getElementById('palette-input');
@@ -739,6 +814,7 @@ function openPalette() {
     el.hidden = false;
     input.value = '';
     ui.paletteAt = 0;
+    ui.scrollHits = [];
     wall.openSearch();
     renderPalette();
   }
@@ -788,7 +864,7 @@ function selectShell(id) {
 async function openShell(kind) {
   const r = await rpc('shell.open', { project_id: ui.projectId, kind });
   if (!r.result) return;
-  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId });
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId, kind });
   selectShell(r.result.shell_id);
 }
 
@@ -800,6 +876,16 @@ async function pick(id, focus = true) {
   await rpc('session.focus', { session_id: id }, true);
   wall.promote(id);
   render(focus);
+}
+
+function waitReason(x) {
+  return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
+}
+
+function oldestWaiting(sessions) {
+  const w = sessions.filter((x) => x.state === 'waiting_for_you');
+  w.sort((a, b) => Date.parse(a.state_at) - Date.parse(b.state_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return w[0] || null;
 }
 
 function onTilePick(id, e) {
@@ -822,6 +908,11 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function changedFiles(id) {
+  const g = (ui.snap.git || {})[id];
+  return g && Array.isArray(g.changed) ? g.changed : [];
+}
+
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
   const pct = Math.round(x.ctx_pct);
@@ -831,9 +922,12 @@ function ctxChip(x) {
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
+  coreRestarted();
+  seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
+  reportFocus(big);
   const sel = selectedSession();
   renderTitle();
   renderList(sel);
@@ -854,6 +948,13 @@ function render(focus = false) {
   renderStrip(sel);
   renderInbox();
   if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: termView.state(), layout: { tab: ui.tab, split: ui.split, mode: ui.mode, rows: document.querySelectorAll('.srow').length, start: !document.getElementById('start').hidden } });
+}
+
+// Main suppresses toasts for this tile, so it must be the one on screen, not the last session.focus.
+function reportFocus(id) {
+  if (id === ui.focused) return;
+  ui.focused = id;
+  void api.focus(id);
 }
 
 function setView() {
@@ -916,6 +1017,25 @@ async function onClick(e) {
       if (r.result) await pick(r.result.session_id);
       return;
     }
+    case 'changed-menu': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
+      menu.style.left = `${Math.max(8, r.right - 260)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
+    case 'changed-open':
+      document.getElementById('menu').hidden = true;
+      ui.diffAll = false;
+      ui.diffScope = 'uncommitted';
+      ui.sdFile = el.dataset.file;
+      ui.sdiff = null;
+      ui.hbDiff = undefined;
+      await pick(id);
+      await openTab('diff');
+      return;
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
@@ -1271,6 +1391,7 @@ function onInput(e) {
   if (el.id === 'palette-input') {
     ui.paletteAt = 0;
     renderPalette();
+    searchScrollback();
     return;
   }
   if (el.id === 'sink-kind') {
@@ -1528,6 +1649,16 @@ function browserKeys(e) {
   void api.paneAct(ui.paneId, act);
 }
 document.addEventListener('keydown', browserKeys, true);
+
+function wallKeys(e) {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const x = oldestWaiting(ui.snap.sessions);
+  if (x) void pick(x.id);
+}
+document.addEventListener('keydown', wallKeys, true);
+wall.onWake(() => render());
 
 api.onPaneEvent((ev) => {
   if (!ev || typeof ev.pane_id !== 'string') return;

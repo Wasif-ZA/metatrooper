@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Files Panel Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Silkscreen&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas: #161617; --canvas-soft: #1b1b1c; --canvas-deep: #0b0b0c; --pane: #0e0e0f;
+  --hairline: #2a2a2b; --hairline-strong: #4a4a4a; --primary: #f2f2f2; --on-primary: #0b0b0c;
+  --ink: #f2f2f2; --body-strong: #dcdcdc; --body: #b8b8b8; --mute: #8f8f8f; --faint: #6e6e6e;
+  --wait: #ff7a1a; --del: #c8695c; --add: #e8e8e8;
+  --kw: #ff9a4d; --str: #c9c9c9; --fn: #ffffff; --num: #ffb37a; --com: #6e6e6e;
+  --mono: 'Geist Mono', ui-monospace, Consolas, monospace;
+  --sans: 'Space Mono', ui-monospace, Consolas, monospace;
+  --pix: 'Silkscreen', 'Space Mono', monospace;
+  --r: 4px;
+}
+:root[data-theme="light"] {
+  --canvas: #ececec; --canvas-soft: #e4e4e4; --canvas-deep: #f6f6f6; --pane: #fafafa;
+  --hairline: #d4d4d4; --hairline-strong: #a8a8a8; --primary: #111; --on-primary: #fafafa;
+  --ink: #111; --body-strong: #222; --body: #3a3a3a; --mute: #666; --faint: #8a8a8a;
+  --wait: #d85a00; --del: #b0473a; --add: #222;
+  --kw: #c24e00; --str: #444; --fn: #000; --num: #a34700; --com: #8a8a8a;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --canvas: #ececec; --canvas-soft: #e4e4e4; --canvas-deep: #f6f6f6; --pane: #fafafa;
+    --hairline: #d4d4d4; --hairline-strong: #a8a8a8; --primary: #111; --on-primary: #fafafa;
+    --ink: #111; --body-strong: #222; --body: #3a3a3a; --mute: #666; --faint: #8a8a8a;
+    --wait: #d85a00; --del: #b0473a; --add: #222;
+    --kw: #c24e00; --str: #444; --fn: #000; --num: #a34700; --com: #8a8a8a;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--canvas-deep); color: var(--body); font: 13px/1.5 var(--mono); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.top { display: flex; align-items: center; gap: 14px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--hairline); background: var(--canvas-deep); }
+.brand { font-family: var(--pix); color: var(--ink); letter-spacing: .12em; font-size: 15px; }
+.crumb { color: var(--mute); }
+.crumb b { color: var(--body-strong); font-weight: 500; }
+.pill { border: 1px solid var(--hairline-strong); border-radius: var(--r); padding: 1px 8px; color: var(--body-strong); }
+.need { border-color: var(--wait); color: var(--wait); font-family: var(--pix); font-size: 11px; }
+.sp { flex: 1; }
+.kbd { border: 1px solid var(--hairline-strong); border-radius: 3px; padding: 0 5px; font-size: 11px; color: var(--mute); }
+
+.wall { display: grid; grid-template-columns: var(--left, 50%) 6px 1fr; gap: 0; padding: 10px; height: calc(100vh - 40px - 54px - 150px); min-height: 520px; }
+.tile, .files { background: var(--pane); border: 1px solid var(--hairline); border-radius: var(--r); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.tile.big { outline: 1px dotted var(--wait); outline-offset: 3px; }
+.split { cursor: col-resize; display: flex; align-items: center; justify-content: center; }
+.split::before { content: ''; width: 2px; height: 36px; border-radius: 2px; background: var(--hairline-strong); }
+.split:hover::before { background: var(--wait); }
+.th { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--wait); flex: none; }
+.eng { font-family: var(--sans); font-size: 11px; color: var(--mute); background: var(--canvas-soft); padding: 1px 6px; border-radius: 3px; letter-spacing: .06em; }
+.ttl { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.btn { border: 1px solid var(--hairline-strong); border-radius: var(--r); padding: 2px 9px; color: var(--body-strong); }
+.btn:hover { border-color: var(--ink); color: var(--ink); }
+.btn.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.warn { border-color: var(--wait); color: var(--wait); }
+.ga { color: var(--add); } .gd { color: var(--del); }
+.term { padding: 12px 16px; color: var(--body); overflow: auto; flex: 1; font-size: 13px; }
+.term .p { color: var(--ink); }
+.term .m { color: var(--mute); }
+.term a { color: var(--ink); text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.term a:hover { color: var(--wait); }
+.term .dl { background: color-mix(in srgb, var(--del) 18%, transparent); color: var(--del); display: block; padding-left: 20px; }
+.term .al { background: var(--canvas-soft); display: block; padding-left: 20px; }
+.hint { color: var(--faint); font-size: 11px; margin-top: 14px; }
+
+.files .th .lbl { font-family: var(--pix); color: var(--ink); font-size: 12px; letter-spacing: .1em; }
+.body { display: grid; grid-template-columns: 220px 1fr; flex: 1; min-height: 0; }
+.tree { border-right: 1px solid var(--hairline); overflow: auto; padding: 6px 0; font-size: 12.5px; }
+.grp { font-family: var(--sans); font-size: 10.5px; letter-spacing: .1em; color: var(--faint); padding: 8px 12px 4px; text-transform: uppercase; display: flex; justify-content: space-between; }
+.row { display: flex; gap: 8px; align-items: center; padding: 2px 12px; cursor: pointer; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row:hover { background: var(--canvas-soft); color: var(--ink); }
+.row.cur { background: var(--canvas); color: var(--ink); box-shadow: inset 2px 0 var(--wait); }
+.row .st { width: 12px; flex: none; font-size: 11px; color: var(--wait); }
+.row .st.A { color: var(--add); } .row .st.D { color: var(--del); }
+.row .muted { color: var(--faint); }
+.ed { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tabs { display: flex; height: 32px; border-bottom: 1px solid var(--hairline); overflow-x: auto; }
+.tab { display: flex; align-items: center; gap: 7px; padding: 0 12px; border-right: 1px solid var(--hairline); color: var(--mute); white-space: nowrap; cursor: pointer; }
+.tab.on { color: var(--ink); background: var(--canvas); box-shadow: inset 0 -2px var(--wait); }
+.tab .x { color: var(--faint); font-size: 11px; }
+.tab .x:hover { color: var(--ink); }
+.tab .lock { font-size: 10px; color: var(--faint); }
+.tab .unsaved { width: 6px; height: 6px; border-radius: 50%; background: var(--wait); }
+.bar { display: none; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--wait); background: color-mix(in srgb, var(--wait) 10%, var(--pane)); color: var(--ink); font-size: 12px; }
+.bar.show { display: flex; }
+.bar .sp { flex: 1; }
+.code { flex: 1; overflow: auto; padding: 8px 0; font-size: 13px; line-height: 21px; outline: none; }
+.ln { display: grid; grid-template-columns: 52px 1fr; }
+.ln .n { color: var(--faint); text-align: right; padding-right: 14px; user-select: none; }
+.ln.hl { background: var(--canvas-soft); }
+.ln.hl .n { color: var(--wait); }
+.ln .c { white-space: pre; color: var(--body-strong); }
+.code[contenteditable="true"] { caret-color: var(--wait); }
+.k { color: var(--kw); } .s { color: var(--str); } .f { color: var(--fn); font-weight: 500; } .u { color: var(--num); } .cm { color: var(--com); font-style: italic; }
+.notice { flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--mute); }
+.foot { display: flex; align-items: center; gap: 14px; height: 32px; padding: 0 10px; border-top: 1px solid var(--hairline); font-size: 11.5px; color: var(--mute); white-space: nowrap; }
+.mode { font-family: var(--sans); font-size: 10.5px; letter-spacing: .08em; padding: 1px 7px; border-radius: 3px; border: 1px solid var(--hairline-strong); }
+.mode.editing { color: var(--wait); border-color: var(--wait); }
+.qo { position: absolute; left: 50%; top: 52px; transform: translateX(-50%); width: min(460px, 90%); background: var(--canvas); border: 1px solid var(--hairline-strong); border-radius: var(--r); box-shadow: 0 16px 40px rgba(0,0,0,.6); display: none; z-index: 5; }
+.qo.show { display: block; }
+.qo input { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--hairline); padding: 9px 12px; color: var(--ink); font: inherit; outline: none; }
+.qo .row { padding: 5px 12px; }
+.qo .row b { color: var(--wait); font-weight: 500; }
+.files { position: relative; }
+
+.folds { display: flex; flex-direction: column; gap: 6px; padding: 0 10px; }
+.fold { display: flex; gap: 10px; align-items: center; height: 34px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: var(--r); background: var(--pane); white-space: nowrap; overflow: hidden; }
+.fold .dot { background: var(--body); }
+
+.demo { position: fixed; right: 14px; bottom: 14px; width: 300px; background: var(--canvas); border: 1px solid var(--hairline-strong); border-radius: var(--r); padding: 10px; z-index: 10; font-size: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.5); }
+.demo h3 { margin: 0 0 6px; font-family: var(--pix); font-size: 11px; letter-spacing: .1em; color: var(--ink); font-weight: 400; display: flex; justify-content: space-between; }
+.demo .opts { display: flex; flex-wrap: wrap; gap: 5px; }
+.demo .btn { font-size: 11px; padding: 1px 7px; }
+.demo p { margin: 8px 0 4px; color: var(--mute); }
+.demo textarea { width: 100%; min-height: 54px; background: var(--pane); color: var(--ink); border: 1px solid var(--hairline); border-radius: var(--r); font: inherit; padding: 6px; resize: vertical; }
+.demo .min { cursor: pointer; color: var(--mute); }
+.demo.collapsed .inner { display: none; }
+
+@media (max-width: 820px) {
+  .wall { grid-template-columns: 1fr; height: auto; }
+  .split, .tile { display: none; }
+  .files { height: 78vh; }
+  .body { grid-template-columns: 130px 1fr; }
+  .top .crumb, .top .pill:not(.need) { display: none; }
+  .demo { left: 16px; right: 16px; width: auto; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">METATROOPER</span>
+  <span class="crumb">/ <b>shopfront</b> main</span>
+  <span class="pill">● core online</span>
+  <span class="pill need">3 NEED YOU</span>
+  <span class="sp"></span>
+  <span class="kbd">Ctrl+Shift+E</span><span class="crumb">files</span>
+</header>
+
+<main class="wall" id="wall">
+  <section class="tile big">
+    <div class="th">
+      <span class="dot"></span><span class="eng">CLAUDE</span><span class="ttl">Fix cart rounding</span>
+      <span class="sp"></span>
+      <button class="btn">± Diff</button>
+      <button class="btn on" id="filesBtn" title="Files (Ctrl+Shift+E)">▤ Files</button>
+      <span class="ga">+4</span><span class="gd">-3</span>
+    </div>
+    <div class="term">
+      <div class="m">Claude Code · ~/code/shopfront · fix/cart-rounding</div>
+      <div class="p">&gt; Cart total is off by a cent when a 3-for-2 promo applies. Find it, fix it, add a test.</div>
+      <div>● Search(pattern: "applyPromo", path: "src/") <span class="m">└ Found 4 files</span></div>
+      <div>● Read(<a data-open="src/cart/promo.ts" data-line="1">src/cart/promo.ts</a>) <span class="m">└ Read 88 lines</span></div>
+      <div>● The 3-for-2 discount rounds each unit, so 3 × $4.99 loses a cent.</div>
+      <div>● Update(<a data-open="src/cart/promo.ts" data-line="41">src/cart/promo.ts:41</a>) <span class="m">└ 4 additions, 3 removals</span></div>
+      <span class="dl">41 -   const unit = round(line.price / 3);</span>
+      <span class="al">41 +   const free = Math.floor(line.qty / 3);</span>
+      <span class="al">42 +   return round(line.price * (line.qty - free));</span>
+      <div>● Write(<a data-open="src/cart/promo.test.ts" data-line="1">src/cart/promo.test.ts</a>) <span class="m">└ 22 lines</span></div>
+      <div>● Bash(npm test -- promo) <span class="m">└ PASS 14 passed</span></div>
+      <div>● Fixed. The promo now rounds once per line.</div>
+      <div class="hint">Ctrl+click a path: opens here in Files at that line. Ctrl+Shift+click: VS Code.</div>
+    </div>
+  </section>
+
+  <div class="split" id="split" title="Drag 30% to 70%"></div>
+
+  <section class="files" id="files">
+    <div class="th">
+      <span class="lbl">FILES</span>
+      <span class="crumb">~/code/shopfront</span>
+      <span class="eng">fix/cart-rounding</span>
+      <span class="sp"></span>
+      <button class="btn" id="qoBtn" title="Quick open">Ctrl+P</button>
+      <button class="btn" id="closeBtn" title="Close (Esc)">✕</button>
+    </div>
+    <div class="qo" id="qo"><input id="qoIn" placeholder="Go to file in this session's folder"><div id="qoList"></div></div>
+    <div class="body">
+      <nav class="tree" id="tree"></nav>
+      <div class="ed">
+        <div class="tabs" id="tabs"></div>
+        <div class="bar" id="barConflict"><span>⚠ Changed on disk since you opened it.</span><span class="sp"></span><button class="btn" data-bar="reload">Reload</button><button class="btn warn" data-bar="keep">Keep mine</button></div>
+        <div class="bar" id="barOwned"><span>⚠ <b>codex: Migrate checkout form</b> is working on this file.</span><span class="sp"></span><button class="btn" data-bar="cancel">Cancel</button><button class="btn warn" data-bar="anyway">Save anyway</button></div>
+        <div class="code" id="code" spellcheck="false"></div>
+        <div class="notice" id="notice"><div id="noticeText">Binary file, 48 KB. Not shown.</div><button class="btn">Open in VS Code</button></div>
+        <div class="foot">
+          <span id="pos">Ln 41, Col 12</span><span id="lang">TypeScript</span><span class="mode" id="mode">READ-ONLY</span>
+          <span class="sp"></span>
+          <button class="btn" id="editBtn">Edit</button>
+          <button class="btn" id="saveBtn" style="display:none">Save <span class="crumb">Ctrl+S</span></button>
+          <button class="btn" id="vsBtn">Open in VS Code</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="folds">
+  <div class="fold"><span class="dot"></span><span class="eng">CODEX</span><span class="ttl">Migrate checkout form to server actions</span><span class="crumb">working 12m</span><span class="sp"></span><span class="ga">+60</span><span class="gd">-108</span></div>
+  <div class="fold"><span class="dot"></span><span class="eng">CLAUDE</span><span class="ttl">Spec to PR: Add greet(name)</span><span class="crumb">working 2m</span><span class="sp"></span><span class="ga">+12</span><span class="gd">-0</span></div>
+  <div class="fold"><span class="dot"></span><span class="eng">AGY</span><span class="ttl">Browser QA on the bakery preview</span><span class="crumb">1 finding</span></div>
+</div>
+
+<aside class="demo" id="demo">
+  <h3><span>MOCKUP STATES</span><span class="min" id="demoMin">–</span></h3>
+  <div class="inner">
+    <div class="opts">
+      <button class="btn" data-state="read">Read-only</button>
+      <button class="btn" data-state="edit">Editing</button>
+      <button class="btn" data-state="conflict">Conflict</button>
+      <button class="btn" data-state="owned">Owned</button>
+      <button class="btn" data-state="binary">Binary</button>
+      <button class="btn" data-state="closed">Panel closed</button>
+      <button class="btn" id="themeBtn">Theme</button>
+    </div>
+    <p id="stateNote">Opened from a Ctrl+click on src/cart/promo.ts:41.</p>
+    <p>Your notes on this state</p>
+    <textarea id="note" placeholder="What would you change?"></textarea>
+    <div class="opts" style="margin-top:6px"><button class="btn" id="copyAll">Copy all notes</button><span class="crumb" id="copied"></span></div>
+  </div>
+</aside>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const FILES = {
+  'src/cart/promo.ts': { st: 'M', lang: 'TypeScript', src: [
+    '<span class="k">import</span> { round } <span class="k">from</span> <span class="s">\'./money\'</span>;',
+    '<span class="k">import</span> <span class="k">type</span> { Line, Promo } <span class="k">from</span> <span class="s">\'./types\'</span>;',
+    '',
+    '<span class="cm">// 3-for-2: every third unit on a line is free.</span>',
+    '<span class="k">export function</span> <span class="f">applyPromo</span>(line: Line, promo: Promo): <span class="k">number</span> {',
+    '  <span class="k">if</span> (promo.kind !== <span class="s">\'3for2\'</span>) <span class="k">return</span> <span class="f">round</span>(line.price * line.qty);',
+    '  <span class="k">const</span> free = Math.<span class="f">floor</span>(line.qty / <span class="u">3</span>);',
+    '  <span class="k">return</span> <span class="f">round</span>(line.price * (line.qty - free));',
+    '}',
+    '',
+    '<span class="k">export function</span> <span class="f">lineTotal</span>(lines: Line[], promo: Promo): <span class="k">number</span> {',
+    '  <span class="k">return</span> lines.<span class="f">reduce</span>((sum, l) =&gt; sum + <span class="f">applyPromo</span>(l, promo), <span class="u">0</span>);',
+    '}',
+  ], start: 35, hl: 41 },
+  'src/cart/promo.test.ts': { st: 'A', lang: 'TypeScript', src: [
+    '<span class="k">import</span> { test } <span class="k">from</span> <span class="s">\'node:test\'</span>;',
+    '<span class="k">import</span> assert <span class="k">from</span> <span class="s">\'node:assert\'</span>;',
+    '<span class="k">import</span> { applyPromo } <span class="k">from</span> <span class="s">\'./promo\'</span>;',
+    '',
+    '<span class="f">test</span>(<span class="s">\'3 x 4.99 on 3-for-2 costs 9.98\'</span>, () =&gt; {',
+    '  assert.<span class="f">equal</span>(<span class="f">applyPromo</span>({ price: <span class="u">4.99</span>, qty: <span class="u">3</span> }, { kind: <span class="s">\'3for2\'</span> }), <span class="u">9.98</span>);',
+    '});',
+  ], start: 1, hl: 6 },
+  'src/checkout/Form.tsx': { st: 'M', lang: 'TSX', owned: true, src: [
+    '<span class="k">export default function</span> <span class="f">Form</span>() {',
+    '  <span class="k">return</span> &lt;form action={submit}&gt;...&lt;/form&gt;;',
+    '}',
+  ], start: 1, hl: 2 },
+  'package.json': { lang: 'JSON', src: ['{', '  <span class="s">"name"</span>: <span class="s">"shopfront"</span>,', '  <span class="s">"type"</span>: <span class="s">"module"</span>', '}'], start: 1, hl: 0 },
+  'public/logo.png': { lang: 'Binary', binary: true },
+};
+const TREE = [['src/', 0, 'dir'], ['cart/', 1, 'dir'], ['money.ts', 2], ['promo.ts', 2, 'src/cart/promo.ts'], ['promo.test.ts', 2, 'src/cart/promo.test.ts'], ['checkout/', 1, 'dir'], ['Form.tsx', 2, 'src/checkout/Form.tsx'], ['public/', 0, 'dir'], ['logo.png', 1, 'public/logo.png'], ['node_modules/', 0, 'dir', 'muted'], ['package.json', 0, 'package.json']];
+let open = ['src/cart/promo.ts', 'src/cart/promo.test.ts'], cur = 'src/cart/promo.ts', editing = false, dirty = false, state = 'read';
+
+function renderTree() {
+  const changed = Object.entries(FILES).filter(([, f]) => f.st);
+  let h = `<div class="grp"><span>Changed</span><span>${changed.length}</span></div>`;
+  h += changed.map(([p, f]) => `<div class="row ${p === cur ? 'cur' : ''}" data-open="${p}"><span class="st ${f.st}">${f.st}</span>${p}</div>`).join('');
+  h += `<div class="grp"><span>All files</span></div>`;
+  h += TREE.map(([n, d, p, m]) => `<div class="row ${p === cur ? 'cur' : ''}" ${p && p !== 'dir' ? `data-open="${p}"` : ''} style="padding-left:${12 + d * 14}px"><span class="st">${p === 'dir' ? '▾' : ''}</span><span class="${m || ''}">${n}</span></div>`).join('');
+  $('#tree').innerHTML = h;
+}
+function renderTabs() {
+  $('#tabs').innerHTML = open.map((p) => `<div class="tab ${p === cur ? 'on' : ''}" data-tab="${p}">${p === cur && editing ? (dirty ? '<span class="unsaved"></span>' : '') : '<span class="lock">🔒</span>'}${p.split('/').pop()}<span class="x" data-close="${p}">✕</span></div>`).join('');
+}
+function renderCode() {
+  const f = FILES[cur];
+  $('#lang').textContent = f.lang;
+  $('#code').style.display = f.binary ? 'none' : '';
+  $('#notice').style.display = f.binary ? 'flex' : 'none';
+  if (f.binary) { $('#pos').textContent = ''; return; }
+  $('#code').innerHTML = f.src.map((l, i) => `<div class="ln ${f.start + i === f.hl ? 'hl' : ''}"><span class="n">${f.start + i}</span><span class="c">${l || ' '}</span></div>`).join('');
+  $('#code').contentEditable = editing ? 'true' : 'false';
+  $('#pos').textContent = f.hl ? `Ln ${f.hl}, Col 12` : 'Ln 1, Col 1';
+}
+function renderMode() {
+  $('#mode').textContent = editing ? 'EDITING' : 'READ-ONLY';
+  $('#mode').classList.toggle('editing', editing);
+  $('#editBtn').textContent = editing ? 'Done' : 'Edit';
+  $('#saveBtn').style.display = editing ? '' : 'none';
+  $('#editBtn').style.display = FILES[cur].binary ? 'none' : '';
+}
+function render() { renderTree(); renderTabs(); renderCode(); renderMode(); }
+function openFile(p) { if (!FILES[p]) return; if (!open.includes(p)) open.push(p); cur = p; editing = false; dirty = false; hideBars(); render(); }
+function hideBars() { $('#barConflict').classList.remove('show'); $('#barOwned').classList.remove('show'); }
+
+const NOTES = {
+  read: 'Opened from a Ctrl+click on src/cart/promo.ts:41. Read-only: typing does nothing.',
+  edit: 'Edit unlocked this tab only. The footer turns orange. Ctrl+S saves.',
+  conflict: 'The file changed on disk after you opened it. Nothing is written until Keep mine.',
+  owned: 'Another live session owns this file (ownersAsync). Nothing is written until Save anyway.',
+  binary: 'Binary or over 5 MB: a one-line notice and the VS Code handoff.',
+  closed: 'Panel closed: the wall goes back to its normal layout. Ctrl+Shift+E or the tile button reopens it.',
+};
+function setState(s) {
+  state = s;
+  $('#files').style.display = s === 'closed' ? 'none' : '';
+  $('#split').style.display = s === 'closed' ? 'none' : '';
+  $('#wall').style.gridTemplateColumns = s === 'closed' ? '1fr' : '';
+  $('#filesBtn').classList.toggle('on', s !== 'closed');
+  hideBars();
+  if (s === 'read') openFile('src/cart/promo.ts');
+  if (s === 'edit') { openFile('src/cart/promo.ts'); editing = true; dirty = true; render(); }
+  if (s === 'conflict') { openFile('src/cart/promo.ts'); editing = true; dirty = true; render(); $('#barConflict').classList.add('show'); }
+  if (s === 'owned') { openFile('src/checkout/Form.tsx'); editing = true; dirty = true; render(); $('#barOwned').classList.add('show'); }
+  if (s === 'binary') openFile('public/logo.png');
+  $('#stateNote').textContent = NOTES[s];
+  try { $('#note').value = localStorage.getItem('m7-09-note-' + s) || ''; } catch {}
+  document.querySelectorAll('[data-state]').forEach((b) => b.classList.toggle('on', b.dataset.state === s));
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-open],[data-tab],[data-close],[data-state],[data-bar]');
+  if (!t) return;
+  if (t.dataset.close) { open = open.filter((p) => p !== t.dataset.close); if (cur === t.dataset.close) cur = open[0]; if (!open.length) { setState('closed'); return; } render(); return; }
+  if (t.dataset.open) { if (state === 'closed') setState('read'); openFile(t.dataset.open); return; }
+  if (t.dataset.tab) { cur = t.dataset.tab; editing = false; dirty = false; hideBars(); render(); return; }
+  if (t.dataset.state) { setState(t.dataset.state); return; }
+  if (t.dataset.bar) { hideBars(); if (t.dataset.bar !== 'cancel') { dirty = false; renderTabs(); } }
+});
+$('#editBtn').onclick = () => { editing = !editing; dirty = false; render(); };
+$('#saveBtn').onclick = () => { if (FILES[cur].owned) { $('#barOwned').classList.add('show'); return; } dirty = false; renderTabs(); };
+$('#code').addEventListener('input', () => { if (!dirty) { dirty = true; renderTabs(); } });
+$('#closeBtn').onclick = () => setState('closed');
+$('#filesBtn').onclick = () => setState(state === 'closed' ? 'read' : 'closed');
+$('#qoBtn').onclick = () => toggleQo(true);
+function toggleQo(show) {
+  $('#qo').classList.toggle('show', show);
+  if (show) { $('#qoIn').value = ''; qo(''); $('#qoIn').focus(); }
+}
+function qo(q) {
+  const all = Object.keys(FILES).concat(['src/cart/money.ts', 'docs/promotions.md']);
+  const base = (p) => p.split('/').pop();
+  const hits = all.filter((p) => p.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (base(b).includes(q) - base(a).includes(q)) || a.length - b.length).slice(0, 8);
+  $('#qoList').innerHTML = hits.map((p) => `<div class="row" data-open="${p}">${q ? p.replace(q, `<b>${q}</b>`) : p}</div>`).join('');
+}
+$('#qoIn').addEventListener('input', (e) => qo(e.target.value));
+$('#qo').addEventListener('click', () => toggleQo(false));
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key.toLowerCase() === 'p') { e.preventDefault(); toggleQo(true); }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); setState(state === 'closed' ? 'read' : 'closed'); }
+  if (e.ctrlKey && e.key.toLowerCase() === 's' && editing) { e.preventDefault(); $('#saveBtn').click(); }
+  if (e.key === 'Escape') { if ($('#qo').classList.contains('show')) toggleQo(false); else if (state !== 'closed' && document.activeElement !== $('#note')) setState('closed'); }
+});
+$('#note').addEventListener('input', (e) => { try { localStorage.setItem('m7-09-note-' + state, e.target.value); } catch {} });
+$('#copyAll').onclick = async () => {
+  let out = 'M7-09 Files panel mockup notes\n';
+  for (const s of Object.keys(NOTES)) { let v = ''; try { v = localStorage.getItem('m7-09-note-' + s) || ''; } catch {} if (v) out += `\n[${s}]\n${v}\n`; }
+  try { await navigator.clipboard.writeText(out); $('#copied').textContent = 'copied'; } catch { $('#copied').textContent = 'copy blocked'; }
+};
+$('#demoMin').onclick = () => $('#demo').classList.toggle('collapsed');
+$('#themeBtn').onclick = () => {
+  const r = document.documentElement;
+  const dark = r.dataset.theme ? r.dataset.theme === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+};
+let drag = false;
+$('#split').addEventListener('mousedown', () => { drag = true; document.body.style.userSelect = 'none'; });
+addEventListener('mouseup', () => { drag = false; document.body.style.userSelect = ''; });
+addEventListener('mousemove', (e) => {
+  if (!drag) return;
+  const r = $('#wall').getBoundingClientRect();
+  const pct = Math.min(70, Math.max(30, ((e.clientX - r.left) / r.width) * 100));
+  $('#wall').style.setProperty('--left', pct + '%');
+});
+setState('read');
+</script>
+</body>
+</html>

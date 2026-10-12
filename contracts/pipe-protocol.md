@@ -99,7 +99,7 @@ survives in the WAL for at most about 30 s.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `session.live-text`, `engines.check`, every `browser.*` method, and the methods that carry
+`session.focus`, `session.live-text`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
 secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
 written to the `command` table.
 
@@ -124,7 +124,7 @@ Every other interaction is a database read.
 | `session.owners` | `{project_id}` | `{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}`: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` |
 | `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once; refused for an `external` session |
 | `session.clear-status` | `{session_id}` | `{}`: sets `idle`, appends `core.status-cleared`, marks its inbox rows read |
-| `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` |
+| `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id |
 | `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
 | `session.hide` | `{session_id}` | `{}` |
@@ -132,6 +132,7 @@ Every other interaction is a database read.
 | `session.focus` | `{session_id}` | `{focused: bool}` |
 | `session.seen` | `{session_id}` | `{}`; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` |
 | `session.live-text` | `{}` | `{<session_id>: {line?, title?}}`: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |
+| `session.search` | `{query, session_ids?}` | `{hits: [{session_id, line, text}]}`: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50; needs `ui.hello`. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |
 | `ui.hello` | `{ui_key}` | `{ok}`; marks this connection as a trusted UI connection (see Access) |
 | `engines.check` | `{}` | `{}` (results land in `engine_check`) |
 | `plugin.preview` | `{source}` | `{valid, errors, manifest_hash, source, screen}`; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |
@@ -157,7 +158,8 @@ Every other interaction is a database read.
 
 The core sweeps worktree projects at startup and once an hour (`core/src/worktree.ts`). It looks only at `project` rows whose path is exactly `<METATROOPER_HOME>/worktrees/<parent project id>/<name>`, where `worktree.create` puts them, and whose real path is still under that folder. Every other row and folder is left alone.
 
-- **Folder gone.** The row gets `hidden = 1`. The workbench also leaves such a row out of the project menu straight away, without waiting for the next sweep.
+- **Folder gone.** The row gets `hidden = 1`.
+- **The menu rule.** The workbench shows the open project, and otherwise only a row with `hidden = 0` whose folder exists and, if it is a MetaTrooper worktree, still holds a `.git` entry (`goneCheckout` in `workbench/src/queries.ts`). A gone folder leaves the menu at once, without waiting for the next sweep.
 - **Stale.** A worktree is stale when none of its sessions is in any state other than `exited`, and its newest `last_opened`, session `started_at`, `state_at` or `ended_at` is `worktree.stale_days` (setting, default 7) or more days ago. A worktree with a live session is never stale, however old it is.
   - Stale, clean (`git status --porcelain` prints nothing, untracked files included) and merged (`HEAD` is an ancestor of the parent repo's main branch: the branch `origin/HEAD` names, else `main`, else `master`). The core runs `git worktree remove <path>` from the parent repo, never with `--force`. It then drops the folder's engine trust entries, sets `hidden = 1` and logs `worktree sweep: removed <path> ...`. The branch is kept.
   - Stale but dirty, unmerged, with no main branch found, or failing to be removed. Nothing is deleted. The row gets `older = 1` and the menu shows it in a collapsed **Older** group instead of **Worktrees**.
@@ -214,6 +216,10 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   256 KiB. With no viewer attached, replies the headless terminal generates to a program's queries go back to
   the pty; with a viewer attached, the viewer answers.
 - An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
-  ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
+  ignored. `attach` to a session whose terminal has ended and whose last screen was saved
+  (`~/.metatrooper/screens/<session>.json`, the last 200 rows, written when the pty exits and when the core stops)
+  gets that screen as `{"op":"snapshot","seq":0,"data":...}`, then `{"op":"exit","code":<exit code or "unknown">}`, and
+  closes. `attach` to an unknown session, or an ended one with no saved screen, gets
+  `{"op":"error","code":"no-session"}` and closes. Saved screens older than 30 days are deleted at core start.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;
   input from any goes to the pty; the latest `resize` wins.

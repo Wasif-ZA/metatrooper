@@ -8,7 +8,10 @@ const wall = (() => {
   const STAMP = '<span class="stamp"><span class="si"><span class="ink y" aria-hidden="true">Needs you</span><span class="ink p">Needs you</span></span></span>';
   const TOP = 64, G = 8, BAR = 36, SPN = 15;
   const S = {};
+  const HOLD = 3000;
   let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [];
+  let SEED = null, KEY = {}, changed = () => {};
+  let touchAt = -Infinity, want = [], wantNext = false, holdT, wake = () => {};
   const pane = (id) => termView.tile(id);
   const active = (s) => s.shell || !['done', 'idle', 'exited'].includes(s.state);
   const folded = (s) => !active(s) && !s.open;
@@ -28,22 +31,76 @@ const wall = (() => {
     const fx = [];
     for (const x of list) {
       const s = S[x.id];
-      if (!s) { S[x.id] = { state: x.state, shell: x.shell, open: false, hist: Array(SPN).fill(0), lvl: 0 }; fx.push([x.id, null, x.state]); }
+      if (!s) { S[x.id] = { state: x.state, shell: x.shell, open: false, hist: Array(SPN).fill(0), lvl: 0 }; fx.push([x.id, null, x.state]); KEY[x.id] = x.from || x.id; }
       else if (s.state !== x.state) { fx.push([x.id, s.state, x.state]); s.state = x.state; if (active(s)) s.open = false; }
     }
-    for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); pane(id)?._br?.kill(); delete S[id]; }
+    for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); pane(id)?._br?.kill(); delete S[id]; delete KEY[id]; }
     BIG = BIG.filter((id) => S[id]);
     ORDER = ORDER.filter((id) => S[id] && !BIG.includes(id));
-    for (const id of ids) if (!BIG.includes(id) && !ORDER.includes(id)) ORDER.push(id);
+    for (const id of ids) if (!BIG.includes(id) && !ORDER.includes(id)) { if (!seed(id)) ORDER.push(id); }
     if (selected !== snapSel) { snapSel = selected; setBig(selected); }
     if (!BIG.length && ORDER.length) setBig(ORDER.find((id) => S[id].state === 'waiting_for_you') || ORDER[0]);
     if (placed) {
-      const bigWaits = () => BIG.some((id) => S[id].state === 'waiting_for_you');
-      for (const [id, from, to] of fx) if (to === 'waiting_for_you' && from !== null && !bigWaits()) setBig(id);
-      if (!bigWaits() && fx.some(([id, from]) => from === 'waiting_for_you' && BIG.includes(id)) && waiting()[0]) setBig(waiting()[0]);
+      for (const [id, from, to] of fx) if (to === 'waiting_for_you' && from !== null) want.push(id);
+      if (fx.some(([id, from]) => from === 'waiting_for_you' && BIG.includes(id))) wantNext = true;
+      want = want.filter((id) => S[id] && S[id].state === 'waiting_for_you');
+      const left = touchAt + HOLD - Date.now();
+      if (left > 0 && (want.length || wantNext)) { clearTimeout(holdT); holdT = setTimeout(wake, left + 20); }
+      else if (left <= 0) {
+        const next = want[0] || (wantNext && waiting()[0]);
+        if (next && !BIG.some((id) => S[id].state === 'waiting_for_you')) setBig(next);
+        want = []; wantNext = false;
+      }
     }
     pending = pending.concat(fx);
     return BIG[0] || null;
+  }
+
+  /** Places a new tile where the saved layout had it, by its id or the id it was resumed from; false when the layout does not name it. */
+  function seed(id) {
+    if (!SEED || Date.now() > SEED.until) return false;
+    const b = at(SEED.big, id), o = at(SEED.order, id);
+    if (b < 0 && o < 0) return false;
+    if (at(SEED.open, id) >= 0) S[id].open = true;
+    if (b === 0) {
+      if (BIG[0] && at(SEED.big, BIG[0]) === 1) { BIG.unshift(id); PAIR_AT = SEED.pair_at; }
+      else { if (BIG[0]) toOrder(BIG[0]); BIG[0] = id; }
+      const two = ORDER.find((x) => at(SEED.big, x) === 1);
+      if (two && BIG.length === 1) { ORDER.splice(ORDER.indexOf(two), 1); BIG.push(two); PAIR_AT = SEED.pair_at; }
+    } else if (b === 1 && BIG.length === 1 && at(SEED.big, BIG[0]) === 0) { BIG.push(id); PAIR_AT = SEED.pair_at; }
+    else toOrder(id);
+    return true;
+  }
+
+  /** Where a tile is in a saved list, by its own id or the id it was resumed from; -1 when it is not there. */
+  function at(list, id) {
+    const i = list.indexOf(id);
+    return i >= 0 ? i : list.indexOf(KEY[id]);
+  }
+
+  /** Puts a tile in ORDER before the first tile the saved layout has after it. */
+  function toOrder(id) {
+    const slot = (x) => at(SEED.order, x);
+    const o = slot(id);
+    const pos = o < 0 ? -1 : ORDER.findIndex((x) => slot(x) < 0 || slot(x) > o);
+    ORDER.splice(pos < 0 ? ORDER.length : pos, 0, id);
+  }
+
+  /** The saved layout to rebuild as its tiles arrive; ids missing after 60 s are dropped from it. */
+  function restore(saved) {
+    const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
+    SEED = saved && typeof saved === 'object' ? { big: list(saved.big).slice(0, 2), order: list(saved.order), open: list(saved.open), pair_at: Number(saved.pair_at) || 0, until: Date.now() + 60000 } : null;
+  }
+
+  /** Big slot, pair, order and opened done tiles by id. While saved tiles are still coming back it is the saved layout, with the ids of the tiles that are back. */
+  function state() {
+    const open = Object.keys(S).filter((id) => S[id].open);
+    const all = [...SEED?.big ?? [], ...SEED?.order ?? []];
+    const tileOf = (k) => Object.keys(KEY).find((id) => id === k) || Object.keys(KEY).find((id) => KEY[id] === k);
+    if (!SEED || Date.now() > SEED.until || all.every(tileOf)) return { big: [...BIG], order: [...ORDER], open, pair_at: PAIR_AT };
+    const now = (k) => tileOf(k) || k;
+    const extra = [...BIG, ...ORDER].filter((id) => at(all, id) < 0);
+    return { big: SEED.big.map(now), order: [...SEED.order.map(now), ...extra], open: [...new Set([...SEED.open.map(now), ...open])], pair_at: SEED.pair_at };
   }
 
   function apply(nextMode) {
@@ -129,6 +186,7 @@ const wall = (() => {
     to('#sheet', { left: 16 + C });
     to('#split', { left: RX, onComplete: () => reportPaneBounds() });
     fitSearch();
+    changed();
   }
 
   function pair(id) {
@@ -295,6 +353,7 @@ const wall = (() => {
   gsap.set('#list', { x: -310, visibility: 'hidden' });
   gsap.set('#sheet', { y: 208 });
   addEventListener('resize', () => layout(false));
+  for (const type of ['keydown', 'mousedown']) addEventListener(type, (e) => { if (e.target && e.target.closest && e.target.closest('.tile.big')) touchAt = Date.now(); }, true);
   $('#search').addEventListener('click', (e) => {
     const box = e.currentTarget;
     if (!box.classList.contains('icon-only')) return;
@@ -304,7 +363,8 @@ const wall = (() => {
 
   return {
     promote: setBig,
-    decide, apply, layout, pair, unpair, toggleOpen, output, roll, verdict, setList, setSheet, openSearch, closeSearch,
+    onWake: (fn) => { wake = fn; },
+    decide, apply, layout, pair, unpair, toggleOpen, restore, state, onChange: (fn) => { changed = fn; }, output, roll, verdict, setList, setSheet, openSearch, closeSearch,
     big: () => BIG[0] || null,
     isBig: (id) => BIG.includes(id),
     isFolded: (id) => Boolean(S[id]) && folded(S[id]) && !BIG.includes(id),

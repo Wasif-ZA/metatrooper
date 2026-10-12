@@ -22,6 +22,13 @@ export function gitIn(cwd: string): Git {
   };
 }
 
+/** One file's diff against `base`; an untracked file, which `git diff` skips, shows as all new lines. */
+export async function fileDiff(git: Git, base: string, file: string): Promise<string> {
+  const out = await git(['diff', base, '--', file]);
+  if (out || !(await git(['ls-files', '--others', '--exclude-standard', '--', file]))) return out;
+  try { return await git(['diff', '--no-index', '--', '/dev/null', file]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
+}
+
 /** Files changed since `base` with line counts (null for binary), and untracked files, for the Diff tab. */
 export async function sessionChanges(git: Git, base: string): Promise<{ files: Array<{ path: string; added: number | null; deleted: number | null }>; untracked: string[] }> {
   const [numstat, others] = await Promise.all([git(['diff', base, '--numstat', '--no-renames', '-z']), git(['ls-files', '--others', '--exclude-standard', '-z'])]);
