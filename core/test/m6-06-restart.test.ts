@@ -231,3 +231,20 @@ test('M6-06b an engine whose resume shows its auth_error twice stops being resum
     await teardownCore(h.core(), h.iso);
   }
 });
+
+test('M6-06a a second core restart while resumes are still queued resumes the rest', { timeout: 120_000 }, async () => {
+  const h = await killedAndRestarted([engine('one', STAY)], ['one', 'one', 'one', 'one', 'one']);
+  let core = h.core();
+  try {
+    await until(() => resumedRows(h.db).length >= 1, 30_000);
+    assert.ok(resumedRows(h.db).length < h.old.length);
+    core.kill();
+    await until(() => core.exitCode !== null || core.signalCode !== null, 5000);
+    await sleep(500);
+    core = await startCore(h.iso);
+    await until(() => h.old.every((id) => resumedRows(h.db).some((r) => r.old === id)), 60_000);
+  } finally {
+    h.db.close();
+    await teardownCore(core, h.iso);
+  }
+});

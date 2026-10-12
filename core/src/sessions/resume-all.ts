@@ -14,14 +14,33 @@ export const AUTH_FAILURES = 2;
 
 export interface Waiting { id: string; engine: string }
 
-/** Terminal sessions that were live when the core stopped: rows the last core left open. Read before any event is processed. */
-export function liveAtStart(db: DatabaseSync): Waiting[] {
-  return db.prepare("SELECT id, engine_id AS engine FROM session WHERE host = 'pty' AND state != 'exited' AND hidden = 0 AND run_id IS NULL ORDER BY julianday(started_at), id")
-    .all() as unknown as Waiting[];
+const PENDING = 'resume_pending';
+
+/** Sessions still queued for resume when the last core stopped (meta resume_pending). */
+function pending(db: DatabaseSync): Waiting[] {
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(PENDING) as { value: string } | undefined;
+  try {
+    return row ? JSON.parse(row.value) as Waiting[] : [];
+  } catch {
+    return [];
+  }
 }
 
-/** Appends core.process-gone with a null pid for each session. */
+function savePending(db: DatabaseSync, list: Waiting[]): void {
+  db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(PENDING, JSON.stringify(list));
+}
+
+/** Terminal sessions that were live when the core stopped: the last core's unfinished resume queue, then rows it left open. Read before any event is processed. */
+export function liveAtStart(db: DatabaseSync): Waiting[] {
+  const queued = pending(db);
+  const live = db.prepare("SELECT id, engine_id AS engine FROM session WHERE host = 'pty' AND state != 'exited' AND hidden = 0 AND run_id IS NULL ORDER BY julianday(started_at), id")
+    .all() as unknown as Waiting[];
+  return [...queued, ...live.filter((s) => !queued.some((q) => q.id === s.id))];
+}
+
+/** Appends core.process-gone with a null pid for each session and saves them as the resume queue, so a core that stops before resuming them all hands the rest to the next. */
 export function markGone(db: DatabaseSync, list: Waiting[]): void {
+  savePending(db, list);
   for (const s of list) appendEvent('core.process-gone', s.id, { pid: null }, db);
 }
 
@@ -121,6 +140,7 @@ export function coreResumer(db: DatabaseSync, queue: Waiting[], resume: (id: str
   const inbox = db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, 'other', ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = 'other' AND resolved_at IS NULL)");
   return new Resumer(queue, {
     resume: async (old) => {
+      savePending(db, pending(db).filter((q) => q.id !== old));
       try {
         if (state.get(old) && (state.get(old) as { state: string }).state !== 'exited') processEvents(db);
         const r = await resume(old);
@@ -135,6 +155,7 @@ export function coreResumer(db: DatabaseSync, queue: Waiting[], resume: (id: str
     screenText,
     authError: (engine) => getEngine(db, engine)?.auth_error,
     raise: (engine) => {
+      savePending(db, pending(db).filter((q) => q.engine !== engine));
       const login = getEngine(db, engine)?.login;
       const ref = `resume:${engine}`;
       inbox.run(ulid(), nowIso(), ref, `${engine} needs signing in, so its sessions were not resumed after the restart${login ? ` (${login})` : ''}`, ref);
