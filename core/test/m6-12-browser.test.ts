@@ -87,6 +87,13 @@ test('M6-12 the first input on a new origin asks; Approve for this session cover
   assert.deepEqual(await approvals.check(check({ target: 'about:blank' })), { decision: 'allow' });
 });
 
+test('M6-12 a session-scope new origin approval on a control does not cover a risky action on that same control', async () => {
+  const send = { automation_id: 'send', name: 'Send', role: 'button' };
+  const tab = await decide(check({ target: 'https://k.test', action: 'key', args: { keys: 'Tab' }, control: send }), 'approve', 'session');
+  assert.deepEqual(tab, { decision: 'approved', reason: 'new origin' });
+  assert.equal((await decide(check({ target: 'https://k.test', action: 'key', args: { keys: 'Enter' }, control: send }), 'reject')).reason, 'risky control: Send');
+});
+
 test('M6-12 an origin listed in .troop/config.json allow_origins never asks for being new', async () => {
   mkdirSync(join(project, '.troop'), { recursive: true });
   writeFileSync(join(project, '.troop', 'config.json'), JSON.stringify({ allow_origins: ['https://c.test/'] }));

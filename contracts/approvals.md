@@ -56,7 +56,9 @@ The workbench checks the origin and the password field again right before it fil
 
 - `once` approves the call that asked.
 - `session` approves the same `action` on the same `target` and the same `control` (the stored JSON text, exact) for
-  the rest of the session, with no new row. Renaming the control makes a different `control` and asks again.
+  the rest of the session, with no new row, when the same rule asks (the same `reason`). Renaming the control makes a
+  different `control` and asks again. A `new origin` session row covers only the origin: `key Tab` approved on a Send
+  button does not cover `key Enter` on it, which asks as `risky control`.
 - Rows whose reason never takes session scope are stored with `scope: once` whatever was asked.
 - A row waiting 120 s becomes `expired` and its call returns "not approved in time". Rows still `waiting` when the
   core starts become `expired`.

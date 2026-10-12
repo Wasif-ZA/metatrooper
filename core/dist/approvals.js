@@ -151,9 +151,10 @@ export class Approvals {
     const clean = (s        ) => redactCredentials(redactSecretValues(s, secrets));
     const control = p.control ? clean(canonicalJson(Object.fromEntries(Object.entries(p.control).map(([k, v]) => [k, redactSecretValues(v, secrets)])))) : null;
     if (!ALWAYS.has(reason.split(':')[0])) {
+      // a session approval covers only the rule it was given for: a `new origin` row never covers a risky action
       const covered = this.db.prepare(
-        "SELECT 1 FROM approval WHERE session_id = ? AND surface = ? AND target = ? AND action = ? AND control IS ? AND status = 'approved' AND scope = 'session' LIMIT 1",
-      ).get(p.session_id, p.surface, p.target, p.action, control);
+        "SELECT 1 FROM approval WHERE session_id = ? AND surface = ? AND target = ? AND action = ? AND control IS ? AND reason = ? AND status = 'approved' AND scope = 'session' LIMIT 1",
+      ).get(p.session_id, p.surface, p.target, p.action, control, clean(reason));
       if (covered) return { decision: 'allow' };
     }
     const id = `ap_${ulid()}`;
