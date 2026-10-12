@@ -140,3 +140,44 @@ test('M6-21 a claimed untracked file opens from the changed menu and shows as al
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('M6-21 an exited session still on the wall drops a file from its changed count once that file is committed', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wb-changed-exit-'));
+  const repo = join(dir, 'repo');
+  const db = new DatabaseSync(join(dir, 'troop.db'));
+  try {
+    execFileSync('git', ['init', '-q', '-b', 'main', repo]);
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, stdio: 'ignore' });
+    const past = new Date(Date.now() - 3_600_000).toISOString();
+    git('config', 'user.email', 't@x.example');
+    git('config', 'user.name', 'T');
+    for (const f of ['a.txt', 'b.txt']) writeFileSync(join(repo, f), 'one\n');
+    git('add', '-A');
+    execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: repo, stdio: 'ignore', env: { ...process.env, GIT_COMMITTER_DATE: past, GIT_AUTHOR_DATE: past } });
+    const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: repo, encoding: 'utf8' }).trim();
+
+    db.exec(schema);
+    const now = new Date().toISOString();
+    db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', repo, 'p1', now, now);
+    db.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('claude', '{}', 1)").run();
+    db.prepare('INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, cwd, hidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)').run('s_gone', 'p1', 'claude', 'pty', 'idle', now, now, repo);
+    for (const f of ['a.txt', 'b.txt']) writeFileSync(join(repo, f), 'two\n');
+    const at = new Date(Date.now() - 10_000).toISOString();
+    db.prepare("INSERT INTO event (at, source, session_id, kind, payload, processed) VALUES (?, 'core', ?, 'core.claim', ?, 1)")
+      .run(at, 's_gone', JSON.stringify({ repo: root, turn_base: null, from: at, at, files: ['a.txt', 'b.txt'].map((path) => ({ path, owners: ['s_gone'], shared: false })) }));
+
+    await refreshRowGit([{ id: 's_gone', cwd: repo }], ownedBy(owners(db, root)));
+    assert.equal(tileLabel(rowGit(), 's_gone'), '2 changed');
+
+    db.prepare("UPDATE session SET state = 'exited' WHERE id = 's_gone'").run();
+    git('add', 'a.txt');
+    git('commit', '-q', '-m', 'a');
+    assert.equal(await refreshRowGit([], ownedBy(owners(db, root))), true, 'the tick pushes the new count');
+    assert.deepEqual(rowGit().s_gone.changed, ['b.txt']);
+    assert.equal(tileLabel(rowGit(), 's_gone'), '1 changed');
+    assert.equal(await refreshRowGit([], ownedBy(owners(db, root))), false, 'no push when nothing moved');
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

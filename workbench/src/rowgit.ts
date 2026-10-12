@@ -43,6 +43,14 @@ export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | 
     if (!prev || prev.branch !== next.branch || prev.added !== next.added || prev.deleted !== next.deleted || JSON.stringify(prev.changed) !== JSON.stringify(next.changed)) changed = true;
     cache.set(s.id, next);
   }
+  // A session left out (exited, still shown) keeps its branch and line counts but its changed list follows the owners map.
+  const ids = new Set(sessions.map((s) => s.id));
+  for (const [id, prev] of cache) {
+    const files = owned[id] ?? [];
+    if (ids.has(id) || JSON.stringify(prev.changed) === JSON.stringify(files)) continue;
+    cache.set(id, { ...prev, changed: files });
+    changed = true;
+  }
   return changed;
 }
 
