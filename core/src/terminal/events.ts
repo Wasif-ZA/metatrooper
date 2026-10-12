@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
 import { lastLine, setTermHooks } from './index.ts';
 import { settings } from '../settings.ts';
+import { devServersGone, scanOutput } from '../devservers.ts';
 
 export interface LiveText { line?: string; title?: string }
 
@@ -35,7 +36,8 @@ export function wireTermEvents(db: DatabaseSync): void {
       appendEvent('term.bell', id, {}, db);
       belled.add(id);
     }),
-    onOutput: (id) => {
+    onOutput: (id, data) => {
+      safe(() => scanOutput(db, id, data));
       if (!lineTimers.has(id)) {
         lineTimers.set(id, setTimeout(() => {
           lineTimers.delete(id);
@@ -54,6 +56,7 @@ export function wireTermEvents(db: DatabaseSync): void {
     onExit: (id, code, killed) => {
       belled.delete(id);
       titleKeys.delete(id);
+      safe(() => devServersGone(db, id));
       clearTimeout(lineTimers.get(id));
       lineTimers.delete(id);
       void readLine(id).then(() => {

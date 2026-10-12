@@ -79,6 +79,7 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 |---|---|---|
 | `core/src/browser/policy.ts` | `checkUrl(url, {ownedPorts, allowHosts, lookup?}): Promise<{allow} \| {allow, reason}>`, `blockedAddress(addr)` | `browser-tools.md`, safety rule 2; pass a `lookup` to fake DNS |
 | `core/src/browser/ancestry.ts` | `parentTable()`, `ancestors(pid, table?)` | up to 8 parents |
+| `core/src/devservers.ts` | `parseUrls(text)`, `parseNetstat(out)`, `ownership(pid, ptyPid, parents, hadAtPrint)` | spec.md "Ports and dev servers" (D60) |
 
 The tools, ownership and interception are observable end to end with the workbench running under a display
 (`xvfb-run` on Linux): a fake engine that starts `core/metatrooper-browser.js` as its child and speaks MCP on
