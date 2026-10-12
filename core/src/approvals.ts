@@ -85,7 +85,9 @@ export function riskReason(p: CheckParams): string | null {
     if (riskyControl(c)) return `risky control: ${c!.name || c!.automation_id}`;
     return null;
   }
-  if (['click', 'select', 'type'].includes(p.action) && riskyControl(c)) return `risky control: ${c!.name || c!.automation_id}`;
+  if (!['click', 'select', 'type'].includes(p.action)) return null;
+  if (p.hidden) return 'hidden control';
+  if (riskyControl(c)) return `risky control: ${c!.name || c!.automation_id}`;
   return null;
 }
 

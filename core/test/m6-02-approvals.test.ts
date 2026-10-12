@@ -101,6 +101,12 @@ test('Enter while focus is in a frame or closed shadow root that cannot be named
   assert.equal(riskReason({ ...base, action: 'key', args: { keys: 'Tab' } }), null);
 });
 
+test('click, select or type on a control whose accessibility node cannot be read asks every time', () => {
+  const base = { session_id: 's1', surface: 'browser', target: 'http://127.0.0.1', args: {}, control: { name: '', automation_id: '', role: '' }, hidden: true };
+  for (const action of ['click', 'select', 'type']) assert.equal(riskReason({ ...base, action }), 'hidden control', action);
+  assert.equal(riskReason({ ...base, action: 'scroll' }), null);
+});
+
 test('M6-02a: Send click creates waiting approval and needs_you, rejecting resolves both', async () => {
   const iso = isolation();
   const core = await startCore(iso);
