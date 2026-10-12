@@ -131,3 +131,23 @@ test('M6-06a a shell saved in the big slot stays there on reopen instead of the 
   await tick();
   assert.equal(w.decide(tiles(), ui.shellSel || ui.snap.selected), 'sh_new');
 });
+
+test('M6-06a after a core restart the shells of a project not on screen open again in that project, once', async () => {
+  const opened: string[] = [];
+  let n = 0;
+  const wall = { restore() {}, state: () => ({ big: [], order: [], open: [], pair_at: 0 }) };
+  const ui: any = {
+    projectId: 'p', seeded: 'p', corePid: 1, snap: { core: { online: true, pid: 2 } }, shellKinds: [],
+    settingsLook: { ui: { layout: { q: { shells: [{ id: 'sh_q', kind: 'bash' }] } } } },
+    shells: [{ id: 'sh_p', kind: 'bash', project_id: 'p', exited: true }, { id: 'sh_q', kind: 'bash', project_id: 'q', exited: true }],
+  };
+  const app = appWith(ui, wall, async (_m: string, params: { project_id: string }) => { opened.push(params.project_id); return { result: { shell_id: `sh_${++n}`, label: 'Git Bash', cwd: 'C:/' } }; });
+  app.coreRestarted();
+  await tick();
+  ui.projectId = 'q';
+  app.coreRestarted();
+  app.seedLayout();
+  await tick();
+  assert.deepEqual(plain(ui.shells).map((x: any) => [x.project_id, x.from]).sort(), [['p', 'sh_p'], ['q', 'sh_q']]);
+  assert.deepEqual(opened.sort(), ['p', 'q']);
+});
