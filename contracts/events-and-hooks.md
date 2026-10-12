@@ -101,11 +101,14 @@ The core processes events in `seq` order and sets `session.state`:
 
 ## Resume at a limit reset (M6-24)
 
-Every 5 s the core looks at each `core.limit-hit` with a `resets_at` and no `core.limit-resumed` naming it. Once
-`resets_at` has passed, it acts only when the session is not `exited`, its pty is open, `session.limit_resume` is 1
-(the tile's toggle, default on), and no event has arrived for the session after the failure (`seq` above `after`)
-of kind `claude.*` other than `claude.Notification`, or `core.prompt-written`. It then appends `core.limit-resumed`
-and pastes `Continue where you left off.` followed by Enter, once. Turning the toggle off stops the paste.
+Every 5 s the core looks at each `core.limit-hit` with no `core.limit-resumed` naming it. A hit written with
+`resets_at` null takes it from `limit_history`: each Claude window's first reset after the hit, picked the same way as
+at the hit. Once `resets_at` has passed, it acts only when the session is `waiting_for_you`, its pty is open,
+`session.limit_resume` is 1 (the tile's toggle, default on), the user has not typed into the terminal since the hit
+(focus, device and cursor reports and arrow keys do not count; held in memory only), and no event has arrived for the
+session after the failure (`seq` above `after`) of kind `claude.*` other than `claude.Notification`, or
+`core.prompt-written`. It then appends `core.limit-resumed` and pastes `Continue where you left off.` followed by
+Enter, once. Turning the toggle off stops the paste.
 
 Every 60 s, after `limit_reading` is refreshed, each `ok` reading is copied to `limit_history` once per `read_at`,
 and only the last 6 per window are kept. When a window's last 6 readings share one `resets_at`, the usage slope
