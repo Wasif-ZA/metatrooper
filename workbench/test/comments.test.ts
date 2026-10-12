@@ -32,3 +32,11 @@ test('a picked element is sanitised, cut at 4 KB on a character boundary and lab
   assert.ok(body.endsWith('\n```\nCrop: C:/crop.png'));
   assert.ok(!elementBody('1', 'n', 'u', 's', '<b>x</b>', 'c').includes('cut at 4 KB'));
 });
+
+test('a void <embed> or a custom element named like a stripped tag does not swallow the rest of the picked HTML', () => {
+  const { sanitiseHtml } = comments as Record<string, any>;
+  assert.equal(sanitiseHtml('<p>a</p><embed src="x.swf" onload="evil()"><p>b</p>'), '<p>a</p><embed><p>b</p>');
+  assert.equal(sanitiseHtml('<svg-icon name="x">i</svg-icon><p>b</p><svg><path/></svg>'), '<svg-icon name="x">i</svg-icon><p>b</p><svg></svg>');
+  assert.equal(sanitiseHtml('<script-loader>s</script-loader><p>c</p>'), '<script-loader>s</script-loader><p>c</p>');
+  assert.equal(sanitiseHtml('<p>d</p><script>alert(1)'), '<p>d</p><script></script>');
+});

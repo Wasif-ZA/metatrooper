@@ -18,7 +18,8 @@ export const PICK_HTML_BYTES = 4096;
 export function sanitiseHtml(html: string): string {
   return html
     .replace(/<!--[\s\S]*?(-->|$)/g, '')
-    .replace(/<(script|style|noscript|template|iframe|object|embed|svg)\b[\s\S]*?(<\/\1\s*>|$)/gi, '<$1></$1>')
+    .replace(/<(script|style|noscript|template|iframe|object|svg)(?=[\s>/]|$)[\s\S]*?(<\/\1\s*>|$)/gi, '<$1></$1>')
+    .replace(/<embed(?=[\s>/])[^>]*>/gi, '<embed>')
     .replace(/<[a-z][^>]*>/gi, (tag) => tag
       .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
       .replace(/(\s[\w:-]+\s*=\s*)("\s*javascript:[^"]*"|'\s*javascript:[^']*'|javascript:[^\s>]*)/gi, '$1"#"'))
