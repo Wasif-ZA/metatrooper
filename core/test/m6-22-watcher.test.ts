@@ -287,3 +287,13 @@ test('M6-22: output a stopped helper still has in its pipe changes nothing', { s
   assert.equal(items(db, 'input').length, 0);
   assert.equal(meta(db, 'takeover_paused_at'), null);
 });
+
+test('M6-22: the helper writes window titles as ASCII JSON, so non-ASCII survives any console code page', { skip: !windows && 'Windows only', timeout: 60_000 }, async () => {
+  const helper = readFileSync(join(import.meta.dirname, '..', 'src', 'watch', 'input-hook.ps1'), 'utf8').replace(/^exit .*$/m, '');
+  const title = 'café – 日本 \u{1f600} "q" \\';
+  const out = await runPs(`${helper}
+$s = -join ([char[]]@(${Array.from({ length: title.length }, (_, i) => title.charCodeAt(i)).join(',')}))
+[Console]::Out.WriteLine('{"title":' + [MtInputWatch].GetMethod('Json', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, @($s)) + '}')
+`);
+  assert.equal(out?.title, title);
+});

@@ -1,4 +1,4 @@
-# Input watcher helper (M6-22, D70). Prints one JSON line per injected input event or UI Automation event; exits when stdin closes.
+# Input watcher helper (M6-22, D70). Prints one ASCII-only JSON line (non-ASCII as \uXXXX, so the console code page cannot mangle titles) per injected input event or UI Automation event; exits when stdin closes.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -ReferencedAssemblies UIAutomationClient, UIAutomationTypes, WindowsBase -TypeDefinition @'
@@ -62,7 +62,7 @@ public static class MtInputWatch {
     var b = new StringBuilder("\"");
     foreach (char c in s) {
       if (c == '"' || c == '\\') b.Append('\\').Append(c);
-      else if (c < ' ') b.AppendFormat("\\u{0:x4}", (int)c);
+      else if (c < ' ' || c > '~') b.AppendFormat("\\u{0:x4}", (int)c);
       else b.Append(c);
     }
     return b.Append('"').ToString();
