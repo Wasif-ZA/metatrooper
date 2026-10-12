@@ -23,7 +23,7 @@ export type Light = 'green' | 'grey' | 'red';
 export interface Snapshot {
   at: number;
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
-  projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
+  projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
   sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
@@ -127,7 +127,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    projects: (db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
+    // Shown: the open project, else a row the core's sweep has not hidden whose checkout is still there.
+    projects: (db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
     engines,
     sessions,
     needs_you,

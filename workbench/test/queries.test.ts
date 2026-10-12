@@ -122,7 +122,7 @@ test('M1-06 every query the window runs per snapshot has p95 under 1 ms (3 live 
   }
 });
 
-test('the project menu leaves out gone folders and worktrees with no .git, but keeps plain folders and the open one', () => {
+test('the project menu leaves out hidden rows, gone folders and worktrees with no .git, keeps the open one, and carries the older mark', () => {
   const f = fixture();
   try {
     const d = f.db;
@@ -130,17 +130,20 @@ test('the project menu leaves out gone folders and worktrees with no .git, but k
     const wt = join(f.dir, '.metatrooper', 'worktrees', 'h');
     const live = join(wt, 'live');
     const empty = join(wt, 'empty');
-    mkdirSync(live, { recursive: true });
-    writeFileSync(join(live, '.git'), 'gitdir: x');
+    const stale = join(wt, 'stale');
+    for (const dir of [live, stale]) { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, '.git'), 'gitdir: x'); }
     mkdirSync(empty, { recursive: true });
-    const add = d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)');
-    add.run('live', live, 'live', now, now);
-    add.run('empty', empty, 'empty', now, now);
-    add.run('gone', join(wt, 'gone'), 'gone', now, now);
-    add.run('plain', f.dir, 'plain', now, now);
-    add.run('missing', join(f.dir, 'nope'), 'missing', now, now);
-    assert.deepEqual(snapshot(d, null).projects.map((p) => p.id).sort(), ['live', 'plain']);
-    assert.deepEqual(snapshot(d, 'gone').projects.map((p) => p.id).sort(), ['gone', 'live', 'plain']);
+    const add = (id: string, p: string, hidden = 0, older = 0) => d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened, hidden, older) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, p, id, now, now, hidden, older);
+    add('live', live);
+    add('stale', stale, 0, 1);
+    add('empty', empty);
+    add('gone', join(wt, 'gone'));
+    add('removed', join(wt, 'removed'), 1);
+    add('plain', f.dir);
+    add('missing', join(f.dir, 'nope'));
+    assert.deepEqual(snapshot(d, null).projects.map((p) => [p.id, p.older]).sort(), [['live', 0], ['plain', 0], ['stale', 1]]);
+    assert.deepEqual(snapshot(d, 'gone').projects.map((p) => p.id).sort(), ['gone', 'live', 'plain', 'stale']);
+    assert.deepEqual(snapshot(d, 'removed').projects.map((p) => p.id).sort(), ['live', 'plain', 'removed', 'stale']);
   } finally {
     f.close();
   }

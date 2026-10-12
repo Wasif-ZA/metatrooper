@@ -22,6 +22,7 @@ import { readLimits } from './limits.ts';
 import { syncBuiltinPlugins } from './plugins/store.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
+import { sweepWorktrees } from './worktree.ts';
 import { coreResumer, liveAtStart, markGone } from './sessions/resume-all.ts';
 
 process.removeAllListeners('warning');
@@ -126,6 +127,14 @@ async function main(): Promise<void> {
   every(10_000, () => resolveUncommitted(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));
   every(600_000, () => checkAll(db, activeEngines(db)));
+  let sweeping = false;
+  const sweep = () => {
+    if (sweeping) return;
+    sweeping = true;
+    void sweepWorktrees(db, activeEngines(db)).catch(() => {}).finally(() => { sweeping = false; });
+  };
+  sweep();
+  every(3_600_000, sweep);
   const resumer = coreResumer(db, wereLive, async (id) => (await methods.get('session.resume')!.handler({ session_id: id })) as { session_id: string });
   const resuming = setInterval(() => { if (resumer.done()) clearInterval(resuming); else void resumer.tick().catch(() => {}); }, 250);
   timers.push(resuming);

@@ -168,6 +168,19 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `run.start`, `run.cancel`, `run.clear`, `run.resume`, `run.item-set`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.pick`, `variant.discard`, `variant.combine`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) | -32601 | | |
 <!-- methods:end -->
 
+### Worktree sweep
+
+The core sweeps worktree projects at startup and once an hour (`core/src/worktree.ts`), one worktree at a time with asynchronous git calls, so terminals, pipe requests and the heartbeat keep running; a sweep still running when the next is due is not started twice, and a worktree whose session started while git ran is left as it was. It looks only at `project` rows whose path is exactly `<METATROOPER_HOME>/worktrees/<parent project id>/<name>`, where `worktree.create` puts them, and whose real path is still under that folder. Every other row and folder is left alone.
+
+- **Folder gone.** The row gets `hidden = 1`.
+- **The menu rule.** The workbench shows the open project, and otherwise only a row with `hidden = 0` whose folder exists and, if it is a MetaTrooper worktree, still holds a `.git` entry (`goneCheckout` in `workbench/src/queries.ts`). A gone folder leaves the menu at once, without waiting for the next sweep.
+- **Stale.** A worktree is stale when none of its sessions is in any state other than `exited`, and its newest `last_opened`, session `started_at`, `state_at` or `ended_at` is `worktree.stale_days` (setting, default 7) or more days ago. A worktree with a live session is never stale, however old it is.
+  - Stale, clean (`git status --porcelain` prints nothing, untracked files included) and merged (`HEAD` is an ancestor of the parent repo's main branch: the branch `origin/HEAD` names, else `main`, else `master`). The core runs `git worktree remove <path>` from the parent repo, never with `--force`. It then drops the folder's engine trust entries, sets `hidden = 1` and logs `worktree sweep: removed <path> ...`. The branch is kept.
+  - Stale but dirty, unmerged, with no main branch found, or failing to be removed. Nothing is deleted. The row gets `older = 1` and the menu shows it in a collapsed **Older** group instead of **Worktrees**.
+  - Not stale, or no longer stale. `older` goes back to 0.
+  - Stale, and the folder is still there but git has let go of it (no `.git` entry), as when `git worktree remove` deregistered it and Windows refused to delete the folder. The core removes the folder only if it is empty, then drops its trust entries and sets `hidden = 1`. Otherwise it logs and tries again next sweep; the row is neither hidden nor marked older, and the menu leaves it out because it has no `.git`.
+- Rows are hidden, never deleted, because `session`, `run`, `browser_pane` and `schedule` reference `project(id)`. `project.open` on the same folder sets `hidden` and `older` back to 0.
+
 ## Browser methods (`\\.\pipe\metatrooper-browser`)
 
 Trusted core connection: the core itself connects to the browser pipe and sends `browser.hello` with

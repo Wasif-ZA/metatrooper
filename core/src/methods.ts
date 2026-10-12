@@ -167,7 +167,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const now = nowIso();
       db.prepare(
         `INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET last_opened = excluded.last_opened`,
+         ON CONFLICT(id) DO UPDATE SET last_opened = excluded.last_opened, hidden = 0, older = 0`,
       ).run(id, canonical, path.posix.basename(canonical), now, now);
       return { project_id: id };
     },

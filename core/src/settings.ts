@@ -18,6 +18,7 @@ export const DEFAULTS = {
   },
   worktree: {
     npm_ci: true,
+    stale_days: 7,
   },
   terminal: {
     cols: 120,
