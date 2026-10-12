@@ -243,8 +243,9 @@ def exec_lane(args, argv=None):
     force = head[head.index("--shell") + 1] if "--shell" in head[:-1] else None
     if force not in (None, "bash", "powershell"):
         return Result(ok=False, lane="exec", exit=2, note=f"--shell is bash or powershell, not {force}")
-    drop = {"--no-trunc", "--strict", "--want", want, "--shell", force}
-    args = [a for a in head if a not in drop] + tail
+    values = {i + 1 for i, a in enumerate(head[:-1]) if a in ("--want", "--shell")}
+    flags = ("--no-trunc", "--strict", "--want", "--shell")
+    args = [a for i, a in enumerate(head) if i not in values and a not in flags] + tail
     cmd = command_text(args)
     if not cmd.strip():
         return Result(ok=False, lane="exec", exit=2, note='nothing to run. Try: metarouter exec -- "pytest -q"')

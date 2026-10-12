@@ -26,6 +26,7 @@ const EXPECTED_METHODS = [
   'session.resume',
   'session.focus',
   'session.live-text',
+  'session.search',
   'session.seen',
   'session.hide',
   'session.clear-status',
@@ -81,6 +82,7 @@ const EXPECTED_MOVED = [
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
   'core.stop',
+  'session.search',
   'settings.set',
   'needs.dismiss',
   'hooks.install',

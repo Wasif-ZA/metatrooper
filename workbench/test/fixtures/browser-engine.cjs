@@ -40,7 +40,7 @@ const resolveRefs = (method, params) => {
     if (typeof value !== 'string' || !value.startsWith('@')) continue;
     const label = value.slice(1);
     const line = latestSnapshot.split(/\r?\n/).find((entry) => entry.includes(`"${label}"`));
-    const matchedRef = line?.match(/\[ref=(e\d+)\]/)?.[1];
+    const matchedRef = line?.match(/\[ref=((?:f\d+)?e\d+)\]/)?.[1];
     if (matchedRef) resolved[key] = matchedRef;
   }
   return resolved;
@@ -67,6 +67,19 @@ const onConnect = async (c) => {
   out.hello = hello;
   for (const [name, method, params] of job.steps) {
     const values = resolveRefs(method, params);
+    if (values && values.follow_cursor) {
+      delete values.follow_cursor;
+      const pages = [];
+      let res = await call(method, values);
+      pages.push(res);
+      while (res.result?.continue) {
+        res = await call(method, { ...values, continue: res.result.continue });
+        pages.push(res);
+      }
+      out.steps[name] = { result: pages[0].result, pages };
+      if (method === 'browser.snapshot' && pages[0].result?.text) latestSnapshot = pages[0].result.text;
+      continue;
+    }
     const response = await call(method, JSON.parse(JSON.stringify(values).replaceAll('"__PID__"', String(process.pid))));
     out.steps[name] = response;
     if (method === 'browser.snapshot' && response.result?.text) latestSnapshot = response.result.text;

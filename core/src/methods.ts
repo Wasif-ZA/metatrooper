@@ -63,6 +63,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
+  { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
@@ -151,7 +152,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('core.stop', { handler: () => { setTimeout(ctl.stop, 10); return {}; } });
+  m.set('core.stop', { needsUi: true, handler: () => { setTimeout(() => ctl.stop(), 10); return {}; } });
 
   m.set('project.open', {
     handler: (p) => {
@@ -280,6 +281,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
   m.set('session.live-text', { handler: () => liveText() });
+  m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50, Array.isArray(p.session_ids) ? new Set(p.session_ids.filter((x): x is string => typeof x === 'string')) : undefined) }) });
 
   m.set('session.focus', {
     handler: (p) => {
@@ -330,6 +332,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const resumed = Boolean(engine.resume_args && old.native_id);
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
+      if (resumed && engine.id === 'codex') db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(old.native_id, r.session_id);
       resumedAs.set(oldId, r.session_id);
       return { ...r, resumed, ...(resumed ? {} : { notice: 'No saved conversation, starting fresh.' }) };
     },
@@ -390,7 +393,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       const branch = str(p, 'branch', false) || `troop/${ulid().toLowerCase()}`;
       const base = str(p, 'base', false) || 'HEAD';
-      const dir = path.join(homeDir(), 'worktrees', project.id, branch.replace(/[\/]/g, '-'));
+      const root = path.join(homeDir(), 'worktrees', project.id);
+      const dir = path.join(root, branch.replace(/[\\/]/g, '-'));
+      if (path.dirname(dir) !== root || dir === root) throw new RpcError(E.INVALID_PARAMS, `branch ${branch} does not name a folder under the worktrees folder`);
       fs.mkdirSync(path.dirname(dir), { recursive: true });
       if (fs.existsSync(path.join(dir, '.git'))) {
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());

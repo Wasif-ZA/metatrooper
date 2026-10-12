@@ -82,7 +82,11 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
         stale = false;
         const v = makeViewer();
         viewer = v;
-        if (!term.attach(session, v)) { send({ op: 'error', code: 'no-session' }); socket.end(); }
+        if (!term.attach(session, v)) {
+          const code = term.exitCodeOf(session);
+          send(code === undefined ? { op: 'error', code: 'no-session' } : { op: 'exit', code });
+          socket.end();
+        }
       }
     };
     const bad = () => send({ op: 'error', code: 'bad-op' });

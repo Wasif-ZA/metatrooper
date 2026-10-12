@@ -208,3 +208,40 @@ test('M5-13h registry package versions must be exact and identifiers must be pac
   }, 'fixture');
   assert.ok(bad.errors.some((line) => line.includes('not a package name')));
 });
+
+test('a checkout left half-made by an interrupted fetch is discarded and fetched again', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'troop-marketplace-partial-'));
+  const previousHome = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = join(dir, 'metatrooper-home');
+  try {
+    const repo = join(dir, 'market');
+    mkdirSync(join(repo, '.claude-plugin'), { recursive: true });
+    mkdirSync(join(repo, 'plugin', '.claude-plugin'), { recursive: true });
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' }).toString().trim();
+    git('init', '-q');
+    git('config', 'user.email', 'fixture@example.test');
+    git('config', 'user.name', 'Fixture');
+    writeFileSync(join(repo, '.claude-plugin', 'marketplace.json'), JSON.stringify({
+      plugins: [{ name: 'fixture', version: '1.2.3', source: { source: 'git-subdir', url: repo, path: 'plugin', sha: 'TO_BE_PINNED' } }],
+    }));
+    writeFileSync(join(repo, 'plugin', 'troop-plugin.json'), JSON.stringify({ schema: 1, id: 'fixture-plugin', version: '1.2.3', name: 'Fixture pinned' }));
+    writeFileSync(join(repo, 'plugin', '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'Fixture pinned' }));
+    git('add', '.');
+    git('commit', '-qm', 'pinned fixture');
+    const pinned = git('rev-parse', 'HEAD');
+    const marketFile = join(repo, '.claude-plugin', 'marketplace.json');
+    writeFileSync(marketFile, readFileSync(marketFile, 'utf8').replace('TO_BE_PINNED', pinned));
+    git('add', '.');
+    git('commit', '-qm', 'add listed pin');
+    const partial = join(dir, 'metatrooper-home', 'plugins', '.sources', pinned);
+    mkdirSync(partial, { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: partial, stdio: 'pipe' });
+    const plan = importMarketplace(repo);
+    assert.equal(plan.origin?.sha, pinned);
+    assert.equal(plan.manifest.name, 'Fixture pinned');
+  } finally {
+    if (previousHome === undefined) delete process.env.METATROOPER_HOME;
+    else process.env.METATROOPER_HOME = previousHome;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

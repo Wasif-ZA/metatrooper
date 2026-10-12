@@ -254,7 +254,7 @@ troop run wait <run_id> --json
 
 | You want to | Run |
 |---|---|
-| Start the core | `troop serve` |
+| Start the core | `troop start` (detached; `troop serve` runs it in this terminal) |
 | Check it is up | `troop ping` |
 | Register a project folder | `troop open [path]` |
 | Start an agent | `troop launch claude --project <path> --prompt "<text>"` |

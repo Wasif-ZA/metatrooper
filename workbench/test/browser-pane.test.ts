@@ -119,7 +119,7 @@ async function paneScriptsAndCapture() {
       ['snap', 'browser.snapshot', { pane_id: paneId }],
       ['click', 'browser.click', { pane_id: paneId, ref: 'e1' }],
       ['nav', 'browser.navigate', { pane_id: paneId, url: `http://127.0.0.1:${owned.port}/tall` }],
-      ['shot', 'browser.screenshot', { pane_id: paneId, full_page: true }],
+      ['shot', 'browser.screenshot', { pane_id: paneId, full_page: true, format: 'png' }],
     ];
     writeFileSync(join(iso.home, 'browser-job.json'), JSON.stringify({ session_id: sessionId, steps }));
     const outFile = join(iso.home, 'browser-out.json');
@@ -144,13 +144,13 @@ async function paneScriptsAndCapture() {
     assert.ok(Math.hypot(cur.at.x - cur.target.x, cur.at.y - cur.target.y) <= 5, JSON.stringify(cur));
 
     assert.ok(out.steps.shot.result, JSON.stringify(out.steps.shot) + readFileSync(join(iso.home, 'workbench.err'), 'utf8').split('\n').filter((l) => l.includes('METRICS')).join('\n'));
-    const png = Buffer.from(out.steps.shot.result.png_base64, 'base64');
+    const png = Buffer.from(out.steps.shot.result.data_base64, 'base64');
     const img = decodePng(png);
-    assert.equal(img.height, 5000);
+    assert.equal(img.height, 1568);
     assert.ok(isRed(img.pixel(10, 10)), 'sticky header shown at top');
     let redRows = 0;
     for (let y = 0; y < img.height; y++) if (isRed(img.pixel(10, y))) redRows++;
-    assert.ok(redRows >= 78 && redRows <= 82, `header appears once (${redRows} red rows)`);
+    assert.ok(redRows >= 24 && redRows <= 26, `header appears once (${redRows} red rows)`);
   } finally {
     killTree(wb?.pid);
     unowned.server.close();

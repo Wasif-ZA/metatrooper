@@ -99,7 +99,7 @@ survives in the WAL for at most about 30 s.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `session.live-text`, `session.list`, `session.wait`, `engines.check`, every `browser.*` method, and the methods that carry
+`session.focus`, `session.live-text`, `session.list`, `session.wait`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
 secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
 written to the `command` table.
 
@@ -132,6 +132,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` | -32002, -32602 | yes |  |
 | `session.focus` | `{session_id}` | {focused: bool} | -32002 | yes |  |
 | `session.live-text` | `{}` | {<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |  | yes |  |
+| `session.search` | `{query, session_ids?}` | {hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |  |  | yes |
 | `session.seen` | `{session_id}` | {}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` | -32002 |  |  |
 | `session.hide` | `{session_id}` | {} | -32002 |  |  |
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |

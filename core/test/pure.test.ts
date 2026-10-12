@@ -62,9 +62,9 @@ test('buildPayload drops unknown fields for every specified event kind', () => {
     ['launch', { session_id: 's', pid: 42, cwd: '/p', engine: 'fake', started_at: 'now' }, ['session_id', 'pid', 'cwd', 'engine', 'started_at']],
     ['claude.PreToolUse', { session_id: 'native', transcript_path: '/t', cwd: '/p', tool_name: 'Read', tool_use_id: 'u', tool_input: { file_path: '/safe', content: 'PRIVATE_MARKER' } }, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id', 'tool_input']],
     ['claude.PostToolUse', { session_id: 'native', transcript_path: '/t', cwd: '/p', tool_name: 'Read', tool_use_id: 'u', tool_input: { file_path: '/safe' }, tool_response: 'PRIVATE_MARKER', response_length: 14 }, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id', 'tool_input', 'response_length']],
-    ['claude.UserPromptSubmit', { session_id: 'native', cwd: '/p', prompt: 'PRIVATE_MARKER', prompt_length: 14 }, ['session_id', 'cwd', 'prompt_length']],
+    ['claude.UserPromptSubmit', { session_id: 'native', transcript_path: '/t', cwd: '/p', prompt: 'PRIVATE_MARKER', prompt_length: 14 }, ['session_id', 'transcript_path', 'cwd', 'prompt_length']],
     ['claude.Notification', { session_id: 'native', cwd: '/p', class: 'permission', message: 'PRIVATE_MARKER', message_length: 14 }, ['session_id', 'cwd', 'class', 'message_length']],
-    ['claude.Stop', { session_id: 'native', cwd: '/p', stop_hook_active: false }, ['session_id', 'cwd', 'stop_hook_active']],
+    ['claude.Stop', { session_id: 'native', transcript_path: '/t', cwd: '/p', stop_hook_active: false }, ['session_id', 'transcript_path', 'cwd', 'stop_hook_active']],
     ['claude.SessionEnd', { session_id: 'native', cwd: '/p', reason: 'logout' }, ['session_id', 'cwd', 'reason']],
     ['codex.turn', { type: 'agent-turn-complete', 'thread-id': 't', 'turn-id': 'u', cwd: '/p', input_length: 2, reply_length: 3 }, ['type', 'thread-id', 'turn-id', 'cwd', 'input_length', 'reply_length']],
     ['core.activity', { state: 'working' }, ['state']],
@@ -136,6 +136,16 @@ test('framing round trips chunked and multiple lines and rejects over 1 MiB', ()
   assert.deepEqual(messages, [first, second]);
   const oversized = createDecoder(() => assert.fail('oversized line was decoded'));
   assert.throws(() => oversized('x'.repeat(1024 * 1024 + 1) + '\n'), { name: 'LineTooLong' });
+});
+
+test('framing keeps a multi-byte character split across two buffer chunks', () => {
+  const messages = [];
+  const decode = createDecoder(message => messages.push(message));
+  const wire = Buffer.from(encode({ text: 'é' }));
+  const cut = wire.indexOf(0xc3) + 1;
+  decode(wire.subarray(0, cut));
+  decode(wire.subarray(cut));
+  assert.deepEqual(messages, [{ text: 'é' }]);
 });
 
 test('shell redaction drops env-assignment prefixes and values', () => {
@@ -309,5 +319,32 @@ test('engine settings install records old values and uninstall restores them', a
   } finally {
     if (prev === undefined) delete process.env.METATROOPER_HOME;
     else process.env.METATROOPER_HOME = prev;
+  }
+});
+
+test('resolveLaunch unwraps the VS Code code.cmd shape to Code.exe, cli.js and ELECTRON_RUN_AS_NODE', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { resolveLaunch, resolveCommand } = await import('../src/hook/resolve.ts');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-code-'));
+  try {
+    const bin = path.join(root, 'bin');
+    const cli = path.join(root, 'f1a2b3c4d5', 'resources', 'app', 'out');
+    fs.mkdirSync(bin, { recursive: true });
+    fs.mkdirSync(cli, { recursive: true });
+    fs.writeFileSync(path.join(root, 'Code.exe'), '');
+    fs.writeFileSync(path.join(cli, 'cli.js'), '');
+    const cmd = ['@echo off', 'setlocal', 'set VSCODE_DEV=', 'set ELECTRON_RUN_AS_NODE=1', `"%~dp0..${bs}Code.exe" "%~dp0..${bs}f1a2b3c4d5${bs}resources${bs}app${bs}out${bs}cli.js" %*`, 'IF %ERRORLEVEL% NEQ 0 EXIT /b %ERRORLEVEL%', 'endlocal', ''].join('\r\n');
+    const file = path.join(bin, 'code.cmd');
+    fs.writeFileSync(file, cmd);
+    assert.deepEqual(resolveLaunch(file), { argv: [path.join(root, 'Code.exe'), path.join(cli, 'cli.js')], env: { ELECTRON_RUN_AS_NODE: '1' } });
+    assert.equal(resolveCommand(file), null);
+    const npm = path.join(bin, 'tool.cmd');
+    fs.writeFileSync(npm, `@SETLOCAL\r\n@SET PATHEXT=%PATHEXT:;.JS;=;%\r\nnode "%~dp0${bs}node_modules${bs}tool${bs}cli.js" %*\r\n`);
+    assert.deepEqual(resolveCommand(npm), [process.execPath, path.join(bin, 'node_modules', 'tool', 'cli.js')]);
+    assert.deepEqual(resolveLaunch(npm), { argv: [process.execPath, path.join(bin, 'node_modules', 'tool', 'cli.js')], env: {} });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
