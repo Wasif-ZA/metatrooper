@@ -150,26 +150,31 @@ real. I wrote the test, watched it fail on the old code, then fixed it in its ow
   `tick()` stops the helper and sets `idle`, and then the existing `this.child !== child` guard drops the line. So
   the check lives in one place, and the handler reuses the same grant query and stop path that the 1 s timer uses.
 - **Sibling instance.** A late `{"ready":true}` line used to set `input_watcher` to `on` after the last grant ended.
-  It goes through the same handler, so the same check now covers it, and the new test asserts it. The `error`, `exit`
-  and ready-timeout paths only ever move the state to `off`, and they already check that the child is current. `raise()`
-  has one caller, this handler.
+  It goes through the same handler, so the same check now covers it, and the new test asserts it. `raise()` has one
+  caller, this handler.
+- **Second sibling, fixed in `50f4d6c`.** A helper that exited, errored or timed out after the last grant ended, but
+  before the next tick, set `input_watcher` to `off` and `failed` for up to 1 s, until the tick moved it to `idle`.
+  It raised no item and set no flag, but for that second the tiles said "input watcher off" with no grant live.
+  `fail()` now runs the same tick-first check. Test: `M6-22: a helper that dies after the last grant ends, before the
+  next tick, leaves the watcher idle, not off`. Before the fix: `'off' !== 'idle'`. After: `idle`, no child, and
+  `failed` is false.
 - **Choice: an event stamped before the grant ended but read after it is dropped.** I did not compare `ev.t` with
   the grant's `ended_at`. Once no grant is live, nothing is left for the item to protect, and the agents it would
   pause no longer hold the window.
 - **`core/dist`.** `node core/build.ts` changed nothing, for the same reason as round 1: the build entries never import
-  `watch/*`. So the commit does not include dist.
+  `watch/*`. So neither commit includes dist.
 - **Contracts.** I changed none. `contracts/schema.sql` already defines `input_watcher` = `idle` as "no grant is live".
   The fix makes the code match that definition between ticks. It adds no state, column or pipe method.
 
 Suites after the fix, from Git Bash with Git `usr/bin` on PATH:
 
-- Core: `cd core && node --test "test/*.test.ts"` gave **416 tests, 410 pass, 0 fail, 6 skipped**. There is one more
-  test than in round 1, and the skips are the same. On the first full run, before the commit,
+- Core: `cd core && node --test "test/*.test.ts"` gave **417 tests, 411 pass, 0 fail, 6 skipped** after both fixes.
+  That is two more tests than round 1, and the skips are the same. On the first full run, before the first commit,
   `M6-03a a dev server in the session terminal gets an ancestry row within 2 s` failed once with
   `condition not met in 2000 ms`. It passed 3 of 3 runs on its own and in the full run after the commit. It is a
   timing test from M6-03 that this branch does not touch, so I count it as a flake under load.
 - Workbench: `cd workbench && npm test` gave **131 tests, 92 pass, 0 fail, 35 skipped (Electron e2e, opt-in), 4
-  todo**.
+  todo**. I ran it after `28168d8`. `50f4d6c` touches only `core/src/watch/watcher.ts` and its core test.
 
 Left for Wasif:
 
