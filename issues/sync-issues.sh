@@ -5,3 +5,4 @@ set -euo pipefail
 sync() {
   gh issue edit "$1" --title "$2" --milestone "$3" --body-file "$4" >/dev/null && echo "synced #$1 $2"
 }
+sync 74 'M7-9 Files panel: read the agent'\''s worktree beside its tile' 'M7 after release' 'issues/m7-09-files-panel.md'
