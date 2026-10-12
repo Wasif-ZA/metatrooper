@@ -394,8 +394,52 @@ function liveSessions() {
 }
 
 function shellRows() {
-  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true }));
+  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true, from: x.from }));
 }
+
+/** Once per project, after the core is up: hands the saved wall layout to the wall and opens its saved shells again. */
+function seedLayout() {
+  if (!ui.settingsLook || !ui.projectId || ui.seeded === ui.projectId || !ui.snap.core.online) return;
+  ui.seeded = ui.projectId;
+  ui.corePid = ui.snap.core.pid;
+  const saved = (ui.settingsLook.ui.layout || {})[ui.projectId];
+  wall.restore(saved);
+  const shells = saved && Array.isArray(saved.shells) ? saved.shells : [];
+  for (const sh of shells) if (sh && typeof sh.id === 'string' && typeof sh.kind === 'string') void reopenShell(sh);
+}
+
+/** After a core restart: the wall keeps its layout for the resumed sessions, and the shells that died with the core open again. */
+function coreRestarted() {
+  if (ui.seeded !== ui.projectId || !ui.snap.core.online || !ui.corePid || ui.snap.core.pid === ui.corePid) return;
+  ui.corePid = ui.snap.core.pid;
+  wall.restore(wall.state());
+  for (const sh of ui.shells.filter((x) => x.project_id === ui.projectId && x.kind)) void reopenShell(sh);
+}
+
+async function reopenShell(sh) {
+  const projectId = ui.projectId;
+  const r = await rpc('shell.open', { project_id: projectId, kind: sh.kind }, true);
+  if (!r.result) return;
+  ui.shells = ui.shells.filter((x) => x.id !== sh.id);
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: projectId, kind: sh.kind, from: sh.id });
+  if (ui.shellSel === sh.id) ui.shellSel = r.result.shell_id;
+  render();
+}
+
+let layoutSent = '', layoutTimer = null;
+/** Saves the wall layout and the project's shells through settings.set, 500 ms after the last change. */
+function saveLayout() {
+  const projectId = ui.projectId;
+  if (!projectId || ui.seeded !== projectId || !ui.settingsLook) return;
+  const layout = { ...wall.state(), shells: ui.shells.filter((x) => x.project_id === projectId && x.kind).map((x) => ({ id: x.id, kind: x.kind })) };
+  const text = projectId + JSON.stringify(layout);
+  if (text === layoutSent) return;
+  layoutSent = text;
+  ui.settingsLook.ui.layout = { ...(ui.settingsLook.ui.layout || {}), [projectId]: layout };
+  clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(() => void api.saveLayout(projectId, layout), 500);
+}
+wall.onChange(saveLayout);
 
 function selectedSession() {
   const big = wall.big();
@@ -788,7 +832,7 @@ function selectShell(id) {
 async function openShell(kind) {
   const r = await rpc('shell.open', { project_id: ui.projectId, kind });
   if (!r.result) return;
-  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId });
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId, kind });
   selectShell(r.result.shell_id);
 }
 
@@ -831,8 +875,10 @@ function ctxChip(x) {
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
+  seedLayout();
+  coreRestarted();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();

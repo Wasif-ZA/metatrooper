@@ -8,6 +8,12 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ### Added
 
+- Sessions come back after a restart (M6-6). At start the core resumes every terminal session the last core left
+  open, at most 3 at a time, 2 s apart plus up to 1 s of jitter. An engine whose resumed screen matches its new
+  `auth_error` pattern twice is not resumed again and raises one needs-you item. The workbench saves the wall layout
+  and its shells per project in `ui.layout` through `settings.set` and rebuilds both, with resumed sessions in their
+  old tiles. Each terminal's last 200 rows are saved under `~/.metatrooper/screens/` when it exits or the core stops,
+  and an ended session's tile shows them.
 - metarouter joins the repo as `router/`, with its history. `troop route <args>` runs it with no separate install
   (Python 3.11+, or `TROOP_PYTHON`); `troop gate` reads A-05 from the same copy; `router/` is also a plugin whose
   `ingest` action now answers in the plugin contract shape. Its tests run in CI.
