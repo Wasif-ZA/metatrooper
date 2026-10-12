@@ -185,7 +185,7 @@ export function removeSessionFiles(sessionId: string): void {
 /** Deletes per-session files whose session has exited or no longer exists; only entries named the way removeSessionFiles names them are touched. */
 export function sweepSessionFiles(db: DatabaseSync): void {
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
-  const dirs: Array<[string, RegExp, boolean]> = [[path.join(homeDir(), 'mcp'), /^[^.]+(.settings)?.json$/, true], [path.join(homeDir(), 'engines', 'gemini'), /^[^.]+.json$/, false]];
+  const dirs: Array<[string, RegExp, boolean]> = [[path.join(homeDir(), 'mcp'), /^[^.]+(\.settings)?\.json$/, true], [path.join(homeDir(), 'engines', 'gemini'), /^[^.]+\.json$/, false]];
   for (const [dir, file, dirsToo] of dirs) {
     if (!fs.existsSync(dir)) continue;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

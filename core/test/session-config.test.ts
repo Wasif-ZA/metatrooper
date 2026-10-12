@@ -142,14 +142,14 @@ test('per-session files of exited and unknown sessions are swept; a live session
     fs.mkdirSync(path.join(dir, 'GONE'));
     const gemini = path.join(home, 'mt', 'engines', 'gemini');
     fs.mkdirSync(path.join(gemini, 'notes'), { recursive: true });
-    for (const name of ['LIVE.json', 'GONE.json', 'ORPHAN.json', 'README.md', '.keep', 'admin.settings.json']) fs.writeFileSync(path.join(gemini, name), '{}');
-    for (const name of ['README.md', '.keep']) fs.writeFileSync(path.join(dir, name), '');
+    for (const name of ['LIVE.json', 'GONE.json', 'ORPHAN.json', 'README.md', '.keep', 'admin.settings.json', 'backup-json', 'READMEjson']) fs.writeFileSync(path.join(gemini, name), '{}');
+    for (const name of ['README.md', '.keep', 'backup-json', 'READMEjson', 'GONEXsettingsXjson']) fs.writeFileSync(path.join(dir, name), '');
     sweepSessionFiles(db);
-    assert.deepEqual(fs.readdirSync(dir).sort(), ['.keep', 'LIVE.json', 'LIVE.settings.json', 'README.md']);
-    assert.deepEqual(fs.readdirSync(gemini).sort(), ['.keep', 'LIVE.json', 'README.md', 'admin.settings.json', 'notes']);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ['.keep', 'GONEXsettingsXjson', 'LIVE.json', 'LIVE.settings.json', 'README.md', 'READMEjson', 'backup-json']);
+    assert.deepEqual(fs.readdirSync(gemini).sort(), ['.keep', 'LIVE.json', 'README.md', 'READMEjson', 'admin.settings.json', 'backup-json', 'notes']);
     removeSessionFiles('LIVE');
-    assert.deepEqual(fs.readdirSync(dir).sort(), ['.keep', 'README.md']);
-    assert.deepEqual(fs.readdirSync(gemini).sort(), ['.keep', 'README.md', 'admin.settings.json', 'notes']);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ['.keep', 'GONEXsettingsXjson', 'README.md', 'READMEjson', 'backup-json']);
+    assert.deepEqual(fs.readdirSync(gemini).sort(), ['.keep', 'README.md', 'READMEjson', 'admin.settings.json', 'backup-json', 'notes']);
   } finally {
     db.close();
   }
