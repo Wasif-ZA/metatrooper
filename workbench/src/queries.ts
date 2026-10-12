@@ -38,6 +38,8 @@ export interface Snapshot {
   settings_error?: string | null;
   core_mismatch?: string | null;
   core_log?: string[] | null;
+  /** Sessions holding a live grant while the input watcher is off (M6-22): their tiles say so. */
+  watcher_off?: string[];
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */
@@ -166,7 +168,17 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     git: {},
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,
     limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
+    watcher_off: watcherOff(db),
   };
+}
+
+/** Sessions with a live grant when `meta.input_watcher` is 'off'; none before the grant table exists. */
+function watcherOff(db: DatabaseSync): string[] {
+  try {
+    return (db.prepare("SELECT DISTINCT g.session_id FROM grant g JOIN meta m ON m.key = 'input_watcher' AND m.value = 'off' WHERE g.ended_at IS NULL ORDER BY g.session_id").all() as Array<{ session_id: string }>).map((r) => r.session_id);
+  } catch {
+    return [];
+  }
 }
 
 type TaskRow = { engine_id: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string };

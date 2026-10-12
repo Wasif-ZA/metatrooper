@@ -16,6 +16,9 @@ export const DEFAULTS = {
     ask_paths: [] as string[],
     metarouter: true,
   },
+  desktop: {
+    watch_pause: true,
+  },
   worktree: {
     npm_ci: true,
     stale_days: 7,

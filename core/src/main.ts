@@ -24,6 +24,7 @@ import { earlyEnd, recordReadings, resumeAtReset } from './sessions/limit-resume
 import { syncBuiltinPlugins } from './plugins/store.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
+import { Watcher } from './watch/watcher.ts';
 import { pollDevServers, sweepDevServers } from './devservers.ts';
 import { sweepWorktrees } from './worktree.ts';
 import { coreResumer, liveAtStart, markGone } from './sessions/resume-all.ts';
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
   syncBuiltinPlugins(db);
 
   const timers: NodeJS.Timeout[] = [];
+  const watcher = new Watcher(db);
   let termServer: Server | null = null;
   let stopping = false;
   const stop = async (why = 'core.stop') => {
@@ -83,6 +85,7 @@ async function main(): Promise<void> {
     termServer?.close();
     await Promise.race([term.saveAllScreens(), new Promise((r) => setTimeout(r, 2000))]);
     term.killAll();
+    watcher.stop();
     await Promise.race([turnJobsIdle(), new Promise((r) => setTimeout(r, 5000))]);
     try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
     db.close();
@@ -128,6 +131,7 @@ async function main(): Promise<void> {
   every(60_000, limits);
   every(5000, () => resumeAtReset(db));
   every(2000, () => notifyTick(db));
+  every(1000, () => watcher.tick());
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));
   every(5000, () => resolveSpentNotices(db));
