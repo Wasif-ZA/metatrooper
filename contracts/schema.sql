@@ -26,7 +26,9 @@ CREATE TABLE project (
   path        TEXT NOT NULL UNIQUE,
   name        TEXT NOT NULL,
   opened_at   TEXT NOT NULL,
-  last_opened TEXT NOT NULL
+  last_opened TEXT NOT NULL,
+  hidden      INTEGER NOT NULL DEFAULT 0,     -- 1: a worktree whose folder is gone or that the sweep removed; kept for its references (pipe-protocol.md, Worktree sweep)
+  older       INTEGER NOT NULL DEFAULT 0      -- 1: a stale worktree the sweep kept because it is dirty or unmerged
 );
 
 CREATE TABLE engine (

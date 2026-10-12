@@ -22,6 +22,7 @@ import { readLimits } from './limits.ts';
 import { syncBuiltinPlugins } from './plugins/store.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
+import { sweepWorktrees } from './worktree.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -121,6 +122,8 @@ async function main(): Promise<void> {
   every(10_000, () => resolveUncommitted(db));
   every(30_000, () => db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));
   every(600_000, () => checkAll(db, activeEngines(db)));
+  try { sweepWorktrees(db, activeEngines(db)); } catch {}
+  every(3_600_000, () => sweepWorktrees(db, activeEngines(db)));
   checkPids(db);
   void checkAll(db, activeEngines(db)).catch(() => {});
 

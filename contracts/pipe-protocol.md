@@ -153,6 +153,17 @@ Every other interaction is a database read.
 | `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.*`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) |
 | `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule) |
 
+### Worktree sweep
+
+The core sweeps worktree projects at startup and once an hour (`core/src/worktree.ts`). It looks only at `project` rows whose path is exactly `<METATROOPER_HOME>/worktrees/<parent project id>/<name>`, where `worktree.create` puts them, and whose real path is still under that folder. Every other row and folder is left alone.
+
+- **Folder gone.** The row gets `hidden = 1`. The workbench also leaves such a row out of the project menu straight away, without waiting for the next sweep.
+- **Stale.** A worktree is stale when none of its sessions is in any state other than `exited`, and its newest `last_opened`, session `started_at`, `state_at` or `ended_at` is `worktree.stale_days` (setting, default 7) or more days ago. A worktree with a live session is never stale, however old it is.
+  - Stale, clean (`git status --porcelain` prints nothing, untracked files included) and merged (`HEAD` is an ancestor of the parent repo's main branch: the branch `origin/HEAD` names, else `main`, else `master`). The core runs `git worktree remove <path>` from the parent repo, never with `--force`. It then drops the folder's engine trust entries, sets `hidden = 1` and logs `worktree sweep: removed <path> ...`. The branch is kept.
+  - Stale but dirty, unmerged, with no main branch found, or failing to be removed. Nothing is deleted. The row gets `older = 1` and the menu shows it in a collapsed **Older** group instead of **Worktrees**.
+  - Not stale, or no longer stale. `older` goes back to 0.
+- Rows are hidden, never deleted, because `session`, `run`, `browser_pane` and `schedule` reference `project(id)`. `project.open` on the same folder sets `hidden` and `older` back to 0.
+
 ## Browser methods (`\\.\pipe\metatrooper-browser`)
 
 Trusted core connection: the core itself connects to the browser pipe and sends `browser.hello` with
