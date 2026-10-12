@@ -65,15 +65,6 @@ export function isolation() {
   return { home, prefix, started: Date.now(), env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${recorder}`, METATROOPER_HOME: home, METATROOPER_PIPE_PREFIX: prefix, USERPROFILE: home, HOME: home } };
 }
 
-export function reservePortBand(db: DatabaseSync, firstAvailable: number, runId: string) {
-  const now = new Date().toISOString();
-  db.prepare("INSERT OR IGNORE INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)").run(`test-${runId}`, `/${runId}`, runId, now, now);
-  db.prepare("INSERT OR IGNORE INTO pipeline (id, source, path, version, valid) VALUES (?, 'project', ?, 1, 1)").run(`test-${runId}`, `/${runId}.json`);
-  db.prepare("INSERT OR IGNORE INTO run (id, pipeline_id, project_id, inputs, run_dir, status, trigger, max_tokens, max_usd, max_minutes, started_at) VALUES (?, ?, ?, '{}', ?, 'paused', 'manual', 0, 0, 1, ?)").run(runId, `test-${runId}`, `test-${runId}`, `/${runId}`, now);
-  const insert = db.prepare('INSERT INTO port_lease (port, run_id, idx, leased_at) VALUES (?, ?, ?, ?)');
-  for (let port = 3001; port < firstAvailable; port++) insert.run(port, runId, port - 3001, now);
-}
-
 export function withEnv<T>(vars: Record<string, string>, fn: () => T): T {
   const previous = new Map(Object.keys(vars).map(key => [key, process.env[key]]));
   try {
