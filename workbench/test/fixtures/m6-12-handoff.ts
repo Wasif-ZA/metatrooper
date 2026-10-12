@@ -139,6 +139,25 @@ const row = db.prepare("SELECT id, reason FROM approval WHERE status = 'waiting'
 approvals.resolve({ approval_id: row.id, decision: 'approve' });
 r.approval = `${(await asked).decision}: ${row.reason}`;
 
+// M6-12a: an input already past the entry check when handoff lands sends nothing
+let release!: () => void;
+const glide = new Promise<void>((res) => { release = res; });
+const plainClickAt = internal.clickAt;
+internal.clickAt = async (...args: unknown[]) => { await glide; return plainClickAt(...args); };
+const sentBefore = inserted.length;
+const typing = call('browser.type', { pane_id: 'bp_agent_1', ref: 'e5', text: 'late' });
+await new Promise((res) => setTimeout(res, 50));
+r.handoffMidAction = outcome(await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in with your security key' }));
+release();
+r.inputAfterHandoff = outcome(await typing);
+r.nothingSentAfterHandoff = inserted.length === sentBefore;
+internal.clickAt = plainClickAt;
+// the real cmd refuses input on a handed-off pane, so input between the recheck and the dispatch is not sent either
+const dispatched: string[] = [];
+const realCmd = (method: string) => (PaneManager.prototype as any).cmd.call(pm, { handoff: pane.handoff, dbg: { sendCommand: async (m: string) => { dispatched.push(m); return {}; } } }, method, {});
+r.realCmdWhileHanded = { input: await realCmd('Input.insertText').then(() => 'sent', (e: Error) => e.message), other: await realCmd('DOM.focus').then(() => 'sent', (e: Error) => e.message), dispatched };
+pm.act('bp_agent_1', 'give-back');
+
 // M6-12a: after handoff every other tool fails until Give back
 page.password = true;
 r.handoff = outcome(await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in with your security key' }));

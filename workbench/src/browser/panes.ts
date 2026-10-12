@@ -135,6 +135,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function handedOff(pane: { handoff: string | null }): ToolError {
+  return new ToolError(-32036, `the user has the pane (${pane.handoff}); wait until they give it back`);
+}
+
 const dnsCache = new Map<string, { at: number; addrs: string[] }>();
 
 async function cachedLookup(host: string): Promise<string[]> {
@@ -571,6 +575,8 @@ export class PaneManager {
   }
 
   private cmd(pane: Pane, method: string, params: Record<string, unknown> = {}): Promise<any> {
+    // only agent tools send input; one that began before a handoff sends none after it
+    if (pane.handoff && method.startsWith('Input.')) return Promise.reject(handedOff(pane));
     return pane.dbg.sendCommand(method, params).catch((e: Error) => {
       throw new ToolError(-32099, `${method} failed: ${e.message}`);
     });
@@ -833,7 +839,7 @@ export class PaneManager {
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
     await pane.ready;
-    if (pane.handoff) throw new ToolError(-32036, `the user has the pane (${pane.handoff}); wait until they give it back`);
+    if (pane.handoff) throw handedOff(pane);
     if (name === 'handoff') {
       if (typeof a.reason !== 'string' || !a.reason.trim()) throw new ToolError(-32602, 'reason is required');
       pane.handoff = a.reason.replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -917,8 +923,11 @@ ame, after checking the ref's field is a password field on the origin saved with
 
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
+    // the user may have taken the pane while this call glided the cursor
+    if (pane.handoff) throw handedOff(pane);
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describe(pane, { ...a, tool });
+    if (pane.handoff) throw handedOff(pane);
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
     if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
