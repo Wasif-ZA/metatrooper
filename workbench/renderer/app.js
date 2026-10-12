@@ -433,7 +433,8 @@ async function reopenShell(sh) {
   render();
 }
 
-let layoutSent = '', layoutTimer = null;
+let layoutSent = '';
+const layoutTimers = {};
 /** Saves the wall layout and the project's shells through settings.set, 500 ms after the last change. */
 function saveLayout() {
   const projectId = ui.projectId;
@@ -443,8 +444,8 @@ function saveLayout() {
   if (text === layoutSent) return;
   layoutSent = text;
   ui.settingsLook.ui.layout = { ...(ui.settingsLook.ui.layout || {}), [projectId]: layout };
-  clearTimeout(layoutTimer);
-  layoutTimer = setTimeout(() => void api.saveLayout(projectId, layout), 500);
+  clearTimeout(layoutTimers[projectId]);
+  layoutTimers[projectId] = setTimeout(() => void api.saveLayout(projectId, layout), 500);
 }
 wall.onChange(saveLayout);
 

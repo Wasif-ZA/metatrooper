@@ -77,7 +77,7 @@ test('M6-06a seedLayout restores the saved layout once per project and reopens i
   const ui: any = { projectId: 'p', snap: { core: { online: true, pid: 7 } }, settingsLook: { ui: { layout: { p: layout } } }, shells: [], shellKinds: [{ kind: 'powershell', label: 'PowerShell' }], shellSel: 'sh_old' };
   const rpc = async (method: string, params: { kind: string }) => (method === 'shell.open' ? { result: { shell_id: 'sh_new', label: 'PowerShell', cwd: 'C:/p' } } : {});
   const api = { saveLayout: async (p: string, l: unknown) => { saved.push([p, l]); return { ok: true }; } };
-  const make = new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null;\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('saveLayout')}\n${fn('coreRestarted')}\nreturn { seedLayout, saveLayout, coreRestarted };`);
+  const make = new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null; const layoutTimers = {};\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('saveLayout')}\n${fn('coreRestarted')}\nreturn { seedLayout, saveLayout, coreRestarted };`);
   const app = make(ui, wall, rpc, () => {}, api);
   app.seedLayout();
   app.seedLayout();
@@ -105,7 +105,7 @@ test('M6-06a a shell whose reopen meets a dead core opens once the new core is u
   const wall = { restore() {}, state: () => ({ big: [], order: [], open: [], pair_at: 0 }) };
   const ui: any = { projectId: 'p', snap: { core: { online: true, pid: 1 } }, settingsLook: { ui: { layout: { p: { shells: [{ id: 'sh_old', kind: 'bash' }] } } } }, shells: [], shellKinds: [] };
   const rpc = async () => (up ? { result: { shell_id: 'sh_new', label: 'Git Bash', cwd: 'C:/p' } } : { error: { message: 'core offline' } });
-  const make = new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null;\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('coreRestarted')}\nreturn { seedLayout, coreRestarted };`);
+  const make = new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null; const layoutTimers = {};\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('coreRestarted')}\nreturn { seedLayout, coreRestarted };`);
   const app = make(ui, wall, rpc, () => {}, {});
   app.seedLayout();
   await new Promise((r) => setTimeout(r, 10));
@@ -117,7 +117,7 @@ test('M6-06a a shell whose reopen meets a dead core opens once the new core is u
   assert.deepEqual(plain(ui.shells).map((x: any) => [x.id, x.from]), [['sh_new', 'sh_old']]);
 });
 
-const appWith = (ui: any, wall: any, rpc: any, api: any = {}) => new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null;\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('saveLayout')}\n${fn('coreRestarted')}\nreturn { seedLayout, saveLayout, coreRestarted };`)(ui, wall, rpc, () => {}, api);
+const appWith = (ui: any, wall: any, rpc: any, api: any = {}) => new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null; const layoutTimers = {};\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('saveLayout')}\n${fn('coreRestarted')}\nreturn { seedLayout, saveLayout, coreRestarted };`)(ui, wall, rpc, () => {}, api);
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
 test('M6-06a a shell saved in the big slot stays there on reopen instead of the selected agent', async () => {
@@ -150,4 +150,16 @@ test('M6-06a after a core restart the shells of a project not on screen open aga
   await tick();
   assert.deepEqual(plain(ui.shells).map((x: any) => [x.project_id, x.from]).sort(), [['p', 'sh_p'], ['q', 'sh_q']]);
   assert.deepEqual(opened.sort(), ['p', 'q']);
+});
+
+test('M6-06a a layout change in one project is still saved when another project saves right after', async () => {
+  const saved: string[] = [];
+  const wall = { state: () => ({ big: [], order: [], open: [], pair_at: 0 }) };
+  const ui: any = { projectId: 'p', seeded: 'p', settingsLook: { ui: { layout: {} } }, shells: [] };
+  const app = appWith(ui, wall, null, { saveLayout: async (p: string) => { saved.push(p); return { ok: true }; } });
+  app.saveLayout();
+  ui.projectId = ui.seeded = 'q';
+  app.saveLayout();
+  await new Promise((r) => setTimeout(r, 700));
+  assert.deepEqual(saved.sort(), ['p', 'q']);
 });
