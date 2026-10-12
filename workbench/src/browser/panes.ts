@@ -27,6 +27,9 @@ const SNAPSHOT_TOKENS = 4000;
 const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
+const GESTURE_MS = 5000;
+const PICK_RAW = 64 * 1024;
+const POPUP_PREFS = { sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: false, spellcheck: false };
 
 export class ToolError extends Error {
   code: number;
@@ -67,6 +70,13 @@ interface Pane {
   ready: Promise<void>;
   dialog: Dialog | null;
   onDialog: ((d: Dialog) => void) | null;
+  /** The URL whose load error or crash the pane is showing, or null. */
+  errorFor: string | null;
+  /** When the user or the agent last clicked or pressed a key in the pane. */
+  clickedAt: number;
+  popups: Set<BrowserWindow>;
+  /** The picked element first, then each parent walked up to. */
+  pickStack: number[];
 }
 
 interface Dialog {
@@ -78,7 +88,7 @@ export interface Hooks {
   db: () => DatabaseSync | null;
   probe: (entry: Record<string, unknown>) => void;
   urlChanged: (paneId: string, url: string) => void;
-  commentPicked: (info: { pane_id: string; url: string; selector: string; html: string; crop: string }) => void;
+  commentPicked: (info: { pane_id: string; url: string; depth: number; selector: string; html: string; crop: string }) => void;
   /** Sends a `pane-event` to the workbench UI: state, found, key, download, permission. */
   paneEvent: (ev: Record<string, unknown>) => void;
   /** Opens a user pane in the project at this URL. */
@@ -211,7 +221,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [] };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -244,31 +254,53 @@ export class PaneManager {
 
   private wireContents(pane: Pane): void {
     const wc = pane.view.webContents;
-    const stop = (e: Electron.Event, url: string) => {
-      if (!/^https?:/.test(url) && url !== 'about:blank') e.preventDefault();
-    };
-    wc.on('will-navigate', stop);
-    wc.on('will-redirect', stop);
+    wc.on('will-navigate', (e, url) => {
+      if (stop(e, url) || !pane.crashed?.startsWith('the page crashed')) return;
+      e.preventDefault();
+      void this.retry(pane, url).catch(() => {});
+    });
+    wc.on('will-redirect', (e, url) => { stop(e, url); });
     wc.on('will-frame-navigate', (e) => stop(e as unknown as Electron.Event, e.url));
-    wc.setWindowOpenHandler(({ url }) => {
+    wc.on('input-event', (_e, input) => {
+      if (/^(mouseDown|mouseUp|rawKeyDown|keyDown)$/.test(input.type)) pane.clickedAt = Date.now();
+    });
+    wc.setWindowOpenHandler(({ url, disposition }) => {
       if (!/^https?:/.test(url)) return { action: 'deny' };
+      if (Date.now() - pane.clickedAt > GESTURE_MS) {
+        this.log(pane, 'blocked', `MetaTrooper blocked a window the page opened without a click: ${url}`);
+        return { action: 'deny' };
+      }
+      pane.clickedAt = 0;
+      if (disposition === 'new-window') return { action: 'allow', overrideBrowserWindowOptions: { parent: this.win, width: 520, height: 680, autoHideMenuBar: true, webPreferences: POPUP_PREFS } };
       if (this.isUserPane(pane)) this.hooks.openPane(pane.row.project_id, url);
       else void this.load(pane, url).catch(() => {});
       return { action: 'deny' };
     });
+    wc.on('did-create-window', (child) => this.guardPopup(pane, child));
     wc.on('did-navigate', (_e, url, code) => {
-      pane.status = code;
       pane.refs.byRef.clear();
       pane.refs.byKey.clear();
       pane.lastSnapshot.clear();
       pane.cursors.clear();
+      pane.pickStack = [];
       pane.navs++;
+      if (url.startsWith('data:')) return;
+      pane.status = code;
+      pane.errorFor = null;
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
     wc.on('did-navigate-in-page', (_e, url) => this.hooks.urlChanged(pane.row.id, url));
     const state = () => this.emitState(pane);
     for (const ev of ['did-start-loading', 'did-stop-loading', 'page-title-updated', 'did-navigate', 'did-navigate-in-page'] as const) wc.on(ev as 'did-start-loading', state);
-    wc.on('render-process-gone', () => { pane.crashed = 'the page crashed; call navigate to load it again'; });
+    wc.on('did-fail-load', (_e, code, desc, url, isMain) => {
+      if (!isMain || code === -3 || url.startsWith('data:')) return;
+      const kind = code === -20 ? 'blocked' : code <= -200 && code > -300 ? 'certificate' : 'load';
+      this.showError(pane, url, kind, `${desc} (${code})`);
+    });
+    wc.on('render-process-gone', (_e, d) => {
+      pane.crashed = 'the page crashed; call navigate to load it again';
+      if (d.reason !== 'clean-exit') this.showError(pane, pane.errorFor ?? wc.getURL(), 'crash', d.reason);
+    });
     wc.on('unresponsive', () => { pane.crashed ??= 'the page is not responding'; });
     wc.on('responsive', () => { if (pane.crashed === 'the page is not responding') pane.crashed = null; });
     wc.on('found-in-page', (_e, r) => this.hooks.paneEvent({ kind: 'found', pane_id: pane.row.id, active: r.activeMatchOrdinal, matches: r.matches }));
@@ -303,11 +335,46 @@ export class PaneManager {
     });
   }
 
+  /** Loads the pane's own page for a failed load or a crash; the pane's URL stays the failed one. */
+  private showError(pane: Pane, url: string, kind: string, detail: string): void {
+    const wc = pane.view.webContents;
+    if (wc.isDestroyed()) return;
+    pane.errorFor = url;
+    this.log(pane, 'error', `${ERROR_TEXT[kind]?.[0] ?? 'This page did not load'}: ${url} ${detail}`);
+    void wc.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorPage(kind, url, detail))}`).catch(() => {});
+  }
+
+  /** Loads a URL again after an error page, re-attaching the debugger first when the renderer crashed. */
+  private async retry(pane: Pane, url: string): Promise<void> {
+    if (pane.crashed?.startsWith('the page crashed')) {
+      await this.attach(pane);
+      pane.crashed = null;
+    }
+    await this.load(pane, url);
+  }
+
+  /** A popup keeps its opener; it may not navigate off the web or open windows of its own, and it closes with its pane. */
+  private guardPopup(pane: Pane, child: BrowserWindow): void {
+    pane.popups.add(child);
+    child.on('closed', () => pane.popups.delete(child));
+    const cwc = child.webContents;
+    cwc.on('will-navigate', (e, url) => { stop(e, url); });
+    cwc.on('will-redirect', (e, url) => { stop(e, url); });
+    cwc.on('will-frame-navigate', (e) => { stop(e as unknown as Electron.Event, e.url); });
+    cwc.setWindowOpenHandler(() => ({ action: 'deny' }));
+    this.hooks.probe({ kind: 'popup', pane: pane.row.id, url: cwc.getURL() });
+  }
+
+  /** The URL a pane stands for: the failed one while it shows an error page. */
+  private pageUrl(pane: Pane): string {
+    return pane.errorFor ?? pane.view.webContents.getURL();
+  }
+
   private emitState(pane: Pane): void {
     const wc = pane.view.webContents;
     if (wc.isDestroyed()) return;
     this.hooks.paneEvent({
-      kind: 'state', pane_id: pane.row.id, url: wc.getURL(), title: wc.getTitle(), loading: wc.isLoading(),
+      kind: 'state', pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
       can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(),
     });
   }
@@ -333,7 +400,7 @@ export class PaneManager {
     switch (action) {
       case 'back': if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); break;
       case 'forward': if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); break;
-      case 'reload': wc.reload(); break;
+      case 'reload': if (pane.errorFor) void this.retry(pane, pane.errorFor).catch(() => {}); else wc.reload(); break;
       case 'stop': wc.stop(); break;
       case 'zoom-in': zoom(1); break;
       case 'zoom-out': zoom(-1); break;
@@ -444,6 +511,7 @@ export class PaneManager {
     this.panes.delete(id);
     if (this.shown === id) this.shown = null;
     pane.picking?.(null);
+    for (const w of pane.popups) if (!w.isDestroyed()) w.close();
     for (const [k, a] of this.asking) if (a.pane === id) { this.asking.delete(k); a.cb(false); }
     try { pane.dbg.detach(); } catch {}
     if (!this.win.isDestroyed()) {
@@ -592,6 +660,7 @@ export class PaneManager {
   private async clickAt(pane: Pane, x: number, y: number): Promise<void> {
     await this.pointAt(pane, x, y);
     this.hooks.probe({ kind: 'click', pane: pane.row.id, x, y });
+    pane.clickedAt = Date.now();
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
@@ -654,10 +723,11 @@ export class PaneManager {
     const r = await work();
     await this.settle(pane);
     const wc = pane.view.webContents;
-    const out: Record<string, unknown> = { ...r, url: wc.getURL(), title: wc.getTitle() };
+    const out: Record<string, unknown> = { ...r, url: this.pageUrl(pane), title: wc.getTitle() };
     if (pane.dialog) out.dialog = pane.dialog;
     const errors = pane.console.filter((c) => c.at >= from && c.level === 'error').map((c) => c.text);
     if (errors.length) out.errors = errors.slice(-20);
+    if (pane.errorFor && pane.navs !== navs) out.error = `the page did not load: ${pane.errorFor}`;
     if (pane.dialog) return out;
     const after = await this.lines(pane, undefined, true).catch(() => null);
     if (after) {
@@ -721,10 +791,13 @@ export class PaneManager {
           await this.attach(pane);
           pane.crashed = null;
         }
-        return this.answer(pane, session, async () => {
+        pane.errorFor = null;
+        const out = await this.answer(pane, session, async () => {
           await this.load(pane, a.url);
           return { status: pane.status };
         });
+        if (pane.errorFor) throw new ToolError(-32099, `could not load ${pane.errorFor}; the pane shows the error`);
+        return out;
       }
       case 'back': {
         const wc = pane.view.webContents;
@@ -774,6 +847,7 @@ export class PaneManager {
             for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }
           if (a.submit) {
+            pane.clickedAt = Date.now();
             for (const type of ['keyDown', 'keyUp']) {
               await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
             }
@@ -885,12 +959,13 @@ export class PaneManager {
       }
     } catch (e) {
       failed.push(e);
-    }
-    try {
-      if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
-      else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
-    } catch (e) {
-      failed.push(e);
+    } finally {
+      try {
+        if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
+        else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+      } catch (e) {
+        failed.push(e);
+      }
     }
     if (failed.length) throw failed[0];
     return { url: pane.view.webContents.getURL(), w390_path: out[390], w1280_path: out[1280] };
@@ -907,7 +982,36 @@ export class PaneManager {
     const node = await new Promise<number | null>((resolve) => { pane.picking?.(null); pane.picking = resolve; });
     if (node === null) return;
     await this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} });
-    const html = String((await this.cmd(pane, 'DOM.getOuterHTML', { backendNodeId: node })).outerHTML ?? '').slice(0, 2000);
+    pane.pickStack = [node];
+    await this.describe(pane, node);
+    if (!this.win.isDestroyed()) this.win.webContents.focus();
+  }
+
+  /** Arrow keys on a pick: up moves to the element's parent (stopping at body), down goes back to the child it came from. */
+  async walkPick(id: string, dir: 'up' | 'down'): Promise<boolean> {
+    const pane = this.pane(id);
+    const stack = pane.pickStack;
+    if (!stack.length) return false;
+    if (dir === 'down') {
+      if (stack.length < 2) return false;
+      stack.pop();
+    } else {
+      const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: stack[stack.length - 1], executionContextId: await this.isolated(pane) });
+      const up = await this.cmd(pane, 'Runtime.callFunctionOn', {
+        objectId: object.objectId,
+        functionDeclaration: 'function () { const p = this.parentElement; return p && p !== document.documentElement ? p : null; }',
+      });
+      if (!up.result?.objectId) return false;
+      const { node } = await this.cmd(pane, 'DOM.describeNode', { objectId: up.result.objectId });
+      stack.push(node.backendNodeId);
+    }
+    await this.describe(pane, stack[stack.length - 1]);
+    return true;
+  }
+
+  /** Sends a picked element's URL, CSS path, raw outer HTML (sanitised and cut to 4 KB when saved) and crop to the workbench UI. */
+  private async describe(pane: Pane, node: number): Promise<void> {
+    const html = String((await this.cmd(pane, 'DOM.getOuterHTML', { backendNodeId: node })).outerHTML ?? '').slice(0, PICK_RAW);
     const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
     const sel = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId: object.objectId,
@@ -932,7 +1036,7 @@ export class PaneManager {
     const w = Math.max(q[2], q[4]) - x + 8;
     const h = Math.max(q[5], q[7]) - y + 8;
     const crop = await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip: { x, y, width: Math.max(1, w), height: Math.max(1, h), scale: 1 } });
-    this.hooks.commentPicked({ pane_id: id, url: pane.view.webContents.getURL(), selector: String(sel.result?.value ?? ''), html, crop: crop.data });
+    this.hooks.commentPicked({ pane_id: pane.row.id, url: this.pageUrl(pane), depth: pane.pickStack.length - 1, selector: String(sel.result?.value ?? ''), html, crop: crop.data });
   }
 
   cancelPick(id: string): void {
@@ -955,6 +1059,33 @@ export class PaneManager {
   contentsOf(id: string): WebContents | null {
     return this.panes.get(id)?.view.webContents ?? null;
   }
+}
+
+/** Cancels a navigation to anything but http, https or about:blank; true when it did. */
+function stop(e: Electron.Event, url: string): boolean {
+  if (/^https?:/.test(url) || url === 'about:blank') return false;
+  e.preventDefault();
+  return true;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+const ERROR_TEXT: Record<string, [string, string]> = {
+  load: ['This page did not load', 'The address could not be reached.'],
+  certificate: ['This page is not secure', 'The site sent a certificate this browser does not trust, so the page was not loaded.'],
+  blocked: ['MetaTrooper blocked this page', 'The address is not on the browser pane allowlist.'],
+  crash: ['This page crashed', 'The page stopped working.'],
+};
+
+/** The page a pane shows for a load error, certificate error, blocked address or renderer crash. */
+export function errorPage(kind: string, url: string, detail: string): string {
+  const [title, text] = ERROR_TEXT[kind] ?? ERROR_TEXT.load;
+  const retry = /^https?:/.test(url) ? `<p><a href="${escapeHtml(url)}">Try again</a></p>` : '';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>`
+    + `<style>body{font:14px system-ui,sans-serif;margin:48px;color:#222;background:#fafafa}code{word-break:break-all}@media (prefers-color-scheme:dark){body{color:#ddd;background:#1b1b1b}a{color:#8ab4f8}}</style></head>`
+    + `<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><p><code>${escapeHtml(url.slice(0, 2000))}</code></p><p>${escapeHtml(detail.slice(0, 500))}</p>${retry}</body></html>`;
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
