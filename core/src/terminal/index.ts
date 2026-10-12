@@ -175,6 +175,20 @@ export async function search(query: string, max: number, only?: Set<string>): Pr
   return hits;
 }
 
+const typed = new Map<string, number>();
+// Focus, device and cursor reports, arrow keys and a bare Escape; a bracketed paste carries text, so it does not match.
+const NOT_TYPING = /^(?:\x1b(?:\[[\d;?>]*[A-Za-z~]|O[A-Za-z])?)+$/;
+
+/** Notes when the user last typed into a terminal from the workbench, held in memory only. ponytail: an Up-arrow history recall is not counted as a draft. */
+export function noteTyped(id: string, data: string): void {
+  if (!NOT_TYPING.test(data)) typed.set(id, Date.now());
+}
+
+/** Epoch ms of the user's last typing into the terminal, 0 when none since the core started. */
+export function typedAt(id: string): number {
+  return typed.get(id) ?? 0;
+}
+
 export function bracketedPaste(id: string): boolean {
   const t = terms.get(id);
   return !!t && t.head.modes.bracketedPasteMode;

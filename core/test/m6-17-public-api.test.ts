@@ -32,6 +32,7 @@ const EXPECTED_METHODS = [
   'session.search',
   'session.seen',
   'session.hide',
+  'session.limit-resume',
   'session.clear-status',
   'session.owners',
   'session.paste-prompt',

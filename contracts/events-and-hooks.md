@@ -32,6 +32,7 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.UserPromptSubmit` | claude-hook | `session_id`, `transcript_path`, `cwd`, `prompt_length`. The prompt text is never stored |
 | `claude.Notification` | claude-hook | `session_id`, `cwd`, `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
 | `claude.Stop` | claude-hook | `session_id`, `transcript_path`, `cwd`, `stop_hook_active` |
+| `claude.StopFailure` | claude-hook | `session_id`, `transcript_path`, `cwd`, `error_type` (for example `rate_limit`) |
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
 | `term.bell` | core | `{}` (terminal bell, used only when the session has been silent 30 s) |
@@ -44,6 +45,8 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
 | `core.stalled` | core | `{}`: the session is still `starting` 15 s after launch (5 s check); the engine is sitting on a trust prompt, a login, or an empty input box |
 | `core.claim` | core | `{repo, turn_base, from, at, files: [{path, owners: [session ids], shared}]}`: written processed at each `claude.Stop` and `claude.SessionEnd` for the files changed in that turn (`git diff --name-only <turn_base>`, plus untracked files modified since the turn's `UserPromptSubmit`). Paths are relative to `repo`. A file another session also changed in an overlapping turn goes to the session whose Edit, Write or MultiEdit hook named it; with no such hint, or when an earlier live owner's change is still uncommitted, both are listed and `shared` is true (M4-11) |
+| `core.limit-hit` | core | `{"window": str or null, "resets_at": ts or null, "after": int}`: written while processing a `claude.StopFailure` whose `error_type` is `rate_limit`; `after` is that event's `seq`. `window` and `resets_at` come from the Claude `limit_reading` rows whose reset is still ahead: the latest reset among windows at 100% or more, else the fullest window's (M6-24) |
+| `core.limit-resumed` | core | `{"limit_hit": int}`: the `seq` of the `core.limit-hit` it answers. Written before the paste, so a restart never pastes twice (M6-24) |
 | `core.*` | core | other internal kinds: `core.checkpoint`, `core.recovered`, `core.missed-schedule`; they never change state |
 
 Every payload is built from an explicit allowlist of fields, exactly as listed in this table. Any field not
@@ -82,6 +85,7 @@ The core processes events in `seq` order and sets `session.state`:
 | `claude.Notification` with `class` `permission` or `input` | `waiting_for_you` |
 | `claude.Notification` with `class` `other` | no change |
 | `claude.Stop` | `done` |
+| `claude.StopFailure` | `waiting_for_you` |
 | `claude.SessionEnd` | `exited` |
 | `codex.turn` | `done` |
 | `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working` |
@@ -95,6 +99,24 @@ The core processes events in `seq` order and sets `session.state`:
 | `core.seen` while `done` | `idle` |
 
 `exited` is final: once a session is `exited`, no event changes its state again.
+
+## Resume at a limit reset (M6-24)
+
+Every 5 s the core looks at each `core.limit-hit` with no `core.limit-resumed` naming it. A hit written with
+`resets_at` null takes it from `limit_history`: each Claude window's first reset after the hit, picked the same way as
+at the hit. Once `resets_at` has passed, it acts only when the session is `waiting_for_you`, its pty is open,
+`session.limit_resume` is 1 (the tile's toggle, default on), the user has not typed into the terminal since the hit
+(focus, device and cursor reports and arrow keys do not count; held in memory only), and no event has arrived for the
+session after the failure (`seq` above `after`) of kind `claude.*` other than `claude.Notification`, or
+`core.prompt-written`. It then appends `core.limit-resumed` and pastes `Continue where you left off.` followed by
+Enter, once. Turning the toggle off stops the paste.
+
+Every 60 s, after `limit_reading` is refreshed, each `ok` reading is copied to `limit_history` once per `read_at`,
+and only the last 6 per window are kept. When a window's last 6 readings share one `resets_at`, the usage slope
+from the first to the last reading is positive, and `last read_at + (100 - last used_pct) / slope` falls after now
+and before `resets_at`, the core adds one `needs_you` row of kind `other`, ref
+`limit-early:<provider>:<account>:<window>:<resets_at>`, text `<Provider> <window> window ends early at about
+HH:MM` (local time). A ref is never written twice.
 
 ## Hook installation
 

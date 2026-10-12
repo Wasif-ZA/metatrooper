@@ -8,6 +8,7 @@ import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
+import { limitHit } from '../sessions/limit-resume.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -84,7 +85,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
           // A PostToolUse clears it only when it finishes the tool last asked for, so overlapping tools keep the one still pending.
           const pending = ev.kind === 'claude.PostToolUse' && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq) as { id: unknown } | undefined)?.id : undefined;
-          if ((ev.kind === 'claude.PostToolUse' && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
+          if ((ev.kind === 'claude.PostToolUse' && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
+          if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
         const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });

@@ -8,6 +8,7 @@ import { installClaude, installCodex, installEngineSettings, lineDiff, planClaud
 import { loadEngines } from './src/engines/registry.ts';
 import { call, type CallOutcome } from './src/pipe/client.ts';
 import { openReaderDb } from './src/store/db.ts';
+import { engineVersion } from './src/engines/health.ts';
 import { projectId, resolveProjectPath } from './src/project.ts';
 import { formatGate, measureGate, parseGateDate } from './src/gate.ts';
 import { repoDir } from './src/paths.ts';
@@ -88,7 +89,8 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
   const codex = flags.has('--codex');
   const yes = flags.has('--yes');
   if (action === 'install') {
-    const plan = planClaudeInstall();
+    const version = withDb((db) => engineVersion(db, 'claude'));
+    const plan = planClaudeInstall(version);
     console.log(`Changes to ${plan.file}:\n${lineDiff(plan.before, plan.after) || '(none)'}`);
     if (codex) console.log('The Codex notify setting will be wrapped; a backup is written next to config.toml.');
     for (const e of loadEngines()) if (e.settings) console.log(`${e.id}: sets ${Object.entries(e.settings.set).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')} in ${e.settings.file}`);
@@ -96,7 +98,7 @@ async function hooks(action: string, flags: Set<string>): Promise<number> {
       console.log('Nothing changed.');
       return 1;
     }
-    installClaude();
+    installClaude(version);
     if (codex) installCodex();
     installEngineSettings(loadEngines());
     console.log('Hooks installed.');

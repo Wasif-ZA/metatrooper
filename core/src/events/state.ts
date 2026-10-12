@@ -19,6 +19,8 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
       return p.class === 'idle' && current === 'starting' ? 'idle' : null;
     case 'claude.Stop':
       return 'done';
+    case 'claude.StopFailure':
+      return 'waiting_for_you';
     // A Claude conversation can end (clear, resume) while its terminal lives on; core.process-gone marks the real exit.
     case 'claude.SessionEnd':
       return current === 'idle' ? null : 'idle';

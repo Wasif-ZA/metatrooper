@@ -50,7 +50,7 @@ function run(argv: string[], timeoutMs = 10_000): Promise<RunResult> {
   });
 }
 
-function older(version: string, min: string): boolean {
+export function older(version: string, min: string): boolean {
   const parts = (s: string) => (s.match(/\d+(\.\d+)*/)?.[0] ?? '0').split('.').map(Number);
   const a = parts(version);
   const b = parts(min);
@@ -75,6 +75,11 @@ export async function checkEngine(db: DatabaseSync, e: EngineSpec): Promise<void
   }
   db.prepare('INSERT OR REPLACE INTO engine_check (engine_id, checked_at, installed, version, auth, detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(e.id, nowIso(), installed ? 1 : 0, version, installed ? auth : 'missing', detail);
+}
+
+/** The version the last check found for an installed engine, null when unchecked or missing. */
+export function engineVersion(db: DatabaseSync, id: string): string | null {
+  return (db.prepare('SELECT version FROM engine_check WHERE engine_id = ? AND installed = 1').get(id) as { version: string | null } | undefined)?.version ?? null;
 }
 
 export async function checkAll(db: DatabaseSync, engines: EngineSpec[]): Promise<void> {

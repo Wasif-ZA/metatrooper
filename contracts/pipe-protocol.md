@@ -135,6 +135,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `session.search` | `{query, session_ids?}` | {hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |  |  | yes |
 | `session.seen` | `{session_id}` | {}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` | -32002 |  |  |
 | `session.hide` | `{session_id}` | {} | -32002 |  |  |
+| `session.limit-resume` | `{session_id, on: bool}` | {}; sets the tile's "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean | -32602, -32002 |  |  |
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
 | `session.owners` | `{project_id}` | {repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` | -32002 |  |  |
 | `session.paste-prompt` | `{session_id}` | {written, reason?}: types the held prompt once; refused for an `external` session | -32002, -32602 |  |  |

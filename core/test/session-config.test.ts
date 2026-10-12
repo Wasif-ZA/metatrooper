@@ -60,6 +60,35 @@ test('Claude hooks travel in a per-session settings file and the global settings
   uninstallClaude();
 }));
 
+test('the StopFailure hook goes in for Claude Code 2.1.78 and later only, survives an install made before an upgrade, and uninstall removes it', () => withHome(async () => {
+  const { sessionHookArgs, installClaude, uninstallClaude } = await import('../src/hooks/install.ts');
+  const { sandboxHookArgs } = await import('../src/sandbox/launch.ts');
+  const { spoolDir } = await import('../src/sandbox/spool.ts');
+  const hooksOf = (args: string[]) => JSON.parse(fs.readFileSync(args[0].slice('--settings='.length), 'utf8')).hooks;
+  const six = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'];
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'A', null))), six);
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'B', '2.1.77 (Claude Code)'))), six);
+  const recent = hooksOf(sessionHookArgs(claude, 'C', '2.1.78 (Claude Code)'));
+  assert.deepEqual(Object.keys(recent), [...six, 'StopFailure']);
+  assert.match(recent.StopFailure[0].hooks[0].command, /event\.js" claude\.StopFailure$/);
+  assert.equal(recent.StopFailure[0].matcher, undefined);
+
+  const settings = process.env.METATROOPER_CLAUDE_SETTINGS!;
+  installClaude('2.0.1 (Claude Code)');
+  assert.equal('StopFailure' in JSON.parse(fs.readFileSync(settings, 'utf8')).hooks, false);
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'D', '2.1.296 (Claude Code)'))), ['StopFailure']);
+  installClaude('2.1.296 (Claude Code)');
+  assert.ok(JSON.parse(fs.readFileSync(settings, 'utf8')).hooks.StopFailure);
+  assert.equal('hooks' in JSON.parse(fs.readFileSync(sessionHookArgs(claude, 'E', '2.1.296 (Claude Code)')[0].slice('--settings='.length), 'utf8')), false);
+  uninstallClaude();
+  assert.ok(!fs.existsSync(settings) || !fs.readFileSync(settings, 'utf8').includes('event.js'));
+
+  const spool = spoolDir('X');
+  fs.mkdirSync(spool, { recursive: true });
+  sandboxHookArgs(claude, 'X');
+  assert.ok(JSON.parse(fs.readFileSync(path.join(spool, 'settings.json'), 'utf8')).hooks.StopFailure);
+}));
+
 test('uninstallClaude with no install record removes only MetaTrooper hook entries', () => withHome(async () => {
   const { planClaudeInstall, uninstallClaude } = await import('../src/hooks/install.ts');
   const settings = process.env.METATROOPER_CLAUDE_SETTINGS!;

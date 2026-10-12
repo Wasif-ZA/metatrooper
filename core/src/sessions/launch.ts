@@ -8,6 +8,7 @@ import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
 import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
+import { engineVersion } from '../engines/health.ts';
 import { canonicalPath, isAskPath, nearAskPath } from '../project.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
@@ -87,7 +88,7 @@ export function launchSession(
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
     const router = metarouterLaunch(opts.engine);
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
     env = { ...router.env, ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };

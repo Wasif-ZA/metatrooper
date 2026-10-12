@@ -6,6 +6,7 @@ import type { EngineSpec } from '../engines/registry.ts';
 import { imageTag, containerRuntime } from './checks.ts';
 import { NETWORK, PROXY } from './build.ts';
 import { spoolDir } from './spool.ts';
+import { EVENTS } from '../hooks/install.ts';
 
 const fwd = (p: string) => p.split(String.fromCharCode(92)).join('/');
 
@@ -77,7 +78,8 @@ export function dockerArgv(sessionId: string, engine: EngineSpec, worktree: stri
 export function sandboxHookArgs(engine: EngineSpec, sessionId: string): string[] {
   if (engine.mcp_attach?.kind === 'codex-config') return ['-c', 'notify=["node", "/opt/troop/codex-notify.js", "[]"]'];
   if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return [];
-  const events = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'];
+  // The image installs the latest Claude Code, which lists every event, StopFailure included.
+  const events = EVENTS;
   const group = (ev: string) => {
     const hooks = [{ type: 'command', command: `node /opt/troop/event.js claude.${ev}`, timeout: 5 }];
     return ev.endsWith('ToolUse') ? { matcher: '*', hooks } : { hooks };

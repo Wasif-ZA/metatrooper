@@ -19,6 +19,7 @@ import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { ingestSpools } from './sandbox/spool.ts';
 import { readMeters } from './meter.ts';
 import { readLimits } from './limits.ts';
+import { earlyEnd, recordReadings, resumeAtReset } from './sessions/limit-resume.ts';
 import { syncBuiltinPlugins } from './plugins/store.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
@@ -118,8 +119,10 @@ async function main(): Promise<void> {
   every(1000, () => checkActivity(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
   every(2000, () => readMeters(db));
-  try { readLimits(db); } catch {}
-  every(60_000, () => readLimits(db));
+  const limits = () => { readLimits(db); recordReadings(db); earlyEnd(db); };
+  try { limits(); } catch {}
+  every(60_000, limits);
+  every(5000, () => resumeAtReset(db));
   every(2000, () => notifyTick(db));
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));

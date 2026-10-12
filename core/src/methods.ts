@@ -8,7 +8,7 @@ import type { MethodSpec } from './pipe/commands.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
-import { checkAll } from './engines/health.ts';
+import { checkAll, engineVersion } from './engines/health.ts';
 import { launchSession, writePrompt } from './sessions/launch.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
@@ -66,6 +66,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
+  { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
@@ -268,6 +269,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('session.limit-resume', {
+    handler: (p) => {
+      if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const r = db.prepare('UPDATE session SET limit_resume = ? WHERE id = ?').run(p.on ? 1 : 0, str(p, 'session_id'));
+      if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'session not found');
+      return {};
+    },
+  });
+
   m.set('project.clear', {
     handler: (p) => {
       const id = str(p, 'project_id');
@@ -422,7 +432,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('hooks.install', {
     handler: (p) => {
-      const claude = installClaude();
+      const claude = installClaude(engineVersion(db, 'claude'));
       const codex = p.codex ? installCodex() : null;
       const settings = installEngineSettings(ctl.engines());
       return {

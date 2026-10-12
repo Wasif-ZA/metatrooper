@@ -77,6 +77,8 @@ export function buildPayload(kind        , raw        )      {
     }
     case 'claude.Stop':
       return pick(r, ['session_id', 'transcript_path', 'cwd', 'stop_hook_active']);
+    case 'claude.StopFailure':
+      return pick(r, ['session_id', 'transcript_path', 'cwd', 'error_type']);
     case 'claude.SessionEnd':
       return pick(r, ['session_id', 'cwd', 'reason']);
     case 'codex.turn':
@@ -94,7 +96,7 @@ export function buildPayload(kind        , raw        )      {
   }
 }
 
-const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.SessionEnd', 'codex.turn']);
+const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.StopFailure', 'claude.SessionEnd', 'codex.turn']);
 const CLASSES = new Set(['permission', 'input', 'idle', 'other']);
 
 export function spoolKind(kind        )          {
@@ -131,6 +133,8 @@ export function rebuildPayload(kind        , built        )      {
       return { ...strs(['session_id', 'cwd', 'notification_type']), class: CLASSES.has(b.class          ) ? b.class : 'other', message_length: n('message_length') };
     case 'claude.Stop':
       return { ...strs(['session_id', 'transcript_path', 'cwd']), stop_hook_active: b.stop_hook_active === true };
+    case 'claude.StopFailure':
+      return strs(['session_id', 'transcript_path', 'cwd', 'error_type']);
     case 'claude.SessionEnd':
       return strs(['session_id', 'cwd', 'reason']);
     case 'codex.turn':
