@@ -101,6 +101,7 @@ export class Watcher {
     child.on('error', fail);
     child.on('exit', fail);
     readline.createInterface({ input: child.stdout! }).on('line', (line) => {
+      if (this.child !== child) return;
       let msg: (WatchEvent & { ready?: boolean }) | null = null;
       try { msg = JSON.parse(line); } catch { return; }
       if (msg?.ready) {

@@ -272,3 +272,18 @@ $timer.Start()
     app.close();
   }
 });
+
+test('M6-22: output a stopped helper still has in its pipe changes nothing', { skip: !windows && 'Windows only', timeout: 60_000 }, () => {
+  const db = setup();
+  const w = new Watcher(db);
+  grant(db, 's1');
+  w.tick();
+  const child = (w as any).child;
+  db.prepare('UPDATE grant SET ended_at = ?').run(nowIso());
+  w.tick();
+  assert.equal(meta(db, 'input_watcher'), 'idle');
+  child.stdout.emit('data', Buffer.from(`{"ready":true}\n${JSON.stringify(key(Date.now() + 600_000))}\n`));
+  assert.equal(meta(db, 'input_watcher'), 'idle');
+  assert.equal(items(db, 'input').length, 0);
+  assert.equal(meta(db, 'takeover_paused_at'), null);
+});
