@@ -8,7 +8,7 @@ const terminalSource = readFileSync(new URL('../renderer/terminal.js', import.me
 const fn = (name: string, src: string, indent = '') =>
   src.match(new RegExp(`^${indent}(?:async )?function ${name}\\([^]*?\\r?\\n${indent}}\\r?\\n`, 'm'))![0];
 
-const LIVE = ['starting', 'working', 'waiting_for_you'];
+const LIVE = ['starting', 'working', 'waiting_for_you', 'unknown'];
 const SETTLED = ['done', 'idle', 'exited'];
 
 // the real label() from terminal.js, run against a tile whose elements are plain objects
@@ -31,7 +31,7 @@ const tileHides = (t: any) => {
 
 const session = (state: string, extra = {}) => ({ id: 's1', state, engine_id: 'claude', task: 't', words: state, ...extra });
 
-test('M6-27a tile: no hide x while starting, working or waiting_for_you; exactly one when done, idle or exited', () => {
+test('M6-27a tile: no hide x while starting, working, waiting_for_you or unknown; exactly one when done, idle or exited', () => {
   // protects=M6-27a a live agent's tile cannot be hidden, so it never drops out of "need you"
   // fails_when=label() leaves data-action="hide" on the tile x for a live state, or drops it for a settled one
   // no_claim=CSS, real DOM layout, or the core session.hide (out of scope)
@@ -74,7 +74,7 @@ test('M6-27b tile: a session going from working to done gains its x in one rende
   assert.equal(tileHides(t), 0);
 });
 
-test('M6-27a list row: no hide x while starting, working or waiting_for_you; exactly one when done, idle or exited', () => {
+test('M6-27a list row: no hide x while starting, working, waiting_for_you or unknown; exactly one when done, idle or exited', () => {
   // protects=M6-27a the list row x cannot hide a live agent
   // fails_when=rowHtml() renders data-action="hide" for a live state, or not exactly once for a settled one
   // no_claim=the click handler for case 'hide' or the core session.hide

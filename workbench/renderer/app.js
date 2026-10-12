@@ -491,7 +491,7 @@ function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
   return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Click: big slot. Shift+click: pair. Drop files to send their paths.">
-    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${['starting', 'working', 'waiting_for_you'].includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button>`}</span>
+    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${['starting', 'working', 'waiting_for_you', 'unknown'].includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
 
