@@ -18,4 +18,20 @@ r.sameControlSends = await rechecked();
 now = { ...now, password: true };
 r.becamePasswordAsksAgain = await rechecked();
 
+// What each key combination dispatches: the keyDown's key, code and text
+const sent: Array<Record<string, any>> = [];
+internal.cmd = async (_p: unknown, method: string, params: Record<string, any>) => { if (method === 'Input.dispatchKeyEvent') sent.push(params); return {}; };
+const press = async (keys: string) => {
+  sent.length = 0;
+  await internal.pressKeys(pane, keys);
+  const down = sent[0];
+  return `${down.type} ${down.key} ${down.code} ${down.text === undefined ? '-' : JSON.stringify(down.text)} up:${sent[1].key}`;
+};
+r.plain = await press('a');
+r.shiftLetter = await press('Shift+a');
+r.shiftDigit = await press('Shift+1');
+r.shiftPunctuation = await press('Shift+/');
+r.ctrlLetter = await press('Ctrl+a');
+r.shiftEnter = await press('Shift+Enter');
+
 console.log(JSON.stringify(r));

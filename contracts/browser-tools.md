@@ -25,7 +25,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}` plus the page state; replaces the field's text (select all, then insert); same checks as `click` |
 | `select` | `{pane_id, ref, value}` | `{ok}` plus the page state; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
-| `key` | `{pane_id, keys}` | `{ok}`; presses a key or chord on the focused element (`Enter`, `Tab`, `Escape`, `Space`, arrows, one character, with `Control+`, `Alt+`, `Shift+`, `Meta+`) |
+| `key` | `{pane_id, keys}` | `{ok}`; presses a key or chord on the focused element (`Enter`, `Tab`, `Escape`, `Space`, arrows, one character, with `Control+`, `Alt+`, `Shift+`, `Meta+`; `Shift+` types a character's US-layout shifted form, so `Shift+a` types `A` and `Shift+1` types `!`) |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
 | `screenshot` | `{pane_id, full_page?: bool = false, ref?, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |

@@ -853,8 +853,19 @@ export class PaneManager {
     };
     let def = NAMED[key.toLowerCase()];
     if (!def && key.length === 1) {
-      const up = key.toUpperCase();
-      def = [key, /[A-Z]/.test(up) ? `Key${up}` : /\d/.test(key) ? `Digit${key}` : '', up.charCodeAt(0), key];
+      // US layout: each unshifted character followed by its Shift form. CDP types `text` as given, so Shift is applied here.
+      const PAIRS = '`~1!2@3#4$5%6^7&8*9(0)-_=+[{]}\\|;:\'",<.>/?';
+      const PUNCT: Record<string, [string, number]> = {
+        '`': ['Backquote', 192], '-': ['Minus', 189], '=': ['Equal', 187], '[': ['BracketLeft', 219], ']': ['BracketRight', 221],
+        '\\': ['Backslash', 220], ';': ['Semicolon', 186], "'": ['Quote', 222], ',': ['Comma', 188], '.': ['Period', 190], '/': ['Slash', 191],
+      };
+      const shift = (modifiers & 8) !== 0;
+      const i = PAIRS.indexOf(key);
+      const base = i >= 0 ? PAIRS[i - (i % 2)] : key.toLowerCase();
+      const out = !shift ? key : i >= 0 ? PAIRS[i - (i % 2) + 1] : key.toUpperCase();
+      const up = base.toUpperCase();
+      const [code, vk] = /[a-z]/.test(base) ? [`Key${up}`, up.charCodeAt(0)] : /\d/.test(base) ? [`Digit${base}`, base.charCodeAt(0)] : PUNCT[base] ?? ['', base.charCodeAt(0)];
+      def = [out, code, vk, out];
     }
     if (!def) throw new ToolError(-32602, `unknown key ${key}`);
     const [k, code, vk, text] = def;
