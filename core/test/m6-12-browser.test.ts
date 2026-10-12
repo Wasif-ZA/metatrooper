@@ -133,6 +133,9 @@ test('M6-12 browser.secret.set keeps the value out of every table and file, save
   assert.equal(getSecret('core-browser', 'MARKED'), marker);
   assert.ok(knownSecretValues().includes(marker));
   assert.throws(() => methods.get('browser.secret.set')!.handler({ name: 'BAD', origin: 'file:///c:/x', value: 'v' }), /origin must be an http or https URL/);
+  // the scrub skips values under 4 characters, so a shorter secret could come back verbatim
+  assert.throws(() => methods.get('browser.secret.set')!.handler({ name: 'SHORT', origin: 'https://login.test', value: 'abc' }), /at least 4 characters/);
+  assert.equal(browserSecretOrigin('SHORT'), null);
   assert.equal(ap.summaryOf(check({ action: 'type', control: { automation_id: '', name: marker, role: 'textbox' } }) as never, knownSecretValues()), 'type into [secret] in a.test');
 
   const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();

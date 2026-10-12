@@ -185,9 +185,12 @@ export function redactCredentials(text        )         {
 }
 
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
+/** Shorter values are not redacted: they would match ordinary words. A browser secret must be at least this long. */
+export const MIN_SECRET_LENGTH = 4;
+
 export function redactSecretValues(text        , values                  )         {
   let out = text;
-  for (const v of [...values].sort((a, b) => b.length - a.length)) if (v.length >= 4) out = out.split(v).join('[secret]');
+  for (const v of [...values].sort((a, b) => b.length - a.length)) if (v.length >= MIN_SECRET_LENGTH) out = out.split(v).join('[secret]');
   return out;
 }
 

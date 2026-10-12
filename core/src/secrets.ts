@@ -5,6 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { homeDir } from './paths.ts';
 import { nowIso } from './time.ts';
 import { resolve } from './terminal/shells.ts';
+import { MIN_SECRET_LENGTH } from './redact.ts';
 import { BROWSER_SECRETS, normalOrigin, originFile, SECRET_NAME } from './browser/secret-origin.ts';
 
 const cache = new Map<string, string>();
@@ -124,6 +125,7 @@ export function setBrowserSecret(db: DatabaseSync, name: string, origin: string,
   if (!SECRET_NAME.test(name)) throw new Error('name must be letters, digits and _, starting with a letter');
   if (!o) throw new Error('origin must be an http or https URL');
   if (!value) throw new Error('value is required');
+  if (value.length < MIN_SECRET_LENGTH) throw new Error(`value must be at least ${MIN_SECRET_LENGTH} characters, or output scrubbing cannot catch it`);
   setSecret(db, BROWSER_SECRETS, name, value);
   fs.writeFileSync(originFile(name), o, { encoding: 'utf8', mode: 0o600 });
 }
