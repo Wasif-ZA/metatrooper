@@ -194,7 +194,7 @@ test('M6-03 migration 002 upgrades an M6-4 database to the tables schema.sql def
   const fresh = new DatabaseSync(':memory:');
   try {
     old.exec(before);
-    assert.deepEqual(migrate(old), [1, 2]);
+    assert.deepEqual(migrate(old), [1, 2, 3]);
     assert.deepEqual(old.prepare('PRAGMA foreign_key_check').all(), []);
     fresh.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
     const sql = (d: DatabaseSync) => d.prepare("SELECT name, sql FROM sqlite_master WHERE name IN ('session_port', 'session_dev_server') ORDER BY name").all();

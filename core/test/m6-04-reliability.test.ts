@@ -108,7 +108,7 @@ test('migrate records baseline id 1 once and a second open applies nothing', t =
   const isolated = fixture(t);
   let db = openDb(isolated);
   const before = migrationRows(db);
-  assert.deepEqual(before.map(row => row.id), [1, 2]);
+  assert.deepEqual(before.map(row => row.id), [1, 2, 3]);
   assert.equal(typeof before[0].applied_at, 'string');
   assert.ok(Number.isFinite(Date.parse(before[0].applied_at)));
   assert.deepEqual(migrate(db), []);
@@ -129,7 +129,7 @@ test('migrate applies only numbered SQL files and returns applied ids', t => {
   const db = openDb(isolated);
   try {
     assert.deepEqual(migrate(db, dir), [902]);
-    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2, 902]);
+    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2, 3, 902]);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'added'").get().name, 'added');
     assert.deepEqual(migrate(db, dir), []);
   } finally { db.close(); }
@@ -144,7 +144,7 @@ test('migrate rolls back all statements and its record when 903 fails', t => {
   const db = openDb(isolated);
   try {
     assert.throws(() => migrate(db, dir), /syntax error/i);
-    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2, 902]);
+    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2, 3, 902]);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'partial'").get(), undefined);
     assert.deepEqual(db.prepare('SELECT id FROM retained').all().map(row => row.id), [7]);
     writeFileSync(join(dir, '903-bad.sql'), 'CREATE TABLE repaired (id INTEGER);');
@@ -183,7 +183,7 @@ test('M6-04c M5 database gets baseline once and reopening preserves schema and r
   db = openDb(isolated);
   const applied = migrationRows(db);
   try {
-    assert.deepEqual(applied.map(row => row.id), [1, 2]);
+    assert.deepEqual(applied.map(row => row.id), [1, 2, 3]);
     assert.deepEqual(db.prepare("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name != 'schema_migration' ORDER BY name").all(), schema);
     assert.deepEqual(db.prepare('SELECT * FROM project').all(), project);
   } finally { db.close(); }
