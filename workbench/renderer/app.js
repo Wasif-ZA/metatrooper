@@ -579,7 +579,7 @@ function renderDiffTab(sel) {
   if (!d) return `${bar}<p class="empty">Loading.</p>`;
   if (d.error) return `${bar}<p class="empty">${esc(d.error)}</p>`;
   if (!d.files.length && !d.untracked.length) return `${bar}<p class="empty">No changes ${ui.diffScope === 'turn' ? 'in the last turn' : ui.diffScope === 'branch' ? 'on this branch' : 'since the last commit'}.</p>`;
-  if (!ui.sdFile || !d.files.some((f) => f.path === ui.sdFile)) ui.sdFile = d.files[0] ? d.files[0].path : null;
+  if (!ui.sdFile || !(d.files.some((f) => f.path === ui.sdFile) || d.untracked.includes(ui.sdFile))) ui.sdFile = d.files[0] ? d.files[0].path : null;
   const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}:${ui.diffScope}`;
   if (ui.sdFile && ui.sdKey !== want) {
     ui.sdKey = want;
@@ -969,6 +969,7 @@ async function onClick(e) {
       ui.diffAll = false;
       ui.diffScope = 'uncommitted';
       ui.sdFile = el.dataset.file;
+      ui.sdiff = null;
       ui.hbDiff = undefined;
       await pick(id);
       await openTab('diff');

@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { owners } from '../../core/src/sessions/owners.ts';
 import { isQueueable } from '../../core/src/pipe/commands.ts';
+import { fileDiff, gitIn } from '../src/handback.ts';
 import { ownedBy, ownedIn, refreshRowGit, rowGit } from '../src/rowgit.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
@@ -109,6 +110,33 @@ test('M6-21 a session working in its own git worktree gets its claimed files, no
     assert.deepEqual(await ownedIn(db, [repo, wt, wt, null]), { s_wt: ['a.txt'] });
   } finally {
     db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('M6-21 a claimed untracked file opens from the changed menu and shows as all new lines', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wb-changed-new-'));
+  try {
+    execFileSync('git', ['init', '-q', '-b', 'main', dir]);
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+    git('config', 'user.email', 't@x.example');
+    git('config', 'user.name', 'T');
+    writeFileSync(join(dir, 'a.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+    writeFileSync(join(dir, 'new.txt'), 'fresh line\n');
+    assert.match(await fileDiff(gitIn(dir), 'HEAD', 'new.txt'), /^\+fresh line$/m);
+    assert.equal(await fileDiff(gitIn(dir), 'HEAD', 'a.txt'), '', 'a clean tracked file is not shown as new');
+
+    const asked: string[] = [];
+    const ui: Record<string, any> = { diffScope: 'uncommitted', sdFile: 'new.txt', sdiff: { at: 1, data: { files: [{ path: 'a.txt', added: 1, deleted: 1 }], untracked: ['new.txt'] } } };
+    const api = { sessionDiffFile: (_id: string, file: string) => { asked.push(file); return new Promise(() => {}); } };
+    const renderDiffTab = new Function('ui', 'api', 'esc', 'renderAllChanges', 'loadSessionDiff', 'renderDiff', `${fn('renderDiffTab')}; return renderDiffTab;`)(ui, api, String, () => '', () => {}, () => '');
+    renderDiffTab({ id: 's1' });
+    assert.equal(ui.sdFile, 'new.txt');
+    assert.deepEqual(asked, ['new.txt']);
+    assert.match(appSource, /case 'changed-open':[^]*?ui\.sdFile = el\.dataset\.file;\s*ui\.sdiff = null;[^]*?openTab\('diff'\)/, 'a pick inside the 10 s cache refetches the list');
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
