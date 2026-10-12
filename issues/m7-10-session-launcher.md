@@ -38,7 +38,7 @@ costs about 60 MB per session.
 | Pty start | `core/src/sessions/launch.ts:106` | `term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', engine, '--args-b64', b64], cwd, env)` |
 | Pty pid | `core/src/terminal/index.ts:61, 98` | `open()` returns `proc.pid` |
 | Launch logic | `core/src/hook/launch.ts` | argv decode, `TROOP_SESSION_ID`, `recordLaunch`, `resolveCommand`, spawn, exit code |
-| Command lookup | `core/src/hook/resolve.ts` | 41 lines: PATH and PATHEXT, `.cmd` shims |
+| Command lookup | `core/src/hook/resolve.ts` | 41 lines: PATH and PATHEXT; an npm `.cmd` shim is unwrapped to its target (`.exe` run directly, `.js` run with Node); a shim that needs env vars returns null |
 | `launch` event use | `core/src/events/processor.ts:80` | sets `session.pid` from `payload.pid` |
 | Kill on close | nowhere | a process the engine starts detached outlives the session |
 
@@ -63,21 +63,24 @@ after:   ConPTY -> metatrooper-launch.exe (job, kill on close, ~2 MB) -> claude.
    `SetConsoleCtrlHandler`, `CloseHandle`) are declared by hand with `extern "system"`. `windows-sys` fails the
    25k-star dependency gate. Release profile: `opt-level = "z"`, `lto = true`, `panic = "abort"`, `strip = true`.
 3. **Behaviour.** Same flags as today (`--session`, `--engine`, `--args-b64`). It creates the job and assigns itself
-   before it starts anything, so every descendant inherits the job. It sets `TROOP_SESSION_ID`, resolves the command
-   the way `resolve.ts` does (PATH, PATHEXT, `.cmd` through `cmd.exe /d /s /c`), starts it with inherited stdio,
-   ignores Ctrl+C and Ctrl+Break itself, and exits with the child's code. Error texts and codes stay: "troop launch:
-   no command given" exit 2, "troop launch: could not find X on PATH" exit 127, "troop launch: could not start X"
-   exit 127. When it exits, the job handle closes and Windows ends every process left in it.
-4. **Launch event moves to the core.** `core/src/sessions/launch.ts` writes the `launch` event itself right after
+   before it starts anything, so every descendant inherits the job. It sets `TROOP_SESSION_ID`, starts the argv it
+   was given as is with inherited stdio, ignores Ctrl+C and Ctrl+Break itself, and exits with the child's code. Error
+   texts and codes stay: "troop launch: no command given" exit 2, "troop launch: could not find X on PATH" exit 127
+   when the start fails with not found, "troop launch: could not start X" exit 127 otherwise. When it exits, the job
+   handle closes and Windows ends every process left in it.
+4. **Command lookup moves to the core.** `core/src/sessions/launch.ts` runs `resolveCommand` on `argv[0]` before it
+   encodes `--args-b64`, so the launcher gets a finished argv and `resolve.ts` is not ported. When lookup returns
+   null the argv goes through unchanged and the launcher reports not found.
+5. **Launch event moves to the core.** `core/src/sessions/launch.ts` writes the `launch` event itself right after
    `term.open`, with `pid` set to the value `open()` returns and the same payload shape. `launch.ts` in `hook/` stops
    writing it, so the Node fallback and the Rust launcher behave the same and the Rust side needs no SQLite.
-5. **Choice of launcher.** `launch.ts:98` uses `<coreDir>/bin/metatrooper-launch.exe` when it exists on Windows,
+6. **Choice of launcher.** `launch.ts:98` uses `<coreDir>/bin/metatrooper-launch.exe` when it exists on Windows,
    else `node launch.js` as today, and writes one log line naming which. Linux keeps `launch.js` (the source beta,
    M5-D4).
-6. **Build and ship.** `.github/workflows/ci.yml` gains a Windows job: `cargo build --release` in `launcher/`, then
+7. **Build and ship.** `.github/workflows/ci.yml` gains a Windows job: `cargo build --release` in `launcher/`, then
    the launcher tests. `tests/release.ps1` builds it. The M5-1 installer copies the binary into `core/bin/`. The M5-2
    signing step signs it along with the rest. A dev checkout without Rust still works through the fallback.
-7. **Docs.** `CONTRIBUTING.md` names the Rust toolchain as optional; `README.md` Known limits says a session's
+8. **Docs.** `CONTRIBUTING.md` names the Rust toolchain as optional; `README.md` Known limits says a session's
    descendants are ended on close on Windows only.
 
 ### Fallback considered
@@ -100,7 +103,7 @@ another folder and saves no memory per session. It stays the plan if the spike f
 
 ## Sizing
 
-Spike 0.25 + crate and behaviour 0.5 + `resolve.ts` port 0.25 + launch event move and launcher choice 0.25 + CI,
+Spike 0.25 + crate and behaviour 0.5 + lookup move to the core 0.25 + launch event move and launcher choice 0.25 + CI,
 release script and installer 0.5 + tests 0.25 = 2.0 CC days.
 
 ## Rules that bind every child

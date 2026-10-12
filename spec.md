@@ -1198,6 +1198,8 @@ Files: new `launcher/` (`Cargo.toml`, `src/main.rs`), `core/src/sessions/launch.
   broker and its `codex.exe` must be gone within 2 s. If not, the folder sweep replaces this child (D82).
 - **Launcher.** `metatrooper-launch.exe`, no crates, hand-declared kernel32 calls. It joins its own job before it
   starts anything, then does what `hook/launch.ts` does today with the same flags, texts and exit codes.
+- **Lookup.** The core runs `resolveCommand` before encoding `--args-b64`, so the launcher starts a finished argv and
+  `resolve.ts` is not ported.
 - **Launch event.** The core writes it after `term.open` with the pid `open()` returns; the launcher writes nothing.
 - **Fallback.** No binary, or Linux: `node launch.js` as today, named in the core log.
 
