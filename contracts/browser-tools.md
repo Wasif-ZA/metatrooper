@@ -134,7 +134,8 @@ box fails with "not visible".
   before sending it (describe failed, denied, rejected, expired, core offline) reports `browser.outcome` so it gets its
   row too. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first. The rows are kept with the pane they
   were read for: when another pane is selected (by the user, an agent opening a pane, or a close), the Browser tab shows
-  that pane live, never the first pane's rows.
+  that pane live, never the first pane's rows. A Timeline read still in flight when a later one is asked (the user
+  switches panes and opens its Timeline) is dropped when it returns, so its rows never replace the later pane's.
 
 ## How a tool runs
 

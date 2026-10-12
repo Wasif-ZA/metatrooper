@@ -177,6 +177,15 @@ function renderBrowser() {
   </div>`;
 }
 
+/** Reads a pane's Timeline rows; a read that a later one replaced while it was in flight is dropped. */
+async function loadTimeline(id) {
+  const ask = (ui.auditAsk = (ui.auditAsk || 0) + 1);
+  ui.audit = [];
+  ui.auditPane = id;
+  const rows = await api.paneAudit(id);
+  if (ui.auditAsk === ask) ui.audit = rows;
+}
+
 /** The pane's browser tool calls, newest first: time, tool, origin and result. */
 function renderTimeline() {
   const rows = (ui.audit || []).map((r) => `<tr><td class="meta">${esc(new Date(r.at).toLocaleString())}</td><td>${esc(r.tool)}</td><td>${esc(r.origin || '')}</td><td class="${r.status === 'ok' ? '' : 'meta'}">${esc(r.status)}</td></tr>`).join('');
@@ -1384,11 +1393,7 @@ async function onClick(e) {
         render();
       } else if (pick === 'timeline') {
         ui.browserMode = ui.browserMode === 'timeline' ? 'live' : 'timeline';
-        if (ui.browserMode === 'timeline') {
-          ui.audit = [];
-          ui.auditPane = pane.id;
-          ui.audit = await api.paneAudit(pane.id);
-        }
+        if (ui.browserMode === 'timeline') await loadTimeline(pane.id);
         render();
       } else if (pick === 'find') openFind();
       else if (pick === 'close') {

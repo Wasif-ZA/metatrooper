@@ -232,3 +232,19 @@ test('the Timeline shows only the pane its rows were read for; another pane sele
   ui.browserMode = 'timeline';
   assert.ok(render().includes('pane-A-click'));
 });
+
+test('a Timeline read superseded by a later one (pane A asked, then pane B) does not overwrite the later rows', async () => {
+  const pending = new Map<string, (rows: unknown[]) => void>();
+  const api = { paneAudit: (id: string) => new Promise((r) => pending.set(id, r)) };
+  const ui: any = {};
+  const loadTimeline = new Function('ui', 'api', `${fn('loadTimeline')}; return loadTimeline;`)(ui, api);
+  const a = loadTimeline('A');
+  ui.paneId = 'B';
+  const b = loadTimeline('B');
+  pending.get('A')!([{ tool: 'pane-A-click' }]);
+  await a;
+  assert.deepEqual({ pane: ui.auditPane, audit: ui.audit }, { pane: 'B', audit: [] });
+  pending.get('B')!([{ tool: 'pane-B-click' }]);
+  await b;
+  assert.deepEqual({ pane: ui.auditPane, audit: ui.audit }, { pane: 'B', audit: [{ tool: 'pane-B-click' }] });
+});
