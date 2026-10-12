@@ -802,6 +802,16 @@ async function pick(id, focus = true) {
   render(focus);
 }
 
+function waitReason(x) {
+  return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
+}
+
+function oldestWaiting(sessions) {
+  const w = sessions.filter((x) => x.state === 'waiting_for_you');
+  w.sort((a, b) => Date.parse(a.state_at) - Date.parse(b.state_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return w[0] || null;
+}
+
 function onTilePick(id, e) {
   if (wall.toggleOpen(id) || wall.isBig(id)) return;
   if (e && e.shiftKey) { wall.pair(id); return; }
@@ -832,7 +842,7 @@ function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();
@@ -1521,6 +1531,16 @@ function browserKeys(e) {
   void api.paneAct(ui.paneId, act);
 }
 document.addEventListener('keydown', browserKeys, true);
+
+function wallKeys(e) {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const x = oldestWaiting(ui.snap.sessions);
+  if (x) void pick(x.id);
+}
+document.addEventListener('keydown', wallKeys, true);
+wall.onWake(() => render());
 
 api.onPaneEvent((ev) => {
   if (!ev || typeof ev.pane_id !== 'string') return;

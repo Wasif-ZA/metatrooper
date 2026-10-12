@@ -8,7 +8,9 @@ const wall = (() => {
   const STAMP = '<span class="stamp"><span class="si"><span class="ink y" aria-hidden="true">Needs you</span><span class="ink p">Needs you</span></span></span>';
   const TOP = 64, G = 8, BAR = 36, SPN = 15;
   const S = {};
+  const HOLD = 3000;
   let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [];
+  let touchAt = -Infinity, want = [], wantNext = false, holdT, wake = () => {};
   const pane = (id) => termView.tile(id);
   const active = (s) => s.shell || !['done', 'idle', 'exited'].includes(s.state);
   const folded = (s) => !active(s) && !s.open;
@@ -38,9 +40,16 @@ const wall = (() => {
     if (selected !== snapSel) { snapSel = selected; setBig(selected); }
     if (!BIG.length && ORDER.length) setBig(ORDER.find((id) => S[id].state === 'waiting_for_you') || ORDER[0]);
     if (placed) {
-      const bigWaits = () => BIG.some((id) => S[id].state === 'waiting_for_you');
-      for (const [id, from, to] of fx) if (to === 'waiting_for_you' && from !== null && !bigWaits()) setBig(id);
-      if (!bigWaits() && fx.some(([id, from]) => from === 'waiting_for_you' && BIG.includes(id)) && waiting()[0]) setBig(waiting()[0]);
+      for (const [id, from, to] of fx) if (to === 'waiting_for_you' && from !== null) want.push(id);
+      if (fx.some(([id, from]) => from === 'waiting_for_you' && BIG.includes(id))) wantNext = true;
+      want = want.filter((id) => S[id] && S[id].state === 'waiting_for_you');
+      const left = touchAt + HOLD - Date.now();
+      if (left > 0 && (want.length || wantNext)) { clearTimeout(holdT); holdT = setTimeout(wake, left + 20); }
+      else if (left <= 0) {
+        const next = want[0] || (wantNext && waiting()[0]);
+        if (next && !BIG.some((id) => S[id].state === 'waiting_for_you')) setBig(next);
+        want = []; wantNext = false;
+      }
     }
     pending = pending.concat(fx);
     return BIG[0] || null;
@@ -295,6 +304,7 @@ const wall = (() => {
   gsap.set('#list', { x: -310, visibility: 'hidden' });
   gsap.set('#sheet', { y: 208 });
   addEventListener('resize', () => layout(false));
+  for (const type of ['keydown', 'mousedown']) addEventListener(type, (e) => { if (e.target && e.target.closest && e.target.closest('.tile.big')) touchAt = Date.now(); }, true);
   $('#search').addEventListener('click', (e) => {
     const box = e.currentTarget;
     if (!box.classList.contains('icon-only')) return;
@@ -304,6 +314,7 @@ const wall = (() => {
 
   return {
     promote: setBig,
+    onWake: (fn) => { wake = fn; },
     decide, apply, layout, pair, unpair, toggleOpen, output, roll, verdict, setList, setSheet, openSearch, closeSearch,
     big: () => BIG[0] || null,
     isBig: (id) => BIG.includes(id),
