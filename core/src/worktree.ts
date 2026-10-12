@@ -62,7 +62,8 @@ export function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], now = Da
         const clean = git(r.path, 'status', '--porcelain').trim() === '';
         if (parent && main && clean && ok(r.path, 'merge-base', '--is-ancestor', 'HEAD', `refs/heads/${main}`)) {
           try {
-            git(parent.path, 'worktree', 'remove', r.path);
+            // Longer than worktree.create's 60 s add: a timeout mid-remove would leave a half-deleted folder.
+            execFileSync('git', ['-C', parent.path, 'worktree', 'remove', r.path], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 300_000 });
             untrustFolder(r.path, engines);
             set.run(1, 0, r.id);
             out.removed.push(r.path);
