@@ -108,6 +108,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D78 | Desktop actions and focus | Wasif, 2026-10-11, after the M6-14 spike (`issues/m6-14-computer-use-spike.md`): UI Automation pattern actions move keyboard focus to the target window on WinUI and Win32 apps; the pointer never moves. So the driver uses window messages first (`WM_SETTEXT`, `PostMessage`), which the spike showed keep focus on controls with their own window handle, and patterns only for controls without one. After a pattern action that moved the foreground, the helper tries to give it back to the window that had it and reports whether that worked. The promise is narrowed to "your pointer stays yours" (Known limits) |
 | D79 | Files panel | Wasif, 2026-10-12, in a /spec session: MetaTrooper gets a light file viewer, not an IDE (M7-9). It docks in the second big slot beside the focused tile, as Warp and Claude Code desktop do, and shows only that session's `cwd`. Tabs open read-only; `Edit` unlocks one tab, and a save refuses when the file changed on disk or another live session owns it (`ownersAsync`) until the user confirms. Real editing goes to VS Code through the existing `openLink`. No language servers. After the release, so Milestone 6 is unchanged |
 | D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
+| D81 | Wall repairs before the freeze | Wasif, 2026-10-12, in a /spec session from the UI research (`~/.cache/claude-scratch/metatrooper-ui-research-2026-10-12/report.html`): repairs to existing UI go in Milestone 6; the new History and Settings panels go to M7. Undo for hide is a 7 s delay in the renderer, with no `session.unhide` in the core. The tile x never shows on a live agent (M6-27, Critical, never slips). The other repairs are one child, M6-26, High, first on the slip list because the 81-day plan has no slack |
 
 ## Current state, verified 2026-10-10
 
@@ -643,6 +644,8 @@ review engines called the first draft too low.
 | M6-23 | True status, part 2: background work, StopFailure, interrupts, fatal patterns, opencode | Critical | 2.25 | M6-5 |
 | M6-24 | Limits that carry on: resume at reset, early-end warning | High | 1.0 | M6-23 |
 | M6-25 | Context fill per tile | Medium | 0.75 | M6-20 |
+| M6-26 | Wall repairs: undo, confirms, menu bar, usage click, shortcuts, full text, labels | High | 2.6 | M6-27, open M6 branches merged |
+| M6-27 | No hide on live agents | Critical | 0.1 | none |
 | M5-9 | Release gate: two clean source-install runs and green CI | Critical | 0.5 | M6-1 |
 | M5-10 | Public docs rewritten for the four parts | Critical | 1.0 | M6-1, M6-15 |
 | M5-11 | Site and demo redone for the four parts | High | 0.75 | M6-18 |
@@ -661,6 +664,9 @@ Effort, worked:
 - Review, merge and two-engine checks, at 15% of the build: (64.0 + 4.0 + 2.75) x 0.15 = 70.75 x 0.15 = 10.6 CC
   days.
 - Total: 70.75 + 10.6 = 81.35, about 81 CC days.
+- Added 2026-10-12 (D81), outside the 81: M6-26 2.6 + M6-27 0.1 = 2.7 CC days, plus review 2.7 x 0.15 = 0.4, so
+  3.1. With them the plan is 81.35 + 3.1 = 84.45 CC days. M6-27 (0.1 + 0.015 review) has to fit inside the 81;
+  M6-26 fits only if earlier children finish faster than planned, and is first on the slip list otherwise.
 - Pace: M5 planned 30.85 CC days over 27 calendar days with four parallel sessions and paused with work unfinished,
   so this plan assumes 1 CC day per calendar day, limited by Wasif's review time, not by sessions.
 - Calendar: 81 days from 2026-10-11 is 2026-12-30 (21 days left in October, 30 in November, 30 in December:
@@ -693,7 +699,7 @@ gates computer use because nobody has driven real apps through the built-in UI A
 computer use because it hooks the `approval.check` answer both of them send. The release runs start right after the
 split so the source install is proven on a second PC well before the freeze.
 
-Slip rule, decided now: on 2026-11-23, if fewer than half the Critical children are done, M6-16, M6-10, M6-20 (with
+Slip rule, decided now: on 2026-11-23, if fewer than half the Critical children are done, M6-26 (D81), M6-16, M6-10, M6-20 (with
 M6-25, which builds on it), M6-21, M5-15 and M6-13 move after the release, in that order. If M6-14's spike fails, M6-15 builds the PowerShell
 fallback at the same effort. Critical children never move; the dates move instead, by the days still owed.
 
