@@ -189,6 +189,21 @@ test('M6-05a growth after an approval answered within 20 s of the last growth st
   } finally { t.done(); }
 });
 
+test('M6-05a terminal output after a bell does not end a wait a hook asked for after that bell; a bell-only wait still ends on output', async () => {
+  const t = await memoryDb();
+  try {
+    for (const [kind, payload] of [['codex.PermissionRequest', { tool_name: 'shell' }], ['gemini.Notification', {}], ['claude.Notification', { class: 'permission' }]] as const) {
+      t.db.prepare("UPDATE session SET state = 'working' WHERE id = 's'").run();
+      assert.equal(t.send('term.bell'), 'waiting_for_you');
+      assert.equal(t.send(kind, payload), 'waiting_for_you');
+      assert.equal(t.send('term.output'), 'waiting_for_you', kind);
+    }
+    t.db.prepare("UPDATE session SET state = 'working' WHERE id = 's'").run();
+    assert.equal(t.send('term.bell'), 'waiting_for_you');
+    assert.equal(t.send('term.output'), 'working');
+  } finally { t.done(); }
+});
+
 test('M6-05c a Claude permission wait (Notification) holds through another call\'s PreToolUse and PostToolUse and ends on the waited call\'s PostToolUse', async () => {
   const t = await memoryDb();
   try {

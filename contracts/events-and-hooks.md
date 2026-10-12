@@ -103,7 +103,7 @@ The core processes events in `seq` order and sets `session.state`:
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
-| `term.output` | `waiting_for_you` or `unknown` to `working` |
+| `term.output` | `waiting_for_you` or `unknown` to `working`, except a wait a hook asked for (`codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, or a `claude.Notification` of class `permission` or `input`) after the last `term.bell`: output after that bell does not answer it |
 | `core.process-gone` (5 s check; not for `external` sessions) | `exited` |
 | `claude.SessionEnd` on an `external` session | `exited` |
 | `core.stalled` while `starting` | `waiting_for_you` |
