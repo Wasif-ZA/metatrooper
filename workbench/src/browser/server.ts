@@ -30,7 +30,7 @@ export function ownedPanes(db: DatabaseSync, sessionId: string): PaneRow[] {
   ).all(sessionId) as unknown as PaneRow[];
 }
 
-/** Result keys passed through unscrubbed: image bytes. */
+/** Result keys passed through unscrubbed in a screenshot's result only: its image bytes. An evaluate can return anything under the same key. */
 const KEEP = new Set(['data_base64']);
 
 /** One append-only `browser.tool` event row per agent tool call: tool, pane, origin and result status, never the arguments. */
@@ -85,7 +85,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         if (bound?.kind !== 'session') return send({ jsonrpc: '2.0', id, result: [] });
         const rows = ownedPanes(db, bound.sessionId);
         // a pane URL can carry an OAuth code or a token, like any tool result
-        return send({ jsonrpc: '2.0', id, result: scrubDeep(rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })), knownSecretValues(), KEEP) });
+        return send({ jsonrpc: '2.0', id, result: scrubDeep(rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })), knownSecretValues()) });
       }
 
       if (method === 'browser.capture') {
@@ -125,7 +125,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       let status = 'ok';
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
-        return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, knownSecretValues(), KEEP) });
+        return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, knownSecretValues(), tool === 'screenshot' ? KEEP : undefined) });
       } catch (e) {
         status = `error ${e instanceof ToolError ? e.code : -32099}`;
         throw e;

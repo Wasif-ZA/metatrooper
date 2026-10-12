@@ -306,6 +306,16 @@ childOrigin = 'https://evil.test';
 focusDoc.activeElement = theField;
 internal.describeControl = stubDescribe;
 
+// Round 4: data_base64 is left unscrubbed only in a screenshot's result, not under that key in what an evaluate returns
+pane.secretOnPage = false;
+const evalReturns = (value: unknown) => {
+  internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => (method === 'Runtime.evaluate' && params.expression === 'x' ? { result: { value } } : plainCmd(p, method, params));
+};
+evalReturns({ data_base64: marker, nested: { data_base64: marker } });
+r.evaluateImageKeyScrubbed = (await call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'x' })).result;
+pane.scripted = false;
+internal.cmd = plainCmd;
+
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
 const hits = tables.filter(({ name }) => JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all()).includes(marker)).map(({ name }) => `table ${name}`);

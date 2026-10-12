@@ -103,9 +103,10 @@ box fails with "not visible".
   fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
 - **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
-  agent) and screenshot bytes passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
+  agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
   workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
-  and credential patterns become `[secret]`. `describe` scrubs the control's name and id of every known secret value
+  and credential patterns become `[secret]`. Only a `screenshot` result's `data_base64` (its image bytes) is left as it
+  is; the same key anywhere in another result, such as what an `evaluate` returns, is scrubbed. `describe` scrubs the control's name and id of every known secret value
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. A checked call (`click`, `type`, `select`, `key`) that the MCP server stops

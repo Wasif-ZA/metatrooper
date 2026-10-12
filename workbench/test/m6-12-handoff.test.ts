@@ -95,6 +95,7 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       nothingTypedAfterFieldChanged: true,
       keyFocusInChildFrame: { origin: 'https://evil.test', hidden: true, control: null },
       keyFocusInOpaqueFrame: 'not sent: focus is in a frame whose origin cannot be established',
+      evaluateImageKeyScrubbed: { value: { data_base64: '[secret]', nested: { data_base64: '[secret]' } } },
       markerFound: [],
     });
   } finally {
