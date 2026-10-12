@@ -152,6 +152,8 @@ r.walkStopsBelowHtml = !(await pm.walkPick('bp_user', 'up')) && pane.pickStack.j
 r.walkDown = (await pm.walkPick('bp_user', 'down')) && pane.pickStack.join() === '10,20' && picked.at(-1)?.selector === 'sel20';
 await pm.walkPick('bp_user', 'down');
 r.walkDownAtClickedIsNoop = !(await pm.walkPick('bp_user', 'down')) && pane.pickStack.join() === '10';
+const overlapping = await Promise.all([pm.walkPick('bp_user', 'up'), pm.walkPick('bp_user', 'up')]);
+r.overlappingWalksStepOnce = overlapping.filter(Boolean).length === 1 && pane.pickStack.join() === '10,20';
 
 pm.closeAll();
 r.popupClosesWithPane = childClosed && pane.popups.size === 0;

@@ -122,6 +122,8 @@ export class PaneManager {
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
   /** Error page data: URL to the URL that failed, so going back or forward to an error entry restores errorFor. */
   private errorPages = new Map<string, string>();
+  /** Panes with a pick walk in flight; arrow keys that arrive meanwhile (auto-repeat) are dropped. */
+  private walking = new Set<string>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -1004,6 +1006,16 @@ export class PaneManager {
   /** Arrow keys on a pick: up moves to the element's parent (stopping at body), down goes back to the child it came from. */
   async walkPick(id: string, dir: 'up' | 'down'): Promise<boolean> {
     const pane = this.pane(id);
+    if (this.walking.has(id)) return false;
+    this.walking.add(id);
+    try {
+      return await this.walkOnce(pane, dir);
+    } finally {
+      this.walking.delete(id);
+    }
+  }
+
+  private async walkOnce(pane: Pane, dir: 'up' | 'down'): Promise<boolean> {
     const stack = pane.pickStack;
     if (!stack.length) return false;
     if (dir === 'down') {
@@ -1017,6 +1029,7 @@ export class PaneManager {
       });
       if (!up.result?.objectId) return false;
       const { node } = await this.cmd(pane, 'DOM.describeNode', { objectId: up.result.objectId });
+      if (pane.pickStack !== stack) return false;
       stack.push(node.backendNodeId);
     }
     await this.describe(pane, stack[stack.length - 1]);
