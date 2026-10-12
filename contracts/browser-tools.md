@@ -97,8 +97,12 @@ box fails with "not visible".
   Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. Once an agent `evaluate` has
   started on the page now loaded, running or finished, a fill fails with -32037 `evaluate has run on this page; navigate
   first, nothing was typed` until the main frame navigates (`did-navigate`; an in-page navigation keeps the document),
-  since its script could wait for the value or leave a listener that copies it encoded past the scrub. The fixed
-  scripts of `read`, `scroll` and `wait_for` do not count. The
+  since its script could wait for the value or leave a listener that copies it encoded past the scrub. An `evaluate`
+  is bound to the document it started on: if the main frame navigates before its script is sent, it fails with -32037
+  `the page navigated before evaluate ran; nothing was run`; if it navigates while the script runs, it fails with
+  -32037 `the page navigated while evaluate ran; its result is dropped`. Either way the page then loaded counts as
+  scripted until the next navigation (fail closed, even when nothing ran). The fixed
+  scripts of `read`, `scroll` and `wait_for` do not count, and are not bound (`wait_for` waits across loads). The
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
   fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.

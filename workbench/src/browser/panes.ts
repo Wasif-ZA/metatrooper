@@ -827,10 +827,13 @@ export class PaneManager {
     return out;
   }
 
-  private async evalIsolated(pane: Pane, expression: string): Promise<unknown> {
+  /** With `doc` (the `navs` the call started on), a call whose page navigates first runs nothing, and one it navigates under returns nothing. */
+  private async evalIsolated(pane: Pane, expression: string, doc?: number): Promise<unknown> {
     const contextId = await this.isolated(pane);
     if (pane.handoff) throw handedOff(pane);
+    if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
+    if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated while evaluate ran; its result is dropped');
     if (r.exceptionDetails) throw new ToolError(-32099, `evaluate threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
     return r.result?.value;
   }
@@ -1190,7 +1193,8 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
         if (pane.secretOnPage) throw new ToolError(-32037, 'evaluate is off on a page a secret was typed into; navigate first');
         pane.scripted = true;
-        const value = scrubDeep(await this.evalIsolated(pane, a.expression), knownSecretValues());
+        // a navigation while it waits clears the flag, and the script may then run in, or leave a listener on, the new page
+        const value = scrubDeep(await this.evalIsolated(pane, a.expression, pane.navs).finally(() => { pane.scripted = true; }), knownSecretValues());
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };

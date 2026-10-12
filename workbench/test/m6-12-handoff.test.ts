@@ -105,6 +105,8 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       handoffMidUrlCheck: 'ok',
       navigateAfterUrlCheck: handed,
       loadedAfterUrlCheck: [],
+      navigatedBeforeEvaluateRan: { outcome: 'the page navigated before evaluate ran; nothing was run', ran: 0, scripted: true },
+      navigatedWhileEvaluateRan: { outcome: 'the page navigated while evaluate ran; its result is dropped', scripted: true, fillAfter: 'evaluate has run on this page; navigate first, nothing was typed', nothingTyped: true },
       markerFound: [],
     });
   } finally {

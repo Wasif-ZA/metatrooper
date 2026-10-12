@@ -359,6 +359,31 @@ pm.act('bp_agent_1', 'give-back');
 delete internal.paneCtx;
 delete (wc as Record<string, unknown>).loadURL;
 
+// Round 5: an evaluate whose page navigates under it does not run in, or leave unmarked, the new page
+const navigated = () => { pane.navs++; pane.scripted = false; pane.secretOnPage = false; }; // what did-navigate does
+const worldHeld = hold();
+internal.isolated = async () => { await worldHeld.held; return 1; };
+let ranAfterNav = 0;
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate' && params.expression === 'y') ranAfterNav++; return plainCmd(p, method, params); };
+const beforeWorld = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'y' });
+await new Promise((res) => setTimeout(res, 50));
+navigated();
+worldHeld.release();
+r.navigatedBeforeEvaluateRan = { outcome: outcome(await beforeWorld), ran: ranAfterNav, scripted: pane.scripted };
+delete internal.isolated;
+const runHeld = hold();
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate' && params.expression === 'y') await runHeld.held; return plainCmd(p, method, params); };
+navigated();
+const whileRunning = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'y' });
+await new Promise((res) => setTimeout(res, 50));
+navigated();
+runHeld.release();
+const crossed = await whileRunning;
+const typedBeforeNav = inserted.length;
+r.navigatedWhileEvaluateRan = { outcome: outcome(crossed), scripted: pane.scripted, fillAfter: outcome(await call('browser.type', secret)), nothingTyped: inserted.length === typedBeforeNav };
+internal.cmd = plainCmd;
+navigated();
+
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
 const hits = tables.filter(({ name }) => JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all()).includes(marker)).map(({ name }) => `table ${name}`);
