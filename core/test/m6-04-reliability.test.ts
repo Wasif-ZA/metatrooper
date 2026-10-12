@@ -108,7 +108,7 @@ test('migrate records baseline id 1 once and a second open applies nothing', t =
   const isolated = fixture(t);
   let db = openDb(isolated);
   const before = migrationRows(db);
-  assert.deepEqual(before.map(row => row.id), [1]);
+  assert.deepEqual(before.map(row => row.id), [1, 2]);
   assert.equal(typeof before[0].applied_at, 'string');
   assert.ok(Number.isFinite(Date.parse(before[0].applied_at)));
   assert.deepEqual(migrate(db), []);
@@ -124,31 +124,31 @@ test('migrate applies only numbered SQL files and returns applied ids', t => {
   const isolated = fixture(t);
   const dir = join(isolated.home, 'migrations');
   mkdirSync(dir);
-  writeFileSync(join(dir, '002-add.sql'), 'CREATE TABLE added (id INTEGER PRIMARY KEY);');
+  writeFileSync(join(dir, '902-add.sql'), 'CREATE TABLE added (id INTEGER PRIMARY KEY);');
   for (const name of ['notes.sql', '02-short.sql', '0004-long.sql', '003-space name.sql', '004-upper.SQL']) writeFileSync(join(dir, name), 'THIS MUST NOT RUN;');
   const db = openDb(isolated);
   try {
-    assert.deepEqual(migrate(db, dir), [2]);
-    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2]);
+    assert.deepEqual(migrate(db, dir), [902]);
+    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2, 902]);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'added'").get().name, 'added');
     assert.deepEqual(migrate(db, dir), []);
   } finally { db.close(); }
 });
 
-test('migrate rolls back all statements and its record when 003 fails', t => {
+test('migrate rolls back all statements and its record when 903 fails', t => {
   const isolated = fixture(t);
   const dir = join(isolated.home, 'migrations');
   mkdirSync(dir);
-  writeFileSync(join(dir, '002-add.sql'), 'CREATE TABLE retained (id INTEGER PRIMARY KEY); INSERT INTO retained VALUES (7);');
-  writeFileSync(join(dir, '003-bad.sql'), 'CREATE TABLE partial (id INTEGER); INSERT INTO retained VALUES (8); BAD SQL;');
+  writeFileSync(join(dir, '902-add.sql'), 'CREATE TABLE retained (id INTEGER PRIMARY KEY); INSERT INTO retained VALUES (7);');
+  writeFileSync(join(dir, '903-bad.sql'), 'CREATE TABLE partial (id INTEGER); INSERT INTO retained VALUES (8); BAD SQL;');
   const db = openDb(isolated);
   try {
     assert.throws(() => migrate(db, dir), /syntax error/i);
-    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2]);
+    assert.deepEqual(migrationRows(db).map(row => row.id), [1, 2, 902]);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'partial'").get(), undefined);
     assert.deepEqual(db.prepare('SELECT id FROM retained').all().map(row => row.id), [7]);
-    writeFileSync(join(dir, '003-bad.sql'), 'CREATE TABLE repaired (id INTEGER);');
-    assert.deepEqual(migrate(db, dir), [3]);
+    writeFileSync(join(dir, '903-bad.sql'), 'CREATE TABLE repaired (id INTEGER);');
+    assert.deepEqual(migrate(db, dir), [903]);
     assert.deepEqual(migrate(db, dir), []);
   } finally { db.close(); }
 });
@@ -157,9 +157,9 @@ test('migrate executes ids in numeric order despite reverse fixture creation ord
   const isolated = fixture(t);
   const dir = join(isolated.home, 'migrations');
   mkdirSync(dir);
-  writeFileSync(join(dir, '010-last.sql'), "INSERT INTO ordered VALUES (10);");
-  writeFileSync(join(dir, '003-middle.sql'), "INSERT INTO ordered VALUES (3);");
-  writeFileSync(join(dir, '002-first.sql'), 'CREATE TABLE ordered (id INTEGER); INSERT INTO ordered VALUES (2);');
+  writeFileSync(join(dir, '910-last.sql'), "INSERT INTO ordered VALUES (10);");
+  writeFileSync(join(dir, '903-middle.sql'), "INSERT INTO ordered VALUES (3);");
+  writeFileSync(join(dir, '902-first.sql'), 'CREATE TABLE ordered (id INTEGER); INSERT INTO ordered VALUES (2);');
   const readDirectory = fs.readdirSync;
   t.mock.method(fs, 'readdirSync', (folder, ...options) => {
     const entries = readDirectory(folder, ...options);
@@ -167,7 +167,7 @@ test('migrate executes ids in numeric order despite reverse fixture creation ord
   });
   const db = openDb(isolated);
   try {
-    assert.deepEqual(migrate(db, dir), [2, 3, 10]);
+    assert.deepEqual(migrate(db, dir), [902, 903, 910]);
     assert.deepEqual(db.prepare('SELECT id FROM ordered ORDER BY rowid').all().map(row => row.id), [2, 3, 10]);
   } finally { db.close(); }
 });
@@ -183,7 +183,7 @@ test('M6-04c M5 database gets baseline once and reopening preserves schema and r
   db = openDb(isolated);
   const applied = migrationRows(db);
   try {
-    assert.deepEqual(applied.map(row => row.id), [1]);
+    assert.deepEqual(applied.map(row => row.id), [1, 2]);
     assert.deepEqual(db.prepare("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name != 'schema_migration' ORDER BY name").all(), schema);
     assert.deepEqual(db.prepare('SELECT * FROM project').all(), project);
   } finally { db.close(); }

@@ -40,7 +40,7 @@ export interface TermHooks {
   onExit?(id: string, code: number, killed: boolean): void;
   onBell?(id: string): void;
   onTitle?(id: string, title: string): void;
-  onOutput?(id: string): void;
+  onOutput?(id: string, data: string): void;
 }
 
 const terms = new Map<string, Term>();
@@ -83,7 +83,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
       if (t.paused && t.behind < RESUME_BYTES && t.exitCode === null) { t.paused = false; t.proc.resume(); }
     });
     for (const v of t.viewers) v.output(data);
-    hooks.onOutput?.(id);
+    hooks.onOutput?.(id, data);
   });
   proc.onExit(({ exitCode }) => {
     t.exitCode = exitCode;
@@ -111,6 +111,16 @@ function releasePty(proc: IPty): void {
 /** Whether the pty is paused because the headless terminal is more than PAUSE_BYTES behind. */
 export function paused(id: string): boolean {
   return terms.get(id)?.paused ?? false;
+}
+
+/** The pid of the process the terminal started, while the terminal is open. */
+export function ptyPid(id: string): number | null {
+  return terms.get(id)?.proc.pid ?? null;
+}
+
+/** Whether any terminal is open. */
+export function anyOpen(): boolean {
+  return terms.size > 0;
 }
 
 export function has(id: string): boolean {

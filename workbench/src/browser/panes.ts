@@ -67,6 +67,8 @@ interface Pane {
   overlayShownUntil: number;
   picking: ((node: number | null) => void) | null;
   parked: boolean;
+  /** Loopback ports the user typed into this pane. */
+  typed: Set<number>;
   ready: Promise<void>;
   dialog: Dialog | null;
   onDialog: ((d: Dialog) => void) | null;
@@ -95,6 +97,17 @@ export interface Hooks {
   openPane: (projectId: string, url: string) => void;
 }
 
+/** The port of a literal-loopback http(s) URL, as a one-item list, or an empty list. */
+export function loopbackPort(url: string | null): number[] {
+  try {
+    const u = new URL(url ?? '');
+    if (!/^https?:$/.test(u.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) return [];
+    return [Number(u.port || (u.protocol === 'https:' ? 443 : 80))];
+  } catch {
+    return [];
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -116,7 +129,7 @@ export class PaneManager {
   private panes = new Map<string, Pane>();
   private shown: string | null = null;
   private bounds: { x: number; y: number; width: number; height: number } | null = null;
-  private policyCache = new Map<string, { at: number; ctx: PolicyContext }>();
+  private policyCache = new Map<string, { at: number; hosts: Set<string> }>();
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
@@ -138,11 +151,22 @@ export class PaneManager {
     return this.panes.get(id)?.row ?? null;
   }
 
-  private policy(projectId: string): PolicyContext {
-    const hit = this.policyCache.get(projectId);
-    if (hit && Date.now() - hit.at < 2000) return hit.ctx;
+  /** The address policy for one pane: a pane a session drives may load the loopback ports of that session's `ready` dev servers; a user pane, the loopback ports the user typed into it. */
+  private policy(row: PaneRow | undefined, typed: Set<number> = new Set()): PolicyContext {
     const db = this.hooks.db();
     const owned = new Set<number>();
+    if (db && row?.session_id) {
+      try {
+        for (const r of db.prepare("SELECT port FROM session_dev_server WHERE session_id = ? AND status = 'ready'").all(row.session_id) as Array<{ port: number }>) owned.add(Number(r.port));
+      } catch {}
+    } else if (row) for (const p of typed) owned.add(p);
+    return { ownedPorts: owned, allowHosts: row ? this.allowHosts(row.project_id) : new Set(), lookup: cachedLookup };
+  }
+
+  private allowHosts(projectId: string): Set<string> {
+    const hit = this.policyCache.get(projectId);
+    if (hit && Date.now() - hit.at < 2000) return hit.hosts;
+    const db = this.hooks.db();
     const allow = new Set<string>();
     if (db) {
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
@@ -153,9 +177,12 @@ export class PaneManager {
         } catch {}
       }
     }
-    const ctx: PolicyContext = { ownedPorts: owned, allowHosts: allow, lookup: cachedLookup };
-    this.policyCache.set(projectId, { at: Date.now(), ctx });
-    return ctx;
+    this.policyCache.set(projectId, { at: Date.now(), hosts: allow });
+    return allow;
+  }
+
+  private paneCtx(pane: Pane | undefined): PolicyContext {
+    return this.policy(pane?.row, pane?.typed);
   }
 
   private byContents(wc: WebContents | null | undefined): Pane | undefined {
@@ -178,7 +205,8 @@ export class PaneManager {
     ses.webRequest.onBeforeRequest((details, cb) => {
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
-      checkUrl(details.url, this.policy(row.project_id)).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
+      const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
+      checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null })).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
     });
     ses.on('will-download', (e, item, wc) => {
       const pane = this.byContents(wc);
@@ -225,7 +253,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [] };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [] };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -438,7 +466,7 @@ export class PaneManager {
 
   private async onDebuggerEvent(pane: Pane, method: string, params: Record<string, any>): Promise<void> {
     if (method === 'Fetch.requestPaused') {
-      const verdict = await checkUrl(params.request.url, this.policy(pane.row.project_id)).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
+      const verdict = await checkUrl(params.request.url, this.paneCtx(pane)).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
       if (verdict.allow) await this.cmd(pane, 'Fetch.continueRequest', { requestId: params.requestId }).catch(() => {});
       else {
         await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' }).catch(() => {});
@@ -490,7 +518,7 @@ export class PaneManager {
       if (r) r.status = params.response.status;
       const ip = params.response.remoteIPAddress;
       if (ip) {
-        const verdict = await connectedVerdict(params.response.url, ip, this.policy(pane.row.project_id));
+        const verdict = await connectedVerdict(params.response.url, ip, this.paneCtx(pane));
         if (!verdict.allow) {
           const reason = verdict.reason;
           this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });
@@ -574,7 +602,7 @@ export class PaneManager {
   }
 
   private async load(pane: Pane, url: string): Promise<void> {
-    const verdict = await checkUrl(url, this.policy(pane.row.project_id));
+    const verdict = await checkUrl(url, this.paneCtx(pane));
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
       if (!/ERR_ABORTED/.test(e.message)) throw new ToolError(-32099, `could not load ${url}: ${e.message}`);
@@ -1082,8 +1110,11 @@ export class PaneManager {
   }
 
   /** The user's own navigation from the URL bar, under the same allowlist as agents. */
+  /** Loads what the user typed; a user pane may then load that loopback port. */
   async userNavigate(id: string, url: string): Promise<void> {
-    await this.load(this.pane(id), url);
+    const pane = this.pane(id);
+    if (!pane.row.session_id) for (const p of loopbackPort(url)) pane.typed.add(p);
+    await this.load(pane, url);
   }
 
   closeAll(): void {

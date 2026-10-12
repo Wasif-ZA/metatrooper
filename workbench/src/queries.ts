@@ -29,6 +29,7 @@ export interface Snapshot {
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
+  dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
@@ -128,6 +129,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const panes = projectId
     ? (db.prepare('SELECT id, url, session_id, dev_port FROM browser_pane WHERE project_id = ? AND open = 1 ORDER BY id').all(projectId) as Snapshot['panes'])
     : [];
+  const hasDevServers = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_dev_server'").get());
+  const dev_servers = projectId && hasDevServers
+    ? (db.prepare("SELECT id, session_id, port, url, matched_by FROM session_dev_server WHERE project_id = ? AND status = 'ready' ORDER BY port").all(projectId) as Snapshot['dev_servers'])
+    : [];
   const snapshots = projectId
     ? (db.prepare(
         `SELECT s.id, s.pane_id, s.label, s.url, s.taken_at, s.w390_path, s.w1280_path FROM snapshot s JOIN browser_pane p ON p.id = s.pane_id
@@ -149,6 +154,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     needs_you,
     live: db.prepare("SELECT id, project_id, engine_id, state, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC").all() as Snapshot['live'],
     panes,
+    dev_servers,
     snapshots,
     git: {},
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,

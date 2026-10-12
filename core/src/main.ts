@@ -23,6 +23,7 @@ import { earlyEnd, recordReadings, resumeAtReset } from './sessions/limit-resume
 import { syncBuiltinPlugins } from './plugins/store.ts';
 import { clearSettingsTemps, settings } from './settings.ts';
 import { notifyTick } from './notify.ts';
+import { pollDevServers, sweepDevServers } from './devservers.ts';
 import { sweepWorktrees } from './worktree.ts';
 import { coreResumer, liveAtStart, markGone } from './sessions/resume-all.ts';
 
@@ -117,6 +118,8 @@ async function main(): Promise<void> {
   every(250, () => ingestSpools(db));
   every(500, () => deliverPrompts(db));
   every(1000, () => checkActivity(db));
+  every(1000, () => pollDevServers(db));
+  every(5000, () => sweepDevServers(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
   every(2000, () => readMeters(db));
   const limits = () => { readLimits(db); recordReadings(db); earlyEnd(db); };

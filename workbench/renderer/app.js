@@ -927,7 +927,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   const sel = selectedSession();
@@ -949,7 +949,7 @@ function render(focus = false) {
   reportPaneBounds();
   renderStrip(sel);
   renderInbox();
-  if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: termView.state(), layout: { tab: ui.tab, split: ui.split, mode: ui.mode, rows: document.querySelectorAll('.srow').length, start: !document.getElementById('start').hidden } });
+  if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: termView.state(), layout: { tab: ui.tab, split: ui.split, mode: ui.mode, rows: document.querySelectorAll('.srow').length, start: !document.getElementById('start').hidden }, previews: [...document.querySelectorAll('.tile [data-action="open-preview"]')].map((b) => ({ session: b.closest('.tile').dataset.id, url: b.dataset.url, text: b.textContent })) });
 }
 
 // Main suppresses toasts for this tile, so it must be the one on screen, not the last session.focus.
@@ -1313,6 +1313,27 @@ async function onClick(e) {
       ui.browserMode = 'live';
       render();
       return;
+    case 'open-preview': {
+      const own = ui.snap.panes.find((p) => p.session_id === id && p.id.startsWith('bp_agent_'));
+      let paneId = own ? own.id : null;
+      if (own) {
+        const r = await api.paneNavigate(own.id, el.dataset.url);
+        if (!r.ok) { toast(r.error, true); return; }
+      } else {
+        const r = await rpc('pane.open', { project_id: ui.projectId, session_id: id, agent: true, url: el.dataset.url });
+        if (!r.result) return;
+        paneId = r.result.pane_id;
+      }
+      ui.paneId = paneId;
+      ui.urlDraft = null;
+      ui.browserMode = 'live';
+      ui.tab = 'browser';
+      ui.split = true;
+      save('tab', 'browser');
+      save('split', '1');
+      render();
+      return;
+    }
     case 'pane-new': {
       const r = await rpc('pane.open', { project_id: ui.projectId });
       if (r.result) ui.paneId = r.result.pane_id;

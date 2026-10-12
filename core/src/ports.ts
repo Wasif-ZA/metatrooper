@@ -25,24 +25,23 @@ function listeningOn(host: string, port: number): Promise<boolean> {
 let queue: Promise<unknown> = Promise.resolve();
 
 /** Leases the lowest port at or above 3001 that has no lease and nothing listening on it; one allocation at a time. */
-export function leasePort(db: DatabaseSync, runId: string, idx: number): Promise<number> {
-  const next = queue.then(() => allocate(db, runId, idx));
+export function leasePort(db: DatabaseSync, sessionId: string): Promise<number> {
+  const next = queue.then(() => allocate(db, sessionId));
   queue = next.catch(() => {});
   return next;
 }
 
-async function allocate(db: DatabaseSync, runId: string, idx: number): Promise<number> {
+async function allocate(db: DatabaseSync, sessionId: string): Promise<number> {
   for (let port = FIRST; port <= LAST; port++) {
-    const taken = db.prepare('SELECT 1 FROM port_lease WHERE port = ?').get(port);
+    const taken = db.prepare('SELECT 1 FROM session_port WHERE port = ?').get(port);
     if (taken) continue;
     if (await listening(port)) continue;
-    const r = db.prepare('INSERT OR IGNORE INTO port_lease (port, run_id, idx, leased_at) VALUES (?, ?, ?, ?)').run(port, runId, idx, nowIso());
+    const r = db.prepare('INSERT OR IGNORE INTO session_port (port, session_id, leased_at) VALUES (?, ?, ?)').run(port, sessionId, nowIso());
     if (Number(r.changes) === 1) return port;
   }
   throw new Error(`no free port between ${FIRST} and ${LAST}`);
 }
 
-export function releasePorts(db: DatabaseSync, runId: string, idx?: number): void {
-  if (idx === undefined) db.prepare('DELETE FROM port_lease WHERE run_id = ?').run(runId);
-  else db.prepare('DELETE FROM port_lease WHERE run_id = ? AND idx = ?').run(runId, idx);
+export function releasePorts(db: DatabaseSync, sessionId: string): void {
+  db.prepare('DELETE FROM session_port WHERE session_id = ?').run(sessionId);
 }
