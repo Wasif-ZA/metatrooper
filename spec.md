@@ -669,6 +669,11 @@ Effort, worked:
   M6-26 fits only if earlier children finish faster than planned, and is first on the slip list otherwise.
 - Pace: M5 planned 30.85 CC days over 27 calendar days with four parallel sessions and paused with work unfinished,
   so this plan assumes 1 CC day per calendar day, limited by Wasif's review time, not by sessions.
+- Calibration, 2026-10-12 (`status/M6-PACE.html`): 18 children worth 36.25 CC days merged in 1.77 calendar days
+  (36.25 / 1.77 = 20.5 per day), none accepted yet, so the pace line above stands until one acceptance round is
+  measured. Remaining sizes stand: M6-15 has 2,973 lines at about 250 lines per CC day, 2,973 / 250 = 11.9 of its
+  12.0. For new specs: approval, safety and wiring work x1.5 (M6-2 ran 768 lines per CC day); terminal and key
+  handling x0.5 (M6-7 and M6-9 ran 70 to 90); no raise after a review round by default.
 - Calendar: 81 days from 2026-10-11 is 2026-12-30 (21 days left in October, 30 in November, 30 in December:
   21 + 30 + 30 = 81). Freeze 2026-12-30 (D73). The 20 days to the public release on 2027-01-19 (1 left in December,
   19 in January: 1 + 19 = 20) hold the source-install runs on a second PC and the holidays. There is no slack

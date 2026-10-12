@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M6 Pace Check</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--mut:#6b6a66;--line:#e2dfd8;--card:#fff;--hi:#fff4d6;--bad:#b3261e;--ok:#1e6b3a}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#17181a;--fg:#e9e7e2;--mut:#9a988f;--line:#2c2d30;--card:#1f2023;--hi:#3a3220;--bad:#f2867d;--ok:#7fd19b}}
+:root[data-theme=dark]{--bg:#17181a;--fg:#e9e7e2;--mut:#9a988f;--line:#2c2d30;--card:#1f2023;--hi:#3a3220;--bad:#f2867d;--ok:#7fd19b}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,sans-serif;margin:0;padding:24px 16px}
+main{max-width:920px;margin:auto}h1{margin:0 0 4px}h2{margin-top:32px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.mut{color:var(--mut)}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}td.n,th.n{text-align:right}
+tr.hi td{background:var(--hi)}.bad{color:var(--bad)}.ok{color:var(--ok)}
+pre{background:var(--card);border:1px solid var(--line);padding:10px;overflow-x:auto;font-size:13px}
+textarea{width:100%;box-sizing:border-box;min-height:56px;background:var(--card);color:var(--fg);border:1px solid var(--line);font:inherit;padding:6px;margin-top:8px}
+button{background:var(--card);color:var(--fg);border:1px solid var(--line);padding:5px 10px;cursor:pointer;border-radius:4px}
+.bar{display:flex;gap:8px;justify-content:flex-end}
+</style></head><body><main>
+<div class="bar"><button id="theme">Light/dark</button><button id="copy">Copy all</button></div>
+<h1>M6 pace check</h1>
+<p class="mut">2026-10-12T18:34+11:00. Source: git history of <code>projects/metatrooper</code>, issue files, <code>spec.md</code> lines 613-675.</p>
+
+<section data-k="answer"><h2>The answer</h2>
+<p><b>The per-child sizes are mostly fine. The calendar is what is off.</b></p>
+<p>The plan assumes 1 CC day of work per calendar day (spec.md line 671). In the last 1.8 days, 18 M6 children worth 36.25 CC days were merged to main. That is about 20 CC days per calendar day.</p>
+<p>But none of the 18 has its acceptance boxes ticked. The spec says your review is the real limit, and review has not been measured yet. So build is fast; acceptance is unknown.</p>
+</section>
+
+<section data-k="pace"><h2>Pace, worked</h2>
+<pre>First M6 commit      2026-10-10 22:48
+Last M6 merge        2026-10-12 17:21
+Elapsed              42.5 h = 1.77 days
+
+Merged children      M6-1 2 3 4 6 7 8 9 10 11 13 14 17 19 20 21 24 25  (18)
+Their estimates      3.5+3.0+1.5+2.0+4.0+5.0+1.5+2.0+0.5+4.0+2.0+1.0+2.0+1.0+0.5+1.0+1.0+0.75
+                     = 36.25 CC days
+Build pace           36.25 / 1.77 = 20.5 CC days per calendar day
+Plan pace            1.0 CC day per calendar day</pre>
+</section>
+
+<section data-k="table"><h2>Each merged child: estimate against size</h2>
+<p class="mut">Lines = insertions + deletions in the merge into main. Lines per CC day is a rough size check, not a time measure. Median across the 18 is about 250. Highlighted rows are more than 2x away from that.</p>
+<table><thead><tr><th>Child</th><th class="n">Est</th><th class="n">Lines</th><th class="n">Lines / CC day</th><th>Tests for criteria</th><th>Read</th></tr></thead><tbody>
+<tr class="hi"><td>M6-1 split</td><td class="n">3.5</td><td class="n">22,542</td><td class="n">6,441</td><td>0/2</td><td>Mostly deletion; ignore</td></tr>
+<tr class="hi"><td>M6-2 approvals</td><td class="n">3.0</td><td class="n">2,304</td><td class="n">768</td><td>5/5</td><td class="bad">Under. Needed a fail-closed follow-up branch (97 more lines, still open)</td></tr>
+<tr class="hi"><td>M6-3 ports</td><td class="n">1.5</td><td class="n">880</td><td class="n">587</td><td>3/3</td><td class="bad">Under</td></tr>
+<tr><td>M6-4 reliability</td><td class="n">2.0</td><td class="n">625</td><td class="n">312</td><td>3/3</td><td>About right</td></tr>
+<tr><td>M6-6 restart</td><td class="n">4.0</td><td class="n">815</td><td class="n">204</td><td>2/2</td><td>About right. Merged before M6-5, which it depends on</td></tr>
+<tr class="hi"><td>M6-7 terminal</td><td class="n">5.0</td><td class="n">350</td><td class="n">70</td><td>2/2</td><td class="ok">Over. Both criteria tested in 4 commits</td></tr>
+<tr class="hi"><td>M6-8 input</td><td class="n">1.5</td><td class="n">154</td><td class="n">103</td><td>0/1</td><td class="ok">Over, or not finished (no test)</td></tr>
+<tr class="hi"><td>M6-9 wall keys</td><td class="n">2.0</td><td class="n">180</td><td class="n">90</td><td>1/1</td><td class="ok">Over. Needed a review-fix pass</td></tr>
+<tr><td>M6-10 notifications</td><td class="n">0.5</td><td class="n">124</td><td class="n">248</td><td>no ids</td><td>About right</td></tr>
+<tr><td>M6-11 browser v2</td><td class="n">4.0</td><td class="n">1,196</td><td class="n">299</td><td>3/3</td><td>About right</td></tr>
+<tr><td>M6-13 pane hygiene</td><td class="n">2.0</td><td class="n">486</td><td class="n">243</td><td>no ids</td><td>About right</td></tr>
+<tr><td>M6-14 spike</td><td class="n">1.0</td><td class="n">100</td><td class="n">100</td><td>0/1</td><td>Spike, mostly a decision (D78); fine</td></tr>
+<tr><td>M6-17 public API</td><td class="n">2.0</td><td class="n">756</td><td class="n">378</td><td>0/2</td><td>About right, but no tests found</td></tr>
+<tr><td>M6-19 search</td><td class="n">1.0</td><td class="n">212</td><td class="n">212</td><td>1/1</td><td>About right</td></tr>
+<tr><td>M6-20 cost chip</td><td class="n">0.5</td><td class="n">122</td><td class="n">244</td><td>1/1</td><td>About right</td></tr>
+<tr><td>M6-21 changed files</td><td class="n">1.0</td><td class="n">270</td><td class="n">270</td><td>1/1</td><td>About right</td></tr>
+<tr class="hi"><td>M6-24 limits</td><td class="n">1.0</td><td class="n">531</td><td class="n">531</td><td>2/2</td><td class="bad">Under. Merged before M6-23, which it depends on</td></tr>
+<tr><td>M6-25 context fill</td><td class="n">0.75</td><td class="n">280</td><td class="n">373</td><td>0/1</td><td>About right, but no test found</td></tr>
+</tbody></table>
+<p>Pattern: safety and wiring work (approvals, ports, limits) ran big. Terminal and keyboard work ran small. 11 of 18 sit within 2x of the median.</p>
+</section>
+
+<section data-k="left"><h2>What is left in M6</h2>
+<table><thead><tr><th>Child</th><th class="n">Est</th><th>State</th></tr></thead><tbody>
+<tr><td>M6-15 computer use</td><td class="n">12.0</td><td>Branch open, 2,973 lines so far. At 250 lines per CC day that is about 11.9 days of size already, so 12.0 looks right</td></tr>
+<tr><td>M6-12 browser handoff</td><td class="n">3.5</td><td>Branch open, 796 lines (about 3.2 at 250/day)</td></tr>
+<tr><td>M6-5 hook state</td><td class="n">3.5</td><td>Not started (branch has no commits)</td></tr>
+<tr><td>M6-22 input watcher</td><td class="n">4.5</td><td>Not started</td></tr>
+<tr><td>M6-18 agent cursor</td><td class="n">4.5</td><td>Not started</td></tr>
+<tr><td>M6-23 true status 2</td><td class="n">2.25</td><td>2 commits, 0/5 criteria tested</td></tr>
+<tr><td>M6-16 self-test</td><td class="n">1.5</td><td>Not started</td></tr>
+<tr><td>M6-26 wall repairs</td><td class="n">2.6</td><td>Specced today</td></tr>
+<tr><td>M6-27 no hide</td><td class="n">0.1</td><td>2 commits</td></tr>
+<tr><td>M5-9, M5-10, M5-11, M5-15</td><td class="n">2.75</td><td>Carried</td></tr>
+</tbody></table>
+<pre>Left to build   12.0+3.5+3.5+4.5+4.5+2.25+1.5+2.6+0.1+2.75 = 37.2 CC days
+At plan pace    37.2 days of calendar
+At build pace   37.2 / 20.5 = 1.8 days of calendar</pre>
+</section>
+
+<section data-k="caveats"><h2>Limits of this check</h2>
+<ul>
+<li>Commit times show when work landed, not when it started.</li>
+<li>Lines are a size proxy. Terminal speed work can be hard and short.</li>
+<li>Merged is not accepted. No acceptance box is ticked in any M6 issue.</li>
+<li>M6-6 and M6-24 merged before the children they depend on (M6-5, M6-23). Either the Depends-on column is wrong or they are partial.</li>
+</ul>
+</section>
+
+<section data-k="proposal"><h2>Proposed changes</h2>
+<p><b>Per-child sizes (no date change).</b> Remaining children keep their sizes; the data does not argue against them. Lessons for new specs:</p>
+<pre>Safety / approval / wiring work    size up    x1.5  (M6-2: 768 lines/day vs 250)
+Terminal / key handling            size down  x0.5  (M6-7, M6-9: 70-90 lines/day)
+Review-round raises                stop by default: M6-1, M6-15, M6-18, M6-22 were raised;
+                                   the merged ones did not need it</pre>
+<p><b>Calendar (date change, your call).</b> Split the plan into build and acceptance. Build is about 2 more days. The 81-day budget is then mostly your acceptance time, which needs one measured round before the freeze date can move.</p>
+</section>
+</main>
+<script>
+const K='m6-pace:';
+document.querySelectorAll('section').forEach(s=>{const t=document.createElement('textarea');t.placeholder='Comment';
+try{t.value=localStorage.getItem(K+s.dataset.k)||''}catch(e){}
+t.oninput=()=>{try{localStorage.setItem(K+s.dataset.k,t.value)}catch(e){}};s.append(t)});
+document.getElementById('copy').onclick=()=>{let o='';document.querySelectorAll('section').forEach(s=>{const c=s.cloneNode(true);const v=s.querySelector('textarea').value;c.querySelector('textarea').remove();o+=c.innerText.trim()+'\n'+(v?'COMMENT: '+v+'\n':'')+'\n'});navigator.clipboard.writeText(o)};
+document.getElementById('theme').onclick=()=>{const r=document.documentElement;const d=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=d?'light':'dark'};
+</script>
+</body></html>
