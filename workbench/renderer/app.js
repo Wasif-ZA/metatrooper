@@ -693,8 +693,8 @@ async function openNeedsYou(id, fallback = true) {
 }
 
 const SINK_KINDS = ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command'];
-const SINK_DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret'];
-const SINK_ALL_KINDS = ['gate', 'interrupted-command', 'missed-schedule', 'run-failed', 'missing-secret', 'handoff', 'budget', 'done', 'failed', 'spool-too-large', 'other'];
+const SINK_DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret', 'approval'];
+const SINK_ALL_KINDS = ['gate', 'interrupted-command', 'missed-schedule', 'run-failed', 'missing-secret', 'handoff', 'budget', 'done', 'failed', 'spool-too-large', 'uncommitted', 'approval', 'other'];
 const SINK_DEST_HINT = {
   ntfy: 'https://ntfy.sh/your-topic',
   'slack-webhook': 'Slack incoming webhook URL',

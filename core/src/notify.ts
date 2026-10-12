@@ -8,8 +8,8 @@ import { nowIso, ulid } from './time.ts';
 
 export const NOTIFY_PLUGIN = 'core-notify';
 export const SINK_KINDS = ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command'] as const;
-const NEEDS_YOU_KINDS = ['gate', 'interrupted-command', 'missed-schedule', 'run-failed', 'missing-secret', 'handoff', 'budget', 'done', 'failed', 'spool-too-large', 'other'];
-const DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret'];
+const NEEDS_YOU_KINDS = ['gate', 'interrupted-command', 'missed-schedule', 'run-failed', 'missing-secret', 'handoff', 'budget', 'done', 'failed', 'spool-too-large', 'uncommitted', 'approval', 'other'];
+const DEFAULT_KINDS = ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret', 'approval'];
 const RETRY_MS = [10_000, 60_000, 300_000];
 const STALE_MS = 24 * 3600_000;
 const FAILED_PREFIX = 'notify-failed';
