@@ -36,14 +36,14 @@ Mutation run (D65): five hand mutations of `limit-resume.ts`, each caught by at 
 
 - `cd core && node --test test/m6-24-limits.test.ts`: 6 pass, 0 fail.
 - `cd core && npm test`: 343 tests, 339 pass, 0 fail, 4 skipped (exit 0).
-- `cd workbench && node --test test/queries.test.ts test/renderer-guards.test.ts test/m6-25-context-fill.test.ts test/m6-20-cost-chip.test.ts`: 22 pass, 0 fail. The full workbench suite (Electron) was not run.
+- `cd workbench && node --test test/queries.test.ts test/renderer-guards.test.ts test/m6-25-context-fill.test.ts test/m6-20-cost-chip.test.ts`: 22 pass, 0 fail (re-run after the last renderer edit). The full workbench suite (Electron) was not run.
 
-`npm ci` was run in `core/` because the worktree had no `node_modules`.
+`npm ci` was run in `core/` because the worktree had no `node_modules`. `tests/` has no contract conformance suite for `schema.sql` or `pipe-protocol.md` to run; the core suite (which loads `schema.sql`) passes.
 
 ## Left for Wasif
 
-1. **M6-23 is not built on any branch.** M6-24 depends on its `claude.StopFailure` handling, so this branch adds only the slice it needs: the payload allowlist and the `waiting_for_you` mapping. It does not add the `stopped: <error_type>` reason, because no reason/since columns exist yet.
-2. **The `StopFailure` hook is not installed.** It is missing from `hooks/install.ts` EVENTS and from the sandbox hook list. The spec says to install it "when the CLI version lists it", which needs a version gate, and an unknown hook name could break the settings of an older Claude Code. Until M6-23 adds that gate, resume at reset never fires in real use; the core side is ready and tested.
+1. **Most important: the `StopFailure` hook is not installed.** It is missing from `hooks/install.ts` EVENTS and from the sandbox hook list. The spec says to install it "when the CLI version lists it", which needs a version gate, and an unknown hook name could break the settings of an older Claude Code. Until M6-23 adds that gate, resume at reset never fires in real use; the core side is ready and tested. The gate can be a version compare against `engine_check.version` (already read by `core/src/engines/health.ts`, which has an `older()` helper) once you know which Claude Code version added `StopFailure`.
+2. **M6-23 is not built on any branch.** M6-24 depends on its `claude.StopFailure` handling, so this branch adds only the slice it needs: the payload allowlist and the `waiting_for_you` mapping. It does not add the `stopped: <error_type>` reason, because no reason/since columns exist yet.
 3. **Which reset is used.** Claude's StopFailure payload is not known to carry `resets_at`, so the core takes it from `limit_reading`: the latest reset among Claude windows at 100% or more, else the fullest window's reset. This needs checking against a real rate-limit payload.
 4. **Rules that conflicted.** The issue says agents never commit and that Codex writes the M6-24 tests (D65). Your task told me to commit and add tests, so I did both. You may still want a Codex `/tests-brief` pass.
 5. **Early-end item details.** It uses needs-you kind `other`, because a new kind would mean rebuilding the `needs_you` table's CHECK on every install. It needs 6 readings from the same reset period. A reading is recorded only when `read_at` changes (one statusline or rollout write), and the core polls every 60 s.
