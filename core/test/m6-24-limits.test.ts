@@ -219,3 +219,12 @@ test('M6-24a a hit with no live reading takes its reset from the first reading a
   assert.deepEqual(resumeAtReset(db, reset + 1000, f.t), ['s']);
   assert.deepEqual(f.typed, [['s', `paste:${RESUME_TEXT}`], ['s', '\r']]);
 });
+
+test('M6-24a a rate-limit stop clears the unfinished tool, so the wait is not shown as its permission prompt', () => {
+  const { db } = setup();
+  session(db, 's');
+  hook(db, 's', 'claude.PreToolUse', { tool_name: 'Bash' });
+  assert.equal((db.prepare("SELECT last_tool FROM session WHERE id = 's'").get() as { last_tool: string | null }).last_tool, 'Bash');
+  hook(db, 's', 'claude.StopFailure', { error_type: 'rate_limit' });
+  assert.equal((db.prepare("SELECT last_tool FROM session WHERE id = 's'").get() as { last_tool: string | null }).last_tool, null);
+});
