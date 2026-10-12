@@ -43,3 +43,22 @@ Pass when the TUI shows no hook trust prompt and `stop-fired.txt` appears after 
 `hooks.Interrupt` is an accepted event name (a rejected name must not stop Codex from starting); drop it from the
 events list if not. If path 1 fails, look for a Codex command that records trust for a named hook (path 2). Never use
 `--dangerously-bypass-hook-trust`.
+
+## Gemini system settings check (2026-10-12)
+
+The spec's Gemini path does not work on this Windows machine with Gemini CLI 0.63.0, so `engines/gemini.json`
+declares no `hooks` yet. The mechanism (`sessionHookEnv`, kind `gemini-system-settings`) is built and tested
+against a fake engine.
+
+- `GEMINI_CLI_SYSTEM_SETTINGS_PATH` pointing at a settings file in a user-owned folder prints, on every launch:
+  `Security Warning: Skipping system settings file '<file>': Parent directory '<dir>' is insecure: Directory '<dir>'
+  is not owned by a trusted administrator or SYSTEM account. Current owner: DESKTOP-TSA6L47\User.` The file is
+  skipped and no hook runs. `~/.metatrooper/engines/gemini/` is user-owned, so it fails the same check.
+- The same run could not sign in at all: `IneligibleTierError: This client is no longer supported for Gemini Code
+  Assist for individuals` (free tier, reason `UNSUPPORTED_CLIENT`). No live Gemini session is possible on this
+  account.
+- `~/.gemini/settings.json` was byte-identical after the run (sha256 checked).
+
+Options for Wasif: an admin-owned folder for the per-session files (created once with an elevated step), a Gemini
+extension holding MetaTrooper's hooks (lives under `~/.gemini/extensions/`, not `settings.json`, but is not per
+session), or keep Gemini on process state.
