@@ -9,6 +9,8 @@ import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface EventRow {
   seq: number;
   at: string;
@@ -56,7 +58,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       try { payload = JSON.parse(ev.payload); } catch {}
       if (!ev.session_id && ev.kind.startsWith('claude.') && typeof payload.session_id === 'string') {
         const known = byNative.get(payload.session_id) as { id: string } | undefined;
-        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
+        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && UUID.test(payload.session_id) && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
         if (project) {
           const id = ulid();
           adopt.run(id, project.id, payload.session_id, payload.cwd as string, ev.at, ev.at);
@@ -76,7 +78,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
-          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
+          // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
+          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
+          if (ev.kind === 'claude.PostToolUse' || ev.kind === 'claude.Stop' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
         }
         const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
