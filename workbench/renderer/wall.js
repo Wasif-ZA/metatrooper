@@ -50,25 +50,31 @@ const wall = (() => {
   /** Places a new tile where the saved layout had it, by its id or the id it was resumed from; false when the layout does not name it. */
   function seed(id) {
     if (!SEED || Date.now() > SEED.until) return false;
-    const k = KEY[id], b = SEED.big.indexOf(k), o = SEED.order.indexOf(k);
+    const b = at(SEED.big, id), o = at(SEED.order, id);
     if (b < 0 && o < 0) return false;
-    if (SEED.open.includes(k)) S[id].open = true;
+    if (at(SEED.open, id) >= 0) S[id].open = true;
     if (b === 0) {
-      if (BIG[0] && SEED.big.indexOf(KEY[BIG[0]]) === 1) { BIG.unshift(id); PAIR_AT = SEED.pair_at; }
+      if (BIG[0] && at(SEED.big, BIG[0]) === 1) { BIG.unshift(id); PAIR_AT = SEED.pair_at; }
       else { if (BIG[0]) toOrder(BIG[0]); BIG[0] = id; }
-      const two = ORDER.find((x) => SEED.big.indexOf(KEY[x]) === 1);
+      const two = ORDER.find((x) => at(SEED.big, x) === 1);
       if (two && BIG.length === 1) { ORDER.splice(ORDER.indexOf(two), 1); BIG.push(two); PAIR_AT = SEED.pair_at; }
-    } else if (b === 1 && BIG.length === 1 && SEED.big.indexOf(KEY[BIG[0]]) === 0) { BIG.push(id); PAIR_AT = SEED.pair_at; }
+    } else if (b === 1 && BIG.length === 1 && at(SEED.big, BIG[0]) === 0) { BIG.push(id); PAIR_AT = SEED.pair_at; }
     else toOrder(id);
     return true;
   }
 
+  /** Where a tile is in a saved list, by its own id or the id it was resumed from; -1 when it is not there. */
+  function at(list, id) {
+    const i = list.indexOf(id);
+    return i >= 0 ? i : list.indexOf(KEY[id]);
+  }
+
   /** Puts a tile in ORDER before the first tile the saved layout has after it. */
   function toOrder(id) {
-    const slot = (x) => SEED.order.indexOf(KEY[x]);
+    const slot = (x) => at(SEED.order, x);
     const o = slot(id);
-    const at = o < 0 ? -1 : ORDER.findIndex((x) => slot(x) < 0 || slot(x) > o);
-    ORDER.splice(at < 0 ? ORDER.length : at, 0, id);
+    const pos = o < 0 ? -1 : ORDER.findIndex((x) => slot(x) < 0 || slot(x) > o);
+    ORDER.splice(pos < 0 ? ORDER.length : pos, 0, id);
   }
 
   /** The saved layout to rebuild as its tiles arrive; ids missing after 60 s are dropped from it. */
@@ -80,11 +86,11 @@ const wall = (() => {
   /** Big slot, pair, order and opened done tiles by id. While saved tiles are still coming back it is the saved layout, with the ids of the tiles that are back. */
   function state() {
     const open = Object.keys(S).filter((id) => S[id].open);
-    const back = Object.values(KEY);
     const all = [...SEED?.big ?? [], ...SEED?.order ?? []];
-    if (!SEED || Date.now() > SEED.until || all.every((k) => back.includes(k))) return { big: [...BIG], order: [...ORDER], open, pair_at: PAIR_AT };
-    const now = (k) => Object.keys(KEY).find((id) => KEY[id] === k) || k;
-    const extra = [...BIG, ...ORDER].filter((id) => !all.includes(KEY[id]));
+    const tileOf = (k) => Object.keys(KEY).find((id) => id === k) || Object.keys(KEY).find((id) => KEY[id] === k);
+    if (!SEED || Date.now() > SEED.until || all.every(tileOf)) return { big: [...BIG], order: [...ORDER], open, pair_at: PAIR_AT };
+    const now = (k) => tileOf(k) || k;
+    const extra = [...BIG, ...ORDER].filter((id) => at(all, id) < 0);
     return { big: SEED.big.map(now), order: [...SEED.order.map(now), ...extra], open: [...new Set([...SEED.open.map(now), ...open])], pair_at: SEED.pair_at };
   }
 

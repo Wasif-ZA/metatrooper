@@ -52,6 +52,11 @@ test('M6-06a the wall comes back in the same layout as resumed sessions and reop
     assert.deepEqual(map(now.order), saved.order, why);
     assert.deepEqual(map(now.open), saved.open, why);
     assert.equal(now.pair_at, saved.pair_at, why);
+    // a workbench-only restart: the saved layout now holds the new ids, and the tiles still carry resumed_from
+    const again = freshWall();
+    again.restore(now);
+    for (let i = 1; i <= back.length; i++) { again.decide([...back].reverse().slice(0, i), null); again.apply('single'); }
+    assert.deepEqual(plain(again.state()), now, 'second rebuild ' + why);
   }
 });
 
@@ -69,7 +74,7 @@ test('M6-06a seedLayout restores the saved layout once per project and reopens i
   const saved: unknown[] = [];
   const wall = { restore: (s: unknown) => restored.push(s), state: () => ({ big: ['x'], order: [], open: [], pair_at: 0 }) };
   const layout = { big: ['x'], order: [], open: [], pair_at: 0, shells: [{ id: 'sh_old', kind: 'powershell' }] };
-  const ui: any = { projectId: 'p', snap: { core: { online: true, pid: 7 } }, settingsLook: { ui: { layout: { p: layout } } }, shells: [], shellSel: 'sh_old' };
+  const ui: any = { projectId: 'p', snap: { core: { online: true, pid: 7 } }, settingsLook: { ui: { layout: { p: layout } } }, shells: [], shellKinds: [{ kind: 'powershell', label: 'PowerShell' }], shellSel: 'sh_old' };
   const rpc = async (method: string, params: { kind: string }) => (method === 'shell.open' ? { result: { shell_id: 'sh_new', label: 'PowerShell', cwd: 'C:/p' } } : {});
   const api = { saveLayout: async (p: string, l: unknown) => { saved.push([p, l]); return { ok: true }; } };
   const make = new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null;\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('saveLayout')}\n${fn('coreRestarted')}\nreturn { seedLayout, saveLayout, coreRestarted };`);
@@ -93,4 +98,21 @@ test('M6-06a seedLayout restores the saved layout once per project and reopens i
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(ui.shells.length, 1);
   assert.equal(ui.shells[0].from, 'sh_new');
+});
+
+test('M6-06a a shell whose reopen meets a dead core opens once the new core is up', async () => {
+  let up = false;
+  const wall = { restore() {}, state: () => ({ big: [], order: [], open: [], pair_at: 0 }) };
+  const ui: any = { projectId: 'p', snap: { core: { online: true, pid: 1 } }, settingsLook: { ui: { layout: { p: { shells: [{ id: 'sh_old', kind: 'bash' }] } } } }, shells: [], shellKinds: [] };
+  const rpc = async () => (up ? { result: { shell_id: 'sh_new', label: 'Git Bash', cwd: 'C:/p' } } : { error: { message: 'core offline' } });
+  const make = new Function('ui', 'wall', 'rpc', 'render', 'api', `let layoutSent = '', layoutTimer = null;\n${fn('seedLayout')}\n${fn('reopenShell')}\n${fn('coreRestarted')}\nreturn { seedLayout, coreRestarted };`);
+  const app = make(ui, wall, rpc, () => {}, {});
+  app.seedLayout();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(plain(ui.shells).map((x: any) => [x.id, x.exited]), [['sh_old', true]]);
+  up = true;
+  ui.snap.core.pid = 2;
+  app.coreRestarted();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(plain(ui.shells).map((x: any) => [x.id, x.from]), [['sh_new', 'sh_old']]);
 });

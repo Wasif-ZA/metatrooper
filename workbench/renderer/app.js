@@ -405,7 +405,12 @@ function seedLayout() {
   const saved = (ui.settingsLook.ui.layout || {})[ui.projectId];
   wall.restore(saved);
   const shells = saved && Array.isArray(saved.shells) ? saved.shells : [];
-  for (const sh of shells) if (sh && typeof sh.id === 'string' && typeof sh.kind === 'string') void reopenShell(sh);
+  for (const sh of shells) {
+    if (!sh || typeof sh.id !== 'string' || typeof sh.kind !== 'string' || ui.shells.some((x) => x.id === sh.id)) continue;
+    const kind = ui.shellKinds.find((k) => k.kind === sh.kind);
+    ui.shells.push({ id: sh.id, label: kind ? kind.label : sh.kind, cwd: '', project_id: ui.projectId, kind: sh.kind, exited: true });
+    void reopenShell(sh);
+  }
 }
 
 /** After a core restart: the wall keeps its layout for the resumed sessions, and the shells that died with the core open again. */

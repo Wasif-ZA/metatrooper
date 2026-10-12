@@ -70,7 +70,7 @@ test('M6-06a resumes at most 3 at once, 2 s plus jitter apart, and the 4th once 
   assert.deepEqual(f.launches.map((l) => l.old), ['a', 'b', 'c', 'd', 'e']);
   for (let i = 1; i < f.launches.length; i++) assert.ok(f.launches[i].at - f.launches[i - 1].at >= R.GAP_MS, JSON.stringify(f.launches));
   assert.ok(f.launches[1].at - f.launches[0].at <= R.GAP_MS + R.JITTER_MS);
-  // nothing leaves `starting`, so the 4th waits for the first one's window to close
+  // nothing leaves `starting`; the 4th waits for the first one's window to close
   assert.ok(f.launches[3].at >= R.WINDOW_MS, JSON.stringify(f.launches));
   assert.ok(f.launches[3].at < 30_000);
 });

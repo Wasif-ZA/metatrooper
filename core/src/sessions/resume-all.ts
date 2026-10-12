@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../events/append.ts';
+import { processEvents } from '../events/processor.ts';
 import { getEngine } from '../engines/registry.ts';
 import { nowIso, ulid } from '../time.ts';
 import { screenText } from '../terminal/index.ts';
@@ -7,7 +8,7 @@ import { screenText } from '../terminal/index.ts';
 export const MAX_AT_ONCE = 3;
 export const GAP_MS = 2000;
 export const JITTER_MS = 1000;
-/** A resumed session counts as resuming while it is `starting`, for at most this long. */
+/** The longest a resumed session counts as resuming while it stays `starting`. */
 export const WINDOW_MS = 10_000;
 export const AUTH_FAILURES = 2;
 
@@ -19,7 +20,7 @@ export function liveAtStart(db: DatabaseSync): Waiting[] {
     .all() as unknown as Waiting[];
 }
 
-/** Marks each session exited the way a lost process is marked, so session.resume accepts it. */
+/** Appends core.process-gone with a null pid for each session. */
 export function markGone(db: DatabaseSync, list: Waiting[]): void {
   for (const s of list) appendEvent('core.process-gone', s.id, { pid: null }, db);
 }
@@ -121,6 +122,7 @@ export function coreResumer(db: DatabaseSync, queue: Waiting[], resume: (id: str
   return new Resumer(queue, {
     resume: async (old) => {
       try {
+        if (state.get(old) && (state.get(old) as { state: string }).state !== 'exited') processEvents(db);
         const r = await resume(old);
         reselect.run(r.session_id, old);
         return r.session_id;
