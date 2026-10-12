@@ -81,7 +81,9 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 
 1. Only panes listed by `panes` for that session can be driven. The workbench UI has no debugger attached.
 2. Navigation allowlist: `http:` and `https:` (and `ws:` and `wss:`, checked the same way) to public addresses, plus `http://localhost:<port>` and
-   `http://127.0.0.1:<port>` only for ports owned by this project (`browser_pane.dev_port`).
+   `http://127.0.0.1:<port>` and `http://[::1]:<port>` only for owned ports (D60): a pane a session drives owns the
+   ports of that session's `ready` `session_dev_server` rows; a user pane (`session_id` NULL) owns the loopback ports
+   the user typed into its URL box.
    Blocked: `file:`, `chrome:`, `devtools:`, other loopback ports, and these ranges unless the project's
    `.troop/config.json` lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
    ports), `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`; IPv6 `::/128`, `::1/128`
