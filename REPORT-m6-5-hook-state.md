@@ -263,8 +263,8 @@ and passes after it, and each went in its own commit.
   `claude.PermissionRequest`, the permission-Notification lookup was skipped. Take PermissionRequest(A),
   PostToolUse(A), PreToolUse(B), a permission Notification, then PreToolUse(C). A had already finished, so the function
   returned null, and C's PreToolUse moved the session from `waiting_for_you` to `working` while B's prompt was open.
-- **How real:** narrower than "HIGH". From Claude 2.0.45 a PermissionRequest fires for every permission prompt, so a
-  second prompt normally becomes the new last ask itself. The path bites when a prompt's Notification arrives without
+- **How real:** narrower than "HIGH". The PermissionRequest hook is installed from Claude 2.0.45. If it fires for every
+  permission prompt (not checked live; see "Claude live check" above), a second prompt becomes the new last ask itself. The path bites when a prompt's Notification arrives without
   (or before) its PermissionRequest. The fix is small and keeps the documented rule consistent, so I made it.
 - **Tests** (`core/test/m6-05-hook-state.test.ts`):
   - `M6-05c a permission Notification after an earlier PermissionRequest's call finished holds its own wait`. Before
@@ -312,8 +312,8 @@ and passes after it, and each went in its own commit.
 
 ### Build
 
-`node core/build.ts` ran after each fix and left `core/dist` unchanged. None of `processor.ts`, `mcp.ts` or
-`install.ts` is in the hook bundle, so there was no dist change to commit.
+`node core/build.ts` ran after each fix, and `git status` showed no change under `core/dist` each time, so there was no
+dist change to commit.
 
 ### Suites (after all three fixes)
 
