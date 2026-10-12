@@ -912,3 +912,13 @@ def test_mcp_daemon_keep_alive(tmp_path, monkeypatch):
     finally:
         cli.mcp_lane(["stop"])
 
+
+
+def test_exec_want_word_also_in_the_command_is_kept(monkeypatch, tmp_path):
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path))
+    ran = []
+    monkeypatch.setattr(cli, "run_shell", lambda cmd: (ran.append(cmd), (0, b"", 0.0))[1])
+
+    cli.main(["--json", "exec", "--want", "error", "grep", "error", "log.txt"])
+
+    assert ran == ["grep error log.txt"]

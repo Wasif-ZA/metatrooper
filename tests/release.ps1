@@ -1,6 +1,6 @@
 # M5-9 release gate: version check, core and workbench suites, every opt-in suite, then listeners.ps1.
 # Prints one PASS, FAIL or SKIPPED line per suite; exits 1 on any FAIL, or on a SKIPPED suite not named in -AllowSkip.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tests/release.ps1 [-AllowSkip whisper,docker,network]
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tests/release.ps1 [-AllowSkip docker,network]
 param([string[]]$AllowSkip = @())
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -10,8 +10,6 @@ New-Item -ItemType Directory -Force $logs | Out-Null
 $stamp = Get-Date -Format 'yyyy-MM-ddTHH-mm'
 Start-Transcript -Path (Join-Path $logs "release-$stamp.log") | Out-Null
 
-$whisper = $env:TROOP_WHISPER
-if (-not $whisper) { $whisper = Join-Path "$env:LOCALAPPDATA" 'whisper.cpp\Release\whisper-cli.exe' }
 $docker = $false
 if (Get-Command docker -ErrorAction SilentlyContinue) { & cmd /c 'docker info >nul 2>&1'; $docker = ($LASTEXITCODE -eq 0) }
 
@@ -24,7 +22,6 @@ $suites = @(
   @{ name = 'version'; dir = '.'; cmd = 'node tests/version-check.mjs' }
   @{ name = 'core'; dir = 'core'; cmd = 'node --test --test-reporter=spec "test/*.test.ts"' }
   @{ name = 'workbench'; dir = 'workbench'; cmd = 'node --test --test-reporter=spec --test-concurrency=1 "test/*.test.ts"' }
-  @{ name = 'whisper'; dir = 'core'; cmd = 'node --test --test-reporter=spec --test-name-pattern="clips-to-scheduled-posts|footage-to-edit" test/m3-e2e.test.ts'; ready = (Test-Path $whisper); why = "whisper.cpp not found at $whisper" }
   @{ name = 'docker'; dir = 'core'; flags = @('METATROOPER_DOCKER_E2E'); ready = $docker; why = 'docker info failed' }
 )
 foreach ($s in @(

@@ -321,7 +321,9 @@ function realInside(root: string, dir: string | null): string | null {
 /** Fetches `url` at exactly `sha` into `~/.metatrooper/plugins/.sources/<sha>`, reused when already there. */
 function checkoutAt(url: string, sha: string, local = false): string {
   const dir = path.join(homeDir(), 'plugins', '.sources', sha);
-  if (fs.existsSync(path.join(dir, '.git')) && git(['rev-parse', 'HEAD'], dir) === sha) return dir;
+  if (fs.existsSync(path.join(dir, '.git'))) {
+    try { if (git(['rev-parse', 'HEAD'], dir) === sha) return dir; } catch {}
+  }
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   try {

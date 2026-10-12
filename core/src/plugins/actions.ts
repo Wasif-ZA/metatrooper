@@ -10,6 +10,7 @@ import type { InstalledPlugin } from './store.ts';
 export const BASE_ENV = ['PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TROOP_CHROME', 'TROOP_PDFTOTEXT', 'TROOP_WHISPER', 'TROOP_WHISPER_MODEL', 'TROOP_GMAIL_API'];
 export const LOG_CAP_BYTES = 1024 * 1024;
 const STDOUT_CAP_BYTES = 16 * 1024 * 1024;
+const DRAIN_MS = 500;
 
 export type ActionResult =
   | { ok: true; outputs: Record<string, unknown> }
@@ -74,8 +75,9 @@ export function planCommand(run: string[], pluginDir: string, env: Record<string
   return { file: env.COMSPEC || 'cmd.exe', args: ['/d', '/s', '/c', `"${[found, ...rest].map(quote).join(' ')}"`], verbatim: true };
 }
 
+/** Kills a child and its descendants while the child is still running; once it has exited its pid may belong to another process. */
 export function killTree(child: ChildProcess): void {
-  if (!child.pid) return;
+  if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
   killPid(child.pid);
   if (process.platform !== 'win32') {
     try { child.kill('SIGKILL'); } catch {}
@@ -157,10 +159,12 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
     const chunks: Buffer[] = [];
     let stdoutBytes = 0;
     let stderrTail = '';
+    let drain: NodeJS.Timeout | undefined;
     const finish = (r: ActionResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(drain);
       resolve(r);
     };
     const timer = setTimeout(() => {
@@ -185,7 +189,16 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
       }
     });
     child.on('error', (e) => finish(fail(`could not start ${action.run[0]}: ${e.message}`)));
-    child.on('close', (code) => {
+    child.on('exit', (code) => {
+      drain = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        complete(code);
+      }, DRAIN_MS);
+    });
+    child.on('close', (code) => complete(code));
+    const complete = (code: number | null) => {
+      if (settled) return;
       if (stderrTail) {
         stderrTail = redact(stderrTail);
         log.write({ stream: 'stderr', plugin: req.plugin.id, action: action.id, line: stderrTail });
@@ -210,7 +223,7 @@ export function runAction(req: ActionRequest, onStderr?: (line: string) => void)
       const err = out?.error as { message?: unknown; retryable?: unknown } | undefined;
       if (out?.ok === false && err && typeof err.message === 'string') return finish(fail(err.message, err.retryable === true));
       return finish(fail('action wrote invalid output'));
-    });
+    };
 
     child.stdin!.on('error', () => {});
     child.stdin!.end(JSON.stringify({ schema: 1, action: action.id, input: req.input, project: req.projectDir, run: { id: req.run.id, dir: req.run.dir } }));

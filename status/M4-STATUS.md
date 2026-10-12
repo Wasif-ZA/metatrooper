@@ -9,6 +9,8 @@ Waiting on Wasif: the two
 real before-runs in tests/replay/REAL-RUNS.md (M4-1, M4-04), the TOON payloads (M4-5), and a look at the run screen
 before m4-harden lands on main, including the M4-4 gate card with a findings scan (e3b8084).
 
+2026-10-11: the token-replay harness (tests/replay, tests/fixtures/token-replay) was removed because its code-map pipeline left with the pipelines split, so the owed real runs (M4-1, M4-04) are retired; the M4-03 median 0.35 below stays as history.
+
 ## Children
 
 | Child | Status | Evidence / notes |

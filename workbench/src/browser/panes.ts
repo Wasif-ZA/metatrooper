@@ -1,24 +1,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, clipboard, Menu, session as electronSession, WebContentsView, type BrowserWindow, type Debugger, type MenuItemConstructorOptions, type WebContents } from 'electron';
+import { app, clipboard, Menu, nativeImage, session as electronSession, WebContentsView, type BrowserWindow, type Debugger, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
+import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
 export const EASE_MS = 150;
 const MAX_CAPTURE_PX = 16_384;
 const EVAL_CAP = 20 * 1024;
+const URL_KEEP = 2000;
+const IMAGE_BUDGET = MAX_LINE - 64 * 1024;
 const LOG_KEEP = 200;
 const PARKED_VIEWPORT = { width: 1280, height: 800 };
 const AGENT_PANE = 'bp_agent_';
 const ASKABLE = new Set(['clipboard-read', 'notifications', 'media', 'geolocation']);
 const GRANTED = new Set(['clipboard-sanitized-write', 'fullscreen', 'mediaKeySystem']);
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
-const ACTIONABLE = new Set(['button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'option', 'slider', 'switch', 'listbox', 'spinbutton', 'treeitem']);
+const MAX_IMAGE_SIDE = 1568;
+const SNAPSHOT_TOKENS = 4000;
+const ACTION_TOKENS = 1000;
+const SETTLE_MS = 1000;
+const CURSORS_KEPT = 8;
 
 export class ToolError extends Error {
   code: number;
@@ -44,13 +52,17 @@ interface Pane {
   view: WebContentsView;
   overlay: WebContentsView;
   dbg: Debugger;
-  refs: Map<string, number>;
-  lastSnapshot: Map<string, Set<string>>;
+  refs: Refs;
+  lastSnapshot: Map<string, string[]>;
+  cursors: Map<string, string[]>;
+  cursorN: number;
+  navs: number;
+  crashed: string | null;
   console: Array<{ at: number; level: string; text: string }>;
   network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
   status: number | null;
   overlayShownUntil: number;
-  picking: ((node: number) => void) | null;
+  picking: ((node: number | null) => void) | null;
   parked: boolean;
   ready: Promise<void>;
   dialog: Dialog | null;
@@ -97,7 +109,7 @@ export class PaneManager {
   private policyCache = new Map<string, { at: number; ctx: PolicyContext }>();
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
-  private asking = new Map<string, { key: string; cb: (ok: boolean) => void }>();
+  private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -176,7 +188,7 @@ export class PaneManager {
       const known = this.allowed.get(key);
       if (known !== undefined) return cb(known);
       const id = `perm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-      this.asking.set(id, { key, cb });
+      this.asking.set(id, { key, pane: pane.row.id, cb });
       const kinds = (details as { mediaTypes?: string[] }).mediaTypes;
       this.hooks.paneEvent({ kind: 'permission', pane_id: pane.row.id, id, origin, permission: perm === 'media' && kinds?.length ? kinds.join(' and ') : perm });
     });
@@ -199,7 +211,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: new Map(), lastSnapshot: new Map(), console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, ready: Promise.resolve(), dialog: null, onDialog: null };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -211,18 +223,23 @@ export class PaneManager {
     const { row, view } = pane;
     // A view with no navigation has no renderer yet; CDP commands would hang forever (seen under Linux/xvfb).
     await view.webContents.loadURL('about:blank').catch(() => {});
+    pane.dbg.on('message', (_e, method, params) => { this.onDebuggerEvent(pane, method, params).catch(() => {}); });
+    await this.attach(pane);
+    this.layout();
+    if (row.url) await this.load(pane, row.url).catch(() => {});
+    this.layout();
+  }
+
+  /** Attaches the pane's debugger and turns on request interception and the domains the tools read. */
+  private async attach(pane: Pane): Promise<void> {
     try {
       pane.dbg.attach('1.3');
     } catch {}
-    pane.dbg.on('message', (_e, method, params) => { this.onDebuggerEvent(pane, method, params).catch(() => {}); });
     await this.cmd(pane, 'Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
     await this.cmd(pane, 'Network.enable', {});
     await this.cmd(pane, 'Runtime.enable', {});
     await this.cmd(pane, 'Page.enable', {});
     await this.cmd(pane, 'DOM.enable', {});
-    this.layout();
-    if (row.url) await this.load(pane, row.url).catch(() => {});
-    this.layout();
   }
 
   private wireContents(pane: Pane): void {
@@ -241,13 +258,19 @@ export class PaneManager {
     });
     wc.on('did-navigate', (_e, url, code) => {
       pane.status = code;
-      pane.refs.clear();
+      pane.refs.byRef.clear();
+      pane.refs.byKey.clear();
       pane.lastSnapshot.clear();
+      pane.cursors.clear();
+      pane.navs++;
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
     wc.on('did-navigate-in-page', (_e, url) => this.hooks.urlChanged(pane.row.id, url));
     const state = () => this.emitState(pane);
     for (const ev of ['did-start-loading', 'did-stop-loading', 'page-title-updated', 'did-navigate', 'did-navigate-in-page'] as const) wc.on(ev as 'did-start-loading', state);
+    wc.on('render-process-gone', () => { pane.crashed = 'the page crashed; call navigate to load it again'; });
+    wc.on('unresponsive', () => { pane.crashed ??= 'the page is not responding'; });
+    wc.on('responsive', () => { if (pane.crashed === 'the page is not responding') pane.crashed = null; });
     wc.on('found-in-page', (_e, r) => this.hooks.paneEvent({ kind: 'found', pane_id: pane.row.id, active: r.activeMatchOrdinal, matches: r.matches }));
     if (!this.isUserPane(pane)) return;
     wc.on('before-input-event', (e, input) => {
@@ -339,6 +362,14 @@ export class PaneManager {
       }
       return;
     }
+    if (method === 'Page.frameNavigated' && params.frame?.parentId) {
+      dropFrame(pane.refs, params.frame.id);
+      return;
+    }
+    if (method === 'Page.frameDetached') {
+      dropFrame(pane.refs, params.frameId);
+      return;
+    }
     if (method === 'Page.javascriptDialogOpening') {
       pane.dialog = { type: params.type, message: String(params.message ?? '').slice(0, 2000) };
       this.log(pane, 'dialog', `${params.type} dialog: ${pane.dialog.message}`);
@@ -365,7 +396,7 @@ export class PaneManager {
       return;
     }
     if (method === 'Network.requestWillBeSent') {
-      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: params.request.url, status: null, bytes: 0 });
+      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: logUrl(String(params.request.url)), status: null, bytes: 0 });
       if (pane.network.size > LOG_KEEP) pane.network.delete(pane.network.keys().next().value as string);
       return;
     }
@@ -411,14 +442,19 @@ export class PaneManager {
     const pane = this.panes.get(id);
     if (!pane) return;
     this.panes.delete(id);
+    if (this.shown === id) this.shown = null;
+    pane.picking?.(null);
+    for (const [k, a] of this.asking) if (a.pane === id) { this.asking.delete(k); a.cb(false); }
     try { pane.dbg.detach(); } catch {}
-    this.win.contentView.removeChildView(pane.view);
-    try { this.win.contentView.removeChildView(pane.overlay); } catch {}
+    if (!this.win.isDestroyed()) {
+      this.win.contentView.removeChildView(pane.view);
+      try { this.win.contentView.removeChildView(pane.overlay); } catch {}
+    }
+    if (!pane.overlay.webContents.isDestroyed()) pane.overlay.webContents.close();
+    if (pane.view.webContents.isDestroyed()) return;
     const ses = pane.view.webContents.session;
     pane.view.webContents.close();
-    pane.overlay.webContents.close();
     if (id.startsWith(AGENT_PANE)) void ses.clearStorageData().catch(() => {});
-    if (this.shown === id) this.shown = null;
   }
 
   /** Shows one pane in the given window area; null bounds hide every pane. */
@@ -465,45 +501,57 @@ export class PaneManager {
     return p;
   }
 
-  private node(pane: Pane, ref: unknown): number {
-    const id = typeof ref === 'string' ? pane.refs.get(ref) : undefined;
-    if (!id) throw new ToolError(-32602, `unknown ref ${String(ref)}; call snapshot first`);
-    return id;
+  private node(pane: Pane, ref: unknown): Target {
+    const t = resolveRef(pane.refs, ref);
+    if (t === 'gone') throw new ToolError(-32602, `ref ${String(ref)} is no longer on the page; call snapshot again`);
+    if (t === 'unknown') throw new ToolError(-32602, `unknown ref ${String(ref)}; call snapshot first`);
+    return t;
   }
 
-  private async centre(pane: Pane, backendNodeId: number, ref?: unknown): Promise<{ x: number; y: number }> {
+  /** A remote object for the ref's element in the isolated world of its frame. */
+  private async resolve(pane: Pane, t: Target, ref: unknown): Promise<string> {
     const gone = new ToolError(-32602, `ref ${String(ref)} is no longer on the page; call snapshot again`);
-    const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId, executionContextId: await this.isolated(pane) }).catch(() => { throw gone; });
+    const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: t.backendNodeId, executionContextId: await this.isolated(pane, t.frameId) }).catch(() => { throw gone; });
     const live = await this.cmd(pane, 'Runtime.callFunctionOn', { objectId: object.objectId, returnByValue: true, functionDeclaration: 'function () { return this.isConnected; }' });
     if (live.result?.value !== true) throw gone;
-    await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId }).catch(() => {});
-    const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId }).catch(() => {
-      throw new ToolError(-32602, `ref ${String(ref)} is not visible (it has no layout box)`);
-    });
-    const q: number[] = box.model.content;
-    return { x: (q[0] + q[2] + q[4] + q[6]) / 4, y: (q[1] + q[3] + q[5] + q[7]) / 4 };
+    return object.objectId;
   }
 
-  /** The point to click for a ref, after checking the element is enabled and is what a click there hits. */
-  private async target(pane: Pane, ref: unknown): Promise<{ node: number; x: number; y: number }> {
+  /** The border box of a ref's element in the pane's viewport, after scrolling it into view. */
+  private async box(pane: Pane, t: Target, ref: unknown): Promise<{ objectId: string; x: number; y: number; left: number; top: number; right: number; bottom: number }> {
+    const objectId = await this.resolve(pane, t, ref);
+    await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: t.backendNodeId }).catch(() => {});
+    const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId: t.backendNodeId }).catch(() => {
+      throw new ToolError(-32602, `ref ${String(ref)} is not visible (it has no layout box)`);
+    });
+    const q: number[] = box.model.border;
+    const xs = [q[0], q[2], q[4], q[6]];
+    const ys = [q[1], q[3], q[5], q[7]];
+    return { objectId, x: (xs[0] + xs[1] + xs[2] + xs[3]) / 4, y: (ys[0] + ys[1] + ys[2] + ys[3]) / 4, left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+  }
+
+  /** The point to click for a ref, after checking the element is enabled and is what a click there hits; the hit test runs in the element's own frame. */
+  private async target(pane: Pane, ref: unknown): Promise<{ node: Target; x: number; y: number }> {
     const node = this.node(pane, ref);
-    const p = await this.centre(pane, node, ref);
-    const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
+    const p = await this.box(pane, node, ref);
     const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
-      objectId: object.objectId,
+      objectId: p.objectId,
       returnByValue: true,
-      arguments: [{ value: p.x }, { value: p.y }],
-      functionDeclaration: `function (x, y) {
+      functionDeclaration: `function () {
         const el = this.nodeType === 1 ? this : this.parentElement;
         if (!el) return null;
         if (el.disabled || el.closest('[aria-disabled="true"], fieldset:disabled')) return 'is disabled';
+        const root = el.getRootNode();
+        const at = (x, y) => (root.elementFromPoint ? root.elementFromPoint(x, y) : document.elementFromPoint(x, y));
         const hits = (h) => !!h && (h === el || el.contains(h) || h.closest('label')?.control === el);
-        const hit = document.elementFromPoint(x, y);
+        const r = el.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const hit = at(cx, cy);
         if (hits(hit)) return null;
         for (const label of el.labels || []) {
           const b = label.getBoundingClientRect();
           const lx = b.left + b.width / 2, ly = b.top + b.height / 2;
-          if (b.width && b.height && hits(document.elementFromPoint(lx, ly))) return { x: lx, y: ly };
+          if (b.width && b.height && hits(at(lx, ly))) return { dx: lx - cx, dy: ly - cy };
         }
         if (!hit) return 'is outside the viewport';
         return 'is covered by <' + hit.tagName.toLowerCase() + (hit.id ? '#' + hit.id : '') + '>';
@@ -511,7 +559,7 @@ export class PaneManager {
     });
     const v = r.result?.value;
     if (typeof v === 'string') throw new ToolError(-32033, `ref ${String(ref)} ${v}; nothing was clicked`);
-    return v && typeof v.x === 'number' ? { node, x: v.x, y: v.y } : { node, ...p };
+    return v && typeof v.dx === 'number' ? { node, x: p.x + v.dx, y: p.y + v.dy } : { node, x: p.x, y: p.y };
   }
 
   /** Runs a tool action, returning early with the dialog if one opens while it runs. */
@@ -549,10 +597,76 @@ export class PaneManager {
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   }
 
-  private async isolated(pane: Pane): Promise<number> {
-    const tree = await this.cmd(pane, 'Page.getFrameTree');
-    const world = await this.cmd(pane, 'Page.createIsolatedWorld', { frameId: tree.frameTree.frame.id, worldName: 'metatrooper', grantUniveralAccess: false });
+  private async isolated(pane: Pane, frameId?: string): Promise<number> {
+    const id = frameId ?? (await this.cmd(pane, 'Page.getFrameTree')).frameTree.frame.id;
+    const world = await this.cmd(pane, 'Page.createIsolatedWorld', { frameId: id, worldName: 'metatrooper', grantUniveralAccess: false });
     return world.executionContextId;
+  }
+
+  /** Each frame's accessibility tree, the main frame first; a frame that cannot be read (cross-origin) has no nodes. */
+  private async frames(pane: Pane): Promise<Frame[]> {
+    const { frameTree } = await this.cmd(pane, 'Page.getFrameTree');
+    const out: Frame[] = [];
+    const visit = async (t: any, parent?: string): Promise<void> => {
+      const id = t.frame.id as string;
+      const nodes = (await this.cmd(pane, 'Accessibility.getFullAXTree', { frameId: id }).then((r) => r.nodes as AXNode[], () => []));
+      const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
+      out.push({ id, nodes, parent, owner });
+      for (const c of t.childFrames ?? []) await visit(c, id);
+    };
+    await visit(frameTree);
+    return out;
+  }
+
+  /** Snapshot lines of the whole pane or of the subtree under `scopeRef`. */
+  private async lines(pane: Pane, scopeRef: unknown, interactive: boolean): Promise<string[]> {
+    const scope = scopeRef === undefined || scopeRef === null || scopeRef === '' ? undefined : this.node(pane, scopeRef);
+    const lines = render(await this.frames(pane), pane.refs, scope);
+    if (!lines) throw new ToolError(-32602, `ref ${String(scopeRef)} is no longer on the page; call snapshot again`);
+    return interactive ? interactiveOnly(lines) : lines;
+  }
+
+  /** The lines that fit in `maxTokens`; the rest is kept under a `continue` cursor named in the last line. */
+  private page(pane: Pane, tool: string, lines: string[], maxTokens: number): { text: string; continue?: string } {
+    const id = `c${++pane.cursorN}`;
+    const trailer = `(cut at ${maxTokens} tokens; call ${tool} with continue="${id}" for the rest)`;
+    const { head, rest } = fit(lines, maxTokens, trailer);
+    if (!rest.length) return { text: head.join('\n') };
+    pane.cursors.set(id, rest);
+    if (pane.cursors.size > CURSORS_KEPT) pane.cursors.delete(pane.cursors.keys().next().value as string);
+    return { text: [...head, trailer].join('\n'), continue: id };
+  }
+
+  /** Waits up to 1 s for the page to stop loading. */
+  private async settle(pane: Pane): Promise<void> {
+    const wc = pane.view.webContents;
+    const end = Date.now() + SETTLE_MS;
+    await sleep(100);
+    while (Date.now() < end && !wc.isDestroyed() && wc.isLoading()) await sleep(50);
+  }
+
+  /** Runs an action, then returns its result with the URL, title, new console errors and the interactive snapshot diff. */
+  private async answer(pane: Pane, session: string, work: () => Promise<Record<string, unknown>>): Promise<Record<string, unknown>> {
+    const key = `${session}|i|`;
+    const navs = pane.navs;
+    const before = pane.lastSnapshot.get(key) ?? (await this.lines(pane, undefined, true).catch(() => []));
+    const from = Date.now();
+    const r = await work();
+    await this.settle(pane);
+    const wc = pane.view.webContents;
+    const out: Record<string, unknown> = { ...r, url: wc.getURL(), title: wc.getTitle() };
+    if (pane.dialog) out.dialog = pane.dialog;
+    const errors = pane.console.filter((c) => c.at >= from && c.level === 'error').map((c) => c.text);
+    if (errors.length) out.errors = errors.slice(-20);
+    if (pane.dialog) return out;
+    const after = await this.lines(pane, undefined, true).catch(() => null);
+    if (after) {
+      pane.lastSnapshot.set(key, after);
+      const p = this.page(pane, 'snapshot', diffLines(pane.navs === navs ? before : [], after), ACTION_TOKENS);
+      out.changes = p.text;
+      if (p.continue) out.continue = p.continue;
+    }
+    return out;
   }
 
   private async evalIsolated(pane: Pane, expression: string): Promise<unknown> {
@@ -572,60 +686,11 @@ export class PaneManager {
     return { png: Buffer.from(shot.data, 'base64'), truncated: height > MAX_CAPTURE_PX, height: h };
   }
 
-  /** Accessibility tree lines; with `interactive`, only nodes carrying a ref plus the ancestors above them. */
-  async snapshotLines(pane: Pane, maxNodes: number, interactive: boolean): Promise<string[]> {
-    const { nodes } = await this.cmd(pane, 'Accessibility.getFullAXTree');
-    const byId = new Map<string, any>(nodes.map((n: any) => [n.nodeId, n]));
-    const root = nodes.find((n: any) => !n.parentId) ?? nodes[0];
-    pane.refs.clear();
-    const lines: string[] = [];
-    let refN = 0;
-    const walk = (n: any, depth: number) => {
-      if (!n || lines.length >= maxNodes) return;
-      const role = n.role?.value ?? '';
-      const name = String(n.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
-      const skip = n.ignored || role === 'none' || role === 'generic' || (role === 'StaticText' && !name) || role === 'InlineTextBox';
-      let next = depth;
-      if (!skip) {
-        let line = `${'  '.repeat(depth)}${role}${name ? ` "${name}"` : ''}`;
-        if (ACTIONABLE.has(role) && n.backendDOMNodeId) {
-          const ref = `e${++refN}`;
-          pane.refs.set(ref, n.backendDOMNodeId);
-          line += ` [ref=${ref}]`;
-          const value = n.value?.value;
-          if (value !== undefined && value !== '') line += ` value="${String(value).slice(0, 80)}"`;
-        }
-        lines.push(line);
-        next = depth + 1;
-      }
-      for (const c of n.childIds ?? []) walk(byId.get(c), next);
-    };
-    walk(root, 0);
-    const stopped = lines.length >= maxNodes;
-    let out = lines;
-    if (interactive) {
-      out = [];
-      const stack: Array<{ depth: number; line: string; shown: boolean }> = [];
-      for (const line of lines) {
-        const depth = (line.length - line.trimStart().length) / 2;
-        while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
-        const entry = { depth, line, shown: false };
-        if (line.includes(' [ref=e')) {
-          for (const s of stack) if (!s.shown) { out.push(s.line); s.shown = true; }
-          out.push(line);
-          entry.shown = true;
-        }
-        stack.push(entry);
-      }
-    }
-    if (stopped) out.push(`(stopped at ${maxNodes} nodes)`);
-    return out;
-  }
-
   /** Runs one metatrooper-browser tool on a pane. */
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
     await pane.ready;
+    if (pane.crashed && !(name === 'navigate' && pane.crashed.startsWith('the page crashed'))) throw new ToolError(-32034, pane.crashed);
     if (name === 'dialog') {
       if (!pane.dialog) throw new ToolError(-32002, 'no dialog is open');
       const d = pane.dialog;
@@ -640,67 +705,96 @@ export class PaneManager {
   }
 
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
+    const session = String(a._session ?? '');
+    const budget = Math.max(200, Math.min(Number(a.max_tokens) || SNAPSHOT_TOKENS, 100_000));
+    if ((name === 'snapshot' || name === 'read') && typeof a.continue === 'string') {
+      const rest = pane.cursors.get(a.continue);
+      if (!rest) throw new ToolError(-32602, `unknown continue cursor ${a.continue}; call ${name} again`);
+      pane.cursors.delete(a.continue);
+      return this.page(pane, name, rest, budget);
+    }
     switch (name) {
       case 'navigate': {
         if (typeof a.url !== 'string') throw new ToolError(-32602, 'url is required');
-        await this.load(pane, a.url);
-        return { url: pane.view.webContents.getURL(), title: pane.view.webContents.getTitle(), status: pane.status };
+        if (pane.crashed) {
+          await pane.view.webContents.loadURL('about:blank').catch(() => {});
+          await this.attach(pane);
+          pane.crashed = null;
+        }
+        return this.answer(pane, session, async () => {
+          await this.load(pane, a.url);
+          return { status: pane.status };
+        });
       }
       case 'back': {
         const wc = pane.view.webContents;
-        if (wc.navigationHistory.canGoBack()) {
-          const stopped = new Promise<void>((resolve) => { wc.once('did-stop-loading', () => resolve()); wc.once('did-navigate-in-page', () => resolve()); setTimeout(resolve, 10_000); });
-          wc.navigationHistory.goBack();
-          await stopped;
-        }
-        return { url: wc.getURL() };
+        return this.answer(pane, session, async () => {
+          if (wc.navigationHistory.canGoBack()) {
+            const stopped = new Promise<void>((resolve) => { wc.once('did-stop-loading', () => resolve()); wc.once('did-navigate-in-page', () => resolve()); setTimeout(resolve, 10_000); });
+            wc.navigationHistory.goBack();
+            await stopped;
+          }
+          return {};
+        });
       }
       case 'snapshot': {
-        const lines = await this.snapshotLines(pane, Math.max(10, Math.min(Number(a.max_nodes) || 400, 5000)), a.interactive === true);
-        const key = `${String(a._session ?? '')}|${a.interactive === true ? 'i' : 'f'}`;
-        const bare = (l: string) => l.replace(/ \[ref=e\d+\]/, '');
+        const interactive = a.interactive === true;
+        const cur = await this.lines(pane, a.scope_ref, interactive);
+        const key = `${session}|${interactive ? 'i' : 'f'}|${String(a.scope_ref ?? '')}`;
         const prev = pane.lastSnapshot.get(key);
-        pane.lastSnapshot.set(key, new Set(lines.map(bare)));
-        return { text: (a.since_last === true && prev ? lines.filter((l) => !prev.has(bare(l))) : lines).join('\n') };
+        pane.lastSnapshot.set(key, cur);
+        return this.page(pane, 'snapshot', a.since_last === true && prev ? diffLines(prev, cur) : cur, budget);
       }
-      case 'click': {
-        const p = await this.target(pane, a.ref);
-        await this.clickAt(pane, p.x, p.y);
-        return { ok: true };
+      case 'read': {
+        const text = String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? '');
+        let lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+        if (typeof a.search === 'string' && a.search) {
+          const q = a.search.toLowerCase();
+          lines = lines.filter((l) => l.toLowerCase().includes(q));
+        }
+        return this.page(pane, 'read', lines, budget);
       }
+      case 'click':
+        return this.answer(pane, session, async () => {
+          const p = await this.target(pane, a.ref);
+          await this.clickAt(pane, p.x, p.y);
+          return { ok: true };
+        });
       case 'type': {
         if (typeof a.text !== 'string') throw new ToolError(-32602, 'text is required');
-        const { node, x, y } = await this.target(pane, a.ref);
-        await this.clickAt(pane, x, y);
-        await this.cmd(pane, 'DOM.focus', { backendNodeId: node }).catch(() => {});
-        for (const type of ['keyDown', 'keyUp']) {
-          await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
-        }
-        if (a.text) await this.cmd(pane, 'Input.insertText', { text: a.text });
-        else {
-          for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
-        }
-        if (a.submit) {
+        return this.answer(pane, session, async () => {
+          const { node, x, y } = await this.target(pane, a.ref);
+          await this.clickAt(pane, x, y);
+          await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
-            await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+            await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
-        }
-        return { ok: true };
-      }
-      case 'select': {
-        const node = this.node(pane, a.ref);
-        const p = await this.centre(pane, node, a.ref);
-        await this.pointAt(pane, p.x, p.y);
-        const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
-        await this.cmd(pane, 'Runtime.callFunctionOn', {
-          objectId: object.objectId,
-          functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',
-          arguments: [{ value: String(a.value ?? '') }],
+          if (a.text) await this.cmd(pane, 'Input.insertText', { text: a.text });
+          else {
+            for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+          }
+          if (a.submit) {
+            for (const type of ['keyDown', 'keyUp']) {
+              await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+            }
+          }
+          return { ok: true };
         });
-        return { ok: true };
       }
+      case 'select':
+        return this.answer(pane, session, async () => {
+          const node = this.node(pane, a.ref);
+          const p = await this.box(pane, node, a.ref);
+          await this.pointAt(pane, p.x, p.y);
+          await this.cmd(pane, 'Runtime.callFunctionOn', {
+            objectId: p.objectId,
+            functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',
+            arguments: [{ value: String(a.value ?? '') }],
+          });
+          return { ok: true };
+        });
       case 'scroll': {
-        if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref) });
+        if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref).backendNodeId });
         else {
           const [w, h] = pane.parked ? [PARKED_VIEWPORT.width, PARKED_VIEWPORT.height] : [pane.view.getBounds().width, pane.view.getBounds().height];
           await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
@@ -712,8 +806,9 @@ export class PaneManager {
         const end = Date.now() + Math.min(Number(a.timeout_ms) || 10_000, 30_000);
         while (Date.now() < end) {
           if (typeof a.text === 'string' && (await this.evalIsolated(pane, `document.body ? document.body.innerText.includes(${JSON.stringify(a.text)}) : false`))) return { found: true };
-          if (typeof a.ref === 'string' && pane.refs.has(a.ref)) {
-            const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: pane.refs.get(a.ref) }).then(() => true, () => false);
+          const t = typeof a.ref === 'string' ? resolveRef(pane.refs, a.ref) : 'unknown';
+          if (typeof t === 'object') {
+            const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: t.backendNodeId }).then(() => true, () => false);
             if (ok) return { found: true };
           }
           await sleep(200);
@@ -721,12 +816,35 @@ export class PaneManager {
         return { found: false };
       }
       case 'screenshot': {
-        if (a.full_page) {
+        let png: Buffer;
+        let truncated = false;
+        if (a.ref) {
+          const b = await this.box(pane, this.node(pane, a.ref), a.ref);
+          const m = await this.cmd(pane, 'Page.getLayoutMetrics');
+          const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
+          const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };
+          png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip })).data, 'base64');
+        } else if (a.full_page) {
           const r = await this.fullPage(pane);
-          return { png_base64: r.png.toString('base64'), truncated: r.truncated };
+          png = r.png;
+          truncated = r.truncated;
+        } else png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png' })).data, 'base64');
+        let img = nativeImage.createFromBuffer(png);
+        const size = img.getSize();
+        const k = MAX_IMAGE_SIDE / Math.max(size.width, size.height, 1);
+        if (k < 1) img = img.resize({ width: Math.max(1, Math.floor(size.width * k)), height: Math.max(1, Math.floor(size.height * k)), quality: 'best' });
+        const jpeg = a.format !== 'png';
+        const first = (jpeg ? img.toJPEG(80) : img.toPNG()).toString('base64');
+        if (first.length <= IMAGE_BUDGET) return { data_base64: first, mime: jpeg ? 'image/jpeg' : 'image/png', width: img.getSize().width, height: img.getSize().height, truncated };
+        const full = img.getSize();
+        for (const scale of [1, 0.75, 0.5, 0.35]) {
+          const small = scale === 1 ? img : img.resize({ width: Math.max(1, Math.floor(full.width * scale)), height: Math.max(1, Math.floor(full.height * scale)), quality: 'best' });
+          for (const q of [70, 50, 30]) {
+            const data = small.toJPEG(q).toString('base64');
+            if (data.length <= IMAGE_BUDGET) return { data_base64: data, mime: 'image/jpeg', width: small.getSize().width, height: small.getSize().height, truncated, reencoded: `JPEG q${q} at ${Math.round(scale * 100)}% to fit the 1 MiB limit` };
+          }
         }
-        const shot = await this.cmd(pane, 'Page.captureScreenshot', { format: 'png' });
-        return { png_base64: shot.data, truncated: false };
+        throw new ToolError(-32099, 'the screenshot does not fit in 1 MiB even as a small JPEG; screenshot one ref instead');
       }
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
@@ -755,16 +873,26 @@ export class PaneManager {
     fs.mkdirSync(dir, { recursive: true });
     const stamp = Date.now();
     const out: Record<number, string> = {};
-    for (const width of [390, 1280]) {
-      await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 });
-      await sleep(400);
-      const shot = await this.fullPage(pane);
-      const file = path.join(dir, `${stamp}-${label}-${width}.png`);
-      fs.writeFileSync(file, shot.png);
-      out[width] = file.split(String.fromCharCode(92)).join('/');
+    const failed: unknown[] = [];
+    try {
+      for (const width of [390, 1280]) {
+        await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 });
+        await sleep(400);
+        const shot = await this.fullPage(pane);
+        const file = path.join(dir, `${stamp}-${label}-${width}.png`);
+        fs.writeFileSync(file, shot.png);
+        out[width] = file.split(String.fromCharCode(92)).join('/');
+      }
+    } catch (e) {
+      failed.push(e);
     }
-    if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
-    else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+    try {
+      if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
+      else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
+    } catch (e) {
+      failed.push(e);
+    }
+    if (failed.length) throw failed[0];
     return { url: pane.view.webContents.getURL(), w390_path: out[390], w1280_path: out[1280] };
   }
 
@@ -776,7 +904,8 @@ export class PaneManager {
       mode: 'searchForNode',
       highlightConfig: { showInfo: true, contentColor: { r: 47, g: 111, b: 228, a: 0.25 }, borderColor: { r: 47, g: 111, b: 228, a: 0.9 } },
     });
-    const node = await new Promise<number>((resolve) => { pane.picking = resolve; });
+    const node = await new Promise<number | null>((resolve) => { pane.picking?.(null); pane.picking = resolve; });
+    if (node === null) return;
     await this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} });
     const html = String((await this.cmd(pane, 'DOM.getOuterHTML', { backendNodeId: node })).outerHTML ?? '').slice(0, 2000);
     const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
@@ -809,6 +938,7 @@ export class PaneManager {
   cancelPick(id: string): void {
     const pane = this.panes.get(id);
     if (!pane || !pane.picking) return;
+    pane.picking(null);
     pane.picking = null;
     void this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} }).catch(() => {});
   }
@@ -825,6 +955,12 @@ export class PaneManager {
   contentsOf(id: string): WebContents | null {
     return this.panes.get(id)?.view.webContents ?? null;
   }
+}
+
+/** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
+function logUrl(url: string): string {
+  if (url.startsWith('data:')) return `data:${url.slice(5, url.indexOf(',') > 0 ? url.indexOf(',') : 5).slice(0, 100)}… (${url.length} chars)`;
+  return url.length > URL_KEEP ? `${url.slice(0, URL_KEEP)}… (${url.length} chars)` : url;
 }
 
 /** The browser action a key press in a user pane stands for, or null. */

@@ -31,4 +31,4 @@ bundled copy.
 ## Rules
 
 - Never commit, push or open PRs. Print the command for the user to run.
-- If `troop ping` fails, the core is not running. Tell the user to start it with `troop serve`.
+- If `troop ping` fails, the core is not running. Start it with `troop start` (detached). Never `troop serve` from an agent: the core would die when the agent session ends.

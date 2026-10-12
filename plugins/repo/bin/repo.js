@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 
 const win = process.platform === 'win32';
 
@@ -88,7 +87,7 @@ function diff(dir, base, runDir) {
   return { stat, files, untracked, patch_path: file.split(String.fromCharCode(92)).join('/') };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) try {
+if (import.meta.main) try {
   const req = readStdin();
   const input = req.input || {};
   const dir = path.resolve(process.env.TROOP_PROJECT_DIR || req.project || '.', input.path || '.');

@@ -268,7 +268,7 @@ test('an action\'s stderr reaches log.jsonl with its secret values redacted', as
   }
 });
 
-test('a timed-out action resolves while an orphaned grandchild still holds its stdout', { skip: process.platform !== 'win32', timeout: 15000 }, async () => {
+test('an action that exits without a result resolves while an orphaned grandchild still holds its stdout', { skip: process.platform !== 'win32', timeout: 15000 }, async () => {
   const dir = fixtureDir();
   try {
     script(dir, 'bin/orphan.cmd', '@start /b ping -n 8 127.0.0.1\r\n');
@@ -277,8 +277,8 @@ test('a timed-out action resolves while an orphaned grandchild still holds its s
       plugin: pluginRecord(dir, [{ id: 'orphan', run: ['bin/orphan.cmd'], timeout_seconds: 1 }]),
       actionId: 'orphan', input: {}, projectDir: tmpdir(), run: { id: 'r', dir: join(dir, 'run') }, secret: () => null,
     });
-    assert.deepEqual(r, { ok: false, error: { message: 'action timed out after 1 s', retryable: true } });
-    assert.ok(Date.now() - started < 5000);
+    assert.deepEqual(r, { ok: false, error: { message: 'action wrote invalid output', retryable: false } });
+    assert.ok(Date.now() - started < 1000);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -552,6 +552,46 @@ test('plugin actions resolve a .js entry through node and refuse paths outside t
     });
     assert.deepEqual(r, { ok: false, error: { message: 'command not found: ../../bin/sh', retryable: false } });
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an action that exits while a detached grandchild holds its stdout resolves with its result and kills nothing', { skip: process.platform !== 'win32', timeout: 20000 }, async () => {
+  const { scriptedGh } = await import('./helpers.ts');
+  const { copyFileSync } = await import('node:fs');
+  const { delimiter } = await import('node:path');
+  const dir = fixtureDir();
+  const spy = join(dir, 'spy');
+  mkdirSync(spy, { recursive: true });
+  const log = join(spy, 'taskkill.log');
+  scriptedGh(spy, `import fs from 'node:fs';\nfs.appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\n');\n`);
+  copyFileSync(join(spy, 'gh.exe'), join(spy, 'taskkill.exe'));
+  copyFileSync(join(spy, 'gh.mjs'), join(spy, 'taskkill.mjs'));
+  const pathKey = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  const priorPath = process.env[pathKey];
+  try {
+    script(dir, 'bin/leaves-child.js', `
+      const { spawn } = require('node:child_process');
+      process.stdin.resume();
+      process.stdin.on('end', () => {
+        process.stdout.write(JSON.stringify({ ok: true, outputs: { done: 1 } }));
+        spawn(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], { detached: true, stdio: ['ignore', 'inherit', 'inherit'] }).unref();
+        process.exit(0);
+      });`);
+    process.env[pathKey] = `${spy}${delimiter}${priorPath ?? ''}`;
+    const started = Date.now();
+    const r = await runAction({
+      plugin: pluginRecord(dir, [{ id: 'leaves', run: ['bin/leaves-child.js'], timeout_seconds: 2 }]),
+      actionId: 'leaves', input: {}, projectDir: tmpdir(), run: { id: 'r', dir: join(dir, 'run') }, secret: () => null,
+    });
+    const took = Date.now() - started;
+    assert.deepEqual(r, { ok: true, outputs: { done: 1 } });
+    assert.ok(took < 1500, `resolved after ${took} ms`);
+    await sleep(2500);
+    assert.equal(existsSync(log) ? readFileSync(log, 'utf8') : '', '');
+  } finally {
+    process.env[pathKey] = priorPath;
+    await sleep(1000);
     rmSync(dir, { recursive: true, force: true });
   }
 });

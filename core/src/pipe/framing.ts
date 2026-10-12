@@ -1,3 +1,5 @@
+import { StringDecoder } from 'node:string_decoder';
+
 export const MAX_LINE = 1024 * 1024;
 
 export class LineTooLong extends Error {
@@ -18,8 +20,9 @@ export function createDecoder(
   onParseError?: (e: Error) => void,
 ): (chunk: Buffer | string) => void {
   let buf = '';
+  const utf8 = new StringDecoder('utf8');
   return (chunk) => {
-    buf += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    buf += typeof chunk === 'string' ? chunk : utf8.write(chunk);
     let nl: number;
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl);

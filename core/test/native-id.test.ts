@@ -127,3 +127,72 @@ test('H9 a codex session started in a worktree links to the rollout whose cwd is
     assert.equal(t.native('c-wt'), CODEX_ID);
   } finally { t.done(); }
 });
+
+test('an exited session is dropped from the activity watch', async () => {
+  const t = await setup();
+  try {
+    const { activitySessions } = await import('../src/sessions/watch.ts');
+    fs.mkdirSync(path.join(t.home, '.gemini', 'antigravity-cli', 'brain', 'conv-one'), { recursive: true });
+    t.addSession('a-exit', 'agy', Date.now() - 1000);
+    t.checkActivity(t.db);
+    assert.ok(activitySessions().includes('a-exit'));
+    t.db.prepare("UPDATE session SET state = 'exited' WHERE id = 'a-exit'").run();
+    t.checkActivity(t.db);
+    assert.equal(activitySessions().includes('a-exit'), false);
+  } finally { t.done(); }
+});
+
+test('two codex sessions started together in one folder never share a rollout', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '11');
+    fs.mkdirSync(dir, { recursive: true });
+    const proj = path.join(t.home, 'proj');
+    const started = Date.now() - 1000;
+    t.addSession('c1', 'codex', started);
+    t.addSession('c2', 'codex', started);
+    for (const id of [CODEX_ID, '0199bbbb-1111-2222-3333-444455556666']) {
+      fs.writeFileSync(path.join(dir, `rollout-2026-10-11T00-00-00-${id}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: proj } }) + '\n');
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    t.checkActivity(t.db);
+    assert.ok(t.native('c1') === null || t.native('c1') !== t.native('c2'), `both linked to ${t.native('c1')}`);
+  } finally { t.done(); }
+});
+
+test('a codex session never links a rollout another session already owns', async () => {
+  const t = await setup();
+  try {
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '11');
+    fs.mkdirSync(dir, { recursive: true });
+    const proj = path.join(t.home, 'proj');
+    const other = '0199bbbb-1111-2222-3333-444455556666';
+    for (const id of [other, CODEX_ID]) {
+      fs.writeFileSync(path.join(dir, `rollout-2026-10-11T00-00-00-${id}.jsonl`), JSON.stringify({ type: 'session_meta', payload: { cwd: proj } }) + '\n');
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    t.addSession('c1', 'codex', Date.now() - 1000);
+    t.db.prepare('UPDATE session SET native_id = ? WHERE id = ?').run(CODEX_ID, 'c1');
+    t.addSession('c2', 'codex', Date.now() - 1000);
+    t.checkActivity(t.db);
+    assert.equal(t.native('c2'), other);
+  } finally { t.done(); }
+});
+
+test('a codex session with a known thread id links its rollout even when the file is days old', { skip: process.platform !== 'win32' && 'sets the file creation time with PowerShell' }, async () => {
+  const t = await setup();
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const { activitySessions } = await import('../src/sessions/watch.ts');
+    const dir = path.join(t.home, '.codex', 'sessions', '2026', '10', '09');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `rollout-2026-10-09T10-00-00-${CODEX_ID}.jsonl`);
+    fs.writeFileSync(file, JSON.stringify({ type: 'session_meta', payload: { cwd: path.join(t.home, 'proj') } }) + '\n');
+    execFileSync('powershell', ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${file}').CreationTime = (Get-Date).AddDays(-2)`]);
+    assert.ok(fs.statSync(file).birthtimeMs < Date.now() - 86_400_000);
+    t.addSession('c-res', 'codex', Date.now() - 1000);
+    t.db.prepare('UPDATE session SET native_id = ? WHERE id = ?').run(CODEX_ID, 'c-res');
+    t.checkActivity(t.db);
+    assert.ok(activitySessions().includes('c-res'));
+  } finally { t.done(); }
+});

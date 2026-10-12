@@ -15,7 +15,7 @@ export function ownedBy(paths: OwnedPaths): Record<string, string[]> {
 
 function git(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve) => {
-    execFile('git', args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 5000 }, (err, out) => resolve(err ? '' : out));
+    execFile('git', args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 5000, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }, (err, out) => resolve(err ? '' : out));
   });
 }
 

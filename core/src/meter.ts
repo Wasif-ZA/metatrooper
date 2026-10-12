@@ -15,6 +15,11 @@ function priceFor(model: string | null): Price | null {
   return prices[model] ?? Object.entries(prices).find(([k]) => k.endsWith('*') && model.startsWith(k.slice(0, -1)))?.[1] ?? null;
 }
 
+/** Token estimate for text sent to an agent: one token per 3 UTF-8 bytes, rounded up. */
+export function tokenCount(text: string): number {
+  return Math.ceil(Buffer.byteLength(text, 'utf8') / 3);
+}
+
 export function usdFor(model: string | null, inT: number, outT: number, cacheRead: number, cacheWrite: number): number | null {
   const p = priceFor(model);
   if (!p) return null;
@@ -60,8 +65,10 @@ export function readClaudeTranscript(db: DatabaseSync, sessionId: string, transc
     const u = m.usage;
     const t = { i: u.input_tokens ?? 0, o: u.output_tokens ?? 0, cr: u.cache_read_input_tokens ?? 0, cw: u.cache_creation_input_tokens ?? 0 };
     const model = typeof m.model === 'string' ? m.model : null;
-    upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, model, t.i, t.o, t.cr, t.cw, usdFor(model, t.i, t.o, t.cr, t.cw), m.id);
-    n++;
+    try {
+      upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, model, t.i, t.o, t.cr, t.cw, usdFor(model, t.i, t.o, t.cr, t.cw), m.id);
+      n++;
+    } catch {}
   }
   return n;
 }
@@ -111,8 +118,9 @@ export function readMeters(db: DatabaseSync): number {
 }
 
 interface Totals { input_tokens?: number; cached_input_tokens?: number; cache_write_input_tokens?: number; output_tokens?: number }
+const CLOCK_SLACK_MS = 2000;
 const codexFiles = new Map<string, string>();
-const codexTurns = new Map<string, { turn: string | null; model: string | null; base: Totals; last: Totals }>();
+const codexTurns = new Map<string, { turn: string | null; model: string | null; base: Totals; last: Totals; before: boolean }>();
 
 export function noteCodexSession(sessionId: string, file: string): void {
   codexFiles.set(sessionId, file);
@@ -122,10 +130,11 @@ export function noteCodexSession(sessionId: string, file: string): void {
 export function readCodexSession(db: DatabaseSync, sessionId: string, file: string): number {
   const lines = newLines(file);
   if (!lines) return 0;
-  const session = db.prepare('SELECT engine_id, run_id, step_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null } | undefined;
+  const session = db.prepare('SELECT engine_id, run_id, step_id, started_at FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null; started_at: string } | undefined;
   if (!session) return 0;
+  const startedMs = Date.parse(session.started_at);
   let st = codexTurns.get(file);
-  if (!st) codexTurns.set(file, (st = { turn: null, model: null, base: {}, last: {} }));
+  if (!st) codexTurns.set(file, (st = { turn: null, model: null, base: {}, last: {}, before: false }));
   const upsert = db.prepare(
     `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key)
      VALUES (?, ?, ?, ?, ?, 'local-cli', ?, ?, ?, ?, ?, ?, 'codex-session', ?)
@@ -144,15 +153,20 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
     if (p?.type === 'task_started' && typeof p.turn_id === 'string') {
       st.turn = p.turn_id;
       st.base = st.last;
+      st.before = Date.parse(rec.timestamp) < startedMs - CLOCK_SLACK_MS;
     }
     if (p?.type === 'token_count' && p.info?.total_token_usage && st.turn) {
       st.last = p.info.total_token_usage;
+      if ((st.last.input_tokens ?? 0) < (st.base.input_tokens ?? 0)) st.base = {};
+      if (st.before) continue;
       const cr = d('cached_input_tokens');
       const cw = d('cache_write_input_tokens');
       const i = d('input_tokens') - cr;
       const o = d('output_tokens');
-      upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), `codex:${sessionId}:${st.turn}`);
-      n++;
+      try {
+        upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), `codex:${sessionId}:${st.turn}`);
+        n++;
+      } catch {}
     }
   }
   return n;
@@ -182,8 +196,10 @@ export function readAgyTranscript(db: DatabaseSync, sessionId: string, file: str
     try { rec = JSON.parse(line); } catch { continue; }
     if (typeof rec?.input_tokens !== 'number' || rec.step_index === undefined) continue;
     const cr = rec.cache_read_tokens ?? 0;
-    upsert.run(rec.created_at ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, Math.max(0, rec.input_tokens - cr), rec.output_tokens ?? 0, cr, `agy:${sessionId}:${rec.step_index}`);
-    n++;
+    try {
+      upsert.run(rec.created_at ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, Math.max(0, rec.input_tokens - cr), rec.output_tokens ?? 0, cr, `agy:${sessionId}:${rec.step_index}`);
+      n++;
+    } catch {}
   }
   return n;
 }

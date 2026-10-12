@@ -14,12 +14,15 @@ export function openCoreDb(): DatabaseSync {
   fs.mkdirSync(homeDir(), { recursive: true });
   const db = new DatabaseSync(dbFile());
   pragmas(db, 200);
-  const v = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+  const version = () => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+  const v = version();
   if (v === 0) {
-    db.exec('BEGIN');
+    db.exec('BEGIN IMMEDIATE');
     try {
-      db.exec(fs.readFileSync(schemaFile, 'utf8'));
-      db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '2')").run();
+      if (version() === 0) {
+        db.exec(fs.readFileSync(schemaFile, 'utf8'));
+        db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '2')").run();
+      }
       db.exec('COMMIT');
     } catch (e) {
       db.exec('ROLLBACK');
@@ -32,16 +35,21 @@ export function openCoreDb(): DatabaseSync {
   }
   db.exec('CREATE INDEX IF NOT EXISTS usage_session_idx ON usage (session_id)');
   allowSandbox(db);
-  if (!(db.prepare('PRAGMA table_info(session)').all() as Array<{ name: string }>).some((c) => c.name === 'driven_engine')) db.exec('ALTER TABLE session ADD COLUMN driven_engine TEXT');
-  if (!(db.prepare('PRAGMA table_info(session)').all() as Array<{ name: string }>).some((c) => c.name === 'parent_id')) db.exec('ALTER TABLE session ADD COLUMN parent_id TEXT REFERENCES session(id)');
-  db.exec('CREATE INDEX IF NOT EXISTS event_kind_idx ON event (kind, seq)');
-  if (!(db.prepare('PRAGMA table_info(run)').all() as Array<{ name: string }>).some((c) => c.name === 'hidden')) db.exec('ALTER TABLE run ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0');
-  const gateCols = (db.prepare('PRAGMA table_info(gate)').all() as Array<{ name: string }>).map((c) => c.name);
-  if (!gateCols.includes('scan')) db.exec('ALTER TABLE gate ADD COLUMN scan TEXT');
-  if (!gateCols.includes('override_reason')) db.exec('ALTER TABLE gate ADD COLUMN override_reason TEXT');
-  if (!(db.prepare('PRAGMA table_info(needs_you)').all() as Array<{ name: string }>).some((c) => c.name === 'notified_at')) db.exec('ALTER TABLE needs_you ADD COLUMN notified_at TEXT');
   const schemaText = fs.readFileSync(schemaFile, 'utf8');
-  for (const table of ['notify_sink', 'notify_delivery']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+  tx(db, () => {
+    const addColumn = (table: string, column: string, type: string) => {
+      if (!(db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    };
+    addColumn('session', 'driven_engine', 'TEXT');
+    addColumn('session', 'parent_id', 'TEXT REFERENCES session(id)');
+    db.exec('CREATE INDEX IF NOT EXISTS event_kind_idx ON event (kind, seq)');
+    db.exec('CREATE INDEX IF NOT EXISTS event_session_idx ON event (session_id, seq)');
+    addColumn('run', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('gate', 'scan', 'TEXT');
+    addColumn('gate', 'override_reason', 'TEXT');
+    addColumn('needs_you', 'notified_at', 'TEXT');
+    for (const table of ['notify_sink', 'notify_delivery']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+  });
   migrate(db);
   return db;
 }
@@ -56,11 +64,13 @@ export function migrate(db: DatabaseSync, dir = migrationsDir): number[] {
   for (const file of fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort()) {
     const id = Number(file.slice(0, 3));
     if (done.has(id)) continue;
-    tx(db, () => {
+    const ran = tx(db, () => {
+      if (db.prepare('SELECT 1 FROM schema_migration WHERE id = ?').get(id)) return false;
       db.exec(fs.readFileSync(path.join(dir, file), 'utf8'));
       db.prepare('INSERT INTO schema_migration (id, applied_at) VALUES (?, ?)').run(id, nowIso());
+      return true;
     });
-    applied.push(id);
+    if (ran) applied.push(id);
   }
   return applied;
 }
@@ -121,6 +131,10 @@ export function migrateToV2(db: DatabaseSync): void {
   db.exec('PRAGMA foreign_keys = OFF');
   db.exec('BEGIN IMMEDIATE');
   try {
+    if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version !== 1) {
+      db.exec('COMMIT');
+      return;
+    }
     for (const t of V2_TABLES) {
       rebuildTable(db, schema, t, (c) => (t === 'session' && c === 'host' ? "'pty'" : t === 'event' && c === 'source' ? "CASE WHEN source IN ('claude-hook','launch','codex-notify') THEN source ELSE 'core' END" : c), V1_DROPPED);
     }

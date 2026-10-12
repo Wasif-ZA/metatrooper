@@ -29,9 +29,9 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `launch` | launch | `{"session_id": str, "pid": int, "cwd": str, "engine": str, "started_at": ts}` |
 | `claude.PreToolUse` | claude-hook | `session_id`, `transcript_path`, `cwd`, `tool_name`, `tool_use_id`, and `tool_input` redacted (below) |
 | `claude.PostToolUse` | claude-hook | as PreToolUse, plus `response_length` (characters). The response itself is never stored |
-| `claude.UserPromptSubmit` | claude-hook | `session_id`, `cwd`, `prompt_length`. The prompt text is never stored |
+| `claude.UserPromptSubmit` | claude-hook | `session_id`, `transcript_path`, `cwd`, `prompt_length`. The prompt text is never stored |
 | `claude.Notification` | claude-hook | `session_id`, `cwd`, `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
-| `claude.Stop` | claude-hook | `session_id`, `cwd`, `stop_hook_active` |
+| `claude.Stop` | claude-hook | `session_id`, `transcript_path`, `cwd`, `stop_hook_active` |
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
 | `term.bell` | core | `{}` (terminal bell, used only when the session has been silent 30 s) |
