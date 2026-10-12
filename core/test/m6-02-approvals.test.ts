@@ -101,6 +101,26 @@ test('Enter while focus is in a frame or closed shadow root that cannot be named
   assert.equal(riskReason({ ...base, action: 'key', args: { keys: 'Tab' } }), null);
 });
 
+test('click, select or type on a control whose accessibility node cannot be read asks every time', () => {
+  const base = { session_id: 's1', surface: 'browser', target: 'http://127.0.0.1', args: {}, control: { name: '', automation_id: '', role: '' }, hidden: true };
+  for (const action of ['click', 'select', 'type']) assert.equal(riskReason({ ...base, action }), 'hidden control', action);
+  assert.equal(riskReason({ ...base, action: 'scroll' }), null);
+});
+
+test('a risky word past 200 characters of the name asks, and only the reason shortens the name', () => {
+  const name = `${'x '.repeat(150)}Send`;
+  const reason = riskReason({ session_id: 's1', surface: 'browser', target: 'http://127.0.0.1', args: {}, action: 'click', control: { name, automation_id: '', role: 'button' } });
+  assert.equal(reason, `risky control: ${name.slice(0, 200)}`);
+});
+
+test('a credential crossing the 200-character cut of a risky name is redacted before the reason shortens it', () => {
+  const token = 'ghp_' + 'A1b2'.repeat(10);
+  const name = `Send ${'x '.repeat(94)}${token}`;
+  const reason = riskReason({ session_id: 's1', surface: 'browser', target: 'http://127.0.0.1', args: {}, action: 'click', control: { name, automation_id: '', role: 'button' } })!;
+  assert.ok(!reason.includes('ghp_'), reason);
+  assert.equal(redactCredentials(reason), reason);
+});
+
 test('M6-02a: Send click creates waiting approval and needs_you, rejecting resolves both', async () => {
   const iso = isolation();
   const core = await startCore(iso);
