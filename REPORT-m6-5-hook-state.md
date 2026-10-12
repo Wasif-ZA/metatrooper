@@ -148,3 +148,53 @@ were run by hand in `core`. `core/dist` was rebuilt with `node core/build.ts` af
    `state_titles`. I read them as belonging to other children (M6-9, M6-23).
 6. A message arrived mid-run, framed as a subagent hand-back, though I had spawned none. I treated it as information
    only. Its claim that `git merge main` was a no-op was wrong; the merge brought in main's newer commits.
+
+## Review fixes, round 1
+
+Codex review: `reviews/m6-5-hook-state.codex.summary.txt` (2 findings, both P2). `git merge main` ran first and made
+merge commit `aa86c22`. Both findings are real. Each one has a test that failed before its fix and passes after it.
+
+### 1. Foreign conversations held the permission wait: FIXED in `bf0c3d1`
+
+- **Checked:** `lastAsk`, `lastPermissionNote`, `pendingToolId` and `toolFinished` in `core/src/events/processor.ts`
+  filtered only on `session_id`. So a side conversation's PermissionRequest became the "last ask" even though normal
+  processing ignored it as foreign.
+- **Test:** `M6-05c a side conversation's PermissionRequest under the same session does not hold the main
+  conversation's wait`. Before the fix, the main call's PostToolUse left the session `waiting_for_you` (actual
+  `waiting_for_you`, expected `working`).
+- **Fix:** all four lookups now also require `payload.session_id` to equal the session's own conversation. That is the
+  event's own `session_id` when it is not foreign, else `native_id`. An event with no `session_id`, or a session with no
+  `native_id` yet, matches as before. The non-wait PostToolUse check (`pendingToolId` on the clear path) uses the same
+  filter.
+- **Contract:** `contracts/events-and-hooks.md` (the permission-wait paragraph): only the session's own conversation
+  counts.
+
+### 2. PermissionRequest left `last_tool` naming another call: FIXED in `86cd786`
+
+- **Checked:** only `claude.PreToolUse` set `last_tool`. With overlapping calls (PreToolUse Edit/B, PreToolUse Read/A,
+  then PermissionRequest for B), `last_tool` stayed `Read`. It also stayed `Read` after A finished, because the clear
+  path only clears on the waited call. So the workbench `waitReason` named the wrong tool.
+- **Test:** `M6-05c a PermissionRequest for an earlier call names that call's tool, and its wait keeps it after the
+  other call finishes`. Before the fix: actual `Read`, expected `Edit`.
+- **Fix:** an accepted (not foreign) `claude.PermissionRequest` with a string `tool_name` sets `last_tool`.
+- **Contract:** the same paragraph now says so.
+
+### Build
+
+`node core/build.ts` ran after each change and left `core/dist` unchanged. `core/build.ts` bundles only the hook
+entries (`hook/*.ts` and what they import), and `processor.ts` is not among them. So there was no dist change to
+commit.
+
+### Suites (after both fixes)
+
+- Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH): 414 tests, 410 pass, 0 fail,
+  4 skipped. The skips are the existing environment-gated ones: M1-10, M1-02/M1-03, M5-12c, and one more.
+- Workbench (`npm test`): 129 tests, 90 pass, 0 fail, 35 skipped (real Electron tests gated on
+  `METATROOPER_UI_REVISION_E2E=1`), 4 todo.
+
+### Left for Wasif
+
+- Nothing new from this round. The items above under "Left for Wasif" still stand.
+- Again, a message framed as a subagent hand-back arrived mid-run, though I had spawned none. I treated it as
+  information only and checked its claims myself. Its file and line pointers matched the code, and its claim that the
+  build leaves `core/dist` unchanged held when I ran the build.
