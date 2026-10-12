@@ -11,6 +11,8 @@ import { BROWSER_SECRETS, normalOrigin, originFile, SECRET_NAME } from './browse
 const cache = new Map<string, string>();
 /** The file stamp each cached value was read from. */
 const stamps = new Map<string, string | null>();
+/** Values replaced by a newer save: a page may still show them, so they stay in the scrub list. */
+const retired = new Set<string>();
 const FAKE_PREFIX = 'fake-dpapi:';
 const KEYRING_PREFIX = 'secret-tool:';
 const PLAIN_PREFIX = 'plain:';
@@ -69,6 +71,8 @@ export function setSecret(db: DatabaseSync, pluginId: string, name: string, valu
   fs.writeFileSync(file, blob, { encoding: 'utf8', mode: 0o600 });
   if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
   if (pluginId !== 'core-notify' && pluginId !== BROWSER_SECRETS) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
+  const prev = cache.get(`${pluginId}/${name}`);
+  if (prev !== undefined && prev !== value) retired.add(prev);
   cache.set(`${pluginId}/${name}`, value);
   stamps.set(`${pluginId}/${name}`, fileStamp(file));
 }
@@ -101,6 +105,7 @@ export function getSecret(pluginId: string, name: string): string | null {
       `[Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))`;
     value = powershell(script, file);
   }
+  if (hit !== undefined && hit !== value) retired.add(hit);
   cache.set(key, value);
   stamps.set(key, stamp);
   return value;
@@ -142,9 +147,9 @@ export function setBrowserSecret(db: DatabaseSync, name: string, origin: string,
   fs.writeFileSync(originFile(name), o, { encoding: 'utf8', mode: 0o600 });
 }
 
-/** Every secret value decrypted in this process. */
+/** Every secret value decrypted in this process, including values a later save replaced. */
 export function knownSecretValues(): string[] {
-  return [...cache.values()];
+  return [...cache.values(), ...retired];
 }
 
 /** Every secret value decrypted in this process plus every saved browser secret, decrypted here when another process filled it; throws when one cannot be read. */

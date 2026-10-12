@@ -204,6 +204,9 @@ test('M6-12 a browser secret saved again by another process is read again, not s
   save('https://new.test', 'second-value-2');
   assert.equal(browserSecretOrigin('ROTATED'), 'https://new.test');
   assert.equal(getSecret('core-browser', 'ROTATED'), 'second-value-2');
+  // a page may still show the old value, so it stays in the scrub list
+  const { knownSecretValues } = await import('../src/secrets.ts');
+  assert.ok(knownSecretValues().includes('first-value-1') && knownSecretValues().includes('second-value-2'));
 });
 
 test('M6-12 a checked tool the MCP server stops before dispatch (denied, core offline) reports its outcome to the workbench for the audit row', async () => {
