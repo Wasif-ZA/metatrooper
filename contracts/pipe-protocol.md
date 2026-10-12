@@ -164,6 +164,7 @@ The core sweeps worktree projects at startup and once an hour (`core/src/worktre
   - Stale, clean (`git status --porcelain` prints nothing, untracked files included) and merged (`HEAD` is an ancestor of the parent repo's main branch: the branch `origin/HEAD` names, else `main`, else `master`). The core runs `git worktree remove <path>` from the parent repo, never with `--force`. It then drops the folder's engine trust entries, sets `hidden = 1` and logs `worktree sweep: removed <path> ...`. The branch is kept.
   - Stale but dirty, unmerged, with no main branch found, or failing to be removed. Nothing is deleted. The row gets `older = 1` and the menu shows it in a collapsed **Older** group instead of **Worktrees**.
   - Not stale, or no longer stale. `older` goes back to 0.
+  - Stale, and the folder is still there but git has let go of it (no `.git` entry), as when `git worktree remove` deregistered it and Windows refused to delete the folder. The core removes the folder only if it is empty, then drops its trust entries and sets `hidden = 1`. Otherwise it logs and tries again next sweep; the row is neither hidden nor marked older, and the menu leaves it out because it has no `.git`.
 - Rows are hidden, never deleted, because `session`, `run`, `browser_pane` and `schedule` reference `project(id)`. `project.open` on the same folder sets `hidden` and `older` back to 0.
 
 ## Browser methods (`\\.\pipe\metatrooper-browser`)

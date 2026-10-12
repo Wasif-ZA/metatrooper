@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
@@ -47,6 +48,20 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
   ).all() as Row[];
   const set = db.prepare('UPDATE project SET hidden = ?, older = ? WHERE id = ?');
   const liveNow = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
+  // Git has let go of this folder (no `.git` entry) but it is still there, as when Windows refused to delete it. Only an empty folder is
+  // removed; anything else stays and is tried again next sweep. The workbench never shows such a folder (goneCheckout).
+  const leftover = async (r: Row): Promise<void> => {
+    try {
+      await fs.promises.rmdir(r.path);
+    } catch (e) {
+      console.error(`worktree sweep: ${r.path} is no longer a worktree but could not be deleted, will retry: ${(e as Error).message.split('\n')[0]}`);
+      return;
+    }
+    untrustFolder(r.path, engines);
+    set.run(1, 0, r.id);
+    out.removed.push(r.path);
+    console.error(`worktree sweep: removed ${r.path}, left over after git worktree remove`);
+  };
   for (const r of rows) {
     const parts = r.path.toLowerCase().startsWith(root.toLowerCase()) ? r.path.slice(root.length).split('/') : [];
     if (parts.length !== 2 || !parts[0] || !parts[1]) continue;
@@ -63,6 +78,10 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
         continue;
       }
       if (canonicalPath(fs.realpathSync.native(r.path)).toLowerCase().startsWith(canonicalPath(fs.realpathSync.native(root)).toLowerCase() + '/')) {
+        if (!fs.existsSync(path.join(r.path, '.git'))) {
+          if (!liveNow.get(r.id)) await leftover(r);
+          continue;
+        }
         const parent = db.prepare('SELECT path FROM project WHERE id = ?').get(parts[0]) as { path: string } | undefined;
         const main = parent && fs.existsSync(parent.path) ? await mainBranch(parent.path) : null;
         const clean = (await git(r.path, ['status', '--porcelain'])).trim() === '';
@@ -79,6 +98,10 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
             console.error(`worktree sweep: removed ${r.path}, idle ${settings().worktree.stale_days}+ days, clean and merged into ${main}`);
             continue;
           } catch (e) {
+            if (fs.existsSync(r.path) && !fs.existsSync(path.join(r.path, '.git'))) {
+              await leftover(r);
+              continue;
+            }
             console.error(`worktree sweep: could not remove ${r.path}, kept as older: ${(e as Error).message.split('\n')[0]}`);
           }
         }

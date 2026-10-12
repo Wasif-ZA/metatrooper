@@ -55,6 +55,11 @@ test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dir
     const outside = add('outside', path.join(home, 'elsewhere', 'outside'));
     row('outside', outside);
 
+    const left = path.join(home, 'worktrees', 'parent', 'left');
+    fs.mkdirSync(left);
+    fs.writeFileSync(path.join(left, 'locked.tmp'), '');
+    const leftPath = resolveProjectPath(left);
+    row('left', leftPath);
     const late = add('late');
     row('late', late);
 
@@ -88,10 +93,16 @@ test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dir
       assert.ok(fs.existsSync(dir), id);
     }
 
+    assert.ok(fs.existsSync(left), 'a leftover folder that cannot be deleted stays');
+    assert.deepEqual({ ...state('left') }, { hidden: 0, older: 0 }, 'a leftover folder is retried, not hidden or marked older');
+
+    fs.rmSync(path.join(left, 'locked.tmp'));
     db.prepare("UPDATE session SET state = 'exited' WHERE id = 's1'").run();
     db.prepare('UPDATE project SET last_opened = ? WHERE id = ?').run(iso(now), 'dirty');
     const again = await sweepWorktrees(db, []);
-    assert.deepEqual(again.removed, [live], 'an exited session no longer keeps an idle worktree');
+    assert.deepEqual(again.removed.sort(), [leftPath, live].sort(), 'an exited session no longer keeps an idle worktree, and the leftover is retried');
+    assert.equal(fs.existsSync(left), false);
+    assert.deepEqual({ ...state('left') }, { hidden: 1, older: 0 });
     assert.deepEqual({ ...state('dirty') }, { hidden: 0, older: 0 }, 'new activity brings an older worktree back');
   } finally {
     db.close();
