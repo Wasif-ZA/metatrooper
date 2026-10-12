@@ -8,8 +8,8 @@ import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
-import { redactSecretValues } from '../../../core/src/redact.ts';
-import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
+import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
+import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -516,7 +516,7 @@ export class PaneManager {
       return;
     }
     if (method === 'Page.javascriptDialogOpening') {
-      pane.dialog = { type: params.type, message: String(params.message ?? '').slice(0, 2000) };
+      pane.dialog = { type: params.type, message: whole(String(params.message ?? '')).slice(0, 2000) };
       this.log(pane, 'dialog', `${params.type} dialog: ${pane.dialog.message}`);
       pane.onDialog?.(pane.dialog);
       return;
@@ -541,7 +541,7 @@ export class PaneManager {
       return;
     }
     if (method === 'Network.requestWillBeSent') {
-      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: logUrl(String(params.request.url)), status: null, bytes: 0 });
+      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: logUrl(whole(String(params.request.url))), status: null, bytes: 0 });
       if (pane.network.size > LOG_KEEP) pane.network.delete(pane.network.keys().next().value as string);
       return;
     }
@@ -573,7 +573,7 @@ export class PaneManager {
   }
 
   private log(pane: Pane, level: string, text: string): void {
-    pane.console.push({ at: Date.now(), level, text: text.slice(0, 2000) });
+    pane.console.push({ at: Date.now(), level, text: whole(text).slice(0, 2000) });
     if (pane.console.length > LOG_KEEP) pane.console.splice(0, pane.console.length - LOG_KEEP);
   }
 
@@ -761,6 +761,8 @@ export class PaneManager {
     const visit = async (t: any, parent?: string): Promise<void> => {
       const id = t.frame.id as string;
       const nodes = (await this.cmd(pane, 'Accessibility.getFullAXTree', { frameId: id }).then((r) => r.nodes as AXNode[], () => []));
+      // the snapshot cuts names and values, so they are scrubbed whole first
+      for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string) };
       const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
       out.push({ id, nodes, parent, owner });
       for (const c of t.childFrames ?? []) await visit(c, id);
@@ -1068,7 +1070,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         return this.page(pane, 'snapshot', a.since_last === true && prev ? diffLines(prev, cur) : cur, budget);
       }
       case 'read': {
-        const text = String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? '');
+        const text = whole(String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? ''));
         let lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
         if (typeof a.search === 'string' && a.search) {
           const q = a.search.toLowerCase();
@@ -1186,7 +1188,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
         if (pane.secretOnPage) throw new ToolError(-32037, 'evaluate is off on a page a secret was typed into; navigate first');
         pane.scripted = true;
-        const value = await this.evalIsolated(pane, a.expression);
+        const value = scrubDeep(await this.evalIsolated(pane, a.expression), knownSecretValues());
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };
@@ -1364,6 +1366,11 @@ export function errorPage(kind: string, url: string, detail: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>`
     + `<style>body{font:14px system-ui,sans-serif;margin:48px;color:#222;background:#fafafa}code{word-break:break-all}@media (prefers-color-scheme:dark){body{color:#ddd;background:#1b1b1b}a{color:#8ab4f8}}</style></head>`
     + `<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><p><code>${escapeHtml(url.slice(0, 2000))}</code></p><p>${escapeHtml(detail.slice(0, 500))}</p>${retry}</body></html>`;
+}
+
+/** Page text scrubbed before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. */
+function whole(text: string): string {
+  return scrub(text, knownSecretValues());
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */

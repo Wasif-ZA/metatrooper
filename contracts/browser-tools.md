@@ -106,7 +106,11 @@ box fails with "not visible".
   agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
   workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
   and credential patterns become `[secret]`. Only a `screenshot` result's `data_base64` (its image bytes) is left as it
-  is; the same key anywhere in another result, such as what an `evaluate` returns, is scrubbed. `describe` scrubs the control's name and id of every known secret value
+  is; the same key anywhere in another result, such as what an `evaluate` returns, is scrubbed.
+  Page text that is cut to a limit is scrubbed whole before the cut, so a cut through a secret cannot leave a prefix
+  the later scrub no longer matches: accessibility names and values (before the snapshot's 120- and 80-character cuts and
+  the token budget, which also covers `continue` pages and action `changes`), `read` text, the `evaluate` value (before
+  the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters). `describe` scrubs the control's name and id of every known secret value
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. A checked call (`click`, `type`, `select`, `key`) that the MCP server stops

@@ -313,7 +313,34 @@ const evalReturns = (value: unknown) => {
 };
 evalReturns({ data_base64: marker, nested: { data_base64: marker } });
 r.evaluateImageKeyScrubbed = (await call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'x' })).result;
+// Round 4: text is scrubbed whole before any cut, so a cut through a secret leaves no prefix of it
+const cutAt = marker.slice(0, 9);
+evalReturns(`${'a'.repeat(20 * 1024 - 10)}${marker}`);
+r.evaluateCutScrubbed = !JSON.stringify((await call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'x' })).result).includes(cutAt);
 pane.scripted = false;
+let readText = '';
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => {
+  if (method === 'Runtime.evaluate' && String(params.expression).includes('innerText')) return { result: { value: readText } };
+  if (method === 'Accessibility.getFullAXTree') return { nodes: params.frameId === 'F' ? [{ nodeId: '1', role: { value: 'heading' }, name: { value: `${'a'.repeat(110)}${marker}` } }] : [] };
+  return plainCmd(p, method, params);
+};
+readText = 'a'.repeat(5000);
+const cut = String((await call('browser.read', { pane_id: 'bp_agent_1', max_tokens: 200 })).result.text).split('\n')[0].length;
+const cutReads: string[] = [];
+for (const k of [cut - 12, cut - 9, cut - 6]) {
+  readText = `${'a '.repeat(k).slice(0, k)}${marker} ${'b '.repeat(100)}`;
+  cutReads.push(JSON.stringify((await call('browser.read', { pane_id: 'bp_agent_1', max_tokens: 200 })).result));
+}
+r.readCutScrubbed = !cutReads.some((t) => t.includes(cutAt));
+delete internal.lines;
+r.snapshotNameCutScrubbed = !JSON.stringify((await call('browser.snapshot', { pane_id: 'bp_agent_1' })).result).includes(cutAt);
+internal.log(pane, 'log', `${'a'.repeat(1991)}${marker}`);
+await internal.onDebuggerEvent(pane, 'Network.requestWillBeSent', { requestId: 'q1', request: { method: 'GET', url: `https://bank.test/${'a/'.repeat(1000).slice(0, 2000 - 18 - 9)}${marker}` } });
+r.consoleCutScrubbed = !JSON.stringify((await call('browser.console', { pane_id: 'bp_agent_1' })).result).includes(cutAt);
+r.networkCutScrubbed = !JSON.stringify((await call('browser.network', { pane_id: 'bp_agent_1' })).result).includes(cutAt);
+await internal.onDebuggerEvent(pane, 'Page.javascriptDialogOpening', { type: 'alert', message: `${'a'.repeat(191)}${marker}` });
+r.dialogCutScrubbed = !String((await call('browser.read', { pane_id: 'bp_agent_1' })).error?.message).includes(cutAt);
+pane.dialog = null;
 internal.cmd = plainCmd;
 
 // M1-05 style scan: the value is in no table, file, tool result or event
