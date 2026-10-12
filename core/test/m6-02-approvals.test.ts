@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { actionHash, riskReason, Approvals } from '../src/approvals.ts';
+import { looksLikeCredential, redactCredentials } from '../src/redact.ts';
 import { isolation, startCore, teardownCore, client, uiHello, until } from './helpers.ts';
 
 test('action hash matches contract vectors and handles text sha256 and key order', () => {
@@ -495,4 +496,17 @@ test('typed text never appears in approval, needs_you or command rows', async ()
     try { db?.close(); } catch {}
     await teardownCore(core, iso);
   }
+});
+
+test('a long token-character run is checked in linear time and a mixed-case run is still a credential', () => {
+  const start = Date.now();
+  for (const run of ['a'.repeat(100_000), 'eyJ'.repeat(33_000), 'ghp_'.repeat(25_000)]) {
+    assert.equal(looksLikeCredential(run), false);
+    assert.equal(redactCredentials(run), run);
+  }
+  assert.ok(Date.now() - start < 500, `took ${Date.now() - start} ms`);
+  const secret = 'Ab1' + 'x'.repeat(29);
+  assert.equal(looksLikeCredential(`token ${secret} here`), true);
+  assert.equal(redactCredentials(`token ${secret} here`), 'token [secret] here');
+  assert.equal(looksLikeCredential('Ab1' + 'x'.repeat(28)), false);
 });

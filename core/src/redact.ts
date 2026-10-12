@@ -164,16 +164,19 @@ export const CREDENTIAL_PATTERNS: RegExp[] = [
   /\bAIza[0-9A-Za-z_-]{35}/,
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-  /(?=[A-Za-z0-9_+/=-]*[0-9])(?=[A-Za-z0-9_+/=-]*[a-z])(?=[A-Za-z0-9_+/=-]*[A-Z])[A-Za-z0-9_+/=-]{32,}/,
 ];
 
+/** A run of 32+ token characters is a credential when it mixes digits, lower and upper case; found in one pass, then each run tested, so a long run costs linear time. */
+const LONG_RUN = /[A-Za-z0-9_+/=-]{32,}/g;
+const mixedCase = (run: string) => /[0-9]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
+
 export function looksLikeCredential(text: string): boolean {
-  return CREDENTIAL_PATTERNS.some((re) => re.test(text));
+  return CREDENTIAL_PATTERNS.some((re) => re.test(text)) || (text.match(LONG_RUN) ?? []).some(mixedCase);
 }
 
 /** Replaces every credential-pattern match in text with [secret]. */
 export function redactCredentials(text: string): string {
-  return CREDENTIAL_PATTERNS.reduce((out, re) => out.replace(new RegExp(re.source, 'g'), '[secret]'), text);
+  return CREDENTIAL_PATTERNS.reduce((out, re) => out.replace(new RegExp(re.source, 'g'), '[secret]'), text).replace(LONG_RUN, (run) => (mixedCase(run) ? '[secret]' : run));
 }
 
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
