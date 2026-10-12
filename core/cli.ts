@@ -426,7 +426,7 @@ async function main(): Promise<number> {
         return 1;
       }
       const r = await rpc('browser.secret.set', { name, origin, value }, json);
-      if (r.result) emit(json, r.result, `saved ${name} for ${origin}`);
+      if (r.result) emit(r.result, `saved ${name} for ${origin}`);
       return r.code;
     }
 
