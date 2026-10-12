@@ -78,6 +78,29 @@ test('M6-15 unit: a grant covers its window and owned windows with the same pid 
   assert.equal(isQueueable('takeover.pause'), false);
 });
 
+test('M6-15 the real UI Automation helper compiles and answers read-only requests', { skip: process.platform !== 'win32' }, async () => {
+  const { Helper } = await import('../src/desktop/driver.ts');
+  const saved = process.env.METATROOPER_UIA_HELPER;
+  delete process.env.METATROOPER_UIA_HELPER;
+  const helper = new Helper();
+  try {
+    const gone = await helper.request('info', { hwnd: 1 }, 90_000);
+    assert.equal(gone.alive, false);
+    const { windows } = await helper.request('list', {}, 30_000);
+    assert.ok(Array.isArray(windows));
+    for (const w of windows) {
+      assert.equal(typeof w.hwnd, 'number');
+      assert.equal(typeof w.pid, 'number');
+      assert.ok(Array.isArray(w.owner_chain) && w.rect.length === 4);
+    }
+    await assert.rejects(helper.request('describe', { hwnd: 1, ref: 'e1' }), /unknown ref e1; take a new snapshot/);
+    await assert.rejects(helper.request('nope'), /unknown op nope/);
+  } finally {
+    helper.stop();
+    if (saved !== undefined) process.env.METATROOPER_UIA_HELPER = saved;
+  }
+});
+
 test('M6-15 migration 003 gives an older database the grant table schema.sql defines', () => {
   const old = new DatabaseSync(':memory:');
   const fresh = new DatabaseSync(':memory:');
