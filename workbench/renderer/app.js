@@ -178,6 +178,7 @@ function renderCommentForm() {
   return `<div class="panel comment-form">
     <h3>Comment on ${esc(c.selector || 'element')}</h3>
     <img class="crop" src="data:image/png;base64,${esc(c.crop)}" alt="The element you picked">
+    <p class="meta">Up arrow picks the parent element, Down arrow goes back${c.depth ? ` (${c.depth} up from the one you clicked)` : ''}.</p>
     <div class="form">
       <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(sessionLabel(x))} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
       <label>Note</label><textarea id="comment-note" data-key="comment-note" rows="4" placeholder="What should change here?"></textarea>
@@ -1495,7 +1496,18 @@ function closeFind() {
   render();
 }
 
+/** Up and Down outside a text field move the picked element to its parent or back to the child; true when it handled the key. */
+function pickWalk(e) {
+  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return false;
+  if (/^(TEXTAREA|INPUT|SELECT)$/.test((e.target && e.target.tagName) || '')) return false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  void api.panePickWalk(ui.comment.pane_id, e.key === 'ArrowUp' ? 'up' : 'down');
+  return true;
+}
+
 function browserKeys(e) {
+  if (ui.comment && pickWalk(e)) return;
   if (ui.tab !== 'browser' || !ui.paneId || ui.comment) return;
   if (!(e.target && e.target.closest && e.target.closest('.browser'))) return;
   const id = e.target && e.target.id;

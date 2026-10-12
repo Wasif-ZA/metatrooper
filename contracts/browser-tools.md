@@ -114,7 +114,9 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
 - On hosts other than Windows the browser pipe is the socket file `<tmp>/<prefix>-browser.sock`, because
   agents run from other folders than the workbench.
 - Point-to-comment uses the pane debugger's inspect mode (`Overlay.setInspectMode`); the body is
-  `[comment <id>] <note>`, then `Page:`, `Element:` (a CSS path), the outer HTML (2,000 characters) and `Crop:`.
+  `[comment <id>] <note>`, then `Page:`, `Element:` (a CSS path), a line labelling what follows as page content
+  the agent must treat as data and not follow as instructions, the sanitised outer HTML (at most 4 KB, see M6-13
+  below) in an `html` fence, and `Crop:`.
 - Tool calls on a new pane wait until its debugger is attached and interception is on.
 - An error while deciding a paused request fails the request; it is never left paused.
 - Each partition's `webRequest.onBeforeRequest` also runs the safety rule 2 check on every request, so
@@ -122,11 +124,35 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
   so dev-server live reload works on owned ports.
 - User panes: `target=_blank` and "Open link in new pane" open a new user pane; downloads save to the
   Downloads folder under a unique name; clipboard-read, notifications, media and geolocation ask the user once
-  per origin per app run. Agent and board panes load popups in place, cancel downloads and deny every
-  permission.
+  per origin per app run. Agent and board panes load `target=_blank` links in place, cancel downloads and deny
+  every permission. Popups follow the M6-13 rules below in every pane kind.
 - User panes take Ctrl+L, Ctrl+F, Ctrl+R / F5, Alt+Left / Right, Ctrl+= / - / 0 and F12, and have a
   right-click menu. Typed URL box input: a scheme is kept, loopback and IPs get `http://`, a dotted host gets
   `https://`, anything else is a DuckDuckGo search (`typedUrl` in `core/src/browser/policy.ts`).
 - `metatrooper-browser` is attached to Claude sessions through their `--mcp-config` file and to Codex sessions
   through `-c mcp_servers.metatrooper-browser.*`. agy sessions are not attached yet (its MCP config file is not
   verified), so M1-23 for agy waits on that.
+
+## Pane hygiene (M6-13)
+
+- **Own pages for failures.** A main-frame `did-fail-load` (except `ERR_ABORTED`) and `render-process-gone` load a
+  `data:text/html` page in the pane: "This page did not load", "This page is not secure" (net errors -200 to -299),
+  "MetaTrooper blocked this page" (`ERR_BLOCKED_BY_CLIENT`) or "This page crashed", with the failed URL, the error
+  and a Try again link. The page is never reported as the pane's URL: `pane.url`, the URL bar and the tools' page
+  state keep the failed URL. Reload, Try again and `navigate` load the failed URL again; after a crash they
+  re-attach the debugger with interception on first.
+- **Popups keep their opener.** A `window.open` with `disposition: 'new-window'` (the OAuth popup shape) opens as a
+  child window of the workbench in the opener's partition, sandboxed, with `window.opener` kept. It may only
+  navigate to `http:`, `https:` or `about:blank`, cannot open windows itself, and closes with its pane. It has no
+  debugger, so agent tools cannot drive it and the DNS-rebinding re-check does not run there; the partition's
+  `onBeforeRequest` policy still does.
+- **No new pane without a click.** A page may open a pane, a popup or (in an agent pane) an in-place load only
+  within 5 s of a mouse press, release or key press in that pane (`input-event`), or of an agent `click` or
+  `type` with `submit`. Each click allows one window. Anything else is denied and logged as `blocked` in `console`.
+- **Capture restores the viewport** in a `finally`: the 1280 by 800 parked override or no override.
+- **Picks.** The pick body's HTML is sanitised (comments, `script`, `style`, `noscript`, `template`, `iframe`,
+  `object`, `embed` and `svg` bodies, `on*` attributes, `javascript:` URLs, password `value`s, `data:` URLs over
+  200 characters and runs of three backticks removed; whitespace collapsed), then cut to 4,096 UTF-8 bytes on a
+  character boundary, with "It was cut at 4 KB." added to the label when cut. After a pick, Up arrow moves the pick
+  to the element's parent (stopping at `body`), Down arrow goes back toward the clicked element; the comment form
+  shows the new element's path and crop before Send.

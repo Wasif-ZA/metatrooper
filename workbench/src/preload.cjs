@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('troop', {
   },
   paneMenu: (items, x, y) => ipcRenderer.invoke('paneMenu', items, x, y),
   panePick: (paneId) => ipcRenderer.invoke('panePick', paneId),
+  panePickWalk: (paneId, dir) => ipcRenderer.invoke('panePickWalk', paneId, dir),
   panePickCancel: (paneId) => ipcRenderer.invoke('panePickCancel', paneId),
   commentSave: (c) => ipcRenderer.invoke('commentSave', c),
   commentDiffLine: (c) => ipcRenderer.invoke('commentDiffLine', c),
