@@ -113,7 +113,9 @@ A Claude permission wait is held on one tool call: the `tool_use_id` of the last
 no PermissionRequest since the last prompt or Stop, of the last `claude.PreToolUse` before the last permission
 `claude.Notification`. While a session is `waiting_for_you` on such a call that has not finished, a `claude.PreToolUse`,
 `claude.PostToolUse` or `claude.PostToolUseFailure` for any other `tool_use_id` changes no state and leaves `last_tool`
-alone; that call's own PostToolUse (or PostToolUseFailure), a prompt, Stop or StopFailure ends the wait.
+alone; that call's own PostToolUse (or PostToolUseFailure), a prompt, Stop or StopFailure ends the wait. Only events
+of the session's own conversation (`session_id` equal to its `native_id`) count here; a side conversation's
+PermissionRequest, Notification or tool events under the same session neither hold nor end the wait.
 
 `exited` is final: once a session is `exited`, no event changes its state again.
 

@@ -169,6 +169,17 @@ test('M6-05c a PermissionRequest names the waited call itself; a new prompt also
   } finally { t.done(); }
 });
 
+test('M6-05c a side conversation\'s PermissionRequest under the same session does not hold the main conversation\'s wait', async () => {
+  const t = await memoryDb();
+  try {
+    t.send('claude.UserPromptSubmit');
+    t.send('claude.PreToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' });
+    assert.equal(t.send('claude.PermissionRequest', { tool_name: 'Bash', tool_use_id: 'toolu_A' }), 'waiting_for_you');
+    assert.equal(t.send('claude.PermissionRequest', { session_id: 'side', tool_name: 'Edit', tool_use_id: 'toolu_X' }), 'waiting_for_you');
+    assert.equal(t.send('claude.PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' }), 'working');
+  } finally { t.done(); }
+});
+
 test('M6-05c a wait that did not come from a permission prompt is not held by an old finished one', async () => {
   const t = await memoryDb();
   try {

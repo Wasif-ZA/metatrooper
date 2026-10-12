@@ -47,26 +47,27 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const relinkNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ?');
   const convEnded = db.prepare("SELECT 1 FROM event WHERE kind = 'claude.SessionEnd' AND session_id = ? AND json_extract(payload, '$.session_id') = ? AND seq < ? LIMIT 1");
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
-  const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? ORDER BY seq DESC LIMIT 1");
-  const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') ORDER BY seq DESC LIMIT 1");
-  const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' ORDER BY seq DESC LIMIT 1");
+  // The tool lookups keep to one conversation (the last `?`), so a side conversation's events, ignored in processing, are ignored here too.
+  const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
+  const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
+  const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
-  const toolFinished = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? LIMIT 1");
+  const toolFinished = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) LIMIT 1");
   /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last PreToolUse before a permission Notification since the last prompt or Stop; null when there is no such wait or that call has finished. */
-  const permissionWait = (sessionId: string, seq: number): string | null => {
-    const ask = lastAsk.get(sessionId, seq) as { seq: number; kind: string; id: unknown } | undefined;
+  const permissionWait = (sessionId: string, seq: number, conv: string | null): string | null => {
+    const ask = lastAsk.get(sessionId, seq, conv) as { seq: number; kind: string; id: unknown } | undefined;
     let from = ask?.seq ?? 0;
     let id = ask?.kind === 'claude.PermissionRequest' ? ask.id : undefined;
     if (ask?.kind !== 'claude.PermissionRequest') {
-      const noteRow = lastPermissionNote.get(sessionId, from, seq) as { seq: number } | undefined;
+      const noteRow = lastPermissionNote.get(sessionId, from, seq, conv) as { seq: number } | undefined;
       if (!noteRow) return null;
       from = noteRow.seq;
     }
-    if (typeof id !== 'string') id = (pendingToolId.get(sessionId, from) as { id: unknown } | undefined)?.id;
-    return typeof id === 'string' && !toolFinished.get(sessionId, id, from, seq) ? id : null;
+    if (typeof id !== 'string') id = (pendingToolId.get(sessionId, from, conv) as { id: unknown } | undefined)?.id;
+    return typeof id === 'string' && !toolFinished.get(sessionId, id, from, seq, conv) ? id : null;
   };
   const turns: TurnJob[] = [];
   const changed: Array<[string, string]> = [];
@@ -99,7 +100,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           foreign = false;
         }
         if (ev.kind === 'launch' && typeof payload.pid === 'number') setPid.run(payload.pid, ev.session_id);
-        const waited = s.state === 'waiting_for_you' && /^claude\.(PreToolUse|PostToolUse|PostToolUseFailure)$/.test(ev.kind) ? permissionWait(ev.session_id, ev.seq) : null;
+        const own = typeof conv === 'string' && !foreign ? conv : s.native_id;
+        const waited = s.state === 'waiting_for_you' && /^claude\.(PreToolUse|PostToolUse|PostToolUseFailure)$/.test(ev.kind) ? permissionWait(ev.session_id, ev.seq, own) : null;
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
@@ -107,7 +109,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle' && waited === null) setTool.run(payload.tool_name, ev.session_id);
           // A PostToolUse clears it only when it finishes the tool last asked for (in a permission wait, the waited one), so overlapping tools keep the one still pending.
           const finished = /^claude\.PostToolUse(Failure)?$/.test(ev.kind);
-          const pending = waited ?? (finished && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq) as { id: unknown } | undefined)?.id : undefined);
+          const pending = waited ?? (finished && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq, own) as { id: unknown } | undefined)?.id : undefined);
           if ((finished && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
           if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
