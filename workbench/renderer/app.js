@@ -128,6 +128,8 @@ function renderBrowser() {
   const s = ui.snap;
   if (ui.paneId && !s.panes.some((p) => p.id === ui.paneId)) ui.paneId = null;
   if (!ui.paneId && s.panes[0]) ui.paneId = s.panes[0].id;
+  // the rows are one pane's; whatever selected another pane (an agent opening one, a close) shows that one live
+  if (ui.browserMode === 'timeline' && ui.auditPane !== ui.paneId) ui.browserMode = 'live';
   const ownerOf = (sid) => { const x = s.sessions.find((y) => y.id === sid); return x ? sessionLabel(x) : 'closed session'; };
   const dotOf = (p) => {
     const owner = p.session_id && s.sessions.find((y) => y.id === p.session_id);
@@ -1381,7 +1383,11 @@ async function onClick(e) {
         render();
       } else if (pick === 'timeline') {
         ui.browserMode = ui.browserMode === 'timeline' ? 'live' : 'timeline';
-        if (ui.browserMode === 'timeline') ui.audit = await api.paneAudit(pane.id);
+        if (ui.browserMode === 'timeline') {
+          ui.audit = [];
+          ui.auditPane = pane.id;
+          ui.audit = await api.paneAudit(pane.id);
+        }
         render();
       } else if (pick === 'find') openFind();
       else if (pick === 'close') {

@@ -221,3 +221,14 @@ test('the palette searches only the open project terminals, so other projects ca
   searchScrollback();
   assert.deepEqual(calls, [['session.search', { query: 'needle', session_ids: ['s1', 'sh_1'] }]]);
 });
+
+test('the Timeline shows only the pane its rows were read for; another pane selected (an agent opening one, a close) shows that pane live', () => {
+  const ui: any = { snap: { panes: [{ id: 'A', url: '' }, { id: 'B', url: '' }], sessions: [] }, paneState: {}, perms: [], paneId: 'B', browserMode: 'timeline', auditPane: 'A', audit: [{ at: 0, tool: 'pane-A-click', origin: '', status: 'ok' }] };
+  const render = new Function('ui', 'browserChrome', 'esc', 'sessionLabel', 'paneTitle', 'renderCompare', 'renderCommentForm', `${fn('renderBrowser')}\n${fn('renderTimeline')}; return renderBrowser;`)(
+    ui, { tabs: () => '', urlField: () => '' }, String, () => '', () => '', () => 'compare', () => '');
+  assert.ok(!render().includes('pane-A-click'));
+  assert.equal(ui.browserMode, 'live');
+  ui.paneId = 'A';
+  ui.browserMode = 'timeline';
+  assert.ok(render().includes('pane-A-click'));
+});

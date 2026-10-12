@@ -123,7 +123,9 @@ box fails with "not visible".
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
   before sending it (describe failed, denied, rejected, expired, core offline) reports `browser.outcome` so it gets its
-  row too. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first.
+  row too. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first. The rows are kept with the pane they
+  were read for: when another pane is selected (by the user, an agent opening a pane, or a close), the Browser tab shows
+  that pane live, never the first pane's rows.
 
 ## How a tool runs
 
