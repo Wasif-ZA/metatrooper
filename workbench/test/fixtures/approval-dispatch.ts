@@ -10,7 +10,7 @@ const r: Record<string, unknown> = {};
 
 // What the page looks like at dispatch time
 let now = { origin: 'http://a.test', control: { automation_id: 'pw', name: 'Secret', role: 'textbox' }, password: false, hidden: false };
-internal.describe = async () => now;
+internal.describeControl = async () => now;
 const expect = { origin: 'http://a.test', automation_id: 'pw', name: 'Secret', hidden: false, password: false };
 const rechecked = () => internal.recheck(pane, 'type', { ref: 'e1', expect }).then(() => 'sent', (e: Error) => e.message);
 
