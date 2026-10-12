@@ -317,6 +317,7 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .title .branch .s { color: var(--faint); margin-right: 2px; }
 .title .branch:empty { display: none; }
 .menu .mh { padding: 8px 14px 4px; color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+.menu summary.mh { cursor: pointer; }
 .strip .stab { all: unset; cursor: pointer; padding: 0 8px; height: 26px; display: inline-flex; align-items: center; gap: 5px; color: var(--mute); font-size: 11.5px; border-bottom: 2px solid transparent; flex: none; }
 .strip .stab:hover { color: var(--body-strong); }
 .strip .stab.on { color: var(--ink); border-bottom-color: var(--ink); }

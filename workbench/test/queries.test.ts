@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -118,6 +118,28 @@ test('M1-06 every query the window runs per snapshot has p95 under 1 ms (3 live 
     assert.ok(times.size > 5, `only ${times.size} queries timed`);
     assert.deepEqual(slow, []);
   } finally {
+    f.close();
+  }
+});
+
+test('the project list leaves out hidden rows and worktrees whose folder is gone, and carries the older mark', () => {
+  const f = fixture();
+  const prev = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = f.dir;
+  try {
+    const now = iso(Date.now());
+    const root = join(f.dir, 'worktrees', 'p1').replace(/\\/g, '/');
+    mkdirSync(join(f.dir, 'worktrees', 'p1', 'kept'), { recursive: true });
+    const add = (id: string, p: string, hidden = 0, older = 0) => f.db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened, hidden, older) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, p, id, now, now, hidden, older);
+    add('p1', '/repo');
+    add('kept', `${root}/kept`, 0, 1);
+    add('gone', `${root}/gone`);
+    add('removed', `${root}/removed`, 1);
+    add('elsewhere', '/no/such/folder');
+    assert.deepEqual(snapshot(f.db, null).projects.map((p) => [p.id, p.older]).sort(), [['elsewhere', 0], ['kept', 1], ['p1', 0]]);
+  } finally {
+    if (prev === undefined) delete process.env.METATROOPER_HOME;
+    else process.env.METATROOPER_HOME = prev;
     f.close();
   }
 });

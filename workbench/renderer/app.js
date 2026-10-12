@@ -881,6 +881,14 @@ async function openFolder() {
   if (r.result) switchProject(r.result.project_id);
 }
 
+/** The project menu's groups; a worktree the core's sweep marked older goes in the collapsed Older group, not Worktrees. */
+function projectGroups(list) {
+  const wt = (p) => /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p.path);
+  const scratch = (p) => !wt(p) && /[\\/](\.cache|Temp|tmp)[\\/]/i.test(p.path);
+  const fresh = list.filter((p) => !p.older);
+  return { projects: fresh.filter((p) => !wt(p) && !scratch(p)), worktrees: fresh.filter(wt), older: list.filter((p) => p.older), scratch: fresh.filter(scratch) };
+}
+
 async function onClick(e) {
   const el = e.target.closest('[data-action]');
   if (!el || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
@@ -921,16 +929,15 @@ async function onClick(e) {
     case 'project-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      const wt = (p) => /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p.path);
-      const scratch = (p) => !wt(p) && /[\\/](\.cache|Temp|tmp)[\\/]/i.test(p.path);
-      const others = ui.snap.projects.filter((p) => p.id !== ui.projectId);
+      const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
       const item = (p) => `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(liveCounts(p.id).replace(/^ · /, ''))}</span></div>`;
       const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(item).join('')}` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
       menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
-        + sec('Projects', others.filter((p) => !wt(p) && !scratch(p)))
-        + sec('Worktrees', others.filter(wt))
-        + sec('Scratch and temp folders', others.filter(scratch))
+        + sec('Projects', g.projects)
+        + sec('Worktrees', g.worktrees)
+        + (g.older.length ? `<details><summary class="mh">Older (${g.older.length})</summary>${g.older.map(item).join('')}</details>` : '')
+        + sec('Scratch and temp folders', g.scratch)
         + '<div class="sep"></div><div class="item" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
       menu.style.left = `${Math.max(8, r.left)}px`;
       menu.style.top = `${r.bottom + 4}px`;
