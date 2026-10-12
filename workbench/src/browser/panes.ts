@@ -760,7 +760,7 @@ export class PaneManager {
     const d = await this.describe(pane, { ...a, tool });
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
-    if ((now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
+    if (d.hidden !== (a.expect.hidden === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
       throw new ToolError(-32035, 'the control changed since it was checked; nothing was sent');
     }
   }

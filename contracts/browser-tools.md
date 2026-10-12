@@ -12,7 +12,7 @@ with the user's panes; its storage is cleared when it closes.
 
 `click`, `type`, `select` and `key` are checked before they are sent (`contracts/approvals.md`): a risky one waits
 for a person in the workbench and may return "not approved in time" or "not approved: the user rejected this
-action". A control that changed between the check and the dispatch fails with -32035 and nothing is sent.
+action". A control or page origin that changed between the check and the dispatch fails with -32035 and nothing is sent.
 
 | Tool | Input | Output |
 |---|---|---|

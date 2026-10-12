@@ -136,7 +136,7 @@ async function checkedCall(name        , args                         )         
     if (v.decision === 'deny') return { error: { code: -32030, message: `not sent: ${v.reason}` } };
     if (v.decision === 'rejected') return { error: { code: -32030, message: 'not approved: the user rejected this action' } };
     if (v.decision === 'expired') return { error: { code: -32030, message: 'not approved in time' } };
-    const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin } });
+    const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden } });
     if (r.error?.code !== CONTROL_CHANGED) return r;
   }
   return { error: { code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' } };
