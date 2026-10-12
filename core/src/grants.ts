@@ -52,8 +52,8 @@ export function covers(g: GrantRow, w: WindowInfo): boolean {
 
 export function liveGrants(db: DatabaseSync, sessionId?: string): GrantRow[] {
   const rows = sessionId
-    ? db.prepare('SELECT * FROM grant WHERE ended_at IS NULL AND session_id = ? ORDER BY created_at').all(sessionId)
-    : db.prepare('SELECT * FROM grant WHERE ended_at IS NULL ORDER BY created_at').all();
+    ? db.prepare('SELECT * FROM grant WHERE ended_at IS NULL AND session_id = ? ORDER BY julianday(created_at), id').all(sessionId)
+    : db.prepare('SELECT * FROM grant WHERE ended_at IS NULL ORDER BY julianday(created_at), id').all();
   return rows as unknown as GrantRow[];
 }
 

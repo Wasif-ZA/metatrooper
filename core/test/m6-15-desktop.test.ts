@@ -164,6 +164,26 @@ test('M6-15 metatrooper-desktop: workbench closed, then describe, approval, glid
   }
 });
 
+test('M6-15 rollback: with the desktop plugin disabled, desktop calls refuse and live grants end', async () => {
+  const { iso } = setup([NOTEPAD, CALC, WORKBENCH]);
+  const core = await startCore(iso);
+  const db = seed(iso.home);
+  const { agent, ui } = await connect(iso);
+  try {
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    db.prepare("UPDATE plugin SET enabled = 0 WHERE id = 'desktop'").run();
+    await until(() => (db.prepare('SELECT ended_at FROM grant WHERE id = ?').get(grant) as any).ended_at, 3000);
+    assert.match((await call(ui, 'grant.candidates', {})).error.message, /computer use is off: the desktop plugin is disabled/);
+    assert.match((await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).error.message, /computer use is off/);
+    assert.match((await call(agent, 'desktop.windows', me('s1'))).error.message, /computer use is off/);
+    db.prepare("UPDATE plugin SET enabled = 1 WHERE id = 'desktop'").run();
+    assert.match((await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id, /^gr_/);
+  } finally {
+    agent.close(); ui.close(); release(db);
+    await teardownCore(core, iso);
+  }
+});
+
 test('M6-15 attach: metatrooper-desktop joins Windows sessions while the desktop plugin is enabled, never contained or isolated ones', { skip: process.platform !== 'win32' }, () => {
   const db = new DatabaseSync(':memory:');
   db.exec("CREATE TABLE plugin (id TEXT, enabled INTEGER, manifest TEXT, path TEXT, source TEXT, permissions TEXT, version TEXT, installed_at TEXT); INSERT INTO plugin (id, enabled, manifest, path, source, permissions, version, installed_at) VALUES ('desktop', 1, '{}', '', 'builtin', '[]', '1', '')");
@@ -248,6 +268,7 @@ test('M6-15a: a session granted Notepad types into it; Calculator is not granted
     const typed = await act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text: 'hello world' });
     assert.equal(typed.result.status, 'confirmed');
     assert.deepEqual(inputs().filter((i) => i.op === 'set_text').map((i) => i.value), ['hello wo', 'hello world']);
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM command WHERE params LIKE '%hello%'").get() as any).n, 0, 'typed text never reaches the command table');
 
     // Calculator, not granted: describe, act and approval.check all refuse
     assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 200, ref: 'e1' })).error.message, /window not granted/);

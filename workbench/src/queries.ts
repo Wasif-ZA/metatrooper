@@ -154,7 +154,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   } catch {}
   let grants: Snapshot['grants'] = [];
   try {
-    grants = db.prepare('SELECT id, session_id, hwnd, title, exe FROM grant WHERE ended_at IS NULL ORDER BY created_at').all() as Snapshot['grants'];
+    grants = db.prepare('SELECT id, session_id, hwnd, title, exe FROM grant WHERE ended_at IS NULL ORDER BY julianday(created_at), id').all() as Snapshot['grants'];
   } catch {}
   const paused = sessions.filter((s) => s.state !== 'exited' && takeoverPaused(db, s.id)).map((s) => s.id);
 

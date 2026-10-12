@@ -11,6 +11,7 @@ import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow
 
 export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
+export const OFF = 'computer use is off: the desktop plugin is disabled';
 export const CHUNK = 8;
 const CONTROL_CHANGED = -32035;
 const HELPER_TIMEOUT_MS = 30_000;
@@ -107,6 +108,19 @@ export class Desktop {
     return (this.db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? null;
   }
 
+  /** Computer use is on while the built-in `desktop` plugin is enabled (spec.md Rollback). */
+  enabled(): boolean {
+    try {
+      return Boolean((this.db.prepare("SELECT enabled FROM plugin WHERE id = 'desktop'").get() as { enabled: number } | undefined)?.enabled);
+    } catch {
+      return false;
+    }
+  }
+
+  private on(): void {
+    if (!this.enabled()) throw new RpcError(E.VALIDATION, OFF);
+  }
+
   paused(sessionId: string): boolean {
     return takeoverPaused(this.db, sessionId);
   }
@@ -138,6 +152,7 @@ export class Desktop {
 
   /** The session's grant covering this window; a grant whose own window changed identity is ended on the way. */
   async resolve(sessionId: string, hwnd: number): Promise<{ grant: GrantRow; info: WindowInfo }> {
+    this.on();
     const grants = liveGrants(this.db, sessionId);
     if (!grants.length) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED);
     const w = await this.info(hwnd);
@@ -225,6 +240,11 @@ export class Desktop {
   /** Ends grants whose window closed or changed identity, and keeps each live grant's rectangle. */
   async tick(): Promise<void> {
     if (this.ticking) return;
+    if (!this.enabled()) {
+      for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
+      if (this.helper.running()) this.helper.stop();
+      return;
+    }
     const grants = liveGrants(this.db);
     if (!grants.length) { this.rects.clear(); return; }
     this.ticking = true;
@@ -247,12 +267,14 @@ export class Desktop {
       return {};
     } });
     m.set('grant.candidates', { needsUi: true, handler: async () => {
+      this.on();
       const { windows } = await this.helper.request<{ windows: Array<WindowInfo> }>('list');
       return { windows: windows.filter((w) => w.pid !== this.uiPid && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid })) };
     } });
     m.set('grant.window', { needsUi: true, handler: async (p) => {
       const sessionId = str(p, 'session_id');
       const hwnd = hwndOf(p.hwnd);
+      this.on();
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
       const w = await this.info(hwnd);
@@ -282,6 +304,7 @@ export class Desktop {
 
     m.set('desktop.windows', { handler: async (p) => {
       const sessionId = await this.bind(p);
+      this.on();
       const grants = liveGrants(this.db, sessionId);
       if (!grants.length) return { windows: [] };
       const { windows } = await this.helper.request<{ windows: WindowInfo[] }>('list');
