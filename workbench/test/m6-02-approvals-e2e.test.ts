@@ -55,6 +55,7 @@ async function paneApprovalsE2e() {
   <iframe id="frame" srcdoc="<button id='frameSend'>Send</button>"></iframe>
   <div id="closedHost"></div>
   <button id="focusClosed">Focus hidden</button>
+  <button id="glide" style="margin-top: 3000px" onclick="this.dataset.hits = (+this.dataset.hits || 0) + 1">Next</button>
   <script>
     window.count = 0;
     customElements.define('send-box', class extends HTMLElement {
@@ -281,6 +282,18 @@ async function paneApprovalsE2e() {
     assert.equal((await callTool('click', { pane_id: paneId, ref: focusClosedRef })).result?.isError, undefined);
     await keyAsks('"already focused"', 'hidden control');
 
+    // A rename during the cursor glide asks: scrolling Next into view renames it to Send before the click lands
+    const glideRef = (await callTool('snapshot', { pane_id: paneId })).result?.content?.[0]?.text.split(/\r?\n/).find((l: string) => l.includes('"Next"'))?.match(/\[ref=(e\d+)\]/)?.[1];
+    await callTool('evaluate', { pane_id: paneId, expression: 'window.scrollTo(0, 0); "top"' });
+    await sleep(300);
+    await callTool('evaluate', { pane_id: paneId, expression: 'document.addEventListener("scroll", () => { document.getElementById("glide").textContent = "Send"; }, { once: true }); "armed"' });
+    const glideStep = sendStep('click', { pane_id: paneId, ref: glideRef });
+    const glideRow = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 15_000);
+    assert.equal(glideRow.reason, 'risky control: Send');
+    await uiPipe.request('approval.resolve', { approval_id: glideRow.id, decision: 'reject' });
+    assert.equal((await glideStep.waitResult()).result?.isError, true);
+    const glideHits = await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("glide").dataset.hits || "0"' });
+    assert.equal(JSON.parse(glideHits.result?.content?.[0]?.text).value, '0');
 
     // M6-02c: a click left waiting for the real 120 s returns "not approved in time" and the row reads expired
     const expireStart = Date.now();

@@ -605,8 +605,10 @@ export class PaneManager {
     }, 1600);
   }
 
-  private async clickAt(pane: Pane, x: number, y: number): Promise<void> {
+  /** `recheck` runs after the cursor glide, right before the mouse events. */
+  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>): Promise<void> {
     await this.pointAt(pane, x, y);
+    await recheck();
     this.hooks.probe({ kind: 'click', pane: pane.row.id, x, y });
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
@@ -799,10 +801,11 @@ export class PaneManager {
       return this.page(pane, name, rest, budget);
     }
     if (name === 'describe') return this.describe(pane, a);
-    if (['click', 'type', 'select', 'key'].includes(name)) await this.recheck(pane, name, a);
+    const recheck = () => this.recheck(pane, name, a);
     switch (name) {
       case 'key': {
         if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
+        await recheck();
         await this.pressKeys(pane, a.keys);
         return { ok: true };
       }
@@ -849,14 +852,14 @@ export class PaneManager {
       case 'click':
         return this.answer(pane, session, async () => {
           const p = await this.target(pane, a.ref);
-          await this.clickAt(pane, p.x, p.y);
+          await this.clickAt(pane, p.x, p.y, recheck);
           return { ok: true };
         });
       case 'type': {
         if (typeof a.text !== 'string') throw new ToolError(-32602, 'text is required');
         return this.answer(pane, session, async () => {
           const { node, x, y } = await this.target(pane, a.ref);
-          await this.clickAt(pane, x, y);
+          await this.clickAt(pane, x, y, recheck);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
@@ -878,6 +881,7 @@ export class PaneManager {
           const node = this.node(pane, a.ref);
           const p = await this.box(pane, node, a.ref);
           await this.pointAt(pane, p.x, p.y);
+          await recheck();
           await this.cmd(pane, 'Runtime.callFunctionOn', {
             objectId: p.objectId,
             functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',

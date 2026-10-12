@@ -9,7 +9,7 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
    open shadow roots and same-origin frames).
 2. It sends `approval.check` to the core and waits (up to 120 s plus a margin) for the answer.
 3. `allow` or `approved`: it sends the call with `expect: {name, automation_id}`, the control it checked. The
-   workbench re-reads the control right before dispatch; a different Name or AutomationId fails with -32035 and
+   workbench re-reads the control after the cursor glide, right before dispatch; a different Name or AutomationId fails with -32035 and
    nothing is sent. The MCP server then checks again (at most 3 rounds).
 4. `rejected` returns "not approved: the user rejected this action"; `expired` returns "not approved in time";
    `deny` returns "not sent: <reason>". The agent is never told how to approve.
