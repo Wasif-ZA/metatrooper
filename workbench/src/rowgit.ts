@@ -2,7 +2,16 @@ import { execFile } from 'node:child_process';
 
 export interface RowGit { branch: string | null; added: number; deleted: number; changed: string[] }
 
+export type OwnedPaths = Array<{ path: string; owners: Array<{ id: string }> }>;
+
 const cache = new Map<string, RowGit>();
+
+/** Session id to the paths it owns, from session.owners `paths`; a shared path counts for every owner. */
+export function ownedBy(paths: OwnedPaths): Record<string, string[]> {
+  const owned: Record<string, string[]> = {};
+  for (const p of paths) for (const o of p.owners) (owned[o.id] ??= []).push(p.path);
+  return owned;
+}
 
 function git(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve) => {

@@ -817,6 +817,11 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function changedFiles(id) {
+  const g = (ui.snap.git || {})[id];
+  return g && Array.isArray(g.changed) ? g.changed : [];
+}
+
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
   const pct = Math.round(x.ctx_pct);
@@ -827,7 +832,7 @@ function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   const sel = selectedSession();
   renderTitle();
@@ -902,6 +907,24 @@ async function onClick(e) {
       if (r.result) await pick(r.result.session_id);
       return;
     }
+    case 'changed-menu': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
+      menu.style.left = `${Math.max(8, r.right - 260)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
+    case 'changed-open':
+      document.getElementById('menu').hidden = true;
+      ui.diffAll = false;
+      ui.diffScope = 'uncommitted';
+      ui.sdFile = el.dataset.file;
+      ui.hbDiff = undefined;
+      await pick(id);
+      await openTab('diff');
+      return;
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
