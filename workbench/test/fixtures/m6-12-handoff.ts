@@ -181,6 +181,10 @@ r.audit = audit.map((a) => { const p = JSON.parse(a.payload); return `${a.sessio
 r.auditKeys = [...new Set(audit.flatMap((a) => Object.keys(JSON.parse(a.payload))))].sort();
 r.describeIsTheCheckOne = String(PaneManager.prototype['describe' as never]).includes('automation_id') && typeof (PaneManager.prototype as any).describePick === 'function';
 
+// Round 2: the pane list goes through the same scrub as tool results, so an OAuth callback code in a pane URL is not shown
+db.prepare("UPDATE browser_pane SET url = 'https://bank.test/cb?code=4/0Abc&access_token=zzz' WHERE id = 'bp_agent_1'").run();
+r.panesScrubbed = (await call('browser.panes')).result;
+
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
 const hits = tables.filter(({ name }) => JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all()).includes(marker)).map(({ name }) => `table ${name}`);

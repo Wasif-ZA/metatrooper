@@ -87,7 +87,7 @@ box fails with "not visible".
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
   fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
-- **Scrubbed output.** Every tool result and error message except `describe` (which goes to the MCP server, not the
+- **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
   agent) and screenshot bytes passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
   workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
   and credential patterns become `[secret]`. `describe` scrubs the control's name and id of every known secret value

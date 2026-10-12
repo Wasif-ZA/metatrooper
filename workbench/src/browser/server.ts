@@ -84,7 +84,8 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       if (method === 'browser.panes') {
         if (bound?.kind !== 'session') return send({ jsonrpc: '2.0', id, result: [] });
         const rows = ownedPanes(db, bound.sessionId);
-        return send({ jsonrpc: '2.0', id, result: rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })) });
+        // a pane URL can carry an OAuth code or a token, like any tool result
+        return send({ jsonrpc: '2.0', id, result: scrubDeep(rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })), knownSecretValues(), KEEP) });
       }
 
       if (method === 'browser.capture') {
