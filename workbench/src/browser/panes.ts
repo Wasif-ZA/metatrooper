@@ -800,10 +800,15 @@ export class PaneManager {
           await this.attach(pane);
           pane.crashed = null;
         }
+        const [prev, navs] = [pane.errorFor, pane.navs];
         pane.errorFor = null;
         const out = await this.answer(pane, session, async () => {
           await this.load(pane, a.url);
           return { status: pane.status };
+        }).catch((e) => {
+          // nothing loaded (a blocked URL): the error page is still on screen
+          if (pane.navs === navs) pane.errorFor ??= prev;
+          throw e;
         });
         if (pane.errorFor) throw new ToolError(-32099, `could not load ${pane.errorFor}; the pane shows the error`);
         return out;

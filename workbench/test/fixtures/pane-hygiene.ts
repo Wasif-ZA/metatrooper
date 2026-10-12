@@ -138,6 +138,9 @@ dead.wc.loadURL = function (u: string) {
 };
 const navError = await pm.tool('bp_agent_2', 'navigate', { url: 'https://93.184.216.35/' }).then(() => '', (e: Error) => e.message);
 r.navigateToDeadHostFails = navError.startsWith('could not load https://93.184.216.35/');
+dead.pane.errorFor = 'https://93.184.216.35/';
+const blockedCode = await pm.tool('bp_agent_2', 'navigate', { url: 'http://127.0.0.1:9/' }).then(() => 0, (e: { code: number }) => e.code);
+r.blockedNavigateKeepsErrorUrl = blockedCode === -32031 && dead.pane.errorFor === 'https://93.184.216.35/';
 
 const evil = errorPage('load', 'https://x.example/"><script>alert(1)</script>', '<img src=x onerror=alert(1)>');
 r.errorPageEscapes = !evil.includes('<script>alert') && !evil.includes('<img src=x');
