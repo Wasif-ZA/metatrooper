@@ -148,3 +148,16 @@ test('the project menu leaves out hidden rows, gone folders and worktrees with n
     f.close();
   }
 });
+
+test('the project menu still works on a database from a core started before the worktree sweep columns', () => {
+  const f = fixture();
+  try {
+    const d = f.db;
+    d.exec('ALTER TABLE project DROP COLUMN older; ALTER TABLE project DROP COLUMN hidden');
+    const now = iso(Date.now());
+    d.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('plain', f.dir, 'plain', now, now);
+    assert.deepEqual(snapshot(d, null).projects.map((p) => [p.id, p.older]), [['plain', 0]]);
+  } finally {
+    f.close();
+  }
+});

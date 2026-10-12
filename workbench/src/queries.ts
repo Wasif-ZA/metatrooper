@@ -69,6 +69,17 @@ export function goneCheckout(p: string): boolean {
   return /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p) && !fs.existsSync(path.join(p, '.git'));
 }
 
+const sweepColumns = new WeakMap<DatabaseSync, boolean>();
+/** A core started before the worktree sweep has no project.hidden/older columns until it restarts. */
+function hasSweepColumns(db: DatabaseSync): boolean {
+  let v = sweepColumns.get(db);
+  if (v === undefined) {
+    v = (db.prepare('PRAGMA table_info(project)').all() as Array<{ name: string }>).some((c) => c.name === 'older');
+    if (v) sweepColumns.set(db, v);
+  }
+  return v;
+}
+
 /** Everything the workbench draws, read in one pass from a read-only connection. `projectId` scopes sessions and panes. */
 export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.now()): Snapshot {
   const meta = Object.fromEntries((db.prepare("SELECT key, value FROM meta WHERE key IN ('core_pid','core_heartbeat')").all() as Array<{ key: string; value: string }>).map((r) => [r.key, r.value]));
@@ -128,7 +139,9 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
     // Shown: the open project, else a row the core's sweep has not hidden whose checkout is still there.
-    projects: (db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
+    projects: ((hasSweepColumns(db)
+      ? db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId)
+      : db.prepare('SELECT id, name, path, last_opened, 0 AS older FROM project ORDER BY julianday(last_opened) DESC').all()) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
     engines,
     sessions,
     needs_you,
