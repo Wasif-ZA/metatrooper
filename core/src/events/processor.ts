@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, ulid } from '../time.ts';
-import { nextState } from './state.ts';
+import { nextState, stateChanged } from './state.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
@@ -47,11 +47,13 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const relinkNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ?');
   const convEnded = db.prepare("SELECT 1 FROM event WHERE kind = 'claude.SessionEnd' AND session_id = ? AND json_extract(payload, '$.session_id') = ? AND seq < ? LIMIT 1");
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
+  const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? ORDER BY seq DESC LIMIT 1");
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
   const turns: TurnJob[] = [];
+  const changed: Array<[string, string]> = [];
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const ev of rows) {
@@ -81,13 +83,16 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
           // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
-          if (ev.kind === 'claude.PostToolUse' || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
+          // A PostToolUse clears it only when it finishes the tool last asked for, so overlapping tools keep the one still pending.
+          const pending = ev.kind === 'claude.PostToolUse' && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq) as { id: unknown } | undefined)?.id : undefined;
+          if ((ev.kind === 'claude.PostToolUse' && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
           if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
         const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
+          changed.push([ev.session_id, next]);
           if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
@@ -101,6 +106,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     db.exec('ROLLBACK');
     throw e;
   }
+  for (const [id, state] of changed) stateChanged(id, state);
   for (const job of turns) {
     if (job.kind === 'start') {
       const snapshot = turnSnapshot(db, job.id);

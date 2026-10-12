@@ -105,7 +105,11 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
         viewer = v;
         if (!term.attach(id, v)) {
           viewer = null;
-          send({ op: 'error', code: 'no-session' });
+          const saved = term.savedScreen(id);
+          if (saved) {
+            send({ op: 'snapshot', seq: seq++, data: saved.screen });
+            send({ op: 'exit', code: saved.code ?? term.exitCodeOf(id) ?? 'unknown' });
+          } else send({ op: 'error', code: 'no-session' });
           return void socket.end();
         }
         session = id;

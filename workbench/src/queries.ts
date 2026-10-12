@@ -23,16 +23,16 @@ export type Light = 'green' | 'grey' | 'red';
 export interface Snapshot {
   at: number;
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
-  projects: Array<{ id: string; name: string; path: string; last_opened: string }>;
+  projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; tokens: number | null; usd: number | null; ctx_pct?: number | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
-  git: Record<string, { branch: string | null; added: number; deleted: number }>;
+  git: Record<string, { branch: string | null; added: number; deleted: number; changed: string[] }>;
   settings_error?: string | null;
   core_mismatch?: string | null;
   core_log?: string[] | null;
@@ -67,6 +67,17 @@ function parse<T>(text: string | null, fallback: T): T {
 export function goneCheckout(p: string): boolean {
   if (!fs.existsSync(p)) return true;
   return /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p) && !fs.existsSync(path.join(p, '.git'));
+}
+
+const sweepColumns = new WeakMap<DatabaseSync, boolean>();
+/** A core started before the worktree sweep has no project.hidden/older columns until it restarts. */
+function hasSweepColumns(db: DatabaseSync): boolean {
+  let v = sweepColumns.get(db);
+  if (v === undefined) {
+    v = (db.prepare('PRAGMA table_info(project)').all() as Array<{ name: string }>).some((c) => c.name === 'older');
+    if (v) sweepColumns.set(db, v);
+  }
+  return v;
 }
 
 /** Everything the workbench draws, read in one pass from a read-only connection. `projectId` scopes sessions and panes. */
@@ -108,7 +119,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     ? (db.prepare(
         `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${resume},
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
-           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd
+           (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
+           (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
       ).all(projectId) as Snapshot['sessions'])
     : [];
@@ -128,7 +140,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    projects: (db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
+    // Shown: the open project, else a row the core's sweep has not hidden whose checkout is still there.
+    projects: ((hasSweepColumns(db)
+      ? db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId)
+      : db.prepare('SELECT id, name, path, last_opened, 0 AS older FROM project ORDER BY julianday(last_opened) DESC').all()) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
     engines,
     sessions,
     needs_you,

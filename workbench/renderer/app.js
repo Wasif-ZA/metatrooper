@@ -178,6 +178,7 @@ function renderCommentForm() {
   return `<div class="panel comment-form">
     <h3>Comment on ${esc(c.selector || 'element')}</h3>
     <img class="crop" src="data:image/png;base64,${esc(c.crop)}" alt="The element you picked">
+    <p class="meta">Up arrow picks the parent element, Down arrow goes back${c.depth ? ` (${c.depth} up from the one you clicked)` : ''}.</p>
     <div class="form">
       <label>For</label><select id="comment-session" data-key="comment-session">${s.sessions.map((x) => `<option value="${esc(x.id)}">${esc(sessionLabel(x))} (${esc(STATE_WORDS[x.state] || x.state)})</option>`).join('')}</select>
       <label>Note</label><textarea id="comment-note" data-key="comment-note" rows="4" placeholder="What should change here?"></textarea>
@@ -394,8 +395,60 @@ function liveSessions() {
 }
 
 function shellRows() {
-  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true }));
+  return ui.shells.filter((x) => x.project_id === ui.projectId).map((x) => ({ id: x.id, engine_id: x.label, state: x.exited ? 'exited' : 'idle', task: x.cwd, title: x.cwd, shell: true, from: x.from }));
 }
+
+/** Once per project, after the core is up: hands the saved wall layout to the wall and opens its saved shells again. */
+function seedLayout() {
+  if (!ui.settingsLook || !ui.projectId || ui.seeded === ui.projectId || !ui.snap.core.online) return;
+  ui.seeded = ui.projectId;
+  ui.corePid = ui.snap.core.pid;
+  const saved = (ui.settingsLook.ui.layout || {})[ui.projectId];
+  wall.restore(saved);
+  const shells = saved && Array.isArray(saved.shells) ? saved.shells : [];
+  for (const sh of shells) {
+    if (!sh || typeof sh.id !== 'string' || typeof sh.kind !== 'string' || ui.shells.some((x) => x.id === sh.id || x.from === sh.id)) continue;
+    const kind = ui.shellKinds.find((k) => k.kind === sh.kind);
+    const row = { id: sh.id, label: kind ? kind.label : sh.kind, cwd: '', project_id: ui.projectId, kind: sh.kind, exited: true };
+    ui.shells.push(row);
+    if (saved.big?.[0] === sh.id) ui.shellSel = sh.id;
+    void reopenShell(row);
+  }
+}
+
+/** After a core restart: the wall keeps its layout for the resumed sessions, and the shells of every project that died with the core open again. */
+function coreRestarted() {
+  if (!ui.snap.core.online || !ui.corePid || ui.snap.core.pid === ui.corePid) return;
+  ui.corePid = ui.snap.core.pid;
+  if (ui.seeded === ui.projectId) wall.restore(wall.state());
+  for (const sh of ui.shells.filter((x) => x.kind)) void reopenShell(sh);
+}
+
+async function reopenShell(sh) {
+  const projectId = sh.project_id;
+  const r = await rpc('shell.open', { project_id: projectId, kind: sh.kind }, true);
+  if (!r.result) return;
+  ui.shells = ui.shells.filter((x) => x.id !== sh.id);
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: projectId, kind: sh.kind, from: sh.id });
+  if (ui.shellSel === sh.id) ui.shellSel = r.result.shell_id;
+  render();
+}
+
+let layoutSent = '';
+const layoutTimers = {};
+/** Saves the wall layout and the project's shells through settings.set, 500 ms after the last change. */
+function saveLayout() {
+  const projectId = ui.projectId;
+  if (!projectId || ui.seeded !== projectId || !ui.settingsLook) return;
+  const layout = { ...wall.state(), shells: ui.shells.filter((x) => x.project_id === projectId && x.kind).map((x) => ({ id: x.id, kind: x.kind })) };
+  const text = projectId + JSON.stringify(layout);
+  if (text === layoutSent) return;
+  layoutSent = text;
+  ui.settingsLook.ui.layout = { ...(ui.settingsLook.ui.layout || {}), [projectId]: layout };
+  clearTimeout(layoutTimers[projectId]);
+  layoutTimers[projectId] = setTimeout(() => void api.saveLayout(projectId, layout), 500);
+}
+wall.onChange(saveLayout);
 
 function selectedSession() {
   const big = wall.big();
@@ -579,7 +632,7 @@ function renderDiffTab(sel) {
   if (!d) return `${bar}<p class="empty">Loading.</p>`;
   if (d.error) return `${bar}<p class="empty">${esc(d.error)}</p>`;
   if (!d.files.length && !d.untracked.length) return `${bar}<p class="empty">No changes ${ui.diffScope === 'turn' ? 'in the last turn' : ui.diffScope === 'branch' ? 'on this branch' : 'since the last commit'}.</p>`;
-  if (!ui.sdFile || !d.files.some((f) => f.path === ui.sdFile)) ui.sdFile = d.files[0] ? d.files[0].path : null;
+  if (!ui.sdFile || !(d.files.some((f) => f.path === ui.sdFile) || d.untracked.includes(ui.sdFile))) ui.sdFile = d.files[0] ? d.files[0].path : null;
   const want = `${sel.id}:${ui.sdFile}:${ui.sdiff.at}:${ui.diffScope}`;
   if (ui.sdFile && ui.sdKey !== want) {
     ui.sdKey = want;
@@ -813,7 +866,7 @@ function selectShell(id) {
 async function openShell(kind) {
   const r = await rpc('shell.open', { project_id: ui.projectId, kind });
   if (!r.result) return;
-  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId });
+  ui.shells.push({ id: r.result.shell_id, label: r.result.label, cwd: r.result.cwd, project_id: ui.projectId, kind });
   selectShell(r.result.shell_id);
 }
 
@@ -857,6 +910,11 @@ function costChip(x) {
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
+function changedFiles(id) {
+  const g = (ui.snap.git || {})[id];
+  return g && Array.isArray(g.changed) ? g.changed : [];
+}
+
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
   const pct = Math.round(x.ctx_pct);
@@ -866,8 +924,10 @@ function ctxChip(x) {
 function render(focus = false) {
   if (!ui.snap) return;
   document.body.classList.toggle('no-split', !ui.split);
+  coreRestarted();
+  seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside Â· ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   const sel = selectedSession();
@@ -924,6 +984,14 @@ async function openFolder() {
   if (r.result) switchProject(r.result.project_id);
 }
 
+/** The project menu's groups; a worktree the core's sweep marked older goes in the collapsed Older group, not Worktrees. */
+function projectGroups(list) {
+  const wt = (p) => /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p.path);
+  const scratch = (p) => !wt(p) && /[\\/](\.cache|Temp|tmp)[\\/]/i.test(p.path);
+  const fresh = list.filter((p) => !p.older);
+  return { projects: fresh.filter((p) => !wt(p) && !scratch(p)), worktrees: fresh.filter(wt), older: list.filter((p) => p.older), scratch: fresh.filter(scratch) };
+}
+
 async function onClick(e) {
   const el = e.target.closest('[data-action]');
   if (!el || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
@@ -951,6 +1019,25 @@ async function onClick(e) {
       if (r.result) await pick(r.result.session_id);
       return;
     }
+    case 'changed-menu': {
+      const menu = document.getElementById('menu');
+      const r = el.getBoundingClientRect();
+      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
+      menu.style.left = `${Math.max(8, r.right - 260)}px`;
+      menu.style.top = `${r.bottom + 4}px`;
+      menu.hidden = false;
+      return;
+    }
+    case 'changed-open':
+      document.getElementById('menu').hidden = true;
+      ui.diffAll = false;
+      ui.diffScope = 'uncommitted';
+      ui.sdFile = el.dataset.file;
+      ui.sdiff = null;
+      ui.hbDiff = undefined;
+      await pick(id);
+      await openTab('diff');
+      return;
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
@@ -964,16 +1051,15 @@ async function onClick(e) {
     case 'project-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      const wt = (p) => /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p.path);
-      const scratch = (p) => !wt(p) && /[\\/](\.cache|Temp|tmp)[\\/]/i.test(p.path);
-      const others = ui.snap.projects.filter((p) => p.id !== ui.projectId);
+      const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
       const item = (p) => `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(liveCounts(p.id).replace(/^ · /, ''))}</span></div>`;
       const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(item).join('')}` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
       menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
-        + sec('Projects', others.filter((p) => !wt(p) && !scratch(p)))
-        + sec('Worktrees', others.filter(wt))
-        + sec('Scratch and temp folders', others.filter(scratch))
+        + sec('Projects', g.projects)
+        + sec('Worktrees', g.worktrees)
+        + (g.older.length ? `<details><summary class="mh">Older (${g.older.length})</summary>${g.older.map(item).join('')}</details>` : '')
+        + sec('Scratch and temp folders', g.scratch)
         + '<div class="sep"></div><div class="item" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
       menu.style.left = `${Math.max(8, r.left)}px`;
       menu.style.top = `${r.bottom + 4}px`;
@@ -1542,7 +1628,19 @@ function closeFind() {
   render();
 }
 
+/** Up and Down outside a text field move the picked element to its parent or back to the child; true when it handled the key. */
+function pickWalk(e) {
+  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return false;
+  if (/^(TEXTAREA|INPUT|SELECT)$/.test((e.target && e.target.tagName) || '')) return false;
+  if (e.target !== document.body && !(e.target && e.target.closest && e.target.closest('.browser'))) return false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  void api.panePickWalk(ui.comment.pane_id, e.key === 'ArrowUp' ? 'up' : 'down');
+  return true;
+}
+
 function browserKeys(e) {
+  if (ui.comment && pickWalk(e)) return;
   if (ui.tab !== 'browser' || !ui.paneId || ui.comment) return;
   if (!(e.target && e.target.closest && e.target.closest('.browser'))) return;
   const id = e.target && e.target.id;

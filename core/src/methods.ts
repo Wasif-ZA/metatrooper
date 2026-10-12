@@ -25,6 +25,7 @@ import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
+import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -39,6 +40,77 @@ export const MOVED_METHODS = [
   'run.start', 'run.cancel', 'run.clear', 'run.resume', 'run.item-set', 'gate.resolve', 'schedule.set', 'pipeline.validate',
   'template.list', 'variant.pick', 'variant.discard', 'variant.combine', 'board.pin', 'board.remove',
 ];
+
+export interface MethodDecl {
+  name: string;
+  params: string;
+  result: string;
+  errors?: number[];
+  stable?: boolean;
+  needsUi?: boolean;
+}
+
+export const METHODS: MethodDecl[] = [
+  { name: 'core.ping', stable: true, params: '{}', result: '{ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued' },
+  { name: 'settings.set', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION], params: '{key, value}', result: '{}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4)' },
+  { name: 'core.stop', needsUi: true, params: '{}', result: '{}; the core exits a moment after replying' },
+  { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
+  { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
+  { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not working or waiting, and its runs that are not running or paused" },
+  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
+  { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
+  { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
+  { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
+  { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
+  { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
+  { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
+  { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
+  { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
+  { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
+  { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
+  { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
+  { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
+  { name: 'needs_you.mark-read', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
+  { name: 'needs_you.mark-unread', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
+  { name: 'needs.dismiss', needsUi: true, errors: [E.NOT_FOUND], params: '{id}', result: '{}; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule)' },
+  { name: 'shell.list', params: '{}', result: '{shells: [{kind, label, argv}]}' },
+  { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
+  { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
+  { name: 'worktree.create', stable: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?}' },
+  { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
+  { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
+  { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
+  { name: 'hooks.uninstall', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
+  { name: 'plugin.preview', params: '{source}', result: '{valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install)' },
+  { name: 'plugin.install', needsUi: true, errors: [E.VALIDATION], params: '{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}', result: '{plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk' },
+  { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
+  { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
+  { name: 'mcp.resolve', params: '{plugin_id, server_id}', result: '{command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
+  { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names}', result: '{}; raises a `missing-secret` needs-you item per name' },
+  { name: 'notify.sink.set', stable: true, needsUi: true, params: '{kind, dest, name?, id?, kinds?, enabled?}', result: '{id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table' },
+  { name: 'notify.sink.list', stable: true, params: '{}', result: '{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination' },
+  { name: 'notify.sink.test', stable: true, needsUi: true, params: '{id}', result: '{ok, error?}' },
+  { name: 'notify.sink.remove', stable: true, needsUi: true, params: '{id}', result: '{}' },
+  { name: 'comment.deliver', errors: [E.NOT_FOUND], params: '{comment_id}', result: "{clipboard_at, typed}: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it" },
+  { name: 'pane.open', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, url?, session_id?, agent?: bool}', result: "{pane_id}; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>`. Stable in the agent form" },
+  { name: 'pane.close', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id}', result: '{}' },
+  { name: 'pane.url', needsUi: true, params: '{pane_id, url}', result: '{}; the workbench reports each navigation' },
+  { name: 'pane.assign', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, session_id?}', result: '{}; sets or clears the one session allowed to drive the pane' },
+  { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
+];
+
+const cell = (s: string) => s.split('|').join('\\|');
+
+export function methodTable(): string {
+  const rows = METHODS.map((d) => `| \`${d.name}\` | \`${cell(d.params)}\` | ${cell(d.result)} | ${d.errors?.join(', ') ?? ''} | ${d.stable ? 'yes' : ''} | ${d.needsUi ? 'yes' : ''} |`);
+  const moved = `| ${MOVED_METHODS.map((n) => `\`${n}\``).join(', ')} | any | -32601 "moved to the pipeline products" (M6-1) | -32601 | | |`;
+  return ['| Method | Params | Result | Errors | Stable | Needs `ui.hello` |', '|---|---|---|---|---|---|', ...rows, moved].join('\n');
+}
+
+export function methodHelp(): string {
+  const width = Math.max(...METHODS.map((d) => d.name.length)) + 2;
+  return METHODS.map((d) => `  ${d.name.padEnd(width)}${d.params}${d.stable ? '  (stable)' : ''}`).join('\n');
+}
 
 export interface CoreControl {
   engines: () => EngineSpec[];
@@ -67,7 +139,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('settings.set', {
-    needsUi: true,
     handler: (p) => {
       const [section, key, ...rest] = str(p, 'key').split('.');
       const base = (DEFAULTS as Record<string, unknown>)[section] as Record<string, unknown> | undefined;
@@ -97,7 +168,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const now = nowIso();
       db.prepare(
         `INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET last_opened = excluded.last_opened`,
+         ON CONFLICT(id) DO UPDATE SET last_opened = excluded.last_opened, hidden = 0, older = 0`,
       ).run(id, canonical, path.posix.basename(canonical), now, now);
       return { project_id: id };
     },
@@ -143,6 +214,50 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         browser: p.browser === true,
         parentId: parent,
       });
+    },
+  });
+
+  m.set('session.list', {
+    handler: (p) => {
+      const project = str(p, 'project_id', false);
+      const sessions = db.prepare(
+        `SELECT id, project_id, engine_id, host, state, state_at, parent_id FROM session
+         WHERE (? = '' OR project_id = ?) AND (? = 1 OR hidden = 0) ORDER BY julianday(started_at) DESC`,
+      ).all(project, project, p.all === true ? 1 : 0);
+      return { sessions };
+    },
+  });
+
+  m.set('session.wait', {
+    handler: async (p) => {
+      const id = str(p, 'session_id');
+      const states = p.states;
+      if (!Array.isArray(states) || states.length === 0 || states.some((s) => !(SESSION_STATES as readonly unknown[]).includes(s))) {
+        throw new RpcError(E.INVALID_PARAMS, `states must be a non-empty list of ${SESSION_STATES.join(', ')}`);
+      }
+      const timeout = p.timeout_ms;
+      if (typeof timeout !== 'number' || !Number.isInteger(timeout) || timeout < 1 || timeout > 600_000) {
+        throw new RpcError(E.INVALID_PARAMS, 'timeout_ms must be a whole number from 1 to 600000');
+      }
+      const read = () => (db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined)?.state;
+      const end = Date.now() + timeout;
+      let state = read();
+      if (state === undefined) throw new RpcError(E.NOT_FOUND, 'session not found');
+      // A state the core writes wakes the wait at once, so done -> idle between polls is not missed; the 200 ms poll catches other writers.
+      let hit: string | undefined;
+      let wake = () => {};
+      const off = onStateChange((sid, s) => { if (sid === id && !hit && states.includes(s)) { hit = s; wake(); } });
+      try {
+        while (!hit && !states.includes(state)) {
+          const left = end - Date.now();
+          if (left <= 0) return { state, timed_out: true };
+          await new Promise<void>((r) => { wake = r; setTimeout(r, Math.min(200, left)); });
+          state = read() ?? state;
+        }
+        return { state: hit ?? state, timed_out: false };
+      } finally {
+        off();
+      }
     },
   });
 
@@ -203,6 +318,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (s.state === 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session has exited');
       appendEvent('core.status-cleared', id, {}, db);
       db.prepare("UPDATE session SET state = 'idle', state_at = ? WHERE id = ?").run(nowIso(), id);
+      stateChanged(id, 'idle');
       db.prepare('UPDATE needs_you SET read_at = ? WHERE ref = ? AND read_at IS NULL AND resolved_at IS NULL').run(nowIso(), id);
       return {};
     },
@@ -235,6 +351,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
       if (resumed && engine.id === 'codex') db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(old.native_id, r.session_id);
+      appendEvent('core.resumed', r.session_id, { from: oldId }, db);
       resumedAs.set(oldId, r.session_id);
       return { ...r, resumed, ...(resumed ? {} : { notice: 'No saved conversation, starting fresh.' }) };
     },
@@ -314,7 +431,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('hooks.install', {
-    needsUi: true,
     handler: (p) => {
       const claude = installClaude(engineVersion(db, 'claude'));
       const codex = p.codex ? installCodex() : null;
@@ -328,7 +444,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('hooks.uninstall', {
-    needsUi: true,
     handler: (p) => {
       const claude = uninstallClaude();
       const codex = p.codex ? uninstallCodex() : null;
@@ -340,7 +455,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('plugin.preview', { handler: (p) => previewPlugin(db, str(p, 'source')) });
 
   m.set('plugin.install', {
-    needsUi: true,
     handler: (p) => {
       const approved = p.approved_permissions;
       if (!Array.isArray(approved) || approved.some((x) => typeof x !== 'string')) throw new RpcError(E.INVALID_PARAMS, 'approved_permissions must be an array of strings');
@@ -359,10 +473,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('plugin.remove', { needsUi: true, handler: (p) => { removePlugin(db, str(p, 'plugin_id')); return {}; } });
+  m.set('plugin.remove', { handler: (p) => { removePlugin(db, str(p, 'plugin_id')); return {}; } });
 
   m.set('plugin.secret.set', {
-    needsUi: true,
     handler: (p) => {
       if (typeof p.value !== 'string') throw new RpcError(E.INVALID_PARAMS, 'value is required');
       setPluginSecret(db, str(p, 'plugin_id'), str(p, 'name'), p.value);
@@ -370,10 +483,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  m.set('notify.sink.set', { needsUi: true, handler: (p) => setSink(db, p) });
+  m.set('notify.sink.set', { handler: (p) => setSink(db, p) });
   m.set('notify.sink.list', { handler: () => listSinks(db) });
-  m.set('notify.sink.test', { needsUi: true, handler: (p) => testSink(db, str(p, 'id')) });
-  m.set('notify.sink.remove', { needsUi: true, handler: (p) => removeSink(db, str(p, 'id')) });
+  m.set('notify.sink.test', { handler: (p) => testSink(db, str(p, 'id')) });
+  m.set('notify.sink.remove', { handler: (p) => removeSink(db, str(p, 'id')) });
 
   m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
 
@@ -388,7 +501,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('needs.dismiss', {
-    needsUi: true,
     handler: (p) => {
       const r = db.prepare('UPDATE needs_you SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL').run(nowIso(), str(p, 'id'));
       if (Number(r.changes) === 0 && !db.prepare('SELECT 1 FROM needs_you WHERE id = ?').get(str(p, 'id'))) throw new RpcError(E.NOT_FOUND, 'item not found');
@@ -397,7 +509,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('pane.open', {
-    needsUi: true,
     handler: (p) => {
       const projectId = str(p, 'project_id');
       if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(projectId)) throw new RpcError(E.NOT_FOUND, 'project not found');
@@ -411,7 +522,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('pane.close', {
-    needsUi: true,
     handler: (p) => {
       const r = db.prepare('UPDATE browser_pane SET open = 0 WHERE id = ?').run(str(p, 'pane_id'));
       if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'pane not found');
@@ -420,7 +530,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('pane.url', {
-    needsUi: true,
     handler: (p) => {
       db.prepare('UPDATE browser_pane SET url = ? WHERE id = ?').run(str(p, 'url'), str(p, 'pane_id'));
       return {};
@@ -428,7 +537,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('pane.assign', {
-    needsUi: true,
     handler: (p) => {
       const pane = db.prepare('SELECT project_id FROM browser_pane WHERE id = ?').get(str(p, 'pane_id')) as { project_id: string } | undefined;
       if (!pane) throw new RpcError(E.NOT_FOUND, 'pane not found');
@@ -440,7 +548,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('pane.capture', {
-    needsUi: true,
     handler: async (p) => {
       const label = str(p, 'label');
       if (!['before', 'after', 'reference', 'comment'].includes(label)) throw new RpcError(E.INVALID_PARAMS, 'label must be before, after, reference or comment');
@@ -468,6 +575,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   for (const name of MOVED_METHODS) m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, 'moved to the pipeline products'); } });
+  for (const d of METHODS) if (d.needsUi && m.has(d.name)) m.get(d.name)!.needsUi = true;
 
   return m;
 }

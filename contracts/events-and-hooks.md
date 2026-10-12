@@ -40,7 +40,8 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `core.prompt-written` | core | `{}` (the held prompt was typed into the pty) |
 | `core.status-cleared` | core | `{}` (Clear status from the session menu) |
 | `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
-| `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists |
+| `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists. At core start, every `pty` session the last core left open gets one with `pid` null before any event is processed, then is resumed (`core/src/sessions/resume-all.ts`) |
+| `core.resumed` | core | `{"from": session id}`: written on the new session by `session.resume`; the workbench reads it as `resumed_from` to put the new session in the old one's tile. Never changes state |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
 | `core.stalled` | core | `{}`: the session is still `starting` 15 s after launch (5 s check); the engine is sitting on a trust prompt, a login, or an empty input box |
 | `core.claim` | core | `{repo, turn_base, from, at, files: [{path, owners: [session ids], shared}]}`: written processed at each `claude.Stop` and `claude.SessionEnd` for the files changed in that turn (`git diff --name-only <turn_base>`, plus untracked files modified since the turn's `UserPromptSubmit`). Paths are relative to `repo`. A file another session also changed in an overlapping turn goes to the session whose Edit, Write or MultiEdit hook named it; with no such hint, or when an earlier live owner's change is still uncommitted, both are listed and `shared` is true (M4-11) |

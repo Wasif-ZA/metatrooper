@@ -99,7 +99,7 @@ survives in the WAL for at most about 30 s.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `session.live-text`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
+`session.focus`, `session.live-text`, `session.list`, `session.wait`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
 secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
 written to the `command` table.
 
@@ -112,48 +112,75 @@ written to the `command` table.
 
 ## Core methods (`\\.\pipe\metatrooper`)
 
-Every other interaction is a database read.
+Every other interaction is a database read. This table is generated from `METHODS` in `core/src/methods.ts`
+(`node core/gen-methods.ts`); edit the list there, never here. Methods marked stable keep their exact shape for
+protocol 1; `core.ping` reports the protocol version. Calls on one connection run concurrently, so a long
+`session.wait` does not hold up other requests.
 
-| Method | Params | Result |
-|---|---|---|
-| `core.ping` | `{}` | `{ok: true, pid, version, protocol, schema_version, started_at}`; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |
-| `settings.set` | `{key, value}` | `{}`; needs `ui.hello`. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) |
-| `account.state` | `{}` | `{state: "signed_out"}`: the only state until the cloud milestone; nothing prompts for sign-in |
-| `project.open` | `{path}` | `{project_id}`; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` |
-| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}` | `{session_id, prompt_delivered}`: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path |
-| `session.owners` | `{project_id}` | `{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}`: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` |
-| `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once; refused for an `external` session |
-| `session.clear-status` | `{session_id}` | `{}`: sets `idle`, appends `core.status-cleared`, marks its inbox rows read |
-| `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` |
-| `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |
-| `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
-| `session.hide` | `{session_id}` | `{}` |
-| `session.limit-resume` | `{session_id, on: bool}` | `{}`; sets the tile's "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean |
-| `project.clear` | `{project_id}` | `{}`; hides the project's sessions that are not working or waiting, and its runs that are not running or paused |
-| `session.focus` | `{session_id}` | `{focused: bool}` |
-| `session.seen` | `{session_id}` | `{}`; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` |
-| `session.live-text` | `{}` | `{<session_id>: {line?, title?}}`: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |
-| `session.search` | `{query, session_ids?}` | `{hits: [{session_id, line, text}]}`: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50; needs `ui.hello`. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |
-| `ui.hello` | `{ui_key}` | `{ok}`; marks this connection as a trusted UI connection (see Access) |
-| `engines.check` | `{}` | `{}` (results land in `engine_check`) |
-| `plugin.preview` | `{source}` | `{valid, errors, manifest_hash, source, screen}`; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |
-| `plugin.install` | `{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}` | `{plugin_id, missing_secrets}`; needs `ui.hello`. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk |
-| `plugin.remove` | `{plugin_id}` | `{}`; needs `ui.hello` |
-| `plugin.secret.set` | `{plugin_id, name, value}` | `{}`; needs `ui.hello`; `name` must be an approved `secrets:<NAME>` |
-| `mcp.resolve` | `{plugin_id, server_id}` | `{command, args, env, refs, missing}` for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |
-| `notify.sink.set` | `{kind, dest, name?, id?, kinds?, enabled?}` | `{id}`; needs `ui.hello`; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table |
-| `notify.sink.list` | `{}` | `{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}`; no destination |
-| `notify.sink.test` / `notify.sink.remove` | `{id}` | `{ok, error?}` / `{}`; need `ui.hello` |
-| `mcp.missing` | `{plugin_id, names}` | `{}`; raises a `missing-secret` needs-you item per name |
-| `comment.deliver` | `{comment_id}` | `{clipboard_at, typed}`: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it |
-| `hooks.install`, `hooks.uninstall` | `{codex?: bool}` | `{diff}` |
-| `pane.open` | `{project_id, url?, session_id?, agent?: bool}` | `{pane_id}`; needs `ui.hello`; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>` |
-| `pane.close` | `{pane_id}` | `{}`; needs `ui.hello` |
-| `pane.url` | `{pane_id, url}` | `{}`; needs `ui.hello`; the workbench reports each navigation |
-| `pane.assign` | `{pane_id, session_id?}` | `{}`; needs `ui.hello`; sets or clears the one session allowed to drive the pane |
-| `pane.capture` | `{pane_id, label}` | `{snapshot_id}`; needs `ui.hello`; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row |
-| `run.*`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.*`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) |
-| `needs.dismiss` | `{id}` | `{}`; needs `ui.hello`; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule) |
+<!-- methods:start -->
+| Method | Params | Result | Errors | Stable | Needs `ui.hello` |
+|---|---|---|---|---|---|
+| `core.ping` | `{}` | {ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |  | yes |  |
+| `settings.set` | `{key, value}` | {}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) | -32602, -32003 |  | yes |
+| `core.stop` | `{}` | {}; the core exits a moment after replying |  |  | yes |
+| `account.state` | `{}` | {state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in |  |  |  |
+| `project.open` | `{path}` | {project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` | -32002 | yes |  |
+| `project.clear` | `{project_id}` | {}; hides the project's sessions that are not working or waiting, and its runs that are not running or paused |  |  |  |
+| `session.launch` | `{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}` | {session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path | -32002, -32003, -32020, -32040 | yes |  |
+| `session.list` | `{project_id?, all?: bool}` | {sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true` |  | yes |  |
+| `session.wait` | `{session_id, states: [state, ...], timeout_ms}` | {state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms` | -32602, -32002 | yes |  |
+| `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id | -32002, -32602 | yes |  |
+| `session.focus` | `{session_id}` | {focused: bool} | -32002 | yes |  |
+| `session.live-text` | `{}` | {<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |  | yes |  |
+| `session.search` | `{query, session_ids?}` | {hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |  |  | yes |
+| `session.seen` | `{session_id}` | {}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` | -32002 |  |  |
+| `session.hide` | `{session_id}` | {} | -32002 |  |  |
+| `session.limit-resume` | `{session_id, on: bool}` | {}; sets the tile's "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean | -32602, -32002 |  |  |
+| `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
+| `session.owners` | `{project_id}` | {repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` | -32002 |  |  |
+| `session.paste-prompt` | `{session_id}` | {written, reason?}: types the held prompt once; refused for an `external` session | -32002, -32602 |  |  |
+| `needs_you.mark-read` | `{id}` | {} | -32002 |  |  |
+| `needs_you.mark-unread` | `{id}` | {} | -32002 |  |  |
+| `needs.dismiss` | `{id}` | {}; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule) | -32002 |  | yes |
+| `shell.list` | `{}` | {shells: [{kind, label, argv}]} |  |  |  |
+| `shell.open` | `{kind, project_id}` | {shell_id, label, cwd}: a shell tab in the project's folder | -32020, -32002 |  |  |
+| `shell.close` | `{shell_id}` | {} | -32602 |  |  |
+| `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | {path, branch, trusted, existing?} | -32002, -32003 | yes |  |
+| `ui.hello` | `{ui_key}` | {ok}; marks this connection as a trusted UI connection (see Access) |  |  |  |
+| `engines.check` | `{}` | {} (results land in `engine_check`) |  |  |  |
+| `hooks.install` | `{codex?: bool}` | {diff} |  |  | yes |
+| `hooks.uninstall` | `{codex?: bool}` | {diff} |  |  | yes |
+| `plugin.preview` | `{source}` | {valid, errors, manifest_hash, source, screen}; nothing is installed or run. `screen` is what the install screen shows (`plugins.md`, Install) |  |  |  |
+| `plugin.install` | `{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}` | {plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk | -32003 |  | yes |
+| `plugin.remove` | `{plugin_id}` | {} |  |  | yes |
+| `plugin.secret.set` | `{plugin_id, name, value}` | {}; `name` must be an approved `secrets:<NAME>` |  |  | yes |
+| `mcp.resolve` | `{plugin_id, server_id}` | {command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |  |  |  |
+| `mcp.missing` | `{plugin_id, names}` | {}; raises a `missing-secret` needs-you item per name | -32002 |  |  |
+| `notify.sink.set` | `{kind, dest, name?, id?, kinds?, enabled?}` | {id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table |  | yes | yes |
+| `notify.sink.list` | `{}` | {sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination |  | yes |  |
+| `notify.sink.test` | `{id}` | {ok, error?} |  | yes | yes |
+| `notify.sink.remove` | `{id}` | {} |  | yes | yes |
+| `comment.deliver` | `{comment_id}` | {clipboard_at, typed}: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it | -32002 |  |  |
+| `pane.open` | `{project_id, url?, session_id?, agent?: bool}` | {pane_id}; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>`. Stable in the agent form | -32002, -32602 | yes | yes |
+| `pane.close` | `{pane_id}` | {} | -32002 |  | yes |
+| `pane.url` | `{pane_id, url}` | {}; the workbench reports each navigation |  |  | yes |
+| `pane.assign` | `{pane_id, session_id?}` | {}; sets or clears the one session allowed to drive the pane | -32002 |  | yes |
+| `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |
+| `run.start`, `run.cancel`, `run.clear`, `run.resume`, `run.item-set`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.pick`, `variant.discard`, `variant.combine`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) | -32601 | | |
+<!-- methods:end -->
+
+### Worktree sweep
+
+The core sweeps worktree projects at startup and once an hour (`core/src/worktree.ts`), one worktree at a time with asynchronous git calls, so terminals, pipe requests and the heartbeat keep running; a sweep still running when the next is due is not started twice, and a worktree whose session started while git ran is left as it was. It looks only at `project` rows whose path is exactly `<METATROOPER_HOME>/worktrees/<parent project id>/<name>`, where `worktree.create` puts them, and whose real path is still under that folder. Every other row and folder is left alone.
+
+- **Folder gone.** The row gets `hidden = 1`.
+- **The menu rule.** The workbench shows the open project, and otherwise only a row with `hidden = 0` whose folder exists and, if it is a MetaTrooper worktree, still holds a `.git` entry (`goneCheckout` in `workbench/src/queries.ts`). A gone folder leaves the menu at once, without waiting for the next sweep.
+- **Stale.** A worktree is stale when none of its sessions is in any state other than `exited`, and its newest `last_opened`, session `started_at`, `state_at` or `ended_at` is `worktree.stale_days` (setting, default 7) or more days ago. A worktree with a live session is never stale, however old it is.
+  - Stale, clean (`git status --porcelain` prints nothing, untracked files included) and merged (`HEAD` is an ancestor of the parent repo's main branch: the branch `origin/HEAD` names, else `main`, else `master`). The core runs `git worktree remove <path>` from the parent repo, never with `--force`. It then drops the folder's engine trust entries, sets `hidden = 1` and logs `worktree sweep: removed <path> ...`. The branch is kept.
+  - Stale but dirty, unmerged, with no main branch found, or failing to be removed. Nothing is deleted. The row gets `older = 1` and the menu shows it in a collapsed **Older** group instead of **Worktrees**.
+  - Not stale, or no longer stale. `older` goes back to 0.
+  - Stale, and the folder is still there but git has let go of it (no `.git` entry), as when `git worktree remove` deregistered it and Windows refused to delete the folder. The core removes the folder only if it is empty, then drops its trust entries and sets `hidden = 1`. Otherwise it logs and tries again next sweep; the row is neither hidden nor marked older, and the menu leaves it out because it has no `.git`.
+- Rows are hidden, never deleted, because `session`, `run`, `browser_pane` and `schedule` reference `project(id)`. `project.open` on the same folder sets `hidden` and `older` back to 0.
 
 ## Browser methods (`\\.\pipe\metatrooper-browser`)
 
@@ -205,6 +232,10 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   256 KiB. With no viewer attached, replies the headless terminal generates to a program's queries go back to
   the pty; with a viewer attached, the viewer answers.
 - An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
-  ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
+  ignored. `attach` to a session whose terminal has ended and whose last screen was saved
+  (`~/.metatrooper/screens/<session>.json`, the last 200 rows, written when the pty exits and when the core stops)
+  gets that screen as `{"op":"snapshot","seq":0,"data":...}`, then `{"op":"exit","code":<exit code or "unknown">}`, and
+  closes. `attach` to an unknown session, or an ended one with no saved screen, gets
+  `{"op":"error","code":"no-session"}` and closes. Saved screens older than 30 days are deleted at core start.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;
   input from any goes to the pty; the latest `resize` wins.

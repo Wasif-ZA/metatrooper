@@ -205,6 +205,14 @@ test('a second Comment click keeps the pick tracked after the first one settles'
   assert.deepEqual(cancelled, ['bp1']);
 });
 
+test('the project menu puts worktrees the sweep marked older in their own group, out of Worktrees', () => {
+  const projectGroups = new Function(`${fn('projectGroups')}; return projectGroups;`)();
+  const wt = (id: string, older = 0) => ({ id, path: `C:/Users/u/.metatrooper/worktrees/p/${id}`, older });
+  const g = projectGroups([{ id: 'repo', path: 'C:/code/repo', older: 0 }, wt('new'), wt('stale', 1), { id: 'tmp', path: 'C:/Users/u/AppData/Local/Temp/x', older: 0 }]);
+  const ids = (l: Array<{ id: string }>) => l.map((p) => p.id);
+  assert.deepEqual({ projects: ids(g.projects), worktrees: ids(g.worktrees), older: ids(g.older), scratch: ids(g.scratch) }, { projects: ['repo'], worktrees: ['new'], older: ['stale'], scratch: ['tmp'] });
+});
+
 test('the palette searches only the open project terminals, so other projects cannot use up the hit cap', () => {
   const calls: Array<[string, any]> = [];
   const ui: any = { snap: { core: { online: true }, sessions: [{ id: 's1' }] }, shells: [{ id: 'sh_1', project_id: 'p1' }, { id: 'sh_2', project_id: 'p2' }], projectId: 'p1' };

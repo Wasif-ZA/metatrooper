@@ -11,6 +11,8 @@ export interface EngineSpec {
   args?: string[];
   prompt_arg?: string;
   resume_args?: string[];
+  /** Regex, matched case-insensitively against a resumed session's last screen, that means the engine needs signing in. */
+  auth_error?: string;
   version_cmd: string[];
   min_version?: string;
   install?: string;
@@ -54,7 +56,7 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 
 export const BUILT_IN: EngineSpec[] = [
   {
-    id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], version_cmd: ['claude', '--version'],
+    id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], auth_error: 'invalid api key|please run /login|oauth token (has expired|revoked)|authentication_error', version_cmd: ['claude', '--version'],
     install: 'npm install -g @anthropic-ai/claude-code', login: 'claude, then /login',
     approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
     sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },
@@ -64,7 +66,7 @@ export const BUILT_IN: EngineSpec[] = [
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
   },
   {
-    id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], version_cmd: ['codex', '--version'],
+    id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
     install: 'npm install -g @openai/codex', login: 'codex login',
     approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
     sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },

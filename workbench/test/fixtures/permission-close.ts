@@ -8,7 +8,7 @@ const { PaneManager } = await import('../../src/browser/panes.ts');
 const gone = { isDestroyed: () => true };
 const wc = { isDestroyed: () => true, getURL: () => 'https://a.test/' };
 const pm = new PaneManager(gone as never, { paneEvent() {} } as never);
-const pane = { row: { id: 'bp_user_1', project_id: 'proj' }, picking: null, view: { webContents: wc }, overlay: { webContents: gone }, dbg: { detach() {} } };
+const pane = { row: { id: 'bp_user_1', project_id: 'proj' }, picking: null, popups: new Set(), view: { webContents: wc }, overlay: { webContents: gone }, dbg: { detach() {} } };
 const inner = pm as unknown as { panes: Map<string, unknown>; asking: Map<string, unknown>; guardPartition(row: unknown): unknown };
 inner.panes.set(pane.row.id, pane);
 inner.guardPartition(pane.row);

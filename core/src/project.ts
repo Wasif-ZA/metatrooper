@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { homeDir } from './paths.ts';
 
 const BS = String.fromCharCode(92);
 
@@ -61,4 +63,9 @@ export function resolveProjectPath(input: string): string {
     // not a git repo: the folder itself is the project
   }
   return canonicalPath(top);
+}
+
+/** `<home>/worktrees/` canonical, in its real case for filesystem calls (lower-case it only to compare): the folder MetaTrooper makes worktrees in, and the only one its sweep touches. */
+export function worktreesRoot(): string {
+  return canonicalPath(path.join(homeDir(), 'worktrees')) + '/';
 }
