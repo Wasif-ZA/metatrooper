@@ -8,7 +8,7 @@ import type { MethodSpec } from './pipe/commands.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
-import { checkAll } from './engines/health.ts';
+import { checkAll, engineVersion } from './engines/health.ts';
 import { launchSession, writePrompt } from './sessions/launch.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
@@ -316,7 +316,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('hooks.install', {
     needsUi: true,
     handler: (p) => {
-      const claude = installClaude();
+      const claude = installClaude(engineVersion(db, 'claude'));
       const codex = p.codex ? installCodex() : null;
       const settings = installEngineSettings(ctl.engines());
       return {

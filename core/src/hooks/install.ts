@@ -4,9 +4,10 @@ import { isDeepStrictEqual } from 'node:util';
 import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile } from '../paths.ts';
 import { removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
+import { older } from '../engines/health.ts';
 import { expandHome } from '../trust.ts';
 
-const EVENTS = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'] as const;
+export const EVENTS = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd', 'StopFailure'] as const;
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse']);
 
 type Json = Record<string, any>;
@@ -59,6 +60,11 @@ function withoutOurs(settings: Json, absentEvents: string[]): Json {
   return out;
 }
 
+/** The hook events a Claude Code version lists: StopFailure from 2.1.78 on, so an older or unknown CLI is not handed a hook name it rejects. */
+export function claudeHookEvents(version: string | null): string[] {
+  return older(version ?? '', '2.1.78') ? EVENTS.filter((ev) => ev !== 'StopFailure') : [...EVENTS];
+}
+
 export interface Plan {
   file: string;
   before: string;
@@ -70,43 +76,45 @@ function ourGroup(ev: string): Json {
   return TOOL_EVENTS.has(ev) ? { matcher: '*', hooks } : { hooks };
 }
 
-export function planClaudeInstall(): Plan {
+export function planClaudeInstall(version: string | null = null): Plan {
   const file = claudeSettingsFile();
   const original = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
   const settings: Json = original ? JSON.parse(original) : {};
   const next: Json = structuredClone(settings);
   if (!next.hooks) next.hooks = {};
-  for (const ev of EVENTS) {
+  for (const ev of claudeHookEvents(version)) {
     const groups: Json[] = Array.isArray(next.hooks[ev]) ? next.hooks[ev].filter((g: Json) => !isOurs(g)) : [];
     next.hooks[ev] = [...groups, ourGroup(ev)];
   }
   return { file, before: original ?? '', after: JSON.stringify(next, null, 2) + '\n' };
 }
 
-function globalClaudeHooks(): boolean {
+function globalClaudeHooks(): Set<string> {
   try {
     const settings: Json = JSON.parse(fs.readFileSync(claudeSettingsFile(), 'utf8'));
-    return EVENTS.some((ev) => Array.isArray(settings.hooks?.[ev]) && settings.hooks[ev].some(isOurs));
+    return new Set(EVENTS.filter((ev) => Array.isArray(settings.hooks?.[ev]) && settings.hooks[ev].some(isOurs)));
   } catch {
-    return false;
+    return new Set();
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper, so no global file is edited; no Claude hooks when `troop hooks install` already put them in the user's settings. */
-export function sessionHookArgs(engine: EngineSpec, sessionId: string): string[] {
+/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper, so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
+export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: string | null = null): string[] {
   if (engine.mcp_attach?.kind === 'codex-config') return codexNotifyArgs();
   if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return [];
   const script = path.join(coreDir, 'statusline.js').split(String.fromCharCode(92)).join('/');
   const settings: Json = { statusLine: { type: 'command', command: `node "${script}" --user-statusline`, padding: 0 } };
-  if (!globalClaudeHooks()) settings.hooks = Object.fromEntries(EVENTS.map((ev) => [ev, [ourGroup(ev)]]));
+  const global = globalClaudeHooks();
+  const events = claudeHookEvents(version).filter((ev) => !global.has(ev));
+  if (events.length) settings.hooks = Object.fromEntries(events.map((ev) => [ev, [ourGroup(ev)]]));
   const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
   return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
 
-export function installClaude(): Plan {
-  const plan = planClaudeInstall();
+export function installClaude(version: string | null = null): Plan {
+  const plan = planClaudeInstall(version);
   const state = readState();
   const original = fs.existsSync(plan.file) ? fs.readFileSync(plan.file, 'utf8') : null;
   if (!state.claude) {
