@@ -9,6 +9,8 @@ import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface EventRow {
   seq: number;
   at: string;
@@ -56,7 +58,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       try { payload = JSON.parse(ev.payload); } catch {}
       if (!ev.session_id && ev.kind.startsWith('claude.') && typeof payload.session_id === 'string') {
         const known = byNative.get(payload.session_id) as { id: string } | undefined;
-        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
+        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && UUID.test(payload.session_id) && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
         if (project) {
           const id = ulid();
           adopt.run(id, project.id, payload.session_id, payload.cwd as string, ev.at, ev.at);
