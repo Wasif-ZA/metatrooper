@@ -363,7 +363,11 @@ commit.
   - The `working` payload now carries `changed_at`, the file's mtime in ms. `redact.ts` allows it, so
     `core/dist/redact.js` changed and is in the commit.
   - The processor ignores a `core.activity` whose `changed_at` is not after the session's `state_at`, while the
-    session is `waiting_for_you`. That covers both orders: poll before or after the processor handles the ask.
+    session is `waiting_for_you`. That covers both orders: poll before or after the processor handles the ask. The
+    poll-first order has its own test, added in a later commit: `M6-05a rollout growth written before a Codex
+    PermissionRequest leaves the wait alone when the poll runs before the processor handles the ask`. Run against
+    the pre-fix `processor.ts` and `watch.ts`, it gave actual `working`, expected `waiting_for_you`. A poller-only
+    fix would miss this order, because the poller reads `state` before the processor has handled the ask.
   - While a session is `waiting_for_you`, the poller writes a fresh `working` when the file changes after `state_at`,
     even if it already counted the file as growing.
   - A `core.activity` with no `changed_at` behaves as before, so the existing M6-05a and agy tests keep their meaning.
@@ -422,7 +426,7 @@ commit.
 
 ### Suites (after all three fixes)
 
-- Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH): 434 tests, 428 pass, 0 fail,
+- Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH), final run: 435 tests, 429 pass, 0 fail,
   6 skipped. Four are the skips from earlier rounds (M1-10, M1-02/M1-03, M5-12c, the Docker selftest). Two are new
   from the main merge: M6-22a and M6-22c, gated on `METATROOPER_DESKTOP_E2E=1`.
 - Workbench (`npm test`): 131 tests, 92 pass, 0 fail, 35 skipped (Electron E2E gated on
