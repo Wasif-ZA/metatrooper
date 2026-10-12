@@ -188,7 +188,7 @@ commit.
 ### Suites (after both fixes)
 
 - Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH): 414 tests, 410 pass, 0 fail,
-  4 skipped. The skips are the existing environment-gated ones: M1-10, M1-02/M1-03, M5-12c, and one more.
+  4 skipped. The skips are the existing environment-gated ones: M1-10, M1-02/M1-03, M5-12c, and the Docker sandbox selftest (gated on `METATROOPER_DOCKER_E2E=1`).
 - Workbench (`npm test`): 129 tests, 90 pass, 0 fail, 35 skipped (real Electron tests gated on
   `METATROOPER_UI_REVISION_E2E=1`), 4 todo.
 
