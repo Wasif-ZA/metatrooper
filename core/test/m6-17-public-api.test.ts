@@ -8,6 +8,9 @@ import { buildGenerated, client, harness, runNode, sleep } from './helpers.ts';
 import { GENERATED, block } from '../gen-methods.ts';
 import { METHODS, buildMethods } from '../src/methods.ts';
 import { call } from '../src/pipe/client.ts';
+import { schemaFile } from '../src/paths.ts';
+import { appendEvent } from '../src/events/append.ts';
+import { processEvents } from '../src/events/processor.ts';
 
 // Rebuild generated fixtures before running public API tests.
 before(buildGenerated);
@@ -193,6 +196,23 @@ test('session.wait over real pipe returns within 1 s of state change', async () 
   } finally {
     await h.teardown();
   }
+});
+
+test('session.wait sees a target state that is left again before the next poll', async () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(schemaFile, 'utf8'));
+  const sessionId = `ses_${randomUUID()}`;
+  seedSession(db, process.cwd(), sessionId, `prj_${randomUUID()}`, 'working');
+  const methods = buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'test_key' });
+  const ctx = { ui: true, origin: 'test' };
+  const wait = methods.get('session.wait')!.handler({ session_id: sessionId, states: ['done'], timeout_ms: 1000 }, ctx);
+  // working -> done -> idle well inside one 200 ms poll.
+  appendEvent('codex.turn', sessionId, {}, db);
+  processEvents(db);
+  methods.get('session.seen')!.handler({ session_id: sessionId }, ctx);
+  assert.equal((db.prepare('SELECT state FROM session WHERE id = ?').get(sessionId) as { state: string }).state, 'idle');
+  assert.deepEqual(await wait, { state: 'done', timed_out: false });
+  db.close();
 });
 
 test('session.wait already in target state returns in under 300 ms', async () => {

@@ -25,7 +25,7 @@ import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
-import { SESSION_STATES } from './events/state.ts';
+import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -242,14 +242,21 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const end = Date.now() + timeout;
       let state = read();
       if (state === undefined) throw new RpcError(E.NOT_FOUND, 'session not found');
-      // ponytail: 200 ms poll, swap for a state-change event if many waiters pile up
-      while (!states.includes(state)) {
-        const left = end - Date.now();
-        if (left <= 0) return { state, timed_out: true };
-        await new Promise((r) => setTimeout(r, Math.min(200, left)));
-        state = read() ?? state;
+      // A state the core writes wakes the wait at once, so done -> idle between polls is not missed; the 200 ms poll catches other writers.
+      let hit: string | undefined;
+      let wake = () => {};
+      const off = onStateChange((sid, s) => { if (sid === id && !hit && states.includes(s)) { hit = s; wake(); } });
+      try {
+        while (!hit && !states.includes(state)) {
+          const left = end - Date.now();
+          if (left <= 0) return { state, timed_out: true };
+          await new Promise<void>((r) => { wake = r; setTimeout(r, Math.min(200, left)); });
+          state = read() ?? state;
+        }
+        return { state: hit ?? state, timed_out: false };
+      } finally {
+        off();
       }
-      return { state, timed_out: false };
     },
   });
 
@@ -301,6 +308,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (s.state === 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session has exited');
       appendEvent('core.status-cleared', id, {}, db);
       db.prepare("UPDATE session SET state = 'idle', state_at = ? WHERE id = ?").run(nowIso(), id);
+      stateChanged(id, 'idle');
       db.prepare('UPDATE needs_you SET read_at = ? WHERE ref = ? AND read_at IS NULL AND resolved_at IS NULL').run(nowIso(), id);
       return {};
     },

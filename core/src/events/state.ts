@@ -47,3 +47,15 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
       return null;
   }
 }
+
+const stateWatchers = new Set<(sessionId: string, state: string) => void>();
+
+/** Calls fn on every session state change the core writes; returns the unsubscribe. */
+export function onStateChange(fn: (sessionId: string, state: string) => void): () => void {
+  stateWatchers.add(fn);
+  return () => { stateWatchers.delete(fn); };
+}
+
+export function stateChanged(sessionId: string, state: string): void {
+  for (const fn of stateWatchers) fn(sessionId, state);
+}
