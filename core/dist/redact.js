@@ -66,6 +66,8 @@ export function buildPayload(kind        , raw        )      {
     case 'launch':
       return pick(r, ['session_id', 'pid', 'cwd', 'engine', 'started_at']);
     case 'claude.PreToolUse':
+    case 'claude.PermissionRequest':
+    case 'claude.PostToolUseFailure':
       return tool();
     case 'claude.PostToolUse':
       return { ...tool(), response_length: lengthOf(r.tool_response) };
@@ -89,6 +91,16 @@ export function buildPayload(kind        , raw        )      {
       };
     case 'core.activity':
       return pick(r, ['state']);
+    case 'codex.SessionStart':
+    case 'codex.PermissionRequest':
+    case 'codex.Stop':
+    case 'codex.Interrupt':
+    case 'gemini.SessionStart':
+    case 'gemini.BeforeAgent':
+    case 'gemini.AfterTool':
+    case 'gemini.Notification':
+    case 'gemini.AfterAgent':
+      return pick(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source']);
     case 'core.process-gone':
       return pick(r, ['pid']);
     default:
@@ -96,7 +108,7 @@ export function buildPayload(kind        , raw        )      {
   }
 }
 
-const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.StopFailure', 'claude.SessionEnd', 'codex.turn']);
+const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.PermissionRequest', 'claude.PostToolUseFailure', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.StopFailure', 'claude.SessionEnd', 'codex.turn']);
 const CLASSES = new Set(['permission', 'input', 'idle', 'other']);
 
 export function spoolKind(kind        )          {
@@ -124,6 +136,8 @@ export function rebuildPayload(kind        , built        )      {
   const tool = ()      => ({ ...strs(['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']), tool_input: redactedToolInput(String(b.tool_name ?? ''), b.tool_input) });
   switch (kind) {
     case 'claude.PreToolUse':
+    case 'claude.PermissionRequest':
+    case 'claude.PostToolUseFailure':
       return tool();
     case 'claude.PostToolUse':
       return { ...tool(), response_length: n('response_length') };

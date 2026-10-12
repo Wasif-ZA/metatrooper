@@ -48,10 +48,26 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const convEnded = db.prepare("SELECT 1 FROM event WHERE kind = 'claude.SessionEnd' AND session_id = ? AND json_extract(payload, '$.session_id') = ? AND seq < ? LIMIT 1");
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
   const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? ORDER BY seq DESC LIMIT 1");
+  const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') ORDER BY seq DESC LIMIT 1");
+  const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' ORDER BY seq DESC LIMIT 1");
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
+  const toolFinished = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? LIMIT 1");
+  /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last PreToolUse before a permission Notification since the last prompt or Stop; null when there is no such wait or that call has finished. */
+  const permissionWait = (sessionId: string, seq: number): string | null => {
+    const ask = lastAsk.get(sessionId, seq) as { seq: number; kind: string; id: unknown } | undefined;
+    let from = ask?.seq ?? 0;
+    let id = ask?.kind === 'claude.PermissionRequest' ? ask.id : undefined;
+    if (ask?.kind !== 'claude.PermissionRequest') {
+      const noteRow = lastPermissionNote.get(sessionId, from, seq) as { seq: number } | undefined;
+      if (!noteRow) return null;
+      from = noteRow.seq;
+    }
+    if (typeof id !== 'string') id = (pendingToolId.get(sessionId, from) as { id: unknown } | undefined)?.id;
+    return typeof id === 'string' && !toolFinished.get(sessionId, id, from, seq) ? id : null;
+  };
   const turns: TurnJob[] = [];
   const changed: Array<[string, string]> = [];
   db.exec('BEGIN IMMEDIATE');
@@ -71,24 +87,31 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       }
       const s = ev.session_id ? (getSession.get(ev.session_id) as SessionRow | undefined) : undefined;
       if (s && ev.session_id && s.state !== 'exited') {
-        const conv = ev.kind.startsWith('claude.') ? payload.session_id : ev.kind === 'codex.turn' ? payload['thread-id'] : undefined;
+        const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude|codex|gemini)\./.test(ev.kind) ? payload.session_id : undefined;
         let foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
+        // A Codex or Gemini SessionStart (resume, clear) names the conversation the session now holds.
+        if (foreign && /^(codex|gemini)\.SessionStart$/.test(ev.kind)) {
+          relinkNative.run(conv, ev.session_id);
+          foreign = false;
+        }
         if (foreign && ev.kind.startsWith('claude.') && ev.kind !== 'claude.SessionEnd' && convEnded.get(ev.session_id, s.native_id, ev.seq)) {
           relinkNative.run(conv, ev.session_id);
           foreign = false;
         }
         if (ev.kind === 'launch' && typeof payload.pid === 'number') setPid.run(payload.pid, ev.session_id);
+        const waited = s.state === 'waiting_for_you' && /^claude\.(PreToolUse|PostToolUse|PostToolUseFailure)$/.test(ev.kind) ? permissionWait(ev.session_id, ev.seq) : null;
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
           // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
-          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
-          // A PostToolUse clears it only when it finishes the tool last asked for, so overlapping tools keep the one still pending.
-          const pending = ev.kind === 'claude.PostToolUse' && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq) as { id: unknown } | undefined)?.id : undefined;
-          if ((ev.kind === 'claude.PostToolUse' && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
+          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle' && waited === null) setTool.run(payload.tool_name, ev.session_id);
+          // A PostToolUse clears it only when it finishes the tool last asked for (in a permission wait, the waited one), so overlapping tools keep the one still pending.
+          const finished = /^claude\.PostToolUse(Failure)?$/.test(ev.kind);
+          const pending = waited ?? (finished && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq) as { id: unknown } | undefined)?.id : undefined);
+          if ((finished && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
           if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
-        const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
+        const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);

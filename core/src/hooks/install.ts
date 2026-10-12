@@ -7,8 +7,10 @@ import type { EngineSpec } from '../engines/registry.ts';
 import { older } from '../engines/health.ts';
 import { expandHome } from '../trust.ts';
 
-export const EVENTS = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd', 'StopFailure'] as const;
-const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse']);
+export const EVENTS = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd', 'StopFailure', 'PermissionRequest', 'PostToolUseFailure'] as const;
+const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PermissionRequest', 'PostToolUseFailure']);
+/** The first Claude Code version known to list each newer hook event. */
+const SINCE: Record<string, string> = { StopFailure: '2.1.78', PermissionRequest: '2.0.45', PostToolUseFailure: '2.1.119' };
 
 type Json = Record<string, any>;
 
@@ -60,9 +62,9 @@ function withoutOurs(settings: Json, absentEvents: string[]): Json {
   return out;
 }
 
-/** The hook events a Claude Code version lists: StopFailure from 2.1.78 on, so an older or unknown CLI is not handed a hook name it rejects. */
+/** The hook events a Claude Code version lists (SINCE), so an older or unknown CLI is not handed a hook name it rejects. */
 export function claudeHookEvents(version: string | null): string[] {
-  return older(version ?? '', '2.1.78') ? EVENTS.filter((ev) => ev !== 'StopFailure') : [...EVENTS];
+  return EVENTS.filter((ev) => !SINCE[ev] || !older(version ?? '', SINCE[ev]));
 }
 
 export interface Plan {
@@ -98,10 +100,11 @@ function globalClaudeHooks(): Set<string> {
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper, so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
+/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or Codex notify wrapper and declared Codex hooks, so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
 export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: string | null = null): string[] {
-  if (engine.mcp_attach?.kind === 'codex-config') return codexNotifyArgs();
-  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return [];
+  const codexHooks = engine.hooks?.kind === 'codex-config' ? codexHookArgs(engine.hooks.events, sessionId) : [];
+  if (engine.mcp_attach?.kind === 'codex-config') return [...codexNotifyArgs(), ...codexHooks];
+  if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return codexHooks;
   const script = path.join(coreDir, 'statusline.js').split(String.fromCharCode(92)).join('/');
   const settings: Json = { statusLine: { type: 'command', command: `node "${script}" --user-statusline`, padding: 0 } };
   const global = globalClaudeHooks();
@@ -167,6 +170,30 @@ function userNotify(text: string): string[] | null {
     previous = inner.length ? inner : null;
   }
   return previous;
+}
+
+/** The command a per-session engine hook runs: event.js with the kind `<prefix>.<Event>` and the session id on the command line, since an engine may not pass its environment to hooks. */
+function engineHookCommand(prefix: string, event: string, sessionId: string): string {
+  return `node "${eventScript()}" ${prefix}.${event} --session ${sessionId}`;
+}
+
+/** `-c hooks.<Event>=...` overrides carrying the engine's declared Codex hooks; config.toml is never edited. */
+export function codexHookArgs(events: string[], sessionId: string): string[] {
+  return events.flatMap((ev) => ['-c', `hooks.${ev}=[{hooks=[{type="command",command=${JSON.stringify(engineHookCommand('codex', ev, sessionId))}}]}]`]);
+}
+
+export function geminiSettingsFile(sessionId: string): string {
+  return path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`);
+}
+
+/** Environment for engines whose hooks travel in a per-session file: the Gemini CLI system settings file holding only MetaTrooper's hooks, so ~/.gemini/settings.json is never touched. */
+export function sessionHookEnv(engine: EngineSpec, sessionId: string): Record<string, string> {
+  if (engine.hooks?.kind !== 'gemini-system-settings') return {};
+  const file = geminiSettingsFile(sessionId);
+  const hooks = Object.fromEntries(engine.hooks.events.map((ev) => [ev, [{ hooks: [{ name: `metatrooper-${ev}`, type: 'command', command: engineHookCommand('gemini', ev, sessionId), timeout: 5000 }] }]]));
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ hooks }, null, 2) + '\n');
+  return { GEMINI_CLI_SYSTEM_SETTINGS_PATH: file };
 }
 
 function codexNotifyArgs(): string[] {

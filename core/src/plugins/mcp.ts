@@ -179,16 +179,18 @@ export function removeSessionFiles(sessionId: string): void {
   for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`, sessionId]) {
     try { fs.rmSync(path.join(homeDir(), 'mcp', name), { recursive: true, force: true }); } catch {}
   }
+  try { fs.rmSync(path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`), { force: true }); } catch {}
 }
 
 /** Deletes per-session files whose session has exited or no longer exists. */
 export function sweepSessionFiles(db: DatabaseSync): void {
-  const dir = path.join(homeDir(), 'mcp');
-  if (!fs.existsSync(dir)) return;
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
-  for (const name of fs.readdirSync(dir)) {
-    const s = get.get(name.split('.')[0]) as { state: string } | undefined;
-    if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+  for (const dir of [path.join(homeDir(), 'mcp'), path.join(homeDir(), 'engines', 'gemini')]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      const s = get.get(name.split('.')[0]) as { state: string } | undefined;
+      if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    }
   }
 }
 

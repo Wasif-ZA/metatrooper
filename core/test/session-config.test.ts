@@ -67,16 +67,16 @@ test('the StopFailure hook goes in for Claude Code 2.1.78 and later only, surviv
   const hooksOf = (args: string[]) => JSON.parse(fs.readFileSync(args[0].slice('--settings='.length), 'utf8')).hooks;
   const six = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'];
   assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'A', null))), six);
-  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'B', '2.1.77 (Claude Code)'))), six);
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'B', '2.1.77 (Claude Code)'))), [...six, 'PermissionRequest']);
   const recent = hooksOf(sessionHookArgs(claude, 'C', '2.1.78 (Claude Code)'));
-  assert.deepEqual(Object.keys(recent), [...six, 'StopFailure']);
+  assert.deepEqual(Object.keys(recent), [...six, 'StopFailure', 'PermissionRequest']);
   assert.match(recent.StopFailure[0].hooks[0].command, /event\.js" claude\.StopFailure$/);
   assert.equal(recent.StopFailure[0].matcher, undefined);
 
   const settings = process.env.METATROOPER_CLAUDE_SETTINGS!;
   installClaude('2.0.1 (Claude Code)');
   assert.equal('StopFailure' in JSON.parse(fs.readFileSync(settings, 'utf8')).hooks, false);
-  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'D', '2.1.296 (Claude Code)'))), ['StopFailure']);
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'D', '2.1.296 (Claude Code)'))), ['StopFailure', 'PermissionRequest', 'PostToolUseFailure']);
   installClaude('2.1.296 (Claude Code)');
   assert.ok(JSON.parse(fs.readFileSync(settings, 'utf8')).hooks.StopFailure);
   assert.equal('hooks' in JSON.parse(fs.readFileSync(sessionHookArgs(claude, 'E', '2.1.296 (Claude Code)')[0].slice('--settings='.length), 'utf8')), false);
