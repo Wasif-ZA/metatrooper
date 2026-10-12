@@ -33,11 +33,11 @@ The first matching rule is the row's `reason`. No match means `allow`.
 | Reason | When | Session scope |
 |---|---|---|
 | `file dialog` | `file_dialog: true` (desktop) | never; asks every time |
-| `hidden control` | `key` of Enter, Space or a Ctrl/Alt/Meta shortcut while focus is in a cross-origin frame or a closed shadow root (`hidden: true`), so the control cannot be named | never |
+| `hidden control` | `key` of Enter, Space or a Ctrl/Alt/Meta shortcut while focus is in a cross-origin frame or a closed shadow root, or `click`, `select` or `type` on a control whose accessibility node cannot be read (`hidden: true`), so the control cannot be named | never |
 | `password field` | `type` into a password field (`type=password`, UI Automation `IsPassword`) | never |
 | `credential text` | `type` whose text matches a credential pattern (`CREDENTIAL_PATTERNS`, or a 32+ character token run mixing digits, lower and upper case, in `core/src/redact.ts`) | never |
 | `credential field` | `type` into a control whose Name or AutomationId has the word password, passcode, token, secret, key, cvv or card | never |
-| `risky control: <name>` | `click`, `select` or `type` on a control whose Name or AutomationId has the word send, submit, pay, buy, purchase, order, checkout, delete, remove, erase, publish, post, transfer, authorize (authorise) or confirm; `key` of Enter, Space or a Ctrl/Alt/Meta shortcut while such a control has focus | yes |
+| `risky control: <name>` (the whole name has credentials redacted, then is cut to 200 characters; the rule matches the whole name) | `click`, `select` or `type` on a control whose Name or AutomationId has the word send, submit, pay, buy, purchase, order, checkout, delete, remove, erase, publish, post, transfer, authorize (authorise) or confirm; `key` of Enter, Space or a Ctrl/Alt/Meta shortcut while such a control has focus | yes |
 
 Words are matched whole, case-insensitively, after camelCase, `_`, `-` and `.` are split (`sendButton` matches). English
 only. Plain `key` presses (Tab, letters, arrows) never ask.

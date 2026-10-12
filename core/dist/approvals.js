@@ -62,6 +62,8 @@ const ALWAYS = new Set(['password field', 'credential text', 'credential field',
 
 const words = (s        ) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_\-.]+/g, ' ');
 const riskyControl = (c                ) => Boolean(c && (RISKY_NAME.test(words(c.name)) || RISKY_NAME.test(words(c.automation_id))));
+/** The reason for a risky control; the name is matched whole, then redacted whole and shortened only here, for display. */
+const risky = (c         ) => `risky control: ${redactCredentials(c.name || c.automation_id).slice(0, 200)}`;
 
 function isShortcut(keys        )          {
   const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
@@ -83,10 +85,12 @@ export function riskReason(p             )                {
     const last = keys.split('+').pop()?.trim() ?? '';
     if (!ACTIVATING_KEY.test(last) && !isShortcut(keys)) return null;
     if (p.hidden) return 'hidden control';
-    if (riskyControl(c)) return `risky control: ${c .name || c .automation_id}`;
+    if (riskyControl(c)) return risky(c );
     return null;
   }
-  if (['click', 'select', 'type'].includes(p.action) && riskyControl(c)) return `risky control: ${c .name || c .automation_id}`;
+  if (!['click', 'select', 'type'].includes(p.action)) return null;
+  if (p.hidden) return 'hidden control';
+  if (riskyControl(c)) return risky(c );
   return null;
 }
 
