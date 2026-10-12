@@ -20,6 +20,9 @@ export const DEFAULTS = {
     npm_ci: true,
     stale_days: 7,
   },
+  desktop: {
+    watch_pause: true,
+  },
   terminal: {
     cols: 120,
     rows: 30,
