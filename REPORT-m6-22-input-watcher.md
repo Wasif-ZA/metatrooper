@@ -1,0 +1,103 @@
+# M6-22 input watcher: report
+
+Branch `m6-22-input-watcher`. I merged `main` first (fast-forward to `fcf8fad`). I did not merge, push, amend, rebase
+or force-push anything else, and I did not run `troop serve` or restart the core.
+
+## Commits
+
+| Commit | What |
+|---|---|
+| `6580922` | The `grant` table (migration `003-grants.sql` and the `contracts/schema.sql` block), copied byte for byte from M6-15 so the watcher can tell when a grant is live |
+| `ed5fb41` | The core watcher: `core/src/watch/input-hook.ps1` (the hook helper), `core/src/watch/watcher.ts` (the matcher), wiring in `main.ts`, setting `desktop.watch_pause` (default on), meta row `input_watcher` in the schema comment, and tests. The migration-id lists in the M6-03 and M6-04 tests now include 3, the same edit M6-15 makes |
+| `1941ab3` | Workbench: the snapshot gets `watcher_off` (sessions holding a live grant while `meta.input_watcher = 'off'`). Each of those tiles shows "input watcher off" in orange (`var(--wait)`, #ff7a1a) |
+| `eb4501a` | Moves `desktop.watch_pause` into the spot where M6-15 adds `desktop.takeover_key` (see "Left for Wasif") |
+
+No `core/dist` change: the build only bundles the hook entry points, and none of them import the watcher. I ran
+`node core/build.ts` and it produced no diff.
+
+## How it works
+
+- `Watcher.tick()` runs every second in the core. While any `grant` row has `ended_at IS NULL`, it keeps
+  `powershell.exe -ExecutionPolicy Bypass -File input-hook.ps1` running. When the last grant ends it stops the
+  helper. `meta.input_watcher` is `on` (the helper printed `{"ready":true}`), `off` (the helper exited, errored or
+  stayed silent for 15 s), or `idle` (no grant is live). A blocked helper is not retried while its grant lives.
+- The helper uses `Add-Type` to compile a C# class with no native module. A thread with a
+  `GetMessage`/`TranslateMessage`/`DispatchMessage` loop holds `WH_KEYBOARD_LL` and `WH_MOUSE_LL`. The callbacks only
+  queue events that carry `LLKHF_INJECTED` / `LLMHF_INJECTED`, then return. A second MTA thread subscribes to UI
+  Automation's FocusChanged, Window_WindowOpened and Invoke_Invoked events and records `GetLastInputInfo` idle time
+  with each one. The helper prints one JSON line per event (kind, time, idle ms, root hwnd, window title) and exits
+  when stdin closes.
+- `judge()` does nothing with an event that falls inside a `metatrooper-desktop` action, with 200 ms of slack on each
+  side (`beginAction()` / `endAction()`). Otherwise:
+  - Injected key or mouse input gives `input`.
+  - A UI Automation event with idle of 2 s or more gives `away`.
+  - Anything else is ignored.
+- `raise()` writes at most one open `needs_you` row per kind and window. The row has `kind 'other'` and
+  `ref watch:<kind>:<hwnd>`. Its text is either "input from another program in "<title>"" or "the desktop changed
+  while you were away from it, in "<title>"", each followed by "(the watcher cannot name the program behind it)".
+  When `desktop.watch_pause` is on, it also sets `meta.takeover_paused_at`, the take-over flag M6-15 checks at
+  dispatch (D62).
+
+## Acceptance criteria
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| **M6-22a.** With a grant live, a PowerShell `SendKeys` run raises one "input from another program" item within 1 s and sets the pause flag. A `metatrooper-desktop` `type` in the same window raises none | **Met on this branch, with one wiring step left for the M6-15 merge** | The end-to-end test `M6-22a on this desktop` (opt-in, `METATROOPER_DESKTOP_E2E=1`) **passed on this laptop** (3.1 s). It starts the real helper with a live grant. A separate PowerShell process opens its own topmost form and checks that it holds the foreground before typing. Then `SendKeys.SendWait('abc')` produced exactly one item for that window within 1 s and set `takeover_paused_at`. A second `SendKeys` inside `beginAction()`/`endAction()` raised no item and left the flag clear. Unit tests cover the slack edges (-200, 0, +500 and +1200 ms inside; -201 and +1201 ms outside), an action that has not ended yet, and six key events giving one item. **Caveat:** on this branch the bracket is `beginAction`/`endAction`, called from the test, because M6-15's `Desktop.act` does not exist here. See "Left for Wasif" |
+| **M6-22b.** With the helper blocked (fixture policy), every granted tile shows "input watcher off" | **Met** | Core test: `Watcher` with `-ExecutionPolicy Restricted` and a live grant goes to `meta.input_watcher = 'off'` (the real powershell.exe refuses the script). It stays `off` while the grant lives and returns to `idle` once the grant ends. Workbench test: `snapshot().watcher_off` lists every session with a live grant (two grants on one session list it once) and no session whose grant ended. It is empty when the watcher is `on` or when the grant table is missing. The tile template has `<span class="tile-watch" hidden>input watcher off</span>`, `label()` un-hides it from `x.watchOff`, shells never get it, and the CSS colours it `var(--wait)` (orange). Not checked: the real Electron window, since the Electron e2e suites are opt-in and I did not run them |
+| **M6-22c.** With a grant live and no physical input for 5 s, a fixture that clicks a button in another app through `InvokePattern` raises one "the desktop changed while you were away from it" item within 1 s. The same script while the tester is typing raises none | **Met** | The end-to-end test `M6-22c on this desktop` (opt-in) **passed on this laptop** (9.3 s). The "other app" is a WPF window in its own PowerShell process. A WinForms button showed up to UIA as a bare Pane with no InvokePattern, so I switched to WPF. A second process calls `InvokePattern.Invoke()` on its button. (1) While that process moves the mouse 1 px and back every 100 ms (input that `GetLastInputInfo` counts, standing in for typing, which a test cannot do physically): idle was under 2 s and no away item appeared. (2) After waiting for 5 s of no input: one away item for that window within 1 s. Both clicks reached the button. Unit tests cover idle 1999 ms (none) and idle 5000 ms (one item, flag set) |
+
+Not an acceptance criterion, and not built: spec line 538's "each window can be muted for the session from the
+needs-you item". Today a window gets at most one open item per kind until someone resolves it.
+
+## Tests run
+
+- Core, full suite, from Git Bash: `cd core && node --test "test/*.test.ts"`. Result: **410 tests, 404 pass, 0 fail, 6
+  skipped** (environment-bound or opt-in tests, including this branch's two desktop e2e tests).
+- Core, this child: `node --test test/m6-22-watcher.test.ts`. Result: 9 tests, 7 pass, 2 skipped (opt-in).
+- Core, desktop e2e:
+  `METATROOPER_DESKTOP_E2E=1 node --test --test-name-pattern="on this desktop" test/m6-22-watcher.test.ts`. Result:
+  **2 pass** (M6-22a in 3.1 s, M6-22c in 9.3 s). The final M6-22c run was by itself, after I switched the fixture to
+  WPF. M6-22a passed in the run before that, which used the same 22a fixture.
+- Workbench: `cd workbench && npm test`. Result: **131 tests, 92 pass, 0 fail, 35 skipped (Electron e2e, opt-in), 4
+  todo**.
+- Setup: `npm ci` in `core` and `workbench`. Then node-pty's `scripts/prebuild.js` and `scripts/post-install.js` by
+  hand, because npm held its install scripts.
+
+## Left for Wasif
+
+1. **Wire the bracket when M6-15 merges.** M6-15's UIA helper never injects input (it uses PostMessage and SetValue
+   only), so its actions never trip the injected-input path. But `SetValue` and `Invoke` bring the target window to
+   the foreground (spike checks 4 and 5), and that fires FocusChanged and Invoked. With the user idle, the watcher
+   would raise "the desktop changed while you were away" for the agent's own actions and pause it. In
+   `core/src/desktop/driver.ts` `Desktop.act`, bracket the action:
+
+   ```ts
+   import { beginAction, endAction } from '../watch/watcher.ts';
+   // in act():
+   const watch = beginAction();
+   this.actionsInFlight++;
+   try { ... } finally { this.actionsInFlight--; endAction(watch); }
+   ```
+
+   This is the only spot where a `metatrooper-desktop` action reaches the helper. I left it out because that file is
+   M6-15's and is not on this branch. I did not add a pipe method for it, since `desktop.act` already runs inside the
+   core.
+2. **One merge conflict with M6-15, on purpose.** I ran `git merge-tree HEAD m6-15-computer-use`: everything
+   auto-merges except `core/src/settings.ts`. Resolve it to one block,
+   `desktop: { takeover_key: 'Control+Alt+Q', watch_pause: true }`. Before my last commit that file merged with no
+   conflict into two `desktop:` keys, and the second one silently dropped `takeover_key`. The `grant` migration, the
+   schema block and the migration-id test edits are identical on both branches and merge without a conflict.
+3. **Smart App Control.** The spike found SAC off on this laptop. "Off" is proven here only through the
+   `-ExecutionPolicy Restricted` fixture, not under SAC itself. If SAC blocks the `Add-Type` compile, the helper exits
+   and the tiles show "input watcher off", which is the intended fallback.
+4. **Noise.** Focus and window-opened events from apps that change on their own (toasts, timers) will raise "away"
+   items while a grant is live, as the spec warns. Per-window mute (spec line 538) is not built yet.
+5. **Key remappers.** PowerToys Keyboard Manager, AutoHotkey and some touchpad or pen drivers turn real keystrokes
+   into injected ones. While a grant is live, each of those keystrokes raises an item and pauses the agents, as D70
+   says it should. It will be the first thing to bite if one is running.
+6. **Slack.** UI Automation events can arrive a few hundred ms after an action ends. If, after the M6-15 wiring, the
+   agent's own actions still raise "away" items, raise `SLACK_MS` in `watcher.ts` (200 ms now).
+7. **Transport.** Spec line 523 says the helper reports to the core "over the pipe". It writes JSON lines to its
+   stdout, which the core reads. That is the core's own child process, and no contract defines a pipe method for it.
+8. **D65.** The spec lists M6-22 among the children whose tests Codex writes, followed by a mutation run. I wrote
+   these tests myself, so the Codex tests and the mutation run are still to do.
