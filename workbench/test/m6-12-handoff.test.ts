@@ -82,6 +82,8 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       fillDuringEvaluate: 'evaluate is running on this page; nothing was typed',
       nothingFilledDuringEvaluate: true,
       evaluateFinished: 'ok',
+      keyFocusInChildFrame: { origin: 'https://evil.test', hidden: true, control: null },
+      keyFocusInOpaqueFrame: 'not sent: focus is in a frame whose origin cannot be established',
       markerFound: [],
     });
   } finally {

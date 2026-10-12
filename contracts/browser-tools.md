@@ -78,7 +78,10 @@ box fails with "not visible".
   the handoff lands; both fail with -32036. A screenshot already in flight still completes.
 - **Origins.** The origin of an input is that of the control's own frame: the pane's for the main frame, the child
   frame's otherwise. A child frame whose origin is not an http(s) origin (opaque, detached) fails with -32030 and nothing
-  is sent. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
+  is sent. For `key`, when focus is inside a frame the main frame cannot read, the origin is that frame's
+  (`securityOrigin` in `Page.getFrameTree`) and `hidden` is true; if it is not an http(s) origin or not found, `key`
+  fails with -32030 `not sent: focus is in a frame whose origin cannot be established`. Only the outermost unreadable
+  frame is seen: focus in a frame nested inside it is checked against the outer frame's origin. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
   `allow_origins` lists origins that never ask for being new.
 - **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
   (or `troop browser secret <NAME> <origin>`). A value under 4 characters is refused when saved (-32602), since output

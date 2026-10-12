@@ -61,15 +61,28 @@ internal.answer = async (_p: unknown, _s: string, work: () => Promise<Record<str
 // The element a real describe resolves to (see the child-frame section)
 let field: Record<string, unknown> = {};
 let axName = 'Password';
+// What has focus in the main frame: the real focused-element walk runs against this document, as CDP would run it.
+// Each element carries the DOM.describeNode answer for it; the target stub's field is backendNodeId 5.
+const focusDoc: Record<string, any> = { body: {} };
+const element = (tag: string, node: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ tagName: tag, ownerDocument: focusDoc, node: { nodeName: tag, ...node }, ...extra });
+focusDoc.activeElement = element('INPUT', { backendNodeId: 5 });
+let focusedEl: Record<string, any> | null = null;
+let childOrigin = 'https://evil.test';
 internal.cmd = async (_p: unknown, method: string, params: Record<string, any>) => {
   if (method === 'Runtime.callFunctionOn' && params.objectId === 'field') return { result: { value: new Function(`return (${params.functionDeclaration})`)().call(field) } };
+  if (method === 'Runtime.evaluate' && String(params.expression).includes('activeElement')) {
+    const v = new Function('document', `return ${params.expression}`)(focusDoc);
+    if (v && typeof v === 'object') { focusedEl = v; return { result: { objectId: 'focused' } }; }
+    return { result: { value: v } };
+  }
+  if (method === 'DOM.describeNode' && params.objectId === 'focused') return { node: focusedEl!.node };
   if (method === 'Accessibility.getPartialAXTree') return { nodes: [{ backendDOMNodeId: 7, name: { value: axName }, role: { value: 'textbox' } }] };
   if (method === 'Input.insertText') {
     inserted.push(params.text);
     // a page that logs what was typed into it
     pane.console.push({ at: Date.now(), level: 'log', text: `typed ${params.text}` });
   }
-  if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'F' } } };
+  if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'F', securityOrigin: new URL(page.url).origin }, childFrames: [{ frame: { id: 'child', securityOrigin: childOrigin } }] } };
   if (method === 'Page.createIsolatedWorld') return { executionContextId: 1 };
   if (method === 'Runtime.evaluate') return { result: { value: marker } };
   return {};
@@ -229,6 +242,19 @@ r.nothingFilledDuringEvaluate = inserted.length === filledBefore;
 script.release();
 r.evaluateFinished = outcome(await running);
 internal.cmd = plainCmd;
+
+const theField = focusDoc.activeElement;
+
+// Round 2: a key with focus inside a frame this world cannot read is checked against that frame's origin
+delete internal.describe;
+focusDoc.activeElement = element('IFRAME', { backendNodeId: 11, frameId: 'child' }, { contentDocument: null });
+const keyDescribe = async () => { const d = (await call('browser.describe', { pane_id: 'bp_agent_1', tool: 'key' })); return d.error ? d.error.message : { origin: d.result.origin, hidden: d.result.hidden, control: d.result.control }; };
+r.keyFocusInChildFrame = await keyDescribe();
+childOrigin = 'null';
+r.keyFocusInOpaqueFrame = await keyDescribe();
+childOrigin = 'https://evil.test';
+focusDoc.activeElement = theField;
+internal.describe = stubDescribe;
 
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;

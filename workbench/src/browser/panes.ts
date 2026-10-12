@@ -30,7 +30,7 @@ const SNAPSHOT_TOKENS = 4000;
 const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
-/** The focused element through open shadow roots and same-origin frames; 'hidden' when focus is in a frame this world cannot read. */
+/** The focused element through open shadow roots and same-origin frames; the frame element itself when focus is in a frame this world cannot read. */
 const FOCUSED = `(() => {
   let e = document.activeElement;
   for (;;) {
@@ -39,7 +39,7 @@ const FOCUSED = `(() => {
     if (e.tagName === 'IFRAME' || e.tagName === 'FRAME') {
       let d = null;
       try { d = e.contentDocument; } catch {}
-      if (!d) return 'hidden';
+      if (!d) return e;
       e = d.activeElement;
       continue;
     }
@@ -888,6 +888,12 @@ ame, after checking the ref's field is a password field on the origin saved with
     return value;
   }
 
+  /** The security origin of a frame of the pane, or '' when it is not in the frame tree. */
+  private async frameOrigin(pane: Pane, frameId: string): Promise<string> {
+    const find = (t: any): string => (t.frame.id === frameId ? String(t.frame.securityOrigin ?? '') : (t.childFrames ?? []).map(find).find(Boolean) ?? '');
+    return find((await this.cmd(pane, 'Page.getFrameTree')).frameTree);
+  }
+
   /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
   private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
@@ -896,10 +902,15 @@ ame, after checking the ref's field is a password field on the origin saved with
     let backendNodeId: number | undefined;
     if (a.tool === 'key') {
       const r = await this.cmd(pane, 'Runtime.evaluate', { expression: FOCUSED, contextId: await this.isolated(pane) });
-      if (r.result?.value === 'hidden') return { origin, control: null, password: false, hidden: true };
       objectId = r.result?.objectId;
       if (objectId) {
         const node = (await this.cmd(pane, 'DOM.describeNode', { objectId, pierce: true })).node;
+        if (node?.nodeName === 'IFRAME' || node?.nodeName === 'FRAME') {
+          // focus is in a frame this world cannot read: the key goes to that frame's origin, or is not sent
+          const own = normalOrigin(await this.frameOrigin(pane, String(node.frameId ?? '')));
+          if (!own) throw new ToolError(-32030, 'not sent: focus is in a frame whose origin cannot be established');
+          return { origin: own, control: null, password: false, hidden: true };
+        }
         if (node?.shadowRoots?.some((s: any) => s.shadowRootType === 'closed')) return { origin, control: null, password: false, hidden: true };
         backendNodeId = node?.backendNodeId;
       }
