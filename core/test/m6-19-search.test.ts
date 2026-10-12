@@ -74,6 +74,20 @@ test('M6-19 a match past the first 300 characters of a long line is in the previ
   }
 });
 
+test('M6-19 a match after characters whose lowercase is longer is still in the preview text', async () => {
+  const id = `search-expand-${randomUUID()}`;
+  term.open(id, printer([`${'İ'.repeat(140)}needle${'x'.repeat(500)}`, 'EXPAND-DONE']), home.home, process.env);
+  try {
+    await until(async () => (await term.snapshot(id))?.includes('EXPAND-DONE'), 15_000);
+    const hits = (await term.search('needle', 50)).filter((h) => h.session_id === id);
+    assert.equal(hits.length, 1);
+    assert.ok(hits[0].text.includes('needle'), hits[0].text);
+  } finally {
+    term.kill(id);
+    await until(() => !term.has(id));
+  }
+});
+
 test('M6-19 search limited to some sessions caps after filtering, so another project busy terminal cannot use up the 50 hits', async () => {
   const mine = `search-mine-${randomUUID()}`;
   const other = `search-other-${randomUUID()}`;

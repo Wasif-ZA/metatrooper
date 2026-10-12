@@ -34,6 +34,12 @@ test('M6-09 last_tool is cleared once the tool finishes or the turn ends, so a l
     send('claude.UserPromptSubmit');
     send('claude.PreToolUse', { tool_name: 'Grep' });
     assert.deepEqual(send('claude.UserPromptSubmit'), { state: 'working', last_tool: null }, 'an interrupted tool does not outlive the next prompt');
+
+    send('claude.PreToolUse', { tool_name: 'Read', tool_use_id: 'a' });
+    send('claude.PreToolUse', { tool_name: 'Bash', tool_use_id: 'b' });
+    assert.deepEqual(send('claude.PostToolUse', { tool_name: 'Read', tool_use_id: 'a' }), { state: 'working', last_tool: 'Bash' }, 'an earlier tool finishing does not clear the one still pending');
+    assert.deepEqual(send('claude.Notification', { class: 'permission' }), { state: 'waiting_for_you', last_tool: 'Bash' });
+    assert.deepEqual(send('claude.PostToolUse', { tool_name: 'Bash', tool_use_id: 'b' }), { state: 'working', last_tool: null });
   } finally {
     db.close();
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;

@@ -157,7 +157,18 @@ export async function search(query: string, max: number, only?: Set<string>): Pr
       if (!line.toLowerCase().includes(q)) continue;
       // 300 characters around the match, so a match late in a long line still shows in the preview
       const text = line.trim();
-      const from = Math.max(0, Math.min(text.toLowerCase().indexOf(q) - 100, text.length - 300));
+      // lowercase one character at a time and keep where each came from, since some (like İ) grow when lowercased and would shift the window off the match
+      let low = '';
+      const at: number[] = [];
+      let j = 0;
+      for (const ch of text) {
+        const l = ch.toLowerCase();
+        low += l;
+        for (let k = 0; k < l.length; k++) at.push(j);
+        j += ch.length;
+      }
+      const k = low.indexOf(q);
+      const from = Math.max(0, Math.min((k < 0 ? 0 : at[k]) - 100, text.length - 300));
       hits.push({ session_id: id, line: i, text: text.slice(from, from + 300) });
     }
   }
