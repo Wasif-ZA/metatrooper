@@ -24,7 +24,7 @@ import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, filesBody } from './comments.ts';
 import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
-import { ownedBy, refreshRowGit, rowGit, type OwnedPaths } from './rowgit.ts';
+import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -666,13 +666,6 @@ function registersProtocol(): boolean {
   try { return fs.statSync(path.join(APP_DIR, '..', '.git')).isDirectory(); } catch { return false; }
 }
 
-/** Session id to the uncommitted paths it owns in the open project, from the core's session.owners. */
-async function ownedBySession(): Promise<Record<string, string[]>> {
-  if (!view.projectId) return {};
-  const out = await call('session.owners', { project_id: view.projectId });
-  return ownedBy(out.kind === 'reply' ? (out.reply.result as { paths?: OwnedPaths } | undefined)?.paths ?? [] : []);
-}
-
 function openNeedsYou(id: string | null): void {
   if (!id || !win) return;
   const send = () => win?.webContents.send('open-needs-you', id);
@@ -751,8 +744,10 @@ if (!app.requestSingleInstanceLock()) {
     watch();
     const gitTick = async () => {
       try {
-        const live = (lastGood?.sessions ?? []).filter((x) => x.state !== 'exited').map((x) => ({ id: x.id, cwd: x.cwd }));
-        if (await refreshRowGit(live, await ownedBySession())) push();
+        const all = lastGood?.sessions ?? [];
+        const live = all.filter((x) => x.state !== 'exited').map((x) => ({ id: x.id, cwd: x.cwd }));
+        const d = db();
+        if (await refreshRowGit(live, d ? await ownedIn(d, all.map((x) => x.cwd)) : {})) push();
       } catch {}
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };

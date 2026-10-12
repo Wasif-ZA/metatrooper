@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import type { DatabaseSync } from 'node:sqlite';
+import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 
 export interface RowGit { branch: string | null; added: number; deleted: number; changed: string[] }
 
@@ -11,6 +13,12 @@ export function ownedBy(paths: OwnedPaths): Record<string, string[]> {
   const owned: Record<string, string[]> = {};
   for (const p of paths) for (const o of p.owners) (owned[o.id] ??= []).push(p.path);
   return owned;
+}
+
+/** ownedBy over every distinct repo the sessions sit in, so a session in its own git worktree reads the claims keyed by that worktree. */
+export async function ownedIn(db: DatabaseSync, cwds: Array<string | null>): Promise<Record<string, string[]>> {
+  const repos = new Set((await Promise.all([...new Set(cwds)].map(repoOfAsync))).filter((r): r is string => !!r));
+  return ownedBy((await Promise.all([...repos].map((r) => ownersAsync(db, r)))).flat());
 }
 
 function git(cwd: string, args: string[]): Promise<string> {
