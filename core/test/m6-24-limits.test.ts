@@ -202,3 +202,20 @@ test('M6-24b no item when the slope runs out after the reset, and only the last 
   const kept = db.prepare('SELECT used_pct FROM limit_history ORDER BY julianday(read_at)').all().map((r) => r.used_pct);
   assert.deepEqual(kept, [12, 13, 14, 15, 16, 17]);
 });
+
+test('M6-24a a hit with no live reading takes its reset from the first reading after it, and still resumes once the next window has started', () => {
+  const { db } = setup();
+  session(db, 's');
+  hook(db, 's', 'claude.StopFailure', { error_type: 'rate_limit' });
+  const hit = JSON.parse((db.prepare("SELECT payload FROM event WHERE kind = 'core.limit-hit'").get() as { payload: string }).payload);
+  assert.equal(hit.resets_at, null);
+  const f = fakeTerm(['s']);
+  assert.deepEqual(resumeAtReset(db, Date.now() + 1000, f.t), []);
+
+  const reset = Date.now() + 60 * MIN;
+  reading(db, 100, Date.now(), reset);
+  assert.deepEqual(resumeAtReset(db, reset - 1000, f.t), []);
+  reading(db, 2, reset + 500, reset + 300 * MIN);
+  assert.deepEqual(resumeAtReset(db, reset + 1000, f.t), ['s']);
+  assert.deepEqual(f.typed, [['s', `paste:${RESUME_TEXT}`], ['s', '\r']]);
+});

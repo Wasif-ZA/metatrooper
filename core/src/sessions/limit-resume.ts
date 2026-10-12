@@ -6,13 +6,31 @@ import { nowIso, ulid } from '../time.ts';
 export const RESUME_TEXT = 'Continue where you left off.';
 const KEEP = 6;
 
+type Reading = { window: string; used_pct: number | null; resets_at: string };
+
+/** The latest reset among used-up windows, else the fullest window's. */
+function pick(live: Reading[]): Reading | undefined {
+  const full = live.filter((r) => (r.used_pct ?? 0) >= 100).sort((a, b) => Date.parse(b.resets_at) - Date.parse(a.resets_at));
+  return full[0] ?? [...live].sort((a, b) => (b.used_pct ?? 0) - (a.used_pct ?? 0))[0];
+}
+
 /** Writes `core.limit-hit` for a session whose Claude turn failed on a rate limit; `resets_at` is the latest reset among used-up Claude windows, else the fullest window's. */
 export function limitHit(db: DatabaseSync, sessionId: string, afterSeq: number, now = Date.now()): void {
-  const rows = db.prepare("SELECT window, used_pct, resets_at FROM limit_reading WHERE provider = 'claude' AND status = 'ok' AND resets_at IS NOT NULL").all() as Array<{ window: string; used_pct: number | null; resets_at: string }>;
-  const live = rows.filter((r) => Date.parse(r.resets_at) > now);
-  const full = live.filter((r) => (r.used_pct ?? 0) >= 100).sort((a, b) => Date.parse(b.resets_at) - Date.parse(a.resets_at));
-  const pick = full[0] ?? live.sort((a, b) => (b.used_pct ?? 0) - (a.used_pct ?? 0))[0];
-  appendEvent('core.limit-hit', sessionId, { window: pick?.window ?? null, resets_at: pick?.resets_at ?? null, after: afterSeq }, db);
+  const rows = db.prepare("SELECT window, used_pct, resets_at FROM limit_reading WHERE provider = 'claude' AND status = 'ok' AND resets_at IS NOT NULL").all() as Reading[];
+  const p = pick(rows.filter((r) => Date.parse(r.resets_at) > now));
+  appendEvent('core.limit-hit', sessionId, { window: p?.window ?? null, resets_at: p?.resets_at ?? null, after: afterSeq }, db);
+}
+
+/** The reset of a hit written with none: each window's first reset after the hit, from the kept readings, so a window that has since rolled over still counts. ponytail: limit_history keeps 6 readings per window, so a reset more than 6 readings old is lost. */
+function resetAfter(db: DatabaseSync, hitAt: number): string | null {
+  const rows = db.prepare("SELECT window, max(used_pct) AS used_pct, resets_at FROM limit_history WHERE provider = 'claude' AND resets_at IS NOT NULL GROUP BY window, resets_at").all() as Reading[];
+  const first = new Map<string, Reading>();
+  for (const r of rows) {
+    const t = Date.parse(r.resets_at);
+    const had = first.get(r.window);
+    if (t > hitAt && (!had || t < Date.parse(had.resets_at))) first.set(r.window, r);
+  }
+  return pick([...first.values()])?.resets_at ?? null;
 }
 
 type Term = Pick<typeof term, 'has' | 'paste' | 'write' | 'typedAt'>;
@@ -21,14 +39,15 @@ type Term = Pick<typeof term, 'has' | 'paste' | 'write' | 'typedAt'>;
 export function resumeAtReset(db: DatabaseSync, now = Date.now(), t: Term = term): string[] {
   const hits = db.prepare(
     `SELECT e.seq, e.at, e.session_id, json_extract(e.payload, '$.resets_at') AS resets_at FROM event e JOIN session s ON s.id = e.session_id
-     WHERE e.kind = 'core.limit-hit' AND s.limit_resume = 1 AND s.state = 'waiting_for_you' AND json_extract(e.payload, '$.resets_at') IS NOT NULL
+     WHERE e.kind = 'core.limit-hit' AND s.limit_resume = 1 AND s.state = 'waiting_for_you'
        AND NOT EXISTS (SELECT 1 FROM event r WHERE r.kind = 'core.limit-resumed' AND r.session_id = e.session_id AND json_extract(r.payload, '$.limit_hit') = e.seq)
        AND NOT EXISTS (SELECT 1 FROM event l WHERE l.session_id = e.session_id AND l.seq > COALESCE(json_extract(e.payload, '$.after'), e.seq)
          AND ((l.kind LIKE 'claude.%' AND l.kind != 'claude.Notification') OR l.kind = 'core.prompt-written'))`,
-  ).all() as Array<{ seq: number; at: string; session_id: string; resets_at: string }>;
+  ).all() as Array<{ seq: number; at: string; session_id: string; resets_at: string | null }>;
   const pasted: string[] = [];
   for (const h of hits) {
-    if (Date.parse(h.resets_at) > now || !t.has(h.session_id) || t.typedAt(h.session_id) >= Date.parse(h.at)) continue;
+    const resets = h.resets_at ?? resetAfter(db, Date.parse(h.at));
+    if (!resets || Date.parse(resets) > now || !t.has(h.session_id) || t.typedAt(h.session_id) >= Date.parse(h.at)) continue;
     appendEvent('core.limit-resumed', h.session_id, { limit_hit: h.seq }, db);
     if (t.paste(h.session_id, RESUME_TEXT)) t.write(h.session_id, '\r');
     pasted.push(h.session_id);
