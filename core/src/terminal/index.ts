@@ -151,7 +151,11 @@ export async function search(query: string, max: number): Promise<Hit[]> {
     for (let i = b.length - 1; i >= 0 && hits.length < max; i--) {
       let line = b.getLine(i)?.translateToString(true) ?? '';
       while (i > 0 && b.getLine(i)?.isWrapped) line = (b.getLine(--i)?.translateToString(true) ?? '') + line;
-      if (line.toLowerCase().includes(q)) hits.push({ session_id: id, line: i, text: line.trim().slice(0, 300) });
+      if (!line.toLowerCase().includes(q)) continue;
+      // 300 characters around the match, so a match late in a long line still shows in the preview
+      const text = line.trim();
+      const from = Math.max(0, Math.min(text.toLowerCase().indexOf(q) - 100, text.length - 300));
+      hits.push({ session_id: id, line: i, text: text.slice(from, from + 300) });
     }
   }
   return hits;
