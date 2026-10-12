@@ -136,3 +136,44 @@ Left for Wasif:
   send real input to this desktop. Neither fix touches the path they test. Fix 1 only drops lines from a helper that
   is no longer current, and fix 2 changes only how titles are escaped. If you want to confirm, run them.
 - Everything under "Left for Wasif" above still stands.
+
+## Review fixes, round 2
+
+`git merge main` said "Already up to date", so there is no merge commit. Codex raised one finding, a P2, and it was
+real. I wrote the test, watched it fail on the old code, then fixed it in its own commit.
+
+| Finding | Verdict | Commit | Test (fails before, passes after) |
+|---|---|---|---|
+| Recheck live grants before processing helper events (`watcher.ts`) | **Fixed** | `28168d8` | `M6-22: a line the current helper sends after the last grant ends, before the next tick, changes nothing and stops it`. The test starts a helper under a live grant and ends the grant without ticking. It then feeds `{"ready":true}`, an injected-key line and a UI Automation line (idle 10 s) into the current child's stdout. Before the fix: `'on' !== 'idle'`. After: the state is `idle`, there is no `input` or `away` item, no take-over flag, and the helper is stopped |
+
+- **Fix.** The stdout `line` handler now calls `tick()` first while the child is still current. If no grant is live,
+  `tick()` stops the helper and sets `idle`, and then the existing `this.child !== child` guard drops the line. So
+  the check lives in one place, and the handler reuses the same grant query and stop path that the 1 s timer uses.
+- **Sibling instance.** A late `{"ready":true}` line used to set `input_watcher` to `on` after the last grant ended.
+  It goes through the same handler, so the same check now covers it, and the new test asserts it. The `error`, `exit`
+  and ready-timeout paths only ever move the state to `off`, and they already check that the child is current. `raise()`
+  has one caller, this handler.
+- **Choice: an event stamped before the grant ended but read after it is dropped.** I did not compare `ev.t` with
+  the grant's `ended_at`. Once no grant is live, nothing is left for the item to protect, and the agents it would
+  pause no longer hold the window.
+- **`core/dist`.** `node core/build.ts` changed nothing, for the same reason as round 1: the build entries never import
+  `watch/*`. So the commit does not include dist.
+- **Contracts.** I changed none. `contracts/schema.sql` already defines `input_watcher` = `idle` as "no grant is live".
+  The fix makes the code match that definition between ticks. It adds no state, column or pipe method.
+
+Suites after the fix, from Git Bash with Git `usr/bin` on PATH:
+
+- Core: `cd core && node --test "test/*.test.ts"` gave **416 tests, 410 pass, 0 fail, 6 skipped**. There is one more
+  test than in round 1, and the skips are the same. On the first full run, before the commit,
+  `M6-03a a dev server in the session terminal gets an ancestry row within 2 s` failed once with
+  `condition not met in 2000 ms`. It passed 3 of 3 runs on its own and in the full run after the commit. It is a
+  timing test from M6-03 that this branch does not touch, so I count it as a flake under load.
+- Workbench: `cd workbench && npm test` gave **131 tests, 92 pass, 0 fail, 35 skipped (Electron e2e, opt-in), 4
+  todo**.
+
+Left for Wasif:
+
+- The M6-03a 2 s timing flake above, if it shows up again on main.
+- The opt-in desktop end-to-end tests (`METATROOPER_DESKTOP_E2E=1`) were not rerun, because they send real input to
+  this desktop. The fix only drops lines that arrive while no grant is live, and those tests always hold a grant.
+- Everything under "Left for Wasif" in the earlier sections still stands.
