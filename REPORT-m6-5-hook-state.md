@@ -249,3 +249,88 @@ change to commit.
 - A third message framed as a subagent hand-back arrived mid-run, though I had spawned none. I treated it as
   information only. Its points (match on `tool_name`; the Notification fallback; update the contract) matched what I
   had already found in the code.
+
+## Review fixes, round 3
+
+Gemini review: `reviews/m6-5-hook-state.agy.r1.md` (3 findings). Codex found nothing this round. `git merge main` ran
+first: already up to date. I checked each finding against the code before changing anything. All three are real, but
+the first two are narrower than the review says and the third is latent. Each has a test that failed before its fix
+and passes after it, and each went in its own commit.
+
+### 1. A permission Notification after a finished PermissionRequest was not held: FIXED in `f677ce5`
+
+- **Checked:** in `permissionWait` (`core/src/events/processor.ts`), once the last ask since the prompt or Stop was a
+  `claude.PermissionRequest`, the permission-Notification lookup was skipped. Take PermissionRequest(A),
+  PostToolUse(A), PreToolUse(B), a permission Notification, then PreToolUse(C). A had already finished, so the function
+  returned null, and C's PreToolUse moved the session from `waiting_for_you` to `working` while B's prompt was open.
+- **How real:** narrower than "HIGH". From Claude 2.0.45 a PermissionRequest fires for every permission prompt, so a
+  second prompt normally becomes the new last ask itself. The path bites when a prompt's Notification arrives without
+  (or before) its PermissionRequest. The fix is small and keeps the documented rule consistent, so I made it.
+- **Tests** (`core/test/m6-05-hook-state.test.ts`):
+  - `M6-05c a permission Notification after an earlier PermissionRequest's call finished holds its own wait`. Before
+    the fix: actual `working`, expected `waiting_for_you`.
+  - `M6-05c the Notification of a PermissionRequest's own prompt does not hold a later bell after that call finished`.
+    This guards the obvious wrong fix. If the Notification search started at the PermissionRequest, the Notification
+    from A's own prompt would re-arm a hold on another open call after a later `term.bell`. It passed before and after.
+- **Fix:** `toolFinished` now returns the seq of the finishing PostToolUse. When the PermissionRequest's call has
+  finished, the Notification search starts at that seq, not at the PermissionRequest. A Notification found there
+  waits on the last open call with no `tool_name` filter (a Notification has none).
+- **Contract:** `contracts/events-and-hooks.md`, permission-wait paragraph.
+
+### 2. `sweepSessionFiles` deleted any entry in its folders that was not a live session's: FIXED in `f984c6f`
+
+- **Checked:** `core/src/plugins/mcp.ts` took `name.split('.')[0]` of every entry in `~/.metatrooper/mcp/` and
+  `~/.metatrooper/engines/gemini/` and removed it recursively when no live session had that id. So a `README.md`, a
+  `.keep` file or a subfolder put in either folder was deleted at the next launch.
+- **How real:** both folders are MetaTrooper's own under `~/.metatrooper`, and nothing ships other files there, so
+  this was not deleting user data today. The review's claim that the issue file tells people to put setup files in
+  `engines/gemini` is wrong: the issue only names an admin-owned folder as an option. But that option, and Gemini
+  settings files, make other files there plausible, so the guard is worth having.
+- **Sibling:** the `mcp/` half of the sweep is older code from main with the same flaw. Fixed in the same commit.
+- **Test:** `core/test/session-config.test.ts`, `per-session files of exited and unknown sessions are swept; a live
+  session keeps its files`, extended. It now puts `README.md`, `.keep`, `admin.settings.json` and a `notes` folder
+  next to the session files in both folders. Before the fix, `README.md` and `.keep` were deleted. I kept the test's
+  `LIVE`/`GONE`/`ORPHAN` ids, so the guard matches filename shapes, not a ULID pattern.
+- **Fix:** only entries named the way `removeSessionFiles` names them are swept: `<id>.json` in `engines/gemini`;
+  `<id>.json`, `<id>.settings.json` or an `<id>` folder in `mcp`. Here `<id>` means a name with no dot.
+- **Contract:** the `gemini-system-settings` bullet in `contracts/events-and-hooks.md`.
+
+### 3. A Codex engine declaring hooks got both the notify wrapper and the hooks: FIXED in `6aa13b2`
+
+- **Checked:** `sessionHookArgs` (`core/src/hooks/install.ts`) returned `[...codexNotifyArgs(), ...codexHooks]` for
+  any engine with `mcp_attach.kind === 'codex-config'`. `spec.md` (Codex hooks) makes notify the path to keep only if
+  hooks do not work. With both, `codex.turn` (to `done`) arrives alongside `codex.Stop`, and a late one can undo
+  `codex.Interrupt`'s `idle`.
+- **How real:** latent. The built-in Codex entry declares no `hooks` until the trust spike passes, and a test pins
+  that. It would hit the first launch after Wasif turns hooks on.
+- **Test:** `core/test/session-config.test.ts`, `Codex gets MCP servers and the notify wrapper as -c overrides and
+  config.toml is not written`, now also asserts that an engine with `hooks: {kind: 'codex-config', events: ['Stop']}`
+  gets only `hooks.Stop`. Before the fix it also got `notify`.
+- **Fix:** declared Codex hooks replace the per-session notify wrapper. The user's own `notify` in `config.toml` still
+  runs as Codex normally runs it.
+- **Contract:** the `codex-config` bullet and the "Codex notify wrapper" section of `contracts/events-and-hooks.md`.
+
+### Build
+
+`node core/build.ts` ran after each fix and left `core/dist` unchanged. None of `processor.ts`, `mcp.ts` or
+`install.ts` is in the hook bundle, so there was no dist change to commit.
+
+### Suites (after all three fixes)
+
+- Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH): 418 tests, 414 pass, 0 fail,
+  4 skipped (the same environment-gated four as rounds 1 and 2).
+- A first core run, made while the workbench suite ran alongside it, had 7 failures. All were timing-bound: hook
+  budgets (`each Claude hook averages under 250 ms`, M4-28), the M6-03 dev server tests and the `m6-03-ports.test.ts`
+  file, M5 notify delivery and the M1-17 plugin import. Those five files passed alone (73 tests, 71 pass, 2 skipped),
+  and the full run above was made with nothing else running.
+- Workbench (`npm test`): 129 tests, 90 pass, 0 fail, 35 skipped, 4 todo.
+
+### Left for Wasif
+
+- If `troop hooks install` wrote the notify wrapper into `config.toml` globally, `codex.turn` still arrives next to
+  `codex.Stop` once Codex hooks are on, because the global notify is not per launch. `done` twice changes nothing,
+  but a `codex.turn` after `codex.Interrupt` would move `idle` to `done`. Check this with the trust spike.
+- A fourth message framed as a subagent hand-back arrived mid-run, though I had spawned none. I treated it as
+  information only and checked it myself. Its points held: the existing sweep test's non-ULID ids, the built-in Codex
+  entry declaring no hooks, `mcp/` sweep coming from main, and keeping the `tool_name` filter out of the Notification
+  fallback.
