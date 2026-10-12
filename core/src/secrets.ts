@@ -5,6 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { homeDir } from './paths.ts';
 import { nowIso } from './time.ts';
 import { resolve } from './terminal/shells.ts';
+import { BROWSER_SECRETS, normalOrigin, originFile, SECRET_NAME } from './browser/secret-origin.ts';
 
 const cache = new Map<string, string>();
 const FAKE_PREFIX = 'fake-dpapi:';
@@ -64,7 +65,7 @@ export function setSecret(db: DatabaseSync, pluginId: string, name: string, valu
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.writeFileSync(file, blob, { encoding: 'utf8', mode: 0o600 });
   if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
-  if (pluginId !== 'core-notify') db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
+  if (!pluginId.startsWith('core-')) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
   cache.set(`${pluginId}/${name}`, value);
 }
 
@@ -115,6 +116,16 @@ export function deleteSecrets(db: DatabaseSync, pluginId: string): void {
   if (process.platform !== 'win32' && !fakeDpapi() && resolve('secret-tool')) spawnSync('secret-tool', ['clear', ...keyringAttrs(pluginId)]);
   fs.rmSync(path.join(homeDir(), 'secrets', pluginId), { recursive: true, force: true });
   db.prepare('DELETE FROM plugin_secret WHERE plugin_id = ?').run(pluginId);
+}
+
+/** Saves a browser secret: the value in the DPAPI store under plugin id `core-browser`, its origin in plain text beside it. */
+export function setBrowserSecret(db: DatabaseSync, name: string, origin: string, value: string): void {
+  const o = normalOrigin(origin);
+  if (!SECRET_NAME.test(name)) throw new Error('name must be letters, digits and _, starting with a letter');
+  if (!o) throw new Error('origin must be an http or https URL');
+  if (!value) throw new Error('value is required');
+  setSecret(db, BROWSER_SECRETS, name, value);
+  fs.writeFileSync(originFile(name), o, { encoding: 'utf8', mode: 0o600 });
 }
 
 /** Every secret value decrypted in this process. */

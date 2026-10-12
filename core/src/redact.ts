@@ -189,3 +189,23 @@ export function redactSecretValues(text: string, values: Iterable<string>): stri
   for (const v of [...values].sort((a, b) => b.length - a.length)) if (v.length >= 4) out = out.split(v).join('[secret]');
   return out;
 }
+
+const TOKEN_KEY = /^(access_?token|refresh_?token|id_?token|token|auth|authorization|api_?key|apikey|key|secret|client_secret|password|passwd|pwd|session|sessionid|sid|sig|signature|code)$/i;
+
+/** Browser output redaction: known secret values, bearer tokens, cookie values, URL credentials, token-named query values and credential-looking runs. */
+export function scrub(text: string, secrets: Iterable<string> = []): string {
+  const out = redactSecretValues(text, secrets)
+    .replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [secret]')
+    .replace(/\b((?:set-)?cookie)(["']?\s*[:=]\s*["']?)[^\r\n"']+/gi, '$1$2[secret]')
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, '$1[secret]@')
+    .replace(/([?&#;])([^=&#\s]+)=([^&#\s"']+)/g, (m, sep: string, key: string, value: string) => (TOKEN_KEY.test(key) || looksLikeCredential(value) ? `${sep}${key}=[secret]` : m));
+  return redactCredentials(out);
+}
+
+/** `scrub` applied to every string inside a JSON-like value, keys kept; `skip` names keys left as they are. */
+export function scrubDeep<T>(v: T, secrets: string[], skip = new Set<string>()): T {
+  if (typeof v === 'string') return scrub(v, secrets) as T;
+  if (Array.isArray(v)) return v.map((x) => scrubDeep(x, secrets, skip)) as T;
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, skip.has(k) ? x : scrubDeep(x, secrets, skip)])) as T;
+  return v;
+}

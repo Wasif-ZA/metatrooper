@@ -31,6 +31,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
+| `handoff` | `{pane_id, reason}` | `{ok}`; gives the pane to the user until they press Give back (M6-12, below) |
 | `dialog` | `{pane_id, accept: bool, prompt_text?}` | `{ok, handled: {type, message}}`; answers the open alert, confirm or beforeunload dialog; Electron does not implement `prompt()`, which returns null without a dialog |
 
 While a dialog is open, every tool except `dialog`, `console` and `network` fails with -32032 naming it. A tool
@@ -64,6 +65,30 @@ box fails with "not visible".
 - **Crashes.** After `render-process-gone` every tool fails at once with -32034 "the page crashed; call navigate to
   load it again"; `navigate` reloads the renderer, re-attaches the debugger with interception on, then loads. After
   `unresponsive`, every tool fails with -32034 "the page is not responding" until `responsive`.
+
+## Version 2 (M6-12)
+
+- **Handoff.** `handoff {pane_id, reason}` marks the pane the user's. Until the user presses Give back in the tile, every
+  tool on that pane, `describe` and `handoff` included, fails with -32036 `the user has the pane (<reason>); wait until they
+  give it back`, and no approval is asked. The workbench switches to the pane, shows the reason (at most 300 characters)
+  above it with a Give back button, and the pane's `state` events carry `handoff`. The mark is held in the workbench
+  only; closing the workbench clears it.
+- **Origins.** The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
+  `allow_origins` lists origins that never ask for being new.
+- **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
+  (or `troop browser secret <NAME> <origin>`). The value is stored in the DPAPI store under plugin id `core-browser`; the
+  origin it may be typed into is saved in plain text beside it. Right before `Input.insertText`, after the click and the
+  approval recheck, the workbench main process checks that the page's origin is the saved one and the ref is an
+  `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed. The
+  value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
+  fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
+  secret once (the spec's other case) is not built: a secret goes only into a password field.
+- **Scrubbed output.** Every tool result and error message except `describe` (which goes to the MCP server, not the
+  agent) and screenshot bytes passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
+  workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
+  and credential patterns become `[secret]`.
+- **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
+  `ok` or `error <code>`, never arguments. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first.
 
 ## How a tool runs
 
