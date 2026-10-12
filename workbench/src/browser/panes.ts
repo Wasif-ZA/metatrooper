@@ -878,7 +878,7 @@ ame, after checking the ref's field is a password field on the origin saved with
   private async secretValue(pane: Pane, name: string, ref: unknown): Promise<string> {
     const saved = browserSecretOrigin(name);
     if (!saved) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
-    const d = await this.describe(pane, { ref, tool: 'type' });
+    const d = await this.describeControl(pane, { ref, tool: 'type' });
     if (d.origin !== saved) throw new ToolError(-32037, `secret ${name} is saved for another origin; nothing was typed`);
     if (!d.password) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
     const value = getSecret(BROWSER_SECRETS, name);
@@ -911,8 +911,8 @@ ame, after checking the ref's field is a password field on the origin saved with
     return find((await this.cmd(pane, 'Page.getFrameTree')).frameTree);
   }
 
-  /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
-  private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
+  /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, or the accessibility tree cannot be read for the control, so it cannot be named. The name is whole; only displays shorten it. */
+  private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
     let objectId: string | undefined;
@@ -952,8 +952,8 @@ ame, after checking the ref's field is a password field on the origin saved with
     const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
     // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
     const secrets = scrubSecretValues();
-    const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets).slice(0, 200);
-    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
+    const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets);
+    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
   }
 
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
@@ -961,7 +961,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     // the user may have taken the pane while this call glided the cursor
     if (pane.handoff) throw handedOff(pane);
     if (!a.expect || typeof a.expect !== 'object') return;
-    const d = await this.describe(pane, { ...a, tool });
+    const d = await this.describeControl(pane, { ...a, tool });
     if (pane.handoff) throw handedOff(pane);
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
@@ -1018,7 +1018,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       pane.cursors.delete(a.continue);
       return this.page(pane, name, rest, budget);
     }
-    if (name === 'describe') return this.describe(pane, a);
+    if (name === 'describe') return this.describeControl(pane, a);
     const recheck = () => this.recheck(pane, name, a);
     switch (name) {
       case 'key': {

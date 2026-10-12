@@ -54,7 +54,7 @@ const pane = {
   dialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], ready: Promise.resolve(), handoff: null, secretOnPage: false, evaluating: 0,
 };
 internal.panes.set('bp_agent_1', pane);
-internal.describe = async () => ({ origin: new URL(page.url).origin, control: { automation_id: 'pw', name: 'Password', role: 'textbox' }, password: page.password, hidden: false });
+internal.describeControl = async () => ({ origin: new URL(page.url).origin, control: { automation_id: 'pw', name: 'Password', role: 'textbox' }, password: page.password, hidden: false });
 internal.target = async () => ({ node: { backendNodeId: 5 }, x: 1, y: 1 });
 internal.clickAt = async (_p: unknown, _x: number, _y: number, recheck: () => Promise<void>) => recheck();
 internal.answer = async (_p: unknown, _s: string, work: () => Promise<Record<string, unknown>>) => ({ ...(await work()), url: page.url, title: 'Bank' });
@@ -121,8 +121,8 @@ r.unknownSecret = outcome(await call('browser.type', { ...secret, text: '{{secre
 r.insertedOnlyOnce = inserted.length === 1;
 
 // The real describe on a password field inside a child frame: the frame's own origin is checked, not the pane's
-const stubDescribe = internal.describe;
-delete internal.describe;
+const stubDescribe = internal.describeControl;
+delete internal.describeControl;
 internal.node = () => ({ backendNodeId: 7, frameId: 'child' });
 internal.resolve = async () => 'field';
 const topWin: Record<string, unknown> = { origin: 'https://bank.test' };
@@ -142,7 +142,7 @@ frameWin.origin = 'https://bank.test';
 axName = `Password ${marker}`;
 field = { ...field, id: `pw-${marker}`, ownerDocument: { defaultView: frameWin } };
 r.describeScrubbed = (await call('browser.describe', { pane_id: 'bp_agent_1', ref: 'e5', tool: 'type' })).result?.control;
-internal.describe = stubDescribe;
+internal.describeControl = stubDescribe;
 
 // The approval the MCP server asks for carries only the placeholder
 const approvals = new Approvals(db, 60_000);
@@ -192,7 +192,7 @@ r.outcomeBadTool = outcome(await call('browser.outcome', { pane_id: 'bp_agent_1'
 const audit = db.prepare("SELECT session_id, payload FROM event WHERE kind = 'browser.tool' ORDER BY seq").all() as Array<{ session_id: string; payload: string }>;
 r.audit = audit.map((a) => { const p = JSON.parse(a.payload); return `${a.session_id} ${p.tool} ${p.pane} ${p.origin} ${p.status}`; });
 r.auditKeys = [...new Set(audit.flatMap((a) => Object.keys(JSON.parse(a.payload))))].sort();
-r.describeIsTheCheckOne = String(PaneManager.prototype['describe' as never]).includes('automation_id') && typeof (PaneManager.prototype as any).describePick === 'function';
+r.describeIsTheCheckOne = String(PaneManager.prototype['describeControl' as never]).includes('automation_id') && typeof (PaneManager.prototype as any).describePick === 'function';
 
 // Round 2: the pane list goes through the same scrub as tool results, so an OAuth callback code in a pane URL is not shown
 db.prepare("UPDATE browser_pane SET url = 'https://bank.test/cb?code=4/0Abc&access_token=zzz' WHERE id = 'bp_agent_1'").run();
@@ -272,7 +272,7 @@ r.childFrameTyped = inserted.length - typedBefore;
 internal.target = plainTarget;
 
 // Round 2: a key with focus inside a frame this world cannot read is checked against that frame's origin
-delete internal.describe;
+delete internal.describeControl;
 focusDoc.activeElement = element('IFRAME', { backendNodeId: 11, frameId: 'child' }, { contentDocument: null });
 const keyDescribe = async () => { const d = (await call('browser.describe', { pane_id: 'bp_agent_1', tool: 'key' })); return d.error ? d.error.message : { origin: d.result.origin, hidden: d.result.hidden, control: d.result.control }; };
 r.keyFocusInChildFrame = await keyDescribe();
@@ -280,7 +280,7 @@ childOrigin = 'null';
 r.keyFocusInOpaqueFrame = await keyDescribe();
 childOrigin = 'https://evil.test';
 focusDoc.activeElement = theField;
-internal.describe = stubDescribe;
+internal.describeControl = stubDescribe;
 
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;

@@ -167,7 +167,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `pane.url` | `{pane_id, url}` | {}; the workbench reports each navigation |  |  | yes |
 | `pane.assign` | `{pane_id, session_id?}` | {}; sets or clears the one session allowed to drive the pane | -32002 |  | yes |
 | `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |
-| `approval.check` | `{session_id, surface, target, action, args, control, password?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`) |  |  |  |
+| `approval.check` | `{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`) |  |  |  |
 | `approval.resolve` | `{approval_id, decision, scope?}` | {status, scope}; -32010 when the row is not `waiting` | -32010 |  | yes |
 | `run.start`, `run.cancel`, `run.clear`, `run.resume`, `run.item-set`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.pick`, `variant.discard`, `variant.combine`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) | -32601 | | |
 <!-- methods:end -->
