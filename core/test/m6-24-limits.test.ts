@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { appendEvent } from '../src/events/append.ts';
 import { processEvents } from '../src/events/processor.ts';
 import { RESUME_TEXT, earlyEnd, recordReadings, resumeAtReset } from '../src/sessions/limit-resume.ts';
 import { nowIso } from '../src/time.ts';
@@ -119,6 +120,21 @@ test('M6-24a an idle notification after the failure does not stop the paste', ()
   hook(db, 's', 'claude.StopFailure', { error_type: 'rate_limit' });
   hook(db, 's', 'claude.Notification', { notification_type: 'idle_prompt', message: 'waiting' });
   assert.deepEqual(resumeAtReset(db, reset + 1000, fakeTerm(['s']).t), ['s']);
+});
+
+test('M6-24a no paste once the session has left waiting_for_you without a Claude event', () => {
+  const { db } = setup();
+  const reset = Date.now() + 60 * MIN;
+  limitAt(db, reset);
+  session(db, 's');
+  hook(db, 's', 'claude.StopFailure', { error_type: 'rate_limit' });
+  appendEvent('term.bell', 's', {}, db);
+  appendEvent('term.output', 's', {}, db);
+  processEvents(db);
+  assert.equal((db.prepare("SELECT state FROM session WHERE id = 's'").get() as { state: string }).state, 'working');
+  const f = fakeTerm(['s']);
+  assert.deepEqual(resumeAtReset(db, reset + 1000, f.t), []);
+  assert.deepEqual(f.typed, []);
 });
 
 function reading(db: DatabaseSync, used: number, at: number, reset: number): void {
