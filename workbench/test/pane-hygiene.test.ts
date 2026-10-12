@@ -10,6 +10,8 @@ test('M6-13 pane hygiene: error pages, popups with opener, no pane without a cli
     noClickDenied: true,
     clickOpensOnePane: true,
     secondOpenNeedsAnotherClick: true,
+    mouseUpAndRepeatDoNotRearm: true,
+    keyPressOpensOne: true,
     agentClickCounts: true,
     popupKeepsOpener: true,
     popupGuarded: true,

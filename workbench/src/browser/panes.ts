@@ -266,7 +266,8 @@ export class PaneManager {
     wc.on('will-redirect', (e, url) => { stop(e, url); });
     wc.on('will-frame-navigate', (e) => stop(e as unknown as Electron.Event, e.url));
     wc.on('input-event', (_e, input) => {
-      if (/^(mouseDown|mouseUp|rawKeyDown|keyDown)$/.test(input.type)) pane.clickedAt = Date.now();
+      // one stamp per press: mouseUp, keyDown and auto-repeat would re-arm the gate after an open consumed it
+      if ((input.type === 'mouseDown' || input.type === 'rawKeyDown') && !input.modifiers?.includes('isautorepeat')) pane.clickedAt = Date.now();
     });
     wc.setWindowOpenHandler(({ url, disposition }) => {
       if (!/^https?:/.test(url)) return { action: 'deny' };

@@ -71,13 +71,19 @@ r.noClickDenied = wc.openHandler!({ url: 'https://ad.example/', disposition: 'fo
 wc.emit('input-event', {}, { type: 'mouseDown' });
 r.clickOpensOnePane = wc.openHandler!({ url: 'https://docs.example/', disposition: 'foreground-tab' }).action === 'deny' && opened.join() === 'https://docs.example/';
 r.secondOpenNeedsAnotherClick = wc.openHandler!({ url: 'https://ad.example/2', disposition: 'foreground-tab' }).action === 'deny' && opened.length === 1;
+wc.emit('input-event', {}, { type: 'mouseUp' });
+wc.emit('input-event', {}, { type: 'keyDown' });
+wc.emit('input-event', {}, { type: 'rawKeyDown', modifiers: ['isautorepeat'] });
+r.mouseUpAndRepeatDoNotRearm = wc.openHandler!({ url: 'https://ad.example/4', disposition: 'foreground-tab' }).action === 'deny' && opened.length === 1;
+wc.emit('input-event', {}, { type: 'rawKeyDown' });
+r.keyPressOpensOne = wc.openHandler!({ url: 'https://docs.example/key', disposition: 'foreground-tab' }).action === 'deny' && opened.join() === 'https://docs.example/,https://docs.example/key';
 
 const agent = fakePane('bp_agent_1');
 await internal.clickAt(agent.pane, 1, 1);
 const agentOpen = agent.wc.openHandler!({ url: 'https://ad.example/3', disposition: 'foreground-tab' });
 r.agentClickCounts = agentOpen.action === 'deny' && agent.pane.clickedAt === 0 && !agent.pane.console.some((c) => c.text.includes('without a click'));
 
-wc.emit('input-event', {}, { type: 'mouseUp' });
+wc.emit('input-event', {}, { type: 'mouseDown' });
 const popup = wc.openHandler!({ url: 'https://login.example/oauth', disposition: 'new-window' });
 r.popupKeepsOpener = popup.action === 'allow' && popup.overrideBrowserWindowOptions.parent === win && popup.overrideBrowserWindowOptions.webPreferences.sandbox === true && popup.overrideBrowserWindowOptions.webPreferences.nodeIntegration === false;
 const childWc = Object.assign(new EventEmitter(), { openHandler: null as any, setWindowOpenHandler(h: any) { this.openHandler = h; }, getURL: () => 'https://login.example/oauth' });
