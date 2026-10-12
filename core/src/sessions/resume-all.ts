@@ -8,7 +8,7 @@ import { screenText } from '../terminal/index.ts';
 export const MAX_AT_ONCE = 3;
 export const GAP_MS = 2000;
 export const JITTER_MS = 1000;
-/** The longest a resumed session counts as resuming while it stays `starting`. */
+/** At most MAX_AT_ONCE resumes start in any WINDOW_MS; also the longest a resumed session counts as resuming while it stays `starting`. */
 export const WINDOW_MS = 10_000;
 export const AUTH_FAILURES = 2;
 
@@ -58,11 +58,12 @@ export interface ResumeDeps {
 
 interface Flight { id: string; engine: string; at: number; counted: boolean }
 
-/** Resumes a queue of sessions: at most MAX_AT_ONCE resuming at a time, GAP_MS plus up to JITTER_MS apart, and no more of an engine after AUTH_FAILURES screens match its auth_error. */
+/** Resumes a queue of sessions: at most MAX_AT_ONCE started in any WINDOW_MS, GAP_MS plus up to JITTER_MS apart, and no more of an engine after AUTH_FAILURES screens match its auth_error. */
 export class Resumer {
   readonly started = new Map<string, string>();
   readonly blocked = new Set<string>();
   private flying: Flight[] = [];
+  private starts: number[] = [];
   private failures = new Map<string, number>();
   private nextAt = 0;
   private busy = false;
@@ -122,11 +123,15 @@ export class Resumer {
   }
 
   private async launch(): Promise<void> {
-    while (this.queue.length && this.flying.length < MAX_AT_ONCE && this.deps.now() >= this.nextAt) {
+    while (this.queue.length && this.deps.now() >= this.nextAt) {
+      // gate on the time before resume() and record the one after, so started_at values are WINDOW_MS apart however long resume() takes
+      this.starts = this.starts.filter((at) => this.deps.now() - at < WINDOW_MS);
+      if (this.starts.length >= MAX_AT_ONCE) break;
       const next = this.queue.shift()!;
       const id = await this.deps.resume(next.id);
       if (!id) continue;
       this.started.set(next.id, id);
+      this.starts.push(this.deps.now());
       this.flying.push({ id, engine: next.engine, at: this.deps.now(), counted: false });
       this.nextAt = this.deps.now() + GAP_MS + this.deps.rand() * JITTER_MS;
     }
