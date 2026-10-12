@@ -51,7 +51,7 @@ const wc = Object.assign(new EventEmitter(), {
 const pane = {
   row: { id: 'bp_agent_1', project_id: 'p1', session_id: 's1' }, view: { webContents: wc }, refs: { byRef: new Map(), byKey: new Map() },
   lastSnapshot: new Map(), cursors: new Map(), navs: 0, crashed: null, console: [] as Array<{ at: number; level: string; text: string }>, network: new Map(),
-  dialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], ready: Promise.resolve(), handoff: null, secretOnPage: false,
+  dialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], ready: Promise.resolve(), handoff: null, secretOnPage: false, evaluating: 0,
 };
 internal.panes.set('bp_agent_1', pane);
 internal.describe = async () => ({ origin: new URL(page.url).origin, control: { automation_id: 'pw', name: 'Password', role: 'textbox' }, password: page.password, hidden: false });
@@ -216,6 +216,19 @@ r.evaluatedAfterHandoff = evaluated;
 pm.act('bp_agent_1', 'give-back');
 internal.cmd = plainCmd;
 delete internal.isolated;
+
+// Round 2: a secret is not filled while an evaluate is still running, since its script could wait for the fill and return the value encoded
+pane.secretOnPage = false;
+const script = hold();
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate') await script.held; return plainCmd(p, method, params); };
+const running = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: 'new Promise((r) => setTimeout(() => r(btoa(document.querySelector("input").value)), 5000))' });
+await new Promise((res) => setTimeout(res, 50));
+const filledBefore = inserted.length;
+r.fillDuringEvaluate = outcome(await call('browser.type', secret));
+r.nothingFilledDuringEvaluate = inserted.length === filledBefore;
+script.release();
+r.evaluateFinished = outcome(await running);
+internal.cmd = plainCmd;
 
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;

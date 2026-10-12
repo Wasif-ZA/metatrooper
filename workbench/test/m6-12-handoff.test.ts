@@ -79,6 +79,9 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       handoffMidEvaluate: 'ok',
       evaluateAfterHandoff: handed,
       evaluatedAfterHandoff: 0,
+      fillDuringEvaluate: 'evaluate is running on this page; nothing was typed',
+      nothingFilledDuringEvaluate: true,
+      evaluateFinished: 'ok',
       markerFound: [],
     });
   } finally {

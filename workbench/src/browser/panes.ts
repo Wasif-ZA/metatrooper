@@ -102,6 +102,8 @@ interface Pane {
   handoff: string | null;
   /** A secret was filled into the page now loaded; evaluate is off until the main frame navigates. */
   secretOnPage: boolean;
+  /** Agent `evaluate` scripts still running; no secret is filled while one is. */
+  evaluating: number;
 }
 
 interface Dialog {
@@ -280,7 +282,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, evaluating: 0 };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -1064,7 +1066,11 @@ ame, after checking the ref's field is a password field on the origin saved with
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
-          if (secret) pane.secretOnPage = true;
+          if (secret) {
+            // a script already running could wait for the fill and return the value encoded, past the scrub
+            if (pane.evaluating) throw new ToolError(-32037, 'evaluate is running on this page; nothing was typed');
+            pane.secretOnPage = true;
+          }
           if (text) await this.cmd(pane, 'Input.insertText', { text });
           else {
             for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
@@ -1147,7 +1153,13 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
         if (pane.secretOnPage) throw new ToolError(-32037, 'evaluate is off on a page a secret was typed into; navigate first');
-        const value = await this.evalIsolated(pane, a.expression);
+        pane.evaluating++;
+        let value: unknown;
+        try {
+          value = await this.evalIsolated(pane, a.expression);
+        } finally {
+          pane.evaluating--;
+        }
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };
