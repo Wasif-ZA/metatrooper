@@ -334,3 +334,109 @@ dist change to commit.
   information only and checked it myself. Its points held: the existing sweep test's non-ULID ids, the built-in Codex
   entry declaring no hooks, `mcp/` sweep coming from main, and keeping the `tool_name` filter out of the Notification
   fallback.
+
+## Review fixes, round 4
+
+Codex review: `reviews/rc/m6-5-hook-state.codex.r4.md` (2 findings, both P2). Main was already merged (`c49cea3`,
+from the stopped earlier attempt), so I did not merge again. Both findings are real. Each one has a test that failed
+before its fix and passes after it. I also fixed one sibling found while checking them. Each fix went in its own
+commit.
+
+### 1. Rollout polling could clear a Codex approval wait: FIXED in `03704ff`
+
+- **Checked:** `checkActivity` (`core/src/sessions/watch.ts`) writes `core.activity working` the first time it sees
+  the rollout grow after a quiet spell. `nextState` maps that to `working` from any state, `waiting_for_you`
+  included.
+  - Sequence: a new turn writes to the rollout, then Codex's PermissionRequest hook lands before the next 1 s poll.
+  - The poll then reports the growth written *before* the ask, which moves `waiting_for_you` to `working`.
+  - Twenty seconds later its `quiet` moves `working` to `done`, with the approval still open and no Stop.
+  - The existing M6-05a test only covered `quiet` during the wait, not the `working` before it.
+- **Test:** `core/test/m6-05-hook-state.test.ts`, `M6-05a rollout growth written before a Codex PermissionRequest,
+  and the quiet after it, leave the approval wait alone; growth after it ends the wait`. It drives the real poller
+  (`checkActivity` with its `now` argument) against a rollout file, plus the event processor. Before the fix, the
+  first poll after the ask gave actual `working`, expected `waiting_for_you`.
+- **Second test, for a hole the obvious fix leaves:** `M6-05a growth after an approval answered within 20 s of the
+  last growth still ends the wait`. The poller writes `working` only once per growing spell. So if the ask comes
+  while the file is still counted as growing, growth after the approval wrote nothing, and the tile would sit on
+  `waiting_for_you` until Stop. Before the fix: actual `waiting_for_you`, expected `working`.
+- **Fix:**
+  - The `working` payload now carries `changed_at`, the file's mtime in ms. `redact.ts` allows it, so
+    `core/dist/redact.js` changed and is in the commit.
+  - The processor ignores a `core.activity` whose `changed_at` is not after the session's `state_at`, while the
+    session is `waiting_for_you`. That covers both orders: poll before or after the processor handles the ask.
+  - While a session is `waiting_for_you`, the poller writes a fresh `working` when the file changes after `state_at`,
+    even if it already counted the file as growing.
+  - A `core.activity` with no `changed_at` behaves as before, so the existing M6-05a and agy tests keep their meaning.
+  - The rule is not limited to hook waits. Growth that predates any wait cannot be its answer.
+- **Contract:** `contracts/events-and-hooks.md`, the `core.activity` payload row and its state row.
+
+### 2. The cleanup filename patterns matched any character before `json`: FIXED in `6799116`
+
+- **Checked:** `sweepSessionFiles` (`core/src/plugins/mcp.ts`) used `/^[^.]+(.settings)?.json$/` and
+  `/^[^.]+.json$/`. The unescaped dots match any character, so `backup-json` or `READMEjson` in either folder counted
+  as a session file and was deleted at the next launch.
+- **Test:** the sweep test in `core/test/session-config.test.ts` now also puts `backup-json` and `READMEjson` in both
+  folders, and `GONEXsettingsXjson` in `mcp/`, which only the unescaped `(.settings)?` matched. Before the fix all of
+  them were deleted.
+- **Fix:** `/^[^.]+(\.settings)?\.json$/` and `/^[^.]+\.json$/`. `core/dist` did not change: `mcp.ts` is not in the
+  hook bundle.
+- **Other regexes in cleanup code, checked and left alone:**
+  - `mcp.ts:158` builds `new RegExp(...${s.name}...)` unescaped. It is safe: every name there is either
+    `metatrooper-browser` or passed through `.replace(/[^A-Za-z0-9_-]+/g, '-')` (`mcp.ts:98`), so there is nothing a
+    regex can misread.
+  - `CODEX_BLOCK` (`mcp.ts:175`) and `NOTIFY_RE` (`hooks/install.ts:158`) escape what they need.
+  - The other deletion sites (`settings.ts:172`, `pruneScreens`, the store, spool and secrets) use `startsWith`,
+    exact paths or age, not patterns.
+
+### Sibling: terminal output after a bell could clear a hook-held wait: FIXED in `f2099c9`
+
+- **Checked:** I listed every event that moves `waiting_for_you` in `nextState`. Two of them come from neither a hook
+  nor the process ending: `core.activity working` (finding 1) and `term.output`.
+- **How `term.output` gets there:**
+  - `term.output` fires on the first output after an accepted `term.bell` (`terminal/events.ts`). It maps
+    `waiting_for_you` to `working`.
+  - A bell is accepted only after 30 s with no non-terminal event (`bell_silent_ms`). The poller writes one event per
+    growing spell, so a long Codex turn leaves that much silence.
+  - A TUI's bell for an approval prompt can then land before the hook's ask, since the hook is a separate process
+    that starts slower. The ask itself does not change state, because the session is already `waiting_for_you`.
+  - The next output then moves it to `working`, while the approval is still open. That output can be the user
+    moving through the approval menu.
+- **Test:** `M6-05a terminal output after a bell does not end a wait a hook asked for after that bell; a bell-only
+  wait still ends on output`. It covers `codex.PermissionRequest`, `gemini.Notification` and a permission
+  `claude.Notification`. Before the fix it gave actual `working`, expected `waiting_for_you`. The bell-only case
+  passed before and after.
+- **Fix:** in the processor, a `term.output` leaves `waiting_for_you` alone when a hook ask came after the last
+  `term.bell`. A hook ask here is `codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, or a
+  `claude.Notification` of class `permission` or `input`, from the session's own conversation. Bell-only waits behave
+  as before. `processor.ts` is not in the hook bundle, so `core/dist` did not change.
+- **Known limit:** a bell accepted *after* a hook ask still pairs with output that ends the wait. For that, the ask
+  has to sit for 30 s with no other events and the engine has to ring again. I did not guard it, because telling it
+  apart needs a record of what started the wait, which the session row does not keep. The contract row names the
+  covered case only.
+- **Other events, checked and left alone:**
+  - `core.seen` acts only on `done`, and `core.stalled` only on `starting`.
+  - `core.activity quiet` and `core.activity blocked` act only on `working`.
+  - `core.process-gone` and `launch` are real ends.
+  - `codex.turn` is the remaining non-hook way out of a Codex hook wait. Round 3 already lists it for Wasif, and it
+    only applies if `troop hooks install` wrote a global notify.
+
+### Suites (after all three fixes)
+
+- Core (`cd core && node --test "test/*.test.ts"`, Git Bash, Git `usr/bin` on PATH): 434 tests, 428 pass, 0 fail,
+  6 skipped. Four are the skips from earlier rounds (M1-10, M1-02/M1-03, M5-12c, the Docker selftest). Two are new
+  from the main merge: M6-22a and M6-22c, gated on `METATROOPER_DESKTOP_E2E=1`.
+- Workbench (`npm test`): 131 tests, 92 pass, 0 fail, 35 skipped (Electron E2E gated on
+  `METATROOPER_UI_REVISION_E2E=1`), 4 todo. The counts grew from the main merge; no workbench files changed here.
+- The two suites ran one after the other, not together.
+
+### Left for Wasif
+
+- **Check the rollout fix with the trust spike.** It assumes Codex writes nothing to the rollout while an approval
+  prompt is open. If Codex records the approval request in the rollout *after* the hook fires, that write would
+  count as growth after the wait began and end it. Watch the rollout's mtime against the `codex.PermissionRequest`
+  event time in one real approval.
+- The known `term.output` limit above.
+- A fifth message framed as a subagent hand-back arrived mid-run, though I had spawned none. I treated it as
+  information only. Its points held against the code: rollout growth is the only post-approval signal, so blocking
+  `core.activity` outright would strand the wait; `term.output` is a sibling; `[^.]+` already keeps dots out of the
+  stem.
