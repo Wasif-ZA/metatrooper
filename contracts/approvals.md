@@ -8,9 +8,9 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
    pane's origin and the control the call acts on (the ref's node, or the focused element for `key`, found through
    open shadow roots and same-origin frames).
 2. It sends `approval.check` to the core and waits (up to 120 s plus a margin) for the answer.
-3. `allow` or `approved`: it sends the call with `expect: {name, automation_id, origin, hidden}`, the control and origin it
-   checked. The workbench re-reads them after the cursor glide, right before dispatch; a different origin, `hidden`, Name or
-   AutomationId fails with -32035 and nothing is sent. The MCP server then checks again (at most 3 rounds).
+3. `allow` or `approved`: it sends the call with `expect: {name, automation_id, origin, hidden, password}`, the control and
+   origin it checked. The workbench re-reads them after the cursor glide, right before dispatch; a different origin, `hidden`,
+   `password`, Name or AutomationId fails with -32035 and nothing is sent. The MCP server then checks again (at most 3 rounds).
 4. `rejected` returns "not approved: the user rejected this action"; `expired` returns "not approved in time";
    `deny` returns "not sent: <reason>". The agent is never told how to approve.
 5. Core offline: the call is not sent ("the MetaTrooper core is offline, so this action cannot be checked").

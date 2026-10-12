@@ -824,13 +824,13 @@ export class PaneManager {
     return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
   }
 
-  /** Fails when the pane's origin or the control's name or id differs from `expect`, what an approval was given for. */
+  /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describe(pane, { ...a, tool });
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
-    if (d.hidden !== (a.expect.hidden === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
+    if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
       throw new ToolError(-32035, 'the control changed since it was checked; nothing was sent');
     }
   }
