@@ -113,7 +113,10 @@ export async function startTermServer(pipePath: string, uiKey: string): Promise<
       }
       if (!session) return bad();
       if (m.op === 'ack' && typeof m.bytes === 'number' && m.bytes >= 0) { unacked = Math.max(0, unacked - m.bytes); return pump(); }
-      if (m.op === 'input' && typeof m.data === 'string') return void term.write(session, m.data);
+      if (m.op === 'input' && typeof m.data === 'string') {
+        term.noteTyped(session, m.data);
+        return void term.write(session, m.data);
+      }
       if (m.op === 'resize' && typeof m.cols === 'number' && typeof m.rows === 'number') return term.resize(session, m.cols, m.rows);
       if (m.op === 'detach') { drop(); return void socket.end(); }
       bad();

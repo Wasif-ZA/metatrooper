@@ -15,20 +15,20 @@ export function limitHit(db: DatabaseSync, sessionId: string, afterSeq: number, 
   appendEvent('core.limit-hit', sessionId, { window: pick?.window ?? null, resets_at: pick?.resets_at ?? null, after: afterSeq }, db);
 }
 
-type Term = Pick<typeof term, 'has' | 'paste' | 'write'>;
+type Term = Pick<typeof term, 'has' | 'paste' | 'write' | 'typedAt'>;
 
-/** Pastes the resume line and Enter once per `core.limit-hit` whose reset has passed, while the pty is open, the session still waits for you, the tile's toggle is on and no Claude event came after the failure. */
+/** Pastes the resume line and Enter once per `core.limit-hit` whose reset has passed, while the pty is open, the session still waits for you, the tile's toggle is on, and neither a Claude event nor the user's typing came after the failure. */
 export function resumeAtReset(db: DatabaseSync, now = Date.now(), t: Term = term): string[] {
   const hits = db.prepare(
-    `SELECT e.seq, e.session_id, json_extract(e.payload, '$.resets_at') AS resets_at FROM event e JOIN session s ON s.id = e.session_id
+    `SELECT e.seq, e.at, e.session_id, json_extract(e.payload, '$.resets_at') AS resets_at FROM event e JOIN session s ON s.id = e.session_id
      WHERE e.kind = 'core.limit-hit' AND s.limit_resume = 1 AND s.state = 'waiting_for_you' AND json_extract(e.payload, '$.resets_at') IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM event r WHERE r.kind = 'core.limit-resumed' AND r.session_id = e.session_id AND json_extract(r.payload, '$.limit_hit') = e.seq)
        AND NOT EXISTS (SELECT 1 FROM event l WHERE l.session_id = e.session_id AND l.seq > COALESCE(json_extract(e.payload, '$.after'), e.seq)
          AND ((l.kind LIKE 'claude.%' AND l.kind != 'claude.Notification') OR l.kind = 'core.prompt-written'))`,
-  ).all() as Array<{ seq: number; session_id: string; resets_at: string }>;
+  ).all() as Array<{ seq: number; at: string; session_id: string; resets_at: string }>;
   const pasted: string[] = [];
   for (const h of hits) {
-    if (Date.parse(h.resets_at) > now || !t.has(h.session_id)) continue;
+    if (Date.parse(h.resets_at) > now || !t.has(h.session_id) || t.typedAt(h.session_id) >= Date.parse(h.at)) continue;
     appendEvent('core.limit-resumed', h.session_id, { limit_hit: h.seq }, db);
     if (t.paste(h.session_id, RESUME_TEXT)) t.write(h.session_id, '\r');
     pasted.push(h.session_id);

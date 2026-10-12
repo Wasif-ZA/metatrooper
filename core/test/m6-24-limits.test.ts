@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { appendEvent } from '../src/events/append.ts';
 import { processEvents } from '../src/events/processor.ts';
 import { RESUME_TEXT, earlyEnd, recordReadings, resumeAtReset } from '../src/sessions/limit-resume.ts';
+import { noteTyped, typedAt } from '../src/terminal/index.ts';
 import { nowIso } from '../src/time.ts';
 
 const schema = readFileSync(join(import.meta.dirname, '..', '..', 'contracts', 'schema.sql'), 'utf8');
@@ -47,6 +48,7 @@ function fakeTerm(open: string[]) {
       has: (id: string) => open.includes(id),
       paste: (id: string, text: string) => { typed.push([id, `paste:${text}`]); return true; },
       write: (id: string, data: string) => { typed.push([id, data]); return true; },
+      typedAt: () => 0,
     },
   };
 }
@@ -135,6 +137,31 @@ test('M6-24a no paste once the session has left waiting_for_you without a Claude
   const f = fakeTerm(['s']);
   assert.deepEqual(resumeAtReset(db, reset + 1000, f.t), []);
   assert.deepEqual(f.typed, []);
+});
+
+test('M6-24a no paste onto a draft typed after the hit; typing before the hit still resumes', () => {
+  const { db } = setup();
+  const reset = Date.now() + 60 * MIN;
+  limitAt(db, reset);
+  for (const id of ['draft', 'before']) session(db, id);
+  hook(db, 'before', 'claude.StopFailure', { error_type: 'rate_limit' });
+  hook(db, 'draft', 'claude.StopFailure', { error_type: 'rate_limit' });
+  const f = fakeTerm(['draft', 'before']);
+  const at: Record<string, number> = { draft: Date.now() + 1000, before: Date.now() - 60_000 };
+  assert.deepEqual(resumeAtReset(db, reset + 1000, { ...f.t, typedAt: (id: string) => at[id] ?? 0 }), ['before']);
+  assert.deepEqual(f.typed.map(([id]) => id), ['before', 'before']);
+});
+
+test('M6-24a terminal replies and keys are not typing; text, Enter and a paste are', () => {
+  const t0 = Date.now();
+  for (const data of ['\x1b[I', '\x1b[O', '\x1b[?1;2c', '\x1b[>0;276;0c', '\x1b[12;40R', '\x1b[A', '\x1bOB', '\x1b']) {
+    noteTyped('k', data);
+    assert.equal(typedAt('k'), 0, JSON.stringify(data));
+  }
+  for (const [id, data] of [['a', 'h'], ['b', '\r'], ['c', '\x1b[200~text\x1b[201~']]) {
+    noteTyped(id, data);
+    assert.ok(typedAt(id) >= t0, JSON.stringify(data));
+  }
 });
 
 function reading(db: DatabaseSync, used: number, at: number, reset: number): void {
