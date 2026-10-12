@@ -156,7 +156,7 @@ Every other interaction is a database read.
 
 ### Worktree sweep
 
-The core sweeps worktree projects at startup and once an hour (`core/src/worktree.ts`). It looks only at `project` rows whose path is exactly `<METATROOPER_HOME>/worktrees/<parent project id>/<name>`, where `worktree.create` puts them, and whose real path is still under that folder. Every other row and folder is left alone.
+The core sweeps worktree projects at startup and once an hour (`core/src/worktree.ts`), one worktree at a time with asynchronous git calls, so terminals, pipe requests and the heartbeat keep running; a sweep still running when the next is due is not started twice, and a worktree whose session started while git ran is left as it was. It looks only at `project` rows whose path is exactly `<METATROOPER_HOME>/worktrees/<parent project id>/<name>`, where `worktree.create` puts them, and whose real path is still under that folder. Every other row and folder is left alone.
 
 - **Folder gone.** The row gets `hidden = 1`.
 - **The menu rule.** The workbench shows the open project, and otherwise only a row with `hidden = 0` whose folder exists and, if it is a MetaTrooper worktree, still holds a `.git` entry (`goneCheckout` in `workbench/src/queries.ts`). A gone folder leaves the menu at once, without waiting for the next sweep.

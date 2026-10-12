@@ -1,5 +1,6 @@
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import type { EngineSpec } from './engines/registry.ts';
 import { canonicalPath, worktreesRoot } from './project.ts';
@@ -8,19 +9,23 @@ import { untrustFolder } from './trust.ts';
 
 const DAY_MS = 86_400_000;
 
-function git(dir: string, ...args: string[]): string {
-  return execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 });
+const run = promisify(execFile);
+
+// Async on purpose: the sweep runs inside the core, and a blocking git call would stall terminals, pipe requests and the heartbeat.
+async function git(dir: string, args: string[], timeout = 30_000): Promise<string> {
+  return (await run('git', ['-C', dir, ...args], { encoding: 'utf8', timeout, windowsHide: true })).stdout;
 }
 
-function ok(dir: string, ...args: string[]): boolean {
-  try { git(dir, ...args); return true; } catch { return false; }
+async function ok(dir: string, ...args: string[]): Promise<boolean> {
+  try { await git(dir, args); return true; } catch { return false; }
 }
 
 /** The repo's main branch: origin/HEAD's branch, else main, else master; null when none exists locally. */
-function mainBranch(repo: string): string | null {
+async function mainBranch(repo: string): Promise<string | null> {
   let head = '';
-  try { head = git(repo, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD').trim().replace(/^origin\//, ''); } catch {}
-  return [head, 'main', 'master'].find((b) => b && ok(repo, 'rev-parse', '--verify', '-q', `refs/heads/${b}`)) ?? null;
+  try { head = (await git(repo, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])).trim().replace(/^origin\//, ''); } catch {}
+  for (const b of [head, 'main', 'master']) if (b && await ok(repo, 'rev-parse', '--verify', '-q', `refs/heads/${b}`)) return b;
+  return null;
 }
 
 type Row = { id: string; path: string; older: number; live: number; last_jd: number };
@@ -28,9 +33,9 @@ type Row = { id: string; path: string; older: number; live: number; last_jd: num
 /**
  * Tidies worktree projects under <home>/worktrees/<parent id>/<name>: a missing folder hides its row; one with no live session and no
  * activity for `worktree.stale_days` is removed (`git worktree remove`, never --force) when clean and merged into the main branch, else
- * marked older. Rows are hidden, never deleted: session, run, browser_pane and schedule reference them.
+ * marked older. Rows are hidden, never deleted: session, run, browser_pane and schedule reference them. One worktree at a time, never blocking.
  */
-export function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], now = Date.now()): { hidden: string[]; removed: string[]; older: string[] } {
+export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], now = Date.now()): Promise<{ hidden: string[]; removed: string[]; older: string[] }> {
   const root = worktreesRoot();
   const staleMs = Math.max(1, settings().worktree.stale_days) * DAY_MS;
   const out = { hidden: [] as string[], removed: [] as string[], older: [] as string[] };
@@ -41,6 +46,7 @@ export function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], now = Da
      FROM project p WHERE p.hidden = 0`,
   ).all() as Row[];
   const set = db.prepare('UPDATE project SET hidden = ?, older = ? WHERE id = ?');
+  const liveNow = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
   for (const r of rows) {
     const parts = r.path.toLowerCase().startsWith(root) ? r.path.slice(root.length).split('/') : [];
     if (parts.length !== 2 || !parts[0] || !parts[1]) continue;
@@ -58,12 +64,15 @@ export function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], now = Da
       }
       if (canonicalPath(fs.realpathSync.native(r.path)).toLowerCase().startsWith(canonicalPath(fs.realpathSync.native(root)).toLowerCase() + '/')) {
         const parent = db.prepare('SELECT path FROM project WHERE id = ?').get(parts[0]) as { path: string } | undefined;
-        const main = parent && fs.existsSync(parent.path) ? mainBranch(parent.path) : null;
-        const clean = git(r.path, 'status', '--porcelain').trim() === '';
-        if (parent && main && clean && ok(r.path, 'merge-base', '--is-ancestor', 'HEAD', `refs/heads/${main}`)) {
+        const main = parent && fs.existsSync(parent.path) ? await mainBranch(parent.path) : null;
+        const clean = (await git(r.path, ['status', '--porcelain'])).trim() === '';
+        const merged = parent && main && clean && await ok(r.path, 'merge-base', '--is-ancestor', 'HEAD', `refs/heads/${main}`);
+        // A session may have started while git ran: such a worktree is no longer stale, so leave it as it is.
+        if (liveNow.get(r.id)) continue;
+        if (merged && parent) {
           try {
             // Longer than worktree.create's 60 s add: a timeout mid-remove would leave a half-deleted folder.
-            execFileSync('git', ['-C', parent.path, 'worktree', 'remove', r.path], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 300_000 });
+            await git(parent.path, ['worktree', 'remove', r.path], 300_000);
             untrustFolder(r.path, engines);
             set.run(1, 0, r.id);
             out.removed.push(r.path);

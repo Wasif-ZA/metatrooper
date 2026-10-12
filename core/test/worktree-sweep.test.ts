@@ -14,7 +14,7 @@ const { sweepWorktrees } = await import('../src/worktree.ts');
 const git = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@x.example', '-c', 'user.name=T', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 const iso = (ms: number) => new Date(ms).toISOString();
 
-test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dirty or unmerged ones as older, and leaves fresh, live and outside ones alone', () => {
+test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dirty or unmerged ones as older, and leaves fresh, live and outside ones alone', async () => {
   const now = Date.now();
   const old = iso(now - 30 * 86_400_000);
   const db = openCoreDb();
@@ -51,7 +51,19 @@ test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dir
     const outside = add('outside', path.join(home, 'elsewhere', 'outside'));
     row('outside', outside);
 
-    const r = sweepWorktrees(db, []);
+    const late = add('late');
+    row('late', late);
+
+    // The sweep must not block the core's event loop: a timer has to fire while git runs.
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 1);
+    const sweeping = sweepWorktrees(db, []);
+    // A session that starts after the sweep read its rows still keeps its worktree.
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s2', 'late', 'claude', 'pty', 'idle', ?, ?)").run(old, old);
+    const r = await sweeping;
+    clearInterval(timer);
+    assert.ok(ticks > 0, 'timers ran during the sweep');
+    assert.ok(fs.existsSync(late), 'a worktree whose session started mid-sweep is kept');
     const state = (id: string) => db.prepare('SELECT hidden, older FROM project WHERE id = ?').get(id) as { hidden: number; older: number };
 
     assert.deepEqual(r.hidden, [gone]);
@@ -67,14 +79,14 @@ test('the sweep hides gone worktrees, removes stale clean merged ones, keeps dir
     assert.ok(fs.existsSync(path.join(dirty, 'new.txt')));
     assert.ok(fs.existsSync(unmerged));
 
-    for (const [id, dir] of [['fresh', fresh], ['live', live], ['outside', outside], ['parent', parentPath]]) {
+    for (const [id, dir] of [['fresh', fresh], ['live', live], ['late', late], ['outside', outside], ['parent', parentPath]]) {
       assert.deepEqual({ ...state(id) }, { hidden: 0, older: 0 }, id);
       assert.ok(fs.existsSync(dir), id);
     }
 
     db.prepare("UPDATE session SET state = 'exited' WHERE id = 's1'").run();
     db.prepare('UPDATE project SET last_opened = ? WHERE id = ?').run(iso(now), 'dirty');
-    const again = sweepWorktrees(db, []);
+    const again = await sweepWorktrees(db, []);
     assert.deepEqual(again.removed, [live], 'an exited session no longer keeps an idle worktree');
     assert.deepEqual({ ...state('dirty') }, { hidden: 0, older: 0 }, 'new activity brings an older worktree back');
   } finally {
