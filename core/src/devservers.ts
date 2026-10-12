@@ -118,11 +118,12 @@ async function decide(db: DatabaseSync): Promise<void> {
     p.had ??= now.has(p.port);
     const pids = now.get(p.port);
     if (!pids?.size) continue;
-    pending.delete(key);
-    if (pids.size > 1) { refused.set(key, Date.now() + WATCH_MS); continue; }
+    if (pids.size > 1) { pending.delete(key); refused.set(key, Date.now() + WATCH_MS); continue; }
     const [pid] = pids;
     parents ??= await (early ?? probe.parentTableAsync());
     if (!parents.has(pid)) parents = await probe.parentTableAsync();
+    // devServersGone dropped it while the process table loaded: the terminal exited.
+    if (!pending.delete(key)) continue;
     const by = ownership(pid, ptyPid(p.session), parents, p.had);
     if (!by) { refused.set(key, Date.now() + WATCH_MS); continue; }
     db.prepare("INSERT INTO session_dev_server (id, session_id, project_id, port, url, pid, matched_by, status, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?)")

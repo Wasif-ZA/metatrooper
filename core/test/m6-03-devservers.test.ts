@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { root } from './helpers.ts';
-import { pollDevServers, probe, scanOutput } from '../src/devservers.ts';
+import { devServersGone, pollDevServers, probe, scanOutput } from '../src/devservers.ts';
 
 // Netstat and the process table are stubbed, so these run on any platform without a pty.
 const db = new DatabaseSync(':memory:');
@@ -44,4 +44,20 @@ test('M6-03 a URL printed while the snapshot is stale is judged by the next nets
   probe.netstat = listen(5301);
   await pollDevServers(db);
   assert.deepEqual(rows(id), [{ port: 5301, pid: OWNER, matched_by: 'printed', status: 'ready' }]);
+});
+
+test('M6-03 a terminal that exits while ownership is being decided leaves no ready row', async () => {
+  const id = session();
+  probe.netstat = listen();
+  scanOutput(db, id, 'dev server: http://localhost:5302/\n');
+  await pollDevServers(db);
+  const table = probe.parentTableAsync;
+  probe.parentTableAsync = async () => { devServersGone(db, id); return table(); };
+  try {
+    probe.netstat = listen(5302);
+    await pollDevServers(db);
+  } finally {
+    probe.parentTableAsync = table;
+  }
+  assert.deepEqual(rows(id), []);
 });
