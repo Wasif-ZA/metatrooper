@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, ulid } from '../time.ts';
-import { nextState } from './state.ts';
+import { nextState, stateChanged } from './state.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
@@ -51,6 +51,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
   const turns: TurnJob[] = [];
+  const changed: Array<[string, string]> = [];
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const ev of rows) {
@@ -86,6 +87,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);
+          changed.push([ev.session_id, next]);
           if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
@@ -99,6 +101,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     db.exec('ROLLBACK');
     throw e;
   }
+  for (const [id, state] of changed) stateChanged(id, state);
   for (const job of turns) {
     if (job.kind === 'start') {
       const snapshot = turnSnapshot(db, job.id);
