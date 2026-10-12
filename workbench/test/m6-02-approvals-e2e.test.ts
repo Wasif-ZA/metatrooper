@@ -22,7 +22,7 @@ function listen(handler: Parameters<typeof createServer>[1]): Promise<{ server: 
   });
 }
 
-test('M6-02a / M6-02b / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
+test('M6-02a / M6-02b / M6-02c / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password, 120 s expiry', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
 
 async function paneApprovalsE2e() {
   await buildGenerated();
@@ -253,6 +253,16 @@ async function paneApprovalsE2e() {
     assert.ok(pw2Approval);
     await uiPipe.request('approval.resolve', { approval_id: pw2Approval.id, decision: 'approve' });
     await pw2Step.waitResult();
+
+    // M6-02c: a click left waiting for the real 120 s returns "not approved in time" and the row reads expired
+    const expireStart = Date.now();
+    const expireStep = sendStep('click', { pane_id: paneId, ref: submitRef });
+    const expireApproval = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 15_000);
+    const expireResult = await expireStep.waitResult(150_000);
+    assert.ok(Date.now() - expireStart >= 119_000);
+    assert.equal(expireResult.result?.isError, true);
+    assert.match(expireResult.result?.content?.[0]?.text, /not approved in time/);
+    assert.equal((db!.prepare('SELECT status FROM approval WHERE id = ?').get(expireApproval.id) as any).status, 'expired');
 
     // Tell engine to exit cleanly
     const finalStep = ++stepIndex;
