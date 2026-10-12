@@ -1,6 +1,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -172,4 +173,45 @@ test('M6-12 a browser secret decrypted only in another process is scrubbed from 
   });
   const needs = db.prepare("SELECT text FROM needs_you WHERE kind = 'approval' AND ref = ?").get(row.id) as { text: string };
   assert.ok(!needs.text.includes(marker));
+});
+
+test('M6-12 a checked tool the MCP server stops before dispatch (denied, core offline) reports its outcome to the workbench for the audit row', async () => {
+  const { browserPipe, corePipe } = await import('../src/paths.ts');
+  const { createDecoder, encode } = await import('../src/pipe/framing.ts');
+  type Seen = Array<{ method: string; params: Record<string, unknown> }>;
+  /** A pipe server answering each request with `answer`, recording what it received. */
+  const fake = (pipe: string, answer: (method: string) => unknown, seen: Seen) => {
+    const server = net.createServer((s) => s.on('data', createDecoder((m: any) => { seen.push({ method: m.method, params: m.params }); s.write(encode({ jsonrpc: '2.0', id: m.id, result: answer(m.method) })); })));
+    return new Promise<net.Server>((res) => server.listen(pipe, () => res(server)));
+  };
+  const browserSeen: Seen = [];
+  const coreSeen: Seen = [];
+  const browser = await fake(browserPipe(), (m) => (m === 'browser.describe' ? { session_id: 's1', origin: 'https://a.test', control, password: false, hidden: false } : { ok: true }), browserSeen);
+  const core = await fake(corePipe(), () => ({ decision: 'deny', reason: 'nope' }), coreSeen);
+  const child = spawn(process.execPath, [join(import.meta.dirname, '..', 'metatrooper-browser.js')], { stdio: ['pipe', 'pipe', 'inherit'], env: process.env });
+  const replies = new Map<number, any>();
+  let buf = '';
+  child.stdout.setEncoding('utf8').on('data', (c: string) => {
+    buf += c;
+    for (let i; (i = buf.indexOf('\n')) >= 0; buf = buf.slice(i + 1)) if (buf.slice(0, i).trim()) { const m = JSON.parse(buf.slice(0, i)); replies.set(m.id, m); }
+  });
+  const ask = async (id: number, name: string, args: Record<string, unknown>) => {
+    child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } }) + '\n');
+    for (let i = 0; i < 500 && !replies.has(id); i++) await new Promise((r) => setTimeout(r, 20));
+    return replies.get(id)?.result?.content?.[0]?.text;
+  };
+  try {
+    assert.equal(await ask(1, 'click', { pane_id: 'bp1', ref: 'e1' }), 'not sent: nope');
+    await new Promise<void>((r) => core.close(() => r()));
+    assert.match(await ask(2, 'type', { pane_id: 'bp1', ref: 'e2', text: 'hi' }), /core is offline/);
+    assert.deepEqual(coreSeen.map((m) => m.method), ['approval.check']);
+    assert.deepEqual(browserSeen.map((m) => (m.method === 'browser.outcome' ? { ...m.params } : m.method)), [
+      'browser.describe', { pane_id: 'bp1', tool: 'click', status: 'error -32030' },
+      'browser.describe', { pane_id: 'bp1', tool: 'type', status: 'error -32099' },
+    ]);
+  } finally {
+    child.kill();
+    browser.close();
+    core.close();
+  }
 });

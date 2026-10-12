@@ -43,6 +43,9 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       stateCarriesReason: true,
       whileHanded: { snapshot: handed, click: handed, type: handed, navigate: handed, console: handed, screenshot: handed, describe: handed, handoff: handed },
       afterGiveBack: 'ok',
+      outcome: 'ok',
+      outcomeBadStatus: 'outcome takes a checked tool (click, type, select or key) and an error status',
+      outcomeBadTool: 'outcome takes a checked tool (click, type, select or key) and an error status',
       audit: [
         's1 type bp_agent_1 https://bank.test ok',
         's1 console bp_agent_1 https://bank.test ok',
@@ -65,6 +68,7 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
         's1 screenshot bp_agent_1 https://bank.test error -32036',
         's1 handoff bp_agent_1 https://bank.test error -32036',
         's1 console bp_agent_1 https://bank.test ok',
+        's1 type bp_agent_1 https://bank.test error -32030',
       ],
       auditKeys: ['origin', 'pane', 'status', 'tool'],
       describeIsTheCheckOne: true,

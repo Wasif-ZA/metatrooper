@@ -8,7 +8,9 @@ import { scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { knownSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
+const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
+/** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
+const CHECKED = new Set(['click', 'type', 'select', 'key']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
@@ -108,6 +110,12 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
       if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, 'pane not owned by the calling session');
+      if (tool === 'outcome') {
+        const status = typeof params.status === 'string' ? params.status : '';
+        if (!CHECKED.has(String(params.tool)) || !/^error -?\d{1,6}$/.test(status)) return fail(id, -32602, 'outcome takes a checked tool (click, type, select or key) and an error status');
+        audit(bound.sessionId, { tool: String(params.tool), pane: paneId, origin: deps.panes.origin(paneId), status });
+        return send({ jsonrpc: '2.0', id, result: { ok: true } });
+      }
       if (!deps.panes.has(paneId)) {
         deps.refreshPanes();
         for (let i = 0; i < 40 && !deps.panes.has(paneId); i++) await new Promise((r) => setTimeout(r, 50));

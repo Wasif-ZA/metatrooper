@@ -123,20 +123,25 @@ const CHECKED = new Set(['click', 'type', 'select', 'key']);
 const CONTROL_CHANGED = -32035;
                                                                              
 
-/** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. */
+/** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
 async function checkedCall(name        , args                         )                 {
+  const stopped = async (error                                   )                 => {
+    await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
+    return { error };
+  };
   for (let attempt = 0; attempt < 3; attempt++) {
     const d = await browser.call('browser.describe', { ...args, tool: name });
-    if (d.error) return d;
+    if (d.error) return stopped(d.error);
     const { session_id, origin, control, password, hidden } = d.result                                                                                                       ;
     const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
     const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: APPROVAL_TIMEOUT_MS + 10_000 });
-    if (out.kind !== 'reply') return { error: { code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' } };
-    if (out.reply.error) return { error: out.reply.error };
+    if (out.kind !== 'reply') return stopped({ code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' });
+    if (out.reply.error) return stopped(out.reply.error);
     const v = out.reply.result                                         ;
-    if (v.decision === 'deny') return { error: { code: -32030, message: `not sent: ${v.reason}` } };
-    if (v.decision === 'rejected') return { error: { code: -32030, message: 'not approved: the user rejected this action' } };
-    if (v.decision === 'expired') return { error: { code: -32030, message: 'not approved in time' } };
+    if (v.decision === 'deny') return stopped({ code: -32030, message: `not sent: ${v.reason}` });
+    if (v.decision === 'rejected') return stopped({ code: -32030, message: 'not approved: the user rejected this action' });
+    if (v.decision === 'expired') return stopped({ code: -32030, message: 'not approved in time' });
+    if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
     const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
     if (r.error?.code !== CONTROL_CHANGED) return r;
   }

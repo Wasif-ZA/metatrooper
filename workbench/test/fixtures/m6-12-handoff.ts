@@ -170,6 +170,11 @@ for (const [tool, args] of [['snapshot', {}], ['click', { ref: 'e5' }], ['type',
 pm.act('bp_agent_1', 'give-back');
 r.afterGiveBack = outcome(await call('browser.console', { pane_id: 'bp_agent_1' }));
 
+// A checked call the MCP server stopped before dispatch (denied, rejected, expired, core offline) reports its outcome for the audit
+r.outcome = outcome(await call('browser.outcome', { pane_id: 'bp_agent_1', tool: 'type', status: 'error -32030' }));
+r.outcomeBadStatus = outcome(await call('browser.outcome', { pane_id: 'bp_agent_1', tool: 'type', status: `error ${marker}` }));
+r.outcomeBadTool = outcome(await call('browser.outcome', { pane_id: 'bp_agent_1', tool: 'evaluate', status: 'error -32030' }));
+
 // One audit row per tool call, with no typed text
 const audit = db.prepare("SELECT session_id, payload FROM event WHERE kind = 'browser.tool' ORDER BY seq").all() as Array<{ session_id: string; payload: string }>;
 r.audit = audit.map((a) => { const p = JSON.parse(a.payload); return `${a.session_id} ${p.tool} ${p.pane} ${p.origin} ${p.status}`; });
