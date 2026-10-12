@@ -86,7 +86,7 @@ r.agentClickCounts = agentOpen.action === 'deny' && agent.pane.clickedAt === 0 &
 wc.emit('input-event', {}, { type: 'mouseDown' });
 const popup = wc.openHandler!({ url: 'https://login.example/oauth', disposition: 'new-window' });
 r.popupKeepsOpener = popup.action === 'allow' && popup.overrideBrowserWindowOptions.parent === win && popup.overrideBrowserWindowOptions.webPreferences.sandbox === true && popup.overrideBrowserWindowOptions.webPreferences.nodeIntegration === false;
-const childWc = Object.assign(new EventEmitter(), { openHandler: null as any, setWindowOpenHandler(h: any) { this.openHandler = h; }, getURL: () => 'https://login.example/oauth' });
+const childWc = Object.assign(new EventEmitter(), { openHandler: null as any, setWindowOpenHandler(h: any) { this.openHandler = h; }, getURL: () => 'https://login.example/oauth', session: wc.session });
 let childClosed = false;
 const child = Object.assign(new EventEmitter(), { webContents: childWc, isDestroyed: () => childClosed, close() { childClosed = true; this.emit('closed'); } });
 wc.emit('did-create-window', child);
@@ -95,6 +95,10 @@ childWc.emit('will-navigate', { preventDefault() { fileNav = true; } }, 'file://
 let webNav = false;
 childWc.emit('will-navigate', { preventDefault() { webNav = true; } }, 'https://login.example/callback');
 r.popupGuarded = fileNav && !webNav && childWc.openHandler({ url: 'https://x.example/' }).action === 'deny' && pane.popups.has(child);
+let strayClosed = false;
+const stray = { webContents: Object.assign(new EventEmitter(), { setWindowOpenHandler() {}, getURL: () => 'http://127.0.0.1:9/', session: {} }), isDestroyed: () => strayClosed, close() { strayClosed = true; }, on() {} };
+wc.emit('did-create-window', stray);
+r.popupInOtherSessionClosed = strayClosed && !pane.popups.has(stray);
 
 wc.emit('did-navigate', {}, 'https://start.example/', 200);
 wc.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://nowhere.invalid/', true);

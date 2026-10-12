@@ -15,6 +15,7 @@ test('M6-13 pane hygiene: error pages, popups with opener, no pane without a cli
     agentClickCounts: true,
     popupKeepsOpener: true,
     popupGuarded: true,
+    popupInOtherSessionClosed: true,
     popupClosesWithPane: true,
     loadErrorPage: true,
     errorPageKeepsUrl: true,

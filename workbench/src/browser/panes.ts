@@ -367,6 +367,12 @@ export class PaneManager {
 
   /** A popup keeps its opener; it may not navigate off the web or open windows of its own, and it closes with its pane. */
   private guardPopup(pane: Pane, child: BrowserWindow): void {
+    // the address policy lives on the pane's session; a popup in any other session would have none
+    if (child.webContents.session !== pane.view.webContents.session) {
+      this.log(pane, 'blocked', `MetaTrooper closed a window that did not share the pane's session: ${child.webContents.getURL()}`);
+      child.close();
+      return;
+    }
     pane.popups.add(child);
     child.on('closed', () => pane.popups.delete(child));
     const cwc = child.webContents;
