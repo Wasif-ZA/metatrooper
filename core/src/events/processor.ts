@@ -49,16 +49,18 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
   // The tool lookups keep to one conversation (the last `?`), so a side conversation's events, ignored in processing, are ignored here too.
   const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
-  const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
+  // A wait with no tool_use_id of its own is on the last call still open before the ask, with the ask's tool_name when it gives one.
+  const openToolId = db.prepare("SELECT json_extract(p.payload, '$.tool_use_id') AS id FROM event p WHERE p.session_id = ?1 AND p.kind = 'claude.PreToolUse' AND p.seq < ?2 AND coalesce(json_extract(p.payload, '$.session_id') = ?3, 1) AND (?4 IS NULL OR json_extract(p.payload, '$.tool_name') = ?4) AND NOT EXISTS (SELECT 1 FROM event f WHERE f.session_id = ?1 AND f.kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND f.seq > p.seq AND f.seq < ?2 AND json_extract(f.payload, '$.tool_use_id') = json_extract(p.payload, '$.tool_use_id') AND coalesce(json_extract(f.payload, '$.session_id') = ?3, 1)) ORDER BY p.seq DESC LIMIT 1");
+  const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id, json_extract(payload, '$.tool_name') AS tool FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
   const toolFinished = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) LIMIT 1");
-  /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last PreToolUse before a permission Notification since the last prompt or Stop; null when there is no such wait or that call has finished. */
+  /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last call still open before that PermissionRequest (with its tool_name) or before a permission Notification since the last prompt or Stop; null when there is no such wait or that call has finished. */
   const permissionWait = (sessionId: string, seq: number, conv: string | null): string | null => {
-    const ask = lastAsk.get(sessionId, seq, conv) as { seq: number; kind: string; id: unknown } | undefined;
+    const ask = lastAsk.get(sessionId, seq, conv) as { seq: number; kind: string; id: unknown; tool: unknown } | undefined;
     let from = ask?.seq ?? 0;
     let id = ask?.kind === 'claude.PermissionRequest' ? ask.id : undefined;
     if (ask?.kind !== 'claude.PermissionRequest') {
@@ -66,7 +68,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       if (!noteRow) return null;
       from = noteRow.seq;
     }
-    if (typeof id !== 'string') id = (pendingToolId.get(sessionId, from, conv) as { id: unknown } | undefined)?.id;
+    if (typeof id !== 'string') id = (openToolId.get(sessionId, from, conv, ask?.kind === 'claude.PermissionRequest' && typeof ask.tool === 'string' ? ask.tool : null) as { id: unknown } | undefined)?.id;
     return typeof id === 'string' && !toolFinished.get(sessionId, id, from, seq, conv) ? id : null;
   };
   const turns: TurnJob[] = [];

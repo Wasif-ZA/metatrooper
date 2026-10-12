@@ -196,6 +196,35 @@ test('M6-05c a PermissionRequest for an earlier call names that call\'s tool, an
   } finally { t.done(); }
 });
 
+test('M6-05c a PermissionRequest without a tool_use_id waits on the unfinished call with its tool_name, not the last PreToolUse', async () => {
+  const t = await memoryDb();
+  const lastTool = () => (t.db.prepare("SELECT last_tool FROM session WHERE id = 's'").get() as { last_tool: string | null }).last_tool;
+  try {
+    t.send('claude.UserPromptSubmit');
+    t.send('claude.PreToolUse', { tool_name: 'Edit', tool_use_id: 'toolu_B' });
+    t.send('claude.PreToolUse', { tool_name: 'Read', tool_use_id: 'toolu_A' });
+    assert.equal(t.send('claude.PermissionRequest', { tool_name: 'Edit' }), 'waiting_for_you');
+    assert.equal(t.send('claude.PostToolUse', { tool_name: 'Read', tool_use_id: 'toolu_A' }), 'waiting_for_you');
+    assert.equal(lastTool(), 'Edit');
+    assert.equal(t.send('claude.PostToolUse', { tool_name: 'Edit', tool_use_id: 'toolu_B' }), 'working');
+    assert.equal(lastTool(), null);
+  } finally { t.done(); }
+});
+
+test('M6-05c a permission wait is not held on a call that finished before the prompt', async () => {
+  for (const ask of [['claude.Notification', { class: 'permission' }], ['claude.PermissionRequest', { tool_name: 'Bash' }]] as const) {
+    const t = await memoryDb();
+    try {
+      t.send('claude.UserPromptSubmit');
+      t.send('claude.PreToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' });
+      t.send('claude.PreToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_B' });
+      t.send('claude.PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_B' });
+      assert.equal(t.send(ask[0], ask[1]), 'waiting_for_you');
+      assert.equal(t.send('claude.PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' }), 'working', ask[0]);
+    } finally { t.done(); }
+  }
+});
+
 test('M6-05c a wait that did not come from a permission prompt is not held by an old finished one', async () => {
   const t = await memoryDb();
   try {
