@@ -198,13 +198,14 @@ interface SessionRow {
   project_path: string;
   cwd: string | null;
   state: string;
+  state_at: string;
 }
 
 /** Every 1 s: codex and agy sessions get core.activity working/quiet from their session files. */
 export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   const rows = db
     .prepare(
-      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.cwd, s.state
+      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.cwd, s.state, s.state_at
        FROM session s JOIN project p ON p.id = s.project_id
        WHERE s.state != 'exited' AND s.engine_id IN ('codex','agy')`,
     )
@@ -228,9 +229,10 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       a.size = m.size;
       a.mtime = m.mtime;
       a.lastChange = now;
-      if (!a.working) {
+      // A wait that began while the file was already growing still needs a fresh `working` once the file grows after it.
+      if (!a.working || (s.state === 'waiting_for_you' && m.mtime > Date.parse(s.state_at))) {
         a.working = true;
-        appendEvent('core.activity', s.id, { state: 'working' }, db);
+        appendEvent('core.activity', s.id, { state: 'working', changed_at: m.mtime }, db);
       }
     } else if (a.working && now - a.lastChange >= 20_000) {
       a.working = false;

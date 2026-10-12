@@ -90,7 +90,7 @@ export function buildPayload(kind        , raw        )      {
         reply_length: lengthOf(r['last-assistant-message']),
       };
     case 'core.activity':
-      return pick(r, ['state']);
+      return pick(r, ['state', 'changed_at']);
     case 'codex.SessionStart':
     case 'codex.PermissionRequest':
     case 'codex.Stop':

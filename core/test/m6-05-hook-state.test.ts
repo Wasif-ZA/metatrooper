@@ -1,7 +1,7 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { exec } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -137,8 +137,57 @@ async function memoryDb() {
     db.close();
     for (const [k, v] of Object.entries(prev)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   };
-  return { db, send, state, done };
+  return { home, db, send, state, done };
 }
+
+/** memoryDb's session as a Codex session linked to a rollout file, with the core's 1 s activity poll and the event processor run by hand. */
+async function codexRollout() {
+  const t = await memoryDb();
+  const { checkActivity } = await import('../src/sessions/watch.ts');
+  const { processEvents } = await import('../src/events/processor.ts');
+  t.db.prepare("UPDATE session SET engine_id = 'codex', native_id = 'conv' WHERE id = 's'").run();
+  const dir = join(t.home, '.codex', 'sessions', '2026', '10', '13');
+  mkdirSync(dir, { recursive: true });
+  const rollout = join(dir, 'rollout-2026-10-13T10-00-00-conv.jsonl');
+  writeFileSync(rollout, '{"type":"session_meta"}\n');
+  const start = Date.now();
+  checkActivity(t.db, start);
+  /** Runs the poll at `ms` after the first one, then the processor. */
+  const poll = (ms: number) => { checkActivity(t.db, start + ms); processEvents(t.db); return t.state(); };
+  const grow = () => appendFileSync(rollout, '{"type":"response_item"}\n');
+  const tick = () => new Promise((r) => setTimeout(r, 30));
+  // The poll keeps its files in a module-level map by session id; drop 's' so the next test links afresh.
+  const done = () => { t.db.prepare("UPDATE session SET state = 'exited' WHERE id = 's'").run(); checkActivity(t.db); t.done(); };
+  return { ...t, poll, grow, tick, done };
+}
+
+test('M6-05a rollout growth written before a Codex PermissionRequest, and the quiet after it, leave the approval wait alone; growth after it ends the wait', async () => {
+  const t = await codexRollout();
+  try {
+    t.grow();
+    await t.tick();
+    assert.equal(t.send('codex.PermissionRequest', { tool_name: 'shell' }), 'waiting_for_you');
+    assert.equal(t.poll(1000), 'waiting_for_you');
+    assert.equal(t.poll(22_000), 'waiting_for_you');
+    await t.tick();
+    t.grow();
+    assert.equal(t.poll(23_000), 'working');
+    assert.equal(t.poll(44_000), 'done');
+  } finally { t.done(); }
+});
+
+test('M6-05a growth after an approval answered within 20 s of the last growth still ends the wait', async () => {
+  const t = await codexRollout();
+  try {
+    t.grow();
+    assert.equal(t.poll(1000), 'working');
+    await t.tick();
+    assert.equal(t.send('codex.PermissionRequest', { tool_name: 'shell' }), 'waiting_for_you');
+    await t.tick();
+    t.grow();
+    assert.equal(t.poll(5000), 'working');
+  } finally { t.done(); }
+});
 
 test('M6-05c a Claude permission wait (Notification) holds through another call\'s PreToolUse and PostToolUse and ends on the waited call\'s PostToolUse', async () => {
   const t = await memoryDb();

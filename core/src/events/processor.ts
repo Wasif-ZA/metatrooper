@@ -27,6 +27,7 @@ interface SessionRow {
   native_id: string | null;
   pid: number | null;
   run_id: string | null;
+  state_at: string;
 }
 
 /** Applies unprocessed events in seq order: links sessions, records pids, and moves session state. */
@@ -35,7 +36,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     .prepare('SELECT seq, at, session_id, kind, payload FROM event WHERE processed = 0 ORDER BY seq LIMIT ?')
     .all(limit) as unknown as EventRow[];
   if (rows.length === 0) return 0;
-  const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id FROM session WHERE id = ?');
+  const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id, state_at FROM session WHERE id = ?');
   const byNative = db.prepare("SELECT id FROM session WHERE native_id = ? AND NOT (host = 'external' AND state = 'exited') ORDER BY julianday(started_at) DESC LIMIT 1");
   const setEventSession = db.prepare('UPDATE event SET session_id = ? WHERE seq = ?');
   const projects = db.prepare('SELECT id, path FROM project');
@@ -120,7 +121,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if ((finished && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
           if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
-        const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
+        // File growth written before a wait began (the turn that led up to the ask) does not answer it.
+        const stale = ev.kind === 'core.activity' && s.state === 'waiting_for_you' && typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at);
+        const next = ev.kind === 'launch' || foreign || stale ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         if (next && next !== s.state) {
           setState.run(next, nowIso(), ev.session_id);

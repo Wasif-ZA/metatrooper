@@ -43,7 +43,7 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `term.output` | core | `{}` (first output after a counted bell) |
 | `core.prompt-written` | core | `{}` (the held prompt was typed into the pty) |
 | `core.status-cleared` | core | `{}` (Clear status from the session menu) |
-| `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
+| `core.activity` | core | `{"state": "working" or "quiet" or "blocked", "changed_at": <file mtime, ms; on working only>}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists. At core start, every `pty` session the last core left open gets one with `pid` null before any event is processed, then is resumed (`core/src/sessions/resume-all.ts`) |
 | `core.resumed` | core | `{"from": session id}`: written on the new session by `session.resume`; the workbench reads it as `resumed_from` to put the new session in the old one's tile. Never changes state |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
@@ -99,7 +99,7 @@ The core processes events in `seq` order and sets `session.state`:
 | `codex.Interrupt` | `idle` |
 | `gemini.BeforeAgent`, `gemini.AfterTool` | `working` |
 | `codex.turn` | `done` |
-| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working` |
+| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working`, except from `waiting_for_you` when `changed_at` is not after the time the wait began: growth written before the ask (the turn leading up to it) does not answer it. While `waiting_for_you`, growth after the wait began writes a fresh `working` even if the poll already counted the file as growing |
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
