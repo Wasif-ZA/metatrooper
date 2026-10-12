@@ -132,3 +132,11 @@ export function setBrowserSecret(db: DatabaseSync, name: string, origin: string,
 export function knownSecretValues(): string[] {
   return [...cache.values()];
 }
+
+/** Every secret value decrypted in this process plus every saved browser secret, decrypted here when another process filled it; throws when one cannot be read. */
+export function scrubSecretValues(): string[] {
+  const dir = path.join(homeDir(), 'secrets', BROWSER_SECRETS);
+  const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.dpapi')).map((f) => f.slice(0, -'.dpapi'.length)) : [];
+  for (const name of names) getSecret(BROWSER_SECRETS, name);
+  return knownSecretValues();
+}

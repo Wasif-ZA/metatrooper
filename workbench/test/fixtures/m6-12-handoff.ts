@@ -60,9 +60,10 @@ internal.clickAt = async (_p: unknown, _x: number, _y: number, recheck: () => Pr
 internal.answer = async (_p: unknown, _s: string, work: () => Promise<Record<string, unknown>>) => ({ ...(await work()), url: page.url, title: 'Bank' });
 // The element a real describe resolves to (see the child-frame section)
 let field: Record<string, unknown> = {};
+let axName = 'Password';
 internal.cmd = async (_p: unknown, method: string, params: Record<string, any>) => {
   if (method === 'Runtime.callFunctionOn' && params.objectId === 'field') return { result: { value: new Function(`return (${params.functionDeclaration})`)().call(field) } };
-  if (method === 'Accessibility.getPartialAXTree') return { nodes: [{ backendDOMNodeId: 7, name: { value: 'Password' }, role: { value: 'textbox' } }] };
+  if (method === 'Accessibility.getPartialAXTree') return { nodes: [{ backendDOMNodeId: 7, name: { value: axName }, role: { value: 'textbox' } }] };
   if (method === 'Input.insertText') {
     inserted.push(params.text);
     // a page that logs what was typed into it
@@ -123,6 +124,11 @@ r.childFrameOpaque = outcome(await call('browser.type', secret));
 field = { ...field, ownerDocument: { defaultView: null } };
 r.childFrameDetached = outcome(await call('browser.type', secret));
 r.childFrameInserted = inserted.length;
+// a page that copies the filled value into the field's name and id: describe never hands it to the MCP server
+frameWin.origin = 'https://bank.test';
+axName = `Password ${marker}`;
+field = { ...field, id: `pw-${marker}`, ownerDocument: { defaultView: frameWin } };
+r.describeScrubbed = (await call('browser.describe', { pane_id: 'bp_agent_1', ref: 'e5', tool: 'type' })).result?.control;
 internal.describe = stubDescribe;
 
 // The approval the MCP server asks for carries only the placeholder

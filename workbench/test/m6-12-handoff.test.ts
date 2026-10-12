@@ -32,6 +32,7 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       childFrameOpaque: 'not sent: the control is in a frame whose origin cannot be established',
       childFrameDetached: 'not sent: the control is in a frame whose origin cannot be established',
       childFrameInserted: 2,
+      describeScrubbed: { automation_id: 'pw-[secret]', name: 'Password [secret]', role: 'textbox' },
       approval: 'approved: password field',
       handoff: 'ok',
       handoffEvent: true,

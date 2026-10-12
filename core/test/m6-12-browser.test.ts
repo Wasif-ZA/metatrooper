@@ -1,8 +1,10 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
 import { isolation } from './helpers.ts';
 import { scrub, scrubDeep } from '../src/redact.ts';
@@ -140,4 +142,34 @@ test('M6-12 browser.secret.set keeps the value out of every table and file, save
   hits.push(...files.filter((f) => readFileSync(f).includes(marker)));
   assert.deepEqual(hits, []);
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM plugin_secret WHERE plugin_id = 'core-browser'").get() as { n: number }).n, 0);
+});
+
+test('M6-12 a browser secret decrypted only in another process is scrubbed from the approval row control, reason, summary and Needs you text', async () => {
+  const { buildMethods } = await import('../src/methods.ts');
+  // lower case and digits only, so only the known-secret-value redaction can catch it
+  const marker = `lowmark${randomUUID().replaceAll('-', '')}`;
+  const src = (f: string) => JSON.stringify(pathToFileURL(join(import.meta.dirname, '..', 'src', f)).href);
+  const saved = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    const { openCoreDb } = await import(${src('store/db.ts')});
+    const { setBrowserSecret } = await import(${src('secrets.ts')});
+    const db = openCoreDb();
+    setBrowserSecret(db, 'OTHER_PW', 'https://other.test', process.env.M612_LOW);
+    db.close();
+  `], { encoding: 'utf8', env: { ...process.env, M612_LOW: marker } });
+  assert.equal(saved.status, 0, saved.stderr);
+  const methods = buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k' });
+  const pending = methods.get('approval.check')!.handler(check({ target: 'https://d.test', control: { automation_id: `id-${marker}`, name: `Send ${marker}`, role: 'button' } })) as Promise<{ decision: string }>;
+  let row: Record<string, unknown> | undefined;
+  for (let i = 0; i < 300 && !row; i++) {
+    row = db.prepare("SELECT * FROM approval WHERE status = 'waiting' AND target = 'https://d.test'").get() as typeof row;
+    if (!row) await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.ok(row, 'an approval row is waiting');
+  methods.get('approval.resolve')!.handler({ approval_id: row.id, decision: 'reject' });
+  assert.equal((await pending).decision, 'rejected');
+  assert.deepEqual({ control: row.control, reason: row.reason, summary: row.summary }, {
+    control: '{"automation_id":"id-[secret]","name":"Send [secret]","role":"button"}', reason: 'risky control: Send [secret]', summary: 'click Send [secret] in d.test',
+  });
+  const needs = db.prepare("SELECT text FROM needs_you WHERE kind = 'approval' AND ref = ?").get(row.id) as { text: string };
+  assert.ok(!needs.text.includes(marker));
 });

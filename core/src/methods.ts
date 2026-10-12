@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
-import { knownSecretValues, setBrowserSecret } from './secrets.ts';
+import { scrubSecretValues, setBrowserSecret } from './secrets.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
@@ -588,7 +588,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
-  const approvals = new Approvals(db, ctl.approvalTimeoutMs, knownSecretValues);
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs, scrubSecretValues);
   m.set('approval.check', { handler: (p) => approvals.check(p) });
   m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 

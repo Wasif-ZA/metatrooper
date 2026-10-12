@@ -8,7 +8,8 @@ import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
-import { getSecret } from '../../../core/src/secrets.ts';
+import { redactSecretValues } from '../../../core/src/redact.ts';
+import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -908,8 +909,10 @@ ame, after checking the ref's field is a password field on the origin saved with
     }
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
     const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
-    const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
-    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
+    // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
+    const secrets = scrubSecretValues();
+    const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets).slice(0, 200);
+    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
   }
 
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */

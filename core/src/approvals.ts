@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
-import { looksLikeCredential, redactCredentials, scrub } from './redact.ts';
+import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } from './redact.ts';
 import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.ts';
 import { nowIso, ulid } from './time.ts';
 
@@ -140,7 +140,15 @@ export class Approvals {
     }
     const reason = riskReason(p) ?? (this.newOrigin(p) ? 'new origin' : null);
     if (!reason) return { decision: 'allow' };
-    const control = p.control ? redactCredentials(canonicalJson(p.control)) : null;
+    let secrets: string[];
+    try {
+      secrets = this.secrets();
+    } catch {
+      return { decision: 'deny', reason: 'a saved browser secret could not be read, so this action cannot be recorded safely' };
+    }
+    // every stored field is scrubbed of known secret values: a page can copy a filled secret into a control's name or id
+    const clean = (s: string) => redactCredentials(redactSecretValues(s, secrets));
+    const control = p.control ? clean(canonicalJson(Object.fromEntries(Object.entries(p.control).map(([k, v]) => [k, redactSecretValues(v, secrets)])))) : null;
     if (!ALWAYS.has(reason.split(':')[0])) {
       const covered = this.db.prepare(
         "SELECT 1 FROM approval WHERE session_id = ? AND surface = ? AND target = ? AND action = ? AND control IS ? AND status = 'approved' AND scope = 'session' LIMIT 1",
@@ -149,10 +157,10 @@ export class Approvals {
     }
     const id = `ap_${ulid()}`;
     const now = nowIso();
-    const summary = summaryOf(p, this.secrets());
+    const summary = summaryOf(p, secrets);
     this.db.prepare(
       "INSERT INTO approval (id, session_id, surface, target, control, action, action_hash, summary, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)",
-    ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, redactCredentials(reason), now);
+    ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, clean(reason), now);
     this.db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'approval', ?, ?)").run(ulid(), now, id, summary);
     const status = await new Promise<'approved' | 'rejected' | 'expired'>((resolve) => {
       const timer = setTimeout(() => this.finish(id, 'expired'), this.timeoutMs);
