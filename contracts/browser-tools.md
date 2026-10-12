@@ -94,9 +94,11 @@ box fails with "not visible".
   value; if it differs, the call fails with -32037. The last step before `Input.insertText`, which types into whatever has
   focus, checks focus is still on the ref's node (after the focus and select-all, whose page handlers could move it); for
   a field in a frame the main frame cannot read, focus must be in that frame and, in its own document, on the field.
-  Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. While an `evaluate` on the pane is still running (its script can
-  await for up to 10 s), a fill fails with -32037 `evaluate is running on this page; nothing was typed`, since the
-  script could wait for the value and return it encoded past the scrub. The
+  Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. Once an agent `evaluate` has
+  started on the page now loaded, running or finished, a fill fails with -32037 `evaluate has run on this page; navigate
+  first, nothing was typed` until the main frame navigates (`did-navigate`; an in-page navigation keeps the document),
+  since its script could wait for the value or leave a listener that copies it encoded past the scrub. The fixed
+  scripts of `read`, `scroll` and `wait_for` do not count. The
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
   fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.

@@ -51,7 +51,7 @@ const wc = Object.assign(new EventEmitter(), {
 const pane = {
   row: { id: 'bp_agent_1', project_id: 'p1', session_id: 's1' }, view: { webContents: wc }, refs: { byRef: new Map(), byKey: new Map() },
   lastSnapshot: new Map(), cursors: new Map(), navs: 0, crashed: null, console: [] as Array<{ at: number; level: string; text: string }>, network: new Map(),
-  dialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], ready: Promise.resolve(), handoff: null, secretOnPage: false, evaluating: 0,
+  dialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], ready: Promise.resolve(), handoff: null, secretOnPage: false, scripted: false,
 };
 internal.panes.set('bp_agent_1', pane);
 internal.describeControl = async () => ({ origin: new URL(page.url).origin, control: { automation_id: 'pw', name: 'Password', role: 'textbox' }, password: page.password, hidden: false });
@@ -242,6 +242,12 @@ r.nothingFilledDuringEvaluate = inserted.length === filledBefore;
 script.release();
 r.evaluateFinished = outcome(await running);
 internal.cmd = plainCmd;
+
+// Round 3: a finished evaluate can leave a listener on the page that copies what is typed, so no secret is filled until the main frame navigates
+const listened = inserted.length;
+r.fillAfterEvaluateFinished = outcome(await call('browser.type', secret));
+r.nothingFilledAfterEvaluate = inserted.length === listened;
+pane.scripted = false;
 
 // Round 2: Input.insertText types into whatever has focus, so a secret is typed only when focus is still on the checked field
 const theField = focusDoc.activeElement;

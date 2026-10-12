@@ -102,8 +102,8 @@ interface Pane {
   handoff: string | null;
   /** A secret was filled into the page now loaded; evaluate is off until the main frame navigates. */
   secretOnPage: boolean;
-  /** Agent `evaluate` scripts still running; no secret is filled while one is. */
-  evaluating: number;
+  /** An agent `evaluate` ran in the page now loaded; its listeners can outlive it, so no secret is filled until the main frame navigates. */
+  scripted: boolean;
 }
 
 interface Dialog {
@@ -282,7 +282,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, evaluating: 0 };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -346,6 +346,7 @@ export class PaneManager {
       pane.cursors.clear();
       pane.pickStack = [];
       pane.secretOnPage = false;
+      pane.scripted = false;
       pane.navs++;
       if (url.startsWith('data:')) {
         pane.errorFor = this.errorPages.get(url) ?? pane.errorFor;
@@ -1096,8 +1097,8 @@ ame, after checking the ref's field is a password field on the origin saved with
           }
           if (secret) {
             await this.focusOn(pane, node, a.ref);
-            // a script already running could wait for the fill and return the value encoded, past the scrub
-            if (pane.evaluating) throw new ToolError(-32037, 'evaluate is running on this page; nothing was typed');
+            // a script, running or done, can have left a listener that copies the value encoded, past the scrub
+            if (pane.scripted) throw new ToolError(-32037, 'evaluate has run on this page; navigate first, nothing was typed');
             pane.secretOnPage = true;
           }
           if (text) await this.cmd(pane, 'Input.insertText', { text });
@@ -1182,13 +1183,8 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
         if (pane.secretOnPage) throw new ToolError(-32037, 'evaluate is off on a page a secret was typed into; navigate first');
-        pane.evaluating++;
-        let value: unknown;
-        try {
-          value = await this.evalIsolated(pane, a.expression);
-        } finally {
-          pane.evaluating--;
-        }
+        pane.scripted = true;
+        const value = await this.evalIsolated(pane, a.expression);
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };
