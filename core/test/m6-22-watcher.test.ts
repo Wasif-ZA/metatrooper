@@ -307,6 +307,23 @@ test('M6-22: a line the current helper sends after the last grant ends, before t
   }
 });
 
+test('M6-22: a helper that dies after the last grant ends, before the next tick, leaves the watcher idle, not off', { skip: !windows && 'Windows only', timeout: 60_000 }, () => {
+  const db = setup();
+  const w = new Watcher(db);
+  try {
+    grant(db, 's1');
+    w.tick();
+    const child = (w as any).child;
+    db.prepare('UPDATE grant SET ended_at = ?').run(nowIso());
+    child.emit('exit', 1, null);
+    assert.equal(meta(db, 'input_watcher'), 'idle');
+    assert.equal((w as any).child, null);
+    assert.equal((w as any).failed, false);
+  } finally {
+    w.stop();
+  }
+});
+
 test('M6-22: the helper writes window titles as ASCII JSON, so non-ASCII survives any console code page', { skip: !windows && 'Windows only', timeout: 60_000 }, async () => {
   const helper = readFileSync(join(import.meta.dirname, '..', 'src', 'watch', 'input-hook.ps1'), 'utf8').replace(/^exit .*$/m, '');
   const title = 'café – 日本 \u{1f600} "q" \\';

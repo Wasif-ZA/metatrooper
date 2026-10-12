@@ -91,6 +91,8 @@ export class Watcher {
     let ready = false;
     const fail = () => {
       clearTimeout(timer);
+      // A helper that dies after the last grant ended is not a failure: tick() stops it and sets 'idle'.
+      if (this.child === child) this.tick();
       if (this.child !== child) return;
       this.child = null;
       this.failed = true;
