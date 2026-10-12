@@ -101,3 +101,38 @@ needs-you item". Today a window gets at most one open item per kind until someon
    stdout, which the core reads. That is the core's own child process, and no contract defines a pipe method for it.
 8. **D65.** The spec lists M6-22 among the children whose tests Codex writes, followed by a mutation run. I wrote
    these tests myself, so the Codex tests and the mutation run are still to do.
+
+## Review fixes, round 1
+
+I ran `git merge main` first (merge commit `0627919`). Codex raised two findings, both P2, and both were real. For each
+one I wrote the test, watched it fail on the old code, then fixed it in its own commit.
+
+| Finding | Verdict | Commit | Test (fails before, passes after) |
+|---|---|---|---|
+| Ignore output from stopped or replaced helpers (`watcher.ts`) | **Fixed** | `d8e7e31` | `M6-22: output a stopped helper still has in its pipe changes nothing`. The test starts a helper under a live grant, ends the grant, ticks (state `idle`), then feeds `{"ready":true}` and an injected-key line into the stopped child's stdout. Before the fix: `'on' !== 'idle'`. After: the state stays `idle`, no item, no take-over flag |
+| Encode helper output as UTF-8 (`input-hook.ps1`) | **Fixed** | `82c4ec1` | `M6-22: the helper writes window titles as ASCII JSON, so non-ASCII survives any console code page`. It loads the helper's C# class and runs its `Json()` on `café – 日本 😀 "q" \`. Node then parses what comes out of PowerShell's stdout. Before the fix it read `caf� - ?? ?? "q" \`. After, it reads the title intact |
+
+- **Fix 1.** The stdout `line` handler now returns early unless `this.child === child`, the same guard the failure
+  handler already used. That covers both a stopped helper and one that has been replaced.
+- **Fix 2.** `Json()` now writes every character outside printable ASCII as `\uXXXX`. A surrogate pair comes out as
+  two escapes, which `JSON.parse` joins back into one character. So the bytes are plain ASCII whatever the console
+  code page is. I did this instead of setting `Console.OutputEncoding = UTF8`, which can put a BOM before the
+  `{"ready":true}` line and break `JSON.parse` on it.
+- **`core/dist`.** I ran `node core/build.ts` after each fix and it changed nothing, because the build entries never
+  import `watch/*` (see "Commits" above). So neither commit includes dist.
+- **Contracts.** I changed none. Neither fix changes the schema, the `meta.input_watcher` values, or any pipe method.
+  The helper's stdout format is internal to the core.
+
+Suites after the fixes, from Git Bash with Git `usr/bin` on PATH:
+
+- Core: `cd core && node --test "test/*.test.ts"` gave **415 tests, 409 pass, 0 fail, 6 skipped**. The skips are the
+  same opt-in or environment-bound tests as before.
+- Workbench: `cd workbench && npm test` gave **131 tests, 92 pass, 0 fail, 35 skipped (Electron e2e, opt-in), 4
+  todo**.
+
+Left for Wasif:
+
+- I did not rerun the opt-in desktop end-to-end tests (`METATROOPER_DESKTOP_E2E=1`) after these fixes, because they
+  send real input to this desktop. Neither fix touches the path they test. Fix 1 only drops lines from a helper that
+  is no longer current, and fix 2 changes only how titles are escaped. If you want to confirm, run them.
+- Everything under "Left for Wasif" above still stands.
