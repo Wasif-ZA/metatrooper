@@ -237,6 +237,34 @@ test('M6-05c a wait that did not come from a permission prompt is not held by an
   } finally { t.done(); }
 });
 
+test('M6-05c a permission Notification after an earlier PermissionRequest\'s call finished holds its own wait', async () => {
+  const t = await memoryDb();
+  try {
+    t.send('claude.UserPromptSubmit');
+    t.send('claude.PreToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' });
+    t.send('claude.PermissionRequest', { tool_name: 'Bash', tool_use_id: 'toolu_A' });
+    assert.equal(t.send('claude.PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' }), 'working');
+    t.send('claude.PreToolUse', { tool_name: 'Edit', tool_use_id: 'toolu_B' });
+    assert.equal(t.send('claude.Notification', { class: 'permission' }), 'waiting_for_you');
+    assert.equal(t.send('claude.PreToolUse', { tool_name: 'Read', tool_use_id: 'toolu_C' }), 'waiting_for_you');
+    assert.equal(t.send('claude.PostToolUse', { tool_name: 'Edit', tool_use_id: 'toolu_B' }), 'working');
+  } finally { t.done(); }
+});
+
+test('M6-05c the Notification of a PermissionRequest\'s own prompt does not hold a later bell after that call finished', async () => {
+  const t = await memoryDb();
+  try {
+    t.send('claude.UserPromptSubmit');
+    t.send('claude.PreToolUse', { tool_name: 'Edit', tool_use_id: 'toolu_B' });
+    t.send('claude.PreToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' });
+    t.send('claude.PermissionRequest', { tool_name: 'Bash', tool_use_id: 'toolu_A' });
+    t.send('claude.Notification', { class: 'permission' });
+    assert.equal(t.send('claude.PostToolUse', { tool_name: 'Bash', tool_use_id: 'toolu_A' }), 'working');
+    assert.equal(t.send('term.bell', {}), 'waiting_for_you');
+    assert.equal(t.send('claude.PreToolUse', { tool_name: 'Read', tool_use_id: 'toolu_C' }), 'working');
+  } finally { t.done(); }
+});
+
 test('Claude hook events follow the installed version: PermissionRequest from 2.0.45, StopFailure from 2.1.78, PostToolUseFailure from 2.1.119', async () => {
   const { claudeHookEvents } = await import('../src/hooks/install.ts');
   const base = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'];

@@ -57,19 +57,22 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
-  const toolFinished = db.prepare("SELECT 1 FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) LIMIT 1");
-  /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last call still open before that PermissionRequest (with its tool_name) or before a permission Notification since the last prompt or Stop; null when there is no such wait or that call has finished. */
+  const toolFinished = db.prepare("SELECT seq FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq LIMIT 1");
+  /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last call still open before that PermissionRequest (with its tool_name); once that call has finished, or with no PermissionRequest since the last prompt or Stop, the last call still open before a later permission Notification; null when there is no such wait or that call has finished. */
   const permissionWait = (sessionId: string, seq: number, conv: string | null): string | null => {
     const ask = lastAsk.get(sessionId, seq, conv) as { seq: number; kind: string; id: unknown; tool: unknown } | undefined;
     let from = ask?.seq ?? 0;
-    let id = ask?.kind === 'claude.PermissionRequest' ? ask.id : undefined;
-    if (ask?.kind !== 'claude.PermissionRequest') {
-      const noteRow = lastPermissionNote.get(sessionId, from, seq, conv) as { seq: number } | undefined;
-      if (!noteRow) return null;
-      from = noteRow.seq;
+    if (ask?.kind === 'claude.PermissionRequest') {
+      const id = typeof ask.id === 'string' ? ask.id : (openToolId.get(sessionId, from, conv, typeof ask.tool === 'string' ? ask.tool : null) as { id: unknown } | undefined)?.id;
+      if (typeof id !== 'string') return null;
+      const end = toolFinished.get(sessionId, id, from, seq, conv) as { seq: number } | undefined;
+      if (!end) return id;
+      from = end.seq;
     }
-    if (typeof id !== 'string') id = (openToolId.get(sessionId, from, conv, ask?.kind === 'claude.PermissionRequest' && typeof ask.tool === 'string' ? ask.tool : null) as { id: unknown } | undefined)?.id;
-    return typeof id === 'string' && !toolFinished.get(sessionId, id, from, seq, conv) ? id : null;
+    const noteRow = lastPermissionNote.get(sessionId, from, seq, conv) as { seq: number } | undefined;
+    if (!noteRow) return null;
+    const id = (openToolId.get(sessionId, noteRow.seq, conv, null) as { id: unknown } | undefined)?.id;
+    return typeof id === 'string' && !toolFinished.get(sessionId, id, noteRow.seq, seq, conv) ? id : null;
   };
   const turns: TurnJob[] = [];
   const changed: Array<[string, string]> = [];

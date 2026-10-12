@@ -111,7 +111,9 @@ The core processes events in `seq` order and sets `session.state`:
 
 A Claude permission wait is held on one tool call: the `tool_use_id` of the last `claude.PermissionRequest`, or, with
 no PermissionRequest since the last prompt or Stop, of the last `claude.PreToolUse` before the last permission
-`claude.Notification`. A PermissionRequest without a `tool_use_id` waits on the last `claude.PreToolUse` before it with
+`claude.Notification`. Once the last PermissionRequest's call has finished, a permission Notification after that
+call's PostToolUse (or PostToolUseFailure) is a new wait, held on the last `claude.PreToolUse` before it; a Notification
+from before that finish is not. A PermissionRequest without a `tool_use_id` waits on the last `claude.PreToolUse` before it with
 the same `tool_name`. In both fallbacks only a call still open at the prompt counts: one whose PostToolUse (or
 PostToolUseFailure) came before the PermissionRequest or Notification is skipped. Two open calls with the same
 `tool_name` cannot be told apart (the redacted `tool_input` is not used), so the later one is taken. While a session is `waiting_for_you` on such a call that has not finished, a `claude.PreToolUse`,
