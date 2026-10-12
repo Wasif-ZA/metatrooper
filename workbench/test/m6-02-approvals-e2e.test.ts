@@ -22,7 +22,7 @@ function listen(handler: Parameters<typeof createServer>[1]): Promise<{ server: 
   });
 }
 
-test('M6-02a / M6-02b / M6-02c / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password, 120 s expiry', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
+test('M6-02a / M6-02b / M6-02c / M6-02d through a real pane: Send, Enter, credential text, session scope, rename, password, 120 s expiry, focus in shadow roots and frames, rename during the glide, navigation during the wait', { skip: !runnable && 'needs METATROOPER_BROWSER_E2E=1 and Electron', timeout: 300_000 }, paneApprovalsE2e);
 
 async function paneApprovalsE2e() {
   await buildGenerated();
@@ -72,6 +72,14 @@ async function paneApprovalsE2e() {
     res.setHeader('content-type', 'text/html');
     res.end(fixtureHtml);
   });
+  // Another origin whose focused button has the same name and id as the fixture's renamed Send button
+  let otherHits = 0;
+  const otherServer = await listen((_req, res) => {
+    otherHits++;
+    res.setHeader('content-type', 'text/html');
+    res.end(`<!doctype html><title>Other</title><button id="sendBtn" onclick="this.dataset.hits = (+this.dataset.hits || 0) + 1">Submit</button><script>document.getElementById('sendBtn').focus();</script>`);
+  });
+  const otherOrigin = `http://127.0.0.1:${otherServer.port}`;
 
   const env = { ...iso.env, METATROOPER_ENGINES: registry };
   const core = await startCore({ ...iso, env });
@@ -305,6 +313,21 @@ async function paneApprovalsE2e() {
     assert.match(expireResult.result?.content?.[0]?.text, /not approved in time/);
     assert.equal((db!.prepare('SELECT status FROM approval WHERE id = ?').get(expireApproval.id) as any).status, 'expired');
 
+    // A key approved on one origin is not sent after the page navigates to another origin while it waits; the new origin asks
+    await callTool('evaluate', { pane_id: paneId, expression: `document.getElementById("sendBtn").focus(); setTimeout(() => { location.href = "${otherOrigin}/"; }, 500); "armed"` });
+    const navStep = sendStep('key', { pane_id: paneId, keys: 'Enter' });
+    const navRow = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any, 15_000);
+    assert.equal(navRow.target, `http://127.0.0.1:${fixtureServer.port}`);
+    await until(() => otherHits > 0, 15_000);
+    await sleep(1000);
+    await uiPipe.request('approval.resolve', { approval_id: navRow.id, decision: 'approve' });
+    const againRow = await until(() => db!.prepare("SELECT * FROM approval WHERE status = 'waiting' AND id != ?").get(navRow.id) as any, 15_000);
+    assert.equal(againRow.target, otherOrigin);
+    await uiPipe.request('approval.resolve', { approval_id: againRow.id, decision: 'reject' });
+    assert.equal((await navStep.waitResult()).result?.isError, true);
+    const otherPress = await callTool('evaluate', { pane_id: paneId, expression: 'document.getElementById("sendBtn").dataset.hits || "0"' });
+    assert.equal(JSON.parse(otherPress.result?.content?.[0]?.text).value, '0');
+
     // Tell engine to exit cleanly
     const finalStep = ++stepIndex;
     writeFileSync(join(iso.home, `m602-step-${finalStep}.json`), JSON.stringify({ done: true }));
@@ -316,6 +339,7 @@ async function paneApprovalsE2e() {
     try { db?.close(); } catch {}
     killTree(wb?.pid);
     fixtureServer.server.close();
+    otherServer.server.close();
     await sleep(300);
     await teardownCore(core, iso);
   }
