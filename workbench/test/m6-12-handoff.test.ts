@@ -102,6 +102,9 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       consoleCutScrubbed: true,
       networkCutScrubbed: true,
       dialogCutScrubbed: true,
+      handoffMidUrlCheck: 'ok',
+      navigateAfterUrlCheck: handed,
+      loadedAfterUrlCheck: [],
       markerFound: [],
     });
   } finally {

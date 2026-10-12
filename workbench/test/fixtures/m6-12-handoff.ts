@@ -343,6 +343,21 @@ r.dialogCutScrubbed = !String((await call('browser.read', { pane_id: 'bp_agent_1
 pane.dialog = null;
 internal.cmd = plainCmd;
 
+// Round 4: a navigate whose URL check is still resolving the host when handoff lands does not load the page
+delete internal.load;
+const dnsHeld = hold();
+internal.paneCtx = () => ({ ownedPorts: new Set(), allowHosts: new Set(), lookup: async () => { await dnsHeld.held; return ['93.184.216.34']; } });
+const paneLoads: string[] = [];
+Object.assign(wc, { loadURL: async (u: string) => { paneLoads.push(u); } });
+const resolving = call('browser.navigate', { pane_id: 'bp_agent_1', url: 'https://bank.test/next' });
+await new Promise((res) => setTimeout(res, 50));
+r.handoffMidUrlCheck = outcome(await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in with your security key' }));
+dnsHeld.release();
+r.navigateAfterUrlCheck = outcome(await resolving);
+r.loadedAfterUrlCheck = paneLoads;
+pm.act('bp_agent_1', 'give-back');
+delete internal.paneCtx;
+
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
 const hits = tables.filter(({ name }) => JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all()).includes(marker)).map(({ name }) => `table ${name}`);

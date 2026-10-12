@@ -635,9 +635,11 @@ export class PaneManager {
     }
   }
 
-  private async load(pane: Pane, url: string): Promise<void> {
+  /** Loads `url` under the pane's policy; an agent load stops if the user took the pane while the URL was checked. */
+  private async load(pane: Pane, url: string, agent = false): Promise<void> {
     const verdict = await checkUrl(url, this.paneCtx(pane));
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
+    if (agent && pane.handoff) throw handedOff(pane);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
       if (!/ERR_ABORTED/.test(e.message)) throw new ToolError(-32099, `could not load ${url}: ${e.message}`);
     });
@@ -1040,7 +1042,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         const [prev, navs] = [pane.errorFor, pane.navs];
         pane.errorFor = null;
         const out = await this.answer(pane, session, async () => {
-          await this.load(pane, a.url);
+          await this.load(pane, a.url, true);
           return { status: pane.status };
         }).catch((e) => {
           // nothing loaded (a blocked URL): the error page is still on screen
