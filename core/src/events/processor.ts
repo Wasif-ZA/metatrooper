@@ -107,6 +107,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
           // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle' && waited === null) setTool.run(payload.tool_name, ev.session_id);
+          // A PermissionRequest names the call it waits on, which with overlapping calls need not be the last PreToolUse.
+          if (ev.kind === 'claude.PermissionRequest' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
           // A PostToolUse clears it only when it finishes the tool last asked for (in a permission wait, the waited one), so overlapping tools keep the one still pending.
           const finished = /^claude\.PostToolUse(Failure)?$/.test(ev.kind);
           const pending = waited ?? (finished && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq, own) as { id: unknown } | undefined)?.id : undefined);

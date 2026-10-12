@@ -115,7 +115,8 @@ no PermissionRequest since the last prompt or Stop, of the last `claude.PreToolU
 `claude.PostToolUse` or `claude.PostToolUseFailure` for any other `tool_use_id` changes no state and leaves `last_tool`
 alone; that call's own PostToolUse (or PostToolUseFailure), a prompt, Stop or StopFailure ends the wait. Only events
 of the session's own conversation (`session_id` equal to its `native_id`) count here; a side conversation's
-PermissionRequest, Notification or tool events under the same session neither hold nor end the wait.
+PermissionRequest, Notification or tool events under the same session neither hold nor end the wait. A
+`claude.PermissionRequest` sets `last_tool` from its own `tool_name`, so the tool shown is the call the wait is on.
 
 `exited` is final: once a session is `exited`, no event changes its state again.
 
