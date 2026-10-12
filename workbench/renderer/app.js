@@ -1500,6 +1500,7 @@ function closeFind() {
 function pickWalk(e) {
   if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return false;
   if (/^(TEXTAREA|INPUT|SELECT)$/.test((e.target && e.target.tagName) || '')) return false;
+  if (e.target !== document.body && !(e.target && e.target.closest && e.target.closest('.browser'))) return false;
   e.preventDefault();
   e.stopImmediatePropagation();
   void api.panePickWalk(ui.comment.pane_id, e.key === 'ArrowUp' ? 'up' : 'down');

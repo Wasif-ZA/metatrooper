@@ -90,15 +90,16 @@ let webNav = false;
 childWc.emit('will-navigate', { preventDefault() { webNav = true; } }, 'https://login.example/callback');
 r.popupGuarded = fileNav && !webNav && childWc.openHandler({ url: 'https://x.example/' }).action === 'deny' && pane.popups.has(child);
 
+wc.emit('did-navigate', {}, 'https://start.example/', 200);
 wc.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://nowhere.invalid/', true);
 const page = decodeURIComponent(wc.loads.at(-1)!);
 r.loadErrorPage = wc.loads.at(-1)!.startsWith('data:text/html') && page.includes('This page did not load') && page.includes('https://nowhere.invalid/') && page.includes('ERR_NAME_NOT_RESOLVED');
 const before = urlChanged.length;
 wc.url = wc.loads.at(-1)!;
-wc.emit('did-navigate', {}, wc.url, 200);
+wc.emit('did-navigate', {}, wc.url, -1);
 events.length = 0;
 wc.emit('did-stop-loading');
-r.errorPageKeepsUrl = urlChanged.length === before && pane.errorFor === 'https://nowhere.invalid/' && events.at(-1)?.url === 'https://nowhere.invalid/';
+r.errorPageKeepsUrl = urlChanged.length === before && pane.errorFor === 'https://nowhere.invalid/' && events.at(-1)?.url === 'https://nowhere.invalid/' && (pane as any).status === 200;
 
 wc.emit('did-fail-load', {}, -202, 'ERR_CERT_AUTHORITY_INVALID', 'https://self-signed.example/', true);
 r.certificatePage = decodeURIComponent(wc.loads.at(-1)!).includes('This page is not secure');
@@ -118,6 +119,15 @@ const loadsBefore = wc.loads.length;
 pm.act('bp_user', 'reload');
 await new Promise((res) => setTimeout(res, 50));
 r.reloadRetriesFailedUrl = wc.reloads === 0 && wc.loads.slice(loadsBefore).includes('https://93.184.216.34/');
+
+const dead = fakePane('bp_agent_2');
+dead.wc.loadURL = function (u: string) {
+  this.loads.push(u);
+  if (u.startsWith('https://')) this.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', u, true);
+  return Promise.resolve();
+};
+const navError = await pm.tool('bp_agent_2', 'navigate', { url: 'https://93.184.216.35/' }).then(() => '', (e: Error) => e.message);
+r.navigateToDeadHostFails = navError.startsWith('could not load https://93.184.216.35/');
 
 const evil = errorPage('load', 'https://x.example/"><script>alert(1)</script>', '<img src=x onerror=alert(1)>');
 r.errorPageEscapes = !evil.includes('<script>alert') && !evil.includes('<img src=x');

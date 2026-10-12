@@ -139,8 +139,10 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
   `data:text/html` page in the pane: "This page did not load", "This page is not secure" (net errors -200 to -299),
   "MetaTrooper blocked this page" (`ERR_BLOCKED_BY_CLIENT`) or "This page crashed", with the failed URL, the error
   and a Try again link. The page is never reported as the pane's URL: `pane.url`, the URL bar and the tools' page
-  state keep the failed URL. Reload, Try again and `navigate` load the failed URL again; after a crash they
-  re-attach the debugger with interception on first.
+  state keep the failed URL, and `status` keeps the last real page's. Reload and Try again load the failed URL
+  again; after a crash they, like `navigate`, re-attach the debugger with interception on first. `navigate` to a
+  URL that shows an error page fails with -32099 "could not load"; `click`, `type`, `select` and `back` return
+  `error: "the page did not load: <url>"` beside the page state.
 - **Popups keep their opener.** A `window.open` with `disposition: 'new-window'` (the OAuth popup shape) opens as a
   child window of the workbench in the opener's partition, sandboxed, with `window.opener` kept. It may only
   navigate to `http:`, `https:` or `about:blank`, cannot open windows itself, and closes with its pane. It has no

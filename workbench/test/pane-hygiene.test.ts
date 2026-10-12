@@ -26,5 +26,6 @@ test('M6-13 pane hygiene: error pages, popups with opener, no pane without a cli
     walkStopsBelowHtml: true,
     walkDown: true,
     walkDownAtClickedIsNoop: true,
+    navigateToDeadHostFails: true,
   });
 });

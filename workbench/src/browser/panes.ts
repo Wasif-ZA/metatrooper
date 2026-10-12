@@ -278,7 +278,6 @@ export class PaneManager {
     });
     wc.on('did-create-window', (child) => this.guardPopup(pane, child));
     wc.on('did-navigate', (_e, url, code) => {
-      pane.status = code;
       pane.refs.byRef.clear();
       pane.refs.byKey.clear();
       pane.lastSnapshot.clear();
@@ -286,6 +285,7 @@ export class PaneManager {
       pane.pickStack = [];
       pane.navs++;
       if (url.startsWith('data:')) return;
+      pane.status = code;
       pane.errorFor = null;
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
@@ -727,6 +727,7 @@ export class PaneManager {
     if (pane.dialog) out.dialog = pane.dialog;
     const errors = pane.console.filter((c) => c.at >= from && c.level === 'error').map((c) => c.text);
     if (errors.length) out.errors = errors.slice(-20);
+    if (pane.errorFor && pane.navs !== navs) out.error = `the page did not load: ${pane.errorFor}`;
     if (pane.dialog) return out;
     const after = await this.lines(pane, undefined, true).catch(() => null);
     if (after) {
@@ -790,10 +791,13 @@ export class PaneManager {
           await this.attach(pane);
           pane.crashed = null;
         }
-        return this.answer(pane, session, async () => {
+        pane.errorFor = null;
+        const out = await this.answer(pane, session, async () => {
           await this.load(pane, a.url);
           return { status: pane.status };
         });
+        if (pane.errorFor) throw new ToolError(-32099, `could not load ${pane.errorFor}; the pane shows the error`);
+        return out;
       }
       case 'back': {
         const wc = pane.view.webContents;
