@@ -225,6 +225,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
       const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
       if (resumed && engine.id === 'codex') db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(old.native_id, r.session_id);
+      appendEvent('core.resumed', r.session_id, { from: oldId }, db);
       resumedAs.set(oldId, r.session_id);
       return { ...r, resumed, ...(resumed ? {} : { notice: 'No saved conversation, starting fresh.' }) };
     },
