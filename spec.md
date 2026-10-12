@@ -109,6 +109,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D79 | Files panel | Wasif, 2026-10-12, in a /spec session: MetaTrooper gets a light file viewer, not an IDE (M7-9). It docks in the second big slot beside the focused tile, as Warp and Claude Code desktop do, and shows only that session's `cwd`. Tabs open read-only; `Edit` unlocks one tab, and a save refuses when the file changed on disk or another live session owns it (`ownersAsync`) until the user confirms. Real editing goes to VS Code through the existing `openLink`. No language servers. After the release, so Milestone 6 is unchanged |
 | D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
 | D81 | Wall repairs before the freeze | Wasif, 2026-10-12, in a /spec session from the UI research (`~/.cache/claude-scratch/metatrooper-ui-research-2026-10-12/report.html`): repairs to existing UI go in Milestone 6; the new History and Settings panels go to M7. Undo for hide is a 7 s delay in the renderer, with no `session.unhide` in the core. The tile x never shows on a live agent (M6-27, Critical, never slips). The other repairs are one child, M6-26, High, first on the slip list because the 81-day plan has no slack |
+| D82 | Session launcher in Rust | Wasif, 2026-10-12, after a memory check (19.6 GB in use, about 8.3 GB of it Codex processes left by closed sessions): `launch.js` becomes a Rust binary on Windows that puts each session in a job object ending every descendant on close (M7-10). It is the only Rust in the product; D10 stands for the core and the workbench. A Rust core was weighed and dropped: 8,987 lines at about 250 lines per CC day is 25 to 40 CC days for about 137 MB. The new binary joins the M5-2 signing step. If the M7-10 spike shows a detached broker survives the job, the folder sweep in `issues/m7-10-session-launcher.md` replaces it. |
 
 ## Current state, verified 2026-10-10
 
@@ -943,7 +944,7 @@ Deferred by Wasif on 2026-10-10, nothing waits on them before the freeze:
 - Phone control and the metered cloud: later epics.
 - macOS testing.
 
-## Milestone 7: after the release (about 32 CC days, from 2027-01-20)
+## Milestone 7: after the release (about 35 CC days, from 2027-01-20)
 
 Specced 2026-10-11 from the ideas D73 moved after the release (D77). Each item names its idea in the idea mine
 (`<lane> <n>`), and every file and line it names was checked against the code at e68b1a9. Nothing here starts
@@ -962,6 +963,7 @@ before the public release on 2027-01-19, and nothing here changes Milestone 6.
 | M7-7 | Wall layout: splitters, fractions, auto layout, drag to pair, fold stack, palette ranking | Medium | 5.0 | M7-8, M6-6, M6-7, M6-9, M6-19 |
 | M7-8 | Terminal: paste, shell marks, batching, OSC text, resize, copy output, graphemes, find, screen reader, anchor | Medium | 3.5 | M6-7, M6-8, M6-19 |
 | M7-9 | Files panel: read the agent's worktree beside its tile, guarded save, VS Code handoff (D79, D80) | Medium | 2.75 | M6-21 |
+| M7-10 | Session launcher in Rust: a closed session ends every process it started (D82) | High | 2.0 | none |
 
 Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
 
@@ -977,11 +979,13 @@ Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
   1.5 + 2.0 = 3.5.
 - M7-9: added 2026-10-12 (D79), sized by part in `issues/m7-09-files-panel.md`: 0.25 + 0.75 + 0.5 + 0.75 + 0.25 +
   0.25 = 2.75.
-- Build: 2.75 + 9.5 + 2.0 + 2.5 + 5.0 + 3.5 + 2.75 = 28.0 CC days.
-- Review, merge and two-engine checks at 15%: 28.0 x 0.15 = 4.2 CC days.
-- Total: 28.0 + 4.2 = 32.2, about 32 CC days.
-- Calendar, at M6's pace of 1 CC day per calendar day: 29 days from 2027-01-20 is 2027-02-17 (12 days left in
-  January, 20 to 31, then 17 in February: 12 + 17 = 29).
+- M7-10: added 2026-10-12 (D82), sized by part in `issues/m7-10-session-launcher.md`: 0.25 + 0.5 + 0.25 + 0.25 +
+  0.5 + 0.25 = 2.0.
+- Build: 2.75 + 9.5 + 2.0 + 2.5 + 5.0 + 3.5 + 2.75 + 2.0 = 30.0 CC days.
+- Review, merge and two-engine checks at 15%: 30.0 x 0.15 = 4.5 CC days.
+- Total: 30.0 + 4.5 = 34.5, about 35 CC days.
+- Calendar, at M6's pace of 1 CC day per calendar day: 35 days from 2027-01-20 is 2027-02-23 (12 days left in
+  January, 20 to 31, then 23 in February: 12 + 23 = 35).
 
 ```
 M6-4 ──> M7-5 core hygiene
@@ -991,9 +995,11 @@ M6-11 ──> M7-3 compare
 M6-24 ──> M7-4 continue elsewhere
 M6-7, M6-9, M7-8 ──> M7-7 wall layout   (inside: fractions, then splitters, then fold and cross-fade)
 M6-7, M6-8 ──> M7-8 terminal      (inside: shell marks before copy output)
+M7-10 launcher   (no dependency; its spike runs first)
 ```
 
-Order of work: M7-5 and M7-6 first (small, core, and the rest read their events), then M7-8, M7-7 and M7-1. M7-2 to
+Order of work: M7-10's spike, then M7-5 and M7-6 (small, core, and the rest read their events), then M7-10, M7-8,
+M7-7 and M7-1. M7-2 to
 M7-4 are built as already written.
 
 ### M7-1: Browser tools version 3
@@ -1183,6 +1189,18 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
   `ESC[3J` inside a mode 2026 block and scroll to the bottom 20 ms after the block ends, when the user was at the
   bottom before it.
 
+### M7-10: Session launcher
+
+Files: new `launcher/` (`Cargo.toml`, `src/main.rs`), `core/src/sessions/launch.ts` (98, 106),
+`core/src/hook/launch.ts`, `.github/workflows/ci.yml`, `tests/release.ps1`, `CONTRIBUTING.md`, `README.md`.
+
+- **Spike.** A job with kill-on-close and no breakaway; one Claude session runs `/codex:review`; after exit, the
+  broker and its `codex.exe` must be gone within 2 s. If not, the folder sweep replaces this child (D82).
+- **Launcher.** `metatrooper-launch.exe`, no crates, hand-declared kernel32 calls. It joins its own job before it
+  starts anything, then does what `hook/launch.ts` does today with the same flags, texts and exit codes.
+- **Launch event.** The core writes it after `term.open` with the pid `open()` returns; the launcher writes nothing.
+- **Fallback.** No binary, or Linux: `node launch.js` as today, named in the core log.
+
 ### M7 acceptance criteria
 
 - M7-01a. A session launched with `look` lists exactly 7 tools; `evaluate` fails -32034 naming `debug`; a launch
@@ -1286,7 +1304,16 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
 - M7-08j. The repaint replay result is in the issue; if the fix was built, 10 replays end at the bottom 10 times,
   and a replay started with the user scrolled up 50 rows leaves the view where it was.
 
-Codex writes the tests for M7-1, M7-5 and M7-6 (D65), with a mutation run per child that must fail at least one
+- M7-10a. A fixture engine that starts a detached, unref'd grandchild: after its session's terminal closes, the
+  grandchild's pid is gone within 2 s.
+- M7-10b. The launcher's working set is at most 5 MB with a session running.
+- M7-10c. `TROOP_SESSION_ID` reaches the child; exit code 7 comes back as 7; an empty argv exits 2 and an unknown
+  command exits 127 with today's texts; a `.cmd` engine starts; Ctrl+C reaches the engine; one `launch` event per
+  session carries the pty pid.
+- M7-10d. Without the binary, a session starts through `launch.js` and the core log names the fallback.
+- M7-10e. The spike's result (broker gone or not, ConPTY nesting fine or not) is in the issue.
+
+Codex writes the tests for M7-1, M7-5, M7-6 and M7-10 (D65), with a mutation run per child that must fail at least one
 test. Contracts updated in M7: `browser-tools.md` (presets, annotate, batch, `wait_for`, page tools, and M7-2's and M7-3's `comments`,
   `reply_comment`, `resolve_comment`, `reveal` and `emulate`),
 `events-and-hooks.md` (`term.cmd`, `ui.idle`, the prompt check item), `plugin-manifest.schema.json` (pattern caps, `exit_cmd`, `usage_source: gemini-transcript`),
