@@ -194,25 +194,25 @@ test('M4-27: a Claude session with no TROOP_SESSION_ID in a registered project i
   const h = await ownersHarness();
   try {
     const t0 = Date.now();
-    await h.hook('UserPromptSubmit', { session_id: 'outside-1', prompt: 'hi' });
-    await until(() => h.db.prepare("SELECT 1 FROM session WHERE native_id = 'outside-1' AND host = 'external'").get(), 2000);
+    await h.hook('UserPromptSubmit', { session_id: '0e1d2c3b-0000-4000-8000-000000000001', prompt: 'hi' });
+    await until(() => h.db.prepare("SELECT 1 FROM session WHERE native_id = '0e1d2c3b-0000-4000-8000-000000000001' AND host = 'external'").get(), 2000);
     assert.ok(Date.now() - t0 < 2000);
-    const id = (h.db.prepare("SELECT id FROM session WHERE native_id = 'outside-1'").get() as { id: string }).id;
+    const id = (h.db.prepare("SELECT id FROM session WHERE native_id = '0e1d2c3b-0000-4000-8000-000000000001'").get() as { id: string }).id;
     const listed = await runNode(['core/cli.ts', 'sessions', '--json'], h.env);
     assert.equal(JSON.parse(listed.stdout).find((s: { id: string }) => s.id === id).host, 'external');
     await until(() => (h.db.prepare('SELECT turn_base FROM session WHERE id = ?').get(id) as { turn_base: string | null }).turn_base !== null, 3000);
     await sleep(20);
     writeFileSync(join(h.repo, 'a.txt'), 'outside edit\n');
-    await h.hook('Stop', { session_id: 'outside-1' });
+    await h.hook('Stop', { session_id: '0e1d2c3b-0000-4000-8000-000000000001' });
     await until(() => h.claims(id).length === 1, 3000);
     assert.deepEqual((await h.owners('a.txt'))[0].owners.map((o) => o.id), [id]);
     await sleep(5500);
     assert.notEqual((h.db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string }).state, 'exited');
-    await h.hook('SessionEnd', { session_id: 'outside-1', reason: 'exit' });
+    await h.hook('SessionEnd', { session_id: '0e1d2c3b-0000-4000-8000-000000000001', reason: 'exit' });
     await until(() => (h.db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string }).state === 'exited', 3000);
-    await h.hook('UserPromptSubmit', { session_id: 'outside-1', prompt: 'resumed' });
-    await until(() => h.db.prepare("SELECT 1 FROM session WHERE native_id = 'outside-1' AND host = 'external' AND state != 'exited'").get(), 2000);
-    assert.equal((h.db.prepare("SELECT count(*) AS n FROM session WHERE native_id = 'outside-1'").get() as { n: number }).n, 2);
+    await h.hook('UserPromptSubmit', { session_id: '0e1d2c3b-0000-4000-8000-000000000001', prompt: 'resumed' });
+    await until(() => h.db.prepare("SELECT 1 FROM session WHERE native_id = '0e1d2c3b-0000-4000-8000-000000000001' AND host = 'external' AND state != 'exited'").get(), 2000);
+    assert.equal((h.db.prepare("SELECT count(*) AS n FROM session WHERE native_id = '0e1d2c3b-0000-4000-8000-000000000001'").get() as { n: number }).n, 2);
     const elsewhere = join(h.home, 'elsewhere');
     mkdirSync(elsewhere);
     const e = { ...h.env };
@@ -221,6 +221,9 @@ test('M4-27: a Claude session with no TROOP_SESSION_ID in a registered project i
     await sleep(300);
     assert.equal(h.db.prepare("SELECT 1 FROM event WHERE json_extract(payload, '$.session_id') = 'outside-2'").get(), undefined);
     assert.equal(h.db.prepare("SELECT 1 FROM session WHERE native_id = 'outside-2'").get(), undefined);
+    await h.hook('PreToolUse', { session_id: 't', tool_name: 'Bash', tool_input: { command: 'ls' } });
+    await sleep(300);
+    assert.equal(h.db.prepare("SELECT 1 FROM session WHERE native_id = 't'").get(), undefined);
   } finally { await h.teardown(); }
 });
 

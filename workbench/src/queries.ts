@@ -63,6 +63,12 @@ function parse<T>(text: string | null, fallback: T): T {
   }
 }
 
+/** A project folder that is gone, or a MetaTrooper worktree that no longer holds a `.git` entry; the menu leaves it out. */
+export function goneCheckout(p: string): boolean {
+  if (!fs.existsSync(p)) return true;
+  return /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p) && !fs.existsSync(path.join(p, '.git'));
+}
+
 /** Everything the workbench draws, read in one pass from a read-only connection. `projectId` scopes sessions and panes. */
 export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.now()): Snapshot {
   const meta = Object.fromEntries((db.prepare("SELECT key, value FROM meta WHERE key IN ('core_pid','core_heartbeat')").all() as Array<{ key: string; value: string }>).map((r) => [r.key, r.value]));
@@ -122,7 +128,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    projects: db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects'],
+    projects: (db.prepare('SELECT id, name, path, last_opened FROM project ORDER BY julianday(last_opened) DESC').all() as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
     engines,
     sessions,
     needs_you,
@@ -133,6 +139,26 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,
     limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
   };
+}
+
+type TaskRow = { engine_id: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string };
+
+/** A session's task line, as its tile shows it: the terminal title, else the pipeline step, else where and when it opened. */
+export function taskOf(x: TaskRow): string {
+  const t = (x.title || '').trim();
+  if (t && !/[\\/]/.test(t)) return t;
+  if (x.step_id) return x.step_id;
+  const folder = (x.cwd || '').split(/[\\/]/).filter(Boolean).pop();
+  const at = Date.parse(x.started_at);
+  const when = Number.isNaN(at) ? '' : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  return [folder && `in ${folder}`, when && `opened ${when}`].filter(Boolean).join(', ') || 'new session';
+}
+
+/** The OS toast for a needs-you row, or null when its session's tile is focused while the window has focus. */
+export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | null, focused: { window: boolean; session: string | null }): { title: string; body: string } | null {
+  if (session && focused.window && n.ref === focused.session) return null;
+  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you';
+  return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
 }
 
 export function dataVersion(db: DatabaseSync): number {

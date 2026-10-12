@@ -248,6 +248,29 @@ const termView = (() => {
     if (id && terms.has(id)) troop.termInput(id, text);
   }
 
+  /** Scrolls a tile to the line containing `text` nearest row `near`, waiting up to 2 s for its snapshot. */
+  function reveal(id, near, text) {
+    const t = terms.get(id);
+    if (!t) return Promise.resolve(false);
+    const want = text.toLowerCase();
+    const find = () => {
+      const b = t.term.buffer.active;
+      let best = -1;
+      for (let i = b.length - 1; i >= 0; i--) {
+        let line = b.getLine(i)?.translateToString(true) ?? '';
+        while (i > 0 && b.getLine(i)?.isWrapped) line = (b.getLine(--i)?.translateToString(true) ?? '') + line;
+        if (line.toLowerCase().includes(want) && (best < 0 || Math.abs(i - near) < Math.abs(best - near))) best = i;
+      }
+      if (best >= 0) t.term.scrollToLine(best);
+      return best >= 0;
+    };
+    if (find()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const sub = t.term.onWriteParsed(() => { if (find()) { sub.dispose(); clearTimeout(timer); resolve(true); } });
+      const timer = setTimeout(() => { sub.dispose(); resolve(false); }, 2000);
+    });
+  }
+
   /** Selected session, its attach time and its last `n` non-empty rows, for the test probe. */
   function state(n = 5) {
     const t = terms.get(selected);
@@ -279,5 +302,5 @@ const termView = (() => {
     });
   }
 
-  return { show, setLook, type, state, timeEcho, tile, refit, links: linksFor, ids: () => [...terms.keys()] };
+  return { show, setLook, type, state, timeEcho, reveal, tile, refit, links: linksFor, ids: () => [...terms.keys()] };
 })();
