@@ -176,6 +176,18 @@ test('M6-05a rollout growth written before a Codex PermissionRequest, and the qu
   } finally { t.done(); }
 });
 
+test('M6-05a rollout growth written before a Codex PermissionRequest leaves the wait alone when the poll runs before the processor handles the ask', async () => {
+  const t = await codexRollout();
+  try {
+    const { appendEvent } = await import('../src/events/append.ts');
+    t.grow();
+    await t.tick();
+    appendEvent('codex.PermissionRequest', 's', { session_id: 'conv', tool_name: 'shell' }, t.db);
+    assert.equal(t.poll(1000), 'waiting_for_you');
+    assert.equal(t.poll(22_000), 'waiting_for_you');
+  } finally { t.done(); }
+});
+
 test('M6-05a growth after an approval answered within 20 s of the last growth still ends the wait', async () => {
   const t = await codexRollout();
   try {
