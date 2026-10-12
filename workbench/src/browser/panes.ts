@@ -120,6 +120,8 @@ export class PaneManager {
   private guarded = new Set<string>();
   private allowed = new Map<string, boolean>();
   private asking = new Map<string, { key: string; pane: string; cb: (ok: boolean) => void }>();
+  /** Error page data: URL to the URL that failed, so going back or forward to an error entry restores errorFor. */
+  private errorPages = new Map<string, string>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -284,7 +286,10 @@ export class PaneManager {
       pane.cursors.clear();
       pane.pickStack = [];
       pane.navs++;
-      if (url.startsWith('data:')) return;
+      if (url.startsWith('data:')) {
+        pane.errorFor = this.errorPages.get(url) ?? pane.errorFor;
+        return;
+      }
       pane.status = code;
       pane.errorFor = null;
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
@@ -341,7 +346,11 @@ export class PaneManager {
     if (wc.isDestroyed()) return;
     pane.errorFor = url;
     this.log(pane, 'error', `${ERROR_TEXT[kind]?.[0] ?? 'This page did not load'}: ${url} ${detail}`);
-    void wc.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorPage(kind, url, detail))}`).catch(() => {});
+    const page = `data:text/html;charset=utf-8,${encodeURIComponent(errorPage(kind, url, detail))}`;
+    this.errorPages.delete(page);
+    this.errorPages.set(page, url);
+    if (this.errorPages.size > 50) this.errorPages.delete(this.errorPages.keys().next().value!);
+    void wc.loadURL(page).catch(() => {});
   }
 
   /** Loads a URL again after an error page, re-attaching the debugger first when the renderer crashed. */

@@ -16,6 +16,7 @@ test('M6-13 pane hygiene: error pages, popups with opener, no pane without a cli
     popupClosesWithPane: true,
     loadErrorPage: true,
     errorPageKeepsUrl: true,
+    forwardToErrorPageKeepsUrl: true,
     certificatePage: true,
     blockedPage: true,
     abortAndSubframeIgnored: true,

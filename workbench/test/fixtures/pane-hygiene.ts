@@ -100,6 +100,16 @@ wc.emit('did-navigate', {}, wc.url, -1);
 events.length = 0;
 wc.emit('did-stop-loading');
 r.errorPageKeepsUrl = urlChanged.length === before && pane.errorFor === 'https://nowhere.invalid/' && events.at(-1)?.url === 'https://nowhere.invalid/' && (pane as any).status === 200;
+const errorEntry = wc.url;
+wc.url = 'https://start.example/';
+wc.emit('did-navigate', {}, wc.url, 200);
+const backCleared = pane.errorFor === null;
+wc.url = errorEntry;
+wc.emit('did-navigate', {}, errorEntry, -1);
+const reloadsBeforeForward = wc.reloads;
+pm.act('bp_user', 'reload');
+await new Promise((res) => setTimeout(res, 50));
+r.forwardToErrorPageKeepsUrl = backCleared && pane.errorFor === 'https://nowhere.invalid/' && wc.reloads === reloadsBeforeForward;
 
 wc.emit('did-fail-load', {}, -202, 'ERR_CERT_AUTHORITY_INVALID', 'https://self-signed.example/', true);
 r.certificatePage = decodeURIComponent(wc.loads.at(-1)!).includes('This page is not secure');
