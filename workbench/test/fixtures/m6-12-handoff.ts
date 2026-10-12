@@ -185,6 +185,38 @@ r.describeIsTheCheckOne = String(PaneManager.prototype['describe' as never]).inc
 db.prepare("UPDATE browser_pane SET url = 'https://bank.test/cb?code=4/0Abc&access_token=zzz' WHERE id = 'bp_agent_1'").run();
 r.panesScrubbed = (await call('browser.panes')).result;
 
+// Round 2: a navigate waiting on its first snapshot, and an evaluate waiting on its isolated world, when handoff lands do nothing after it
+const stubAnswer = internal.answer;
+delete internal.answer;
+const hold = () => { let release!: () => void; const held = new Promise<void>((res) => { release = res; }); return { held, release }; };
+const snap = hold();
+internal.lines = async () => { await snap.held; return []; };
+const loaded: string[] = [];
+internal.load = async (_p: unknown, url: string) => { loaded.push(url); };
+const navigating = call('browser.navigate', { pane_id: 'bp_agent_1', url: 'https://bank.test/next' });
+await new Promise((res) => setTimeout(res, 50));
+r.handoffMidNavigate = outcome(await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in with your security key' }));
+snap.release();
+r.navigateAfterHandoff = outcome(await navigating);
+r.loadedAfterHandoff = loaded;
+pm.act('bp_agent_1', 'give-back');
+internal.answer = stubAnswer;
+pane.secretOnPage = false;
+const world = hold();
+internal.isolated = async () => { await world.held; return 1; };
+const plainCmd = internal.cmd;
+let evaluated = 0;
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate') evaluated++; return plainCmd(p, method, params); };
+const evaluating = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: '1' });
+await new Promise((res) => setTimeout(res, 50));
+r.handoffMidEvaluate = outcome(await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in with your security key' }));
+world.release();
+r.evaluateAfterHandoff = outcome(await evaluating);
+r.evaluatedAfterHandoff = evaluated;
+pm.act('bp_agent_1', 'give-back');
+internal.cmd = plainCmd;
+delete internal.isolated;
+
 // M1-05 style scan: the value is in no table, file, tool result or event
 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
 const hits = tables.filter(({ name }) => JSON.stringify(db.prepare(`SELECT * FROM "${name}"`).all()).includes(marker)).map(({ name }) => `table ${name}`);

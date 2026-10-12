@@ -73,6 +73,12 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       auditKeys: ['origin', 'pane', 'status', 'tool'],
       describeIsTheCheckOne: true,
       panesScrubbed: [{ pane_id: 'bp_agent_1', url: 'https://bank.test/cb?code=[secret]&access_token=[secret]', dev_port: null }],
+      handoffMidNavigate: 'ok',
+      navigateAfterHandoff: handed,
+      loadedAfterHandoff: [],
+      handoffMidEvaluate: 'ok',
+      evaluateAfterHandoff: handed,
+      evaluatedAfterHandoff: 0,
       markerFound: [],
     });
   } finally {

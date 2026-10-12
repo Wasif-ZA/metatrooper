@@ -799,6 +799,8 @@ export class PaneManager {
     const navs = pane.navs;
     const before = pane.lastSnapshot.get(key) ?? (await this.lines(pane, undefined, true).catch(() => []));
     const from = Date.now();
+    // the user may have taken the pane while the first snapshot was read; navigate and back send no Input.* to stop them
+    if (pane.handoff) throw handedOff(pane);
     const r = await work();
     await this.settle(pane);
     const wc = pane.view.webContents;
@@ -820,6 +822,7 @@ export class PaneManager {
 
   private async evalIsolated(pane: Pane, expression: string): Promise<unknown> {
     const contextId = await this.isolated(pane);
+    if (pane.handoff) throw handedOff(pane);
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
     if (r.exceptionDetails) throw new ToolError(-32099, `evaluate threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
     return r.result?.value;

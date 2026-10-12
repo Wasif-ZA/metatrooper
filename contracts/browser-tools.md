@@ -73,7 +73,9 @@ box fails with "not visible".
   give it back`, and no approval is asked. The workbench switches to the pane, shows the reason (at most 300 characters)
   above it with a Give back button, and the pane's `state` events carry `handoff`. The mark is held in the workbench
   only; closing the workbench clears it. A call already running when the handoff lands sends no input after it: the
-  recheck before dispatch and every `Input.*` command fail with -32036.
+  recheck before dispatch and every `Input.*` command fail with -32036. A `navigate` or `back` still reading its first
+  snapshot does not load, and a script-run tool (`evaluate`, `read`, `scroll`, `wait_for`) does not run its script, once
+  the handoff lands; both fail with -32036. A screenshot already in flight still completes.
 - **Origins.** The origin of an input is that of the control's own frame: the pane's for the main frame, the child
   frame's otherwise. A child frame whose origin is not an http(s) origin (opaque, detached) fails with -32030 and nothing
   is sent. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
