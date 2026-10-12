@@ -3,9 +3,12 @@ import net from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
+import { appendEvent } from '../../../core/src/events/append.ts';
+import { scrub, scrubDeep } from '../../../core/src/redact.ts';
+import { knownSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
+const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
@@ -23,6 +26,14 @@ export function ownedPanes(db: DatabaseSync, sessionId: string): PaneRow[] {
   return db.prepare(
     'SELECT * FROM browser_pane bp WHERE bp.open = 1 AND bp.session_id = ? ORDER BY bp.id',
   ).all(sessionId) as unknown as PaneRow[];
+}
+
+/** Result keys passed through unscrubbed: image bytes. */
+const KEEP = new Set(['data_base64']);
+
+/** One append-only `browser.tool` event row per agent tool call: tool, pane, origin and result status, never the arguments. */
+function audit(sessionId: string, payload: { tool: string; pane: string; origin: string; status: string }): void {
+  try { appendEvent('browser.tool', sessionId, payload)?.close(); } catch {}
 }
 
 function clearDeadSocket(pipePath: string): Promise<void> {
@@ -101,13 +112,22 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         deps.refreshPanes();
         for (let i = 0; i < 40 && !deps.panes.has(paneId); i++) await new Promise((r) => setTimeout(r, 50));
       }
-      const result = await deps.panes.tool(paneId, tool, { ...params, _session: bound.sessionId });
-      return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: bound.sessionId, pane_id: paneId } : result });
+      const sessionId = bound.sessionId;
+      let status = 'ok';
+      try {
+        const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
+        return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, knownSecretValues(), KEEP) });
+      } catch (e) {
+        status = `error ${e instanceof ToolError ? e.code : -32099}`;
+        throw e;
+      } finally {
+        if (tool !== 'describe') audit(sessionId, { tool, pane: paneId, origin: deps.panes.origin(paneId), status });
+      }
     };
 
     const decode = createDecoder((raw) => {
       const msg = raw as { id?: unknown };
-      handle(raw as never).catch((e) => fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, (e as Error).message));
+      handle(raw as never).catch((e) => fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, scrub((e as Error).message, knownSecretValues())));
     });
     socket.on('data', (chunk) => {
       try {

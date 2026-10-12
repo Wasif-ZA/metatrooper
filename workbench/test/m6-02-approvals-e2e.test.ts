@@ -97,7 +97,8 @@ async function paneApprovalsE2e() {
     mkdirSync(project);
     // The project allows 127.0.0.1, so the fixture page loads before M6-3 session ports exist
     mkdirSync(join(project, '.troop'));
-    writeFileSync(join(project, '.troop', 'config.json'), JSON.stringify({ allow_hosts: ['127.0.0.1'] }));
+    // and lists both origins, so the M6-12 new-origin ask does not mix into these rules
+    writeFileSync(join(project, '.troop', 'config.json'), JSON.stringify({ allow_hosts: ['127.0.0.1'], allow_origins: [`http://127.0.0.1:${fixtureServer.port}`, otherOrigin] }));
     const opened = await initPipe.request('project.open', { path: project });
     const projectId = opened.result.project_id as string;
 

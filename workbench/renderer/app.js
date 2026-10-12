@@ -143,6 +143,7 @@ function renderBrowser() {
   if (ui.comment) body = renderCommentForm();
   else if (!pane) body = '<p class="empty">No browser pane. Open one.</p>';
   else if (ui.browserMode === 'compare') body = renderCompare(pane);
+  else if (ui.browserMode === 'timeline') body = renderTimeline();
   else body = '<div id="pane-host" class="pane-host"></div>';
   const st = (pane && ui.paneState[pane.id]) || {};
   const perms = pane ? ui.perms.filter((x) => x.pane_id === pane.id) : [];
@@ -161,15 +162,23 @@ function renderBrowser() {
       <button data-action="find-step" data-dir="next" title="Next (Enter)">&darr;</button>
       <button data-action="find-close" title="Close (Esc)">Close</button>
     </div>` : '';
+  const handed = st.handoff ? `<div class="toolbar permbar"><span>The agent handed you this pane: <b>${esc(st.handoff)}</b></span>
+      <button class="primary" data-action="give-back">Give back</button></div>` : '';
   const asks = perms.map((x) => `<div class="toolbar permbar"><span><b>${esc(x.origin)}</b> wants ${esc(x.permission)}</span>
       <button class="primary" data-action="perm" data-id="${esc(x.id)}" data-allow="1">Allow</button><button data-action="perm" data-id="${esc(x.id)}" data-allow="0">Block</button></div>`).join('');
   return `<div class="browser">
     ${tabs}
     ${controls}
     <div class="loadbar ${st.loading ? 'on' : ''}"></div>
-    ${asks}${find}
+    ${handed}${asks}${find}
     ${body}
   </div>`;
+}
+
+/** The pane's browser tool calls, newest first: time, tool, origin and result. */
+function renderTimeline() {
+  const rows = (ui.audit || []).map((r) => `<tr><td class="meta">${esc(new Date(r.at).toLocaleString())}</td><td>${esc(r.tool)}</td><td>${esc(r.origin || '')}</td><td class="${r.status === 'ok' ? '' : 'meta'}">${esc(r.status)}</td></tr>`).join('');
+  return rows ? `<div class="panel timeline"><table><tr><th>When</th><th>Tool</th><th>Origin</th><th>Result</th></tr>${rows}</table></div>` : '<p class="empty">No agent browser actions in the last 30 days.</p>';
 }
 
 function renderCommentForm() {
@@ -1370,6 +1379,10 @@ async function onClick(e) {
       } else if (pick === 'mode') {
         ui.browserMode = ui.browserMode === 'compare' ? 'live' : 'compare';
         render();
+      } else if (pick === 'timeline') {
+        ui.browserMode = ui.browserMode === 'timeline' ? 'live' : 'timeline';
+        if (ui.browserMode === 'timeline') ui.audit = await api.paneAudit(pane.id);
+        render();
       } else if (pick === 'find') openFind();
       else if (pick === 'close') {
         await rpc('pane.close', { pane_id: pane.id });
@@ -1377,6 +1390,9 @@ async function onClick(e) {
       } else if (pick && pick.startsWith('own:')) await rpc('pane.assign', { pane_id: pane.id, session_id: pick.slice(4) || null });
       return;
     }
+    case 'give-back':
+      void api.paneAct(ui.paneId, 'give-back');
+      return;
     case 'pane-act':
       void api.paneAct(ui.paneId, el.dataset.act);
       return;
@@ -1726,6 +1742,7 @@ api.onPaneEvent((ev) => {
     return;
   } else if (ev.kind === 'download') { toast(ev.state === 'completed' ? `Downloaded to ${ev.file}` : `Download ${ev.state}: ${ev.file}`, ev.state !== 'completed'); return; }
   else if (ev.kind === 'permission') { ui.perms.push(ev); if (ev.pane_id !== ui.paneId) toast(`${ev.origin} wants ${ev.permission}; open its pane to answer.`); }
+  else if (ev.kind === 'handoff') { ui.paneId = ev.pane_id; ui.tab = 'browser'; ui.split = true; ui.browserMode = 'live'; save('tab', ui.tab); toast(`An agent handed you a browser pane: ${ev.reason}`); }
   else if (ev.kind === 'opened') { ui.paneId = ev.pane_id; ui.urlDraft = null; ui.find = null; ui.tab = 'browser'; ui.split = true; save('tab', ui.tab); }
   render();
 });

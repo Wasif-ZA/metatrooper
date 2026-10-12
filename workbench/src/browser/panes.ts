@@ -8,6 +8,8 @@ import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
+import { getSecret } from '../../../core/src/secrets.ts';
+import { BROWSER_SECRETS, browserSecretOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
@@ -95,6 +97,10 @@ interface Pane {
   popups: Set<BrowserWindow>;
   /** The picked element first, then each parent walked up to. */
   pickStack: number[];
+  /** The reason the agent gave when it handed the pane to the user, or null while the agent has it. */
+  handoff: string | null;
+  /** A secret was filled into the page now loaded; evaluate is off until the main frame navigates. */
+  secretOnPage: boolean;
 }
 
 interface Dialog {
@@ -269,7 +275,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [] };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -332,6 +338,7 @@ export class PaneManager {
       pane.lastSnapshot.clear();
       pane.cursors.clear();
       pane.pickStack = [];
+      pane.secretOnPage = false;
       pane.navs++;
       if (url.startsWith('data:')) {
         pane.errorFor = this.errorPages.get(url) ?? pane.errorFor;
@@ -437,7 +444,7 @@ export class PaneManager {
     if (wc.isDestroyed()) return;
     this.hooks.paneEvent({
       kind: 'state', pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
-      can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(),
+      can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(), handoff: pane.handoff,
     });
   }
 
@@ -475,6 +482,7 @@ export class PaneManager {
         break;
       }
       case 'find-stop': wc.stopFindInPage('keepSelection'); break;
+      case 'give-back': pane.handoff = null; break;
       default: return;
     }
     this.emitState(pane);
@@ -824,6 +832,14 @@ export class PaneManager {
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
     await pane.ready;
+    if (pane.handoff) throw new ToolError(-32036, `the user has the pane (${pane.handoff}); wait until they give it back`);
+    if (name === 'handoff') {
+      if (typeof a.reason !== 'string' || !a.reason.trim()) throw new ToolError(-32602, 'reason is required');
+      pane.handoff = a.reason.replace(/\s+/g, ' ').trim().slice(0, 300);
+      this.emitState(pane);
+      this.hooks.paneEvent({ kind: 'handoff', pane_id: pane.row.id, reason: pane.handoff });
+      return { ok: true };
+    }
     if (pane.crashed && !(name === 'navigate' && pane.crashed.startsWith('the page crashed'))) throw new ToolError(-32034, pane.crashed);
     if (name === 'dialog') {
       if (!pane.dialog) throw new ToolError(-32002, 'no dialog is open');
@@ -836,6 +852,26 @@ export class PaneManager {
       throw new ToolError(-32032, `a ${pane.dialog.type} dialog is open ("${pane.dialog.message.slice(0, 200)}"); call dialog first`);
     }
     return this.race(pane, this.run(pane, name, a));
+  }
+
+  /** The origin of the page a pane shows, or an empty string. */
+  origin(id: string): string {
+    const pane = this.panes.get(id);
+    if (!pane || pane.view.webContents.isDestroyed()) return '';
+    try { return new URL(this.pageUrl(pane)).origin; } catch { return ''; }
+  }
+
+  /** The value of browser secret 
+ame, after checking the ref's field is a password field on the origin saved with the secret. */
+  private async secretValue(pane: Pane, name: string, ref: unknown): Promise<string> {
+    const saved = browserSecretOrigin(name);
+    if (!saved) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
+    const d = await this.describe(pane, { ref, tool: 'type' });
+    if (d.origin !== saved) throw new ToolError(-32037, `secret ${name} is saved for another origin; nothing was typed`);
+    if (!d.password) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
+    const value = getSecret(BROWSER_SECRETS, name);
+    if (!value) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
+    return value;
   }
 
   /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
@@ -994,14 +1030,19 @@ export class PaneManager {
         });
       case 'type': {
         if (typeof a.text !== 'string') throw new ToolError(-32602, 'text is required');
+        const secret = SECRET_PLACEHOLDER.exec(a.text)?.[1];
+        if (!secret && a.text.includes('{{secret:')) throw new ToolError(-32602, 'a {{secret:NAME}} placeholder must be the whole text');
+        if (secret) await this.secretValue(pane, secret, a.ref);
         return this.answer(pane, session, async () => {
           const { node, x, y } = await this.target(pane, a.ref);
           await this.clickAt(pane, x, y, recheck);
+          const text = secret ? await this.secretValue(pane, secret, a.ref) : a.text;
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
-          if (a.text) await this.cmd(pane, 'Input.insertText', { text: a.text });
+          if (secret) pane.secretOnPage = true;
+          if (text) await this.cmd(pane, 'Input.insertText', { text });
           else {
             for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }
@@ -1082,6 +1123,7 @@ export class PaneManager {
       }
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
+        if (pane.secretOnPage) throw new ToolError(-32037, 'evaluate is off on a page a secret was typed into; navigate first');
         const value = await this.evalIsolated(pane, a.expression);
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
@@ -1143,7 +1185,7 @@ export class PaneManager {
     if (node === null) return;
     await this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} });
     pane.pickStack = [node];
-    await this.describe(pane, node);
+    await this.describePick(pane, node);
     if (!this.win.isDestroyed()) this.win.webContents.focus();
   }
 
@@ -1176,12 +1218,12 @@ export class PaneManager {
       if (pane.pickStack !== stack) return false;
       stack.push(node.backendNodeId);
     }
-    await this.describe(pane, stack[stack.length - 1]);
+    await this.describePick(pane, stack[stack.length - 1]);
     return true;
   }
 
   /** Sends a picked element's URL, CSS path, raw outer HTML (sanitised and cut to 4 KB when saved) and crop to the workbench UI. */
-  private async describe(pane: Pane, node: number): Promise<void> {
+  private async describePick(pane: Pane, node: number): Promise<void> {
     const html = String((await this.cmd(pane, 'DOM.getOuterHTML', { backendNodeId: node })).outerHTML ?? '').slice(0, PICK_RAW);
     const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
     const sel = await this.cmd(pane, 'Runtime.callFunctionOn', {
