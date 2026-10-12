@@ -63,4 +63,13 @@ const nameless = await internal.describeControl(page, { ref: 'e1', tool: 'click'
 axName = null;
 r.unreadableAtDispatchAsksAgain = await dispatch({ ...nameless.control, origin: nameless.origin, hidden: nameless.hidden, password: nameless.password });
 
+const filler = 'x '.repeat(110);
+axName = `${filler}Send`;
+r.sendPast200Asks = await check('click');
+axName = `${filler}Archive`;
+const archive = await internal.describeControl(page, { ref: 'e1', tool: 'click' });
+r.archiveNameKeptWhole = archive.control.name.length;
+axName = `${filler}Send`;
+r.suffixChangedAsksAgain = await dispatch({ ...archive.control, origin: archive.origin, hidden: archive.hidden, password: archive.password });
+
 console.log(JSON.stringify(r));

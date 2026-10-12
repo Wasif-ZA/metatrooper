@@ -107,6 +107,12 @@ test('click, select or type on a control whose accessibility node cannot be read
   assert.equal(riskReason({ ...base, action: 'scroll' }), null);
 });
 
+test('a risky word past 200 characters of the name asks, and only the reason shortens the name', () => {
+  const name = `${'x '.repeat(150)}Send`;
+  const reason = riskReason({ session_id: 's1', surface: 'browser', target: 'http://127.0.0.1', args: {}, action: 'click', control: { name, automation_id: '', role: 'button' } });
+  assert.equal(reason, `risky control: ${name.slice(0, 200)}`);
+});
+
 test('M6-02a: Send click creates waiting approval and needs_you, rejecting resolves both', async () => {
   const iso = isolation();
   const core = await startCore(iso);
