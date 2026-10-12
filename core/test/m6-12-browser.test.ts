@@ -225,19 +225,25 @@ test('M6-12 a browser secret saved again by another process is read again, not s
   assert.ok(knownSecretValues().includes('first-value-1') && knownSecretValues().includes('second-value-2'));
 });
 
-test('M6-12 a checked tool the MCP server stops before dispatch (denied, core offline) reports its outcome to the workbench for the audit row', async () => {
+test('M6-12 a checked tool the MCP server stops before dispatch (denied, core offline, control kept changing) reports its outcome to the workbench for the audit row, once per call across retries', async () => {
   const { browserPipe, corePipe } = await import('../src/paths.ts');
   const { createDecoder, encode } = await import('../src/pipe/framing.ts');
   type Seen = Array<{ method: string; params: Record<string, unknown> }>;
-  /** A pipe server answering each request with `answer`, recording what it received. */
-  const fake = (pipe: string, answer: (method: string) => unknown, seen: Seen) => {
-    const server = net.createServer((s) => s.on('data', createDecoder((m: any) => { seen.push({ method: m.method, params: m.params }); s.write(encode({ jsonrpc: '2.0', id: m.id, result: answer(m.method) })); })));
+  /** A pipe server answering each request with `answer` (an `{error}` answer is sent as the error), recording what it received. */
+  const fake = (pipe: string, answer: (method: string) => any, seen: Seen) => {
+    const server = net.createServer((s) => s.on('data', createDecoder((m: any) => { seen.push({ method: m.method, params: m.params }); const a = answer(m.method); s.write(encode({ jsonrpc: '2.0', id: m.id, ...(a?.error ? a : { result: a }) })); })));
     return new Promise<net.Server>((res) => server.listen(pipe, () => res(server)));
   };
   const browserSeen: Seen = [];
   const coreSeen: Seen = [];
-  const browser = await fake(browserPipe(), (m) => (m === 'browser.describe' ? { session_id: 's1', origin: 'https://a.test', control, password: false, hidden: false } : { ok: true }), browserSeen);
-  const core = await fake(corePipe(), () => ({ decision: 'deny', reason: 'nope' }), coreSeen);
+  let changes = 0; // how many more browser.click calls answer CONTROL_CHANGED
+  let decision = 'allow';
+  const browser = await fake(browserPipe(), (m) => {
+    if (m === 'browser.describe') return { session_id: 's1', origin: 'https://a.test', control, password: false, hidden: false };
+    if (m === 'browser.click' && changes > 0) { changes--; return { error: { code: -32035, message: 'the control changed' } }; }
+    return { ok: true };
+  }, browserSeen);
+  const core = await fake(corePipe(), () => ({ decision, reason: 'nope' }), coreSeen);
   const child = spawn(process.execPath, [join(import.meta.dirname, '..', 'metatrooper-browser.js')], { stdio: ['pipe', 'pipe', 'inherit'], env: process.env });
   const replies = new Map<number, any>();
   let buf = '';
@@ -251,6 +257,19 @@ test('M6-12 a checked tool the MCP server stops before dispatch (denied, core of
     return replies.get(id)?.result?.content?.[0]?.text;
   };
   try {
+    // retried after CONTROL_CHANGED: the workbench audits the sent attempt, so nothing is reported
+    changes = 1;
+    assert.doesNotMatch(await ask(10, 'click', { pane_id: 'bp1', ref: 'e1' }), /changing/);
+    // changed on every attempt: nothing was sent, so its one outcome is reported
+    changes = 3;
+    assert.equal(await ask(11, 'click', { pane_id: 'bp1', ref: 'e1' }), 'the control kept changing; nothing was sent');
+    assert.deepEqual(browserSeen.splice(0).map((m) => (m.method === 'browser.outcome' ? { ...m.params } : m.method)), [
+      'browser.describe', 'browser.click', 'browser.describe', 'browser.click',
+      'browser.describe', 'browser.click', 'browser.describe', 'browser.click', 'browser.describe', 'browser.click',
+      { pane_id: 'bp1', tool: 'click', status: 'error -32035' },
+    ]);
+    coreSeen.length = 0;
+    decision = 'deny';
     assert.equal(await ask(1, 'click', { pane_id: 'bp1', ref: 'e1' }), 'not sent: nope');
     await new Promise<void>((r) => core.close(() => r()));
     assert.match(await ask(2, 'type', { pane_id: 'bp1', ref: 'e2', text: 'hi' }), /core is offline/);

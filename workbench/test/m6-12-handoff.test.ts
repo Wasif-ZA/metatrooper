@@ -78,6 +78,8 @@ test('M6-12a handoff blocks every other browser tool until Give back; M6-12b a s
       evaluateAcrossHandoff: 'the user took the pane while evaluate ran; its result is dropped',
       evaluateAfterLoadingGiveBack: 'evaluate is off on a page the user had through a handoff; navigate first',
       evaluateAfterNextNavigate: 'ok',
+      controlChanged: 'the page changed origin since the control was checked; nothing was sent',
+      controlChangedRows: 0,
       handoffMidNavigate: 'ok',
       navigateAfterHandoff: handed,
       loadedAfterHandoff: [],

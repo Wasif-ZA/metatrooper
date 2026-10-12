@@ -143,9 +143,10 @@ async function checkedCall(name        , args                         )         
     if (v.decision === 'expired') return stopped({ code: -32030, message: 'not approved in time' });
     if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
     const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
+    // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
     if (r.error?.code !== CONTROL_CHANGED) return r;
   }
-  return { error: { code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' } };
+  return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
 }
 
 async function toolCall(name        , args                         )                  {

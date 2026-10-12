@@ -131,8 +131,10 @@ box fails with "not visible".
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
-  before sending it (describe failed, denied, rejected, expired, core offline) reports `browser.outcome` so it gets its
-  row too. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first. The rows are kept with the pane they
+  before sending it (describe failed, denied, rejected, expired, core offline, or the control kept changing on all
+  three attempts) reports `browser.outcome` so it gets its row too. An attempt that fails with -32035 (the control
+  changed since it was checked; nothing was sent) writes no row, since the MCP server checks again and retries it, so a
+  retried call is one row with its final outcome. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first. The rows are kept with the pane they
   were read for: when another pane is selected (by the user, an agent opening a pane, or a close), the Browser tab shows
   that pane live, never the first pane's rows. A Timeline read still in flight when a later one is asked (the user
   switches panes and opens its Timeline) is dropped when it returns, so its rows never replace the later pane's.

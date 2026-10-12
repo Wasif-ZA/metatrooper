@@ -230,6 +230,11 @@ r.evaluateAfterLoadingGiveBack = await evalCookie();
 internal.committed(pane);
 r.evaluateAfterNextNavigate = await evalCookie();
 internal.committed(pane);
+// Round 6: an attempt whose control changed since it was checked writes no row; the MCP server retries it and the call is one row
+const auditRows = () => (db.prepare("SELECT count(*) AS n FROM event WHERE kind = 'browser.tool'").get() as { n: number }).n;
+const rowsBeforeChange = auditRows();
+r.controlChanged = outcome(await call('browser.click', { pane_id: 'bp_agent_1', ref: 'e5', expect: { name: 'Password', automation_id: 'pw', origin: 'https://other.test', hidden: false, password: true } }));
+r.controlChangedRows = auditRows() - rowsBeforeChange;
 
 // Round 2: a navigate waiting on its first snapshot, and an evaluate waiting on its isolated world, when handoff lands do nothing after it
 const stubAnswer = internal.answer;

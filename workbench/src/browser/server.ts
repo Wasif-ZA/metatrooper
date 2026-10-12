@@ -130,7 +130,9 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         status = `error ${e instanceof ToolError ? e.code : -32099}`;
         throw e;
       } finally {
-        if (tool !== 'describe') audit(sessionId, { tool, pane: paneId, origin: deps.panes.origin(paneId), status });
+        // a checked attempt whose control changed sent nothing; the MCP server retries it, or reports it with browser.outcome, so the call is one row
+        const retried = CHECKED.has(tool) && status === 'error -32035';
+        if (tool !== 'describe' && !retried) audit(sessionId, { tool, pane: paneId, origin: deps.panes.origin(paneId), status });
       }
     };
 
