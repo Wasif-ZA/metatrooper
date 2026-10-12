@@ -4,6 +4,8 @@ import { browserPipe } from '../paths.js';
 import { openReaderDb } from '../store/db.js';
 import { createDecoder, encode } from '../pipe/framing.js';
 import { ancestors, parentTable } from '../browser/ancestry.js';
+import { call as coreCall } from '../pipe/client.js';
+import { actionHash, APPROVAL_TIMEOUT_MS,              } from '../approvals.js';
 
 const CALL_TIMEOUT_MS = 30_000;
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
@@ -22,6 +24,7 @@ const TOOLS                                                                     
   { name: 'read', description: 'The main text of the page, one line per block; search keeps only lines containing it.', inputSchema: { type: 'object', properties: { ...pane, ...budget, search: { type: 'string' } } } },
   { name: 'click', description: 'Click the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
   { name: 'type', description: 'Replace the text of the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
+  { name: 'key', description: 'Press a key or chord on the focused element, e.g. "Enter", "Tab", "Control+A".', inputSchema: { type: 'object', properties: { ...pane, keys: { type: 'string' } }, required: ['keys'] } },
   { name: 'select', description: 'Choose an option in a select element. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
   { name: 'scroll', description: 'Scroll the page, or a node into view.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['dy'] } },
   { name: 'wait_for', description: 'Wait until text or a ref appears.', inputSchema: { type: 'object', properties: { ...pane, text: { type: 'string' }, ref: { type: 'string' }, timeout_ms: { type: 'integer', default: 10000 } } } },
@@ -115,9 +118,34 @@ function send(msg        )       {
   process.stdout.write(JSON.stringify(msg) + '\n');
 }
 
+const CHECKED = new Set(['click', 'type', 'select', 'key']);
+const CONTROL_CHANGED = -32035;
+                                                                             
+
+/** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. */
+async function checkedCall(name        , args                         )                 {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const d = await browser.call('browser.describe', { ...args, tool: name });
+    if (d.error) return d;
+    const { session_id, origin, control, password, hidden } = d.result                                                                                                       ;
+    const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
+    const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: APPROVAL_TIMEOUT_MS + 10_000 });
+    if (out.kind !== 'reply') return { error: { code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' } };
+    if (out.reply.error) return { error: out.reply.error };
+    const v = out.reply.result                                         ;
+    if (v.decision === 'deny') return { error: { code: -32030, message: `not sent: ${v.reason}` } };
+    if (v.decision === 'rejected') return { error: { code: -32030, message: 'not approved: the user rejected this action' } };
+    if (v.decision === 'expired') return { error: { code: -32030, message: 'not approved in time' } };
+    const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
+    if (r.error?.code !== CONTROL_CHANGED) return r;
+  }
+  return { error: { code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' } };
+}
+
 async function toolCall(name        , args                         )                  {
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
-  const r = await browser.call(`browser.${name}`, args ?? {});
+  const { expect: _drop, ...clean } = args ?? {};
+  const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
   const result = r.result                                                                                           ;
   if (name === 'screenshot' && result?.data_base64) {

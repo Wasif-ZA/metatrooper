@@ -10,6 +10,10 @@ be omitted and that pane is used. When the session owns no pane, `navigate` open
 `agent: true`). That pane has an in-memory partition of its own, so it starts logged out and shares no cookies
 with the user's panes; its storage is cleared when it closes.
 
+`click`, `type`, `select` and `key` are checked before they are sent (`contracts/approvals.md`): a risky one waits
+for a person in the workbench and may return "not approved in time" or "not approved: the user rejected this
+action". A control or page origin that changed between the check and the dispatch fails with -32035 and nothing is sent.
+
 | Tool | Input | Output |
 |---|---|---|
 | `panes` | `{}` | `[{pane_id, url, dev_port}]` for panes this session may drive |
@@ -21,6 +25,7 @@ with the user's panes; its storage is cleared when it closes.
 | `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}` plus the page state; replaces the field's text (select all, then insert); same checks as `click` |
 | `select` | `{pane_id, ref, value}` | `{ok}` plus the page state; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
+| `key` | `{pane_id, keys}` | `{ok}`; presses a key or chord on the focused element (`Enter`, `Tab`, `Escape`, `Space`, arrows, one character, with `Control+`, `Alt+`, `Shift+`, `Meta+`; `Shift+` types a character's US-layout shifted form, so `Shift+a` types `A` and `Shift+1` types `!`) |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
 | `screenshot` | `{pane_id, full_page?: bool = false, ref?, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |

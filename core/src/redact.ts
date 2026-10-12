@@ -144,7 +144,7 @@ export function rebuildPayload(kind: string, built: object): Obj {
 }
 
 const NOTIFY_LABEL: Record<string, string> = {
-  gate: 'approval needed', handoff: 'handoff waiting', 'run-failed': 'run failed', budget: 'budget limit', 'missing-secret': 'secret missing', other: 'needs you',
+  gate: 'approval needed', approval: 'approval needed', handoff: 'handoff waiting', 'run-failed': 'run failed', budget: 'budget limit', 'missing-secret': 'secret missing', other: 'needs you',
 };
 
 /** The one-line message a notification sink receives: a fixed label plus the item text with URLs, paths and token-like strings removed. */
@@ -157,6 +157,30 @@ export function notifyText(kind: string, text: string): string {
     .trim()
     .slice(0, 160);
   return `MetaTrooper (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
+}
+
+export const CREDENTIAL_PATTERNS: RegExp[] = [
+  /\bgh[pousr]_[A-Za-z0-9]{30,}/,
+  /\bgithub_pat_\w{20,}/,
+  /\bsk-[A-Za-z0-9_-]{20,}/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
+  /\bAIza[0-9A-Za-z_-]{35}/,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+];
+
+/** A run of 32+ token characters is a credential when it mixes digits, lower and upper case; found in one pass, then each run tested, so a long run costs linear time. */
+const LONG_RUN = /[A-Za-z0-9_+/=-]{32,}/g;
+const mixedCase = (run: string) => /[0-9]/.test(run) && /[a-z]/.test(run) && /[A-Z]/.test(run);
+
+export function looksLikeCredential(text: string): boolean {
+  return CREDENTIAL_PATTERNS.some((re) => re.test(text)) || (text.match(LONG_RUN) ?? []).some(mixedCase);
+}
+
+/** Replaces every credential-pattern match in text with [secret]. */
+export function redactCredentials(text: string): string {
+  return CREDENTIAL_PATTERNS.reduce((out, re) => out.replace(new RegExp(re.source, 'g'), '[secret]'), text).replace(LONG_RUN, (run) => (mixedCase(run) ? '[secret]' : run));
 }
 
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */

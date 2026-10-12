@@ -94,8 +94,10 @@ test('UI_METHODS contains all four notify.sink methods', () => {
 
 test('sink constants contain the expected default lists and hints', () => {
   assert.deepEqual(SINK_KINDS, ['ntfy', 'slack-webhook', 'discord-webhook', 'teams-workflow', 'webhook', 'command']);
-  assert.deepEqual(SINK_DEFAULT_KINDS, ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret']);
-  assert.ok(SINK_ALL_KINDS.includes('gate'));
+  assert.deepEqual(SINK_DEFAULT_KINDS, ['gate', 'handoff', 'run-failed', 'budget', 'missing-secret', 'approval']);
+  const schema = readFileSync(new URL('../../contracts/schema.sql', import.meta.url), 'utf8');
+  const kinds = schema.match(/CREATE TABLE needs_you[^]*?kind\s+TEXT NOT NULL CHECK \(kind IN \(([^)]*)\)/)![1].split(',').map((k) => k.trim().replace(/'/g, ''));
+  assert.deepEqual(SINK_ALL_KINDS, kinds);
   assert.equal(SINK_DEST_HINT.ntfy, 'https://ntfy.sh/your-topic');
 });
 

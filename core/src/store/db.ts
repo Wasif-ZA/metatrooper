@@ -51,7 +51,8 @@ export function openCoreDb(): DatabaseSync {
     addColumn('session', 'limit_resume', 'INTEGER NOT NULL DEFAULT 1');
     addColumn('project', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
     addColumn('project', 'older', 'INTEGER NOT NULL DEFAULT 0');
-    for (const table of ['notify_sink', 'notify_delivery', 'limit_history']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+    for (const table of ['notify_sink', 'notify_delivery', 'limit_history', 'approval']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+    db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
   });
   migrate(db);
   return db;
@@ -111,7 +112,7 @@ function rebuildTable(db: DatabaseSync, schema: string, t: string, select: (col:
 /** Rebuilds session, comment, needs_you and plugin once when their CHECKs predate a host or kind schema.sql now allows. */
 export function allowSandbox(db: DatabaseSync): void {
   const sql = (t: string) => (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(t) as { sql: string } | undefined)?.sql ?? '';
-  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'uncommitted'"], ['plugin', "'registry-import'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
+  const stale = [['session', "'external'"], ['comment', "'notice'"], ['needs_you', "'approval'"], ['plugin', "'registry-import'"]].filter(([t, v]) => sql(t) && !sql(t).includes(v)).map(([t]) => t);
   if (!stale.length) return;
   const schema = fs.readFileSync(schemaFile, 'utf8');
   db.exec('PRAGMA foreign_keys = OFF');

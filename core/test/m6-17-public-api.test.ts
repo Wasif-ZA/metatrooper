@@ -63,6 +63,8 @@ const EXPECTED_METHODS = [
   'pane.url',
   'pane.assign',
   'pane.capture',
+  'approval.check',
+  'approval.resolve',
 ];
 
 // Literal list of methods moved to pipeline products.
@@ -102,6 +104,7 @@ const EXPECTED_NEEDS_UI = new Set([
   'pane.url',
   'pane.assign',
   'pane.capture',
+  'approval.resolve',
 ]);
 
 // Seed a test session into the isolated core database.
@@ -142,6 +145,7 @@ test('troop --help stdout lists every METHODS name and exits 0', async () => {
 
 test('buildMethods key set equals METHODS names minus ui.hello plus MOVED_METHODS with needsUi per declaration', () => {
   const dummyDb = new DatabaseSync(':memory:');
+  dummyDb.exec('CREATE TABLE approval (id TEXT, status TEXT)');
   const dummyCtl = { engines: () => [], stop: () => {}, uiKey: 'test_key' };
   // Build methods map for verification.
   const methods = buildMethods(dummyDb, dummyCtl);

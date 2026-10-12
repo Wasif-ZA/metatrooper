@@ -27,6 +27,22 @@ const SNAPSHOT_TOKENS = 4000;
 const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
+/** The focused element through open shadow roots and same-origin frames; 'hidden' when focus is in a frame this world cannot read. */
+const FOCUSED = `(() => {
+  let e = document.activeElement;
+  for (;;) {
+    if (!e || e === e.ownerDocument.body) return null;
+    if (e.shadowRoot && e.shadowRoot.activeElement) { e = e.shadowRoot.activeElement; continue; }
+    if (e.tagName === 'IFRAME' || e.tagName === 'FRAME') {
+      let d = null;
+      try { d = e.contentDocument; } catch {}
+      if (!d) return 'hidden';
+      e = d.activeElement;
+      continue;
+    }
+    return e;
+  }
+})()`;
 const GESTURE_MS = 5000;
 const PICK_RAW = 64 * 1024;
 const POPUP_PREFS = { sandbox: true, contextIsolation: true, nodeIntegration: false, devTools: false, spellcheck: false };
@@ -703,8 +719,10 @@ export class PaneManager {
     }, 1600);
   }
 
-  private async clickAt(pane: Pane, x: number, y: number): Promise<void> {
+  /** `recheck` runs after the cursor glide, right before the mouse events. */
+  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>): Promise<void> {
     await this.pointAt(pane, x, y);
+    await recheck();
     this.hooks.probe({ kind: 'click', pane: pane.row.id, x, y });
     pane.clickedAt = Date.now();
     await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
@@ -820,6 +838,88 @@ export class PaneManager {
     return this.race(pane, this.run(pane, name, a));
   }
 
+  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
+  private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
+    let origin = '';
+    try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
+    let objectId: string | undefined;
+    let backendNodeId: number | undefined;
+    if (a.tool === 'key') {
+      const r = await this.cmd(pane, 'Runtime.evaluate', { expression: FOCUSED, contextId: await this.isolated(pane) });
+      if (r.result?.value === 'hidden') return { origin, control: null, password: false, hidden: true };
+      objectId = r.result?.objectId;
+      if (objectId) {
+        const node = (await this.cmd(pane, 'DOM.describeNode', { objectId, pierce: true })).node;
+        if (node?.shadowRoots?.some((s: any) => s.shadowRootType === 'closed')) return { origin, control: null, password: false, hidden: true };
+        backendNodeId = node?.backendNodeId;
+      }
+    } else if (a.ref !== undefined) {
+      const t = this.node(pane, a.ref);
+      backendNodeId = t.backendNodeId;
+      objectId = await this.resolve(pane, t, a.ref);
+    }
+    if (!objectId || !backendNodeId) return { origin, control: null, password: false, hidden: false };
+    const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
+      objectId,
+      returnByValue: true,
+      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password" }; }',
+    });
+    const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
+    const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
+    const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
+  }
+
+  /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
+  private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
+    if (!a.expect || typeof a.expect !== 'object') return;
+    const d = await this.describe(pane, { ...a, tool });
+    if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
+    const now = d.control;
+    if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
+      throw new ToolError(-32035, 'the control changed since it was checked; nothing was sent');
+    }
+  }
+
+  private async pressKeys(pane: Pane, keys: string): Promise<void> {
+    const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
+    const key = parts.pop() ?? '';
+    const MODS: Record<string, number> = { alt: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
+    let modifiers = 0;
+    for (const m of parts) {
+      const bit = MODS[m.toLowerCase()];
+      if (!bit) throw new ToolError(-32602, `unknown modifier ${m}`);
+      modifiers |= bit;
+    }
+    const NAMED: Record<string, [string, string, number, string?]> = {
+      enter: ['Enter', 'Enter', 13, '\r'], return: ['Enter', 'Enter', 13, '\r'], tab: ['Tab', 'Tab', 9], escape: ['Escape', 'Escape', 27], esc: ['Escape', 'Escape', 27],
+      backspace: ['Backspace', 'Backspace', 8], delete: ['Delete', 'Delete', 46], space: [' ', 'Space', 32, ' '], arrowup: ['ArrowUp', 'ArrowUp', 38],
+      arrowdown: ['ArrowDown', 'ArrowDown', 40], arrowleft: ['ArrowLeft', 'ArrowLeft', 37], arrowright: ['ArrowRight', 'ArrowRight', 39],
+      home: ['Home', 'Home', 36], end: ['End', 'End', 35], pageup: ['PageUp', 'PageUp', 33], pagedown: ['PageDown', 'PageDown', 34],
+    };
+    let def = NAMED[key.toLowerCase()];
+    if (!def && key.length === 1) {
+      // US layout: each unshifted character followed by its Shift form. CDP types `text` as given, so Shift is applied here.
+      const PAIRS = '`~1!2@3#4$5%6^7&8*9(0)-_=+[{]}\\|;:\'",<.>/?';
+      const PUNCT: Record<string, [string, number]> = {
+        '`': ['Backquote', 192], '-': ['Minus', 189], '=': ['Equal', 187], '[': ['BracketLeft', 219], ']': ['BracketRight', 221],
+        '\\': ['Backslash', 220], ';': ['Semicolon', 186], "'": ['Quote', 222], ',': ['Comma', 188], '.': ['Period', 190], '/': ['Slash', 191],
+      };
+      const shift = (modifiers & 8) !== 0;
+      const i = PAIRS.indexOf(key);
+      const base = i >= 0 ? PAIRS[i - (i % 2)] : key.toLowerCase();
+      const out = !shift ? key : i >= 0 ? PAIRS[i - (i % 2) + 1] : key.toUpperCase();
+      const up = base.toUpperCase();
+      const [code, vk] = /[a-z]/.test(base) ? [`Key${up}`, up.charCodeAt(0)] : /\d/.test(base) ? [`Digit${base}`, base.charCodeAt(0)] : PUNCT[base] ?? ['', base.charCodeAt(0)];
+      def = [out, code, vk, out];
+    }
+    if (!def) throw new ToolError(-32602, `unknown key ${key}`);
+    const [k, code, vk, text] = def;
+    const typed = text !== undefined && !(modifiers & 7) ? { text } : {};
+    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: typed.text !== undefined ? 'keyDown' : 'rawKeyDown', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...typed });
+    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+  }
+
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
     const session = String(a._session ?? '');
     const budget = Math.max(200, Math.min(Number(a.max_tokens) || SNAPSHOT_TOKENS, 100_000));
@@ -829,7 +929,15 @@ export class PaneManager {
       pane.cursors.delete(a.continue);
       return this.page(pane, name, rest, budget);
     }
+    if (name === 'describe') return this.describe(pane, a);
+    const recheck = () => this.recheck(pane, name, a);
     switch (name) {
+      case 'key': {
+        if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
+        await recheck();
+        await this.pressKeys(pane, a.keys);
+        return { ok: true };
+      }
       case 'navigate': {
         if (typeof a.url !== 'string') throw new ToolError(-32602, 'url is required');
         if (pane.crashed) {
@@ -881,14 +989,14 @@ export class PaneManager {
       case 'click':
         return this.answer(pane, session, async () => {
           const p = await this.target(pane, a.ref);
-          await this.clickAt(pane, p.x, p.y);
+          await this.clickAt(pane, p.x, p.y, recheck);
           return { ok: true };
         });
       case 'type': {
         if (typeof a.text !== 'string') throw new ToolError(-32602, 'text is required');
         return this.answer(pane, session, async () => {
           const { node, x, y } = await this.target(pane, a.ref);
-          await this.clickAt(pane, x, y);
+          await this.clickAt(pane, x, y, recheck);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
@@ -911,6 +1019,7 @@ export class PaneManager {
           const node = this.node(pane, a.ref);
           const p = await this.box(pane, node, a.ref);
           await this.pointAt(pane, p.x, p.y);
+          await recheck();
           await this.cmd(pane, 'Runtime.callFunctionOn', {
             objectId: p.objectId,
             functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',

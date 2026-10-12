@@ -86,6 +86,14 @@ async function startAgain(home: string, prefix: string): Promise<ReturnType<type
   return child as never;
 }
 
+test('a sink can subscribe to every needs-you kind the schema allows, and a new sink gets approvals by default', () => withNotifyDb((db) => {
+  const kinds = readFileSync(schemaFile, 'utf8').match(/CREATE TABLE needs_you[^]*?kind\s+TEXT NOT NULL CHECK \(kind IN \(([^)]*)\)/)![1].split(',').map((k) => k.trim().replace(/'/g, ''));
+  assert.ok(kinds.includes('approval'));
+  setSink(db, { id: 'all', kind: 'webhook', dest: 'https://example.test/hook', kinds });
+  setSink(db, { id: 'default', kind: 'webhook', dest: 'https://example.test/hook' });
+  assert.ok(JSON.parse((db.prepare("SELECT kinds FROM notify_sink WHERE id = 'default'").get() as { kinds: string }).kinds).includes('approval'));
+}));
+
 test('M5-15a/b new gate sends one redacted POST with the stable needs-you link', async () => {
   await withCore(async (home, prefix) => {
     const received = await withFakeWebhook(() => {});

@@ -79,7 +79,7 @@ wc.emit('input-event', {}, { type: 'rawKeyDown' });
 r.keyPressOpensOne = wc.openHandler!({ url: 'https://docs.example/key', disposition: 'foreground-tab' }).action === 'deny' && opened.join() === 'https://docs.example/,https://docs.example/key';
 
 const agent = fakePane('bp_agent_1');
-await internal.clickAt(agent.pane, 1, 1);
+await internal.clickAt(agent.pane, 1, 1, async () => {});
 const agentOpen = agent.wc.openHandler!({ url: 'https://ad.example/3', disposition: 'foreground-tab' });
 r.agentClickCounts = agentOpen.action === 'deny' && agent.pane.clickedAt === 0 && !agent.pane.console.some((c) => c.text.includes('without a click'));
 

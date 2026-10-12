@@ -25,6 +25,7 @@ import { writeClipboard } from './clipboard.ts';
 import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
+import { Approvals } from './approvals.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -97,6 +98,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'pane.url', needsUi: true, params: '{pane_id, url}', result: '{}; the workbench reports each navigation' },
   { name: 'pane.assign', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, session_id?}', result: '{}; sets or clears the one session allowed to drive the pane' },
   { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
+  { name: 'approval.check', params: '{session_id, surface, target, action, args, control, password?, file_dialog?, action_hash?}', result: '{decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`)' },
+  { name: 'approval.resolve', needsUi: true, errors: [E.GATE_STALE], params: '{approval_id, decision, scope?}', result: '{status, scope}; -32010 when the row is not `waiting`' },
 ];
 
 const cell = (s: string) => s.split('|').join('\\|');
@@ -116,6 +119,7 @@ export interface CoreControl {
   engines: () => EngineSpec[];
   stop: () => void;
   uiKey: string;
+  approvalTimeoutMs?: number;
 }
 
 function int(p: Record<string, unknown>, key: string): number {
@@ -573,6 +577,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return { clipboard_at: at, typed: Boolean(typed) };
     },
   });
+
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs);
+  m.set('approval.check', { handler: (p) => approvals.check(p) });
+  m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 
   for (const name of MOVED_METHODS) m.set(name, { handler: () => { throw new RpcError(E.METHOD_NOT_FOUND, 'moved to the pipeline products'); } });
   for (const d of METHODS) if (d.needsUi && m.has(d.name)) m.get(d.name)!.needsUi = true;
