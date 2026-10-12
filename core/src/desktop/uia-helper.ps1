@@ -38,6 +38,7 @@ namespace TroopUia {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr h, ref POINT p);
+    [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
@@ -99,6 +100,11 @@ namespace TroopUia {
         case "key": return Key(new IntPtr(hwnd), Str(r, "keys"));
         case "scroll": return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
+        case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
+        case "probe": {
+          Native.POINT p; Native.GetCursorPos(out p);
+          return new Dictionary<string, object> { { "cursor", new[] { p.X, p.Y } }, { "foreground", Native.GetForegroundWindow().ToInt64() } };
+        }
         default: throw new Exception("unknown op " + op);
       }
     }

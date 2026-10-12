@@ -7,7 +7,8 @@ import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { syncFrames } from './desktop-frames.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, corePipe, dbFile, homeDir, logsDir, uiKeyFile } from '../../core/src/paths.ts';
 import { captureProcessLog } from '../../core/src/log.ts';
@@ -47,6 +48,7 @@ export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
+  'grant.candidates', 'grant.window', 'grant.revoke', 'takeover.resume',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -511,6 +513,18 @@ function handlers(): void {
     return true;
   });
 
+  on('desktopThumbs', async () => {
+    const grants = lastGood?.grants ?? [];
+    if (!grants.length) return {};
+    const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 480, height: 300 }, fetchWindowIcons: false });
+    const out: Record<string, string> = {};
+    for (const g of grants) {
+      const s = sources.find((x) => x.id.startsWith(`window:${g.hwnd}:`));
+      if (s && !s.thumbnail.isEmpty()) out[g.id] = s.thumbnail.toDataURL();
+    }
+    return out;
+  });
+
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));
   on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state }));
 }
@@ -564,6 +578,7 @@ function createWindow(): void {
   });
   win.on('closed', () => {
     panes?.closeAll();
+    syncFrames([]);
     win = null;
   });
   panes = new PaneManager(win, {
@@ -594,6 +609,8 @@ const restarts: number[] = [];
 
 /** Compares the running core's version with this window's; a different one makes the window offer Restart core. */
 async function checkCoreVersion(): Promise<void> {
+  // The core never lists or grants windows of this process (M6-15)
+  void call('desktop.ui-window', { pid: process.pid }, { ui: true });
   const out = await call('core.ping', {}, { ui: true });
   if (out.kind !== 'reply' || out.reply.error) return;
   const v = (out.reply.result as { version?: unknown }).version;
@@ -755,6 +772,23 @@ if (!app.requestSingleInstanceLock()) {
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
     void gitTick();
+    const takeover = settings().desktop.takeover_key;
+    try {
+      if (!globalShortcut.register(takeover, () => { void call('takeover.pause', {}, { ui: true }).then(schedulePush); })) console.error(`take-over key ${takeover} is held by another program`);
+    } catch (e) {
+      console.error(`take-over key ${takeover} is not a valid accelerator: ${(e as Error).message}`);
+    }
+    app.on('will-quit', () => globalShortcut.unregisterAll());
+    const frameTick = async () => {
+      try {
+        if (win && (lastGood?.grants?.length || syncFrames.count())) {
+          const out = await call('grant.live', {}, { ui: true, waitMs: 1000 });
+          syncFrames(out.kind === 'reply' && out.reply.result ? (out.reply.result as { grants: Parameters<typeof syncFrames>[0] }).grants : []);
+        }
+      } catch {}
+      setTimeout(frameTick, 500);
+    };
+    void frameTick();
     void startBrowserServer(browserPipe(), {
       db,
       uiKey: () => {

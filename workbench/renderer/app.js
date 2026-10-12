@@ -926,6 +926,49 @@ function changedFiles(id) {
   return g && Array.isArray(g.changed) ? g.changed : [];
 }
 
+/** A tile's desktop state (M6-15): whether the take-over key holds it and the windows it drives; none for shells, outside and exited sessions. */
+function deskChips(x) {
+  if (x.shell || x.host === 'external' || x.state === 'exited') return null;
+  return { paused: (ui.snap.paused || []).includes(x.id), grants: (ui.snap.grants || []).filter((g) => g.session_id === x.id).map((g) => ({ id: g.id, title: g.title })) };
+}
+
+/** The watch layout's rows: each session holding a grant, with its granted windows, in grant order. */
+function watchRows(snap) {
+  const rows = new Map();
+  for (const g of snap.grants || []) {
+    if (!rows.has(g.session_id)) rows.set(g.session_id, { session: snap.sessions.find((s) => s.id === g.session_id) || { id: g.session_id, engine_id: '', state: '' }, grants: [] });
+    rows.get(g.session_id).grants.push(g);
+  }
+  return [...rows.values()];
+}
+
+function renderWatch() {
+  let box = document.getElementById('watch');
+  if (!ui.watch) { if (box) box.remove(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'watch';
+    box.setAttribute('role', 'region');
+    box.setAttribute('aria-label', 'Watch layout: granted windows beside their agents');
+    document.body.append(box);
+  }
+  const rows = watchRows(ui.snap);
+  const html = rows.length
+    ? rows.map((r) => `<div class="wrow"><div class="wtile" data-action="watch-pick" data-id="${esc(r.session.id)}"><b>${esc(r.session.engine_id)}</b> <span class="badge">${esc(STATE_WORDS[r.session.state] || r.session.state)}</span>${(ui.snap.paused || []).includes(r.session.id) ? ' <span class="badge warn">paused by you</span>' : ''}<div class="fl">${esc(r.session.last_line || '')}</div></div>${r.grants.map((g) => `<figure class="wthumb"><img data-grant="${esc(g.id)}" alt="${esc(g.title)}"><figcaption>${esc(g.title)}</figcaption></figure>`).join('')}</div>`).join('')
+    : '<p class="empty">No agent holds a window. Give one from a tile (Give window). Ctrl+Alt+W closes this.</p>';
+  if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
+}
+
+async function refreshThumbs() {
+  if (!ui.watch || !(ui.snap.grants || []).length) return;
+  const shots = await api.desktopThumbs();
+  for (const img of document.querySelectorAll('#watch img[data-grant]')) {
+    const src = shots && shots[img.dataset.grant];
+    if (src && img.src !== src) img.src = src;
+  }
+}
+setInterval(() => { void refreshThumbs().catch(() => {}); }, 500);
+
 function ctxChip(x) {
   if (typeof x.ctx_pct !== 'number') return null;
   const pct = Math.round(x.ctx_pct);
@@ -938,7 +981,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
-    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   const sel = selectedSession();
@@ -947,6 +990,7 @@ function render(focus = false) {
   renderStart();
   termView.show({ mode: ui.mode, selected: big, sessions: shown, onPick: onTilePick, onOutput: wall.output, onExit: (id) => { const sh = ui.shells.find((x) => x.id === id); if (sh) { sh.exited = true; render(); } }, focus });
   wall.apply(ui.mode);
+  renderWatch();
   renderSheet();
   renderTabs();
   let html;
@@ -1018,6 +1062,30 @@ async function onClick(e) {
       return;
     case 'open-panel':
       await openTab(el.dataset.tab);
+      return;
+    case 'grant-give': {
+      const r = await rpc('grant.candidates', {});
+      if (!r.result) return;
+      if (!r.result.windows.length) { toast('No window can be given right now.'); return; }
+      const box = el.getBoundingClientRect();
+      const items = r.result.windows.map((w) => ({ id: String(w.hwnd), label: `${w.title.slice(0, 70)} (${w.exe})` }));
+      const hwnd = await api.paneMenu(items, box.left, box.bottom + 4);
+      if (hwnd) await rpc('grant.window', { session_id: id, hwnd: Number(hwnd) });
+      return;
+    }
+    case 'grant-menu': {
+      const g = (ui.snap.grants || []).find((x) => x.id === el.dataset.grant);
+      if (!g) return;
+      const box = el.getBoundingClientRect();
+      if ((await api.paneMenu([{ id: 'revoke', label: `Stop driving ${g.title.slice(0, 60)}` }], box.left, box.bottom + 4)) === 'revoke') await rpc('grant.revoke', { grant_id: g.id });
+      return;
+    }
+    case 'takeover-resume':
+      await rpc('takeover.resume', { session_id: id });
+      return;
+    case 'watch-pick':
+      ui.watch = false;
+      await pick(id);
       return;
     case 'pair':
       wall.pair(id);
@@ -1703,6 +1771,16 @@ function browserKeys(e) {
   void api.paneAct(ui.paneId, act);
 }
 document.addEventListener('keydown', browserKeys, true);
+
+/** Ctrl+Alt+W opens and closes the watch layout (M6-15). */
+function watchKeys(e) {
+  if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey || e.code !== 'KeyW' || !ui.snap) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  ui.watch = !ui.watch;
+  render();
+}
+document.addEventListener('keydown', watchKeys, true);
 
 function wallKeys(e) {
   if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;

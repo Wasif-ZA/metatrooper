@@ -30,6 +30,16 @@ export interface GrantRow {
   ended_at: string | null;
 }
 
+/** The take-over flag (D62): paused unless the session's own resume time is later than `meta.takeover_paused_at`. */
+export function takeoverPaused(db: DatabaseSync, sessionId: string): boolean {
+  const get = (key: string) => (db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? null;
+  const at = get('takeover_paused_at');
+  if (!at) return false;
+  let resumed: Record<string, string> = {};
+  try { resumed = JSON.parse(get('takeover_resumed') ?? '{}'); } catch {}
+  return !resumed[sessionId] || resumed[sessionId] <= at;
+}
+
 /** The grant's own window, alive, with the pid and process start the grant was made with. */
 export function sameWindow(g: GrantRow, w: WindowInfo): boolean {
   return w.alive && w.root === g.hwnd && w.pid === g.pid && w.process_start === g.process_start;

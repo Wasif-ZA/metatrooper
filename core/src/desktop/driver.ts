@@ -7,7 +7,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
-import { covers, endGrant, liveGrants, sameWindow, type GrantRow, type WindowInfo } from '../grants.ts';
+import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow, type WindowInfo } from '../grants.ts';
 
 export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
@@ -107,13 +107,8 @@ export class Desktop {
     return (this.db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? null;
   }
 
-  /** Paused while the pause time is later than this session's own resume time. */
   paused(sessionId: string): boolean {
-    const at = this.meta('takeover_paused_at');
-    if (!at) return false;
-    let resumed: Record<string, string> = {};
-    try { resumed = JSON.parse(this.meta('takeover_resumed') ?? '{}'); } catch {}
-    return !resumed[sessionId] || resumed[sessionId] < at;
+    return takeoverPaused(this.db, sessionId);
   }
 
   /** Sets the flag, then waits for the chunk in flight; the reply is the acknowledgement. */

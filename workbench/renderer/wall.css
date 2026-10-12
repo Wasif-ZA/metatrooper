@@ -262,3 +262,17 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .verdict.ok { color: var(--work); box-shadow: 2px 1.5px 0 rgba(255,122,26,.75); }
 .verdict.no { color: var(--del); box-shadow: 2px 1.5px 0 rgba(255,122,26,.75); }
 .gate .ga .lnk { margin-left: auto; color: var(--body-strong); font-size: 11.5px; text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 3px; }
+
+/* Desktop grants and take-over on a tile (M6-15) */
+.tile-desk { display: inline-flex; gap: 4px; }
+.tile-desk .btn.warn, .badge.warn { color: var(--wait); border-color: currentColor; }
+.tile-desk .btn.drive { color: var(--work); }
+
+/* Watch layout (Ctrl+Alt+W): each granted window beside its agent */
+#watch { position: fixed; inset: 40px 16px 16px; z-index: 50; overflow: auto; background: var(--bg); border: 1px var(--bstyle) var(--line); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+#watch .wrow { display: flex; gap: 12px; align-items: flex-start; }
+#watch .wtile { flex: 0 0 240px; cursor: pointer; border: 1px var(--bstyle) var(--line); padding: 8px; background: var(--panel); }
+#watch .wtile .fl { color: var(--muted); font-size: 11px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#watch .wthumb { margin: 0; flex: 1 1 0; max-width: 480px; }
+#watch .wthumb img { width: 100%; min-height: 60px; display: block; border: 1px var(--bstyle) var(--line); background: var(--panel); }
+#watch .wthumb figcaption { font-size: 11px; color: var(--muted); margin-top: 4px; }

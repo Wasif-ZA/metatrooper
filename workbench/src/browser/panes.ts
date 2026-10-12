@@ -8,6 +8,7 @@ import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
+import { takeoverPaused } from '../../../core/src/grants.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
@@ -826,6 +827,7 @@ export class PaneManager {
     await pane.ready;
     if (pane.crashed && !(name === 'navigate' && pane.crashed.startsWith('the page crashed'))) throw new ToolError(-32034, pane.crashed);
     if (name === 'dialog') {
+      this.notPaused(a);
       if (!pane.dialog) throw new ToolError(-32002, 'no dialog is open');
       const d = pane.dialog;
       await this.cmd(pane, 'Page.handleJavaScriptDialog', { accept: a.accept === true, ...(typeof a.prompt_text === 'string' ? { promptText: a.prompt_text } : {}) });
@@ -870,8 +872,18 @@ export class PaneManager {
     return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
   }
 
+  /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
+  private notPaused(a: Record<string, any>): void {
+    const db = this.hooks.db();
+    if (!a._session || !db) return;
+    let paused = false;
+    try { paused = takeoverPaused(db, String(a._session)); } catch {}
+    if (paused) throw new ToolError(-32030, 'paused by the user');
+  }
+
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
+    this.notPaused(a);
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describe(pane, { ...a, tool });
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
@@ -930,6 +942,7 @@ export class PaneManager {
       return this.page(pane, name, rest, budget);
     }
     if (name === 'describe') return this.describe(pane, a);
+    if (['navigate', 'back', 'scroll', 'evaluate'].includes(name)) this.notPaused(a);
     const recheck = () => this.recheck(pane, name, a);
     switch (name) {
       case 'key': {

@@ -92,8 +92,18 @@ The workbench registers `desktop.takeover_key` (default `Control+Alt+Q`) as a gl
 reply is the acknowledgement. From then on every `desktop.act` chunk and every `approval.check` for a paused
 session (browser and desktop) returns "paused by the user"; queued calls are dropped the same way. The flag is
 `meta.takeover_paused_at`; each session's resume is in `meta.takeover_resumed` (JSON `{session_id: iso}`). A
-session is paused while `takeover_paused_at` is later than its own resume time. `takeover.resume {session_id}`
+session is paused unless its own resume time is later than `takeover_paused_at`. The workbench checks the same
+flag right before every browser input it dispatches (after the cursor glide), and before `navigate`, `back`,
+`scroll`, `dialog` and `evaluate`. `takeover.resume {session_id}`
 (from the tile) clears it for that session only. Both reset on core start.
+
+## Helper ops
+
+`list`, `info {hwnd}`, `snapshot {hwnd, max_nodes}`, `describe {hwnd, ref?}`, `screenshot {hwnd}`,
+`set_text {hwnd, ref, value}`, `click {hwnd, ref}`, `key {hwnd, keys}`, `scroll {hwnd, ref?, dy}`,
+`find_text {hwnd, text}`. Two read-only ops serve the laptop test only and are never reachable through the core:
+`value {hwnd, ref}` (a control's whole value, null for a password field) and `probe` (`{cursor: [x, y],
+foreground}`).
 
 ## Core methods
 

@@ -1,7 +1,7 @@
 // Live terminals: one xterm.js instance per shown session, fed from the core's terminal pipe through the main process.
 const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div class="r1">
   <span class="dot"></span><b class="tile-engine eng"></b><span class="tile-task task"></span>
-  <span class="tile-state badge"></span><span class="tile-previews"></span>
+  <span class="tile-state badge"></span><span class="tile-previews"></span><span class="tile-desk"></span>
   <span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
   <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
@@ -177,6 +177,14 @@ const termView = (() => {
     return String(v).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   }
 
+  /** Desktop chips (M6-15): paused by the take-over key, each window the agent drives, else a button to give it one. */
+  function deskHtml(d) {
+    if (!d) return '';
+    const paused = d.paused ? '<button class="btn warn" data-action="takeover-resume" title="The take-over key paused this agent. Let it act again.">paused by you · Resume</button>' : '';
+    const grants = d.grants.map((g) => `<button class="btn drive" data-action="grant-menu" data-grant="${escapeAttr(g.id)}" title="Stop driving this window">driving: ${escapeAttr(g.title.length > 40 ? `${g.title.slice(0, 39)}…` : g.title)}</button>`).join('');
+    return paused + (grants || '<button class="btn" data-action="grant-give" title="Give this agent one of your windows">Give window</button>');
+  }
+
   function label(t, x) {
     const set = (sel, text) => { const e = t.el.querySelector(sel); if (e.textContent !== text) e.textContent = text; };
     t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
@@ -191,6 +199,8 @@ const termView = (() => {
     const previews = (x.previews || []).map((d) => `<button class="btn" data-action="open-preview" data-url="${escapeAttr(d.url)}" title="Open ${escapeAttr(d.url)} in this agent's browser pane">Open preview${x.previews.length > 1 ? ` :${d.port}` : ''}</button>`).join('');
     const box = t.el.querySelector('.tile-previews');
     if (t.previewsHtml !== previews) { t.previewsHtml = previews; box.innerHTML = previews; }
+    const desk = deskHtml(x.desk);
+    if (t.deskHtml !== desk) { t.deskHtml = desk; t.el.querySelector('.tile-desk').innerHTML = desk; }
     set('.tile-changed', x.changed ? `${x.changed} changed` : '');
     t.el.querySelector('.tile-changed').hidden = !x.changed;
     t.el.dataset.state = x.state;
