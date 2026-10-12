@@ -133,6 +133,26 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   };
 }
 
+type TaskRow = { engine_id: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string };
+
+/** A session's task line, as its tile shows it: the terminal title, else the pipeline step, else where and when it opened. */
+export function taskOf(x: TaskRow): string {
+  const t = (x.title || '').trim();
+  if (t && !/[\\/]/.test(t)) return t;
+  if (x.step_id) return x.step_id;
+  const folder = (x.cwd || '').split(/[\\/]/).filter(Boolean).pop();
+  const at = Date.parse(x.started_at);
+  const when = Number.isNaN(at) ? '' : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  return [folder && `in ${folder}`, when && `opened ${when}`].filter(Boolean).join(', ') || 'new session';
+}
+
+/** The OS toast for a needs-you row, or null when its session's tile is focused while the window has focus. */
+export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | null, focused: { window: boolean; session: string | null }): { title: string; body: string } | null {
+  if (session && focused.window && n.ref === focused.session) return null;
+  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you';
+  return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
+}
+
 export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
 }

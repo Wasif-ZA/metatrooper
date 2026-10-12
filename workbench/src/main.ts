@@ -17,7 +17,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, snapshot, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { dataVersion, snapshot, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
@@ -109,6 +109,19 @@ function syncPanes(): void {
 
 let toasted: Set<string> | null = null;
 
+/** The session a needs-you row is about, from the snapshot or else the database, with its live terminal title. */
+function sessionOf(s: Snapshot, n: Snapshot['needs_you'][number]) {
+  if (n.kind !== 'done' && n.kind !== 'failed' && n.kind !== 'uncommitted') return null;
+  const hit = [...s.sessions, ...(s.live ?? [])].find((x) => x.id === n.ref);
+  if (hit) return hit;
+  try {
+    const row = db()?.prepare('SELECT engine_id, cwd, step_id, started_at FROM session WHERE id = ?').get(n.ref) as { engine_id: string; cwd: string | null; step_id: string | null; started_at: string } | undefined;
+    return row ? { ...row, title: n.ref ? liveText[n.ref]?.title ?? null : null } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One Windows toast per new needs-you row; clicking it shows the window and selects the session it is about. */
 function toastNew(s: Snapshot): void {
   const ids = new Set(s.needs_you.map((n) => n.id));
@@ -117,7 +130,9 @@ function toastNew(s: Snapshot): void {
     if (toasted.has(n.id) || n.read_at) continue;
     toasted.add(n.id);
     if (!Notification.isSupported()) continue;
-    const note = new Notification({ title: n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you', body: n.text, silent: false });
+    const toast = toastFor(n, sessionOf(s, n), { window: !!win && !win.isDestroyed() && win.isFocused(), session: s.selected });
+    if (!toast) continue;
+    const note = new Notification({ ...toast, silent: false });
     note.on('click', () => {
       if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
       const target = n.kind === 'done' || n.kind === 'failed' ? n.ref : null;
