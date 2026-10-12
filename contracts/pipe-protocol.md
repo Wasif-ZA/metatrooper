@@ -124,7 +124,7 @@ Every other interaction is a database read.
 | `session.owners` | `{project_id}` | `{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}`: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` |
 | `session.paste-prompt` | `{session_id}` | `{written, reason?}`: types the held prompt once; refused for an `external` session |
 | `session.clear-status` | `{session_id}` | `{}`: sets `idle`, appends `core.status-cleared`, marks its inbox rows read |
-| `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id` |
+| `session.resume` | `{session_id}` of an `exited` session | `{session_id, prompt_delivered, approval, resumed}`: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id |
 | `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
 | `session.hide` | `{session_id}` | `{}` |
@@ -204,6 +204,10 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   256 KiB. With no viewer attached, replies the headless terminal generates to a program's queries go back to
   the pty; with a viewer attached, the viewer answers.
 - An unparseable line, an unknown `op`, or input before `attach` gets `{"op":"error","code":"bad-op"}` and is
-  ignored. `attach` to an unknown or exited session gets `{"op":"error","code":"no-session"}` and closes.
+  ignored. `attach` to a session whose terminal has ended and whose last screen was saved
+  (`~/.metatrooper/screens/<session>.json`, the last 200 rows, written when the pty exits and when the core stops)
+  gets that screen as `{"op":"snapshot","seq":0,"data":...}`, then `{"op":"exit","code":<exit code or "unknown">}`, and
+  closes. `attach` to an unknown session, or an ended one with no saved screen, gets
+  `{"op":"error","code":"no-session"}` and closes. Saved screens older than 30 days are deleted at core start.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;
   input from any goes to the pty; the latest `resize` wins.

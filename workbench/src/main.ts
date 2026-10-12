@@ -465,6 +465,12 @@ function handlers(): void {
     const error = await writeSetting('sessions.approval', value);
     return error ? { error } : { ok: true };
   });
+  let layoutWrites = Promise.resolve<unknown>(null);
+  on('saveLayout', (projectId: unknown, layout: unknown) => {
+    if (typeof projectId !== 'string' || !layout || typeof layout !== 'object' || Array.isArray(layout) || JSON.stringify(layout).length > 64 * 1024) return { error: 'bad layout' };
+    layoutWrites = layoutWrites.catch(() => null).then(() => writeSetting('ui.layout', { ...settings().ui.layout, [projectId]: layout }));
+    return layoutWrites.then((error) => (error ? { error } : { ok: true }));
+  });
   on('termInput', (sessionId: unknown, data: unknown) => { if (typeof sessionId === 'string' && typeof data === 'string') termInput(sessionId, data); });
   on('termResize', (sessionId: unknown, cols: unknown, rows: unknown) => { if (typeof sessionId === 'string') termResize(sessionId, num(cols, settings().terminal.cols), num(rows, settings().terminal.rows)); });
   on('termAck', (sessionId: unknown, bytes: unknown) => { if (typeof sessionId === 'string' && typeof bytes === 'number') termAck(sessionId, bytes); });
