@@ -206,10 +206,19 @@ export function scrub(text        , secrets                   = [])         {
   return redactCredentials(out);
 }
 
-/** `scrub` applied to every string inside a JSON-like value, keys kept; `skip` names keys left as they are. */
+/** An object key whose value is a credential however it looks, matched with case and separators removed (`X-Auth-Token`, `sessionId`, `set_cookie`). */
+const SENSITIVE_KEY = /cookie|authoriz|token|passw|pwd|secret|session|credential|apikey|privatekey|bearer|^(auth|authkey|sid)$/;
+
+/** `scrub` applied to every string and key inside a JSON-like value; a credential-named key's whole value becomes [secret] (null and booleans kept); `skip` names keys left as they are. */
 export function scrubDeep   (v   , secrets          , skip = new Set        ())    {
   if (typeof v === 'string') return scrub(v, secrets)     ;
   if (Array.isArray(v)) return v.map((x) => scrubDeep(x, secrets, skip))     ;
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, skip.has(k) ? x : scrubDeep(x, secrets, skip)]))     ;
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => {
+      if (skip.has(k)) return [k, x];
+      const blank = x !== null && x !== undefined && typeof x !== 'boolean' && SENSITIVE_KEY.test(k.toLowerCase().replace(/[^a-z]/g, ''));
+      return [scrub(k, secrets), blank ? '[secret]' : scrubDeep(x, secrets, skip)];
+    }))     ;
+  }
   return v;
 }

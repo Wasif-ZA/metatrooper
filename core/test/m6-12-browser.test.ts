@@ -66,6 +66,22 @@ test('M6-12 scrub removes bearer tokens, cookies, URL credentials, token query v
   assert.deepEqual(scrubDeep({ text: 'v=CorrectHorse!', n: 3, data_base64: 'CorrectHorse!' }, ['CorrectHorse!'], new Set(['data_base64'])), { text: 'v=[secret]', n: 3, data_base64: 'CorrectHorse!' });
 });
 
+test('M6-12 scrubDeep blanks the whole value under a credential-named key, and scrubs keys themselves', () => {
+  // values no pattern catches on their own: only the key says what they are
+  assert.deepEqual(scrubDeep({
+    cookie: 'sid=plain123', cookies: [{ name: 'sid', value: 'plain123' }], Authorization: 'plain123', 'X-Auth-Token': 'plain123',
+    access_token: 'plain123', sessionId: 'plain123', password: 4242, client_secret: 'plain123', apiKey: 'plain123', hasPassword: true, session: null,
+  }, []), {
+    cookie: '[secret]', cookies: '[secret]', Authorization: '[secret]', 'X-Auth-Token': '[secret]',
+    access_token: '[secret]', sessionId: '[secret]', password: '[secret]', client_secret: '[secret]', apiKey: '[secret]', hasPassword: true, session: null,
+  });
+  // ordinary keys an evaluate returns are left alone
+  const plain = { code: 200, key: 'ArrowUp', sig: 'x', author: 'Ann', url: 'https://x.test/', value: 'plain123', tokens: undefined };
+  assert.deepEqual(scrubDeep(plain, []), plain);
+  // a key can carry a secret too, e.g. {[document.cookie]: 1}
+  assert.deepEqual(scrubDeep({ 'sid=CorrectHorse!': 1 }, ['CorrectHorse!']), { 'sid=[secret]': 1 });
+});
+
 test('M6-12 the first input on a new origin asks; Approve for this session covers that origin, once does not, another origin asks again', async () => {
   const first = await decide(check({}), 'approve', 'once');
   assert.deepEqual(first, { decision: 'approved', reason: 'new origin' });

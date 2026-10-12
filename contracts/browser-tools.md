@@ -105,7 +105,11 @@ box fails with "not visible".
 - **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
   agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
   workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
-  and credential patterns become `[secret]`. Only a `screenshot` result's `data_base64` (its image bytes) is left as it
+  and credential patterns become `[secret]`. Object keys are scrubbed the same way, and under a credential-named key
+  (cookie, authorization, auth, token, password, pwd, secret, session, sid, credential, API key, private key, bearer; case and
+  separators ignored, so `X-Auth-Token` and `sessionId` match) the whole value becomes `[secret]`, nested objects and
+  arrays included; `null` and booleans are kept. So `evaluate` returning `{cookie: document.cookie}` shows no cookie.
+  Only a `screenshot` result's `data_base64` (its image bytes) is left as it
   is; the same key anywhere in another result, such as what an `evaluate` returns, is scrubbed.
   Page text that is cut to a limit is scrubbed whole before the cut, so a cut through a secret cannot leave a prefix
   the later scrub no longer matches: accessibility names and values (before the snapshot's 120- and 80-character cuts and
