@@ -140,10 +140,10 @@ export function lastLine(id: string, max: number): Promise<string | null> {
 
 export interface Hit { session_id: string; line: number; text: string }
 
-/** Lines (wrapped rows joined) of every live terminal that contain `query`, ignoring case; most recent terminal and line first. */
-export async function search(query: string, max: number): Promise<Hit[]> {
+/** Lines (wrapped rows joined) of every live terminal, or only those in `only`, that contain `query`, ignoring case; most recent terminal and line first. */
+export async function search(query: string, max: number, only?: Set<string>): Promise<Hit[]> {
   const q = query.toLowerCase();
-  const live = [...terms].filter(([, t]) => t.exitCode === null).sort(([, a], [, b]) => b.at - a.at);
+  const live = [...terms].filter(([id, t]) => t.exitCode === null && (!only || only.has(id))).sort(([, a], [, b]) => b.at - a.at);
   await Promise.all(live.map(([, t]) => new Promise<void>((r) => t.head.write('', r))));
   const hits: Hit[] = [];
   for (const [id, t] of live) {

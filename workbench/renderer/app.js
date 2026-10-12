@@ -750,7 +750,7 @@ function searchScrollback() {
   clearTimeout(scrollTimer);
   const q = document.getElementById('palette-input').value.trim();
   if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
-    const r = await rpc('session.search', { query: q }, true);
+    const r = await rpc('session.search', { query: q, session_ids: [...ui.snap.sessions, ...shellRows()].map((x) => x.id) }, true);
     if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
   }, 100);
 }

@@ -74,6 +74,24 @@ test('M6-19 a match past the first 300 characters of a long line is in the previ
   }
 });
 
+test('M6-19 search limited to some sessions caps after filtering, so another project busy terminal cannot use up the 50 hits', async () => {
+  const mine = `search-mine-${randomUUID()}`;
+  const other = `search-other-${randomUUID()}`;
+  term.open(mine, printer([...Array.from({ length: 5 }, (_, i) => `HIT-${i}`), 'MINE-DONE']), home.home, process.env);
+  await until(async () => (await term.snapshot(mine))?.includes('MINE-DONE'), 15_000);
+  term.open(other, printer([...Array.from({ length: 80 }, (_, i) => `HIT-${i}`), 'OTHER-DONE']), home.home, process.env);
+  try {
+    await until(async () => (await term.snapshot(other))?.includes('OTHER-DONE'), 15_000);
+    const hits = await term.search('hit-', 50, new Set([mine]));
+    assert.equal(hits.length, 5);
+    assert.ok(hits.every((h) => h.session_id === mine));
+  } finally {
+    term.kill(mine);
+    term.kill(other);
+    await until(() => !term.has(mine) && !term.has(other));
+  }
+});
+
 test('M6-19 session.search is never queued, so scrollback text stays out of the command table', async () => {
   const { isQueueable } = await import('../src/pipe/commands.ts');
   assert.equal(isQueueable('session.search'), false);
