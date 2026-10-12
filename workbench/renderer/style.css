@@ -56,6 +56,9 @@ body { position: relative; }
 .pane.fold .tile-body { visibility: hidden; }
 .paired .pane.big .ph .act { display: none; }
 .ph .rs { display: none; }
+.ph .lr { height: 24px; padding: 0 8px; font-size: 10.5px; }
+.ph .lr[hidden], .pane:not(.big) .ph .lr { display: none; }
+.ph .lr[aria-pressed="false"] { opacity: .6; }
 .tile[data-state="exited"]:not(.shell) .ph .rs { display: inline-flex; height: 24px; padding: 0 8px; font-size: 10.5px; }
 .tile.closed .tile-body { opacity: .5; }
 .tile.outside .tile-body { opacity: .6; }

@@ -154,6 +154,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('session.limit-resume', {
+    handler: (p) => {
+      if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const r = db.prepare('UPDATE session SET limit_resume = ? WHERE id = ?').run(p.on ? 1 : 0, str(p, 'session_id'));
+      if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'session not found');
+      return {};
+    },
+  });
+
   m.set('project.clear', {
     handler: (p) => {
       const id = str(p, 'project_id');

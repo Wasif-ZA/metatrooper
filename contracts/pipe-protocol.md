@@ -128,6 +128,7 @@ Every other interaction is a database read.
 | `needs_you.mark-read` / `needs_you.mark-unread` | `{id}` | `{}` |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | `{path, branch}` |
 | `session.hide` | `{session_id}` | `{}` |
+| `session.limit-resume` | `{session_id, on: bool}` | `{}`; sets the tile's "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean |
 | `project.clear` | `{project_id}` | `{}`; hides the project's sessions that are not working or waiting, and its runs that are not running or paused |
 | `session.focus` | `{session_id}` | `{focused: bool}` |
 | `session.seen` | `{session_id}` | `{}`; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` |

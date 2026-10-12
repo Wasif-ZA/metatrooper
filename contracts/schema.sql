@@ -66,6 +66,7 @@ CREATE TABLE session (
   turn_base     TEXT,                          -- git stash-create commit (or HEAD) of cwd when the current turn started
   parent_id     TEXT REFERENCES session(id),   -- the session whose shell ran `troop launch` for this one
   hidden        INTEGER NOT NULL DEFAULT 0,
+  limit_resume  INTEGER NOT NULL DEFAULT 1,    -- 1: paste "Continue where you left off." when a hit usage limit resets (tile toggle, M6-24)
   started_at    TEXT NOT NULL,
   ended_at      TEXT
 );
@@ -319,6 +320,17 @@ CREATE TABLE limit_reading (
   read_at      TEXT NOT NULL,
   status       TEXT NOT NULL CHECK (status IN ('ok','unavailable','not-signed-in')),
   PRIMARY KEY (provider, account, window)
+);
+
+-- The last 6 limit_reading values per window, for the early-end warning (M6-24). Written by the core only.
+CREATE TABLE limit_history (
+  provider     TEXT NOT NULL,
+  account      TEXT NOT NULL,
+  window       TEXT NOT NULL,
+  used_pct     REAL NOT NULL,
+  resets_at    TEXT,
+  read_at      TEXT NOT NULL,
+  PRIMARY KEY (provider, account, window, read_at)
 );
 
 CREATE TABLE schedule (
