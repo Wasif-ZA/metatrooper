@@ -9,7 +9,7 @@ import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/sr
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { getSecret } from '../../../core/src/secrets.ts';
-import { BROWSER_SECRETS, browserSecretOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
+import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
@@ -874,7 +874,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     return value;
   }
 
-  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
+  /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
   private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
@@ -898,8 +898,14 @@ ame, after checking the ref's field is a password field on the origin saved with
     const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId,
       returnByValue: true,
-      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password" }; }',
+      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const w = e && e.ownerDocument.defaultView; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password", child: !w || w !== w.top, origin: w ? String(w.origin) : "" }; }',
     });
+    // a control inside a child frame belongs to that frame's own origin; one that cannot be established is refused
+    if (el.result?.value?.child !== false) {
+      const own = normalOrigin(String(el.result?.value?.origin ?? ''));
+      if (!own) throw new ToolError(-32030, 'not sent: the control is in a frame whose origin cannot be established');
+      origin = own;
+    }
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
     const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
     const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);

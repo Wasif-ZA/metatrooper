@@ -58,7 +58,11 @@ internal.describe = async () => ({ origin: new URL(page.url).origin, control: { 
 internal.target = async () => ({ node: { backendNodeId: 5 }, x: 1, y: 1 });
 internal.clickAt = async (_p: unknown, _x: number, _y: number, recheck: () => Promise<void>) => recheck();
 internal.answer = async (_p: unknown, _s: string, work: () => Promise<Record<string, unknown>>) => ({ ...(await work()), url: page.url, title: 'Bank' });
+// The element a real describe resolves to (see the child-frame section)
+let field: Record<string, unknown> = {};
 internal.cmd = async (_p: unknown, method: string, params: Record<string, any>) => {
+  if (method === 'Runtime.callFunctionOn' && params.objectId === 'field') return { result: { value: new Function(`return (${params.functionDeclaration})`)().call(field) } };
+  if (method === 'Accessibility.getPartialAXTree') return { nodes: [{ backendDOMNodeId: 7, name: { value: 'Password' }, role: { value: 'textbox' } }] };
   if (method === 'Input.insertText') {
     inserted.push(params.text);
     // a page that logs what was typed into it
@@ -101,6 +105,25 @@ page.password = false;
 r.plainField = outcome(await call('browser.type', secret));
 r.unknownSecret = outcome(await call('browser.type', { ...secret, text: '{{secret:NOPE}}' }));
 r.insertedOnlyOnce = inserted.length === 1;
+
+// The real describe on a password field inside a child frame: the frame's own origin is checked, not the pane's
+const stubDescribe = internal.describe;
+delete internal.describe;
+internal.node = () => ({ backendNodeId: 7, frameId: 'child' });
+internal.resolve = async () => 'field';
+const topWin: Record<string, unknown> = { origin: 'https://bank.test' };
+topWin.top = topWin;
+const frameWin: Record<string, unknown> = { top: topWin, origin: 'https://bank.test' };
+field = { nodeType: 1, id: 'pw', tagName: 'INPUT', type: 'password', ownerDocument: { defaultView: frameWin } };
+r.childFrameSameOrigin = outcome(await call('browser.type', secret));
+frameWin.origin = 'https://evil.test';
+r.childFrameOtherOrigin = outcome(await call('browser.type', secret));
+frameWin.origin = 'null';
+r.childFrameOpaque = outcome(await call('browser.type', secret));
+field = { ...field, ownerDocument: { defaultView: null } };
+r.childFrameDetached = outcome(await call('browser.type', secret));
+r.childFrameInserted = inserted.length;
+internal.describe = stubDescribe;
 
 // The approval the MCP server asks for carries only the placeholder
 const approvals = new Approvals(db, 60_000);
