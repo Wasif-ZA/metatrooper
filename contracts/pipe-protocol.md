@@ -207,7 +207,9 @@ Every call carries `pane_id`. The workbench checks that the connection's session
 are in `browser-tools.md`.
 
 `browser.<tool>` for the 12 tools, plus `browser.panes` (lists panes this session may drive) and
-`browser.capture` (`{pane_id, label}`, used by the core for before/after and comments).
+`browser.capture` (`{pane_id, label}`, used by the core for before/after and comments), and `browser.outcome`
+(`{pane_id, tool, status}`: a checked tool and `error <code>`, else -32602; writes the `browser.tool` audit row for a
+call the MCP server stopped before sending it).
 
 ## Terminal pipe
 

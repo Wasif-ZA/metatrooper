@@ -72,23 +72,29 @@ box fails with "not visible".
   tool on that pane, `describe` and `handoff` included, fails with -32036 `the user has the pane (<reason>); wait until they
   give it back`, and no approval is asked. The workbench switches to the pane, shows the reason (at most 300 characters)
   above it with a Give back button, and the pane's `state` events carry `handoff`. The mark is held in the workbench
-  only; closing the workbench clears it.
-- **Origins.** The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
+  only; closing the workbench clears it. A call already running when the handoff lands sends no input after it: the
+  recheck before dispatch and every `Input.*` command fail with -32036.
+- **Origins.** The origin of an input is that of the control's own frame: the pane's for the main frame, the child
+  frame's otherwise. A child frame whose origin is not an http(s) origin (opaque, detached) fails with -32030 and nothing
+  is sent. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
   `allow_origins` lists origins that never ask for being new.
 - **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
   (or `troop browser secret <NAME> <origin>`). The value is stored in the DPAPI store under plugin id `core-browser`; the
   origin it may be typed into is saved in plain text beside it. Right before `Input.insertText`, after the click and the
-  approval recheck, the workbench main process checks that the page's origin is the saved one and the ref is an
-  `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed. The
+  approval recheck, the workbench main process checks that the origin of the field's own frame is the saved one and the
+  ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed. The
   value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
   fails with -32037 until the main frame navigates, since a script could read the field. A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
 - **Scrubbed output.** Every tool result and error message except `describe` (which goes to the MCP server, not the
   agent) and screenshot bytes passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
   workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
-  and credential patterns become `[secret]`.
+  and credential patterns become `[secret]`. `describe` scrubs the control's name and id of every known secret value
+  (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
-  `ok` or `error <code>`, never arguments. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first.
+  `ok` or `error <code>`, never arguments. A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
+  before sending it (describe failed, denied, rejected, expired, core offline) reports `browser.outcome` so it gets its
+  row too. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first.
 
 ## How a tool runs
 

@@ -66,7 +66,10 @@ The workbench checks the origin and the password field again right before it fil
 ## Redaction
 
 `summary` passes through `scrub` (`core/src/redact.ts`: known secret values, bearer tokens, cookies, URL credentials,
-token-looking query values and credential patterns); `reason` and `control` pass through `redactCredentials` before they are stored. Typed text is never stored;
+token-looking query values and credential patterns); `reason` and each `control` field have known secret values replaced
+and pass through `redactCredentials` before they are stored. Known secret values are those the core has decrypted plus
+every saved browser secret, which the core decrypts itself when the workbench filled it; if one cannot be read, a check
+that would write a row is denied. Typed text is never stored;
 `approval.check` is never queued, so it never reaches the `command` table.
 
 ## action_hash
