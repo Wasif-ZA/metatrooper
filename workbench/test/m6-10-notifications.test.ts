@@ -34,8 +34,24 @@ test('a row with no session keeps the plain title and is never suppressed', () =
   assert.deepEqual(toastFor(other, null, { window: true, session: 'sink1' }), { title: 'MetaTrooper needs you', body: 'notify failed' });
 });
 
+
 test('main.ts builds every toast through toastFor', () => {
   const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
-  assert.match(main, /toastFor\(n, sessionOf\(s, n\), \{ window: [^}]*win\.isFocused\(\), session: s\.selected \}\)/);
+  assert.match(main, /toastFor\(n, sessionOf\(s, n\), \{ window: [^}]*win\.isFocused\(\), session: focused \}\)/);
+  assert.match(main, /on\('focus', \(id: unknown\) => \{\s*focused = typeof id === 'string' \? id : null;/);
   assert.match(main, /new Notification\(\{ \.\.\.toast/);
+});
+
+test('the renderer reports the tile it shows big, so a shell pick or project switch moves toast suppression with it', () => {
+  const app = readFileSync(new URL('../renderer/app.js', import.meta.url), 'utf8');
+  assert.match(app, /const big = wall\.decide\([^\n]*\n  reportFocus\(big\);/);
+  const sent: Array<string | null> = [];
+  const ui: any = {};
+  const src = app.match(/^function reportFocus\([^]*?\n}\n/m)![0];
+  const reportFocus = new Function('ui', 'api', `${src}; return reportFocus;`)(ui, { focus: (id: string | null) => sent.push(id) });
+  reportFocus('s1');
+  reportFocus('s1');
+  reportFocus('sh_1');
+  reportFocus(null);
+  assert.deepEqual(sent, ['s1', 'sh_1', null]);
 });

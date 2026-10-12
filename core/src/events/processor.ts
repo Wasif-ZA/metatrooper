@@ -78,7 +78,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
-          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
+          // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
+          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
+          if (ev.kind === 'claude.PostToolUse' || ev.kind === 'claude.Stop' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
         }
         const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });

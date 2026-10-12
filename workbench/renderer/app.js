@@ -750,7 +750,7 @@ function searchScrollback() {
   clearTimeout(scrollTimer);
   const q = document.getElementById('palette-input').value.trim();
   if (q && ui.snap.core.online) scrollTimer = setTimeout(async () => {
-    const r = await rpc('session.search', { query: q }, true);
+    const r = await rpc('session.search', { query: q, session_ids: [...ui.snap.sessions, ...shellRows()].map((x) => x.id) }, true);
     if (r.result && document.getElementById('palette-input').value.trim() === q) { ui.scrollHits = r.result.hits; renderPalette(); }
   }, 100);
 }
@@ -868,6 +868,7 @@ function render(focus = false) {
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
     .map((x) => ({ id: x.id, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), ctx: x.shell ? null : ctxChip(x), unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
+  reportFocus(big);
   const sel = selectedSession();
   renderTitle();
   renderList(sel);
@@ -888,6 +889,13 @@ function render(focus = false) {
   renderStrip(sel);
   renderInbox();
   if (PROBE) void api.probe({ sessions: ui.snap.sessions.map((x) => ({ id: x.id, state: x.state })), online: ui.snap.core.online, term: termView.state(), layout: { tab: ui.tab, split: ui.split, mode: ui.mode, rows: document.querySelectorAll('.srow').length, start: !document.getElementById('start').hidden } });
+}
+
+// Main suppresses toasts for this tile, so it must be the one on screen, not the last session.focus.
+function reportFocus(id) {
+  if (id === ui.focused) return;
+  ui.focused = id;
+  void api.focus(id);
 }
 
 function setView() {
