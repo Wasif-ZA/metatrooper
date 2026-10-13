@@ -150,3 +150,66 @@ test('openCoreDb waits out another process holding the write lock for 600 ms', a
     db.close();
   } finally { await exited; }
 });
+
+test('an oversized reply to a request with a near-1 MiB id still gets a short error and the server keeps serving', async t => {
+  const net = await import('node:net');
+  const { startPipeServer } = await import('../src/pipe/server.ts');
+  const { createDecoder } = await import('../src/pipe/framing.ts');
+  const { corePipe } = await import('../src/paths.ts');
+  const pipe = withEnv({ METATROOPER_PIPE_PREFIX: `mt-harden-${randomUUID()}` }, corePipe);
+  const runner = { call: async (req: { method: string }) => { if (req.method === 'big.fail') throw new Error('y'.repeat(200)); return { ok: true }; } };
+  const server = await startPipeServer(pipe, Promise.resolve({ runner: runner as never, uiKey: 'k' }));
+  t.after(() => server.close());
+  const socket = net.connect(pipe);
+  t.after(() => socket.destroy());
+  const replies: Array<{ id: unknown; error?: { code: number } }> = [];
+  socket.on('data', createDecoder((m) => replies.push(m as never)));
+  await new Promise((r) => socket.once('connect', r));
+  socket.write(JSON.stringify({ jsonrpc: '2.0', id: 'i'.repeat(1024 * 1024 - 50), method: 'big.fail' }) + '\n');
+  socket.write(JSON.stringify({ jsonrpc: '2.0', id: 'small', method: 'small.ok' }) + '\n');
+  const deadline = Date.now() + 5000;
+  while (replies.length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(replies.map((r) => [r.id, r.error?.code ?? null]).sort(), [[null, -32099], ['small', null]]);
+});
+
+test('queued and finished rows whose params are not an object fail alone in drain and recover', async t => {
+  const db = coreDb(t);
+  const ran: unknown[] = [];
+  const methods = new Map<string, MethodSpec>([['fixture.do', { handler: (p) => { ran.push(p); return {}; } }]]);
+  const insert = db.prepare("INSERT INTO command (id, at, origin, method, params, status) VALUES (?, '2026-10-14T00:00:00+11:00', 'cli', 'fixture.do', ?, ?)");
+  insert.run('done-null', 'null', 'ok');
+  insert.run('null', 'null', 'queued');
+  insert.run('number', '123', 'queued');
+  insert.run('array', '[1]', 'queued');
+  insert.run('good', '{"n":1}', 'queued');
+  await new CommandRunner(db, methods).recover();
+  assert.deepEqual(ran, [{ n: 1 }]);
+  const status = (id: string) => (db.prepare('SELECT status FROM command WHERE id = ?').get(id) as { status: string }).status;
+  assert.deepEqual(['null', 'number', 'array', 'good'].map(status), ['error', 'error', 'error', 'ok']);
+});
+
+test('reinstalling a git plugin records the new version when the old copy cannot be removed', async t => {
+  const isolated = isolation();
+  const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };
+  const db = withEnv(env, openCoreDb);
+  t.after(() => { db.close(); rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const { installPlugin } = await import('../src/plugins/store.ts');
+  const repo = join(isolated.home, 'fixture.git');
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'pipe' });
+  const manifest = (version: string) => writeFileSync(join(repo, 'troop-plugin.json'), JSON.stringify({ schema: 1, id: 'locked-fixture', version, name: 'locked-fixture' }));
+  mkdirSync(repo);
+  git('init', '-q');
+  manifest('1.0.0');
+  git('add', '.');
+  git('commit', '-qm', 'v1');
+  withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] }));
+  manifest('2.0.0');
+  git('commit', '-qam', 'v2');
+  const rm = fs.rmSync;
+  t.mock.method(fs, 'rmSync', (p, o) => {
+    if (String(p).includes('.old-')) throw Object.assign(new Error('EPERM: fixture'), { code: 'EPERM' });
+    return rm(p, o);
+  });
+  withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] }));
+  assert.equal((db.prepare("SELECT version FROM plugin WHERE id = 'locked-fixture'").get() as { version: string }).version, '2.0.0');
+});
