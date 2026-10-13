@@ -274,7 +274,8 @@ export class PaneManager {
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
     pane.ready = this.setUp(pane);
-    await pane.ready;
+    // ponytail: no backoff; a pane that fails every time is rebuilt on each sync
+    await pane.ready.catch((e) => { if (this.panes.get(row.id) === pane) this.destroy(row.id); throw e; });
   }
 
   private async setUp(pane: Pane): Promise<void> {

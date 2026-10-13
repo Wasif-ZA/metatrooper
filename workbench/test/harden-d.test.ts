@@ -8,6 +8,42 @@ import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+test('needs-you toasts start from the first snapshot read from the database, and a fallback snapshot changes nothing', async () => {
+  const { freshNeeds } = await import('../src/queries.ts');
+  const row = (id: string) => ({ id, at: '', kind: 'done', ref: null, text: id, read_at: null });
+  const empty = { needs_you: [] as ReturnType<typeof row>[] };
+  const db = { needs_you: [row('a'), row('b')] };
+  let r = freshNeeds(null, empty as never, false);
+  assert.deepEqual([r.seen, r.fresh], [null, []]);
+  r = freshNeeds(r.seen, db as never, true);
+  assert.deepEqual(r.fresh, []);
+  r = freshNeeds(r.seen, empty as never, false);
+  r = freshNeeds(r.seen, { needs_you: [row('a'), row('b'), row('c')] } as never, true);
+  assert.deepEqual(r.fresh.map((n) => n.id), ['c']);
+});
+
+test('a browser pane whose setup fails is dropped, so the next sync builds it again', () => {
+  const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/pane-setup-fail.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { afterFail: false, retried: true });
+});
+
+test('the per-session git cache keeps a bounded number of sessions, dropping the longest unrefreshed first', async () => {
+  const { refreshRowGit, rowGit } = await import('../src/rowgit.ts');
+  const gone = path.join(os.tmpdir(), `mt-harden-d-no-such-dir-${process.pid}`);
+  for (let i = 0; i < 300; i++) await refreshRowGit([{ id: 'live', cwd: gone }, { id: `s${i}`, cwd: gone }]);
+  const ids = Object.keys(rowGit());
+  assert.ok(ids.length <= 200, `${ids.length} sessions cached`);
+  assert.ok(ids.includes('live') && ids.includes('s299') && !ids.includes('s0'));
+});
+
+test('a data-folder watcher that errors (folder deleted or locked) does not throw', async () => {
+  const { watchDb } = await import('../src/queries.ts');
+  const w = watchDb(mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-watch-')), 'troop.db', () => {});
+  assert.ok(w);
+  try { assert.doesNotThrow(() => w.emit('error', new Error('EPERM'))); } finally { w.close(); }
+});
+
 test('a browser pane whose database read fails still blanks a rebound page and answers its requests with a block', () => {
   const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/policy-db-error.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
