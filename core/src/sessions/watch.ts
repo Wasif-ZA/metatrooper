@@ -214,7 +214,8 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   for (const s of rows) {
     let a = activity.get(s.id);
     if (!a || !a.file) {
-      const file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s);
+      let file: string | null = null;
+      try { file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s); } catch {}
       if (!file) continue;
       const m = measure(file);
       a = { file, size: m.size, mtime: m.mtime, lastChange: 0, working: false };

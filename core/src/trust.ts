@@ -17,7 +17,7 @@ function styled(dir: string, style: TrustSpec['path_style']): string {
   return style === 'windows-lower' ? win.toLowerCase() : win;
 }
 
-function writeAtomic(file: string, text: string): void {
+export function writeAtomic(file: string, text: string): void {
   const tmp = `${file}.troop-tmp`;
   fs.writeFileSync(tmp, text);
   fs.renameSync(tmp, file);
