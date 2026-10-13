@@ -153,7 +153,16 @@ export class CommandRunner {
       .all() as Array<{ id: string; method: string; params: string; origin: string; status: string }>;
     for (const row of pending) {
       const spec = this.methods.get(row.method);
-      const params = JSON.parse(row.params || '{}');
+      let params: Record<string, unknown>;
+      try {
+        params = JSON.parse(row.params || '{}');
+      } catch {
+        const err = new RpcError(E.INVALID_PARAMS, 'params do not parse');
+        this.db
+          .prepare("UPDATE command SET status = 'error', result = ?, done_at = ?, params = '{}' WHERE id = ?")
+          .run(JSON.stringify(err.toJSON()), nowIso(), row.id);
+        continue;
+      }
       if (!spec || !isQueueable(row.method) || spec.needsUi) {
         const err = new RpcError(spec ? E.NEEDS_UI : E.METHOD_NOT_FOUND, spec ? `${row.method} cannot run from the queue` : `unknown method ${row.method}`);
         this.db
