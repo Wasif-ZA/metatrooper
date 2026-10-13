@@ -15,15 +15,16 @@ function fakeDpapi(): boolean {
   return process.platform !== 'win32' && process.env.METATROOPER_FAKE_DPAPI === '1';
 }
 
+/** The script's output, sent back as base64 of its UTF-8 bytes so the console codepage cannot change it. */
 function powershell(script: string, stdin: string): string {
   const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', '-'], {
-    input: `${script}\n`,
+    input: `$out = & { ${script} }; [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$out))\n`,
     encoding: 'utf8',
     windowsHide: true,
     env: { ...process.env, TROOP_SECRET_IN: stdin },
   });
   if (r.status !== 0) throw new Error(`powershell failed: ${(r.stderr || '').trim().split('\n')[0]}`);
-  return r.stdout.trim();
+  return Buffer.from(r.stdout.trim(), 'base64').toString('utf8');
 }
 
 function secretTool(args: string[], stdin = ''): string {
