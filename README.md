@@ -239,7 +239,8 @@ From source, `troop` below means `node core/cli.ts`.
 
 ## Use it from your agent
 
-Copy `skills/troop/` into your agent's skills folder (`~/.claude/skills/troop/` for Claude Code). It
+`troop skills install` copies every skill in `skills/` into `~/.claude/skills/` (it keeps any you
+already have; `--force` replaces them). `skills/README.md` lists what each one does. The `troop` skill
 teaches the agent to start a pipeline, wait on it, and report a gate to you instead of resolving it:
 
 ```bash
