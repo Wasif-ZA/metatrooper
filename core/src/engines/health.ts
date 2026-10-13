@@ -83,5 +83,7 @@ export function engineVersion(db: DatabaseSync, id: string): string | null {
 }
 
 export async function checkAll(db: DatabaseSync, engines: EngineSpec[]): Promise<void> {
-  for (const e of engines) await checkEngine(db, e);
+  for (const e of engines) {
+    try { await checkEngine(db, e); } catch (err) { console.warn(`engine ${e.id} not checked: ${(err as Error).message}`); }
+  }
 }
