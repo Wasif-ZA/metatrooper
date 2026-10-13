@@ -46,6 +46,15 @@ export function scrubParams(params: Record<string, unknown>): Record<string, unk
   return out;
 }
 
+function parseParams(text: string | null): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(text || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 function storedOutcome(row: { status: string; result: string | null }): unknown {
   const parsed = row.result ? JSON.parse(row.result) : null;
   if (row.status === 'error') throw new RpcError(parsed?.code ?? E.INTERNAL, parsed?.message ?? 'error', parsed?.data);
@@ -133,8 +142,8 @@ export class CommandRunner {
     const finished = this.db.prepare("SELECT id, params FROM command WHERE status IN ('ok','error')").all() as Array<{ id: string; params: string }>;
     const rewrite = this.db.prepare('UPDATE command SET params = ? WHERE id = ?');
     for (const r of finished) {
-      let params: Record<string, unknown>;
-      try { params = JSON.parse(r.params || '{}'); } catch { continue; }
+      const params = parseParams(r.params);
+      if (!params) continue;
       const scrubbed = JSON.stringify(scrubParams(params));
       if (scrubbed !== r.params) rewrite.run(scrubbed, r.id);
     }
@@ -153,11 +162,9 @@ export class CommandRunner {
       .all() as Array<{ id: string; method: string; params: string; origin: string; status: string }>;
     for (const row of pending) {
       const spec = this.methods.get(row.method);
-      let params: Record<string, unknown>;
-      try {
-        params = JSON.parse(row.params || '{}');
-      } catch {
-        const err = new RpcError(E.INVALID_PARAMS, 'params do not parse');
+      const params = parseParams(row.params);
+      if (!params) {
+        const err = new RpcError(E.INVALID_PARAMS, 'params are not a JSON object');
         this.db
           .prepare("UPDATE command SET status = 'error', result = ?, done_at = ?, params = '{}' WHERE id = ?")
           .run(JSON.stringify(err.toJSON()), nowIso(), row.id);

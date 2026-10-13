@@ -171,3 +171,19 @@ test('an oversized reply to a request with a near-1 MiB id still gets a short er
   while (replies.length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
   assert.deepEqual(replies.map((r) => [r.id, r.error?.code ?? null]).sort(), [[null, -32099], ['small', null]]);
 });
+
+test('queued and finished rows whose params are not an object fail alone in drain and recover', async t => {
+  const db = coreDb(t);
+  const ran: unknown[] = [];
+  const methods = new Map<string, MethodSpec>([['fixture.do', { handler: (p) => { ran.push(p); return {}; } }]]);
+  const insert = db.prepare("INSERT INTO command (id, at, origin, method, params, status) VALUES (?, '2026-10-14T00:00:00+11:00', 'cli', 'fixture.do', ?, ?)");
+  insert.run('done-null', 'null', 'ok');
+  insert.run('null', 'null', 'queued');
+  insert.run('number', '123', 'queued');
+  insert.run('array', '[1]', 'queued');
+  insert.run('good', '{"n":1}', 'queued');
+  await new CommandRunner(db, methods).recover();
+  assert.deepEqual(ran, [{ n: 1 }]);
+  const status = (id: string) => (db.prepare('SELECT status FROM command WHERE id = ?').get(id) as { status: string }).status;
+  assert.deepEqual(['null', 'number', 'array', 'good'].map(status), ['error', 'error', 'error', 'ok']);
+});
