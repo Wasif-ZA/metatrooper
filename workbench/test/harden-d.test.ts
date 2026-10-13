@@ -75,16 +75,23 @@ test('a reloaded or crashed window lets go of every terminal connection it had a
 });
 
 test('a tile that leaves the wall stops observing its size and drops its pending refit', () => {
-  const observers: Array<{ disconnected: boolean }> = [];
+  const observers: Array<{ disconnected: boolean; fire: () => void }> = [];
   const cleared: unknown[] = [];
-  const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, remove() {}, isConnected: true });
+  let timerId = 0;
+  const node = (): any => ({ dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, querySelector: () => node(), append() {}, remove() {}, isConnected: true, offsetWidth: 100, clientHeight: 100 });
   const troop = { onTerm() {}, termInput() {}, termAttach: async () => {}, termDetach: async () => {} };
   class Terminal { options = {}; loadAddon() {} registerLinkProvider() {} open() {} onData() {} attachCustomKeyEventHandler() {} write() {} focus() {} dispose() {} }
-  class ResizeObserver { disconnected = false; constructor() { observers.push(this); } observe() {} disconnect() { this.disconnected = true; } }
-  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver, setTimeout: () => 7, clearTimeout: (t: unknown) => cleared.push(t), performance });
+  class ResizeObserver { disconnected = false; fire: () => void; constructor(cb: () => void) { this.fire = cb; observers.push(this); } observe() {} disconnect() { this.disconnected = true; } }
+  const ctx = vm.createContext({ window: { troop, Terminal, FitAddon: { FitAddon: class {} } }, document: { getElementById: () => node(), createElement: node }, ResizeObserver, setTimeout: () => ++timerId, clearTimeout: (t: unknown) => cleared.push(t), performance });
   vm.runInContext(`${readFileSync(new URL('../renderer/terminal.js', import.meta.url), 'utf8')}\nthis.termView = termView;`, ctx);
   ctx.termView.show({ mode: 'single', selected: 's1', sessions: [{ id: 's1', state: 'working', words: '' }] });
   assert.equal(observers.length, 1);
+  observers[0].fire();
+  observers[0].fire();
+  const refit = timerId;
+  assert.ok(refit > 0, 'the second resize schedules a refit');
+  assert.ok(!cleared.includes(refit));
   ctx.termView.show({ mode: 'single', selected: null, sessions: [] });
   assert.equal(observers[0].disconnected, true);
+  assert.ok(cleared.includes(refit), 'dropping the tile clears its pending refit');
 });
