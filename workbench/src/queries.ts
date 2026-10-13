@@ -201,6 +201,17 @@ export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | nu
   return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
 }
 
+/** Needs-you rows to toast: none until a snapshot read from the database seeds `seen`; a fallback snapshot leaves `seen` as it is. */
+export function freshNeeds(seen: Set<string> | null, s: Pick<Snapshot, 'needs_you'>, fromDb: boolean): { seen: Set<string> | null; fresh: Snapshot['needs_you'] } {
+  if (!fromDb) return { seen, fresh: [] };
+  if (!seen) return { seen: new Set(s.needs_you.map((n) => n.id)), fresh: [] };
+  const fresh = s.needs_you.filter((n) => !seen.has(n.id) && !n.read_at);
+  for (const n of fresh) seen.add(n.id);
+  const ids = new Set(s.needs_you.map((n) => n.id));
+  for (const id of [...seen]) if (!ids.has(id)) seen.delete(id);
+  return { seen, fresh };
+}
+
 export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
 }

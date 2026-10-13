@@ -8,6 +8,20 @@ import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+test('needs-you toasts start from the first snapshot read from the database, and a fallback snapshot changes nothing', async () => {
+  const { freshNeeds } = await import('../src/queries.ts');
+  const row = (id: string) => ({ id, at: '', kind: 'done', ref: null, text: id, read_at: null });
+  const empty = { needs_you: [] as ReturnType<typeof row>[] };
+  const db = { needs_you: [row('a'), row('b')] };
+  let r = freshNeeds(null, empty as never, false);
+  assert.deepEqual([r.seen, r.fresh], [null, []]);
+  r = freshNeeds(r.seen, db as never, true);
+  assert.deepEqual(r.fresh, []);
+  r = freshNeeds(r.seen, empty as never, false);
+  r = freshNeeds(r.seen, { needs_you: [row('a'), row('b'), row('c')] } as never, true);
+  assert.deepEqual(r.fresh.map((n) => n.id), ['c']);
+});
+
 test('a browser pane whose database read fails still blanks a rebound page and answers its requests with a block', () => {
   const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/policy-db-error.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
