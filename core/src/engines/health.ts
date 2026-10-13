@@ -84,6 +84,9 @@ export function engineVersion(db: DatabaseSync, id: string): string | null {
 
 export async function checkAll(db: DatabaseSync, engines: EngineSpec[]): Promise<void> {
   for (const e of engines) {
-    try { await checkEngine(db, e); } catch (err) { console.warn(`engine ${e.id} not checked: ${(err as Error).message}`); }
+    try { await checkEngine(db, e); } catch (err) {
+      console.warn(`engine ${e.id} not checked: ${(err as Error).message}`);
+      db.prepare("INSERT OR REPLACE INTO engine_check (engine_id, checked_at, installed, version, auth, detail) VALUES (?, ?, 0, NULL, 'missing', 'check-error')").run(e.id, nowIso());
+    }
   }
 }
