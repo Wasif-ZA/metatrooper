@@ -187,3 +187,29 @@ test('queued and finished rows whose params are not an object fail alone in drai
   const status = (id: string) => (db.prepare('SELECT status FROM command WHERE id = ?').get(id) as { status: string }).status;
   assert.deepEqual(['null', 'number', 'array', 'good'].map(status), ['error', 'error', 'error', 'ok']);
 });
+
+test('reinstalling a git plugin records the new version when the old copy cannot be removed', async t => {
+  const isolated = isolation();
+  const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };
+  const db = withEnv(env, openCoreDb);
+  t.after(() => { db.close(); rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const { installPlugin } = await import('../src/plugins/store.ts');
+  const repo = join(isolated.home, 'fixture.git');
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'pipe' });
+  const manifest = (version: string) => writeFileSync(join(repo, 'troop-plugin.json'), JSON.stringify({ schema: 1, id: 'locked-fixture', version, name: 'locked-fixture' }));
+  mkdirSync(repo);
+  git('init', '-q');
+  manifest('1.0.0');
+  git('add', '.');
+  git('commit', '-qm', 'v1');
+  withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] }));
+  manifest('2.0.0');
+  git('commit', '-qam', 'v2');
+  const rm = fs.rmSync;
+  t.mock.method(fs, 'rmSync', (p, o) => {
+    if (String(p).includes('.old-')) throw Object.assign(new Error('EPERM: fixture'), { code: 'EPERM' });
+    return rm(p, o);
+  });
+  withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] }));
+  assert.equal((db.prepare("SELECT version FROM plugin WHERE id = 'locked-fixture'").get() as { version: string }).version, '2.0.0');
+});

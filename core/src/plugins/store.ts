@@ -243,7 +243,13 @@ function placeFiles(p: Prepared, m: Manifest): string {
       throw e;
     }
     p.staged = false;
-    if (aside) fs.rmSync(aside, { recursive: true, force: true });
+    if (aside) {
+      try {
+        fs.rmSync(aside, { recursive: true, force: true });
+      } catch (e) {
+        console.error(`plugin install: left ${aside} in place: ${(e as Error).message.split('\n')[0]}`);
+      }
+    }
     return target;
   }
   return p.dir;
