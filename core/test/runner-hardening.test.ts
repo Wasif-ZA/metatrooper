@@ -83,3 +83,11 @@ test('a UI call to a core that never answers ui.hello gives up after waitMs', t 
   assert.ok(Date.now() - started < 10_000, `call hung ${Date.now() - started} ms`);
   assert.equal(r.stdout.trim(), 'offline', r.stderr);
 });
+
+test('the CLI reports a database that does not open as one line and exits 1', t => {
+  const home = tempDir(t);
+  writeFileSync(join(home, 'troop.db'), 'not a database');
+  const r = spawnSync(process.execPath, ['cli.ts', 'sessions'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, METATROOPER_HOME: home }, encoding: 'utf8', timeout: 20_000 });
+  assert.equal(r.status, 1);
+  assert.equal(r.stderr.trim(), 'troop: file is not a database');
+});
