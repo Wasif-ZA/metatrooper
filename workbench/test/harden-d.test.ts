@@ -28,6 +28,15 @@ test('a browser pane whose setup fails is dropped, so the next sync builds it ag
   assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { afterFail: false, retried: true });
 });
 
+test('the per-session git cache keeps a bounded number of sessions, dropping the longest unrefreshed first', async () => {
+  const { refreshRowGit, rowGit } = await import('../src/rowgit.ts');
+  const gone = path.join(os.tmpdir(), `mt-harden-d-no-such-dir-${process.pid}`);
+  for (let i = 0; i < 300; i++) await refreshRowGit([{ id: 'live', cwd: gone }, { id: `s${i}`, cwd: gone }]);
+  const ids = Object.keys(rowGit());
+  assert.ok(ids.length <= 200, `${ids.length} sessions cached`);
+  assert.ok(ids.includes('live') && ids.includes('s299') && !ids.includes('s0'));
+});
+
 test('a data-folder watcher that errors (folder deleted or locked) does not throw', async () => {
   const { watchDb } = await import('../src/queries.ts');
   const w = watchDb(mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-watch-')), 'troop.db', () => {});
