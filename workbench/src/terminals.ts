@@ -55,6 +55,10 @@ export function termResize(sessionId: string, cols: number, rows: number): void 
   conns.get(sessionId)?.write(JSON.stringify({ op: 'resize', cols, rows }) + '\n');
 }
 
+export function detachAll(): void {
+  for (const id of [...conns.keys()]) detachTerm(id);
+}
+
 export function detachTerm(sessionId: string): void {
   const s = conns.get(sessionId);
   if (!s) return;

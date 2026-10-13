@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 import vm from 'node:vm';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +12,30 @@ test('a browser pane whose database read fails still blanks a rebound page and a
   const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/policy-db-error.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { blanked: true, request: { cancel: true } });
+});
+
+test('a reloaded or crashed window lets go of every terminal connection it had attached', async () => {
+  process.env.METATROOPER_PIPE_PREFIX = `mt-harden-d-${process.pid}`;
+  process.env.METATROOPER_HOME = mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-'));
+  const { termPipe } = await import('../../core/src/paths.ts');
+  const terminals = await import('../src/terminals.ts');
+  const open = new Set<net.Socket>();
+  let joined = 0;
+  const server = net.createServer((s) => { open.add(s); joined++; s.on('close', () => open.delete(s)); s.on('error', () => {}); s.resume(); });
+  await new Promise<void>((r) => server.listen(termPipe(), r));
+  try {
+    const closed: string[] = [];
+    for (const id of ['s1', 's2']) terminals.attachTerm(id, 80, 24, (sid, m) => { if (m.op === 'closed') closed.push(sid); });
+    for (let i = 0; i < 100 && joined < 2; i++) await new Promise((r) => setTimeout(r, 20));
+    assert.equal(joined, 2);
+    terminals.detachAll();
+    for (let i = 0; i < 100 && open.size; i++) await new Promise((r) => setTimeout(r, 20));
+    assert.equal(open.size, 0);
+    assert.deepEqual(closed, []);
+  } finally {
+    for (const s of open) s.destroy();
+    await new Promise((r) => server.close(r));
+  }
 });
 
 test('a tile that leaves the wall stops observing its size and drops its pending refit', () => {
