@@ -118,3 +118,19 @@ test('reinstalling a git plugin keeps the installed copy when moving the new one
   assert.throws(() => withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] })), /EPERM/);
   assert.equal(JSON.parse(readFileSync(join(target, 'troop-plugin.json'), 'utf8')).version, '1.0.0');
 });
+
+test('an error reply over 1 MiB goes out as a short error and the server keeps serving', async t => {
+  const { startPipeServer } = await import('../src/pipe/server.ts');
+  const { PipeClient } = await import('../src/pipe/client.ts');
+  const { corePipe } = await import('../src/paths.ts');
+  const pipe = withEnv({ METATROOPER_PIPE_PREFIX: `mt-harden-${randomUUID()}` }, corePipe);
+  const runner = { call: async (req: { method: string }) => { if (req.method === 'big.fail') throw new Error('x'.repeat(2 * 1024 * 1024)); return { ok: true }; } };
+  const server = await startPipeServer(pipe, Promise.resolve({ runner: runner as never, uiKey: 'k' }));
+  t.after(() => server.close());
+  const client = await PipeClient.connect(pipe);
+  t.after(() => client.close());
+  const big = await client.send('big.fail').reply;
+  assert.equal(big.error?.code, -32099);
+  assert.ok(big.error!.message.length < 1000, `${big.error!.message.length} chars`);
+  assert.deepEqual((await client.send('small.ok').reply).result, { ok: true });
+});
