@@ -542,4 +542,7 @@ async function main(): Promise<number> {
   }
 }
 
-main().then((code) => { if (code >= 0) process.exit(code); });
+main().then((code) => { if (code >= 0) process.exit(code); }, (e) => {
+  console.error(`troop: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+});

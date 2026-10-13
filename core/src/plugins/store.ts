@@ -234,9 +234,16 @@ function placeFiles(p: Prepared, m: Manifest): string {
     return target;
   }
   if (p.staged) {
-    fs.rmSync(target, { recursive: true, force: true });
-    fs.renameSync(p.dir, target);
+    const aside = fs.existsSync(target) ? `${target}.old-${ulid().toLowerCase()}` : null;
+    if (aside) fs.renameSync(target, aside);
+    try {
+      fs.renameSync(p.dir, target);
+    } catch (e) {
+      if (aside) fs.renameSync(aside, target);
+      throw e;
+    }
     p.staged = false;
+    if (aside) fs.rmSync(aside, { recursive: true, force: true });
     return target;
   }
   return p.dir;
