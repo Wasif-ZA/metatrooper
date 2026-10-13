@@ -74,3 +74,12 @@ test('a call whose queue write fails reports offline instead of crashing the CLI
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), 'offline');
 });
+
+test('a UI call to a core that never answers ui.hello gives up after waitMs', t => {
+  const { dir, run } = clientScript(t, ["const out = await call('core.ping', {}, { ui: true, waitMs: 500 });", 'console.log(out.kind);']);
+  writeFileSync(join(dir, 'ui.key'), 'fixture-key');
+  const started = Date.now();
+  const r = run();
+  assert.ok(Date.now() - started < 10_000, `call hung ${Date.now() - started} ms`);
+  assert.equal(r.stdout.trim(), 'offline', r.stderr);
+});
