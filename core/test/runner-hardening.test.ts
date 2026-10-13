@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import fs, { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate, openCoreDb } from '../src/store/db.ts';
@@ -90,4 +90,31 @@ test('the CLI reports a database that does not open as one line and exits 1', t 
   const r = spawnSync(process.execPath, ['cli.ts', 'sessions'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, METATROOPER_HOME: home }, encoding: 'utf8', timeout: 20_000 });
   assert.equal(r.status, 1);
   assert.equal(r.stderr.trim(), 'troop: file is not a database');
+});
+
+test('reinstalling a git plugin keeps the installed copy when moving the new one in fails', async t => {
+  const isolated = isolation();
+  const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };
+  const db = withEnv(env, openCoreDb);
+  t.after(() => { db.close(); rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
+  const { installPlugin, pluginsDir } = await import('../src/plugins/store.ts');
+  const repo = join(isolated.home, 'fixture.git');
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'pipe' });
+  const manifest = (version: string) => writeFileSync(join(repo, 'troop-plugin.json'), JSON.stringify({ schema: 1, id: 'reinstall-fixture', version, name: 'reinstall-fixture' }));
+  mkdirSync(repo);
+  git('init', '-q');
+  manifest('1.0.0');
+  git('add', '.');
+  git('commit', '-qm', 'v1');
+  withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] }));
+  manifest('2.0.0');
+  git('commit', '-qam', 'v2');
+  const target = withEnv(env, () => join(pluginsDir(), 'reinstall-fixture'));
+  const rename = fs.renameSync;
+  t.mock.method(fs, 'renameSync', (from, to) => {
+    if (String(to) === target && String(from).includes('.staging-')) throw Object.assign(new Error('EPERM: fixture'), { code: 'EPERM' });
+    return rename(from, to);
+  });
+  assert.throws(() => withEnv(env, () => installPlugin(db, { source: repo, approved_permissions: [] })), /EPERM/);
+  assert.equal(JSON.parse(readFileSync(join(target, 'troop-plugin.json'), 'utf8')).version, '1.0.0');
 });
