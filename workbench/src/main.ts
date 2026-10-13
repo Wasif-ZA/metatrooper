@@ -25,7 +25,7 @@ import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
-import { freshNeeds } from './queries.ts';
+import { freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -169,11 +169,7 @@ function schedulePush(): void {
 function watch(): void {
   const dir = homeDir();
   fs.mkdirSync(dir, { recursive: true });
-  try {
-    fs.watch(dir, (_event, name) => {
-      if (name && String(name).startsWith(path.basename(dbFile()))) schedulePush();
-    });
-  } catch {}
+  watchDb(dir, path.basename(dbFile()), schedulePush);
   setInterval(() => {
     const d = db();
     let changed = false;

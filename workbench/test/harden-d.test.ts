@@ -22,6 +22,13 @@ test('needs-you toasts start from the first snapshot read from the database, and
   assert.deepEqual(r.fresh.map((n) => n.id), ['c']);
 });
 
+test('a data-folder watcher that errors (folder deleted or locked) does not throw', async () => {
+  const { watchDb } = await import('../src/queries.ts');
+  const w = watchDb(mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-watch-')), 'troop.db', () => {});
+  assert.ok(w);
+  try { assert.doesNotThrow(() => w.emit('error', new Error('EPERM'))); } finally { w.close(); }
+});
+
 test('a browser pane whose database read fails still blanks a rebound page and answers its requests with a block', () => {
   const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/policy-db-error.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);

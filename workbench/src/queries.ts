@@ -212,6 +212,15 @@ export function freshNeeds(seen: Set<string> | null, s: Pick<Snapshot, 'needs_yo
   return { seen, fresh };
 }
 
+/** Calls `onChange` when a file in `dir` starting with `prefix` is written; watcher errors are dropped (the poll still runs). */
+export function watchDb(dir: string, prefix: string, onChange: () => void): fs.FSWatcher | null {
+  try {
+    return fs.watch(dir, (_event, name) => { if (name && String(name).startsWith(prefix)) onChange(); }).on('error', () => {});
+  } catch {
+    return null;
+  }
+}
+
 export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
 }
