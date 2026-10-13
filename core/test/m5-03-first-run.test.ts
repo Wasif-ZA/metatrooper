@@ -126,8 +126,10 @@ test('an engine whose auth regex does not compile does not stop the engines afte
     const { checkAll } = await import('../src/engines/health.ts');
     const version = [process.execPath, '-e', 'process.stdout.write("1.0.0\\n")'];
     const bad = engine('bad', version, { auth_cmd: version, auth_ok: { stdout_regex: '(' } });
+    db.prepare("INSERT INTO engine_check (engine_id, checked_at, installed, version, auth, detail) VALUES ('bad', 'x', 1, '1.0.0', 'ok', NULL)").run();
     await checkAll(db, [bad, engine('good', version)]).catch(() => {});
     assert.ok(db.prepare("SELECT 1 FROM engine_check WHERE engine_id = 'good'").get());
+    assert.deepEqual({ ...db.prepare("SELECT installed, auth, detail FROM engine_check WHERE engine_id = 'bad'").get() }, { installed: 0, auth: 'missing', detail: 'check-error' });
   } finally {
     db.close();
   }
