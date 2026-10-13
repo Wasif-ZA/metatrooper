@@ -22,6 +22,12 @@ test('needs-you toasts start from the first snapshot read from the database, and
   assert.deepEqual(r.fresh.map((n) => n.id), ['c']);
 });
 
+test('a browser pane whose setup fails is dropped, so the next sync builds it again', () => {
+  const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/pane-setup-fail.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { afterFail: false, retried: true });
+});
+
 test('a data-folder watcher that errors (folder deleted or locked) does not throw', async () => {
   const { watchDb } = await import('../src/queries.ts');
   const w = watchDb(mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-watch-')), 'troop.db', () => {});
