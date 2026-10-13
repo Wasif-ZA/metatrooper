@@ -150,3 +150,24 @@ test('openCoreDb waits out another process holding the write lock for 600 ms', a
     db.close();
   } finally { await exited; }
 });
+
+test('an oversized reply to a request with a near-1 MiB id still gets a short error and the server keeps serving', async t => {
+  const net = await import('node:net');
+  const { startPipeServer } = await import('../src/pipe/server.ts');
+  const { createDecoder } = await import('../src/pipe/framing.ts');
+  const { corePipe } = await import('../src/paths.ts');
+  const pipe = withEnv({ METATROOPER_PIPE_PREFIX: `mt-harden-${randomUUID()}` }, corePipe);
+  const runner = { call: async (req: { method: string }) => { if (req.method === 'big.fail') throw new Error('y'.repeat(200)); return { ok: true }; } };
+  const server = await startPipeServer(pipe, Promise.resolve({ runner: runner as never, uiKey: 'k' }));
+  t.after(() => server.close());
+  const socket = net.connect(pipe);
+  t.after(() => socket.destroy());
+  const replies: Array<{ id: unknown; error?: { code: number } }> = [];
+  socket.on('data', createDecoder((m) => replies.push(m as never)));
+  await new Promise((r) => socket.once('connect', r));
+  socket.write(JSON.stringify({ jsonrpc: '2.0', id: 'i'.repeat(1024 * 1024 - 50), method: 'big.fail' }) + '\n');
+  socket.write(JSON.stringify({ jsonrpc: '2.0', id: 'small', method: 'small.ok' }) + '\n');
+  const deadline = Date.now() + 5000;
+  while (replies.length < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(replies.map((r) => [r.id, r.error?.code ?? null]).sort(), [[null, -32099], ['small', null]]);
+});
