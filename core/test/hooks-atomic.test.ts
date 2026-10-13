@@ -35,3 +35,32 @@ test('a crash while installing hooks leaves the user\'s Claude settings and Code
     assert.equal(readFileSync(join(home, 'config.toml'), 'utf8'), config);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test('writeAtomic writes past a temp file another writer left, and leaves no temp file when it fails', async () => {
+  const { mkdirSync, readdirSync } = await import('node:fs');
+  const { writeAtomic } = await import('../src/trust.ts');
+  const home = mkdtempSync(join(tmpdir(), 'troop-atomic-tmp-'));
+  try {
+    const file = join(home, 'settings.json');
+    mkdirSync(`${file}.troop-tmp`);
+    writeAtomic(file, '{"a":1}');
+    assert.equal(readFileSync(file, 'utf8'), '{"a":1}');
+    const dir = join(home, 'is-a-dir');
+    mkdirSync(join(dir, 'child'), { recursive: true });
+    assert.throws(() => writeAtomic(dir, 'x'));
+    assert.deepEqual(readdirSync(home).filter((n) => n.startsWith('is-a-dir.')), []);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test('writeAtomic keeps the replaced file\'s mode', { skip: process.platform === 'win32' && 'POSIX modes' }, async () => {
+  const { chmodSync, statSync } = await import('node:fs');
+  const { writeAtomic } = await import('../src/trust.ts');
+  const home = mkdtempSync(join(tmpdir(), 'troop-atomic-mode-'));
+  try {
+    const file = join(home, 'credentials.json');
+    writeFileSync(file, '{}');
+    chmodSync(file, 0o600);
+    writeAtomic(file, '{"a":1}');
+    assert.equal(statSync(file).mode & 0o777, 0o600);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
