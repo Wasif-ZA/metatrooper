@@ -22,7 +22,7 @@ import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
-import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
+import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
 
@@ -555,6 +555,8 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.webContents.on('render-process-gone', detachAll);
+  win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));
   win.on('responsive', () => console.error('window responsive again'));
   win.on('close', (e) => {
