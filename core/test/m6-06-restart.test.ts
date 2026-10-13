@@ -148,6 +148,26 @@ test('M6-06b an exited session keeps its last 200 rows, and attaching shows them
   } finally { await new Promise((r) => server.close(r)); }
 });
 
+test('at start every pty session the last core left open goes process-gone, including hidden ones whose old pid is alive again', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { root } = await import('./helpers.ts');
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+    const at = new Date().toISOString();
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', '.', 'p', ?, ?)").run(at, at);
+    db.prepare("INSERT OR IGNORE INTO engine (id, spec_json, cost_rank) VALUES ('fake', '{}', 1)").run();
+    const add = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, hidden, pid) VALUES (?, 'p', 'fake', 'pty', 'working', ?, ?, ?, ?)");
+    add.run('shown', at, at, 0, null);
+    add.run('hidden-reused-pid', at, at, 1, process.pid);
+    R.markGone(db, R.liveAtStart(db));
+    const gone = (db.prepare("SELECT session_id FROM event WHERE kind = 'core.process-gone' ORDER BY session_id").all() as Array<{ session_id: string }>).map((r) => r.session_id);
+    assert.deepEqual(gone, ['hidden-reused-pid', 'shown']);
+  } finally {
+    db.close();
+  }
+});
+
 test('pruneScreens deletes saved screens older than 30 days', () => {
   const dir = term.screensDir();
   mkdirSync(dir, { recursive: true });

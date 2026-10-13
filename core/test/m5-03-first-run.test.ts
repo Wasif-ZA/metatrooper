@@ -120,6 +120,19 @@ test('M5-03 version command timeout records timeout', async () => {
   }
 });
 
+test('an engine whose auth regex does not compile does not stop the engines after it from being checked', async () => {
+  const db = checkDb();
+  try {
+    const { checkAll } = await import('../src/engines/health.ts');
+    const version = [process.execPath, '-e', 'process.stdout.write("1.0.0\\n")'];
+    const bad = engine('bad', version, { auth_cmd: version, auth_ok: { stdout_regex: '(' } });
+    await checkAll(db, [bad, engine('good', version)]).catch(() => {});
+    assert.ok(db.prepare("SELECT 1 FROM engine_check WHERE engine_id = 'good'").get());
+  } finally {
+    db.close();
+  }
+});
+
 test('M5-03 new settings file defaults to ask and existing approval values are retained', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'metatrooper-settings-'));
   const oldHome = process.env.METATROOPER_HOME;
