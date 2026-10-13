@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+test('a browser pane whose database read fails still blanks a rebound page and answers its requests with a block', () => {
+  const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/policy-db-error.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { blanked: true, request: { cancel: true } });
+});
 
 test('a tile that leaves the wall stops observing its size and drops its pending refit', () => {
   const observers: Array<{ disconnected: boolean }> = [];
