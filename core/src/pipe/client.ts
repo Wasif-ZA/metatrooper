@@ -104,7 +104,7 @@ export async function call(method: string, params: Record<string, unknown> = {},
     client = await PipeClient.connect(corePipe(), queueable ? QUEUE_AFTER_MS : undefined);
   } catch {
     if (!queueable) return { kind: 'offline' };
-    enqueue(id, method, params);
+    try { enqueue(id, method, params); } catch { return { kind: 'offline' }; }
     opts.onQueued?.(id);
     return { kind: 'queued', id };
   }
@@ -114,8 +114,10 @@ export async function call(method: string, params: Record<string, unknown> = {},
     let queued = false;
     const timer = queueable
       ? setTimeout(() => {
-          queued = true;
-          enqueue(id, method, params);
+          try {
+            enqueue(id, method, params);
+            queued = true;
+          } catch {}
         }, QUEUE_AFTER_MS)
       : null;
     let wait: NodeJS.Timeout | undefined;

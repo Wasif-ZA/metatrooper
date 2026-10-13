@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate, openCoreDb } from '../src/store/db.ts';
@@ -47,4 +49,28 @@ test('a queued command whose params do not parse fails alone and the rows behind
   const status = (id: string) => (db.prepare('SELECT status FROM command WHERE id = ?').get(id) as { status: string }).status;
   assert.equal(status('bad'), 'error');
   assert.equal(status('good'), 'ok');
+});
+
+function clientScript(t, body: string[], home?: string) {
+  const dir = tempDir(t);
+  const script = [
+    "const net = await import('node:net');",
+    "const { call } = await import('./src/pipe/client.ts');",
+    "const { corePipe } = await import('./src/paths.ts');",
+    "const server = net.createServer((s) => s.resume());",
+    'await new Promise((r) => server.listen(corePipe(), r));',
+    ...body,
+    'server.close();',
+  ].join('\n');
+  const env = { ...process.env, METATROOPER_HOME: home ?? dir, METATROOPER_PIPE_PREFIX: `mt-harden-${randomUUID()}` };
+  return { dir, run: () => spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: join(import.meta.dirname, '..'), env, encoding: 'utf8', timeout: 20_000 }) };
+}
+
+test('a call whose queue write fails reports offline instead of crashing the CLI', t => {
+  const file = join(tempDir(t), 'home-is-a-file');
+  writeFileSync(file, '');
+  const { run } = clientScript(t, ["const out = await call('project.open', { path: 'x' }, { waitMs: 1000 });", 'console.log(out.kind);'], file);
+  const r = run();
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'offline');
 });
