@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs, { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate, openCoreDb } from '../src/store/db.ts';
@@ -133,4 +133,20 @@ test('an error reply over 1 MiB goes out as a short error and the server keeps s
   assert.equal(big.error?.code, -32099);
   assert.ok(big.error!.message.length < 1000, `${big.error!.message.length} chars`);
   assert.deepEqual((await client.send('small.ok').reply).result, { ok: true });
+});
+
+test('openCoreDb waits out another process holding the write lock for 600 ms', async t => {
+  const isolated = isolation();
+  const env = { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix };
+  withEnv(env, openCoreDb).close();
+  t.after(() => rmSync(isolated.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  const script = `const { DatabaseSync } = await import('node:sqlite'); const db = new DatabaseSync(${JSON.stringify(join(isolated.home, 'troop.db'))}); db.exec('BEGIN IMMEDIATE'); console.log('held'); const end = Date.now() + 600; while (Date.now() < end) {} db.exec('COMMIT'); db.close();`;
+  const holder = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const exited = new Promise((r) => holder.once('exit', r));
+  await new Promise<void>((r) => holder.stdout.once('data', () => r()));
+  try {
+    const db = withEnv(env, openCoreDb);
+    assert.equal((db.prepare('PRAGMA busy_timeout').get() as { timeout: number }).timeout, 200);
+    db.close();
+  } finally { await exited; }
 });

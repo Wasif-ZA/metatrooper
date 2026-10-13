@@ -13,7 +13,7 @@ function pragmas(db: DatabaseSync, busyMs: number): void {
 export function openCoreDb(): DatabaseSync {
   fs.mkdirSync(homeDir(), { recursive: true });
   const db = new DatabaseSync(dbFile());
-  pragmas(db, 200);
+  pragmas(db, 5000);
   const version = () => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
   const v = version();
   if (v === 0) {
@@ -55,6 +55,7 @@ export function openCoreDb(): DatabaseSync {
     db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
   });
   migrate(db);
+  db.exec('PRAGMA busy_timeout = 200');
   return db;
 }
 
