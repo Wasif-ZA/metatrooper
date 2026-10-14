@@ -170,7 +170,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |
 | `approval.check` | `{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`) |  |  |  |
 | `approval.resolve` | `{approval_id, decision, scope?}` | {status, scope}; -32010 when the row is not `waiting` | -32010 |  | yes |
-| `desktop.ui-window` | `{pid}` | {}; the workbench's process id, whose windows are never listed or granted (`contracts/desktop-tools.md`) |  |  | yes |
+| `desktop.ui-window` | `{pid, takeover_key, takeover_error}` | {}; the workbench's process id, whose windows are never listed or granted, and the take-over key it registered (`takeover_error` null) or why it failed; until a registered key is reported no window can be granted, and a failure ends live grants (`contracts/desktop-tools.md`) |  |  | yes |
 | `grant.candidates` | `{}` | {windows: [{hwnd, title, exe, pid}]}: visible top-level windows that may be granted |  |  | yes |
 | `grant.window` | `{session_id, hwnd}` | {grant_id}; -32003 for the workbench, an elevated window, a gone window or a non top-level window | -32002, -32003 |  | yes |
 | `grant.revoke` | `{grant_id}` | {}; ends the grant | -32002 |  | yes |
@@ -178,7 +178,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |
 | `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only | -32002 |  | yes |
 | `desktop.windows` | `{session_id, pid}` | {windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued | -32030 |  |  |
-| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
+| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect, token}; `token` is opaque and names the element itself; -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
 | `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |
 | `desktop.screenshot` | `{session_id, pid, window}` | {data_base64, mime, width, height}: JPEG, no side over 1,568 px | -32030 |  |  |
 | `desktop.find` | `{session_id, pid, window, text}` | {found}: whether a node Name or value contains `text` | -32030 |  |  |
