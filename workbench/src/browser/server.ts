@@ -123,6 +123,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       }
       const sessionId = bound.sessionId;
       let status = 'ok';
+      const origin = deps.panes.origin(paneId);
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
         return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, knownSecretValues(), tool === 'screenshot' ? KEEP : undefined) });
@@ -132,7 +133,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       } finally {
         // a checked attempt whose control changed sent nothing; the MCP server retries it, or reports it with browser.outcome, so the call is one row
         const retried = CHECKED.has(tool) && status === 'error -32035';
-        if (tool !== 'describe' && !retried) audit(sessionId, { tool, pane: paneId, origin: deps.panes.origin(paneId), status });
+        if (tool !== 'describe' && !retried) audit(sessionId, { tool, pane: paneId, origin, status });
       }
     };
 
