@@ -105,7 +105,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       }
       const s = ev.session_id ? (getSession.get(ev.session_id) as SessionRow | undefined) : undefined;
       if (s && ev.session_id && s.state !== 'exited') {
-        const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$|opencode\.state$)/.test(ev.kind) ? payload.session_id : undefined;
+        const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$)/.test(ev.kind) || (ev.kind === 'opencode.state' && specOf(s.engine_id).plugin) ? payload.session_id : undefined;
         let foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
         // A Codex or Gemini SessionStart (resume, clear) names the conversation the session now holds, and so does opencode starting work in another root session.
         if (foreign && (/^(codex|gemini)\.SessionStart$/.test(ev.kind) || (ev.kind === 'opencode.state' && payload.state === 'working'))) {
