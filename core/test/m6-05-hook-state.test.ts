@@ -406,6 +406,14 @@ test('the Codex and Gemini hook payloads keep only the allowlisted fields', asyn
   assert.deepEqual(buildPayload('claude.PermissionRequest', { ...raw, tool_name: 'Bash', tool_use_id: 'u', tool_input: { command: 'rm -rf /' } }).tool_input, { first_word: 'rm', length: 8 });
 });
 
+test('hook commands are refused for a core path holding $, a backtick or a double quote, and the error names the path', async () => {
+  const { nodeCommand } = await import('../src/hooks/install.ts');
+  assert.equal(nodeCommand('C:/Program Files/mt/core/event.js', 'claude.Stop'), 'node "C:/Program Files/mt/core/event.js" claude.Stop');
+  for (const bad of ['/opt/$HOME/core/event.js', '/opt/a`id`/core/event.js', '/opt/a"b/core/event.js']) {
+    assert.throws(() => nodeCommand(bad, 'claude.Stop'), (e: Error) => e.message.includes(bad), bad);
+  }
+});
+
 test('the shipped Codex and Gemini engines declare no hooks until their blockers in the M6-5 issue clear, and a hooks entry passes the engine schema', async () => {
   const { BUILT_IN, dataEngines } = await import('../src/engines/registry.ts');
   const { engineSchemaErrors } = await import('../src/plugins/manifest.ts');

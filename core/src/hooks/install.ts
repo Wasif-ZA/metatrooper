@@ -29,8 +29,14 @@ function codexScript(): string {
   return path.join(coreDir, 'codex-notify.js').split(String.fromCharCode(92)).join('/');
 }
 
+/** A shell command running a core script with node; refuses a script path the hook shell would expand inside double quotes. */
+export function nodeCommand(script: string, args: string): string {
+  if (/[$`"]/.test(script)) throw new Error(`cannot install hooks from ${script}: the path holds $, a backtick or a double quote, which the hook shell would expand; move MetaTrooper to a folder without them`);
+  return `node "${script}" ${args}`;
+}
+
 function hookCommand(event: string): string {
-  return `node "${eventScript()}" claude.${event}`;
+  return nodeCommand(eventScript(), `claude.${event}`);
 }
 
 function isOurs(group: Json): boolean {
@@ -106,7 +112,7 @@ export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: 
   if (engine.mcp_attach?.kind === 'codex-config') return codexHooks.length ? codexHooks : codexNotifyArgs();
   if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return codexHooks;
   const script = path.join(coreDir, 'statusline.js').split(String.fromCharCode(92)).join('/');
-  const settings: Json = { statusLine: { type: 'command', command: `node "${script}" --user-statusline`, padding: 0 } };
+  const settings: Json = { statusLine: { type: 'command', command: nodeCommand(script, '--user-statusline'), padding: 0 } };
   const global = globalClaudeHooks();
   const events = claudeHookEvents(version).filter((ev) => !global.has(ev));
   if (events.length) settings.hooks = Object.fromEntries(events.map((ev) => [ev, [ourGroup(ev)]]));
@@ -174,7 +180,7 @@ function userNotify(text: string): string[] | null {
 
 /** The command a per-session engine hook runs: event.js with the kind `<prefix>.<Event>` and the session id on the command line. */
 function engineHookCommand(prefix: string, event: string, sessionId: string): string {
-  return `node "${eventScript()}" ${prefix}.${event} --session ${sessionId}`;
+  return nodeCommand(eventScript(), `${prefix}.${event} --session ${sessionId}`);
 }
 
 /** `-c hooks.<Event>=...` overrides carrying the engine's declared Codex hooks; config.toml is never edited. */
