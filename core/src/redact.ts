@@ -20,6 +20,10 @@ function pick(raw: Obj, keys: string[]): Obj {
   return out;
 }
 
+function strings(raw: Obj, keys: string[]): Obj {
+  return Object.fromEntries(keys.filter((k) => typeof raw[k] === 'string').map((k) => [k, (raw[k] as string).slice(0, 4096)]));
+}
+
 /** Redacts a Claude tool_input per the table in contracts/events-and-hooks.md. */
 export function redactToolInput(toolName: string, input: unknown): Obj {
   const o = asObject(input);
@@ -58,7 +62,7 @@ function classifyNotification(type: unknown, message: string): 'permission' | 'i
 export function buildPayload(kind: string, raw: object): Obj {
   const r = asObject(raw);
   const tool = (): Obj => ({
-    ...pick(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']),
+    ...strings(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']),
     tool_input: redactToolInput(String(r.tool_name ?? ''), r.tool_input),
   });
   switch (kind) {
@@ -99,7 +103,7 @@ export function buildPayload(kind: string, raw: object): Obj {
     case 'gemini.AfterTool':
     case 'gemini.Notification':
     case 'gemini.AfterAgent':
-      return Object.fromEntries(['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source'].filter((k) => typeof r[k] === 'string').map((k) => [k, (r[k] as string).slice(0, 4096)]));
+      return strings(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source']);
     case 'core.process-gone':
       return pick(r, ['pid']);
     default:

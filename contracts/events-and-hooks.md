@@ -169,7 +169,7 @@ event name. It prints a unified diff and asks before writing. It never removes o
 }
 ```
 
-`matcher` is set only on `PreToolUse` and `PostToolUse`; the other events get a group with no matcher.
+`matcher` is set only on `PreToolUse`, `PostToolUse`, `PermissionRequest` and `PostToolUseFailure`; the other events get a group with no matcher.
 
 Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notification`, `Stop`,
 `SessionEnd`, and, when the installed CLI version lists them, `StopFailure` (2.1.78), `PermissionRequest` (2.0.45) and

@@ -402,6 +402,7 @@ test('the Codex and Gemini hook payloads keep only the allowlisted fields', asyn
   assert.deepEqual(buildPayload('gemini.Notification', raw), { session_id: 'n', transcript_path: '/t', cwd: '/p', tool_name: 'shell', notification_type: 'ToolPermission', source: 'startup' });
   assert.deepEqual(Object.keys(buildPayload('codex.Stop', raw)).sort(), ['cwd', 'notification_type', 'session_id', 'source', 'tool_name', 'transcript_path']);
   assert.deepEqual(buildPayload('codex.PermissionRequest', { session_id: 'n', tool_name: { prompt: 'PRIVATE' }, source: ['PRIVATE'], cwd: 'x'.repeat(5000) }), { session_id: 'n', cwd: 'x'.repeat(4096) });
+  assert.deepEqual(buildPayload('claude.PermissionRequest', { session_id: 'n', tool_name: { prompt: 'PRIVATE' }, tool_use_id: ['PRIVATE'], tool_input: {} }), { session_id: 'n', tool_input: {} });
   assert.deepEqual(buildPayload('claude.PermissionRequest', { ...raw, tool_name: 'Bash', tool_use_id: 'u', tool_input: { command: 'rm -rf /' } }).tool_input, { first_word: 'rm', length: 8 });
 });
 
