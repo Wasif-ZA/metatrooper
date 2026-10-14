@@ -44,11 +44,12 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const hasClaude = Boolean(db.prepare("SELECT 1 FROM engine WHERE id = 'claude'").get());
   const adopt = db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, cwd, state, state_at, started_at) VALUES (?, ?, 'claude', 'external', ?, ?, 'idle', ?, ?)");
   const setState = db.prepare('UPDATE session SET state = ?, state_at = ?, wait_reason = ? WHERE id = ?');
-  const lastOpencodeSeq = db.prepare("SELECT count(*) AS c, max(json_extract(payload, '$.seq')) AS n FROM event WHERE session_id = ? AND kind = 'opencode.state' AND seq < ?");
-  const sources = new Map<string, string | undefined>();
-  const sourceOf = (engineId: string) => {
-    if (!sources.has(engineId)) sources.set(engineId, getEngine(db, engineId)?.state_source);
-    return sources.get(engineId);
+  const setReason = db.prepare('UPDATE session SET wait_reason = ? WHERE id = ?');
+  const lastOpencodeSeq = db.prepare("SELECT count(*) AS c, max(json_extract(payload, '$.seq')) AS n FROM event WHERE session_id = ? AND kind = 'opencode.state' AND seq < ? AND json_extract(payload, '$.state') IN ('working', 'waiting', 'done')");
+  const specs = new Map<string, { source?: string; plugin?: string }>();
+  const specOf = (engineId: string) => {
+    if (!specs.has(engineId)) { const e = getEngine(db, engineId); specs.set(engineId, { source: e?.state_source, plugin: e?.state_plugin }); }
+    return specs.get(engineId)!;
   };
   const setPid = db.prepare('UPDATE session SET pid = ? WHERE id = ?');
   const setNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL');
@@ -61,8 +62,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const openToolId = db.prepare("SELECT json_extract(p.payload, '$.tool_use_id') AS id FROM event p WHERE p.session_id = ?1 AND p.kind = 'claude.PreToolUse' AND p.seq < ?2 AND coalesce(json_extract(p.payload, '$.session_id') = ?3, 1) AND (?4 IS NULL OR json_extract(p.payload, '$.tool_name') = ?4) AND NOT EXISTS (SELECT 1 FROM event f WHERE f.session_id = ?1 AND f.kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND f.seq > p.seq AND f.seq < ?2 AND json_extract(f.payload, '$.tool_use_id') = json_extract(p.payload, '$.tool_use_id') AND coalesce(json_extract(f.payload, '$.session_id') = ?3, 1)) ORDER BY p.seq DESC LIMIT 1");
   const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id, json_extract(payload, '$.tool_name') AS tool FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
-  // A hook ask (approval, permission or input prompt) written at or after the current wait began (state_at): terminal output is not an answer to it.
-  const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input'))) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
+  // A hook ask (approval, permission or input prompt), plugin wait or title wait written at or after the current wait began (state_at): terminal output is not an answer to it.
+  const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input')) OR (kind IN ('opencode.state', 'core.title-state') AND json_extract(payload, '$.state') = 'waiting')) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
   const setStateAt = db.prepare('UPDATE session SET state_at = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
@@ -104,10 +105,10 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       }
       const s = ev.session_id ? (getSession.get(ev.session_id) as SessionRow | undefined) : undefined;
       if (s && ev.session_id && s.state !== 'exited') {
-        const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$)/.test(ev.kind) ? payload.session_id : undefined;
+        const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$|opencode\.state$)/.test(ev.kind) ? payload.session_id : undefined;
         let foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
-        // A Codex or Gemini SessionStart (resume, clear) names the conversation the session now holds.
-        if (foreign && /^(codex|gemini)\.SessionStart$/.test(ev.kind)) {
+        // A Codex or Gemini SessionStart (resume, clear) names the conversation the session now holds, and so does opencode starting work in another root session.
+        if (foreign && (/^(codex|gemini)\.SessionStart$/.test(ev.kind) || (ev.kind === 'opencode.state' && payload.state === 'working'))) {
           relinkNative.run(conv, ev.session_id);
           foreign = false;
         }
@@ -135,14 +136,16 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
         // Title states move only process engines, and an opencode session stops reading them once its state plugin has reported.
         const plugin = ev.kind === 'core.title-state' || ev.kind === 'opencode.state' ? (lastOpencodeSeq.get(ev.session_id, ev.seq) as { c: number; n: number | null }) : null;
-        const ignored = ev.kind === 'core.title-state' ? sourceOf(s.engine_id) !== 'process' || plugin!.c > 0 : ev.kind === 'opencode.state' && (!Number.isSafeInteger(payload.seq) || (plugin!.n !== null && (payload.seq as number) <= plugin!.n));
+        const ignored = ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || !Number.isSafeInteger(payload.seq) || (plugin!.n !== null && (payload.seq as number) <= plugin!.n));
         const next = ev.kind === 'launch' || foreign || stale || ignored ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         // A Stop held by background work ends the turn only when the session really reaches done.
         if (!foreign && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
         const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
-        const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input'));
-        if (s.state === 'waiting_for_you' && (!next || next === s.state) && !foreign && hookAsk && !(Date.parse(writtenAt) <= Date.parse(s.state_at))) setStateAt.run(writtenAt, ev.session_id);
+        const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input')) || (/^(opencode\.state|core\.title-state)$/.test(ev.kind) && payload.state === 'waiting');
+        if (s.state === 'waiting_for_you' && (!next || next === s.state) && !foreign && !ignored && hookAsk && !(Date.parse(writtenAt) <= Date.parse(s.state_at))) setStateAt.run(writtenAt, ev.session_id);
+        // A new cause for a wait already shown replaces its reason.
+        if (s.state === 'waiting_for_you' && next === 'waiting_for_you') setReason.run(waitReason(ev.kind, payload), ev.session_id);
         if (next && next !== s.state) {
           setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), next === 'waiting_for_you' ? waitReason(ev.kind, payload) : null, ev.session_id);
           changed.push([ev.session_id, next]);

@@ -34,12 +34,15 @@ function backgroundTasks(v         )      {
   return { background_tasks: tasks };
 }
 
-/** An opencode state plugin report: state, why and seq only. */
+/** An opencode state plugin report: state, why, seq and the root session id; nothing unless both state and seq are valid. */
 function opencodeState(r     )      {
+  // A seq more than a day ahead of Date.now() * 1000 is refused.
+  if (!['working', 'waiting', 'done'].includes(r.state          ) || !Number.isSafeInteger(r.seq) || (r.seq          ) > (Date.now() + 86_400_000) * 1000) return {};
   return {
-    ...(['working', 'waiting', 'done'].includes(r.state          ) ? { state: r.state } : {}),
+    state: r.state,
     ...(['permission', 'error'].includes(r.why          ) ? { why: r.why } : {}),
-    ...(Number.isSafeInteger(r.seq) ? { seq: r.seq } : {}),
+    seq: r.seq,
+    ...strings(r, ['session_id']),
   };
 }
 

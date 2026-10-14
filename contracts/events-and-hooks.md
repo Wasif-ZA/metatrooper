@@ -52,10 +52,10 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `core.limit-hit` | core | `{"window": str or null, "resets_at": ts or null, "after": int}`: written while processing a `claude.StopFailure` whose `error_type` is `rate_limit`; `after` is that event's `seq`. `window` and `resets_at` come from the Claude `limit_reading` rows whose reset is still ahead: the latest reset among windows at 100% or more, else the fullest window's (M6-24) |
 | `browser.tool` | core | `{"tool": str, "pane": pane id, "origin": str, "status": "ok" or "error <code>"}`: written by the workbench browser server for every `metatrooper-browser` tool call a session makes (not the internal `describe`); never the arguments, typed text or the result. Append-only; the core deletes rows older than 30 days at start and every hour. The Browser tab's pane menu shows them as Timeline. Never changes state (M6-12) |
 | `core.limit-resumed` | core | `{"limit_hit": int}`: the `seq` of the `core.limit-hit` it answers. Written before the paste, so a restart never pastes twice (M6-24) |
-| `core.stop-fallback` | core | `{}`: a `working` session whose last event other than `term.*` is its own `claude.Stop`, 600,000 ms old or more (5 s check). Written once (M6-23) |
+| `core.stop-fallback` | core | `{}`: a `working` session whose latest own `claude.Stop`, `claude.UserPromptSubmit` or `core.stop-fallback` is a `claude.Stop`, and whose last event other than `term.*` (from any conversation, so a background subagent's tool events count) is 600,000 ms old or more (5 s check). Any such event restarts the 10 minutes. Written once per Stop (M6-23) |
 | `core.title-state` | core | `{"state": "working" or "waiting" or "idle"}`: the first `state_titles` pattern a raw terminal title matches, when it differs from the last one seen for the session; process engines only. The title text is never stored (M6-23) |
 | `core.interrupted` | core | `{}`: Escape (`ESC`, or the kitty forms `CSI 27 u` and `CSI 27;1 u`) was typed into a `working` session and, within 5,000 ms, a raw title matched the engine's `state_titles.idle`, with the session still `working`, the same `state_at` and no newer event other than `term.*`. Engines with no idle pattern get none (M6-23) |
-| `opencode.state` | opencode-plugin | `{"state": "working" or "waiting" or "done", "why": "permission" or "error" (waiting only, when known), "seq": int}`: written by `engines/plugins/opencode-state.js` through `core/event.js`; `seq` rises within the plugin, seeded from the clock (M6-23) |
+| `opencode.state` | core (opencode plugin) | `{"state": "working" or "waiting" or "done", "why": "permission" or "error" (waiting only, when known), "seq": int, "session_id": <opencode root session id>}`, stored only when both `state` and `seq` are valid: written by `engines/plugins/opencode-state.js` through `core/event.js`. `seq` rises within the plugin, seeded from the clock. A child session's events report under its root. The plugin keeps each root's unanswered permission and question asks in memory: while one is open, work events report nothing and an answer reports `waiting` again until the last ask is answered (M6-23) |
 | `core.*` | core | other internal kinds: `core.checkpoint`, `core.recovered`, `core.missed-schedule`; they never change state |
 
 Every payload is built from an explicit allowlist of fields, exactly as listed in this table. Any field not
@@ -99,7 +99,7 @@ The core processes events in `seq` order and sets `session.state`:
 | `claude.StopFailure` | `waiting_for_you`, with `wait_reason` `stopped: <error_type>` (`stopped: error` when `error_type` does not match `^[a-z_]{1,40}$`) |
 | `core.interrupted` while `working` | `idle` |
 | `core.title-state` (process engines only; for opencode, only until the session has an `opencode.state`) | `waiting` to `waiting_for_you`; `working` to `working`; `idle` to `done` from `working`, otherwise no change |
-| `opencode.state` with a `seq` above the last one processed for the session | `working` to `working`; `waiting` to `waiting_for_you` (`wait_reason` `permission` with `why` `permission`, `stopped: error` with `why` `error`); `done` to `done`. A `seq` not above the last one changes nothing |
+| `opencode.state` with a `seq` above the last valid one processed for the session, on an engine that declares `state_plugin` | `working` to `working`; `waiting` to `waiting_for_you` (`wait_reason` `permission` with `why` `permission`, `stopped: error` with `why` `error`); `done` to `done`. A `seq` not above the last one, or a report for an engine without `state_plugin`, changes nothing. Its `session_id` links `native_id` like a hook's; a report for another root session changes nothing, except `working`, which relinks the session to that root (the user moved to another opencode session in the tile) |
 | `claude.SessionEnd` | `idle` (the conversation ended; the terminal lives on, and `core.process-gone` marks the real exit) |
 | `claude.PostToolUseFailure` | as `claude.PostToolUse` |
 | `codex.SessionStart`, `gemini.SessionStart` | `idle` from `starting`; otherwise no change (they link `native_id`) |
@@ -135,7 +135,10 @@ PermissionRequest, Notification or tool events under the same session neither ho
 `exited` is final: once a session is `exited`, no event changes its state again.
 
 `session.wait_reason` is set in the same transaction that moves a session into `waiting_for_you`, from the rows above that
-name one, and is null for any other wait; any move out of `waiting_for_you` (and Clear status) sets it to null. The
+name one, and is null for any other wait. An event that would start a wait while the session already waits replaces
+the reason with its own (null when it names none); any move out of `waiting_for_you` (and Clear status) sets it to
+null. An `opencode.state` or `core.title-state` of `waiting` counts as a hook ask for the `term.output` rule and moves
+`state_at` like one. The
 workbench shows it as the tile's reason (M6-23).
 
 A working session whose engine declares `fatal_patterns` is checked every 5 s: when its last 20 screen lines contain a
