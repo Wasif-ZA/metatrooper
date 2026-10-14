@@ -116,14 +116,22 @@ namespace TroopUia {
         case "snapshot": return Snapshot(hwnd, (int)Math.Max(1, Num(r, "max_nodes")));
         case "describe": return Describe(hwnd, Str(r, "ref"));
         case "screenshot": return Screenshot(new IntPtr(hwnd));
-        case "set_text": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return SetText(hwnd, Str(r, "ref"), Str(r, "value"));
+        case "set_text": {
+          Action again = () => Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r);
+          again();
+          return SetText(hwnd, Str(r, "ref"), Str(r, "value"), again);
+        }
         case "click": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
         case "key": {
           bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
           Expect(hwnd, f, hidden, r);
           return Key(target, Str(r, "keys"));
         }
-        case "scroll": if (Str(r, "ref").Length > 0) Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); else ExpectWindow(hwnd, r); return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
+        case "scroll": {
+          Action again = Str(r, "ref").Length > 0 ? (Action)(() => Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r)) : () => ExpectWindow(hwnd, r);
+          again();
+          return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"), again);
+        }
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
         case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
         case "probe": {
@@ -347,13 +355,19 @@ namespace TroopUia {
       return s.ToString();
     }
 
-    static object SetText(long hwnd, string reference, string value) {
+    // reruns the approved-control check between writes; a change names what was already sent
+    static void Again(Action again, string sent) {
+      try { again(); } catch (Exception x) { if (x.Message == "control changed") throw new Exception("the control changed after " + sent + "; the rest was not sent"); throw; }
+    }
+
+    static object SetText(long hwnd, string reference, string value, Action again) {
       var e = Find(hwnd, reference);
       IntPtr before = Native.GetForegroundWindow();
       IntPtr own = new IntPtr(e.Current.NativeWindowHandle);
       if (own != IntPtr.Zero && own != Native.GetAncestor(own, GA_ROOT)) {
         Native.SendMessage(own, WM_SETTEXT, IntPtr.Zero, value);
         if (WindowText(own) == value) return Result(true, before, false);
+        Again(again, "the first write");
       }
       object p;
       if (!e.TryGetCurrentPattern(ValuePattern.Pattern, out p)) throw new Exception("this control takes no text");
@@ -434,7 +448,7 @@ namespace TroopUia {
       return new Dictionary<string, object> { { "status", "unverifiable" } };
     }
 
-    static object Scroll(long hwnd, string reference, long dy) {
+    static object Scroll(long hwnd, string reference, long dy, Action again) {
       AutomationElement e = reference.Length > 0 ? Find(hwnd, reference) : AutomationElement.FromHandle(new IntPtr(hwnd)).FindFirst(TreeScope.Subtree, new PropertyCondition(AutomationElement.IsScrollPatternAvailableProperty, true));
       object p;
       if (e == null || !e.TryGetCurrentPattern(ScrollPattern.Pattern, out p)) throw new Exception("nothing here scrolls through UI Automation");
@@ -442,7 +456,10 @@ namespace TroopUia {
       double was = s.Current.VerticalScrollPercent;
       IntPtr before = Native.GetForegroundWindow();
       int steps = (int)Math.Max(1, Math.Round(Math.Abs(dy) / 100.0));
-      for (int i = 0; i < steps; i++) s.ScrollVertical(dy > 0 ? ScrollAmount.SmallIncrement : ScrollAmount.SmallDecrement);
+      for (int i = 0; i < steps; i++) {
+        if (i > 0) Again(again, i + " scroll steps");
+        s.ScrollVertical(dy > 0 ? ScrollAmount.SmallIncrement : ScrollAmount.SmallDecrement);
+      }
       return Result(s.Current.VerticalScrollPercent != was, before, true);
     }
 
