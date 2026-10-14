@@ -144,7 +144,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `needs_you.mark-unread` | `{id}` | {} | -32002 |  |  |
 | `needs.dismiss` | `{id}` | {}; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule) | -32002 |  | yes |
 | `shell.list` | `{}` | {shells: [{kind, label, argv}]} |  |  |  |
-| `shell.open` | `{kind, project_id}` | {shell_id, label, cwd}: a shell tab in the project's folder | -32020, -32002 |  |  |
+| `shell.open` | `{kind, project_id}` | {shell_id, label, cwd}: a shell tab in the project's folder | -32020, -32002, -32003 |  |  |
 | `shell.close` | `{shell_id}` | {} | -32602 |  |  |
 | `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | {path, branch, trusted, existing?} | -32002, -32003 | yes |  |
 | `ui.hello` | `{ui_key}` | {ok}; marks this connection as a trusted UI connection (see Access) |  |  |  |

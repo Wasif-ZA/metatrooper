@@ -10,6 +10,7 @@ import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { launchSession, writePrompt } from './sessions/launch.ts';
+import { removing } from './worktree.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
 import { liveText } from './terminal/events.ts';
@@ -76,7 +77,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'needs_you.mark-unread', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
   { name: 'needs.dismiss', needsUi: true, errors: [E.NOT_FOUND], params: '{id}', result: '{}; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule)' },
   { name: 'shell.list', params: '{}', result: '{shells: [{kind, label, argv}]}' },
-  { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
+  { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND, E.VALIDATION], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
   { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
   { name: 'worktree.create', stable: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?}' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
@@ -380,6 +381,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!shell) throw new RpcError(E.ENGINE_UNAVAILABLE, `${kind} is not available on this machine`);
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      if (removing.has(str(p, 'project_id'))) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
       const id = `sh_${ulid()}`;
       term.open(id, shell.argv, project.path, process.env);
       return { shell_id: id, label: shell.label, cwd: project.path };

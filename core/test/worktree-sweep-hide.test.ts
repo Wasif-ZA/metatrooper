@@ -11,6 +11,8 @@ const { openCoreDb } = await import('../src/store/db.ts');
 const { resolveProjectPath } = await import('../src/project.ts');
 const { removing, sweepWorktrees } = await import('../src/worktree.ts');
 const { launchSession } = await import('../src/sessions/launch.ts');
+const { buildMethods } = await import('../src/methods.ts');
+const { availableShells } = await import('../src/terminal/shells.ts');
 
 const git = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@x.example', '-c', 'user.name=T', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 
@@ -73,6 +75,7 @@ test('a launch while the sweep removes a worktree is refused, so no session runs
       assert.ok(!(await Promise.race([sweeping.then(() => true), new Promise((r) => setImmediate(() => r(false)))])), 'the sweep finished before its removal was seen');
     }
     assert.throws(() => launchSession(db, { projectId: 'merged', projectPath: merged, projectName: 'merged', engine: { id: 'claude' } as any }), /being removed/);
+    assert.throws(() => buildMethods(db, {} as any).get('shell.open')!.handler({ kind: availableShells()[0].kind, project_id: 'merged' }), /being removed/);
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM session WHERE project_id = 'merged'").get() as { n: number }).n, 0);
     const r = await sweeping;
     assert.deepEqual(r.removed, [merged]);

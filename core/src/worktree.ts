@@ -55,11 +55,14 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
   // Git has let go of this folder (no `.git` entry) but it is still there, as when Windows refused to delete it. Only an empty folder is
   // removed; anything else stays and is tried again next sweep. The workbench never shows such a folder (goneCheckout).
   const leftover = async (r: Row): Promise<void> => {
+    removing.add(r.id);
     try {
       await fs.promises.rmdir(r.path);
     } catch (e) {
       console.error(`worktree sweep: ${r.path} is no longer a worktree but could not be deleted, will retry: ${(e as Error).message.split('\n')[0]}`);
       return;
+    } finally {
+      removing.delete(r.id);
     }
     untrustFolder(r.path, engines);
     set.run(1, 0, r.id);
