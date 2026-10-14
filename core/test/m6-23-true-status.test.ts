@@ -1083,7 +1083,11 @@ test('M6-23 opencode.state for a claude session changes nothing', async () => {
     assert.equal(h.row().state, 'working');
     assert.equal(h.send('opencode.state', { state: 'done', seq: 1 }), 'working');
     assert.equal(h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 2 }), 'working');
+    assert.equal(h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id, 'conv');
+    // Forged opencode working report leaves session state and native id unchanged
+    assert.equal(h.send('opencode.state', { state: 'working', seq: 3, session_id: 'foreign-root' }), 'working');
     assert.equal(h.row().state, 'working');
+    assert.equal(h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id, 'conv');
     assert.equal(h.row().wait_reason, null);
     assert.deepEqual(h.notices('done'), []);
   } finally {
