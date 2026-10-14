@@ -201,6 +201,11 @@ interface SessionRow {
   state_at: string;
 }
 
+/** A Codex activity event names the conversation whose rollout it measured, so the processor drops it once the session has moved on. */
+function conv(s: SessionRow): { session_id?: string } {
+  return s.engine_id === 'codex' && s.native_id ? { session_id: s.native_id } : {};
+}
+
 /** Every 1 s: codex and agy sessions get core.activity working/quiet from their session files. */
 export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   const rows = db
@@ -222,10 +227,13 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       try { file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s); } catch {}
       if (!file) continue;
       const m = measure(file);
-      a = { file, size: m.size, mtime: m.mtime, lastChange: prev ? now : 0, working: Boolean(prev) && s.state === 'working' };
+      // A relinked file already written after the wait began holds the answer, so it cannot be only a baseline.
+      const answered = Boolean(prev) && s.state === 'waiting_for_you' && m.mtime > Date.parse(s.state_at);
+      a = { file, size: m.size, mtime: m.mtime, lastChange: prev ? now : 0, working: (Boolean(prev) && s.state === 'working') || answered };
       if (s.engine_id === 'codex') noteCodexSession(s.id, file);
       else noteAgySession(s.id, path.join(file, 'transcript.jsonl'));
       activity.set(s.id, a);
+      if (answered) appendEvent('core.activity', s.id, { state: 'working', changed_at: m.mtime, ...conv(s) }, db);
       continue;
     }
     const m = measure(a.file!);
@@ -236,11 +244,11 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       // A wait that began while the file was already growing still needs a fresh `working` once the file grows after it.
       if (!a.working || (s.state === 'waiting_for_you' && m.mtime > Date.parse(s.state_at))) {
         a.working = true;
-        appendEvent('core.activity', s.id, { state: 'working', changed_at: m.mtime }, db);
+        appendEvent('core.activity', s.id, { state: 'working', changed_at: m.mtime, ...conv(s) }, db);
       }
     } else if (a.working && now - a.lastChange >= 20_000) {
       a.working = false;
-      appendEvent('core.activity', s.id, { state: isBlocked(db, s.engine_id, a.file!) ? 'blocked' : 'quiet' }, db);
+      appendEvent('core.activity', s.id, { state: isBlocked(db, s.engine_id, a.file!) ? 'blocked' : 'quiet', ...conv(s) }, db);
     }
   }
 }

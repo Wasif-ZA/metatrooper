@@ -284,6 +284,30 @@ test('M6-05a a relink does not carry the old conversation\'s growing spell: an i
   } finally { t.done(); }
 });
 
+test('M6-05a old-rollout growth polled before a queued relink and approval request is processed does not end the new conversation\'s wait', async () => {
+  const t = await codexRollout();
+  try {
+    const { appendEvent } = await import('../src/events/append.ts');
+    writeFileSync(join(t.home, '.codex', 'sessions', '2026', '10', '13', 'rollout-2026-10-13T11-00-00-conv2.jsonl'), '{"type":"session_meta"}\n');
+    appendEvent('codex.SessionStart', 's', { session_id: 'conv2', source: 'resume' }, t.db);
+    appendEvent('codex.PermissionRequest', 's', { session_id: 'conv2', tool_name: 'shell' }, t.db);
+    await t.tick();
+    t.grow();
+    assert.equal(t.poll(1000), 'waiting_for_you');
+  } finally { t.done(); }
+});
+
+test('M6-05a an answer written to the new rollout before the first poll after a relink ends the wait', async () => {
+  const t = await codexRollout();
+  try {
+    t.send('codex.SessionStart', { session_id: 'conv2', source: 'resume' });
+    assert.equal(t.send('codex.PermissionRequest', { session_id: 'conv2', tool_name: 'shell' }), 'waiting_for_you');
+    await t.tick();
+    writeFileSync(join(t.home, '.codex', 'sessions', '2026', '10', '13', 'rollout-2026-10-13T11-00-00-conv2.jsonl'), '{"type":"session_meta"}\n{"type":"response_item"}\n');
+    assert.equal(t.poll(1000), 'working');
+  } finally { t.done(); }
+});
+
 test('M6-05c a Claude permission wait (Notification) holds through another call\'s PreToolUse and PostToolUse and ends on the waited call\'s PostToolUse', async () => {
   const t = await memoryDb();
   try {
