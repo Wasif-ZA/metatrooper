@@ -1004,6 +1004,13 @@ function projectGroups(list) {
   return { projects: fresh.filter((p) => !wt(p) && !scratch(p)), worktrees: fresh.filter(wt), older: list.filter((p) => p.older), scratch: fresh.filter(scratch) };
 }
 
+/** One project menu row; the x that hides it shows only when none of its sessions is working or waiting. */
+function projectMenuItem(p) {
+  const live = liveCounts(p.id).replace(/^ · /, '');
+  return `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
+    + (live ? '' : `<span class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)">&times;</span>`) + '</div>';
+}
+
 async function onClick(e) {
   const el = e.target.closest('[data-action]');
   if (!el || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
@@ -1064,13 +1071,8 @@ async function onClick(e) {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
       const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
-      const item = (p) => {
-        const live = liveCounts(p.id).replace(/^ · /, '');
-        return `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
-          + (live ? '' : `<span class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)">&times;</span>`) + '</div>';
-      };
-      const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(item).join('')}` : '');
-      const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(item).join('')}</details>` : '');
+      const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(projectMenuItem).join('')}` : '');
+      const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
       menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
         + sec('Projects', g.projects)

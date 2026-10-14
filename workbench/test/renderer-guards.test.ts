@@ -213,6 +213,16 @@ test('the project menu puts worktrees the sweep marked older in their own group,
   assert.deepEqual({ projects: ids(g.projects), worktrees: ids(g.worktrees), older: ids(g.older), scratch: ids(g.scratch) }, { projects: ['repo'], worktrees: ['new', 'cc'], older: ['stale'], scratch: ['tmp'] });
 });
 
+test('a project menu row has a hide x only while none of its sessions is working or waiting', () => {
+  // protects=the project menu x cannot hide a project with a live agent
+  // fails_when=projectMenuItem() renders data-action="project-hide" for a project with a working or waiting session, or none for a quiet one
+  // no_claim=the core refusal in project.hide, which inbox-resume.test.ts covers
+  const ui = { snap: { live: [{ project_id: 'busy', state: 'working' }, { project_id: 'asks', state: 'waiting_for_you' }] } };
+  const item = new Function('ui', `${fn('esc')}\n${fn('liveCounts')}\n${fn('projectMenuItem')}; return projectMenuItem;`)(ui);
+  const hides = (id: string) => (item({ id, name: id, path: `C:/code/${id}` }).match(/data-action="project-hide"/g) || []).length;
+  assert.deepEqual({ busy: hides('busy'), asks: hides('asks'), quiet: hides('quiet') }, { busy: 0, asks: 0, quiet: 1 });
+});
+
 test('the palette searches only the open project terminals, so other projects cannot use up the hit cap', () => {
   const calls: Array<[string, any]> = [];
   const ui: any = { snap: { core: { online: true }, sessions: [{ id: 's1' }] }, shells: [{ id: 'sh_1', project_id: 'p1' }, { id: 'sh_2', project_id: 'p2' }], projectId: 'p1' };

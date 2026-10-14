@@ -349,10 +349,13 @@ test('project.hide refuses while a session is live, hides past a done one, and p
 
     const pipe = await client(h.prefix);
     try {
-      assert.ok((await pipe.request('project.hide', { project_id: projectId })).error);
-      assert.equal(hidden(), 0);
-      const w = database(h.home);
-      try { w.prepare("UPDATE session SET state = 'idle' WHERE id = 'hide-working'").run(); } finally { w.close(); }
+      const setState = (state: string) => { const w = database(h.home); try { w.prepare('UPDATE session SET state = ? WHERE id = ?').run(state, 'hide-working'); } finally { w.close(); } };
+      for (const state of ['starting', 'working', 'waiting_for_you', 'unknown']) {
+        setState(state);
+        assert.ok((await pipe.request('project.hide', { project_id: projectId })).error, state);
+        assert.equal(hidden(), 0, state);
+      }
+      setState('idle');
       assert.deepEqual((await pipe.request('project.hide', { project_id: projectId })).result, {});
       assert.equal(hidden(), 1);
     } finally { pipe.close(); }
