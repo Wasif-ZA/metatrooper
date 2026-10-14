@@ -114,7 +114,7 @@ test('M6-27 click: hide and menu-hide send no session.hide for a live session, e
   const rpc = async (method: string, p: any) => { sent.push(`${method}:${p.session_id}`); return {}; };
   const fired: Array<() => Promise<void>> = [];
   for (const action of ['hide', 'menu-hide']) {
-    const onClick = new Function('ui', 'rpc', 'document', 'render', 'toast', 'setTimeout', `${line('const LIVE_STATES')}\n${line('const UNDO_MS')}\n${fn('canHide', appSource)}\n${fn('stillSettled', appSource)}\n${fn('hideLater', appSource)}\n${fn('onClick', appSource)}; return onClick;`)(
+    const onClick = new Function('ui', 'rpc', 'document', 'render', 'toast', 'setTimeout', `${line('const LIVE_STATES')}\n${line('const UNDO_MS')}\n${fn('canHide', appSource)}\n${fn('hideLater', appSource)}\n${fn('onClick', appSource)}; return onClick;`)(
       { ...snapOfEveryState(), pendingHide: new Set(), hideDone: new Set() }, rpc, { getElementById: () => ({}) }, () => {}, () => {}, (f: () => Promise<void>) => fired.push(f));
     for (const state of [...LIVE, ...SETTLED]) {
       const el = { dataset: { action, id: state }, tagName: 'DIV', closest: () => null };

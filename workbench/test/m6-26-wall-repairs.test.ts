@@ -56,7 +56,7 @@ function boot() {
   const api = new Proxy({}, {
     get: (_t, name: string) => {
       if (name.startsWith('on')) return (f: (...a: any[]) => any) => { handlers[name] = f; };
-      if (name === 'call') return async (method: string, params: any) => { calls.push({ method, params, at: now }); return { kind: 'ok', reply: { result: replies[method] ?? {} } }; };
+      if (name === 'call') return async (method: string, params: any) => { calls.push({ method, params, at: now }); const r = replies[method]; return { kind: 'ok', reply: { result: (typeof r === 'function' ? await r(params) : r) ?? {} } }; };
       if (name === 'git') return async () => ({ branch: 'main', changes: [], staged: [], log: '', ahead: 0, behind: 0 });
       if (name === 'uiSettings') return async () => ({ theme: {}, ui: { toast_ms: 3500, error_toast_ms: 7000, layout: {} }, terminal: { git_every_ms: 10000, scrollback: 1000, font_size: 13 }, themes: [] });
       return async (...args: any[]) => { calls.push({ method: `api.${name}`, params: args, at: now }); return undefined; };
@@ -86,7 +86,7 @@ function boot() {
     for (const capture of [true, false]) for (const l of docListeners) if (l.type === type && l.capture === capture && !stopped) l.f(ev);
   };
   return {
-    t, calls, handlers, rolls, wallState, el: (id: string) => doc.getElementById(id), shown: () => shown,
+    t, calls, handlers, replies, rolls, wallState, el: (id: string) => d.getElementById(id), shown: () => shown,
     now: () => now,
     advance: async (ms: number) => {
       const until = now + ms;
@@ -146,16 +146,34 @@ test('M6-26b a hide waits 7 s, Undo cancels only its own hide, and a session tha
   await w.advance(1);
   assert.deepEqual(w.hides(), ['a']);
   assert.ok(w.t.ui.pendingHide.has('a'), 'kept out until a snapshot drops it');
+  await w.snap(snapOf([session('a', 'working'), session('b', 'done'), session('c', 'idle')]));
+  assert.ok(onWall(w).includes('a'), 'a done hide whose session shows up live is shown');
   await w.snap(snapOf([session('b', 'done'), session('c', 'idle')]));
   assert.equal(w.t.ui.pendingHide.has('a'), false, 'released once the core no longer lists it');
 
-  const away = boot();
-  await away.snap(snapOf([session('a', 'done')]));
-  await away.click({ action: 'hide', id: 'a' });
-  await away.advance(3000);
-  await away.snap(snapOf([], { projects: [{ id: 'p1', name: 'p', path: '/p' }, { id: 'p2', name: 'q', path: '/q' }] }));
-  await away.advance(4000);
-  assert.deepEqual(away.hides(), ['a'], 'switching projects does not cancel the timer');
+  const early = boot();
+  await early.snap(snapOf([session('a', 'done')]));
+  await early.click({ action: 'hide', id: 'a' });
+  let reply: (v: unknown) => void = () => {};
+  early.replies['session.hide'] = () => new Promise((r) => { reply = r; });
+  await early.advance(7000);
+  await early.snap(snapOf([]));
+  reply({});
+  await early.advance(0);
+  assert.equal(early.t.ui.pendingHide.has('a'), false, 'a snapshot that arrives before the reply still releases the id');
+  await early.snap(snapOf([session('a', 'working')]));
+  assert.ok(onWall(early).includes('a'), 'and the session shows if it comes back');
+
+  for (const [state, hidden] of [['done', ['a']], ['starting', []], ['unknown', []], ['working', []]] as const) {
+    const away = boot();
+    await away.snap(snapOf([session('a', 'done')]));
+    await away.click({ action: 'hide', id: 'a' });
+    await away.advance(3000);
+    await away.snap(snapOf([], { projects: [{ id: 'p1', name: 'p', path: '/p' }, { id: 'p2', name: 'q', path: '/q' }] }));
+    away.replies['session.list'] = (p: any) => ({ sessions: p.project_id === 'p1' ? [{ id: 'a', state }] : [] });
+    await away.advance(4000);
+    assert.deepEqual(away.hides(), hidden, `after a project switch, a session now ${state}`);
+  }
 
   const u = boot();
   await u.snap(snapOf([session('a', 'done'), session('b', 'done')]));
@@ -283,6 +301,13 @@ test('M6-26d Stop core and Restart core run only on a second Enter within 3 s', 
     await named.key('Enter');
     assert.equal(named.calls.filter((c) => c.method === fn).length, 1);
     assert.equal(await bypass(async (b, at) => { await b.key('Enter'); await b.type('palette-input', ''); b.t.ui.paletteAt = at(); await b.key('Enter'); }), 0, 'a pasted change to the search disarms');
+    assert.equal(await bypass(async (b, at) => {
+      const other = (b.t.ui.paletteItems as Array<{ confirm?: string }>).findIndex((x, k) => x.confirm && k !== at());
+      await b.key('Enter');
+      await b.click({ palette: String(other) });
+      await b.click({ palette: String(at()) });
+      await b.key('Enter');
+    }), 0, 'clicking another row disarms');
   }
 });
 
@@ -556,7 +581,8 @@ test('M6-26h sweep: every Ctrl or Alt combination a handler consumes on the wall
       if (tile.key({ key, ...mods }) === false) consumed.push(combo);
     }
   }
-  assert.deepEqual([...new Set(consumed)].filter((c) => !listed.has(c) && !listed.has(c.split('+').pop()!)), []);
+  const bareFn = (c: string) => { const k = c.split('+').pop()!; return /^f\d+$/.test(k) && listed.has(k); };
+  assert.deepEqual([...new Set(consumed)].filter((c) => !listed.has(c) && !bareFn(c)), []);
   assert.ok(consumed.includes('ctrl+k') && consumed.includes('alt+j') && consumed.includes('ctrl+v'), 'the sweep sees real handlers');
 });
 

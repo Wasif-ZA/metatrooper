@@ -74,11 +74,6 @@ function toast(text, error = false, action = null) {
 
 const UNDO_MS = 7000;
 
-/** canHide for a session of the open project; for one in another project, not working or waiting there. */
-function stillSettled(id) {
-  if (ui.snap.sessions.some((x) => x.id === id)) return canHide(id);
-  return !(ui.snap.live || []).some((x) => x.id === id);
-}
 
 /** Takes the ids off the wall and list at once and sends one session.hide each after UNDO_MS, unless Undo is clicked or the session went live again. */
 function hideLater(ids, text) {
@@ -86,12 +81,23 @@ function hideLater(ids, text) {
   if (!ids.length) return;
   for (const id of ids) ui.pendingHide.add(id);
   render();
+  const projectId = ui.projectId;
   const timer = setTimeout(async () => {
-    const hide = ids.filter(stillSettled);
+    // after a project switch the snapshot no longer holds these ids, so their state comes from the core
+    let away = null;
+    if (ids.some((id) => !ui.snap.sessions.some((x) => x.id === id))) {
+      const r = await rpc('session.list', { project_id: projectId }, true);
+      away = new Map(((r.result && r.result.sessions) || []).map((x) => [x.id, x.state]));
+    }
+    const settled = (id) => (ui.snap.sessions.some((x) => x.id === id) ? canHide(id) : Boolean(away) && away.has(id) && !LIVE_STATES.includes(away.get(id)));
+    const hide = ids.filter(settled);
     for (const id of ids) if (!hide.includes(id)) ui.pendingHide.delete(id);
     render();
     const out = await Promise.all(hide.map((id) => rpc('session.hide', { session_id: id })));
-    hide.forEach((id, i) => { if (out[i].error) ui.pendingHide.delete(id); else ui.hideDone.add(id); });
+    hide.forEach((id, i) => {
+      if (out[i].error || !ui.snap.sessions.some((x) => x.id === id)) ui.pendingHide.delete(id);
+      else ui.hideDone.add(id);
+    });
     render();
   }, UNDO_MS);
   toast(typeof text === 'function' ? text(ids.length) : text, false, { label: 'Undo', run: () => { clearTimeout(timer); for (const id of ids) ui.pendingHide.delete(id); render(); } });
@@ -962,7 +968,7 @@ function closePopovers() {
 async function runPalette(i, enter = false) {
   const item = (ui.paletteItems || [])[i];
   if (item && item.stay) { item.run(); return; }
-  if (item && item.confirm && !enter) { ui.paletteAt = i; renderPalette(); return; }
+  if (item && item.confirm && !enter) { disarm(); ui.paletteAt = i; renderPalette(); return; }
   if (item && item.confirm && !(ui.armed && ui.armed.key === item.confirm && Date.now() - ui.armed.at < ARM_MS)) { arm(item.confirm); return; }
   closePalette();
   if (item) await item.run();
@@ -1646,7 +1652,10 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
-  for (const id of ui.hideDone) if (!s.sessions.some((x) => x.id === id)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
+  for (const id of ui.hideDone) {
+    const x = s.sessions.find((y) => y.id === id);
+    if (!x || LIVE_STATES.includes(x.state)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
+  }
   if (ui.projectId && !s.projects.some((p) => p.id === ui.projectId)) {
     ui.projectId = null;
     save('projectId', null);
