@@ -85,9 +85,19 @@ namespace TroopUia {
     }
 
     // the control an input reaches must still be the one the core approved, checked in the op that sends it
+    static void ExpectWindow(long hwnd, Dictionary<string, object> r) {
+      if (Num(r, "check") == 0) return;
+      if ((bool)Info(new IntPtr(hwnd))["file_dialog"] != (Num(r, "file_dialog") != 0)) throw new Exception("control changed");
+    }
+
+    static string Rid(AutomationElement e) {
+      try { return e == null ? "" : string.Join(".", e.GetRuntimeId()); } catch { return ""; }
+    }
+
     static void Expect(long hwnd, AutomationElement e, bool hidden, Dictionary<string, object> r) {
       if (Num(r, "check") == 0) return;
-      if ((bool)((Dictionary<string, object>)Info(new IntPtr(hwnd)))["file_dialog"] != (Num(r, "file_dialog") != 0)) throw new Exception("control changed");
+      ExpectWindow(hwnd, r);
+      if (Rid(e) != Str(r, "rid")) throw new Exception("control changed");
       var c = e == null ? null : ControlOf(e);
       bool password = e != null && e.Current.IsPassword;
       if (hidden != (Num(r, "hidden") != 0) || password != (Num(r, "password") != 0) || (c == null ? "" : (string)c["name"]) != Str(r, "name")
@@ -113,7 +123,7 @@ namespace TroopUia {
           Expect(hwnd, f, hidden, r);
           return Key(target, Str(r, "keys"));
         }
-        case "scroll": if (Str(r, "ref").Length > 0) Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
+        case "scroll": if (Str(r, "ref").Length > 0) Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); else ExpectWindow(hwnd, r); return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
         case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
         case "probe": {
@@ -284,8 +294,8 @@ namespace TroopUia {
     static object Describe(long hwnd, string reference) {
       bool hidden = false;
       AutomationElement e = reference.Length > 0 ? Find(hwnd, reference) : Focused(new IntPtr(hwnd), out hidden);
-      if (e == null) return new Dictionary<string, object> { { "control", null }, { "password", false }, { "hidden", hidden }, { "rect", RectOf(new IntPtr(hwnd)) } };
-      return new Dictionary<string, object> { { "control", ControlOf(e) }, { "password", e.Current.IsPassword }, { "hidden", hidden }, { "rect", RectOfElement(e) } };
+      if (e == null) return new Dictionary<string, object> { { "control", null }, { "password", false }, { "hidden", hidden }, { "rect", RectOf(new IntPtr(hwnd)) }, { "rid", "" } };
+      return new Dictionary<string, object> { { "control", ControlOf(e) }, { "password", e.Current.IsPassword }, { "hidden", hidden }, { "rect", RectOfElement(e) }, { "rid", Rid(e) } };
     }
 
     static object Screenshot(IntPtr h) {

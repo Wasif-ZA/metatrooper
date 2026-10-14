@@ -107,7 +107,7 @@ const hwndOf = (v: unknown): number => {
   return n;
 };
 
-interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden?: boolean; rect: number[] | null }
+interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden?: boolean; rect: number[] | null; rid?: string }
 
 /** Grants, the take-over flag and every desktop read and input, through one helper. */
 export class Desktop {
@@ -238,10 +238,10 @@ export class Desktop {
     return this.helper.request<T>(op, { hwnd, ...params, pid: info.pid }, undefined, this.still(sessionId, grant.id));
   }
 
-  async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number }> {
+  async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number; rid: string }> {
     const { grant, info } = await this.resolve(sessionId, hwnd);
     const d = await this.helper.request<Described>('describe', { hwnd, ref, pid: info.pid }, undefined, this.still(sessionId, grant.id));
-    return { grant_id: grant.id, control: d.control, password: d.password === true, hidden: d.hidden === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid };
+    return { grant_id: grant.id, control: d.control, password: d.password === true, hidden: d.hidden === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid, rid: String(d.rid ?? '') };
   }
 
   async act(p: Record<string, unknown>, sessionId: string): Promise<Record<string, unknown>> {
@@ -250,6 +250,8 @@ export class Desktop {
     if (!['click', 'type', 'key', 'scroll'].includes(action)) throw new RpcError(E.INVALID_PARAMS, 'action must be click, type, key or scroll');
     const ref = typeof p.ref === 'string' && p.ref ? p.ref : undefined;
     if ((action === 'click' || action === 'type') && !ref) throw new RpcError(E.INVALID_PARAMS, 'ref is required');
+    // approval and the helper trim differently outside printable ASCII
+    if (action === 'key' && (typeof p.keys !== 'string' || /[^\x20-\x7e]/.test(p.keys))) throw new RpcError(E.INVALID_PARAMS, 'keys must be printable ASCII, like Control+S');
     return this.serial(async () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
       const now = await this.describe(sessionId, hwnd, ref);
@@ -260,7 +262,7 @@ export class Desktop {
         || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       }
-      const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, file_dialog: now.file_dialog ? 1 : 0, pid: now.pid };
+      const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, file_dialog: now.file_dialog ? 1 : 0, rid: now.rid, pid: now.pid };
       if (action !== 'type') return this.dispatch(sessionId, now.grant_id, action, { hwnd, ref, keys: p.keys, dy: p.dy, ...seen });
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
@@ -366,7 +368,7 @@ export class Desktop {
     } });
     m.set('desktop.describe', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      const { pid: _, ...d } = await this.describe(sessionId, hwndOf(p.window), typeof p.ref === 'string' && p.ref ? p.ref : undefined);
+      const { pid: _, rid: __, ...d } = await this.describe(sessionId, hwndOf(p.window), typeof p.ref === 'string' && p.ref ? p.ref : undefined);
       return d;
     } });
     m.set('desktop.snapshot', { handler: async (p) => {
