@@ -1,20 +1,107 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MetaTrooper | Your agents. One wall.</title><meta name="description" content="Claude Code, Codex and Gemini in one desktop workbench. Two-engine reviews and gates that wait for you."><style>
-@font-face{font-family:Geist;src:url(fonts/geist.woff2);font-display:swap}@font-face{font-family:Mono;src:url(fonts/geist-mono.woff2);font-display:swap}@font-face{font-family:Pixel;src:url(fonts/silkscreen-400.ttf);font-display:swap}
-:root{color-scheme:dark;--bg:#111112;--fg:#f1f1ef;--body:#aeaeae;--line:#464648;--wait:#ff7a1a}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:80px}body{margin:0;background:var(--bg);color:var(--fg);font-family:Geist,Arial,sans-serif;-webkit-font-smoothing:antialiased}a{color:inherit;text-decoration:none}button{font:inherit}a:focus-visible,button:focus-visible{outline:2px solid var(--fg);outline-offset:6px}.skip{position:fixed;top:-100px;background:var(--fg);color:var(--bg);padding:15px;z-index:50}.skip:focus{top:10px}.wrap{max-width:1376px;padding:0 48px;margin:auto}
-header{border-bottom:1px dotted var(--line)}.nav{height:80px;display:flex;align-items:center;justify-content:space-between;gap:24px}.brand{font-family:Pixel,monospace;font-size:20px;white-space:nowrap}.navlinks{display:flex;align-items:center;gap:34px;font-size:13px;color:#bcbcbc}.navlinks a:hover{color:var(--fg)}.hero{padding:65px 0 0}.hero h1{font-size:clamp(48px,7.1vw,102px);font-weight:500;letter-spacing:-.065em;line-height:.98;margin:0;max-width:1100px}.hero h1 span{color:#959597}.hero-bottom{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin:27px 0 42px}.hero p{font-size:19px;line-height:1.5;color:var(--body);max-width:570px;margin:0}.button{display:inline-flex;justify-content:center;align-items:center;gap:24px;padding:16px 22px;background:var(--fg);color:#111112;border:1px solid var(--fg);font-size:14px;font-weight:600;white-space:nowrap;transition:background .2s,transform .2s}.button:hover{background:#d5d5d3;transform:translateY(-2px)}
-.product{border:1px solid var(--line);background:#0d0d0e;padding:11px;margin:0;box-shadow:0 24px 80px #0003}.product img{width:100%;height:auto;display:block}.product-bar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:13px 4px 2px;font-family:Mono,monospace;font-size:11px;color:#a8a8aa}.play{background:none;border:0;color:var(--fg);font-family:Mono,monospace;font-size:11px;padding:4px 0;cursor:pointer;display:none}.play:hover{text-decoration:underline}.facts{display:flex;justify-content:space-between;gap:20px;padding:27px 0 45px;font-family:Mono,monospace;font-size:11px;color:#b6b6b8}.engines{display:flex;gap:26px;align-items:center}.engines img{width:18px;height:18px;filter:brightness(0) invert(1);opacity:.8}.engines span{display:flex;align-items:center;gap:10px}.local{color:#96969a}
-section{padding:100px 0;border-top:1px dotted var(--line)}h2{font-size:clamp(35px,4.2vw,60px);font-weight:500;letter-spacing:-.055em;line-height:1.05;margin:0}p{color:var(--body);line-height:1.65}.intro{display:grid;grid-template-columns:1.1fr 1fr;gap:110px}.intro p{font-size:19px;margin:0}.intro p+p{margin-top:22px}.features>p{font-size:18px;max-width:650px;margin:20px 0 40px}.demo{display:grid;grid-template-columns:1.65fr 1fr;border:1px dotted var(--line);margin:0}.demo img{display:block;width:100%;height:100%;object-fit:cover;min-width:0;background:#0b0b0c}.demo-copy{padding:45px 36px;display:flex;flex-direction:column;justify-content:center;border-left:1px dotted var(--line)}h3{font-size:27px;line-height:1.2;font-weight:500;letter-spacing:-.035em;margin:0 0 16px}.demo-copy p{font-size:16px;margin:0}.gate{color:var(--wait);font-family:Mono,monospace;font-size:11px;margin-bottom:25px;display:inline-flex;gap:9px;align-items:center}.gate:before{content:'?';background:var(--wait);color:#111;padding:1px 6px;font-weight:700}.details{display:grid;grid-template-columns:1fr 1fr;gap:52px;margin-top:45px}.details figure{margin:0}.details img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;border:1px dotted var(--line)}.details figcaption{padding-top:25px}.details p{font-size:16px;margin:0;max-width:500px}.details h3{font-size:24px}.process{display:grid;grid-template-columns:1fr 2fr;gap:100px}.process h2{font-size:clamp(35px,3.4vw,47px)}.steps{margin:0;padding:0;list-style:none}.steps li{display:grid;grid-template-columns:45px 1fr;gap:20px;padding:23px 0;border-bottom:1px dotted var(--line)}.steps li:first-child{padding-top:0}.steps li:last-child{border-bottom:0;padding-bottom:0}.number{font:12px Mono,monospace;color:#aaa;padding-top:5px}.steps h3{font-size:22px;margin:0 0 7px}.steps p{margin:0;font-size:15px}.principles{display:grid;grid-template-columns:1fr 1fr;gap:35px 80px;margin-top:50px}.principle{border-top:1px dotted var(--line);padding-top:25px}.principle h3{font-size:23px}.principle p{margin:0;font-size:16px;max-width:480px}.later{font:11px Mono,monospace;color:#aaa;display:block;margin-bottom:15px}.release{padding:78px 64px;background:radial-gradient(circle,#424245 0 .7px,transparent 1px) 0 0/3px 3px;border:1px dotted #737376}.release-inner{background:#111112;padding:25px;max-width:760px}.release h2{font-size:clamp(39px,5.5vw,72px)}.release p{max-width:540px;font-size:17px;margin:24px 0 30px}.end{padding:70px 0 90px}.foot{display:flex;justify-content:space-between;gap:28px;border-top:1px dotted var(--line);padding:30px 0 40px;color:#aaa;font-size:12px}.foot p{margin:0;max-width:630px}.foot a:hover{text-decoration:underline}.motion{animation:arrive .7s cubic-bezier(.2,.7,.2,1) both}.product.motion{animation-delay:.12s}@keyframes arrive{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:900px){.wrap{padding:0 28px}.hero h1{font-size:clamp(48px,8vw,75px)}.intro,.process{gap:45px}.demo-copy{padding:28px}.details{gap:28px}.facts{flex-wrap:wrap}.release{padding:45px 28px}}@media(max-width:600px){.wrap{padding:0 20px}.nav{height:68px}.brand{font-size:16px}.navlinks{gap:18px}.navlinks .desktop{display:none}.hero{padding-top:40px}.hero h1{font-size:clamp(40px,10.8vw,63px);letter-spacing:-.06em;line-height:1.04}.hero-bottom{display:block;margin:22px 0 28px}.hero p{font-size:16px;max-width:340px}.hero .button{margin-top:23px}.product{padding:5px}.product-bar{font-size:11px;flex-wrap:wrap;padding:10px 4px 4px}.facts{padding:22px 0 35px;gap:18px}.engines{gap:15px;font-size:11px}.engines img{width:15px;height:15px}.local{font-size:11px}section{padding:55px 0}.intro,.demo,.details,.process,.principles{grid-template-columns:1fr;gap:28px}.intro p{font-size:17px}.demo-copy{padding:28px 22px;border-left:0;border-top:1px dotted var(--line)}.demo{gap:0}.demo img{aspect-ratio:16/10;object-fit:cover}.details{gap:35px}.details figcaption{padding-top:20px}.features>p{font-size:16px;margin-bottom:28px}.principles{margin-top:32px}.release{padding:24px 12px}.release-inner{padding:19px 12px}.release p{font-size:16px}.foot{flex-direction:column}.end{padding:40px 0 55px}.hero h1 span{white-space:nowrap}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.motion{animation:none}.button{transition:none}}
-</style></head><body><a class="skip" href="#main">Skip to content</a>
-<header><nav class="wrap nav" aria-label="Main navigation"><a class="brand" href="#main">MetaTrooper</a><div class="navlinks"><a class="desktop" href="#workbench">Workbench</a><a class="desktop" href="#workflow">How it works</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub ↗</a></div></nav></header>
-<main id="main" class="wrap"><div class="hero"><div class="motion"><h1>Your agents.<br><span>One wall.</span></h1><div class="hero-bottom"><p>Claude Code, Codex and Gemini in one workbench.<br>Two-engine reviews. Proof for every fix.</p><a class="button" href="#release">Get the first build <span aria-hidden="true">↗</span></a></div></div>
-<figure class="product motion"><img id="wall" src="wall.png" width="2880" height="1800" alt="MetaTrooper workbench with coding agents side by side and a gate waiting for approval"><figcaption class="product-bar"><span>The wall. Every agent, in view.</span><button id="play" class="play" type="button">Play the recording ↗</button></figcaption></figure>
-<div class="facts"><div class="engines"><span><img src="logos/claude.svg" alt="">Claude Code</span><span><img src="logos/openai.svg" alt="">Codex</span><span><img src="logos/googlegemini.svg" alt="">Gemini</span></div><span class="local">Windows + Linux · Local · No telemetry</span></div></div>
-<section class="intro" id="workbench"><h2>Keep the work<br>in one window.</h2><div><p>MetaTrooper runs the coding agents you already use, side by side. See what each is doing, compare their changes, and answer when they need you.</p><p>Your engines. Your logins. Runs and history stored on your machine. No MetaTrooper account.</p></div></section>
-<section class="features"><h2>They work.<br>You make the calls.</h2><p>A run stops at a gate when it needs your decision. See the next action, then approve, edit or reject.</p><figure class="demo"><img src="feat-answer.gif" loading="lazy" alt="Recording of answering an agent directly in MetaTrooper"><figcaption class="demo-copy"><span class="gate">Needs you</span><h3>A question should<br>never get buried.</h3><p>Find the agent waiting for your call. Reply right there, and let the work carry on.</p></figcaption></figure><div class="details"><figure><img src="feat-gates.gif" loading="lazy" alt="Recording showing a pipeline gate in MetaTrooper"><figcaption><h3>A gate waits for you.</h3><p>Review what the run wants to do next. You approve the action before it moves on.</p></figcaption></figure><figure><img src="wall.png" width="2880" height="1800" loading="lazy" alt="Agents reviewing and fixing code in separate workbench panes"><figcaption><h3>Different engines. Same change.</h3><p>Two engines review the same branch. Compare their findings before choosing what to fix.</p></figcaption></figure></div></section>
-<section class="process" id="workflow"><h2>A fix is done<br>when it has proof.</h2><ol class="steps"><li><span class="number">01</span><div><h3>Review the same change.</h3><p>Two engines inspect the branch. See where their findings agree and where they differ.</p></div></li><li><span class="number">02</span><div><h3>Choose what gets fixed.</h3><p>The run stops at a gate. Pick the findings to act on, then the agent makes the change.</p></div></li><li><span class="number">03</span><div><h3>Make the fix prove itself.</h3><p>A test fails without the fix and passes with it. Review the result before approving the hand-back.</p></div></li></ol></section>
-<section><h2>Your machine.<br>Your workbench.</h2><div class="principles"><div class="principle"><h3>Use your existing tools.</h3><p>Works with the official command line tools you install and sign in to yourself. MetaTrooper does not read or store your login.</p></div><div class="principle"><h3>Keep the record local.</h3><p>Runs, reviews and history live on your machine. No MetaTrooper cloud service. Your agents still use their own providers.</p></div><div class="principle"><h3>Open source, by design.</h3><p>Read the source and see how it works. MetaTrooper is licensed under AGPL.</p></div><div class="principle"><span class="later">Coming later</span><h3>A sandbox per project.</h3><p>Project builds, tests and dev servers in a Docker container, with a terminal into its files.</p></div></div></section>
-<div class="end" id="release"><div class="release"><div class="release-inner"><h2>Be there for<br>the first build.</h2><p>On GitHub, choose Watch, then Custom, then Releases. You will hear when the first build is ready to download.</p><a class="button" href="https://github.com/Wasif-ZA/metatrooper">Watch releases on GitHub <span aria-hidden="true">↗</span></a></div></div></div>
-</main><footer class="wrap"><div class="foot"><a class="brand" href="#main">MetaTrooper</a><p>Not affiliated with or endorsed by Anthropic, OpenAI or Google.<br>Product names describe the tools MetaTrooper works with.</p><a href="https://github.com/Wasif-ZA/metatrooper">Source ↗</a></div></footer>
-<script>const image=document.getElementById('wall');const play=document.getElementById('play');play.style.display='inline-block';let playing=false;play.addEventListener('click',()=>{playing=!playing;image.src=playing?'wall-demo.gif':'wall.png';play.textContent=playing?'Show the still image ↗':'Play the recording ↗';play.setAttribute('aria-pressed',String(playing));});</script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaTrooper</title>
+<meta name="description" content="A PR reviewed by two engines, with proof. Windows and Linux, local, no account, no telemetry.">
+<style>
+:root {
+  --canvas: #161617; --canvas-soft: #1b1b1c; --canvas-deep: #0b0b0c; --pane: #0e0e0f;
+  --hairline: #2a2a2b; --hairline-strong: #4a4a4a;
+  --ink: #f2f2f2; --body: #b8b8b8; --mute: #8f8f8f; --faint: #6e6e6e; --wait: #ff7a1a;
+  --mono: 'Geist Mono', ui-monospace, Consolas, monospace;
+  --sans: 'Space Mono', ui-monospace, Consolas, monospace;
+  --dots: radial-gradient(circle, #363637 0 .9px, transparent 1.2px) 0 0/3px 3px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--canvas-deep); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+a { color: var(--ink); }
+main { max-width: 980px; margin: 0 auto; padding: 0 16px 64px; }
+header { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px dotted var(--hairline-strong); }
+.brand { color: var(--ink); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 14px; }
+.brand::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; background: radial-gradient(circle, var(--ink) 0 1px, transparent 1.3px) 0 0/4px 4px; }
+header .sp { flex: 1; }
+header a { font-size: 13px; color: var(--mute); text-decoration: none; }
+.hero { padding: 56px 0 40px; }
+.hero h1 { color: var(--ink); font-size: clamp(26px, 6vw, 44px); line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
+.facts { list-style: none; margin-top: 22px; font-family: var(--mono); font-size: 14px; color: var(--body); }
+.facts li::before { content: '\25CF'; color: var(--wait); margin-right: 10px; font-size: 10px; vertical-align: 2px; }
+.cta { display: inline-block; margin-top: 28px; padding: 10px 18px; border-radius: 5px; background: var(--ink); color: var(--canvas-deep); font-weight: 700; text-decoration: none; }
+section { padding: 40px 0; border-top: 1px dotted var(--hairline-strong); }
+h2 { color: var(--ink); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 18px; }
+h3 { color: var(--ink); font-size: 16px; margin-bottom: 6px; }
+p + p { margin-top: 10px; }
+.gifs { display: grid; gap: 28px; }
+figure { border: 1px solid var(--hairline); border-radius: 8px; background: var(--pane); overflow: hidden; }
+.frame { position: relative; aspect-ratio: 16 / 10; background: var(--dots), var(--canvas); display: grid; place-items: center; }
+.frame span { font-family: var(--mono); font-size: 13px; color: var(--faint); }
+.frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+figcaption { padding: 14px 16px; border-top: 1px solid var(--hairline); }
+.cols { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { padding: 18px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas); }
+.soon { display: inline-block; margin-left: 8px; padding: 0 8px; border: 1px solid var(--wait); border-radius: 3px; color: var(--wait); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; vertical-align: 2px; }
+.engines { font-family: var(--mono); color: var(--ink); }
+footer { padding-top: 24px; border-top: 1px dotted var(--hairline-strong); font-size: 13px; color: var(--mute); }
+@media (max-width: 600px) { body { font-size: 14px; } .hero { padding: 36px 0 28px; } }
+</style>
+</head>
+<body>
+<main>
+<header><span class="brand">MetaTrooper</span><span class="sp"></span><a href="https://github.com/Wasif-ZA/metatrooper">Source</a></header>
+
+<div class="hero">
+  <h1>A PR reviewed by two engines, with proof.</h1>
+  <ul class="facts">
+    <li>Windows and Linux</li>
+    <li>Local, on your machine</li>
+    <li>No account, no telemetry</li>
+  </ul>
+  <a class="cta" href="#waitlist">Get the first build</a>
+</div>
+
+<section>
+  <h2>What it does</h2>
+  <p>MetaTrooper is a desktop workbench for the coding agents you already use. It runs them in the same window, lets two of them review the same change, and only calls a fix done when the fix carries proof: a test that fails without it and passes with it.</p>
+  <p>You stay in charge. A run stops at a gate whenever it needs your call, and nothing leaves your machine until you approve it.</p>
+</section>
+
+<section>
+  <h2>See it run</h2>
+  <div class="gifs">
+    <figure>
+      <div class="frame"><span>pr-review-fix.gif</span><img src="gifs/pr-review-fix.gif" alt="Two engines review a pull request, a third fixes what both found, and each fix is checked with proof" loading="lazy" onerror="this.remove()"></div>
+      <figcaption><h3>Review and fix with proof</h3><p>Two engines review the same branch. The findings both agree on are fixed, and every fix is checked before it is handed back.</p></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><span>gate-waiting.gif</span><img src="gifs/gate-waiting.gif" alt="A run paused at a gate, waiting for the user to pick which findings to fix" loading="lazy" onerror="this.remove()"></div>
+      <figcaption><h3>A gate waits for you</h3><p>The run pauses and shows what it wants to do next. Approve, edit or reject; it carries on from there.</p></figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><span>spec-to-pr.gif</span><img src="gifs/spec-to-pr.gif" alt="A one-line idea becomes a spec, then a build, then a pull request" loading="lazy" onerror="this.remove()"></div>
+      <figcaption><h3>Spec in, PR out</h3><p>A one-line idea becomes a spec you approve, a build that passes its tests, and a pull request you approve before it opens.</p></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>How it is built</h2>
+  <div class="cols">
+    <div class="card"><h3>Your engines, your logins</h3><p>Works with the official command line tools you install and sign in to yourself: <span class="engines">Claude Code, Codex, Antigravity CLI</span>. MetaTrooper never reads or stores your login.</p></div>
+    <div class="card"><h3>Everything stays local</h3><p>Runs, reviews and history live in one folder on your machine. No server, no account, nothing sent home.</p></div>
+    <div class="card"><h3>Sandbox <span class="soon">Coming later</span></h3><p>Agents keep running on your machine as normal. The builds, tests and dev servers they start will run in one Docker container per project, with an Open sandbox button for a terminal into it and its files.</p></div>
+  </div>
+</section>
+
+<section id="waitlist">
+  <h2>Get the first build</h2>
+  <p>On GitHub, choose Watch, then Custom, then Releases. You hear once, when the first build is ready to download.</p>
+  <a class="cta" href="https://github.com/Wasif-ZA/metatrooper">Watch on GitHub</a>
+</section>
+
+<footer>
+  <p>MetaTrooper is not affiliated with or endorsed by Anthropic, OpenAI or Google. Claude Code, Codex and Antigravity CLI are named only to say what it works with.</p>
+</footer>
+</main>
+</body>
+</html>
