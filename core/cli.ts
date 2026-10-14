@@ -51,7 +51,9 @@ const USAGE = `usage: troop <command> [--json]
                                 a git URL, or claude-import:<folder>, codex-import:<config.toml>,
                                 agy-import:<mcp_config.json>
   plugin remove <id>            remove a plugin, its engines and its secrets
-  plugin secret <id> <NAME>     set a secret the plugin was approved for (value read from the terminal)`;
+  plugin secret <id> <NAME>     set a secret the plugin was approved for (value read from the terminal)
+  browser secret <NAME> <origin>
+                                save a secret an agent can type as {{secret:NAME}} into a password field on origin (value read from the terminal)`;
 
 async function usage(): Promise<string> {
   const { methodHelp } = await import('./src/methods.ts');
@@ -444,6 +446,22 @@ async function main(): Promise<number> {
 
     case 'plugin':
       return plugin(a, json);
+
+    case 'browser': {
+      const [action, name, origin] = a.pos;
+      if (action !== 'secret' || !name || !origin) {
+        console.error('usage: troop browser secret <NAME> <origin>');
+        return 2;
+      }
+      const value = await secretInput(`Value for ${name}: `);
+      if (value === null) {
+        console.error('Setting a secret needs an interactive terminal.');
+        return 1;
+      }
+      const r = await rpc('browser.secret.set', { name, origin, value }, json);
+      if (r.result) emit(r.result, `saved ${name} for ${origin}`);
+      return r.code;
+    }
 
     case 'skills':
       return skills(a.pos[0] ?? '', a.flags, json);

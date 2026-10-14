@@ -58,9 +58,12 @@ export interface Manifest {
 
 export const MANIFEST_FILE = 'troop-plugin.json';
 
+/** Ids that name core secret stores (`core-notify`, `core-browser`). */
+export const reservedId = (id: string): boolean => id.startsWith('core-');
+
 export const PANE_FORBIDDEN_METHODS = new Set([
   'core.stop', 'ui.hello', 'hooks.install', 'hooks.uninstall',
-  'plugin.install', 'plugin.remove', 'plugin.preview', 'plugin.secret.set', 'mcp.resolve', 'mcp.missing',
+  'plugin.install', 'plugin.remove', 'plugin.preview', 'plugin.secret.set', 'browser.secret.set', 'mcp.resolve', 'mcp.missing',
   'notify.sink.set', 'notify.sink.test', 'notify.sink.remove',
 ]);
 
@@ -125,6 +128,7 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
   if (errors.length) return errors;
   const m = manifest as Manifest;
   const perms = new Set(m.permissions ?? []);
+  if (reservedId(m.id)) errors.push('/id: core- ids are reserved for MetaTrooper');
 
   for (const [list, name] of [[m.engines, 'engines'], [m.actions, 'actions'], [m.panes, 'panes'], [m.mcp, 'mcp']] as const) {
     for (const id of duplicates((list ?? []).map((x) => x.id))) errors.push(`/${name}: duplicate id ${id}`);

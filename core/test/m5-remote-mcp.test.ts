@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { schemaFile } from '../src/paths.ts';
 import { validateManifest } from '../src/plugins/manifest.ts';
-import { installPlugin } from '../src/plugins/store.ts';
+import { installPlugin, removePlugin, setPluginSecret } from '../src/plugins/store.ts';
 import { mcpAttachArgs, resolveMcpServer } from '../src/plugins/mcp.ts';
-import { setSecret } from '../src/secrets.ts';
+import { getSecret, setSecret } from '../src/secrets.ts';
 
 const FAKE_TOKEN = 'fake-gh-token-123';
 
@@ -156,5 +156,27 @@ test('M5-12g manifest rejects MCP ids containing a space or semicolon', () => {
   for (const id of ['bad id', 'bad;id']) {
     const errors = validateManifest(manifest('valid-plugin', [{ id, transport: 'http', url: 'https://example.test/mcp', writes: 'none', engines: ['claude'] }]), null);
     assert.ok(errors.length > 0, `accepted invalid MCP id ${JSON.stringify(id)}`);
+  }
+});
+
+test('a plugin row with a reserved core- id left from before the check cannot resolve or remove core secrets', { skip: process.env.METATROOPER_FAKE_DPAPI !== '1' }, () => {
+  const home = mkdtempSync(join(tmpdir(), 'm5-reserved-home-'));
+  const oldHome = process.env.METATROOPER_HOME;
+  const db = new DatabaseSync(':memory:');
+  try {
+    process.env.METATROOPER_HOME = home;
+    db.exec(readFileSync(schemaFile, 'utf8'));
+    db.exec('CREATE TABLE IF NOT EXISTS notify_sink (id TEXT PRIMARY KEY, kind TEXT, name TEXT, dest_hash TEXT, kinds TEXT, enabled INTEGER, approved_at TEXT)');
+    fixture(db, 'legacy-x', manifest('legacy-x', [{ id: 'github', transport: 'http', url: 'https://api.github.example/mcp', auth: 'header', headers: { Authorization: 'Bearer ${BANK_PW}' }, engines: ['claude'] }], ['secrets:BANK_PW']));
+    db.prepare("UPDATE plugin SET id = 'core-browser' WHERE id = 'legacy-x'").run();
+    setSecret(db, 'core-browser', 'BANK_PW', FAKE_TOKEN);
+    assert.throws(() => resolveMcpServer(db, 'core-browser', 'github'), /plugin not found/);
+    assert.throws(() => setPluginSecret(db, 'core-browser', 'BANK_PW', 'replaced-value'), /plugin not found/);
+    removePlugin(db, 'core-browser');
+    assert.equal(getSecret('core-browser', 'BANK_PW'), FAKE_TOKEN);
+  } finally {
+    db.close();
+    if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;
+    rmSync(home, { recursive: true, force: true });
   }
 });

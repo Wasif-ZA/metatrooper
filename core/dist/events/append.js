@@ -34,3 +34,10 @@ export function appendEvent(kind        , sessionId               , payload     
     .run(nowIso(), sourceOf(kind), sessionId, kind, JSON.stringify(payload));
   return conn;
 }
+
+export const AUDIT_DAYS = 30;
+
+/** Deletes `browser.tool` audit rows older than 30 days. */
+export function pruneBrowserAudit(db              , now = Date.now())         {
+  return Number(db.prepare("DELETE FROM event WHERE kind = 'browser.tool' AND at < ?").run(nowIso(new Date(now - AUDIT_DAYS * 86_400_000))).changes);
+}
