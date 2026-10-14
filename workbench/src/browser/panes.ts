@@ -694,8 +694,9 @@ export class PaneManager {
   }
 
   /** The border box of a ref's element in the pane's viewport, after scrolling it into view. */
-  private async box(pane: Pane, t: Target, ref: unknown): Promise<{ objectId: string; x: number; y: number; left: number; top: number; right: number; bottom: number }> {
+  private async box(pane: Pane, t: Target, ref: unknown, a?: Record<string, any>): Promise<{ objectId: string; x: number; y: number; left: number; top: number; right: number; bottom: number }> {
     const objectId = await this.resolve(pane, t, ref);
+    if (a) this.notPaused(a);
     await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: t.backendNodeId }).catch(() => {});
     const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId: t.backendNodeId }).catch(() => {
       throw new ToolError(-32602, `ref ${String(ref)} is not visible (it has no layout box)`);
@@ -707,9 +708,9 @@ export class PaneManager {
   }
 
   /** The point to click for a ref, after checking the element is enabled and is what a click there hits; the hit test runs in the element's own frame. */
-  private async target(pane: Pane, ref: unknown): Promise<{ node: Target; x: number; y: number }> {
+  private async target(pane: Pane, ref: unknown, a?: Record<string, any>): Promise<{ node: Target; x: number; y: number }> {
     const node = this.node(pane, ref);
-    const p = await this.box(pane, node, ref);
+    const p = await this.box(pane, node, ref, a);
     const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId: p.objectId,
       returnByValue: true,
@@ -1127,7 +1128,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       }
       case 'click':
         return this.answer(pane, session, async () => {
-          const p = await this.target(pane, a.ref);
+          const p = await this.target(pane, a.ref, a);
           await this.clickAt(pane, p.x, p.y, recheck, a);
           return { ok: true };
         });
@@ -1137,9 +1138,10 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (!secret && a.text.includes('{{secret:')) throw new ToolError(-32602, 'a {{secret:NAME}} placeholder must be the whole text');
         if (secret) await this.secretValue(pane, secret, a.ref);
         return this.answer(pane, session, async () => {
-          const { node, x, y } = await this.target(pane, a.ref);
+          const { node, x, y } = await this.target(pane, a.ref, a);
           await this.clickAt(pane, x, y, recheck, a);
           let text = a.text;
+          this.notPaused(a);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
             await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
@@ -1168,7 +1170,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'select':
         return this.answer(pane, session, async () => {
           const node = this.node(pane, a.ref);
-          const p = await this.box(pane, node, a.ref);
+          const p = await this.box(pane, node, a.ref, a);
           await this.pointAt(pane, p.x, p.y);
           await recheck();
           await this.cmd(pane, 'Runtime.callFunctionOn', {

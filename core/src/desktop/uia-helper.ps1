@@ -84,6 +84,15 @@ namespace TroopUia {
       }
     }
 
+    // the control an input reaches must still be the one the core approved, checked in the op that sends it
+    static void Expect(AutomationElement e, bool hidden, Dictionary<string, object> r) {
+      if (Num(r, "check") == 0) return;
+      var c = e == null ? null : ControlOf(e);
+      bool password = e != null && e.Current.IsPassword;
+      if (hidden != (Num(r, "hidden") != 0) || password != (Num(r, "password") != 0) || (c == null ? "" : (string)c["name"]) != Str(r, "name")
+        || (c == null ? "" : (string)c["automation_id"]) != Str(r, "automation_id") || (c == null ? "" : (string)c["role"]) != Str(r, "role")) throw new Exception("control changed");
+    }
+
     static string Str(Dictionary<string, object> r, string k) { return r.ContainsKey(k) && r[k] != null ? Convert.ToString(r[k]) : ""; }
     static long Num(Dictionary<string, object> r, string k) { return r.ContainsKey(k) && r[k] != null ? Convert.ToInt64(r[k]) : 0; }
 
@@ -96,15 +105,14 @@ namespace TroopUia {
         case "snapshot": return Snapshot(hwnd, (int)Math.Max(1, Num(r, "max_nodes")));
         case "describe": return Describe(hwnd, Str(r, "ref"));
         case "screenshot": return Screenshot(new IntPtr(hwnd));
-        case "set_text": return SetText(hwnd, Str(r, "ref"), Str(r, "value"));
-        case "click": return Click(hwnd, Str(r, "ref"));
+        case "set_text": Expect(Find(hwnd, Str(r, "ref")), false, r); return SetText(hwnd, Str(r, "ref"), Str(r, "value"));
+        case "click": Expect(Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
         case "key": {
-          bool hidden; var f = Focused(new IntPtr(hwnd), out hidden);
-          var c = f == null ? null : ControlOf(f);
-          if (hidden != (Num(r, "hidden") != 0) || (c == null ? "" : (string)c["name"]) != Str(r, "name") || (c == null ? "" : (string)c["automation_id"]) != Str(r, "automation_id") || (c == null ? "" : (string)c["role"]) != Str(r, "role")) throw new Exception("control changed");
-          return Key(new IntPtr(hwnd), Str(r, "keys"));
+          bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
+          Expect(f, hidden, r);
+          return Key(target, Str(r, "keys"));
         }
-        case "scroll": return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
+        case "scroll": if (Str(r, "ref").Length > 0) Expect(Find(hwnd, Str(r, "ref")), false, r); return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
         case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
         case "probe": {
@@ -246,13 +254,18 @@ namespace TroopUia {
     }
 
     // hidden: the control that gets a key is unknown (no focus HWND in this window, or a container HWND while global focus is elsewhere)
-    static AutomationElement Focused(IntPtr hwnd, out bool hidden) {
+    static AutomationElement Focused(IntPtr hwnd, out bool hidden) { IntPtr target; return Focused(hwnd, out hidden, out target); }
+
+    // target: the HWND a key for this window is posted to
+    static AutomationElement Focused(IntPtr hwnd, out bool hidden, out IntPtr target) {
       hidden = true;
+      target = hwnd;
       uint pid; uint tid = Native.GetWindowThreadProcessId(hwnd, out pid);
       var gti = new Native.GUITHREADINFO(); gti.cbSize = Marshal.SizeOf(gti);
       if (!Native.GetGUIThreadInfo(tid, ref gti) || gti.hwndFocus == IntPtr.Zero) return null;
       if (Native.GetAncestor(gti.hwndFocus, GA_ROOT) != Native.GetAncestor(hwnd, GA_ROOT)) return null;
       hidden = false;
+      target = gti.hwndFocus;
       try {
         var f = AutomationElement.FocusedElement;
         var e = f;
@@ -389,13 +402,11 @@ namespace TroopUia {
       return new IntPtr(unchecked((int)lp));
     }
 
-    static object Key(IntPtr hwnd, string keys) {
+    static object Key(IntPtr target, string keys) {
       var parts = keys.Split('+').Select(k => k.Trim()).Where(k => k.Length > 0).ToList();
       if (parts.Count == 0) throw new Exception("keys is required");
-      uint pid; uint tid = Native.GetWindowThreadProcessId(hwnd, out pid);
-      var gti = new Native.GUITHREADINFO(); gti.cbSize = Marshal.SizeOf(gti);
-      IntPtr target = Native.GetGUIThreadInfo(tid, ref gti) && gti.hwndFocus != IntPtr.Zero && Native.GetAncestor(gti.hwndFocus, GA_ROOT) == Native.GetAncestor(hwnd, GA_ROOT) ? gti.hwndFocus : hwnd;
-      var mods = parts.Take(parts.Count - 1).Select(m => Keys.ContainsKey(m) ? Keys[m] : 0).Where(v => v != 0).ToList();
+      foreach (var m in parts.Take(parts.Count - 1)) if (!Keys.ContainsKey(m) || !(Keys[m] == 0x10 || Keys[m] == 0x11 || Keys[m] == 0x12)) throw new Exception("unknown modifier " + m + "; use Control, Shift or Alt");
+      var mods = parts.Take(parts.Count - 1).Select(m => Keys[m]).ToList();
       bool alt = mods.Contains(0x12), ctrl = mods.Contains(0x11);
       string last = parts[parts.Count - 1];
       int vk; char ch = '\0';

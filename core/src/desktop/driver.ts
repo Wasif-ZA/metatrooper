@@ -61,7 +61,16 @@ export class Helper {
     return child;
   }
 
-  request<T = any>(op: string, params: Record<string, unknown> = {}, timeoutMs = HELPER_TIMEOUT_MS): Promise<T> {
+  private queue: Promise<unknown> = Promise.resolve();
+
+  /** Requests go one at a time; `gate` runs as this one leaves the queue, right before it is written, and may throw to drop it. */
+  request<T = any>(op: string, params: Record<string, unknown> = {}, timeoutMs = HELPER_TIMEOUT_MS, gate?: () => void): Promise<T> {
+    const run = this.queue.then(() => { gate?.(); return this.send<T>(op, params, timeoutMs); });
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  private send<T>(op: string, params: Record<string, unknown>, timeoutMs: number): Promise<T> {
     const child = this.start();
     const id = ++this.next;
     return new Promise<T>((resolve, reject) => {
@@ -202,14 +211,20 @@ export class Desktop {
     return run;
   }
 
-  /** Sends one input; the pause and the grant are rechecked here, with no await before the send. */
-  private async dispatch<T>(sessionId: string, grantId: string, fn: () => Promise<T>, note = ''): Promise<T> {
-    if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
-    if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
-    const watchId = beginAction();
-    const p = fn();
+  /** Sends one input; the pause and the grant are rechecked as the request leaves the helper queue, right before it is written. */
+  private async dispatch(sessionId: string, grantId: string, op: string, params: Record<string, unknown>, note = ''): Promise<Record<string, unknown>> {
+    let watchId: string | null = null;
+    const gate = () => {
+      if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
+      if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
+      watchId = beginAction();
+    };
+    const posted = op === 'key' || op === 'click';
+    const p = this.helper.request<Record<string, unknown>>(op, params, undefined, gate)
+      .catch((e: Error) => { throw /^control changed$/.test(e.message) ? new RpcError(CONTROL_CHANGED, `the control changed since it was checked; nothing was sent${note}`) : e; })
+      .finally(() => { if (posted && watchId !== null) this.postedAt = Date.now(); });
     this.inFlight = p;
-    try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; endAction(watchId); }
+    try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; if (watchId !== null) endAction(watchId); }
   }
 
   async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number }> {
@@ -234,13 +249,8 @@ export class Desktop {
         || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       }
-      if (action !== 'type') {
-        const posted = action === 'key' || action === 'click';
-        const seen = action === 'key' ? { name: c.name, automation_id: c.automation_id, role: c.role, hidden: now.hidden ? 1 : 0 } : {};
-        return this.dispatch(sessionId, now.grant_id, () => this.helper.request<Record<string, unknown>>(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid, ...seen })
-          .catch((e: Error) => { throw /^control changed$/.test(e.message) ? new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent') : e; })
-          .finally(() => { if (posted) this.postedAt = Date.now(); }));
-      }
+      const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, pid: now.pid };
+      if (action !== 'type') return this.dispatch(sessionId, now.grant_id, action, { hwnd, ref, keys: p.keys, dy: p.dy, ...seen });
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
       let focusLost = false;
@@ -250,7 +260,7 @@ export class Desktop {
         const note = `; ${done} of ${chars.length} characters were typed`;
         if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
         if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
-        out = await this.dispatch(sessionId, now.grant_id, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), pid: now.pid }), note);
+        out = await this.dispatch(sessionId, now.grant_id, 'set_text', { hwnd, ref, value: chars.slice(0, n).join(''), ...seen }, note);
         if (out.focus_returned === false) focusLost = true;
         done = n;
       } while (done < chars.length);
