@@ -125,6 +125,7 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
   if (errors.length) return errors;
   const m = manifest as Manifest;
   const perms = new Set(m.permissions ?? []);
+  if (m.id.startsWith('core-')) errors.push('/id: core- ids are reserved for MetaTrooper');
 
   for (const [list, name] of [[m.engines, 'engines'], [m.actions, 'actions'], [m.panes, 'panes'], [m.mcp, 'mcp']] as const) {
     for (const id of duplicates((list ?? []).map((x) => x.id))) errors.push(`/${name}: duplicate id ${id}`);

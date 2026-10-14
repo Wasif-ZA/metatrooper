@@ -5,7 +5,8 @@ licence.
 
 ## Manifest
 
-`troop-plugin.json` at the plugin root, validated against `plugin-manifest.schema.json`.
+`troop-plugin.json` at the plugin root, validated against `plugin-manifest.schema.json`. Ids starting with `core-` are
+reserved (`core-notify` and `core-browser` name core secret stores) and fail validation.
 
 ## Install
 

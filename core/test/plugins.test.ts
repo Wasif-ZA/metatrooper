@@ -93,6 +93,7 @@ test('manifest validation: an action without external needs no destination_field
     assert.ok(errors.includes('/mcp/0/env_keys: TOKEN needs the permission secrets:TOKEN'));
     assert.ok(errors.includes('/pane_methods/0: core.stop cannot be called from a pane'));
     assert.ok(errors.includes('/pane_methods/1: browser.secret.set cannot be called from a pane'));
+    assert.deepEqual(validateManifest({ ...ok, id: 'core-browser' }, dir), ['/id: core- ids are reserved for MetaTrooper']);
     assert.ok(errors.includes('/actions/0/run/0: path must stay inside the plugin folder'));
     const external = validateManifest({ schema: 1, id: 'demo', version: '1.0.0', name: 'Demo', actions: [{ id: 'go', run: ['node'], external: true }] }, null);
     assert.deepEqual(external, ['/actions/0: missing required property destination_field']);
