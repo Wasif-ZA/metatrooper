@@ -118,6 +118,7 @@ function boot() {
       await flush();
     },
     hides: () => calls.filter((c) => c.method === 'session.hide').map((c) => c.params.session_id),
+    type: async (id: string, value: string) => { const el = d.getElementById(id); el.value = value; fire('input', { target: el }); await flush(); },
   };
 }
 
@@ -137,12 +138,24 @@ test('M6-26b a hide waits 7 s, Undo cancels only its own hide, and a session tha
   await w.snap(snapOf([session('a', 'done'), session('b', 'done'), session('c', 'idle')]));
   await w.click({ action: 'hide', id: 'a' });
   assert.ok(!onWall(w).includes('a'), 'the tile leaves the wall within one render');
+  assert.ok(!w.el('list').innerHTML.includes('data-id="a"'), 'and the list');
   assert.match(w.el('toasts').children[0].textContent, /^Agent hidden · $/);
   assert.equal(w.el('toasts').children[0].children[0].textContent, 'Undo');
   await w.advance(6999);
   assert.deepEqual(w.hides(), []);
   await w.advance(1);
   assert.deepEqual(w.hides(), ['a']);
+  assert.ok(w.t.ui.pendingHide.has('a'), 'kept out until a snapshot drops it');
+  await w.snap(snapOf([session('b', 'done'), session('c', 'idle')]));
+  assert.equal(w.t.ui.pendingHide.has('a'), false, 'released once the core no longer lists it');
+
+  const away = boot();
+  await away.snap(snapOf([session('a', 'done')]));
+  await away.click({ action: 'hide', id: 'a' });
+  await away.advance(3000);
+  await away.snap(snapOf([], { projects: [{ id: 'p1', name: 'p', path: '/p' }, { id: 'p2', name: 'q', path: '/q' }] }));
+  await away.advance(4000);
+  assert.deepEqual(away.hides(), ['a'], 'switching projects does not cancel the timer');
 
   const u = boot();
   await u.snap(snapOf([session('a', 'done'), session('b', 'done')]));
@@ -191,13 +204,17 @@ test('M6-26c Clear hides the finished sessions it saw at click time, one session
   assert.equal(w.el('toasts').children[0].textContent, '3 finished agents cleared · ');
   await w.advance(3000);
   await w.snap(snapOf([session('d1', 'done'), session('d2', 'idle'), session('d3', 'exited'), session('w1', 'done')]));
-  await w.advance(4000);
+  assert.ok(!/data-id="d[123]"/.test(w.el('list').innerHTML), 'cleared rows stay out of the list');
+  await w.advance(3999);
+  assert.deepEqual(w.hides(), []);
+  await w.advance(1);
   assert.deepEqual(w.hides().sort(), ['d1', 'd2', 'd3']);
   assert.equal(w.calls.filter((c) => c.method === 'project.clear').length, 0);
 
   const u = boot();
   await u.snap(snapOf([session('d1', 'done'), session('w1', 'working')]));
   await u.click({ action: 'clear-all' });
+  await u.advance(6999);
   u.el('toasts').children[0].children[0].listeners.click[0]({ stopPropagation() {} });
   await u.advance(10_000);
   assert.deepEqual(u.hides(), []);
@@ -241,6 +258,30 @@ test('M6-26d Stop core and Restart core run only on a second Enter within 3 s', 
     assert.equal(late.t.ui.paletteItems[j].label, armed, 'an Enter after expiry arms again');
     await late.key('ArrowDown');
     assert.ok(late.t.ui.paletteItems[j].label.startsWith(label), 'ArrowDown disarms');
+
+    const bypass = async (steps: (b: ReturnType<typeof boot>, at: () => number) => Promise<void>) => {
+      const b = boot();
+      await b.snap(snapOf([session('s_w', 'waiting_for_you')]));
+      await b.key('k', { ctrlKey: true });
+      const at = () => (b.t.ui.paletteItems as Array<{ label: string }>).findIndex((x) => x.label.startsWith(label) || x.label === armed);
+      b.t.ui.paletteAt = at();
+      await steps(b, at);
+      return b.calls.filter((c) => c.method === fn).length;
+    };
+    assert.equal(await bypass(async (b, at) => { await b.click({ palette: String(at()) }); await b.click({ palette: String(at()) }); }), 0, 'two clicks');
+    assert.equal(await bypass(async (b, at) => { await b.key('Enter'); await b.click({ palette: String(at()) }); }), 0, 'Enter then click');
+    assert.equal(await bypass(async (b, at) => { await b.click({ palette: String(at()) }); await b.key('Enter'); }), 0, 'click then one Enter');
+    assert.equal(await bypass(async (b) => { await b.key('Enter'); await b.key('Enter', { repeat: true }); }), 0, 'a held Enter');
+    assert.equal(await bypass(async (b) => { await b.key('Enter'); await b.key('j', { altKey: true }); await b.key('Enter'); }), 0, 'Alt+J between the Enters disarms');
+    const named = boot();
+    await named.snap(snapOf([]));
+    await named.key('k', { ctrlKey: true });
+    await named.type('palette-input', label.toLowerCase());
+    named.t.ui.paletteAt = 0;
+    await named.key('Enter');
+    assert.equal((named.t.ui.paletteItems as Array<{ label: string }>)[0].label, armed, 'a search by name keeps the armed row');
+    await named.key('Enter');
+    assert.equal(named.calls.filter((c) => c.method === fn).length, 1);
   }
 });
 
@@ -378,9 +419,10 @@ const DRIVERS: Record<string, () => Promise<void>> = {
   'Ctrl+B': async () => { const w = boot(); await w.snap(snapOf([])); await w.key('b', { ctrlKey: true }); assert.equal(w.wallState.list, true); },
   'Alt+J': async () => {
     const w = boot();
-    await w.snap(snapOf([session('a', 'waiting_for_you')]));
+    const t = (s: number) => new Date(Date.UTC(2026, 9, 14, 10, 0, s)).toISOString();
+    await w.snap(snapOf([session('new', 'waiting_for_you', { state_at: t(30) }), session('old', 'waiting_for_you', { state_at: t(5) }), session('mid', 'waiting_for_you', { state_at: t(10) })]));
     await w.key('j', { altKey: true });
-    assert.deepEqual(w.calls.filter((c) => c.method === 'session.focus').map((c) => c.params.session_id), ['a']);
+    assert.deepEqual(w.calls.filter((c) => c.method === 'session.focus').map((c) => c.params.session_id), ['old']);
   },
   'Esc': async () => { const w = boot(); await w.snap(snapOf([])); w.t.ui.split = true; await w.key('Escape'); assert.equal(w.t.ui.split, false); },
   'Shift+Enter': async () => { const t = tileHarness(); t.show({ id: 'a', state: 'working', task: 'x', engine_id: 'claude' }); assert.equal(t.key({ key: 'Enter', shiftKey: true }), false); assert.deepEqual(t.sent, ['\x1b[200~\n\x1b[201~']); },
@@ -483,6 +525,38 @@ test('M6-26h static: every key a handler checks with a modifier has a KEYS row',
   assert.deepEqual(missing(src('app.js')), []);
   assert.deepEqual(missing(src('terminal.js')), []);
   assert.deepEqual(missing(`${src('app.js')}\n  if (e.ctrlKey && key === 'q') act = 'quit';\n`), ['q'], 'the scan sees a new Ctrl key');
+});
+
+test('M6-26h sweep: every Ctrl or Alt combination a handler consumes on the wall, in the browser or in a tile has a KEYS row', async () => {
+  // protects=KEYS staying complete with the modifier, not just the letter (an undocumented Alt+B next to Ctrl+B)
+  // fails_when=a keydown with Ctrl or Alt is consumed (preventDefault, or false from the tile's key handler) and no KEYS row names that combination
+  // no_claim=combinations with Shift or Meta, and keys that only act inside the palette
+  const w = boot();
+  await w.snap(snapOf([]));
+  const norm: Record<string, string> = { left: 'arrowleft', right: 'arrowright', up: 'arrowup', down: 'arrowdown', '+': '=' };
+  const listed = new Set(Array.from(w.t.KEYS as Array<{ keys: string }>).flatMap((k) => k.keys.split(',').map((c) => c.trim().split(' ')[0].toLowerCase().split('+').map((p, i, a) => (i === a.length - 1 && p === '' ? '+' : norm[p] ?? p)).filter(Boolean).join('+'))));
+  const names = [...'abcdefghijklmnopqrstuvwxyz0123456789', '=', '+', '-', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`)];
+  const consumed: string[] = [];
+  for (const mod of ['ctrl', 'alt']) {
+    for (const key of names) {
+      const combo = `${mod}+${norm[key.toLowerCase()] ?? key.toLowerCase()}`;
+      const mods = { ctrlKey: mod === 'ctrl', altKey: mod === 'alt' };
+      for (const where of ['wall', 'browser']) {
+        const b = where === 'wall' ? boot() : await browserWall();
+        if (where === 'wall') await b.snap(snapOf([session('s_w', 'waiting_for_you')]));
+        let prevented = false;
+        const target = where === 'browser' ? inBrowser() : doc.body;
+        await b.key(key, { ...mods, preventDefault() { prevented = true; } }, target);
+        if (prevented) consumed.push(combo);
+      }
+      const tile = tileHarness();
+      tile.show({ id: 'a', state: 'done', task: 'x', engine_id: 'claude' });
+      tile.select('sel');
+      if (tile.key({ key, ...mods }) === false) consumed.push(combo);
+    }
+  }
+  assert.deepEqual([...new Set(consumed)].filter((c) => !listed.has(c) && !listed.has(c.split('+').pop()!)), []);
+  assert.ok(consumed.includes('ctrl+k') && consumed.includes('alt+j') && consumed.includes('ctrl+v'), 'the sweep sees real handlers');
 });
 
 test('M6-26k icon and symbol buttons carry an aria-label, the popovers are dialogs, and Esc closes them from their inputs', async () => {

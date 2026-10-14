@@ -32,6 +32,7 @@ const ui = {
   rendered: {},
   drafts: {},
   pendingHide: new Set(),
+  hideDone: new Set(),
 };
 
 function load(key) {
@@ -73,6 +74,12 @@ function toast(text, error = false, action = null) {
 
 const UNDO_MS = 7000;
 
+/** canHide for a session of the open project; for one in another project, not working or waiting there. */
+function stillSettled(id) {
+  if (ui.snap.sessions.some((x) => x.id === id)) return canHide(id);
+  return !(ui.snap.live || []).some((x) => x.id === id);
+}
+
 /** Takes the ids off the wall and list at once and sends one session.hide each after UNDO_MS, unless Undo is clicked or the session went live again. */
 function hideLater(ids, text) {
   ids = ids.filter((id) => canHide(id) && !ui.pendingHide.has(id));
@@ -80,11 +87,11 @@ function hideLater(ids, text) {
   for (const id of ids) ui.pendingHide.add(id);
   render();
   const timer = setTimeout(async () => {
-    const hide = ids.filter(canHide);
+    const hide = ids.filter(stillSettled);
     for (const id of ids) if (!hide.includes(id)) ui.pendingHide.delete(id);
     render();
     const out = await Promise.all(hide.map((id) => rpc('session.hide', { session_id: id })));
-    hide.forEach((id, i) => { if (out[i].error) ui.pendingHide.delete(id); });
+    hide.forEach((id, i) => { if (out[i].error) ui.pendingHide.delete(id); else ui.hideDone.add(id); });
     render();
   }, UNDO_MS);
   toast(typeof text === 'function' ? text(ids.length) : text, false, { label: 'Undo', run: () => { clearTimeout(timer); for (const id of ids) ui.pendingHide.delete(id); render(); } });
@@ -845,8 +852,8 @@ function paletteItems() {
   const themes = (ui.settingsLook && ui.settingsLook.themes) || [];
   for (const t of themes) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look && ui.look.theme.name === t.id ? 'current' : '', run: () => setLook(t.id) });
   const armed = ui.armed && ui.armed.key;
-  items.push({ group: 'Core', confirm: 'restart', label: armed === 'restart' ? 'Press Enter again to restart; open agents stop' : 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
-  items.push({ group: 'Core', confirm: 'stop', label: armed === 'stop' ? 'Press Enter again to stop every agent' : 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
+  items.push({ group: 'Core', confirm: 'restart', name: 'Restart core (loads new core code; open agents stop)', label: armed === 'restart' ? 'Press Enter again to restart; open agents stop' : 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
+  items.push({ group: 'Core', confirm: 'stop', name: 'Stop core (stops every agent)', label: armed === 'stop' ? 'Press Enter again to stop every agent' : 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
   items.push({ group: 'Core', label: 'Notification sinks (Slack, ntfy, webhooks)', run: openSinks });
   return items;
@@ -862,7 +869,7 @@ function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
   const keys = KEYS.map((k) => ({ group: 'Keys', label: k.does, meta: `${k.keys} · ${k.where}`, stay: true, run() {} }));
   const all = ui.keysView ? keys.filter((x) => !q || `${x.label} ${x.meta}`.toLowerCase().includes(q))
-    : [...paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
+    : [...paletteItems().filter((x) => !q || `${x.group} ${x.name || x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -952,9 +959,10 @@ function closePopovers() {
   return closed;
 }
 
-async function runPalette(i) {
+async function runPalette(i, enter = false) {
   const item = (ui.paletteItems || [])[i];
   if (item && item.stay) { item.run(); return; }
+  if (item && item.confirm && !enter) { ui.paletteAt = i; renderPalette(); return; }
   if (item && item.confirm && !(ui.armed && ui.armed.key === item.confirm && Date.now() - ui.armed.at < ARM_MS)) { arm(item.confirm); return; }
   closePalette();
   if (item) await item.run();
@@ -1637,6 +1645,7 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
+  for (const id of ui.hideDone) if (!s.sessions.some((x) => x.id === id)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
   if (ui.projectId && !s.projects.some((p) => p.id === ui.projectId)) {
     ui.projectId = null;
     save('projectId', null);
@@ -1708,13 +1717,12 @@ document.addEventListener('drop', async (e) => {
 });
 document.addEventListener('keydown', (e) => {
   const palette = !document.getElementById('palette').hidden;
-  if (palette && e.key !== 'Enter') disarm();
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if (palette) closePalette(); else openPalette(); return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g') { e.preventDefault(); setMode(ui.mode === 'grid' ? 'single' : 'grid'); return; }
   if (palette) {
     if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ui.paletteAt = Math.max(0, Math.min((ui.paletteItems || []).length - 1, (ui.paletteAt || 0) + (e.key === 'ArrowDown' ? 1 : -1))); renderPalette(); }
-    else if (e.key === 'Enter') { e.preventDefault(); void runPalette(ui.paletteAt || 0); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) void runPalette(ui.paletteAt || 0, true); }
     return;
   }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
@@ -1844,6 +1852,7 @@ function browserKeys(e) {
   e.stopImmediatePropagation();
   void api.paneAct(ui.paneId, act);
 }
+document.addEventListener('keydown', (e) => { if (e.key !== 'Enter') disarm(); }, true);
 document.addEventListener('keydown', browserKeys, true);
 
 function wallKeys(e) {
