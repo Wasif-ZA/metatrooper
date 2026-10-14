@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
+import { registerHooks } from 'node:module';
 import { Approvals } from '../src/approvals.ts';
 import { Desktop, Helper } from '../src/desktop/driver.ts';
 import { until } from './helpers.ts';
@@ -493,4 +494,67 @@ test('M6-15 hardening: a takeover report must explicitly confirm registration wi
   await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const result: any = await f.call('grant.window', { session_id: 's1', hwnd: 100 });
   assert.match(result.grant_id, /^gr_/);
+});
+
+// Run the MCP tool callback with synthetic pipe transports and the real desktop driver.
+async function hookTool(t: any, f: ReturnType<typeof fixture>) {
+  const bridge: any = { approvals: [], acts: [], errors: [] };
+  bridge.call = async (method: string, params: any) => {
+    if (method === 'approval.check') {
+      return new Promise(resolve => bridge.approvals.push({ params, resolve }));
+    }
+    if (method === 'desktop.act') bridge.acts.push(params);
+    try { return { kind: 'reply', reply: { result: await f.call(method, params) } }; }
+    catch (e: any) {
+      bridge.errors.push({ code: e.code, message: e.message });
+      return { kind: 'reply', reply: { error: { code: e.code, message: e.message } } };
+    }
+  };
+  (globalThis as any).__desktopHookTest = bridge;
+  const suffix = bridgeId++;
+  const sources: Record<string, string> = {
+    '../pipe/client.ts': 'export const call = (...args) => globalThis.__desktopHookTest.call(...args);',
+    './workbench-pipe.ts': "export const findSession = () => 's1'; export class WorkbenchPipe { sessionId = 's1'; async available() { return true; } async call() { return { result: { arrived: true } }; } }",
+    './mcp-stdio.ts': 'export const serveMcp = (_name, _tools, callback) => { globalThis.__desktopHookTest.tool = callback; };',
+  };
+  const hooks = registerHooks({
+    resolve(specifier, context, next) {
+      if (context.parentURL?.includes('/hook/desktop-mcp.ts') && sources[specifier]) return { url: 'test:desktop-hook-' + suffix + '/' + specifier, shortCircuit: true };
+      return next(specifier, context);
+    },
+    load(url, context, next) {
+      const key = Object.keys(sources).find(k => url === 'test:desktop-hook-' + suffix + '/' + k);
+      return key ? { format: 'module', shortCircuit: true, source: sources[key] } : next(url, context);
+    },
+  });
+  try { await import('../src/hook/desktop-mcp.ts?test=' + suffix); }
+  finally { hooks.deregister(); }
+  t.after(() => { delete (globalThis as any).__desktopHookTest; });
+  return bridge;
+}
+let bridgeId = 0;
+
+for (const changed of [false, true]) test('M6-15 hardening: MCP approval ' + (changed ? 'asks again after an identical control gets a new runtime id' : 'acts on the unchanged approved element'), { timeout: 30000 }, async t => {
+  const f = fixture(t);
+  const hook = await hookTool(t, f);
+  const pending = hook.tool('click', { window: 100, ref: 'e1' });
+  const first = await until(() => hook.approvals[0], 10000);
+  assert.deepEqual(first.params.control, { name: 'Editor', automation_id: 'editor', role: 'edit' });
+  assert.deepEqual(f.inputs(), []);
+  if (changed) f.update({ windows: [{ ...WINDOW, controls: [{ name: 'Editor', automation_id: 'editor', role: 'edit', rid: '42.8' }] }] });
+  first.resolve({ kind: 'reply', reply: { result: { decision: 'approved' } } });
+  if (changed) {
+    const next = await until(() => hook.approvals[1] || f.inputs().length, 10000);
+    assert.equal(typeof next, 'object', 'replacement must ask for another approval before acting');
+    assert.equal(hook.errors[0].code, -32035);
+    assert.deepEqual(f.inputs(), []);
+    assert.deepEqual(hook.approvals[1].params.control, { name: 'Editor', automation_id: 'editor', role: 'edit' });
+    assert.equal(f.requests().filter(r => r.op === 'describe').at(-1).ref, 'e1');
+    hook.approvals[1].resolve({ kind: 'reply', reply: { result: { decision: 'approved' } } });
+  }
+  const result = await pending;
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(JSON.parse(result.content[0].text), { status: 'confirmed' });
+  assert.equal(hook.approvals.length, changed ? 2 : 1);
+  assert.deepEqual(f.inputs().map(r => [r.op, r.rid]), changed ? [['click', '42.8']] : [['click', '42.7']]);
 });
