@@ -30,7 +30,7 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.PreToolUse` | claude-hook | `session_id`, `transcript_path`, `cwd`, `tool_name`, `tool_use_id`, and `tool_input` redacted (below) |
 | `claude.PostToolUse` | claude-hook | as PreToolUse, plus `response_length` (characters). The response itself is never stored |
 | `claude.UserPromptSubmit` | claude-hook | `session_id`, `transcript_path`, `cwd`, `prompt_length`. The prompt text is never stored |
-| `claude.Notification` | claude-hook | `session_id`, `cwd`, `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
+| `claude.Notification` | claude-hook | `session_id`, `cwd`, `notification_type` (Claude's own label, when the hook input has one), `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
 | `claude.PermissionRequest` | claude-hook | as PreToolUse (Claude Code 2.0.45 and later) |
 | `claude.PostToolUseFailure` | claude-hook | as PreToolUse; the error text is never stored (Claude Code 2.1.119 and later) |
 | `claude.Stop` | claude-hook | `session_id`, `transcript_path`, `cwd`, `stop_hook_active` |
