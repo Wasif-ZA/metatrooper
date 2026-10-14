@@ -35,6 +35,17 @@ export function checkStalled(db: DatabaseSync, now = Date.now()): void {
   for (const r of rows) if (now - Date.parse(r.started_at) >= STALL_MS) appendEvent('core.stalled', r.id, {}, db);
 }
 
+const HELD_STOP_MS = 600_000;
+
+/** Every 5 s: a working session whose last event other than term.* is its own claude.Stop, 10 minutes old or more, gets one core.stop-fallback. */
+export function checkHeldStops(db: DatabaseSync, now = Date.now()): void {
+  const rows = db.prepare(
+    `SELECT s.id, e.at FROM session s JOIN event e ON e.seq = (SELECT max(seq) FROM event WHERE session_id = s.id AND kind NOT LIKE 'term.%')
+     WHERE s.state = 'working' AND e.kind = 'claude.Stop' AND coalesce(json_extract(e.payload, '$.session_id') = s.native_id, 1)`,
+  ).all() as Array<{ id: string; at: string }>;
+  for (const r of rows) if (now - Date.parse(r.at) >= HELD_STOP_MS) appendEvent('core.stop-fallback', r.id, {}, db);
+}
+
 interface Activity {
   file: string | null;
   size: number;

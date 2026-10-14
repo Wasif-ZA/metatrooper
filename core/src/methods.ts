@@ -324,7 +324,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (s.state === 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session has exited');
       appendEvent('core.status-cleared', id, {}, db);
-      db.prepare("UPDATE session SET state = 'idle', state_at = ? WHERE id = ?").run(nowIso(), id);
+      db.prepare("UPDATE session SET state = 'idle', state_at = ?, wait_reason = NULL WHERE id = ?").run(nowIso(), id);
       stateChanged(id, 'idle');
       db.prepare('UPDATE needs_you SET read_at = ? WHERE ref = ? AND read_at IS NULL AND resolved_at IS NULL').run(nowIso(), id);
       return {};

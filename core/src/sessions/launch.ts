@@ -54,6 +54,11 @@ export function metarouterLaunch(engine: EngineSpec, on = settings().sessions.me
   };
 }
 
+/** For an engine with a state plugin: the node and event.js the plugin spawns to report state. */
+export function statePluginEnv(engine: EngineSpec): Record<string, string> {
+  return engine.state_plugin ? { TROOP_NODE: process.execPath, TROOP_EVENT_JS: path.join(coreDir, 'event.js') } : {};
+}
+
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 /** The engine's extra args for reading AGENTS.md, when `dir` has one and none of the engine's own instruction files. */
@@ -91,7 +96,7 @@ export function launchSession(
     const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
-    env = { ...router.env, ...sessionHookEnv(opts.engine, id), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
+    env = { ...router.env, ...sessionHookEnv(opts.engine, id), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }), ...statePluginEnv(opts.engine) };
   }
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');

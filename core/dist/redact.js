@@ -25,6 +25,24 @@ function strings(raw     , keys          )      {
   return Object.fromEntries(keys.filter((k) => typeof raw[k] === 'string').map((k) => [k, (raw[k]          ).slice(0, 4096)]));
 }
 
+const WORD = /^[a-z_]{1,40}$/;
+
+/** A Stop's background_tasks as at most 50 `{type, status}` pairs of plain words; ids and descriptions never pass. */
+function backgroundTasks(v         )      {
+  if (!Array.isArray(v)) return {};
+  const tasks = v.slice(0, 50).map(asObject).filter((t) => typeof t.type === 'string' && WORD.test(t.type) && typeof t.status === 'string' && WORD.test(t.status)).map((t) => ({ type: t.type, status: t.status }));
+  return { background_tasks: tasks };
+}
+
+/** An opencode state plugin report: state, why and seq only. */
+function opencodeState(r     )      {
+  return {
+    ...(['working', 'waiting', 'done'].includes(r.state          ) ? { state: r.state } : {}),
+    ...(['permission', 'error'].includes(r.why          ) ? { why: r.why } : {}),
+    ...(Number.isSafeInteger(r.seq) ? { seq: r.seq } : {}),
+  };
+}
+
 /** Redacts a Claude tool_input per the table in contracts/events-and-hooks.md. */
 export function redactToolInput(toolName        , input         )      {
   const o = asObject(input);
@@ -82,7 +100,7 @@ export function buildPayload(kind        , raw        )      {
       return { ...strings(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
     }
     case 'claude.Stop':
-      return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), ...(typeof r.stop_hook_active === 'boolean' ? { stop_hook_active: r.stop_hook_active } : {}) };
+      return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), ...(typeof r.stop_hook_active === 'boolean' ? { stop_hook_active: r.stop_hook_active } : {}), ...backgroundTasks(r.background_tasks) };
     case 'claude.StopFailure':
       return strings(r, ['session_id', 'transcript_path', 'cwd', 'error_type']);
     case 'claude.SessionEnd':
@@ -107,6 +125,8 @@ export function buildPayload(kind        , raw        )      {
       return strings(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source']);
     case 'core.process-gone':
       return pick(r, ['pid']);
+    case 'opencode.state':
+      return opencodeState(r);
     default:
       return {};
   }
@@ -150,13 +170,15 @@ export function rebuildPayload(kind        , built        )      {
     case 'claude.Notification':
       return { ...strs(['session_id', 'cwd', 'notification_type']), class: CLASSES.has(b.class          ) ? b.class : 'other', message_length: n('message_length') };
     case 'claude.Stop':
-      return { ...strs(['session_id', 'transcript_path', 'cwd']), stop_hook_active: b.stop_hook_active === true };
+      return { ...strs(['session_id', 'transcript_path', 'cwd']), stop_hook_active: b.stop_hook_active === true, ...backgroundTasks(b.background_tasks) };
     case 'claude.StopFailure':
       return strs(['session_id', 'transcript_path', 'cwd', 'error_type']);
     case 'claude.SessionEnd':
       return strs(['session_id', 'cwd', 'reason']);
     case 'codex.turn':
       return { ...strs(['type', 'thread-id', 'turn-id', 'cwd']), input_length: n('input_length'), reply_length: n('reply_length') };
+    case 'opencode.state':
+      return opencodeState(b);
     default:
       return {};
   }

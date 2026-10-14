@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
-import { codexConfigFile, coreDir, homeDir } from '../paths.ts';
+import { codexConfigFile, coreDir, homeDir, repoDir } from '../paths.ts';
 import { getSecret } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
@@ -114,10 +115,10 @@ function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, c
 }
 
 /** The mcpServers JSON shape with shim commands; http servers that need headers are left out, as these engines have no headers helper. */
-function mcpJson(node: string, servers: AttachServer[], format = 'mcpServers'): Record<string, unknown> {
+function mcpJson(node: string, servers: AttachServer[], format = 'mcpServers', plugin?: string): Record<string, unknown> {
   const plain = servers.filter((s) => !s.http?.headers);
   if (format === 'opencode-mcp') {
-    return { mcp: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'remote', url: s.http.url, enabled: true } : { type: 'local', command: [node, ...s.args], enabled: true }])) };
+    return { mcp: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'remote', url: s.http.url, enabled: true } : { type: 'local', command: [node, ...s.args], enabled: true }])), ...(plugin ? { plugin: [plugin] } : {}) };
   }
   return { mcpServers: Object.fromEntries(plain.map((s) => [s.name, s.http ? { type: 'http', url: s.http.url } : { command: node, args: s.args }])) };
 }
@@ -127,8 +128,9 @@ export function mcpAttachEnv(db: DatabaseSync, engine: EngineSpec, sessionId: st
   const attach = engine.mcp_attach;
   if (!attach?.env || (attach.kind !== 'env-json' && attach.kind !== 'config-dir')) return {};
   const { node, servers } = attachServers(db, engine, browser, ctx);
-  if (!servers.length) return {};
-  const json = mcpJson(node, servers, attach.format);
+  const plugin = engine.state_plugin && attach.format === 'opencode-mcp' ? pathToFileURL(path.join(repoDir, 'engines', engine.state_plugin)).href : undefined;
+  if (!servers.length && !plugin) return {};
+  const json = mcpJson(node, servers, attach.format, plugin);
   if (attach.kind === 'env-json') return { [attach.env]: JSON.stringify(json) };
   const dir = path.join(homeDir(), 'mcp', sessionId);
   fs.mkdirSync(dir, { recursive: true });

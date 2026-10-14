@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso, ulid } from '../time.ts';
-import { nextState, stateChanged } from './state.ts';
+import { holdsStop, nextState, stateChanged } from './state.ts';
+import { getEngine } from '../engines/registry.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
@@ -42,7 +43,13 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const projects = db.prepare('SELECT id, path FROM project');
   const hasClaude = Boolean(db.prepare("SELECT 1 FROM engine WHERE id = 'claude'").get());
   const adopt = db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, cwd, state, state_at, started_at) VALUES (?, ?, 'claude', 'external', ?, ?, 'idle', ?, ?)");
-  const setState = db.prepare('UPDATE session SET state = ?, state_at = ? WHERE id = ?');
+  const setState = db.prepare('UPDATE session SET state = ?, state_at = ?, wait_reason = ? WHERE id = ?');
+  const lastOpencodeSeq = db.prepare("SELECT count(*) AS c, max(json_extract(payload, '$.seq')) AS n FROM event WHERE session_id = ? AND kind = 'opencode.state' AND seq < ?");
+  const sources = new Map<string, string | undefined>();
+  const sourceOf = (engineId: string) => {
+    if (!sources.has(engineId)) sources.set(engineId, getEngine(db, engineId)?.state_source);
+    return sources.get(engineId);
+  };
   const setPid = db.prepare('UPDATE session SET pid = ? WHERE id = ?');
   const setNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL');
   const relinkNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ?');
@@ -126,14 +133,18 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         }
         // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does terminal output when a hook asked during the wait.
         const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
-        const next = ev.kind === 'launch' || foreign || stale ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
-        if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
+        // Title states move only process engines, and an opencode session stops reading them once its state plugin has reported.
+        const plugin = ev.kind === 'core.title-state' || ev.kind === 'opencode.state' ? (lastOpencodeSeq.get(ev.session_id, ev.seq) as { c: number; n: number | null }) : null;
+        const ignored = ev.kind === 'core.title-state' ? sourceOf(s.engine_id) !== 'process' || plugin!.c > 0 : ev.kind === 'opencode.state' && (!Number.isSafeInteger(payload.seq) || (plugin!.n !== null && (payload.seq as number) <= plugin!.n));
+        const next = ev.kind === 'launch' || foreign || stale || ignored ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
+        // A Stop held by background work ends the turn only when the session really reaches done.
+        if (!foreign && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
         const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
         const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input'));
         if (s.state === 'waiting_for_you' && (!next || next === s.state) && !foreign && hookAsk && !(Date.parse(writtenAt) <= Date.parse(s.state_at))) setStateAt.run(writtenAt, ev.session_id);
         if (next && next !== s.state) {
-          setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), ev.session_id);
+          setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), next === 'waiting_for_you' ? waitReason(ev.kind, payload) : null, ev.session_id);
           changed.push([ev.session_id, next]);
           if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
@@ -164,6 +175,14 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     });
   }
   return rows.length;
+}
+
+/** The reason a session waits, for the waits whose cause the core knows; null otherwise. */
+function waitReason(kind: string, p: Record<string, unknown>): string | null {
+  if (kind === 'claude.StopFailure') return `stopped: ${typeof p.error_type === 'string' && /^[a-z_]{1,40}$/.test(p.error_type) ? p.error_type : 'error'}`;
+  if (kind === 'opencode.state' && p.why === 'permission') return 'permission';
+  if (kind === 'opencode.state' && p.why === 'error') return 'stopped: error';
+  return null;
 }
 
 interface TurnJob { kind: 'start' | 'end' | 'exit'; id: string; seq: number }
