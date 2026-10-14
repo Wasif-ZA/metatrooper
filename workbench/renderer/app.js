@@ -95,7 +95,8 @@ function hideLater(ids, text) {
     render();
     const out = await Promise.all(hide.map((id) => rpc('session.hide', { session_id: id })));
     hide.forEach((id, i) => {
-      if (out[i].error || !ui.snap.sessions.some((x) => x.id === id)) ui.pendingHide.delete(id);
+      const x = ui.snap.sessions.find((y) => y.id === id);
+      if (out[i].error || !x || LIVE_STATES.includes(x.state)) ui.pendingHide.delete(id);
       else ui.hideDone.add(id);
     });
     render();
@@ -1682,11 +1683,11 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'git-msg') ui.gitMsg = e.target.value;
 });
 document.addEventListener('click', (e) => {
+  if (!e.target.closest('#usage')) document.getElementById('usage').classList.remove('open');
   const item =e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
   if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
   if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
-  if (!e.target.closest('#usage')) document.getElementById('usage').classList.remove('open');
   if (!document.getElementById('inbox').hidden && !e.target.closest('#inbox') && !e.target.closest('[data-action="inbox"]')) document.getElementById('inbox').hidden = true;
   if (!document.getElementById('sinks').hidden && !e.target.closest('#sinks') && !e.target.closest('[data-palette]')) document.getElementById('sinks').hidden = true;
   void onClick(e);
