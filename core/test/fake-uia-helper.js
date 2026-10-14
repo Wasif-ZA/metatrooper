@@ -46,23 +46,30 @@ function handle(req) {
       if (!req.ref) return { control: null, password: false, rect: w.rect ?? null };
       const c = control(w, req.ref);
       changePid('after_describe_pid');
-      return { control: { automation_id: c.automation_id ?? '', name: c.name ?? '', role: c.role ?? '' }, password: Boolean(c.password), rect: [10, 10, 50, 20] };
+      return { control: { automation_id: c.automation_id ?? '', name: c.name ?? '', role: c.role ?? '' }, password: Boolean(c.password), hidden: Boolean(c.hidden), rid: c.rid ?? '', rect: [10, 10, 50, 20] };
     }
     case 'snapshot': return { text: (w?.controls ?? []).map((c, i) => `${c.role} "${c.name}" [ref=e${i + 1}]`).join('\n'), nodes: (w?.controls ?? []).length };
     case 'screenshot': return { data_base64: '/9j/', mime: 'image/jpeg', width: 1, height: 1 };
     case 'find_text': return { found: (w?.controls ?? []).some((c) => String(c.name).includes(req.text)) };
-    case 'set_text': control(w, req.ref); log({ op: 'set_text', hwnd: req.hwnd, ref: req.ref, value: req.value }); return { status: 'confirmed' };
-    case 'click': case 'key': case 'scroll': log({ op: req.op, hwnd: req.hwnd, ref: req.ref, keys: req.keys }); return { status: 'confirmed' };
+    case 'set_text': control(w, req.ref); log({ ...req }); return { status: 'confirmed' };
+    case 'click': case 'key': case 'scroll': log({ ...req }); return { status: 'confirmed' };
     default: throw new Error(`unknown op ${req.op}`);
   }
 }
 
 let queue = Promise.resolve();
+const counts = {};
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
   const req = JSON.parse(line);
   queue = queue.then(async () => {
-    if (delay) await new Promise((r) => setTimeout(r, delay));
-    try { process.stdout.write(JSON.stringify({ id: req.id, result: await handle(req) }) + '\n'); }
+    const current = state();
+    const count = counts[req.op] = (counts[req.op] ?? 0) + 1;
+    if (current.request_log) fs.appendFileSync(current.request_log, JSON.stringify({ ...req, count, at: Date.now() }) + '\n');
+    const wait = current.delay_op === req.op && (current.delay_at === undefined || current.delay_at === count) ? current.delay_ms : delay;
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    try {
+      if (current.error_op === req.op && (current.error_at === undefined || current.error_at === count)) throw new Error('control changed');
+      process.stdout.write(JSON.stringify({ id: req.id, result: await handle(req) }) + '\n'); }
     catch (e) { process.stdout.write(JSON.stringify({ id: req.id, error: e.message }) + '\n'); }
   });
 });

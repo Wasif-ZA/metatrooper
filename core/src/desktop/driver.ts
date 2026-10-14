@@ -320,8 +320,9 @@ export class Desktop {
       if (typeof p.pid !== 'number' || !Number.isInteger(p.pid)) throw new RpcError(E.INVALID_PARAMS, 'pid is required');
       this.uiPid = p.pid;
       const key = typeof p.takeover_key === 'string' ? p.takeover_key : '';
-      this.noTakeover = !key ? 'the workbench has not reported its take-over key'
-        : typeof p.takeover_error === 'string' && p.takeover_error ? `the take-over key ${key} did not register (${p.takeover_error})` : null;
+      this.noTakeover = key && p.takeover_error === null ? null
+        : key && typeof p.takeover_error === 'string' && p.takeover_error ? `the take-over key ${key} did not register (${p.takeover_error})`
+        : 'the workbench has not reported its take-over key';
       if (this.noTakeover) for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
       return {};
     } });

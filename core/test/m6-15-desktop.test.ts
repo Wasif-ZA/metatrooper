@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import net from 'node:net';
 import readline from 'node:readline';
@@ -53,7 +54,7 @@ async function connect(iso: any) {
   const agent = await client(iso.prefix);
   const ui = await client(iso.prefix);
   await uiHello(ui, iso.home);
-  assert.deepEqual((await call(ui, 'desktop.ui-window', { pid: UI_PID })).result, {});
+  assert.deepEqual((await call(ui, 'desktop.ui-window', { pid: UI_PID, takeover_key: 'Control+Alt+Q', takeover_error: null })).result, {});
   return { agent, ui };
 }
 
@@ -108,17 +109,39 @@ function desktopMcp(env: Record<string, string | undefined>) {
   readline.createInterface({ input: child.stdout! }).on('line', (l) => { const m = JSON.parse(l); waiting.get(m.id)?.(m); waiting.delete(m.id); });
   const rpc = (method: string, params: object = {}) => new Promise<any>((resolve) => { const id = ++n; waiting.set(id, resolve); child.stdin!.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); });
   const tool = async (name: string, args: object = {}) => (await rpc('tools/call', { name, arguments: args })).result;
-  return { rpc, tool, close: () => child.kill() };
+  return { rpc, tool, pid: child.pid!, close: () => child.kill() };
 }
 
 test('M6-15 metatrooper-desktop: workbench closed, then describe, approval, glide and act in that order', async () => {
   await buildGenerated();
   const { iso, inputs } = setup([NOTEPAD, SAVE_AS, CALC, WORKBENCH]);
+  const parents = join(iso.home, 'synthetic-parents.txt');
+  const preload = join(iso.home, 'synthetic-ancestry.mjs');
+  writeFileSync(parents, '');
+  writeFileSync(preload, `
+    import cp from 'node:child_process';
+    import fs from 'node:fs';
+    import { syncBuiltinESMExports } from 'node:module';
+    const spawnSync = cp.spawnSync;
+    const execFile = cp.execFile;
+    const isParents = (file, args) => file === 'powershell' && args?.[3] === 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }';
+    cp.spawnSync = (file, args, options) => isParents(file, args)
+      ? { status: 0, stdout: fs.readFileSync(process.env.FAKE_PARENT_TABLE, 'utf8'), stderr: '' }
+      : spawnSync(file, args, options);
+    cp.execFile = (file, args, options, callback) => {
+      if (!isParents(file, args)) return execFile(file, args, options, callback);
+      queueMicrotask(() => callback(null, fs.readFileSync(process.env.FAKE_PARENT_TABLE, 'utf8'), ''));
+    };
+    syncBuiltinESMExports();
+  `);
+  iso.env.FAKE_PARENT_TABLE = parents;
+  iso.env.NODE_OPTIONS += ' --import=' + pathToFileURL(preload).href;
   const core = await startCore(iso);
   const db = seed(iso.home);
   db.prepare("UPDATE session SET pid = NULL WHERE id = 's2'").run();
   const { agent, ui } = await connect(iso);
   const mcp = desktopMcp(iso.env);
+  writeFileSync(parents, String(mcp.pid) + ' ' + String(process.pid));
   let wb: Awaited<ReturnType<typeof fakeWorkbench>> | null = null;
   try {
     const listed = (await mcp.rpc('tools/list')).result.tools.map((t: any) => t.name);
@@ -425,7 +448,7 @@ async function desktopFixture() {
   const methods = new Map<string, any>();
   desktop.methods(methods);
   const request = (method: string, params: any = {}) => methods.get(method).handler(params);
-  await request('desktop.ui-window', { pid: UI_PID });
+  await request('desktop.ui-window', { pid: UI_PID, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const { grant_id } = await request('grant.window', { session_id: 's1', hwnd: 100 });
   return { desktop, db, request, grant_id, inputs,
     state: (extra: object = {}) => writeFileSync(iso.env.FAKE_UIA_STATE!, JSON.stringify({ windows: [NOTEPAD, WORKBENCH], ...extra })),
@@ -506,7 +529,7 @@ test('M6-15 grant.candidates refuses until the workbench reports its own windows
   try {
     await uiHello(ui, iso.home);
     assert.equal((await call(ui, 'grant.candidates', {})).error?.message, 'the workbench has not reported its own windows yet');
-    await call(ui, 'desktop.ui-window', { pid: UI_PID });
+    await call(ui, 'desktop.ui-window', { pid: UI_PID, takeover_key: 'Control+Alt+Q', takeover_error: null });
     assert.deepEqual((await call(ui, 'grant.candidates', {})).result.windows.map((w: any) => w.hwnd), [100]);
   } finally { ui.close(); await teardownCore(core, iso); }
 });

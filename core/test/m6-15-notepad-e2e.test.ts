@@ -30,7 +30,7 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
   let notepadPid = 0;
   try {
     await uiHello(ui, iso.home);
-    await call(ui, 'desktop.ui-window', { pid: 1 });
+    await call(ui, 'desktop.ui-window', { pid: 1, takeover_key: 'Control+Alt+Q', takeover_error: null });
     const me = { session_id: 's1', pid: process.pid };
 
     spawn('notepad.exe', [], { detached: true, stdio: 'ignore' }).unref();

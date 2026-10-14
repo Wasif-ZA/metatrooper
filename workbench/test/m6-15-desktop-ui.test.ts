@@ -214,8 +214,8 @@ test('M6-15 the workbench tells every new core its pid, once per core pid', asyn
   const body = fn('tellCoreOurPid', mainSource).replace(/: Promise<void>|: number \| null/g, '');
   const sent: number[] = [];
   let reply: any = { kind: 'reply', reply: { result: {} } };
-  const make = new Function('call', 'process', `let toldPid = null;\n${body}; return tellCoreOurPid;`);
-  const tell = make(async (_m: string, p: any) => { sent.push(p.pid); return reply; }, { pid: 4242 });
+  const make = new Function('call', 'process', `let toldPid = null; const takeoverKey = 'Control+Alt+Q'; const takeoverError = null;\n${body}; return tellCoreOurPid;`);
+  const tell = make(async (method: string, p: any) => { assert.equal(method, 'desktop.ui-window'); assert.deepEqual(p, { pid: 4242, takeover_key: 'Control+Alt+Q', takeover_error: null }); sent.push(p.pid); return reply; }, { pid: 4242 });
   await tell(null);
   await tell(100);
   await tell(100);
