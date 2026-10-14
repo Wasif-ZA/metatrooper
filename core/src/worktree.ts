@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import type { EngineSpec } from './engines/registry.ts';
-import { canonicalPath, worktreesRoot } from './project.ts';
+import { canonicalPath, within, worktreesRoot } from './project.ts';
 import { settings } from './settings.ts';
 import { untrustFolder } from './trust.ts';
 
@@ -33,15 +33,13 @@ async function mainBranch(repo: string): Promise<string | null> {
 export const removing = new Map<string, string>();
 
 const norm = (p: string) => {
-  const c = canonicalPath(path.resolve(p));
+  let r = path.resolve(p);
+  try { r = fs.realpathSync.native(r); } catch {}
+  const c = canonicalPath(r);
   return process.platform === 'win32' ? c.toLowerCase() : c;
 };
 
-const inside = (dir: string, root: string) => {
-  const d = norm(dir);
-  const r = norm(root);
-  return d === r || d.startsWith(r + '/');
-};
+const inside = (dir: string, root: string) => within(norm(dir), norm(root));
 
 export function beingRemoved(dir: string): boolean {
   for (const root of removing.values()) if (inside(dir, root)) return true;

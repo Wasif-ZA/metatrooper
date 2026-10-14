@@ -9,7 +9,7 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-WT-Hide-'));
 process.env.METATROOPER_HOME = home;
 const { openCoreDb } = await import('../src/store/db.ts');
 const { resolveProjectPath } = await import('../src/project.ts');
-const { removing, sweepWorktrees } = await import('../src/worktree.ts');
+const { beingRemoved, removing, sweepWorktrees } = await import('../src/worktree.ts');
 const { launchSession } = await import('../src/sessions/launch.ts');
 const { buildMethods } = await import('../src/methods.ts');
 const { availableShells } = await import('../src/terminal/shells.ts');
@@ -136,5 +136,27 @@ test('a leftover folder the sweep cannot delete does not stay blocked', async ()
     assert.equal(removing.size, 0);
   } finally {
     db.close();
+  }
+});
+
+test('beingRemoved matches a folder inside a worktree however its path is spelled', () => {
+  // protects=the removal guard against junctions, dot segments, trailing separators and backslashes in a saved cwd
+  // fails_when=beingRemoved compares raw strings, so another spelling of a folder inside the worktree is let through, or a sibling with the same prefix is refused
+  // no_claim=case-sensitive filesystems, which this Windows run cannot exercise
+  const root = path.join(home, 'worktrees', 'p5', 'a');
+  fs.mkdirSync(path.join(root, 'sub'), { recursive: true });
+  fs.mkdirSync(path.join(home, 'worktrees', 'p5', 'ab'));
+  const link = path.join(home, 'link5');
+  fs.symlinkSync(root, link, 'junction');
+  removing.set('a5', resolveProjectPath(root));
+  try {
+    assert.ok(beingRemoved(link));
+    assert.ok(beingRemoved(path.join(link, 'sub')));
+    assert.ok(beingRemoved(`${root}x/../a`.split('/').join(String.fromCharCode(92))));
+    assert.ok(beingRemoved(`${root}/sub/`));
+    assert.ok(beingRemoved(`${root}/gone/../sub`));
+    assert.ok(!beingRemoved(path.join(home, 'worktrees', 'p5', 'ab')));
+  } finally {
+    removing.delete('a5');
   }
 });
