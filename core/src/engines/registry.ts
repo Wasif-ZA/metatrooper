@@ -38,6 +38,12 @@ export interface EngineSpec {
   shift_enter?: 'paste' | 'alt-enter';
   print_args?: string[];
   sandbox?: SandboxSpec;
+  /** Regex sources matched case-insensitively against the raw terminal title. */
+  state_titles?: { working?: string; waiting?: string; idle?: string };
+  /** Fixed strings matched case-insensitively against the last screen lines of a working session. */
+  fatal_patterns?: string[];
+  /** A state plugin file under engines/, run by the engine itself. */
+  state_plugin?: string;
 }
 
 export interface SandboxSpec {
@@ -66,6 +72,9 @@ export const BUILT_IN: EngineSpec[] = [
     agents_md: { unless: ['CLAUDE.md', '.claude/CLAUDE.md'], args: ['--append-system-prompt-file', 'AGENTS.md'] }, instructions_arg: '--append-system-prompt',
     roles: ['research', 'plan', 'worker', 'review', 'verify', 'visual-check'], cost_rank: 3, usage_source: 'claude-transcript',
     trust: { kind: 'json-map', file: '~/.claude.json', at: ['projects'], set: { hasTrustDialogAccepted: true }, path_style: 'posix' },
+    // Captured from Claude Code 2.1.299: idle titles start with U+2733, working ones with a spinning half circle.
+    state_titles: { idle: '^\\u2733 ' },
+    fatal_patterns: ['Credit balance is too low', 'Invalid API key'],
   },
   {
     id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
@@ -108,7 +117,26 @@ export function dataEngines(dir: string): EngineSpec[] {
     const errors = engineSchemaErrors(e);
     if (errors.length) { console.warn(`engines/${f} skipped: ${errors[0]}`); continue; }
     const spec = e as EngineSpec;
+    titlePatterns(spec);
     out.push({ ...spec, cost_rank: Math.max(5, spec.cost_rank) });
+  }
+  return out;
+}
+
+export type TitleState = 'working' | 'waiting' | 'idle';
+
+const compiled = new Map<string, RegExp | null>();
+
+/** The engine's state_titles as case-insensitive regexes, each compiled once; a pattern that does not compile is logged once and left out. */
+export function titlePatterns(e: EngineSpec): Partial<Record<TitleState, RegExp>> {
+  const out: Partial<Record<TitleState, RegExp>> = {};
+  for (const [state, src] of Object.entries(e.state_titles ?? {}) as Array<[TitleState, string]>) {
+    const key = `${e.id}\0${state}\0${src}`;
+    if (!compiled.has(key)) {
+      try { compiled.set(key, new RegExp(src, 'i')); } catch { console.warn(`engine ${e.id}: state_titles.${state} does not compile, ignored`); compiled.set(key, null); }
+    }
+    const re = compiled.get(key);
+    if (re) out[state] = re;
   }
   return out;
 }

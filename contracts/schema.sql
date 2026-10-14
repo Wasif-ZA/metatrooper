@@ -69,6 +69,7 @@ CREATE TABLE session (
   parent_id     TEXT REFERENCES session(id),   -- the session whose shell ran `troop launch` for this one
   hidden        INTEGER NOT NULL DEFAULT 0,
   limit_resume  INTEGER NOT NULL DEFAULT 1,    -- 1: paste "Continue where you left off." when a hit usage limit resets (tile toggle, M6-24)
+  wait_reason   TEXT,                          -- why a waiting_for_you session waits, when the core knows ('stopped: rate_limit', 'permission'); null otherwise (M6-23)
   started_at    TEXT NOT NULL,
   ended_at      TEXT
 );

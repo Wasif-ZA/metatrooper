@@ -41,6 +41,7 @@ export interface TermHooks {
   onBell?(id: string): void;
   onTitle?(id: string, title: string): void;
   onOutput?(id: string, data: string): void;
+  onInput?(id: string, data: string): void;
 }
 
 const terms = new Map<string, Term>();
@@ -132,22 +133,29 @@ export function write(id: string, data: string): boolean {
   const t = terms.get(id);
   if (!t || t.exitCode !== null) return false;
   t.proc.write(data);
+  hooks.onInput?.(id, data);
   return true;
 }
 
 /** Last non-empty line of the headless terminal (wrapped rows joined) once pending output is parsed, trimmed to `max` characters. */
-export function lastLine(id: string, max: number): Promise<string | null> {
+export async function lastLine(id: string, max: number): Promise<string | null> {
+  const lines = await lastLines(id, 1);
+  return lines?.length ? lines[0].slice(0, max) : null;
+}
+
+/** The last `n` non-empty lines of the headless terminal (wrapped rows joined, trimmed, oldest first) once pending output is parsed; null with no terminal. */
+export function lastLines(id: string, n: number): Promise<string[] | null> {
   const t = terms.get(id);
   if (!t) return Promise.resolve(null);
   return new Promise((resolve) => t.head.write('', () => {
     const b = t.head.buffer.active;
-    for (let i = b.length - 1; i >= 0; i--) {
+    const out: string[] = [];
+    for (let i = b.length - 1; i >= 0 && out.length < n; i--) {
       let line = b.getLine(i)?.translateToString(true) ?? '';
-      if (!line.trim()) continue;
       while (i > 0 && b.getLine(i)?.isWrapped) line = (b.getLine(--i)?.translateToString(true) ?? '') + line;
-      return resolve(line.trim().slice(0, max));
+      if (line.trim()) out.unshift(line.trim());
     }
-    resolve(null);
+    resolve(out);
   }));
 }
 
