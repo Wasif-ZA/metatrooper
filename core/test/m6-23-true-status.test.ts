@@ -322,26 +322,73 @@ for (const tasks of [
   });
 }
 
-test('M6-23a PreToolUse displaces Stop and a later Stop starts a new fallback window', async () => {
+test('M6-23a PreToolUse resets the fallback window and a later Stop starts a new window', async () => {
   // protects=last nonterminal event fallback fails_when=an older Stop times out after newer work no_claim=timer scheduling
   const h = await memoryDb();
   try {
     h.send('claude.UserPromptSubmit');
     h.send('claude.Stop', CAPTURED_STOP, START);
     h.send('claude.PreToolUse', { tool_name: 'Read', tool_use_id: 'synthetic-tool' }, START + 300_000);
-    for (const elapsed of [600_000, 900_000]) {
-      checkHeldStops(h.db, START + elapsed);
-      processEvents(h.db);
-      assert.equal(h.count('core.stop-fallback'), 0);
-      assert.equal(h.row().state, 'working');
-    }
-    h.send('claude.Stop', CAPTURED_STOP, START + 900_000);
-    checkHeldStops(h.db, START + 1_499_999);
+    checkHeldStops(h.db, START + 600_000);
+    processEvents(h.db);
     assert.equal(h.count('core.stop-fallback'), 0);
-    checkHeldStops(h.db, START + 1_500_000);
+    assert.equal(h.row().state, 'working');
+
+    checkHeldStops(h.db, START + 899_999);
+    processEvents(h.db);
+    assert.equal(h.count('core.stop-fallback'), 0);
+    assert.equal(h.row().state, 'working');
+
+    checkHeldStops(h.db, START + 900_000);
     processEvents(h.db);
     assert.equal(h.count('core.stop-fallback'), 1);
     assert.equal(h.row().state, 'done');
+
+    assert.equal(h.send('claude.UserPromptSubmit', {}, START + 1_000_000), 'working');
+    assert.equal(h.send('claude.Stop', CAPTURED_STOP, START + 1_000_000), 'working');
+    checkHeldStops(h.db, START + 1_599_999);
+    processEvents(h.db);
+    assert.equal(h.count('core.stop-fallback'), 1);
+    checkHeldStops(h.db, START + 1_600_000);
+    processEvents(h.db);
+    assert.equal(h.count('core.stop-fallback'), 2);
+    assert.equal(h.row().state, 'done');
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23a fallback fires after an own held Stop followed by foreign tool events', async () => {
+  // protects=foreign tool event clock restart fails_when=foreign event blocks fallback or fires at original Stop boundary no_claim=subagent orchestration
+  const h = await memoryDb();
+  try {
+    h.send('claude.UserPromptSubmit', { session_id: 'conv' }, START);
+    h.send('claude.Stop', { ...CAPTURED_STOP, session_id: 'conv' }, START);
+    assert.equal(h.row().state, 'working');
+
+    h.send('claude.PostToolUse', {
+      session_id: 'foreign-subagent',
+      tool_name: 'Bash',
+      tool_use_id: 'sub-tool',
+      tool_response: 'ok',
+    }, START + 300_000);
+    assert.equal(h.row().state, 'working');
+
+    checkHeldStops(h.db, START + 600_000);
+    processEvents(h.db);
+    assert.equal(h.count('core.stop-fallback'), 0);
+    assert.equal(h.row().state, 'working');
+
+    checkHeldStops(h.db, START + 899_999);
+    processEvents(h.db);
+    assert.equal(h.count('core.stop-fallback'), 0);
+    assert.equal(h.row().state, 'working');
+
+    checkHeldStops(h.db, START + 900_000);
+    assert.equal(h.count('core.stop-fallback'), 1);
+    processEvents(h.db);
+    assert.equal(h.row().state, 'done');
+    assert.deepEqual(h.notices('done'), ['claude finished']);
   } finally {
     await h.close();
   }
@@ -391,7 +438,7 @@ test('M6-23b StopFailure stores a safe reason, exposes it in snapshots and clear
 
 test('M6-23b opencode permission and error reasons clear on every move out of waiting', async () => {
   // protects=opencode wait reasons fails_when=permission error or reason clearing is wrong no_claim=plugin bus transport
-  const h = await memoryDb('opencode', [fixtureEngine('opencode')]);
+  const h = await memoryDb('opencode', [fixtureEngine('opencode', { state_plugin: 'plugins/opencode-state.js' })]);
   try {
     h.send('opencode.state', { state: 'working', seq: 1 });
     assert.equal(h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 2 }), 'waiting_for_you');
@@ -406,6 +453,34 @@ test('M6-23b opencode permission and error reasons clear on every move out of wa
     assert.equal(h.row().wait_reason, null);
   } finally {
     await h.close();
+  }
+});
+
+test('M6-23 wait_reason replaces current reason on subsequent waiting events', async () => {
+  // protects=wait reason replacement semantics fails_when=earlier wait reason persists or replacement fails no_claim=error recovery
+  const engine = fixtureEngine('opencode', { state_plugin: 'plugins/opencode-state.js' });
+  const h = await memoryDb('opencode', [engine]);
+  try {
+    h.send('opencode.state', { state: 'working', seq: 1 });
+    assert.equal(h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 2 }), 'waiting_for_you');
+    assert.equal(h.row().wait_reason, 'permission');
+    assert.equal(h.send('opencode.state', { state: 'waiting', why: 'error', seq: 3 }), 'waiting_for_you');
+    assert.equal(h.row().wait_reason, 'stopped: error');
+    assert.equal(h.send('opencode.state', { state: 'waiting', seq: 4 }), 'waiting_for_you');
+    assert.equal(h.row().wait_reason, null);
+  } finally {
+    await h.close();
+  }
+
+  const h2 = await memoryDb('claude');
+  try {
+    h2.send('claude.UserPromptSubmit');
+    assert.equal(h2.send('claude.PermissionRequest', { tool_name: 'Bash', tool_use_id: 'tool-1' }), 'waiting_for_you');
+    assert.equal(h2.row().wait_reason, null);
+    assert.equal(h2.send('claude.StopFailure', { error_type: 'rate_limit' }), 'waiting_for_you');
+    assert.equal(h2.row().wait_reason, 'stopped: rate_limit');
+  } finally {
+    await h2.close();
   }
 });
 
@@ -580,6 +655,39 @@ test('M6-23 title-state events cannot move a hooks engine', async () => {
   }
 });
 
+test('M6-23 term.output after a bell does not end an opencode permission wait or title wait', async () => {
+  // protects=terminal output suppression during plugin and title waits fails_when=term.output clears an opencode or title wait no_claim=pty bell generation
+  const engine = fixtureEngine('opencode', { state_plugin: 'plugins/opencode-state.js' });
+  const h = await memoryDb('opencode', [engine]);
+  try {
+    h.send('opencode.state', { state: 'working', seq: 1 }, START);
+    assert.equal(h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 2 }, START + 1000), 'waiting_for_you');
+    assert.equal(h.row().wait_reason, 'permission');
+    h.send('term.bell', {}, START + 2000);
+    assert.equal(h.row().state, 'waiting_for_you');
+    h.send('term.output', {}, START + 3000);
+    assert.equal(h.row().state, 'waiting_for_you');
+    assert.equal(h.row().wait_reason, 'permission');
+  } finally {
+    await h.close();
+  }
+
+  const titleEngine = fixtureEngine('title-eng', {
+    state_titles: { working: '^BUSY', waiting: '^WAIT', idle: '^IDLE' },
+  });
+  const h2 = await memoryDb(titleEngine.id, [titleEngine]);
+  try {
+    h2.send('core.title-state', { state: 'working' }, START);
+    assert.equal(h2.send('core.title-state', { state: 'waiting' }, START + 1000), 'waiting_for_you');
+    h2.send('term.bell', {}, START + 2000);
+    assert.equal(h2.row().state, 'waiting_for_you');
+    h2.send('term.output', {}, START + 3000);
+    assert.equal(h2.row().state, 'waiting_for_you');
+  } finally {
+    await h2.close();
+  }
+});
+
 for (const pattern of ['Credit balance is too low', 'Invalid API key']) {
   test(`M6-23d frozen ${pattern} raises one safe failed notice at 60000 ms`, async () => {
     // protects=fatal boundary dedupe and privacy fails_when=notice is early repeated or includes screen text no_claim=live authentication failures
@@ -689,7 +797,7 @@ test('M6-23 lastLines joins wrapped rows and returns the newest nonempty lines i
 type BusEvent = { type: string; properties?: Record<string, unknown> };
 type Report = {
   argv: string[];
-  payload: { state: string; why?: string; seq: number };
+  payload: { state: string; why?: string; seq: number; session_id?: string };
 };
 
 async function pluginReports(
@@ -711,9 +819,18 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', x => { input += x; });
 process.stdin.on('end', () => {
   const payload = JSON.parse(input);
+  let order = 0;
+  while (true) {
+    try {
+      fs.mkdirSync(path.join(process.env.M623_REPORTS, 'slot-' + order));
+      break;
+    } catch {
+      order++;
+    }
+  }
   fs.writeFileSync(
-    path.join(process.env.M623_REPORTS, String(payload.seq) + '.json'),
-    JSON.stringify({ argv: process.argv.slice(2), payload })
+    path.join(process.env.M623_REPORTS, 'report-' + String(order).padStart(5, '0') + '.json'),
+    JSON.stringify({ argv: process.argv.slice(2), payload, order })
   );
 });
 `);
@@ -725,9 +842,16 @@ if (typeof plugin.id !== 'string' || typeof plugin.server !== 'function')
   throw new Error('invalid plugin export');
 const hooks = await plugin.server();
 if (typeof hooks.event !== 'function') throw new Error('missing event hook');
-for (const event of ${JSON.stringify(events)}) await hooks.event({ event });
+for (const event of ${JSON.stringify(events)}) {
+  const before = fs.readdirSync(process.env.M623_REPORTS).filter((f) => f.startsWith('report-')).length;
+  await hooks.event({ event });
+  const start = performance.now();
+  while (fs.readdirSync(process.env.M623_REPORTS).filter((f) => f.startsWith('report-')).length === before && performance.now() - start < 150) {
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
 const end = performance.now() + 8000;
-while (fs.readdirSync(process.env.M623_REPORTS).length < ${expected}) {
+while (fs.readdirSync(process.env.M623_REPORTS).filter((f) => f.startsWith('report-')).length < ${expected}) {
   if (performance.now() >= end) throw new Error('missing plugin reports');
   await new Promise(r => setTimeout(r, 20));
 }
@@ -760,9 +884,10 @@ await new Promise(r => setTimeout(r, ${expected === 0 ? 750 : 200}));
       child.once('close', resolve);
     });
     assert.equal(code, 0, stderr || stdout);
-    const reports = readdirSync(output).map((file) =>
-      JSON.parse(readFileSync(join(output, file), 'utf8')) as Report,
-    ).sort((a, b) => a.payload.seq - b.payload.seq);
+    const reports = readdirSync(output)
+      .filter((file) => file.startsWith('report-'))
+      .sort()
+      .map((file) => JSON.parse(readFileSync(join(output, file), 'utf8')) as Report);
     assert.equal(reports.length, expected);
     return reports;
   } finally {
@@ -831,12 +956,45 @@ test('M6-23e the plugin maps captured root events and only child asks and answer
         'opencode.state', '--session', 'synthetic-root-session',
       ]);
       assert.ok(Number.isSafeInteger(reports[i].payload.seq));
+      assert.equal(reports[i].payload.session_id, 'native-root');
       if (i > 0) assert.ok(reports[i].payload.seq > reports[i - 1].payload.seq);
       assert.deepEqual(Object.keys(reports[i].payload).sort(),
         reports[i].payload.why === undefined
-          ? ['seq', 'state']
-          : ['seq', 'state', 'why']);
+          ? ['seq', 'session_id', 'state']
+          : ['seq', 'session_id', 'state', 'why']);
     }
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23e plugin handles overlapping asks across child and root sessions', async () => {
+  // protects=overlapping ask queue and work suppression fails_when=premature working report or work event reports during open ask no_claim=opencode bus delivery order
+  const h = await memoryDb();
+  try {
+    const root = 'root-overlapping';
+    const child = 'child-overlapping';
+    const events: BusEvent[] = [
+      { type: 'session.created', properties: { info: { id: child, parentID: root } } },
+      { type: 'permission.asked', properties: { sessionID: child, id: 'child-perm' } },
+      { type: 'question.asked', properties: { sessionID: root, id: 'root-quest' } },
+      { type: 'session.status', properties: { sessionID: root, status: { type: 'busy' } } },
+      { type: 'tool.execute.before', properties: { sessionID: root } },
+      { type: 'tool.execute.after', properties: { sessionID: root } },
+      { type: 'permission.replied', properties: { sessionID: child, permissionID: 'child-perm' } },
+      { type: 'question.replied', properties: { sessionID: root, requestID: 'root-quest' } },
+    ];
+    const reports = await pluginReports(h.home, events, 4);
+    assert.deepEqual(reports.map((r) => ({
+      state: r.payload.state,
+      ...(r.payload.why === undefined ? {} : { why: r.payload.why }),
+      session_id: r.payload.session_id,
+    })), [
+      { state: 'waiting', why: 'permission', session_id: root },
+      { state: 'waiting', why: 'permission', session_id: root },
+      { state: 'waiting', session_id: root },
+      { state: 'working', session_id: root },
+    ]);
   } finally {
     await h.close();
   }
@@ -862,6 +1020,7 @@ for (const missing of ['TROOP_NODE', 'TROOP_EVENT_JS', 'TROOP_SESSION_ID']) {
 test('M6-23e plugin reports alone move opencode while its real terminal title stays fixed', async () => {
   // protects=plugin driven state and stale seq guard fails_when=unchanged title blocks reports or stale seq changes state no_claim=live opencode execution
   const engine = fixtureEngine('opencode', {
+    state_plugin: 'plugins/opencode-state.js',
     state_titles: { working: '^BUSY ', idle: '^IDLE ' },
   });
   const h = await terminalFixture(engine.id, [engine]);
@@ -895,6 +1054,7 @@ test('M6-23e plugin reports alone move opencode while its real terminal title st
 test('M6-23 opencode title states work before the first plugin report and stop afterwards', async () => {
   // protects=plugin precedence over raw titles fails_when=title states override a reported opencode state no_claim=opencode title capture
   const engine = fixtureEngine('opencode', {
+    state_plugin: 'plugins/opencode-state.js',
     state_titles: { working: '^BUSY ', waiting: '^WAIT ', idle: '^IDLE ' },
   });
   const h = await terminalFixture(engine.id, [engine]);
@@ -910,6 +1070,47 @@ test('M6-23 opencode title states work before the first plugin report and stop a
     processEvents(h.db);
     assert.equal(h.row().state, 'done');
     assert.equal(h.count('core.title-state'), 3);
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23 opencode.state for a claude session changes nothing', async () => {
+  // protects=forged opencode report rejection on non plugin engines fails_when=opencode state moves a claude session no_claim=process impersonation
+  const h = await memoryDb('claude');
+  try {
+    assert.equal(h.send('claude.UserPromptSubmit'), 'working');
+    assert.equal(h.row().state, 'working');
+    assert.equal(h.send('opencode.state', { state: 'done', seq: 1 }), 'working');
+    assert.equal(h.send('opencode.state', { state: 'waiting', why: 'permission', seq: 2 }), 'working');
+    assert.equal(h.row().state, 'working');
+    assert.equal(h.row().wait_reason, null);
+    assert.deepEqual(h.notices('done'), []);
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23 unrelated root idle is ignored and unrelated root working relinks', async () => {
+  // protects=opencode root session filtering and relinking fails_when=unrelated root idle finishes session or working fails to relink no_claim=multi-root UI routing
+  const engine = fixtureEngine('opencode', { state_plugin: 'plugins/opencode-state.js' });
+  const h = await memoryDb('opencode', [engine]);
+  try {
+    assert.equal(h.send('opencode.state', { state: 'working', seq: 1, session_id: 'root-1' }), 'working');
+    assert.equal(h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id, 'root-1');
+
+    assert.equal(h.send('opencode.state', { state: 'done', seq: 2, session_id: 'root-2' }), 'working');
+    assert.equal(h.row().state, 'working');
+    assert.deepEqual(h.notices('done'), []);
+    assert.equal(h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id, 'root-1');
+
+    assert.equal(h.send('opencode.state', { state: 'working', seq: 3, session_id: 'root-2' }), 'working');
+    assert.equal(h.row().state, 'working');
+    assert.equal(h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id, 'root-2');
+
+    assert.equal(h.send('opencode.state', { state: 'done', seq: 4, session_id: 'root-2' }), 'done');
+    assert.equal(h.row().state, 'done');
+    assert.deepEqual(h.notices('done'), ['opencode finished']);
   } finally {
     await h.close();
   }
@@ -990,11 +1191,40 @@ test('M6-23 opencode payloads retain only valid state why and integer seq', () =
       state: 'done', seq: 14,
     }), { state: 'done', seq: 14 });
     assert.deepEqual(sanitize('opencode.state', {
+      state: 'working', seq: 15, session_id: 'root-123',
+    }), { state: 'working', seq: 15, session_id: 'root-123' });
+    assert.deepEqual(sanitize('opencode.state', {
       state: 'busy', why: MARKER, seq: 1.5,
     }), {});
     assert.deepEqual(sanitize('opencode.state', {
       state: { message: MARKER }, why: ['error'], seq: '12',
     }), {});
+  }
+});
+
+test('M6-23 malformed and two days ahead opencode reports are stored as empty and do not block valid reports', async () => {
+  // protects=malformed and future seq opencode payload rejection fails_when=invalid seq is stored or blocks subsequent reports no_claim=clock drift tolerance
+  const invalidState = { state: 'invalid', seq: 12345 };
+  assert.deepEqual(buildPayload('opencode.state', invalidState), {});
+  assert.deepEqual(rebuildPayload('opencode.state', invalidState), {});
+
+  const twoDaysAhead = { state: 'working', seq: (Date.now() + 172_800_000) * 1000 };
+  assert.deepEqual(buildPayload('opencode.state', twoDaysAhead), {});
+  assert.deepEqual(rebuildPayload('opencode.state', twoDaysAhead), {});
+
+  const engine = fixtureEngine('opencode', { state_plugin: 'plugins/opencode-state.js' });
+  const h = await memoryDb('opencode', [engine]);
+  try {
+    h.send('opencode.state', { state: 'invalid', seq: 9_999_999_999 });
+    assert.equal(h.row().state, 'starting');
+
+    h.send('opencode.state', { state: 'working', seq: (Date.now() + 172_800_000) * 1000 });
+    assert.equal(h.row().state, 'starting');
+
+    assert.equal(h.send('opencode.state', { state: 'working', seq: 10 }), 'working');
+    assert.equal(h.row().state, 'working');
+  } finally {
+    await h.close();
   }
 });
 
