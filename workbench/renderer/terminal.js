@@ -6,7 +6,7 @@ const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div clas
   <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
   <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button>
-  <button class="tx" data-action="hide" title="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
+  <button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
   <div class="r2"><span class="tile-last fl"></span><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span><button class="tile-changed link" data-action="changed-menu" hidden></button></div>
   <span class="shim"><i></i></span></div><div class="tile-body"></div>`;
 
@@ -186,7 +186,9 @@ const termView = (() => {
     set('.tile-engine', x.engine_id);
     t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);
+    t.el.querySelector('.tile-task').title = x.task || '';
     set('.tile-last', x.last || '');
+    t.el.querySelector('.tile-last').title = x.last || '';
     set('.tile-state', x.words);
     set('.tile-meta', x.meta || '');
     t.el.querySelector('.tile-watch').hidden = !x.watchOff;
@@ -210,6 +212,7 @@ const termView = (() => {
     if (live) delete tx.dataset.action;
     else tx.dataset.action = x.shell ? 'shell-close' : 'hide';
     tx.title = x.shell ? 'Close this shell' : 'Hide this tile';
+    tx.ariaLabel = tx.title;
     if (x.outside && !t.outside) {
       t.outside = true;
       t.el.classList.add('outside');

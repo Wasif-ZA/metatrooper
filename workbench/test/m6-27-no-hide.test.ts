@@ -112,11 +112,14 @@ test('M6-27 click: hide and menu-hide send no session.hide for a live session, e
   // no_claim=what the core does with session.hide
   const sent: string[] = [];
   const rpc = async (method: string, p: any) => { sent.push(`${method}:${p.session_id}`); return {}; };
-  const onClick = new Function('ui', 'rpc', 'document', `${line('const LIVE_STATES')}\n${fn('canHide', appSource)}\n${fn('onClick', appSource)}; return onClick;`)(snapOfEveryState(), rpc, { getElementById: () => ({}) });
+  const fired: Array<() => Promise<void>> = [];
   for (const action of ['hide', 'menu-hide']) {
+    const onClick = new Function('ui', 'rpc', 'document', 'render', 'toast', 'setTimeout', `${line('const LIVE_STATES')}\n${line('const UNDO_MS')}\n${fn('canHide', appSource)}\n${fn('hideLater', appSource)}\n${fn('onClick', appSource)}; return onClick;`)(
+      { ...snapOfEveryState(), pendingHide: new Set(), hideDone: new Set() }, rpc, { getElementById: () => ({}) }, () => {}, () => {}, (f: () => Promise<void>) => fired.push(f));
     for (const state of [...LIVE, ...SETTLED]) {
       const el = { dataset: { action, id: state }, tagName: 'DIV', closest: () => null };
       await onClick({ target: { closest: () => el }, stopPropagation() {} });
+      for (const f of fired.splice(0)) await f();
     }
   }
   assert.deepEqual(sent, [...SETTLED, ...SETTLED].map((s) => `session.hide:${s}`));

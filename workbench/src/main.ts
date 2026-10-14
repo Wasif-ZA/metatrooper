@@ -515,7 +515,7 @@ function handlers(): void {
   });
 
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));
-  on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state }));
+  on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state, app_menu: Menu.getApplicationMenu() !== null, loads }));
 }
 
 /** No network: only the app's own files load; http(s) links open in the system browser. */
@@ -535,6 +535,8 @@ function lockDown(): void {
     });
   });
 }
+
+let loads = 0;
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -558,6 +560,7 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.webContents.on('did-finish-load', () => { loads++; });
   win.webContents.on('render-process-gone', detachAll);
   win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));
@@ -746,6 +749,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     lockDown();
     handlers();
+    Menu.setApplicationMenu(null);
     createWindow();
     void ensureCore().then(checkCoreVersion).then(() => openFolder(folderArg(process.argv, process.cwd())));
     openNeedsYou(needsYouLink(process.argv));
