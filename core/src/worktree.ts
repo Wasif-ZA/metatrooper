@@ -33,8 +33,8 @@ async function mainBranch(repo: string): Promise<string | null> {
 export const removing = new Map<string, string>();
 
 const norm = (p: string) => {
-  let r = path.resolve(p);
-  try { r = fs.realpathSync.native(r); } catch {}
+  let r: string;
+  try { r = fs.realpathSync.native(p); } catch { r = path.resolve(p); }
   const c = canonicalPath(r);
   return process.platform === 'win32' ? c.toLowerCase() : c;
 };

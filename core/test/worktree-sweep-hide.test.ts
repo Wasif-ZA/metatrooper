@@ -156,7 +156,11 @@ test('beingRemoved matches a folder inside a worktree however its path is spelle
     assert.ok(beingRemoved(`${root}/sub/`));
     assert.ok(beingRemoved(`${root}/gone/../sub`));
     assert.ok(!beingRemoved(path.join(home, 'worktrees', 'p5', 'ab')));
+    removing.delete('a5');
+    removing.set('drive5', path.parse(root).root);
+    assert.ok(beingRemoved(root));
   } finally {
     removing.delete('a5');
+    removing.delete('drive5');
   }
 });
