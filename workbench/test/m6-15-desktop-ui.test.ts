@@ -227,3 +227,26 @@ test('M6-15 the workbench tells every new core its pid, once per core pid', asyn
   await tell(200);
   assert.deepEqual(sent, [4242, 4242, 4242], 'a restarted core (new pid) is told again, retried until it answers');
 });
+
+for (const after of ['click', 'insertText'] as const) {
+  test('M6-15 browser type stops ' + (after === 'click' ? 'insertText when paused after the click recheck' : 'submit Enter when paused after insertText'), async () => {
+    const { PaneManager } = await load();
+    const d = db();
+    try {
+      const manager: any = new PaneManager({} as any, { db: () => d, probe: () => {} } as any);
+      const sent: Array<{ method: string; params: any }> = [];
+      manager.answer = async (_pane: any, _session: string, action: () => Promise<unknown>) => action();
+      manager.target = async () => ({ node: { backendNodeId: 1 }, x: 10, y: 20 });
+      manager.pointAt = async () => {};
+      manager.cmd = async (_pane: any, method: string, params: any) => {
+        sent.push({ method, params });
+        if ((after === 'click' && method === 'Input.dispatchMouseEvent' && params.type === 'mouseReleased') || (after === 'insertText' && method === 'Input.insertText')) pause(d, new Date().toISOString());
+        return {};
+      };
+      await assert.rejects(manager.run({ row: { id: 'pane-1' } }, 'type', { _session: 'session-a', ref: 'e1', text: 'hello', submit: true }), /paused by the user/);
+      assert.equal(sent.filter((c) => c.method === 'Input.dispatchMouseEvent' && c.params.type === 'mouseReleased').length, 1);
+      assert.deepEqual(sent.filter((c) => c.method === 'Input.insertText').map((c) => c.params.text), after === 'click' ? [] : ['hello']);
+      assert.equal(sent.filter((c) => c.method === 'Input.dispatchKeyEvent' && c.params.key === 'Enter').length, 0);
+    } finally { d.close(); }
+  });
+}

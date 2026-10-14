@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import net from 'node:net';
@@ -411,4 +411,102 @@ test('M6-15c: the workbench is never granted, a closed window ends its grant, a 
     agent.close(); ui.close(); release(db);
     await teardownCore(core, iso);
   }
+});
+
+async function desktopFixture() {
+  const { Desktop } = await import('../src/desktop/driver.ts');
+  const { iso, inputs } = setup([NOTEPAD, WORKBENCH]);
+  const saved = new Map(Object.keys(iso.env).filter((k) => k === 'METATROOPER_UIA_HELPER' || k.startsWith('FAKE_UIA_')).map((k) => [k, process.env[k]]));
+  for (const k of saved.keys()) process.env[k] = iso.env[k];
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(join(root, 'contracts', 'schema.sql'), 'utf8'));
+  db.exec("PRAGMA foreign_keys = OFF; INSERT INTO plugin (id, version, path, manifest, source, permissions, installed_at) VALUES ('desktop', '1', '', '{}', 'builtin', '[]', 't'); INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, pid) VALUES ('s1', 'p1', 'fake', 'pty', 'working', 't', 't', " + process.pid + ")");
+  const desktop = new Desktop(db);
+  const methods = new Map<string, any>();
+  desktop.methods(methods);
+  const request = (method: string, params: any = {}) => methods.get(method).handler(params);
+  await request('desktop.ui-window', { pid: UI_PID });
+  const { grant_id } = await request('grant.window', { session_id: 's1', hwnd: 100 });
+  return { desktop, db, request, grant_id, inputs,
+    state: (extra: object = {}) => writeFileSync(iso.env.FAKE_UIA_STATE!, JSON.stringify({ windows: [NOTEPAD, WORKBENCH], ...extra })),
+    close: () => {
+      desktop.helper.stop(); db.close();
+      for (const [k, v] of saved) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+      rmSync(iso.home, { recursive: true, force: true });
+    },
+  };
+}
+
+for (const end of ['revoke', 'disable'] as const) {
+  test('M6-15 type stops further chunks and reports characters when ' + (end === 'revoke' ? 'grant.revoke ends its grant' : 'the desktop plugin is disabled'), async () => {
+    const f = await desktopFixture();
+    try {
+      const original = f.desktop.helper.request.bind(f.desktop.helper);
+      f.desktop.helper.request = async (op, params, timeout) => {
+        const out = await original(op, params, timeout);
+        if (op === 'set_text') {
+          if (end === 'revoke') await f.request('grant.revoke', { grant_id: f.grant_id });
+          else f.db.prepare("UPDATE plugin SET enabled = 0 WHERE id = 'desktop'").run();
+        }
+        return out;
+      };
+      await assert.rejects(f.desktop.act({ window: 100, ref: 'e1', action: 'type', text: 'x'.repeat(2000), expect: NOTEPAD.controls[0] }, 's1'), /^Error: window not granted; ask the user to give it to you; 8 of 2000 characters were typed$/);
+      assert.deepEqual(f.inputs().map((i) => [i.op, i.value]), [['set_text', 'xxxxxxxx']]);
+    } finally { f.close(); }
+  });
+}
+
+test('M6-15 resolved helper ops carry pid and refuse a window reused between info and the action', async () => {
+  const f = await desktopFixture();
+  try {
+    const original = f.desktop.helper.request.bind(f.desktop.helper);
+    const seen: Array<[string, unknown]> = [];
+    f.desktop.helper.request = (op, params = {}, timeout) => {
+      if (op !== 'info') seen.push([op, params.pid]);
+      return original(op, params, timeout);
+    };
+    const actions = ['type', 'click', 'key', 'scroll'];
+    const operations = [
+      ['describe', () => f.desktop.describe('s1', 100, 'e1'), 'after_info_pid'],
+      ...actions.map((action) => [action === 'type' ? 'set_text' : action, () => f.desktop.act({ window: 100, ref: 'e1', action, text: 'ok', keys: 'Tab', dy: 10, expect: NOTEPAD.controls[0] }, 's1'), 'after_describe_pid']),
+      ...[['snapshot', 'desktop.snapshot'], ['screenshot', 'desktop.screenshot'], ['find_text', 'desktop.find']].map(([op, method]) => [op, () => f.request(method, { ...me('s1'), window: 100, text: 'File' }), 'after_info_pid']),
+    ] as Array<[string, () => Promise<unknown>, string]>;
+    for (const [op, action, change] of operations) {
+      f.state(); seen.length = 0;
+      await action();
+      assert.deepEqual(seen.find(([name]) => name === op), [op, NOTEPAD.pid]);
+      f.state({ [change]: NOTEPAD.pid + 1 }); seen.length = 0;
+      const before = f.inputs().length;
+      await assert.rejects(action(), /window not granted/, op);
+      assert.deepEqual(seen.find(([name]) => name === op), [op, NOTEPAD.pid]);
+      assert.equal(f.inputs().length, before, op + ' sends no input to the reused window');
+    }
+  } finally { f.close(); }
+});
+
+test('M6-15 a helper timeout stops the process and the next request starts a fresh helper', async () => {
+  const f = await desktopFixture();
+  try {
+    const first = await f.desktop.helper.request('process_id');
+    const exited = new Promise<void>((resolve) => (f.desktop.helper as any).child.once('exit', resolve));
+    await assert.rejects(f.desktop.helper.request('never_answer', {}, 50), /desktop helper never_answer timed out/);
+    assert.equal(f.desktop.helper.running(), false);
+    await until(() => { try { process.kill(first.pid, 0); return false; } catch (e: any) { if (e.code === 'ESRCH') return true; throw e; } });
+    await exited;
+    const next = await f.desktop.helper.request('process_id', {}, 3000);
+    assert.notEqual(next.pid, first.pid);
+    assert.equal(f.desktop.helper.running(), true);
+  } finally { f.close(); }
+});
+
+test('M6-15 grant.candidates refuses until the workbench reports its own windows', async () => {
+  const { iso } = setup([NOTEPAD, WORKBENCH]);
+  const core = await startCore(iso);
+  const ui = await client(iso.prefix);
+  try {
+    await uiHello(ui, iso.home);
+    assert.equal((await call(ui, 'grant.candidates', {})).error?.message, 'the workbench has not reported its own windows yet');
+    await call(ui, 'desktop.ui-window', { pid: UI_PID });
+    assert.deepEqual((await call(ui, 'grant.candidates', {})).result.windows.map((w: any) => w.hwnd), [100]);
+  } finally { ui.close(); await teardownCore(core, iso); }
 });
