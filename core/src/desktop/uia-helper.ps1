@@ -98,7 +98,12 @@ namespace TroopUia {
         case "screenshot": return Screenshot(new IntPtr(hwnd));
         case "set_text": return SetText(hwnd, Str(r, "ref"), Str(r, "value"));
         case "click": return Click(hwnd, Str(r, "ref"));
-        case "key": return Key(new IntPtr(hwnd), Str(r, "keys"));
+        case "key": {
+          bool hidden; var f = Focused(new IntPtr(hwnd), out hidden);
+          var c = f == null ? null : ControlOf(f);
+          if (hidden != (Num(r, "hidden") != 0) || (c == null ? "" : (string)c["name"]) != Str(r, "name") || (c == null ? "" : (string)c["automation_id"]) != Str(r, "automation_id") || (c == null ? "" : (string)c["role"]) != Str(r, "role")) throw new Exception("control changed");
+          return Key(new IntPtr(hwnd), Str(r, "keys"));
+        }
         case "scroll": return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
         case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
@@ -234,6 +239,9 @@ namespace TroopUia {
       Dictionary<string, AutomationElement> map;
       AutomationElement e;
       if (!Refs.TryGetValue(hwnd, out map) || !map.TryGetValue(reference, out e)) throw new Exception("unknown ref " + reference + "; take a new snapshot");
+      var w = e;
+      try { while (w != null && w.Current.NativeWindowHandle == 0) w = TreeWalker.RawViewWalker.GetParent(w); } catch { w = null; }
+      if (w == null || Native.GetAncestor(new IntPtr(w.Current.NativeWindowHandle), GA_ROOT) != Native.GetAncestor(new IntPtr(hwnd), GA_ROOT)) throw new Exception("ref " + reference + " is no longer in this window; take a new snapshot");
       return e;
     }
 

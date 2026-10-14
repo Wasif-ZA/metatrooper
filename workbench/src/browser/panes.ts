@@ -661,10 +661,11 @@ export class PaneManager {
   }
 
   /** Loads `url` under the pane's policy; an agent load stops if the user took the pane while the URL was checked. */
-  private async load(pane: Pane, url: string, agent = false): Promise<void> {
+  private async load(pane: Pane, url: string, agent?: Record<string, any>): Promise<void> {
     const verdict = await checkUrl(url, this.paneCtx(pane));
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
     if (agent && pane.handoff) throw handedOff(pane);
+    if (agent) this.notPaused(agent);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
       if (!/ERR_ABORTED/.test(e.message)) throw new ToolError(-32099, `could not load ${url}: ${e.message}`);
     });
@@ -833,6 +834,7 @@ export class PaneManager {
     const from = Date.now();
     // the user may have taken the pane while the first snapshot was read; navigate and back send no Input.* to stop them
     if (pane.handoff) throw handedOff(pane);
+    this.notPaused({ _session: session });
     const r = await work();
     await this.settle(pane);
     const wc = pane.view.webContents;
@@ -853,9 +855,10 @@ export class PaneManager {
   }
 
   /** With `doc` (the `navs` the call started on), a call whose page navigates first runs nothing, and one it navigates under returns nothing. */
-  private async evalIsolated(pane: Pane, expression: string, doc?: number): Promise<unknown> {
+  private async evalIsolated(pane: Pane, expression: string, doc?: number, a?: Record<string, any>): Promise<unknown> {
     const contextId = await this.isolated(pane);
     if (pane.handoff) throw handedOff(pane);
+    if (a) this.notPaused(a);
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
     if (doc !== undefined && (pane.handedBack || pane.secretOnPage)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
@@ -1084,7 +1087,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         const [prev, navs] = [pane.errorFor, pane.navs];
         pane.errorFor = null;
         const out = await this.answer(pane, session, async () => {
-          await this.load(pane, a.url, true);
+          await this.load(pane, a.url, a);
           return { status: pane.status };
         }).catch((e) => {
           // nothing loaded (a blocked URL): the error page is still on screen
@@ -1234,7 +1237,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (pane.secretOnPage) throw new ToolError(-32038, 'evaluate is off on a page a secret was typed into; navigate first');
         pane.scripted = true;
         // a navigation while it waits clears the flag, and the script may then run in, or leave a listener on, the new page
-        const raw = await this.evalIsolated(pane, a.expression, pane.navs).finally(() => { pane.scripted = true; });
+        const raw = await this.evalIsolated(pane, a.expression, pane.navs, a).finally(() => { pane.scripted = true; });
         // the user may have signed in while it ran
         if (pane.handoff !== null || pane.handedBack) throw new ToolError(-32038, 'the user took the pane while evaluate ran; its result is dropped');
         const value = scrubDeep(raw, knownSecretValues());

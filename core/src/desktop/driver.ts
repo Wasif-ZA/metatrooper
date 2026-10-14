@@ -236,7 +236,10 @@ export class Desktop {
       }
       if (action !== 'type') {
         const posted = action === 'key' || action === 'click';
-        return this.dispatch(sessionId, now.grant_id, () => this.helper.request<Record<string, unknown>>(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }).finally(() => { if (posted) this.postedAt = Date.now(); }));
+        const seen = action === 'key' ? { name: c.name, automation_id: c.automation_id, role: c.role, hidden: now.hidden ? 1 : 0 } : {};
+        return this.dispatch(sessionId, now.grant_id, () => this.helper.request<Record<string, unknown>>(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid, ...seen })
+          .catch((e: Error) => { throw /^control changed$/.test(e.message) ? new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent') : e; })
+          .finally(() => { if (posted) this.postedAt = Date.now(); }));
       }
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
