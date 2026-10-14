@@ -11,6 +11,7 @@ before(buildGenerated);
 
 const GEMINI_EVENTS = ['SessionStart', 'BeforeAgent', 'AfterTool', 'Notification', 'AfterAgent'];
 const CODEX_EVENTS = ['SessionStart', 'PermissionRequest', 'Stop', 'Interrupt'];
+const USER_GEMINI_SETTINGS = '{\n  "theme": "Default",\n  "hooks": { "AfterAgent": [] }\n}\n';
 
 /** A core whose only engine runs `engine.js` from the test home: it records its argv and the Gemini settings variable, then lives until `stop` exists. */
 async function hookHarness(spec: Record<string, unknown>) {
@@ -24,6 +25,8 @@ setTimeout(() => process.exit(0), 30000);
   const registry = join(isolated.home, 'engines.json');
   writeFileSync(registry, JSON.stringify([{ id: 'hooked', command: process.execPath, args: [script], state_source: 'hooks', roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli', version_cmd: [process.execPath, '--version'], ...spec }]));
   const env = { ...isolated.env, METATROOPER_ENGINES: registry };
+  mkdirSync(join(isolated.home, '.gemini'), { recursive: true });
+  writeFileSync(join(isolated.home, '.gemini', 'settings.json'), USER_GEMINI_SETTINGS);
   const core = await startCore({ ...isolated, env });
   const project = join(isolated.home, 'proj');
   mkdirSync(project, { recursive: true });
@@ -59,12 +62,10 @@ setTimeout(() => process.exit(0), 30000);
 }
 
 test('M6-05b a Gemini session gets its native_id, waiting_for_you and done from its hooks; ~/.gemini/settings.json is untouched and the per-session file is gone after exit', async () => {
-  const g =await hookHarness({ hooks: { kind: 'gemini-system-settings', events: GEMINI_EVENTS } });
+  const g = await hookHarness({ hooks: { kind: 'gemini-system-settings', events: GEMINI_EVENTS } });
   try {
     const userSettings = join(g.home, '.gemini', 'settings.json');
-    mkdirSync(join(g.home, '.gemini'), { recursive: true });
-    const original = '{\n  "theme": "Default",\n  "hooks": { "AfterAgent": [] }\n}\n';
-    writeFileSync(userSettings, original);
+    assert.equal(readFileSync(userSettings, 'utf8'), USER_GEMINI_SETTINGS);
     assert.equal(g.seen.settings, join(g.home, 'engines', 'gemini', `${g.sessionId}.json`));
     const file = JSON.parse(readFileSync(g.seen.settings!, 'utf8'));
     assert.deepEqual(Object.keys(file), ['hooks']);
@@ -85,7 +86,7 @@ test('M6-05b a Gemini session gets its native_id, waiting_for_you and done from 
     g.stop();
     await until(() => g.row().state === 'exited', 15000);
     await until(() => !existsSync(g.seen.settings!), 2000);
-    assert.equal(readFileSync(userSettings, 'utf8'), original);
+    assert.equal(readFileSync(userSettings, 'utf8'), USER_GEMINI_SETTINGS);
   } finally { await g.teardown(); }
 });
 
@@ -355,6 +356,7 @@ test('the Codex and Gemini hook payloads keep only the allowlisted fields', asyn
   const raw = { session_id: 'n', cwd: '/p', transcript_path: '/t', tool_name: 'shell', tool_input: { command: 'x' }, prompt: 'p', prompt_response: 'r', message: 'm', notification_type: 'ToolPermission', source: 'startup', last_assistant_message: 'a' };
   assert.deepEqual(buildPayload('gemini.Notification', raw), { session_id: 'n', transcript_path: '/t', cwd: '/p', tool_name: 'shell', notification_type: 'ToolPermission', source: 'startup' });
   assert.deepEqual(Object.keys(buildPayload('codex.Stop', raw)).sort(), ['cwd', 'notification_type', 'session_id', 'source', 'tool_name', 'transcript_path']);
+  assert.deepEqual(buildPayload('codex.PermissionRequest', { session_id: 'n', tool_name: { prompt: 'PRIVATE' }, source: ['PRIVATE'], cwd: 'x'.repeat(5000) }), { session_id: 'n', cwd: 'x'.repeat(4096) });
   assert.deepEqual(buildPayload('claude.PermissionRequest', { ...raw, tool_name: 'Bash', tool_use_id: 'u', tool_input: { command: 'rm -rf /' } }).tool_input, { first_word: 'rm', length: 8 });
 });
 

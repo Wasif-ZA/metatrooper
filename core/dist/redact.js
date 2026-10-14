@@ -100,7 +100,7 @@ export function buildPayload(kind        , raw        )      {
     case 'gemini.AfterTool':
     case 'gemini.Notification':
     case 'gemini.AfterAgent':
-      return pick(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source']);
+      return Object.fromEntries(['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source'].filter((k) => typeof r[k] === 'string').map((k) => [k, (r[k]          ).slice(0, 4096)]));
     case 'core.process-gone':
       return pick(r, ['pid']);
     default:
