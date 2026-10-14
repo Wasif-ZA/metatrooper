@@ -264,6 +264,26 @@ test('M6-05a after a Codex SessionStart relinks the session, the poll follows th
   } finally { t.done(); }
 });
 
+test('M6-05a a relink does not carry the old conversation\'s growing spell: an idle session goes working on the new file\'s first growth, a working one still goes done after 20 s quiet', async () => {
+  const t = await codexRollout();
+  try {
+    const dir = join(t.home, '.codex', 'sessions', '2026', '10', '13');
+    t.grow();
+    assert.equal(t.poll(1000), 'working');
+    t.db.prepare("UPDATE session SET state = 'idle' WHERE id = 's'").run();
+    writeFileSync(join(dir, 'rollout-2026-10-13T11-00-00-conv2.jsonl'), '{"type":"session_meta"}\n');
+    t.send('codex.SessionStart', { session_id: 'conv2', source: 'clear' });
+    t.poll(1500);
+    await t.tick();
+    appendFileSync(join(dir, 'rollout-2026-10-13T11-00-00-conv2.jsonl'), '{"type":"response_item"}\n');
+    assert.equal(t.poll(2500), 'working');
+    writeFileSync(join(dir, 'rollout-2026-10-13T12-00-00-conv3.jsonl'), '{"type":"session_meta"}\n');
+    t.send('codex.SessionStart', { session_id: 'conv3', source: 'clear' });
+    t.poll(3000);
+    assert.equal(t.poll(24_000), 'done');
+  } finally { t.done(); }
+});
+
 test('M6-05c a Claude permission wait (Notification) holds through another call\'s PreToolUse and PostToolUse and ends on the waited call\'s PostToolUse', async () => {
   const t = await memoryDb();
   try {
@@ -404,6 +424,11 @@ test('the Codex and Gemini hook payloads keep only the allowlisted fields', asyn
   assert.deepEqual(buildPayload('gemini.Notification', raw), { session_id: 'n', transcript_path: '/t', cwd: '/p', tool_name: 'shell', notification_type: 'ToolPermission', source: 'startup' });
   assert.deepEqual(Object.keys(buildPayload('codex.Stop', raw)).sort(), ['cwd', 'notification_type', 'session_id', 'source', 'tool_name', 'transcript_path']);
   assert.deepEqual(buildPayload('codex.PermissionRequest', { session_id: 'n', tool_name: { prompt: 'PRIVATE' }, source: ['PRIVATE'], cwd: 'x'.repeat(5000) }), { session_id: 'n', cwd: 'x'.repeat(4096) });
+  for (const kind of ['claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.StopFailure', 'claude.SessionEnd', 'codex.turn']) {
+    const nested = { prompt: 'PRIVATE' };
+    const out = buildPayload(kind, { session_id: 'n', 'thread-id': nested, cwd: nested, transcript_path: nested, notification_type: nested, error_type: nested, reason: nested, stop_hook_active: nested, type: nested });
+    assert.ok(!JSON.stringify(out).includes('PRIVATE'), kind);
+  }
   assert.deepEqual(buildPayload('claude.PermissionRequest', { session_id: 'n', tool_name: { prompt: 'PRIVATE' }, tool_use_id: ['PRIVATE'], tool_input: {} }), { session_id: 'n', tool_input: {} });
   assert.deepEqual(buildPayload('claude.PermissionRequest', { ...raw, tool_name: 'Bash', tool_use_id: 'u', tool_input: { command: 'rm -rf /' } }).tool_input, { first_word: 'rm', length: 8 });
 });

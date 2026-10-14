@@ -222,7 +222,7 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       try { file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s); } catch {}
       if (!file) continue;
       const m = measure(file);
-      a = { file, size: m.size, mtime: m.mtime, lastChange: prev?.lastChange ?? 0, working: prev?.working ?? false };
+      a = { file, size: m.size, mtime: m.mtime, lastChange: prev ? now : 0, working: Boolean(prev) && s.state === 'working' };
       if (s.engine_id === 'codex') noteCodexSession(s.id, file);
       else noteAgySession(s.id, path.join(file, 'transcript.jsonl'));
       activity.set(s.id, a);

@@ -76,20 +76,20 @@ export function buildPayload(kind        , raw        )      {
     case 'claude.PostToolUse':
       return { ...tool(), response_length: lengthOf(r.tool_response) };
     case 'claude.UserPromptSubmit':
-      return { ...pick(r, ['session_id', 'transcript_path', 'cwd']), prompt_length: lengthOf(r.prompt) };
+      return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), prompt_length: lengthOf(r.prompt) };
     case 'claude.Notification': {
       const msg = typeof r.message === 'string' ? r.message : '';
-      return { ...pick(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
+      return { ...strings(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
     }
     case 'claude.Stop':
-      return pick(r, ['session_id', 'transcript_path', 'cwd', 'stop_hook_active']);
+      return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), ...(typeof r.stop_hook_active === 'boolean' ? { stop_hook_active: r.stop_hook_active } : {}) };
     case 'claude.StopFailure':
-      return pick(r, ['session_id', 'transcript_path', 'cwd', 'error_type']);
+      return strings(r, ['session_id', 'transcript_path', 'cwd', 'error_type']);
     case 'claude.SessionEnd':
-      return pick(r, ['session_id', 'cwd', 'reason']);
+      return strings(r, ['session_id', 'cwd', 'reason']);
     case 'codex.turn':
       return {
-        ...pick(r, ['type', 'thread-id', 'turn-id', 'cwd']),
+        ...strings(r, ['type', 'thread-id', 'turn-id', 'cwd']),
         input_length: lengthOf(r['input-messages']),
         reply_length: lengthOf(r['last-assistant-message']),
       };
