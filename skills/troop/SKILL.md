@@ -27,6 +27,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   account.state          {}
   project.open           {path}  (stable)
   project.clear          {project_id}
+  project.hide           {project_id}
   session.launch         {project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}  (stable)
   session.list           {project_id?, all?: bool}  (stable)
   session.wait           {session_id, states: [state, ...], timeout_ms}  (stable)

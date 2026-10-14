@@ -23,6 +23,7 @@ const EXPECTED_METHODS = [
   'account.state',
   'project.open',
   'project.clear',
+  'project.hide',
   'session.launch',
   'session.list',
   'session.wait',

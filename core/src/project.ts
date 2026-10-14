@@ -22,7 +22,7 @@ function lower(p: string): string {
   return canonicalPath(p).toLowerCase();
 }
 
-function within(p: string, root: string): boolean {
+export function within(p: string, root: string): boolean {
   return p === root || p.startsWith(root.endsWith('/') ? root : root + '/');
 }
 
