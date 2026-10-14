@@ -82,7 +82,8 @@ box fails with "not visible".
   true after the commit until the load finishes), the next document to commit counts as handed back too, so after a
   sign-in the agent's first navigation may also leave `evaluate` off; the one after clears it.
   An `evaluate` running when the handoff lands fails with -32038 `the user took the pane while evaluate ran; its result
-  is dropped`. This is Wasif's decision (2026-10-13): the user may have signed in, and a script can encode a cookie or
+  is dropped`; one still waiting to be sent when Give back (or a fill) lands fails with -32038 `evaluate is off on this
+  page now; nothing was run`. This is Wasif's decision (2026-10-13): the user may have signed in, and a script can encode a cookie or
   token before returning it, which no output scrub can catch, so evaluate is refused rather than scrubbed. Other tools
   work after Give back. The refusal is per document, not per origin: after a navigation, the origin's cookies are
   readable by `evaluate` again.
@@ -132,7 +133,8 @@ box fails with "not visible".
   the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters). `describe` scrubs the control's name and id of every known secret value
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
-  `ok` or `error <code>`, never arguments. A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
+  `ok` or `error <code>`, never arguments. The origin is the pane page's when the call was made (a call that navigates
+  is recorded on the origin it left; an input in a child frame is recorded on the pane's origin). A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
   before sending it (describe failed, denied, rejected, expired, core offline, or the control kept changing on all
   three attempts) reports `browser.outcome` so it gets its row too. An attempt that fails with -32035 (the control
   changed since it was checked; nothing was sent) writes no row, since the MCP server checks again and retries it, so a

@@ -235,6 +235,13 @@ const auditRows = () => (db.prepare("SELECT count(*) AS n FROM event WHERE kind 
 const rowsBeforeChange = auditRows();
 r.controlChanged = outcome(await call('browser.click', { pane_id: 'bp_agent_1', ref: 'e5', expect: { name: 'Password', automation_id: 'pw', origin: 'https://other.test', hidden: false, password: true } }));
 r.controlChangedRows = auditRows() - rowsBeforeChange;
+// Lane b: a call that navigates the pane is audited with the origin it was made on
+const plainRun = internal.run;
+internal.run = async () => { page.url = 'https://evil.test/after'; return {}; };
+await call('browser.console', { pane_id: 'bp_agent_1' });
+internal.run = plainRun;
+page.url = 'https://bank.test/login';
+r.auditOriginAtDispatch = JSON.parse((db.prepare("SELECT payload FROM event WHERE kind = 'browser.tool' ORDER BY rowid DESC LIMIT 1").get() as { payload: string }).payload).origin;
 
 // Round 2: a navigate waiting on its first snapshot, and an evaluate waiting on its isolated world, when handoff lands do nothing after it
 const stubAnswer = internal.answer;
@@ -265,6 +272,21 @@ world.release();
 r.evaluateAfterHandoff = outcome(await evaluating);
 r.evaluatedAfterHandoff = evaluated;
 pm.act('bp_agent_1', 'give-back');
+internal.cmd = plainCmd;
+delete internal.isolated;
+// Lane b: an evaluate waiting on its isolated world through a whole handoff and Give back runs nothing
+internal.committed(pane);
+const world2 = hold();
+internal.isolated = async () => { await world2.held; return 1; };
+evaluated = 0;
+internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => { if (method === 'Runtime.evaluate') evaluated++; return plainCmd(p, method, params); };
+const evaluating2 = call('browser.evaluate', { pane_id: 'bp_agent_1', expression: '1' });
+await new Promise((res) => setTimeout(res, 50));
+await call('browser.handoff', { pane_id: 'bp_agent_1', reason: 'Sign in' });
+pm.act('bp_agent_1', 'give-back');
+world2.release();
+r.evaluateAfterGiveBackMidWorld = outcome(await evaluating2);
+r.evaluatedAfterGiveBackMidWorld = evaluated;
 internal.cmd = plainCmd;
 delete internal.isolated;
 

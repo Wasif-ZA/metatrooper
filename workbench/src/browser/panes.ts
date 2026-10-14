@@ -850,6 +850,7 @@ export class PaneManager {
     const contextId = await this.isolated(pane);
     if (pane.handoff) throw handedOff(pane);
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
+    if (doc !== undefined && (pane.handedBack || pane.secretOnPage)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated while evaluate ran; its result is dropped');
     if (r.exceptionDetails) throw new ToolError(-32099, `evaluate threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
