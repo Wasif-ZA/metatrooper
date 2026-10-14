@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { DatabaseSync } from 'node:sqlite';
 import type { EngineSpec } from './engines/registry.ts';
-import { canonicalPath, worktreesRoot } from './project.ts';
+import { canonicalPath, within, worktreesRoot } from './project.ts';
 import { settings } from './settings.ts';
 import { untrustFolder } from './trust.ts';
 
@@ -29,6 +29,23 @@ async function mainBranch(repo: string): Promise<string | null> {
   return null;
 }
 
+/** Worktrees the sweep is removing right now, project id to path; launchSession and shell.open refuse a folder inside one. */
+export const removing = new Map<string, string>();
+
+const norm = (p: string) => {
+  let r: string;
+  try { r = fs.realpathSync.native(p); } catch { r = path.resolve(p); }
+  const c = canonicalPath(r);
+  return process.platform === 'win32' ? c.toLowerCase() : c;
+};
+
+const inside = (dir: string, root: string) => within(norm(dir), norm(root));
+
+export function beingRemoved(dir: string): boolean {
+  for (const root of removing.values()) if (inside(dir, root)) return true;
+  return false;
+}
+
 type Row = { id: string; path: string; older: number; live: number; last_jd: number };
 
 /**
@@ -47,15 +64,21 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
      FROM project p WHERE p.hidden = 0`,
   ).all() as Row[];
   const set = db.prepare('UPDATE project SET hidden = ?, older = ? WHERE id = ?');
-  const liveNow = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
+  const setOlder = db.prepare('UPDATE project SET older = ? WHERE id = ? AND hidden = 0');
+  const liveOwn = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
+  const liveCwds = db.prepare("SELECT cwd FROM session WHERE state != 'exited' AND cwd IS NOT NULL");
+  const liveNow = (r: Row) => !!liveOwn.get(r.id) || (liveCwds.all() as Array<{ cwd: string }>).some((s) => inside(s.cwd, r.path));
   // Git has let go of this folder (no `.git` entry) but it is still there, as when Windows refused to delete it. Only an empty folder is
   // removed; anything else stays and is tried again next sweep. The workbench never shows such a folder (goneCheckout).
   const leftover = async (r: Row): Promise<void> => {
+    removing.set(r.id, r.path);
     try {
       await fs.promises.rmdir(r.path);
     } catch (e) {
       console.error(`worktree sweep: ${r.path} is no longer a worktree but could not be deleted, will retry: ${(e as Error).message.split('\n')[0]}`);
       return;
+    } finally {
+      removing.delete(r.id);
     }
     untrustFolder(r.path, engines);
     set.run(1, 0, r.id);
@@ -74,12 +97,12 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
       }
       const stale = !r.live && now - (r.last_jd - 2440587.5) * DAY_MS >= staleMs;
       if (!stale) {
-        if (r.older) set.run(0, 0, r.id);
+        if (r.older) setOlder.run(0, r.id);
         continue;
       }
       if (canonicalPath(fs.realpathSync.native(r.path)).toLowerCase().startsWith(canonicalPath(fs.realpathSync.native(root)).toLowerCase() + '/')) {
         if (!fs.existsSync(path.join(r.path, '.git'))) {
-          if (!liveNow.get(r.id)) await leftover(r);
+          if (!liveNow(r)) await leftover(r);
           continue;
         }
         const parent = db.prepare('SELECT path FROM project WHERE id = ?').get(parts[0]) as { path: string } | undefined;
@@ -87,8 +110,9 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
         const clean = (await git(r.path, ['status', '--porcelain'])).trim() === '';
         const merged = parent && main && clean && await ok(r.path, 'merge-base', '--is-ancestor', 'HEAD', `refs/heads/${main}`);
         // A session may have started while git ran: such a worktree is no longer stale, so leave it as it is.
-        if (liveNow.get(r.id)) continue;
+        if (liveNow(r)) continue;
         if (merged && parent) {
+          removing.set(r.id, r.path);
           try {
             // Longer than worktree.create's 60 s add: a timeout mid-remove would leave a half-deleted folder.
             await git(parent.path, ['worktree', 'remove', r.path], 300_000);
@@ -103,10 +127,12 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
               continue;
             }
             console.error(`worktree sweep: could not remove ${r.path}, kept as older: ${(e as Error).message.split('\n')[0]}`);
+          } finally {
+            removing.delete(r.id);
           }
         }
       }
-      if (!r.older) set.run(0, 1, r.id);
+      if (!r.older) setOlder.run(1, r.id);
       out.older.push(r.path);
     } catch (e) {
       console.error(`worktree sweep: left ${r.path} as it was: ${(e as Error).message.split('\n')[0]}`);
