@@ -1100,6 +1100,7 @@ async function onClick(e) {
       const r = await rpc('project.hide', { project_id: id });
       if (!r.result) return;
       const row = el.closest('.item'), group = row.parentElement;
+      if (!group) return;
       row.remove();
       if (!group.querySelector('.item')) group.remove();
       return;
