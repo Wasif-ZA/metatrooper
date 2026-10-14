@@ -109,7 +109,7 @@ foreground}`).
 
 | Method | Params | Result |
 |---|---|---|
-| `desktop.ui-window` | `{pid}` (ui.hello) | `{}`; the workbench's process id, whose windows are never listed or granted |
+| `desktop.ui-window` | `{pid, takeover_key, takeover_error}` (ui.hello) | `{}`; the workbench's process id, whose windows are never listed or granted, and the take-over key it registered (`takeover_error` null) or failed to register (`takeover_error` says why). Until a registered key is reported, `grant.window` fails with a message naming the reason, and a failure ends every live grant (decision 7, Wasif may reverse) |
 | `grant.candidates` | `{}` (ui.hello) | `{windows: [{hwnd, title, exe, pid}]}`: visible top-level windows that may be granted |
 | `grant.window` | `{session_id, hwnd}` (ui.hello) | `{grant_id}`; -32003 for a window that cannot be granted |
 | `grant.revoke` | `{grant_id}` (ui.hello) | `{}` |

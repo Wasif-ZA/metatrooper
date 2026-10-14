@@ -423,7 +423,7 @@ namespace TroopUia {
       int vk; char ch = '\0';
       if (Keys.TryGetValue(last, out vk)) { if (vk == 0x0D) ch = '\r'; else if (vk == 0x09) ch = '\t'; else if (vk == 0x08) ch = '\b'; else if (vk == 0x20) ch = ' '; else if (vk == 0x1B) ch = (char)0x1B; }
       else if (last.Length > 1 && (last[0] == 'F' || last[0] == 'f') && int.TryParse(last.Substring(1), out vk) && vk >= 1 && vk <= 24) vk = 0x6F + vk;
-      else if (last.Length == 1) { ch = last[0]; vk = char.ToUpperInvariant(ch); if (!char.IsLetterOrDigit(ch)) vk = 0; }
+      else if (last.Length == 1) { ch = last[0]; vk = char.ToUpperInvariant(ch); if (ch > '~' || !char.IsLetterOrDigit(ch)) vk = 0; }
       else throw new Exception("unknown key " + last);
       uint down = alt ? WM_SYSKEYDOWN : WM_KEYDOWN, upMsg = alt ? WM_SYSKEYUP : WM_KEYUP;
       foreach (var m in mods) Native.PostMessage(target, down, new IntPtr(m), KeyLParam(m, false, alt));

@@ -15,6 +15,8 @@ export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
 export const OFF = 'computer use is off: the desktop plugin is disabled';
 export const CHUNK = 8;
+/** Printable ASCII, or one printable non-ASCII UTF-16 unit as a whole token: JavaScript and .NET then trim and split it alike. */
+const keysOk = (keys: string) => keys.split('+').every((t) => /^[\x20-\x7e]*$/.test(t) || (/^ *[^\p{C}\p{Z}\p{M}\s] *$/u.test(t) && t.trim().length === 1));
 /** A pause acknowledgement waits this long after the last posted key or click. */
 export const POST_SETTLE_MS = 250;
 const CONTROL_CHANGED = -32035;
@@ -118,6 +120,8 @@ export class Desktop {
   readonly helper = new Helper();
   private db: DatabaseSync;
   private uiPid: number | null = null;
+  /** Why no window can be granted: the workbench's take-over key is not registered. */
+  private noTakeover: string | null = 'the workbench has not reported its take-over key';
   private bound = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
   private inFlight: Promise<unknown> | null = null;
@@ -257,8 +261,7 @@ export class Desktop {
     if (!['click', 'type', 'key', 'scroll'].includes(action)) throw new RpcError(E.INVALID_PARAMS, 'action must be click, type, key or scroll');
     const ref = typeof p.ref === 'string' && p.ref ? p.ref : undefined;
     if ((action === 'click' || action === 'type') && !ref) throw new RpcError(E.INVALID_PARAMS, 'ref is required');
-    // approval and the helper trim differently outside printable ASCII
-    if (action === 'key' && (typeof p.keys !== 'string' || /[^\x20-\x7e]/.test(p.keys))) throw new RpcError(E.INVALID_PARAMS, 'keys must be printable ASCII, like Control+S');
+    if (action === 'key' && (typeof p.keys !== 'string' || !keysOk(p.keys))) throw new RpcError(E.INVALID_PARAMS, 'keys must be printable, like Control+S or Ã©; a non-ASCII character must be a key on its own');
     return this.serial(async () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
       const now = await this.describe(sessionId, hwnd, ref);
@@ -316,6 +319,10 @@ export class Desktop {
     m.set('desktop.ui-window', { needsUi: true, handler: (p) => {
       if (typeof p.pid !== 'number' || !Number.isInteger(p.pid)) throw new RpcError(E.INVALID_PARAMS, 'pid is required');
       this.uiPid = p.pid;
+      const key = typeof p.takeover_key === 'string' ? p.takeover_key : '';
+      this.noTakeover = !key ? 'the workbench has not reported its take-over key'
+        : typeof p.takeover_error === 'string' && p.takeover_error ? `the take-over key ${key} did not register (${p.takeover_error})` : null;
+      if (this.noTakeover) for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
       return {};
     } });
     m.set('grant.candidates', { needsUi: true, handler: async () => {
@@ -330,8 +337,11 @@ export class Desktop {
       this.on();
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
+      const pausable = () => { if (this.noTakeover) throw new RpcError(E.VALIDATION, `no window can be given: ${this.noTakeover}, so the agent could not be paused; set a free desktop.takeover_key and restart the workbench`); };
+      pausable();
       const w = await this.info(hwnd);
       this.on();
+      pausable();
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (!w.alive) throw new RpcError(E.VALIDATION, 'that window is gone');
       if (w.pid === this.uiPid) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');

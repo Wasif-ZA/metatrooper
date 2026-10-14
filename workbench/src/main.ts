@@ -168,10 +168,13 @@ function schedulePush(): void {
 }
 
 let toldPid: number | null = null;
+/** The take-over key as registered, and why it failed; the error is undefined until registration has been tried. */
+let takeoverKey = '';
+let takeoverError: string | null | undefined;
 /** Tells each core that starts (a new `core.pid`) this process's pid, so it never lists or grants the workbench's windows (M6-15). */
 async function tellCoreOurPid(corePid: number | null): Promise<void> {
-  if (!corePid || corePid === toldPid) return;
-  const out = await call('desktop.ui-window', { pid: process.pid }, { ui: true });
+  if (!corePid || corePid === toldPid || takeoverError === undefined) return;
+  const out = await call('desktop.ui-window', { pid: process.pid, takeover_key: takeoverKey, takeover_error: takeoverError }, { ui: true });
   if (out.kind === 'reply' && !out.reply.error) toldPid = corePid;
 }
 
@@ -784,12 +787,13 @@ if (!app.requestSingleInstanceLock()) {
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
     void gitTick();
-    const takeover = settings().desktop.takeover_key;
+    const takeover = takeoverKey = settings().desktop.takeover_key;
     try {
-      if (!globalShortcut.register(takeover, () => { void call('takeover.pause', {}, { ui: true }).then(schedulePush); })) console.error(`take-over key ${takeover} is held by another program`);
+      takeoverError = globalShortcut.register(takeover, () => { void call('takeover.pause', {}, { ui: true }).then(schedulePush); }) ? null : 'held by another program';
     } catch (e) {
-      console.error(`take-over key ${takeover} is not a valid accelerator: ${(e as Error).message}`);
+      takeoverError = `not a valid accelerator: ${(e as Error).message}`;
     }
+    if (takeoverError) console.error(`take-over key ${takeover} ${takeoverError}`);
     app.on('will-quit', () => globalShortcut.unregisterAll());
     const frameTick = async () => {
       try {
