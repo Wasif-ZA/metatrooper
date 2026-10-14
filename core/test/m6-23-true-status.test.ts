@@ -1471,3 +1471,50 @@ test('M6-23 a forged opencode report cannot suppress title states on a process e
     await h.close();
   }
 });
+
+test('M6-23e ID-less child replies close only a unique question from the replying session', async () => {
+  // protects=session-scoped ID-less replies fails_when=a sibling or ambiguous ask is closed no_claim=live opencode behavior
+  const h = await memoryDb();
+  try {
+    const events: BusEvent[] = [
+      { type: 'session.created', properties: { info: { id: 'C1', parentID: 'R' } } },
+      { type: 'session.created', properties: { info: { id: 'C2', parentID: 'R' } } },
+      { type: 'question.asked', properties: { sessionID: 'C1', id: 'Q1' } },
+      { type: 'question.replied', properties: { sessionID: 'C2' } },
+      { type: 'question.replied', properties: { sessionID: 'C1', requestID: 'Q1' } },
+      { type: 'question.asked', properties: { sessionID: 'C1', id: 'Q1' } },
+      { type: 'question.asked', properties: { sessionID: 'C2', id: 'Q2' } },
+      { type: 'question.replied', properties: { sessionID: 'C2' } },
+      { type: 'question.replied', properties: { sessionID: 'C2', requestID: 'Q2' } },
+      { type: 'question.replied', properties: { sessionID: 'C1', requestID: 'Q1' } },
+      { type: 'question.asked', properties: { sessionID: 'C1', id: 'A' } },
+      { type: 'question.asked', properties: { sessionID: 'C1', id: 'B' } },
+      { type: 'question.replied', properties: { sessionID: 'C1' } },
+      { type: 'question.replied', properties: { sessionID: 'C1', requestID: 'B' } },
+      { type: 'question.replied', properties: { sessionID: 'C1', requestID: 'A' } },
+    ];
+    const reports = await pluginReports(h.home, events, 13);
+
+    assert.deepEqual(reports.map((r) => ({
+      state: r.payload.state,
+      ...(r.payload.why === undefined ? {} : { why: r.payload.why }),
+      session_id: r.payload.session_id,
+    })), [
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'working', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'working', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'working', session_id: 'R' },
+    ]);
+  } finally {
+    await h.close();
+  }
+});
