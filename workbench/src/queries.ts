@@ -38,6 +38,8 @@ export interface Snapshot {
   settings_error?: string | null;
   core_mismatch?: string | null;
   core_log?: string[] | null;
+  /** Sessions holding a live grant while the input watcher is off (M6-22): their tiles say so. */
+  watcher_off?: string[];
 }
 
 /** Engine light: green when installed and auth ok, grey when auth is unknown or never checked, red when missing or failed. */
@@ -166,7 +168,17 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     git: {},
     selected: (db.prepare("SELECT session_id FROM ui_selection WHERE window_id = 'main'").get() as { session_id: string | null } | undefined)?.session_id ?? null,
     limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
+    watcher_off: watcherOff(db),
   };
+}
+
+/** Sessions with a live grant when `meta.input_watcher` is 'off'; none before the grant table exists. */
+function watcherOff(db: DatabaseSync): string[] {
+  try {
+    return (db.prepare("SELECT DISTINCT g.session_id FROM grant g JOIN meta m ON m.key = 'input_watcher' AND m.value = 'off' WHERE g.ended_at IS NULL ORDER BY g.session_id").all() as Array<{ session_id: string }>).map((r) => r.session_id);
+  } catch {
+    return [];
+  }
 }
 
 type TaskRow = { engine_id: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string };
@@ -187,6 +199,26 @@ export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | nu
   if (session && focused.window && n.ref === focused.session) return null;
   const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you';
   return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
+}
+
+/** Needs-you rows to toast: none until a snapshot read from the database seeds `seen`; a fallback snapshot leaves `seen` as it is. */
+export function freshNeeds(seen: Set<string> | null, s: Pick<Snapshot, 'needs_you'>, fromDb: boolean): { seen: Set<string> | null; fresh: Snapshot['needs_you'] } {
+  if (!fromDb) return { seen, fresh: [] };
+  if (!seen) return { seen: new Set(s.needs_you.map((n) => n.id)), fresh: [] };
+  const fresh = s.needs_you.filter((n) => !seen.has(n.id) && !n.read_at);
+  for (const n of fresh) seen.add(n.id);
+  const ids = new Set(s.needs_you.map((n) => n.id));
+  for (const id of [...seen]) if (!ids.has(id)) seen.delete(id);
+  return { seen, fresh };
+}
+
+/** Calls `onChange` when a file in `dir` starting with `prefix` is written; watcher errors are dropped (the poll still runs). */
+export function watchDb(dir: string, prefix: string, onChange: () => void): fs.FSWatcher | null {
+  try {
+    return fs.watch(dir, (_event, name) => { if (name && String(name).startsWith(prefix)) onChange(); }).on('error', () => {});
+  } catch {
+    return null;
+  }
 }
 
 export function dataVersion(db: DatabaseSync): number {

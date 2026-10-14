@@ -101,7 +101,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D71 | Desktop driver | Wasif, 2026-10-10: nothing is installed for computer use until it is really needed. MetaTrooper ships its own driver on Windows' built-in UI Automation (a long-lived PowerShell helper, no install, no new dependency). cua-driver (trycua/cua, MIT) stays the named upgrade behind the same tool list, added only when the built-in driver proves too weak on real apps, and only with Wasif's yes to install it |
 | D72 | Signing and installer | Wasif, 2026-10-10: no money on a certificate for now. The first public release is a source install (`git clone`, `npm install`, `npm start`; signed `node.exe` runs under Smart App Control, as on this laptop). The installer (M5-1, WIP kept on `agent/m5-1`) and signing (M5-2) wait until Wasif sees real users outside himself; then he decides whether to pay. D50's rule stands: no unsigned installer is published |
 | D73 | Mined ideas | Wasif, 2026-10-10: every mined idea that closes a gap named by a rival angle (users of Orca, t3code, cmux and others asking for it) was weighed for this milestone. Wasif left the cut to Claude, aiming for the best product at launch. Kept: the gaps that make the wall's status and limits trustworthy (M6-23 to M6-25, 4.0 CC days), because a true status, sessions that carry on and a working Windows desk are what people choose a desk on. Moved after the release, specced and ready: page comment threads, source file of a pick, mark-up, cross-origin picks, device and rendering modes, reference overlay, and continue-in-another-engine (9.5 CC days); rivals already ship annotation, so these do not decide a switch. Every other gap waits too, High-value ones included. The public release stays 2027-01-19; the freeze moves to 2026-12-30 |
-| D74 | Script in owned dev pages | Wasif, 2026-10-10: MetaTrooper adds nothing to a page's own code, with one exception. A pane showing a dev server that one of the user's sessions owns (a `ready` `session_dev_server` row, D60) gets a read-only 30-line devtools-hook stub before load, so a pick can name the component and its source file. No other origin ever gets it (M6-23) |
+| D74 | Script in owned dev pages | Wasif, 2026-10-10: MetaTrooper adds nothing to a page's own code, with one exception. A pane showing a dev server that one of the user's sessions owns (a `ready` `session_dev_server` row, D60) gets a read-only 30-line devtools-hook stub before load, so a pick can name the component and its source file. No other origin ever gets it (M7-2) |
 | D75 | metarouter | Wasif, 2026-10-10, cut left to Claude: metarouter moves into this repo as `router/`, merged with its history, and stays Python. Porting 4,600 lines and 391 tests to TypeScript before the freeze buys nothing a user sees. One resolver, `router/bin/metarouter.js`, finds Python 3.11+ (`TROOP_PYTHON`, then `py -3`, `python`, `python3`) and runs the bundled copy, else an installed `metarouter`, else exits 127 saying what is missing. `troop route`, the gate's A-05 metric and the plugin action all go through it, so they always run the version beside the core. The `metarouter` command and the PyPI package keep their names; PyPI releases take `router-v*` tags so they never trigger the desk's `v*` release. `router/` is MIT like the other glue folders; metarouter had no licence before |
 | D76 | metarouter on by default | Wasif, 2026-10-11: metarouter is called by default from MetaTrooper. With `sessions.metarouter` (default true), every pty session gets `router/bin` first on `PATH`, where `metarouter` and `metarouter.cmd` run the bundled copy through the D75 resolver, and an engine with `instructions_arg` (Claude: `--append-system-prompt`) gets the same instruction block `metarouter init` writes. Codex and agy get the PATH only, until a flag for extra instructions is confirmed on each. Sandbox sessions are unchanged, because `router/` is not mounted there |
 | D77 | Milestone 7 | Claude, 2026-10-11, under the M7 brief Wasif asked to run; not yet confirmed by Wasif: the ideas D73 moved after the release become Milestone 7 (about 29 CC days from 2027-01-20). Every mined idea has a recorded fate in `ide-layer-research/idea-coverage.md`. Eight that change a security, data, dependency or native-binary line (lend a login, Google sign-in identity, pty host, bundled ConPTY, retention pruning, limits by probe, cua-driver, a Linux desktop sandbox) are not specced; the compose box is cut. Defaults chosen so nothing changes until a user opts in: no browser preset means every tool, `worktree.preserve` is empty, new agents still take the big slot, auto layout and shell integration are off, unset wall fractions keep today's formulas |
@@ -109,6 +109,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D79 | Files panel | Wasif, 2026-10-12, in a /spec session: MetaTrooper gets a light file viewer, not an IDE (M7-9). It docks in the second big slot beside the focused tile, as Warp and Claude Code desktop do, and shows only that session's `cwd`. Tabs open read-only; `Edit` unlocks one tab, and a save refuses when the file changed on disk or another live session owns it (`ownersAsync`) until the user confirms. Real editing goes to VS Code through the existing `openLink`. No language servers. After the release, so Milestone 6 is unchanged |
 | D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
 | D81 | Wall repairs before the freeze | Wasif, 2026-10-12, in a /spec session from the UI research (`~/.cache/claude-scratch/metatrooper-ui-research-2026-10-12/report.html`): repairs to existing UI go in Milestone 6; the new History and Settings panels go to M7. Undo for hide is a 7 s delay in the renderer, with no `session.unhide` in the core. The tile x never shows on a live agent (M6-27, Critical, never slips). The other repairs are one child, M6-26, High, first on the slip list because the 81-day plan has no slack |
+| D82 | Session launcher in Rust | Wasif, 2026-10-12, after a memory check (19.6 GB in use, about 8.3 GB of it Codex processes left by closed sessions): `launch.js` becomes a Rust binary on Windows that puts each session in a job object ending every descendant on close (M7-10). It is the only Rust in the product; D10 stands for the core and the workbench. A Rust core was weighed and dropped: 8,987 lines at about 250 lines per CC day is 25 to 40 CC days for about 137 MB. The new binary joins the M5-2 signing step. If the M7-10 spike shows a detached broker survives the job, the folder sweep in `issues/m7-10-session-launcher.md` replaces it. |
 
 ## Current state, verified 2026-10-10
 
@@ -139,11 +140,12 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 - Session state (`core/src/events/state.ts`, 48 lines): Codex moves to `done` on `codex.turn`; a Codex approval
   prompt reaches `waiting_for_you` only through a terminal bell or, after 20 s of quiet, `core.activity` `blocked`,
   and `blocked` only moves a session that is still `working` (`state.ts:29`), so a prompt after `codex.turn` is missed.
-  Process engines (opencode, copilot, gemini, pi) have no hook state. `claude.SessionEnd` maps to `idle` in code
+  Process engines (opencode, copilot, gemini, pi) have no hook state. `state_titles` (Title states, below) is not
+  built: M6-5 left it (checked 2026-10-14). `claude.SessionEnd` maps to `idle` in code
   but to `exited` in `contracts/events-and-hooks.md:84`.
 - Browser snapshot refs restart at `e1` on every call (`panes.ts` `snapshotLines`: `pane.refs.clear()`, `refN = 0`),
   so an old ref can name a different element. `Accessibility.getFullAXTree` is called with no frame id. The cursor
-  overlay is one hardcoded blue dot (`workbench/renderer/overlay.css`), and `panes.ts:543-544` sleeps a fixed time
+  overlay is one hardcoded blue dot (`workbench/renderer/overlay.css`), and `panes.ts` `pointAt` sleeps a fixed time
   and reads the cursor back before each action.
 - Terminals spawn with `useConpty: true` (`core/src/terminal/index.ts:48`), but neither xterm sets `windowsPty`,
   and there is no flow control (no `pause`/`resume`).
@@ -228,7 +230,8 @@ Launching, the engine registry, health lights, usage and limits work as built. C
   or a new prompt; a PreToolUse for a different call does not end it. `claude.SessionEnd` maps to `idle` for
   terminal sessions and `exited` only for `external` sessions; the contract is corrected to match.
 - **Title states.** For engines without hooks, each engine file may declare `state_titles` (regex to state). A
-  title matching a `waiting` pattern maps to `waiting_for_you`, a `working` pattern to `working`. No engine name
+  title matching a `waiting` pattern maps to `waiting_for_you`, a `working` pattern to `working`; an `idle` pattern is
+  what M6-23's interrupt rule matches. No engine name
   is in core code.
 - **Comes back after a restart.** When the core starts and finds sessions that were live when it stopped, it
   resumes them with the engine's `resume_args`: at most 3 at a time, 2 s apart plus up to 1 s of random jitter. It
@@ -568,7 +571,7 @@ off the critical path. Typed text is never shown. The real pointer never moves.
   in pixels. Worked: a 600 px move to an 80 px button is 600 / 80 + 1 = 8.5; log2(8.5) = 3.09; 70 + 55 x 3.09 = 240,
   capped to 220 ms. A 40 px hop to a 120 px button is 40 / 120 + 1 = 1.33; log2(1.33) = 0.41; 70 + 22.6 = 93 ms.
   Added cost per action: at most 220 ms glide plus about 15 ms for the reply, so under 250 ms. The fixed sleep and
-  read-back in `panes.ts:543-544` go.
+  read-back in `panes.ts` `pointAt` go.
 - **Desktop placement.** The helper reports window and element rectangles (`BoundingRectangle`) in physical pixels; the workbench converts
   with `screen.screenToDipRect` and picks the display with `screen.getDisplayMatching`, one overlay window per
   display so mixed 100% and 150% screens stay sharp. It refits on `display-metrics-changed`, `display-added`,
@@ -579,7 +582,9 @@ off the critical path. Typed text is never shown. The real pointer never moves.
   every 100 ms; 1.5 s after the last action, `setAlwaysOnTop(false)` and hide. Never left in the always-on-top band.
 - **Out of the agent's screenshots.** `setContentProtection(true)` at creation, and one frame (about 16 ms) is
   waited after showing before the next agent screenshot. If protection is not available, the screenshot result says
-  `overlay_may_show: true`. Pane cursors live in a separate view and never appear in page captures.
+  `overlay_may_show: true`. Pane cursors live in a separate view and never appear in page captures. Agent
+  screenshots themselves cannot hold an overlay (`Page.captureScreenshot` on the pane, `PrintWindow` on the target
+  window); content protection matters for whole-screen captures.
 - **Many agents.** Each session's cursor stays; the latest mover draws on top. Idle for 5 s, a cursor fades over
   300 ms. Reduced motion (CSS and `systemPreferences.getAnimationSettings()`): snap and a 120 ms colour flash.
 - **Settings.** `agent_cursor.mode`: `off`, `instant` (snap and ripple), `snappy` (default, above), `human` (slower
@@ -669,6 +674,11 @@ Effort, worked:
   M6-26 fits only if earlier children finish faster than planned, and is first on the slip list otherwise.
 - Pace: M5 planned 30.85 CC days over 27 calendar days with four parallel sessions and paused with work unfinished,
   so this plan assumes 1 CC day per calendar day, limited by Wasif's review time, not by sessions.
+- Calibration, 2026-10-12, from git history: 18 children worth 36.25 CC days merged in 1.77 calendar days
+  (36.25 / 1.77 = 20.5 per day), none accepted yet, so the pace line above stands until one acceptance round is
+  measured. Remaining sizes stand: M6-15 has 2,973 lines at about 250 lines per CC day, 2,973 / 250 = 11.9 of its
+  12.0. For new specs: approval, safety and wiring work x1.5 (M6-2 ran 768 lines per CC day); terminal and key
+  handling x0.5 (M6-7 and M6-9 ran 70 to 90); no raise after a review round by default.
 - Calendar: 81 days from 2026-10-11 is 2026-12-30 (21 days left in October, 30 in November, 30 in December:
   21 + 30 + 30 = 81). Freeze 2026-12-30 (D73). The 20 days to the public release on 2027-01-19 (1 left in December,
   19 in January: 1 + 19 = 20) hold the source-install runs on a second PC and the holidays. There is no slack
@@ -913,6 +923,10 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - Token masking (M7-5) covers titles, last lines, logs and notifications. The tile body is the raw pty stream and
   shows a printed token as printed.
 - Grants and approvals do not stop a hostile process running as the user (Threat model).
+- Fatal patterns (M6-23) are checked only while a session is `working`; an engine that never reaches `working`
+  never trips one.
+- Interrupt detection (M6-23) reads each CLI's terminal title glyphs, which are not a contract; a CLI update can turn
+  it off silently, leaving the tile `working` as before.
 - An auto-mode agent can script the desktop through its own shell (D70). The input watcher catches injected input
   but cannot name the program that sent it. Input sent as window messages (`PostMessage`, `SendMessage`) or through
   UI Automation patterns (`InvokePattern`, `ValuePattern`) makes no input event and is not seen, so an agent's own
@@ -938,7 +952,7 @@ Deferred by Wasif on 2026-10-10, nothing waits on them before the freeze:
 - Phone control and the metered cloud: later epics.
 - macOS testing.
 
-## Milestone 7: after the release (about 32 CC days, from 2027-01-20)
+## Milestone 7: after the release (about 35 CC days, from 2027-01-20)
 
 Specced 2026-10-11 from the ideas D73 moved after the release (D77). Each item names its idea in the idea mine
 (`<lane> <n>`), and every file and line it names was checked against the code at e68b1a9. Nothing here starts
@@ -950,13 +964,14 @@ before the public release on 2027-01-19, and nothing here changes Milestone 6.
 |---|---|---|---|---|
 | M7-1 | Browser tools version 3: presets, numbered screenshots, batch, wider waits, covered tags, re-attach, WebMCP spike | High | 2.75 | M6-11, M6-12 |
 | M7-2 | Comments that come back: threads, source file of a pick, mark-up, cross-origin picks | High | 6.0 | M7-1, M6-13, M6-18 |
-| M7-3 | Compare the page: device, rendering, reference overlay, follow session | Medium | 2.0 | M6-11 |
+| M7-3 | Compare the page: device, rendering, reference overlay, follow session | Medium | 2.0 | M6-11, M7-1 |
 | M7-4 | Continue in another engine | Medium | 1.5 | M6-24 |
-| M7-5 | Core hygiene: token masking, WAL result, port bind test, regex caps, hook repair, sandbox containers | High | 2.0 | M6-3, M6-4 |
-| M7-6 | Sessions: Gemini usage, pi state, exit ladder, prompt check, turn refs, quiet phone alerts, worktree files | High | 2.5 | M6-5, M6-10, M6-20, M6-21 |
+| M7-5 | Core hygiene: token masking, WAL result, port bind test, regex caps, hook repair, sandbox containers | High | 2.0 | M6-3, M6-4, M6-23 |
+| M7-6 | Sessions: Gemini usage, pi state, exit ladder, prompt check, turn refs, quiet phone alerts, worktree files | High | 2.5 | M6-5, M6-10, M6-20, M6-21, M6-23 |
 | M7-7 | Wall layout: splitters, fractions, auto layout, drag to pair, fold stack, palette ranking | Medium | 5.0 | M7-8, M6-6, M6-7, M6-9, M6-19 |
 | M7-8 | Terminal: paste, shell marks, batching, OSC text, resize, copy output, graphemes, find, screen reader, anchor | Medium | 3.5 | M6-7, M6-8, M6-19 |
 | M7-9 | Files panel: read the agent's worktree beside its tile, guarded save, VS Code handoff (D79, D80) | Medium | 2.75 | M6-21 |
+| M7-10 | Session launcher in Rust: a closed session ends every process it started (D82) | High | 2.0 | none |
 
 Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
 
@@ -972,39 +987,44 @@ Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
   1.5 + 2.0 = 3.5.
 - M7-9: added 2026-10-12 (D79), sized by part in `issues/m7-09-files-panel.md`: 0.25 + 0.75 + 0.5 + 0.75 + 0.25 +
   0.25 = 2.75.
-- Build: 2.75 + 9.5 + 2.0 + 2.5 + 5.0 + 3.5 + 2.75 = 28.0 CC days.
-- Review, merge and two-engine checks at 15%: 28.0 x 0.15 = 4.2 CC days.
-- Total: 28.0 + 4.2 = 32.2, about 32 CC days.
-- Calendar, at M6's pace of 1 CC day per calendar day: 29 days from 2027-01-20 is 2027-02-17 (12 days left in
-  January, 20 to 31, then 17 in February: 12 + 17 = 29).
+- M7-10: added 2026-10-12 (D82), sized by part in `issues/m7-10-session-launcher.md`: 0.25 + 0.5 + 0.25 + 0.25 +
+  0.5 + 0.25 = 2.0.
+- Build: 2.75 + 9.5 + 2.0 + 2.5 + 5.0 + 3.5 + 2.75 + 2.0 = 30.0 CC days.
+- Review, merge and two-engine checks at 15%: 30.0 x 0.15 = 4.5 CC days.
+- Total: 30.0 + 4.5 = 34.5, about 35 CC days.
+- Calendar, at M6's pace of 1 CC day per calendar day: 35 days from 2027-01-20 is 2027-02-23 (12 days left in
+  January, 20 to 31, then 23 in February: 12 + 23 = 35).
 
 ```
 M6-4 ──> M7-5 core hygiene
 M6-5, M6-10 ──> M7-6 sessions
 M6-11, M6-12 ──> M7-1 browser v3 ──> M7-2 comments (also M6-13, M6-18)
-M6-11 ──> M7-3 compare
+M6-11, M7-1 ──> M7-3 compare
 M6-24 ──> M7-4 continue elsewhere
 M6-7, M6-9, M7-8 ──> M7-7 wall layout   (inside: fractions, then splitters, then fold and cross-fade)
 M6-7, M6-8 ──> M7-8 terminal      (inside: shell marks before copy output)
+M7-10 launcher   (no dependency; its spike runs first)
 ```
 
-Order of work: M7-5 and M7-6 first (small, core, and the rest read their events), then M7-8, M7-7 and M7-1. M7-2 to
+Order of work: M7-10's spike, then M7-5 and M7-6 (small, core, and the rest read their events), then M7-10, M7-8,
+M7-7 and M7-1. M7-2 to
 M7-4 are built as already written.
 
 ### M7-1: Browser tools version 3
 
-Files: `core/src/hook/browser-mcp.ts` (`TOOLS` at 12-27, `tools/list` at 158-159, `toolCall` at 112-145),
+Files: `core/src/hook/browser-mcp.ts` (`const TOOLS`, `case 'tools/list'`, `toolCall`),
 `workbench/src/browser/panes.ts`, `workbench/src/browser/server.ts`, new `core/src/browser/grants.ts`,
 `workbench/src/main.ts`, `contracts/browser-tools.md`.
 
 - **Tool presets** (browser-control 4). `grants.ts` holds three presets: `look` (panes, navigate, snapshot,
-  screenshot, scroll, read, handoff), `act` (look plus click, type, select, wait_for, back, dialog) and `debug` (act plus
+  screenshot, scroll, read, handoff), `act` (look plus click, type, key, select, wait_for, back, dialog, batch) and `debug` (act plus
   console, network, evaluate). `.troop/config.json` `browser.grant` and the launch call pick one; with none set, the
   session keeps every tool, as today. `browser.hello` returns the grant, `tools/list` lists only its tools, and a
   call outside it fails -32034 "needs grant debug". An unknown preset name fails the launch. D61 approvals stay the
   only confirm step; presets add no second one.
 - **Numbered screenshots** (browser-control 10). `screenshot {annotate: true}` reads each ref's box
-  (`DOM.getBoxModel`, as the click path does), draws a red box and number per ref inside the captured area in the
+  (`DOM.getBoxModel` alone; the click path's `box()` also scrolls the node into view, which a whole-page pass must
+  not do), draws a red box and number per ref inside the captured area in the
   isolated world, captures, and removes the overlay in a `finally`. The result adds a legend: `n -> ref, x,y,w,h`.
 - **Batch** (browser-control 11). `batch {pane_id, steps: [{tool, args}], stop_on_error: true}` runs up to 20 steps
   through `browser.call` one at a time, so grants, origin approvals and audit rows apply per step. Allowed inside:
@@ -1013,11 +1033,12 @@ Files: `core/src/hook/browser-mcp.ts` (`TOOLS` at 12-27, `tools/list` at 158-159
   a failure. After a failure the rest report `skipped`. The last step's page footer comes back once.
 - **One isolated world per document, wider waits** (browser-control 15). `Pane` caches its
   `executionContextId` and drops it on `Runtime.executionContextsCleared` or `executionContextDestroyed` for that
-  id (today `isolated()` at panes.ts:561-565 creates a world on every call). `wait_for` gains `text_gone`,
+  id (today `isolated()` in panes.ts creates a world on every call). `wait_for` gains `text_gone`,
   `url_includes` and `idle_ms` (no request for that long, from the network ring), raced together, and returns
   `clamped_to_ms` when a timeout over 30 s was cut.
 - **Covered and off-screen tags** (browser-control 19). After the snapshot walk, one batched
-  `Runtime.callFunctionOn` runs the click path's hit test (panes.ts:505-520) at each ref's box centre and adds
+  `Runtime.callFunctionOn` runs the click path's hit test (panes.ts `target()`, `elementFromPoint`) at each ref's
+  box centre, with boxes read without scrolling, and adds
   ` [covered]` or ` [offscreen]` to the line. Nothing is dropped.
 - **Re-attach after a detach** (browser-pane 13). `pane.dbg.on('detach')`, unless the pane is closing, re-attaches,
   re-runs the domain enables and Fetch interception, re-applies the parked viewport and sets `reconnected` on the
@@ -1062,7 +1083,8 @@ and cross-origin picks; M7-3 is compare the page; M7-4 is continue in another en
 - **Hook repair** (core-sessions 13). At core start, when a global install exists (`state.claude`), each
   MetaTrooper hook command in `~/.claude/settings.json` must name a file that exists and equals `eventScript()`. If
   not, the core saves `settings.json.troop.bak` once and runs `installClaude()`, which rewrites only MetaTrooper's
-  own entries through the M6-4 safe writer. It skips a dev checkout whose path differs from the recorded install, and
+  own entries through the tmp, fsync and rename write that `setSetting` does inline today (M6-4 built no shared
+  writer), moved into a shared helper. It skips a dev checkout whose path differs from the recorded install, and
   an install recorded by a newer version. Today a global install made from an older path keeps its broken commands:
   per-session hooks still run (`isOurs` at `install.ts:33` matches only the current path), but every Claude event
   also runs a hook that fails, and nothing ever removes it. Repair drops entries naming a missing `event.js`.
@@ -1073,19 +1095,20 @@ and cross-origin picks; M7-3 is compare the page; M7-4 is continue in another en
   `waiting_for_you` and `idle` and runs `core/event.js` with `pi.state`, as M6-23's opencode reporter does;
   `engines/pi.json` moves from `state_source: process` to the plugin, with title states as the fallback.
 
-- **Gemini usage** (core-sessions 2). After M6-5 gives Gemini its hooks and `transcript_path`, a transcript reader
+- **Gemini usage** (core-sessions 2). Gemini hooks are not live (Gemini CLI 0.63 skips a user-owned system settings
+  file on Windows, M6-5 report), so the reader finds Gemini's own chat recording from start time and cwd; a reader
   in `core/src/meter.ts` writes `usage` rows and `engines/gemini.json` sets `usage_source: gemini-transcript`, a new
   value in the engine schema (`contracts/plugin-manifest.schema.json`) and `EngineSpec` (`core/src/engines/registry.ts`).
 - **Exit ladder** (core 12, core-sessions 14). A pure `closeGracefully()` in `core/src/terminal/close.ts`: a session
   in `waiting_for_you` goes straight to kill; otherwise paste the engine's `exit_cmd` (new engine field in the same schema and
   `EngineSpec`, `/exit` for Claude) and Enter, wait 3 s, send Enter, wait 3 s, kill. On Windows, if the pid is alive 1.5 s after the kill,
-  `taskkill /T /F /PID`. Used by session close and core stop; `shell.close` keeps a plain kill. First task: kill a
+  `taskkill /T /F /PID`. Used by session close (a new UI method `session.close`; the core has none today) and core stop; `shell.close` keeps a plain kill. First task: kill a
   fixture session that started a node server and list processes still carrying `TROOP_SESSION_ID`, recorded in the
   issue.
 - **Prompt check** (core 10). After `core.prompt-written` (`core/src/sessions/launch.ts:113-125`), no `working`
   event within 20 s raises a needs-you item "the prompt may not have been sent" with a Resend action. A prompt is
   held while the user typed into that tile in the last 2 s.
-- **Turn bases as hidden refs** (core 9). `markTurnBase` (`core/src/events/processor.ts:171`) stops using
+- **Turn bases as hidden refs** (core 9). `markTurnBase` (`core/src/events/processor.ts` `turnSnapshot`) stops using
   `git stash create`. It copies the index to a temp `GIT_INDEX_FILE`, runs `add -A`, `write-tree` and `commit-tree`,
   and stores the commit at `refs/troop/turn/<session>/<n>`. The Diff reads that ref, so files the agent added show
   and `git gc` cannot drop the base. Hiding a session keeps its refs; M7 deletes none. The user's index, HEAD and branches
@@ -1095,10 +1118,10 @@ and cross-origin picks; M7-3 is compare the page; M7-4 is continue in another en
   until idle is at least `notify.hold_until_idle_s` (180) or the row is `notify.hold_max_s` (300) old and still
   open; with no idle report in 90 s nothing is held. A hidden window flashes its taskbar button and shows the open
   count as an overlay. Rows for one session within 5 s are sent once.
-- **Worktree files** (core 13). `worktree.preserve: string[]` in project settings, empty by default. After
+- **Worktree files** (core 13). `worktree.preserve: string[]` in settings (there are no project settings), empty by default. After
   `git worktree add`, matching files are copied; a pattern that is empty, absolute, a drive or UNC path or holds `..`
   is refused, and a source or destination that resolves outside its tree is refused. `worktree.create` moves from
-  `execFileSync` (`core/src/methods.ts:276`) to async `execFile`.
+  `execFileSync` (`core/src/methods.ts` `worktree.create`) to async `execFile`.
 
 ### M7-7: Wall layout
 
@@ -1108,7 +1131,8 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
 - **Fractions** (wall-layout 5). `ui.wall = {bigFrac, workFrac, pairFrac}` per project, saved through
   `settings.set` with the M6-6 layout. Each is its own split, kept between 0.2 and 0.8: `bigFrac` is the big column's
   share of the width, `workFrac` the work rows' share of the side column's height, `pairFrac` the first pair tile's
-  share of the big column. An unset fraction keeps today's formula (`wall.js:66`, `84` and `90`), so nothing
+  share of the big column. An unset fraction keeps today's formula (`wall.js` `rects()`: `const colW`, `const wh`, and the even pair split
+  `const bw`), so nothing
   changes until a splitter is moved.
 - **Splitters** (wall-layout 4). One vertical splitter between the big column and the rest, one horizontal between
   the work and done rows. A drag moves a preview line only; release writes the fraction and runs `layout(true,
@@ -1123,27 +1147,28 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
   handle back above 120 px clears it, and so does a click or entering `waiting_for_you`.
 - **Layout by count** (wall-layout 9). Opt-in with `ui.layoutAuto` (default false, so today's single and grid
   modes stay). When on and with no manual change: 1 live pane is full, 2 is pair, 3 to 5 is big plus
-  column, 6 to 8 is big plus two columns, 9 or more is grid. A splitter drag or Ctrl+G sets `ui.layoutManual`;
+  column, 6 to 8 is big plus two columns (a new `rects()` branch), 9 or more is grid. A splitter drag or Ctrl+G sets `ui.layoutManual`;
   after that, new sessions never change the layout. Double-click on the title crumb returns to auto. The crumb
   shows "auto" or "manual".
 - **Drag a header** (wall-layout 12). A tile header dragged more than 6 px shows where it lands: over the big
   tile's left or right 25% it pairs, over a tile's centre it swaps the two. Esc cancels. This adds pointer drag and
   side-tile swaps to M6-9's keys.
-- **Fold stack** (wall-layout 13). When folded bars pass the cap (wall.js:88), the wall shows cap minus 1 bars plus
+- **Fold stack** (wall-layout 13). When folded bars pass the cap (`wall.js` `const bars`; today tiles past it get no rect and are hidden), the wall shows cap minus 1 bars plus
   a "+N more" bar that opens an inline list, one row open at a time. No session is left without a place on the wall.
 - **Where new agents land** (wall-layout 15). `ui.newAgent`: `big` (default, as today), `side`, or `big-if-idle`.
   Sessions started through the public API (M6-17) follow the same setting, so nothing changes until it is set.
 - **Wheel on other tiles** (wall-layout 16). A capture-phase `wheel` listener swallows the wheel over a tile that is
   not selected, unless Ctrl is held, and shows "click to scroll".
-- **Palette ranking** (wall-layout 6). `renderPalette` (app.js:1197) scores with a port of cmdk's `commandScore`
+- **Palette ranking** (wall-layout 6). `renderPalette` (app.js, today a plain substring filter) scores with a port of cmdk's `commandScore`
   (about 60 lines) and adds zoxide's four recency buckets (x4 within an hour, x2 within a day, x0.5 within a week, else x0.25) from a use
   count and last-used time per item in localStorage `troop.paletteUse`.
-  Needs-you items stay first; M6-19's scrollback hits stay in their own group.
+  A needs-you group, if one exists by then (the palette has none today), stays first; M6-19's scrollback hits stay in
+  their own group.
 
 ### M7-8: Terminal
 
 - **Multi-line paste** (wall-terminal 7). A new pipe op `paste` and preload `termPaste` route a paste into an agent
-  tile through the core. Today `paste()` (`core/src/terminal/index.ts:107`) brackets only when the program turned
+  tile through the core. Today `paste()` (`core/src/terminal/index.ts`) brackets only when the program turned
   bracketed paste on; for agent tiles a paste holding a newline is always bracketed, because ConPTY can hide that
   mode. Shift+Enter stays
   M6-8's.
@@ -1153,11 +1178,11 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
   handlers on the headless parser and appends `term.cmd {phase, exit, cwd}`; a mark with a wrong nonce is ignored.
   A shell tile's header shows running or idle, the last exit code and the cwd.
 - **Output batching** (wall-terminal 10). `core/src/terminal/pipe.ts` keeps a buffer per viewer: the first chunk
-  after 8 ms of quiet goes at once, the rest of a burst is sent every `terminal.batch_ms` (8), and at 4 MB it
-  flushes. `exit` and `snapshot` flush first. Batches sit inside M6-7's byte credit.
+  after 8 ms of quiet goes at once, the rest of a burst is sent every `terminal.batch_ms` (8), and at `terminal.chunk_bytes`
+  (64 KB) it flushes, under `HOLD_BYTES` (1 MB), past which a viewer is detached. `exit` and `snapshot` flush first. Batches sit inside M6-7's byte credit.
 - **OSC text** (wall-terminal 11). OSC 9 and 777 text, control characters removed, cut to 200 characters, at most
-  5 per second, is kept beside the last line and shown on that session's needs-you item. The bell stays the trigger.
-- **Resize on the leading edge** (wall-terminal 12). `terminal.js:55`'s 150 ms trailing timer becomes a
+  5 per second (OSC 9 with a numeric subcommand, Windows Terminal's progress `ESC]9;4;...`, is ignored), is kept beside the last line and shown on that session's needs-you item. The bell stays the trigger.
+- **Resize on the leading edge** (wall-terminal 12). `terminal.js`'s 150 ms trailing timer (the `ResizeObserver` in `create`) becomes a
   leading-and-trailing helper: fit and resize on the first event, then at most once per 50 ms, and the final size at
   the end.
 - **Copy output** (wall-terminal 13). New `core/src/terminal/zones.ts` keeps a start and end marker per command
@@ -1177,6 +1202,20 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
   tile ends at the bottom every time, nothing is built and the result goes in the issue. If not: CSI handlers note
   `ESC[3J` inside a mode 2026 block and scroll to the bottom 20 ms after the block ends, when the user was at the
   bottom before it.
+
+### M7-10: Session launcher
+
+Files: new `launcher/` (`Cargo.toml`, `src/main.rs`), `core/src/sessions/launch.ts` (98, 106),
+`core/src/hook/launch.ts`, `.github/workflows/ci.yml`, `tests/release.ps1`, `CONTRIBUTING.md`, `README.md`.
+
+- **Spike.** A job with kill-on-close and no breakaway; one Claude session runs `/codex:review`; after exit, the
+  broker and its `codex.exe` must be gone within 2 s. If not, the folder sweep replaces this child (D82).
+- **Launcher.** `metatrooper-launch.exe`, no crates, hand-declared kernel32 calls. It joins its own job before it
+  starts anything, then does what `hook/launch.ts` does today with the same flags, texts and exit codes.
+- **Lookup.** The core runs `resolveCommand` before encoding `--args-b64`, so the launcher starts a finished argv and
+  `resolve.ts` is not ported.
+- **Launch event.** The core writes it after `term.open` with the pid `open()` returns; the launcher writes nothing.
+- **Fallback.** No binary, or Linux: `node launch.js` as today, named in the core log.
 
 ### M7 acceptance criteria
 
@@ -1281,7 +1320,16 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
 - M7-08j. The repaint replay result is in the issue; if the fix was built, 10 replays end at the bottom 10 times,
   and a replay started with the user scrolled up 50 rows leaves the view where it was.
 
-Codex writes the tests for M7-1, M7-5 and M7-6 (D65), with a mutation run per child that must fail at least one
+- M7-10a. A fixture engine that starts a detached, unref'd grandchild: after its session's terminal closes, the
+  grandchild's pid is gone within 2 s.
+- M7-10b. The launcher's working set is at most 5 MB with a session running.
+- M7-10c. `TROOP_SESSION_ID` reaches the child; exit code 7 comes back as 7; an empty argv exits 2 and an unknown
+  command exits 127 with today's texts; a `.cmd` engine starts; Ctrl+C reaches the engine; one `launch` event per
+  session carries the pty pid.
+- M7-10d. Without the binary, a session starts through `launch.js` and the core log names the fallback.
+- M7-10e. The spike's result (broker gone or not, ConPTY nesting fine or not) is in the issue.
+
+Codex writes the tests for M7-1, M7-5, M7-6 and M7-10 (D65), with a mutation run per child that must fail at least one
 test. Contracts updated in M7: `browser-tools.md` (presets, annotate, batch, `wait_for`, page tools, and M7-2's and M7-3's `comments`,
   `reply_comment`, `resolve_comment`, `reveal` and `emulate`),
 `events-and-hooks.md` (`term.cmd`, `ui.idle`, the prompt check item), `plugin-manifest.schema.json` (pattern caps, `exit_cmd`, `usage_source: gemini-transcript`),
@@ -1334,8 +1382,10 @@ source file, mark-up and cross-origin picks are M7-2; compare the page is M7-3; 
   `done` or `idle`.
 - **Continue in another engine** (M7-4). A tile stopped by a limit offers "Continue in <engine>":
   the core writes a handoff file (at most 6 KB: the task line, the last 10 turns, the session's changed files from
-  `session.owners`, the last failing command) to the session folder and launches the chosen engine with it as the
-  prompt. By hand only.
+  `session.owners`, the last failing command) to `<home>/handoff/<session>-<n>.md` (there is no per-session folder)
+  and launches the chosen engine with it as the prompt. No turn text is stored, so turns and the failing command come
+  from the engine's transcript or session files. The new session gets no `parent_id`, because `handBack` would paste
+  into the stopped tile. By hand only.
 
 Checks:
 

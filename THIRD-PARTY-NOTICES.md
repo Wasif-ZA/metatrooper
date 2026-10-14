@@ -15,6 +15,8 @@ or MIT terms of this repository.
 | Geist, Geist Mono | `workbench/renderer/vendor/fonts/geist.woff2`, `geist-mono.woff2` | | SIL Open Font License 1.1 |
 | Space Mono | `workbench/renderer/vendor/fonts/space-mono-400.woff2`, `space-mono-700.woff2` | | SIL Open Font License 1.1 |
 | Silkscreen | `workbench/renderer/vendor/fonts/silkscreen-400.ttf`, `silkscreen-700.ttf` | | SIL Open Font License 1.1 |
+| superpowers skills (brainstorming, dispatching-parallel-agents, executing-plans, receiving-code-review, requesting-code-review, systematic-debugging, test-driven-development, using-git-worktrees, verification-before-completion, writing-plans) | `skills/<name>/`, each with its `LICENSE` | obra/superpowers at bb92a77 | MIT, Copyright (c) 2025 Jesse Vincent |
+| skill-creator | `skills/skill-creator/`, with its `LICENSE.txt` | anthropics/skills at dbd4588 | Apache-2.0 |
 
 `workbench/renderer/vendor/fonts/fonts.css` is MetaTrooper's own file (the `@font-face` rules for the fonts above).
 
