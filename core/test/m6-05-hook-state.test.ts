@@ -212,6 +212,8 @@ test('M6-05a terminal output after a bell does not end a wait a hook asked for a
       assert.equal(t.send('term.output'), 'waiting_for_you', kind);
     }
     t.db.prepare("UPDATE session SET state = 'working' WHERE id = 's'").run();
+    // A real bell needs 30 s with no hook event, so it never shares a millisecond with the last ask.
+    await new Promise((r) => setTimeout(r, 5));
     assert.equal(t.send('term.bell'), 'waiting_for_you');
     assert.equal(t.send('term.output'), 'working');
   } finally { t.done(); }
