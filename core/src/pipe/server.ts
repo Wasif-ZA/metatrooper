@@ -31,8 +31,21 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
   await clearDeadSocket(pipePath);
   const server = net.createServer((socket) => {
     const conn: Conn = { ui: false };
-    const send = (msg: object) => {
-      if (!socket.destroyed) socket.write(encode(msg));
+    const send = (msg: { id?: unknown }) => {
+      if (socket.destroyed) return;
+      let line: string;
+      try {
+        line = encode(msg);
+      } catch (e) {
+        const why = e instanceof LineTooLong ? 'reply exceeds 1 MiB' : 'reply does not serialize';
+        const error = { code: E.INTERNAL, message: why };
+        try {
+          line = encode({ jsonrpc: '2.0', id: typeof msg.id === 'string' ? msg.id : null, error });
+        } catch {
+          line = encode({ jsonrpc: '2.0', id: null, error });
+        }
+      }
+      socket.write(line);
     };
     const decode = createDecoder(async (raw) => {
       const msg = raw as { jsonrpc?: string; id?: unknown; method?: unknown; params?: unknown; meta?: { origin?: string } };

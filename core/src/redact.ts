@@ -163,7 +163,7 @@ const NOTIFY_LABEL: Record<string, string> = {
 
 /** The one-line message a notification sink receives: a fixed label plus the item text with URLs, paths and token-like strings removed. */
 export function notifyText(kind: string, text: string): string {
-  const clean = text
+  const clean = redactCredentials(text)
     .replace(/\s+/g, ' ')
     .replace(/https?:\/\/\S+/g, '<url>')
     .replace(/[A-Za-z]:[\\/]\S*|(?<!\S)\/[^\s/]+\/\S*/g, '<path>')

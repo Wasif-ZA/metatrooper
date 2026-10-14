@@ -104,32 +104,32 @@ export async function call(method: string, params: Record<string, unknown> = {},
     client = await PipeClient.connect(corePipe(), queueable ? QUEUE_AFTER_MS : undefined);
   } catch {
     if (!queueable) return { kind: 'offline' };
-    enqueue(id, method, params);
+    try { enqueue(id, method, params); } catch { return { kind: 'offline' }; }
     opts.onQueued?.(id);
     return { kind: 'queued', id };
   }
+  let wait: NodeJS.Timeout | undefined;
+  const expired = new Promise<null>((r) => { wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); });
   try {
-    if (opts.ui) await client.hello();
+    if (opts.ui && (await Promise.race([client.hello(), expired])) === null) return { kind: 'offline' };
     const { reply } = client.send(method, params, id);
     let queued = false;
     const timer = queueable
       ? setTimeout(() => {
-          queued = true;
-          enqueue(id, method, params);
+          try {
+            enqueue(id, method, params);
+            queued = true;
+          } catch {}
         }, QUEUE_AFTER_MS)
       : null;
-    let wait: NodeJS.Timeout | undefined;
-    const waited = await Promise.race([
-      reply,
-      new Promise<null>((r) => { wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); }),
-    ]);
-    clearTimeout(wait);
+    const waited = await Promise.race([reply, expired]);
     if (timer) clearTimeout(timer);
     if (waited) return { kind: 'reply', reply: waited };
     if (!queued) return { kind: 'offline' };
     opts.onQueued?.(id);
     return { kind: 'queued', id };
   } finally {
+    clearTimeout(wait);
     client.close();
   }
 }

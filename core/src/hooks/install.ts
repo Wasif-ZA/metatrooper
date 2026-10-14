@@ -5,7 +5,7 @@ import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile }
 import { removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { older } from '../engines/health.ts';
-import { expandHome } from '../trust.ts';
+import { expandHome, writeAtomic } from '../trust.ts';
 
 export const EVENTS = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd', 'StopFailure', 'PermissionRequest', 'PostToolUseFailure'] as const;
 const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PermissionRequest', 'PostToolUseFailure']);
@@ -47,7 +47,7 @@ function readState(): State {
 
 function writeState(s: State): void {
   fs.mkdirSync(path.dirname(hooksStateFile()), { recursive: true });
-  fs.writeFileSync(hooksStateFile(), JSON.stringify(s, null, 2));
+  writeAtomic(hooksStateFile(), JSON.stringify(s, null, 2));
 }
 
 function withoutOurs(settings: Json, absentEvents: string[]): Json {
@@ -129,7 +129,7 @@ export function installClaude(version: string | null = null): Plan {
     state.claude.installed = plan.after;
   }
   fs.mkdirSync(path.dirname(plan.file), { recursive: true });
-  fs.writeFileSync(plan.file, plan.after);
+  writeAtomic(plan.file, plan.after);
   writeState(state);
   return plan;
 }
@@ -149,7 +149,7 @@ export function uninstallClaude(): Plan | null {
   else if (rec && rec.original !== null && isDeepStrictEqual(cleaned, JSON.parse(rec.original))) after = rec.original;
   else after = JSON.stringify(cleaned, null, 2) + '\n';
   if (after === null) fs.rmSync(file);
-  else fs.writeFileSync(file, after);
+  else writeAtomic(file, after);
   delete state.claude;
   writeState(state);
   return { file, before: current, after: after ?? '' };
@@ -213,7 +213,7 @@ export function installCodex(): Plan | null {
   const after = m ? original.replace(NOTIFY_RE, line) : `${line}\n${original}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.troop-bak`);
   else fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, after);
+  writeAtomic(file, after);
   state.codex = { file, original, installed: after, previous };
   writeState(state);
   return { file, before: original, after };
@@ -235,7 +235,7 @@ export function uninstallCodex(): Plan | null {
     const previous = userNotify(current);
     after = previous ? current.replace(NOTIFY_RE, `notify = ${tomlArray(previous)}`) : current.replace(/^notify\s*=\s*\[.*\]\s*\r?\n/m, '');
   }
-  if (after !== current) fs.writeFileSync(file, after);
+  if (after !== current) writeAtomic(file, after);
   delete state.codex;
   writeState(state);
   return { file, before: current, after };
@@ -277,7 +277,7 @@ export function installEngineSettings(engines: EngineSpec[]): Plan[] {
     const after = JSON.stringify(doc, null, 2);
     if (after !== before) {
       if (!fs.existsSync(`${file}.troop-bak`)) fs.copyFileSync(file, `${file}.troop-bak`);
-      fs.writeFileSync(file, after);
+      writeAtomic(file, after);
     }
     state.settings[e.id] = record;
     plans.push({ file, before, after });
@@ -300,7 +300,7 @@ export function uninstallEngineSettings(): Plan[] {
       else doc[k] = v;
     }
     const after = JSON.stringify(doc, null, 2);
-    fs.writeFileSync(rec.file, after);
+    writeAtomic(rec.file, after);
     plans.push({ file: rec.file, before, after });
   }
   delete state.settings;

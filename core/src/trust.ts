@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { canonicalPath } from './project.ts';
@@ -17,10 +18,18 @@ function styled(dir: string, style: TrustSpec['path_style']): string {
   return style === 'windows-lower' ? win.toLowerCase() : win;
 }
 
-function writeAtomic(file: string, text: string): void {
-  const tmp = `${file}.troop-tmp`;
-  fs.writeFileSync(tmp, text);
-  fs.renameSync(tmp, file);
+export function writeAtomic(file: string, text: string): void {
+  const tmp = `${file}.${process.pid}-${randomUUID()}.troop-tmp`;
+  let mode: number | undefined;
+  try { mode = fs.statSync(file).mode & 0o777; } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
+  try {
+    fs.writeFileSync(tmp, text, mode === undefined ? undefined : { mode });
+    if (mode !== undefined) fs.chmodSync(tmp, mode);
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
 }
 
 function descend(root: Record<string, unknown>, keys: string[]): Record<string, unknown> {
