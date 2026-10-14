@@ -355,6 +355,7 @@ test('project.hide refuses while a session is live, hides past a done one, and p
         assert.ok((await pipe.request('project.hide', { project_id: projectId })).error, state);
         assert.equal(hidden(), 0, state);
       }
+      assert.equal((await pipe.request('project.hide', { project_id: 'no-such-project' })).error.code, -32002);
       setState('idle');
       assert.deepEqual((await pipe.request('project.hide', { project_id: projectId })).result, {});
       assert.equal(hidden(), 1);
