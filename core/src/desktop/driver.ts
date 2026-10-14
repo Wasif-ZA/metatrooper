@@ -24,7 +24,7 @@ export function helperScript(): string {
 /** The UI Automation helper: one process, one JSON request and one JSON reply per line, in order. */
 export class Helper {
   private child: ChildProcess | null = null;
-  private waiting = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>();
+  private waiting = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout; child: ChildProcess }>();
   private next = 0;
 
   private start(): ChildProcess {
@@ -45,8 +45,12 @@ export class Helper {
     });
     const fail = () => {
       if (this.child === child) this.child = null;
-      for (const w of this.waiting.values()) { clearTimeout(w.timer); w.reject(new RpcError(E.INTERNAL, 'the desktop helper stopped')); }
-      this.waiting.clear();
+      for (const [id, w] of this.waiting) {
+        if (w.child !== child) continue;
+        this.waiting.delete(id);
+        clearTimeout(w.timer);
+        w.reject(new RpcError(E.INTERNAL, 'the desktop helper stopped'));
+      }
     };
     child.once('exit', fail);
     child.once('error', fail);
@@ -59,8 +63,14 @@ export class Helper {
     const child = this.start();
     const id = ++this.next;
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.waiting.delete(id); this.stop(); reject(new RpcError(E.INTERNAL, `desktop helper ${op} timed out`)); }, timeoutMs);
-      this.waiting.set(id, { resolve, reject, timer });
+      const timer = setTimeout(() => {
+        this.waiting.delete(id);
+        const exited = child.exitCode === null ? new Promise((r) => child.once('exit', r)) : Promise.resolve();
+        if (this.child === child) this.stop();
+        else try { child.kill(); } catch {}
+        exited.then(() => reject(new RpcError(E.INTERNAL, `desktop helper ${op} timed out`)));
+      }, timeoutMs);
+      this.waiting.set(id, { resolve, reject, timer, child });
       child.stdin!.write(JSON.stringify({ id, op, ...params }) + '\n');
     });
   }
@@ -189,9 +199,10 @@ export class Desktop {
 
   private async dispatch<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
     if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
+    const watchId = beginAction();
     const p = fn();
     this.inFlight = p;
-    try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; }
+    try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; endAction(watchId); }
   }
 
   async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number }> {
@@ -206,37 +217,31 @@ export class Desktop {
     if (!['click', 'type', 'key', 'scroll'].includes(action)) throw new RpcError(E.INVALID_PARAMS, 'action must be click, type, key or scroll');
     const ref = typeof p.ref === 'string' && p.ref ? p.ref : undefined;
     if ((action === 'click' || action === 'type') && !ref) throw new RpcError(E.INVALID_PARAMS, 'ref is required');
-    let watchId = '';
-    try {
-      return await this.serial(async () => {
-        watchId = beginAction();
-        if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
-        const now = await this.describe(sessionId, hwnd, ref);
-        const expect = (p.expect && typeof p.expect === 'object' ? p.expect : {}) as Record<string, unknown>;
-        const c = now.control ?? { name: '', automation_id: '', role: '' };
-        if (expect.grant_id !== undefined && expect.grant_id !== now.grant_id) throw new RpcError(CONTROL_CHANGED, 'the window changed; nothing was sent');
-        if ((expect.name ?? '') !== c.name || (expect.automation_id ?? '') !== c.automation_id || (expect.role ?? '') !== c.role
-          || Boolean(expect.password) !== now.password || Boolean(expect.file_dialog) !== now.file_dialog) {
-          throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
-        }
-        if (action !== 'type') return this.dispatch(sessionId, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }));
-        const chars = Array.from(typeof p.text === 'string' ? p.text : '');
-        let out: Record<string, unknown> = { status: 'unverifiable' };
-        let focusLost = false;
-        let done = 0;
-        do {
-          const n = Math.min(done + CHUNK, chars.length);
-          if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, `${PAUSED}; ${done} of ${chars.length} characters were typed`);
-          if (!this.enabled() || !this.granted(sessionId, now.grant_id)) throw new RpcError(E.PANE_NOT_OWNED, `${NOT_GRANTED}; ${done} of ${chars.length} characters were typed`);
-          out = await this.dispatch(sessionId, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), pid: now.pid }));
-          if (out.focus_returned === false) focusLost = true;
-          done = n;
-        } while (done < chars.length);
-        return focusLost ? { ...out, focus_returned: false } : out;
-      });
-    } finally {
-      if (watchId) endAction(watchId);
-    }
+    return this.serial(async () => {
+      if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
+      const now = await this.describe(sessionId, hwnd, ref);
+      const expect = (p.expect && typeof p.expect === 'object' ? p.expect : {}) as Record<string, unknown>;
+      const c = now.control ?? { name: '', automation_id: '', role: '' };
+      if (expect.grant_id !== undefined && expect.grant_id !== now.grant_id) throw new RpcError(CONTROL_CHANGED, 'the window changed; nothing was sent');
+      if ((expect.name ?? '') !== c.name || (expect.automation_id ?? '') !== c.automation_id || (expect.role ?? '') !== c.role
+        || Boolean(expect.password) !== now.password || Boolean(expect.file_dialog) !== now.file_dialog) {
+        throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
+      }
+      if (action !== 'type') return this.dispatch(sessionId, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }));
+      const chars = Array.from(typeof p.text === 'string' ? p.text : '');
+      let out: Record<string, unknown> = { status: 'unverifiable' };
+      let focusLost = false;
+      let done = 0;
+      do {
+        const n = Math.min(done + CHUNK, chars.length);
+        if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, `${PAUSED}; ${done} of ${chars.length} characters were typed`);
+        if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, `${NOT_GRANTED}; ${done} of ${chars.length} characters were typed`);
+        out = await this.dispatch(sessionId, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), pid: now.pid }));
+        if (out.focus_returned === false) focusLost = true;
+        done = n;
+      } while (done < chars.length);
+      return focusLost ? { ...out, focus_returned: false } : out;
+    });
   }
 
   /** Ends grants whose window closed or changed identity, and keeps each live grant's rectangle. */
@@ -322,7 +327,8 @@ export class Desktop {
     } });
     m.set('desktop.describe', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      return this.describe(sessionId, hwndOf(p.window), typeof p.ref === 'string' && p.ref ? p.ref : undefined);
+      const { pid: _, ...d } = await this.describe(sessionId, hwndOf(p.window), typeof p.ref === 'string' && p.ref ? p.ref : undefined);
+      return d;
     } });
     m.set('desktop.snapshot', { handler: async (p) => {
       const sessionId = await this.bind(p);

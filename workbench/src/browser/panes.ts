@@ -1013,6 +1013,7 @@ export class PaneManager {
           const { node, x, y } = await this.target(pane, a.ref);
           await this.clickAt(pane, x, y, recheck);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
+          this.notPaused(a);
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
