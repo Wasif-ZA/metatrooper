@@ -134,7 +134,8 @@ box fails with "not visible".
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. The origin is the pane page's when the call was made (a call that navigates
-  is recorded on the origin it left; an input in a child frame is recorded on the pane's origin). A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
+  is recorded on the origin it left; an input in a child frame is recorded on the pane's origin; a call stopped before sending is recorded on the
+  origin when the stop is reported). A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
   before sending it (describe failed, denied, rejected, expired, core offline, or the control kept changing on all
   three attempts) reports `browser.outcome` so it gets its row too. An attempt that fails with -32035 (the control
   changed since it was checked; nothing was sent) writes no row, since the MCP server checks again and retries it, so a
