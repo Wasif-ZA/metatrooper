@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 const WORKING_STATUS = new Set(['busy', 'retry', 'running']);
 const WORKING_EVENTS = new Set(['tool.execute.before', 'tool.execute.after']);
 const ASKS = { 'permission.asked': 'permission', 'question.asked': 'question' };
-const ANSWERS = new Set(['permission.replied', 'question.replied', 'question.rejected']);
+const ANSWERS = { 'permission.replied': 'permission', 'question.replied': 'question', 'question.rejected': 'question' };
 
 // Seeded from the clock, so it rises across opencode restarts.
 let seq = Date.now() * 1000;
@@ -45,13 +45,13 @@ function onEvent(event) {
     asks.set(p.id ?? p.requestID ?? `ask-${++asked}`, ASKS[type]);
     return report(waiting(), root);
   }
-  if (ANSWERS.has(type)) {
+  if (ANSWERS[type]) {
     const id = p.permissionID ?? p.requestID ?? p.id;
-    asks.delete(asks.has(id) ? id : asks.keys().next().value);
+    asks.delete(id ?? [...asks].find(([, kind]) => kind === ANSWERS[type])?.[0]);
     return report(asks.size ? waiting() : { state: 'working' }, root);
   }
   if (child) return;
-  if (type === 'session.idle') { asks.clear(); return report({ state: 'done' }, root); }
+  if (type === 'session.idle') return report(asks.size ? waiting() : { state: 'done' }, root);
   if (type === 'session.error') return report({ state: 'waiting', why: 'error' }, root);
   const kind = typeof p.status === 'string' ? p.status : p.status?.type;
   if ((type === 'session.status' && WORKING_STATUS.has(kind)) || WORKING_EVENTS.has(type)) {

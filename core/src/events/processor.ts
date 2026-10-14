@@ -107,8 +107,10 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       if (s && ev.session_id && s.state !== 'exited') {
         const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$)/.test(ev.kind) || (ev.kind === 'opencode.state' && specOf(s.engine_id).plugin) ? payload.session_id : undefined;
         let foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
+        const plugin = ev.kind === 'core.title-state' || ev.kind === 'opencode.state' ? (lastOpencodeSeq.get(ev.session_id, ev.seq) as { c: number; n: number | null }) : null;
+        const staleSeq = ev.kind === 'opencode.state' && (!Number.isSafeInteger(payload.seq) || (plugin!.n !== null && (payload.seq as number) <= plugin!.n));
         // A Codex or Gemini SessionStart (resume, clear) names the conversation the session now holds, and so does opencode starting work in another root session.
-        if (foreign && (/^(codex|gemini)\.SessionStart$/.test(ev.kind) || (ev.kind === 'opencode.state' && payload.state === 'working'))) {
+        if (foreign && (/^(codex|gemini)\.SessionStart$/.test(ev.kind) || (ev.kind === 'opencode.state' && payload.state === 'working' && !staleSeq))) {
           relinkNative.run(conv, ev.session_id);
           foreign = false;
         }
@@ -135,8 +137,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does terminal output when a hook asked during the wait.
         const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
         // Title states move only process engines, and an opencode session stops reading them once its state plugin has reported.
-        const plugin = ev.kind === 'core.title-state' || ev.kind === 'opencode.state' ? (lastOpencodeSeq.get(ev.session_id, ev.seq) as { c: number; n: number | null }) : null;
-        const ignored = ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || !Number.isSafeInteger(payload.seq) || (plugin!.n !== null && (payload.seq as number) <= plugin!.n));
+        const ignored = ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || staleSeq);
         const next = ev.kind === 'launch' || foreign || stale || ignored ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         // A Stop held by background work ends the turn only when the session really reaches done.
         if (!foreign && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
