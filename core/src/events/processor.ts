@@ -27,6 +27,7 @@ interface SessionRow {
   native_id: string | null;
   pid: number | null;
   run_id: string | null;
+  state_at: string;
 }
 
 /** Applies unprocessed events in seq order: links sessions, records pids, and moves session state. */
@@ -35,7 +36,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     .prepare('SELECT seq, at, session_id, kind, payload FROM event WHERE processed = 0 ORDER BY seq LIMIT ?')
     .all(limit) as unknown as EventRow[];
   if (rows.length === 0) return 0;
-  const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id FROM session WHERE id = ?');
+  const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id, state_at FROM session WHERE id = ?');
   const byNative = db.prepare("SELECT id FROM session WHERE native_id = ? AND NOT (host = 'external' AND state = 'exited') ORDER BY julianday(started_at) DESC LIMIT 1");
   const setEventSession = db.prepare('UPDATE event SET session_id = ? WHERE seq = ?');
   const projects = db.prepare('SELECT id, path FROM project');
@@ -47,11 +48,36 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const relinkNative = db.prepare('UPDATE session SET native_id = ? WHERE id = ?');
   const convEnded = db.prepare("SELECT 1 FROM event WHERE kind = 'claude.SessionEnd' AND session_id = ? AND json_extract(payload, '$.session_id') = ? AND seq < ? LIMIT 1");
   const setTool = db.prepare('UPDATE session SET last_tool = ? WHERE id = ?');
-  const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? ORDER BY seq DESC LIMIT 1");
+  // The tool lookups keep to one conversation (the last `?`), so a side conversation's events, ignored in processing, are ignored here too.
+  const pendingToolId = db.prepare("SELECT json_extract(payload, '$.tool_use_id') AS id FROM event WHERE session_id = ? AND kind = 'claude.PreToolUse' AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
+  // A wait with no tool_use_id of its own is on the last call still open before the ask, with the ask's tool_name when it gives one.
+  const openToolId = db.prepare("SELECT json_extract(p.payload, '$.tool_use_id') AS id FROM event p WHERE p.session_id = ?1 AND p.kind = 'claude.PreToolUse' AND p.seq < ?2 AND coalesce(json_extract(p.payload, '$.session_id') = ?3, 1) AND (?4 IS NULL OR json_extract(p.payload, '$.tool_name') = ?4) AND NOT EXISTS (SELECT 1 FROM event f WHERE f.session_id = ?1 AND f.kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND f.seq > p.seq AND f.seq < ?2 AND json_extract(f.payload, '$.tool_use_id') = json_extract(p.payload, '$.tool_use_id') AND coalesce(json_extract(f.payload, '$.session_id') = ?3, 1)) ORDER BY p.seq DESC LIMIT 1");
+  const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id, json_extract(payload, '$.tool_name') AS tool FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
+  const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
+  // A hook ask (approval, permission or input prompt) written at or after the current wait began (state_at): terminal output is not an answer to it.
+  const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input'))) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
+  const setStateAt = db.prepare('UPDATE session SET state_at = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
   const note = (kind: 'done' | 'failed', sessionId: string, engine: string, text: string) => inbox.run(ulid(), nowIso(), kind, sessionId, `${engine} ${text}`, sessionId, kind);
+  const toolFinished = db.prepare("SELECT seq FROM event WHERE session_id = ? AND kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND json_extract(payload, '$.tool_use_id') = ? AND seq > ? AND seq < ? AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq LIMIT 1");
+  /** The tool_use_id the session's permission wait is on: the last PermissionRequest's own, else the last call still open before that PermissionRequest (with its tool_name); once that call has finished, or with no PermissionRequest since the last prompt or Stop, the last call still open before a later permission Notification; null when there is no such wait or that call has finished. */
+  const permissionWait = (sessionId: string, seq: number, conv: string | null): string | null => {
+    const ask = lastAsk.get(sessionId, seq, conv) as { seq: number; kind: string; id: unknown; tool: unknown } | undefined;
+    let from = ask?.seq ?? 0;
+    if (ask?.kind === 'claude.PermissionRequest') {
+      const id = typeof ask.id === 'string' ? ask.id : (openToolId.get(sessionId, from, conv, typeof ask.tool === 'string' ? ask.tool : null) as { id: unknown } | undefined)?.id;
+      if (typeof id !== 'string') return null;
+      const end = toolFinished.get(sessionId, id, from, seq, conv) as { seq: number } | undefined;
+      if (!end) return id;
+      from = end.seq;
+    }
+    const noteRow = lastPermissionNote.get(sessionId, from, seq, conv) as { seq: number } | undefined;
+    if (!noteRow) return null;
+    const id = (openToolId.get(sessionId, noteRow.seq, conv, null) as { id: unknown } | undefined)?.id;
+    return typeof id === 'string' && !toolFinished.get(sessionId, id, noteRow.seq, seq, conv) ? id : null;
+  };
   const turns: TurnJob[] = [];
   const changed: Array<[string, string]> = [];
   db.exec('BEGIN IMMEDIATE');
@@ -71,27 +97,43 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
       }
       const s = ev.session_id ? (getSession.get(ev.session_id) as SessionRow | undefined) : undefined;
       if (s && ev.session_id && s.state !== 'exited') {
-        const conv = ev.kind.startsWith('claude.') ? payload.session_id : ev.kind === 'codex.turn' ? payload['thread-id'] : undefined;
+        const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$)/.test(ev.kind) ? payload.session_id : undefined;
         let foreign = s.native_id !== null && typeof conv === 'string' && conv !== s.native_id;
+        // A Codex or Gemini SessionStart (resume, clear) names the conversation the session now holds.
+        if (foreign && /^(codex|gemini)\.SessionStart$/.test(ev.kind)) {
+          relinkNative.run(conv, ev.session_id);
+          foreign = false;
+        }
         if (foreign && ev.kind.startsWith('claude.') && ev.kind !== 'claude.SessionEnd' && convEnded.get(ev.session_id, s.native_id, ev.seq)) {
           relinkNative.run(conv, ev.session_id);
           foreign = false;
         }
         if (ev.kind === 'launch' && typeof payload.pid === 'number') setPid.run(payload.pid, ev.session_id);
+        const own = typeof conv === 'string' && !foreign ? conv : s.native_id;
+        const waited = s.state === 'waiting_for_you' && /^claude\.(PreToolUse|PostToolUse|PostToolUseFailure)$/.test(ev.kind) ? permissionWait(ev.session_id, ev.seq, own) : null;
         if (!foreign) {
           if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
           // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
-          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle') setTool.run(payload.tool_name, ev.session_id);
-          // A PostToolUse clears it only when it finishes the tool last asked for, so overlapping tools keep the one still pending.
-          const pending = ev.kind === 'claude.PostToolUse' && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq) as { id: unknown } | undefined)?.id : undefined;
-          if ((ev.kind === 'claude.PostToolUse' && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
+          if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle' && waited === null) setTool.run(payload.tool_name, ev.session_id);
+          // A PermissionRequest names the call it waits on, which with overlapping calls need not be the last PreToolUse.
+          if (ev.kind === 'claude.PermissionRequest' && typeof payload.tool_name === 'string') setTool.run(payload.tool_name, ev.session_id);
+          // A PostToolUse clears it only when it finishes the tool last asked for (in a permission wait, the waited one), so overlapping tools keep the one still pending.
+          const finished = /^claude\.PostToolUse(Failure)?$/.test(ev.kind);
+          const pending = waited ?? (finished && typeof payload.tool_use_id === 'string' ? (pendingToolId.get(ev.session_id, ev.seq, own) as { id: unknown } | undefined)?.id : undefined);
+          if ((finished && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
           if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
-        const next = ev.kind === 'launch' || foreign ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload });
+        // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does terminal output when a hook asked during the wait.
+        const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
+        const next = ev.kind === 'launch' || foreign || stale ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
+        // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
+        const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
+        const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input'));
+        if (s.state === 'waiting_for_you' && (!next || next === s.state) && !foreign && hookAsk && !(Date.parse(writtenAt) <= Date.parse(s.state_at))) setStateAt.run(writtenAt, ev.session_id);
         if (next && next !== s.state) {
-          setState.run(next, nowIso(), ev.session_id);
+          setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), ev.session_id);
           changed.push([ev.session_id, next]);
           if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');

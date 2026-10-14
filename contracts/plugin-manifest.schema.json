@@ -123,6 +123,16 @@
             { "if": { "properties": { "kind": { "const": "args-template" } } }, "then": { "required": ["template"] } }
           ]
         },
+        "hooks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "events"],
+          "description": "Per-session state hooks. codex-config: `-c hooks.<Event>` overrides. gemini-system-settings: a settings file passed through GEMINI_CLI_SYSTEM_SETTINGS_PATH, deleted when the session exits.",
+          "properties": {
+            "kind": { "enum": ["codex-config", "gemini-system-settings"] },
+            "events": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z]{1,40}$" }, "minItems": 1 }
+          }
+        },
         "roles": { "type": "array", "items": { "enum": ["research", "plan", "worker", "review", "verify", "visual-check"] }, "minItems": 1 },
         "cost_rank": { "type": "integer", "minimum": 1, "maximum": 10 },
         "provider": { "enum": ["local-cli", "api-key", "gateway"], "default": "local-cli" },

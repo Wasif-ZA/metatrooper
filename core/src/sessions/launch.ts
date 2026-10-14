@@ -7,7 +7,7 @@ import { mcpAttachArgs, mcpAttachEnv, sweepSessionFiles } from '../plugins/mcp.t
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
-import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
+import { ensureEngineSetup, sessionHookArgs, sessionHookEnv } from '../hooks/install.ts';
 import { engineVersion } from '../engines/health.ts';
 import { canonicalPath, isAskPath, nearAskPath } from '../project.ts';
 import { E, RpcError } from '../pipe/errors.ts';
@@ -91,7 +91,7 @@ export function launchSession(
     const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
-    env = { ...router.env, ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
+    env = { ...router.env, ...sessionHookEnv(opts.engine, id), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
   }
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');

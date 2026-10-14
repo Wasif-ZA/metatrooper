@@ -67,16 +67,16 @@ test('the StopFailure hook goes in for Claude Code 2.1.78 and later only, surviv
   const hooksOf = (args: string[]) => JSON.parse(fs.readFileSync(args[0].slice('--settings='.length), 'utf8')).hooks;
   const six = ['PreToolUse', 'PostToolUse', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd'];
   assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'A', null))), six);
-  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'B', '2.1.77 (Claude Code)'))), six);
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'B', '2.1.77 (Claude Code)'))), [...six, 'PermissionRequest']);
   const recent = hooksOf(sessionHookArgs(claude, 'C', '2.1.78 (Claude Code)'));
-  assert.deepEqual(Object.keys(recent), [...six, 'StopFailure']);
+  assert.deepEqual(Object.keys(recent), [...six, 'StopFailure', 'PermissionRequest']);
   assert.match(recent.StopFailure[0].hooks[0].command, /event\.js" claude\.StopFailure$/);
   assert.equal(recent.StopFailure[0].matcher, undefined);
 
   const settings = process.env.METATROOPER_CLAUDE_SETTINGS!;
   installClaude('2.0.1 (Claude Code)');
   assert.equal('StopFailure' in JSON.parse(fs.readFileSync(settings, 'utf8')).hooks, false);
-  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'D', '2.1.296 (Claude Code)'))), ['StopFailure']);
+  assert.deepEqual(Object.keys(hooksOf(sessionHookArgs(claude, 'D', '2.1.296 (Claude Code)'))), ['StopFailure', 'PermissionRequest', 'PostToolUseFailure']);
   installClaude('2.1.296 (Claude Code)');
   assert.ok(JSON.parse(fs.readFileSync(settings, 'utf8')).hooks.StopFailure);
   assert.equal('hooks' in JSON.parse(fs.readFileSync(sessionHookArgs(claude, 'E', '2.1.296 (Claude Code)')[0].slice('--settings='.length), 'utf8')), false);
@@ -133,16 +133,26 @@ test('per-session files of exited and unknown sessions are swept; a live session
   try {
     syncEngines(db, BUILT_IN);
     db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(home);
+    const { ulid } = await import('../src/time.ts');
+    const [LIVE, GONE, ORPHAN] = [ulid(), ulid(), ulid()];
     const add = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', 'claude', 'pty', ?, 'x', 'x')");
-    add.run('LIVE', 'working');
-    add.run('GONE', 'exited');
+    add.run(LIVE, 'working');
+    add.run(GONE, 'exited');
     const dir = path.join(home, 'mt', 'mcp');
-    fs.mkdirSync(dir, { recursive: true });
-    for (const id of ['LIVE', 'GONE', 'ORPHAN']) for (const ext of ['.json', '.settings.json']) fs.writeFileSync(path.join(dir, id + ext), '{}');
+    fs.mkdirSync(path.join(dir, 'cache'), { recursive: true });
+    for (const id of [LIVE, GONE, ORPHAN]) for (const ext of ['.json', '.settings.json']) fs.writeFileSync(path.join(dir, id + ext), '{}');
+    fs.mkdirSync(path.join(dir, GONE));
+    const gemini = path.join(home, 'mt', 'engines', 'gemini');
+    fs.mkdirSync(path.join(gemini, 'notes'), { recursive: true });
+    const userFiles = ['README.md', '.keep', 'admin.settings.json', 'backup-json', 'READMEjson', 'notes.json', `${GONE}Xjson`];
+    for (const name of [`${LIVE}.json`, `${GONE}.json`, `${ORPHAN}.json`, ...userFiles]) fs.writeFileSync(path.join(gemini, name), '{}');
+    for (const name of [...userFiles, `${GONE}XsettingsXjson`]) fs.writeFileSync(path.join(dir, name), '');
     sweepSessionFiles(db);
-    assert.deepEqual(fs.readdirSync(dir).sort(), ['LIVE.json', 'LIVE.settings.json']);
-    removeSessionFiles('LIVE');
-    assert.deepEqual(fs.readdirSync(dir), []);
+    assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache', `${LIVE}.json`, `${LIVE}.settings.json`].sort());
+    assert.deepEqual(fs.readdirSync(gemini).sort(), [...userFiles, 'notes', `${LIVE}.json`].sort());
+    removeSessionFiles(LIVE);
+    assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache'].sort());
+    assert.deepEqual(fs.readdirSync(gemini).sort(), [...userFiles, 'notes'].sort());
   } finally {
     db.close();
   }
@@ -161,6 +171,8 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
   fs.writeFileSync(config, text);
   const codex = { ...claude, id: 'codex', state_source: 'notify' as const, mcp_attach: { kind: 'codex-config' } };
   assert.deepEqual(sessionHookArgs(codex, 'C1'), ['-c', `notify=[${['node', script, inner].map((v) => JSON.stringify(v)).join(', ')}]`]);
+  const hooked = sessionHookArgs({ ...codex, hooks: { kind: 'codex-config', events: ['Stop'] } }, 'C1');
+  assert.deepEqual(hooked.filter((a) => a !== '-c').map((a) => a.split('=')[0]), ['hooks.Stop']);
   const db = openCoreDb();
   try {
     assert.deepEqual(mcpAttachArgs(db, codex, 'C1', true), []);

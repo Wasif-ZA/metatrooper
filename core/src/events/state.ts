@@ -6,12 +6,29 @@ export interface StateEvent {
   payload: Record<string, unknown>;
 }
 
-const WORKING_KINDS = new Set(['claude.UserPromptSubmit', 'claude.PreToolUse', 'claude.PostToolUse']);
+const WORKING_KINDS = new Set(['claude.UserPromptSubmit', 'claude.PreToolUse', 'claude.PostToolUse', 'gemini.BeforeAgent', 'gemini.AfterTool']);
 
-export function nextState(current: string, event: StateEvent): SessionState | null {
+/** States set by the Codex and Gemini hooks; SessionStart only links the session, and moves it out of `starting`. */
+const HOOK_STATES: Record<string, SessionState> = {
+  'codex.PermissionRequest': 'waiting_for_you', 'codex.Stop': 'done', 'codex.Interrupt': 'idle',
+  'gemini.Notification': 'waiting_for_you', 'gemini.AfterAgent': 'done',
+};
+
+/** `waited` is the tool_use_id a Claude permission wait is on: while waiting for it, only its own PostToolUse (or a prompt, Stop, ...) moves the session. */
+export function nextState(current: string, event: StateEvent, waited: string | null = null): SessionState | null {
   if (current === 'exited') return null;
   const p = event.payload ?? {};
+  if (HOOK_STATES[event.kind]) return HOOK_STATES[event.kind];
+  const held = current === 'waiting_for_you' && waited !== null;
   switch (event.kind) {
+    case 'codex.SessionStart':
+    case 'gemini.SessionStart':
+      return current === 'starting' ? 'idle' : null;
+    case 'claude.PermissionRequest':
+      return 'waiting_for_you';
+    case 'claude.PostToolUse':
+    case 'claude.PostToolUseFailure':
+      return held && p.tool_use_id !== waited ? null : 'working';
     case 'launch':
       return 'starting';
     case 'claude.Notification':
@@ -43,7 +60,7 @@ export function nextState(current: string, event: StateEvent): SessionState | nu
       return current === 'waiting_for_you' || current === 'unknown' ? 'working' : null;
     // Claude Code can fire a PreToolUse after Stop that never runs (no PostToolUse, not in the transcript); a finished session waits for PostToolUse or a prompt.
     case 'claude.PreToolUse':
-      return current === 'done' || current === 'idle' ? null : 'working';
+      return current === 'done' || current === 'idle' || held ? null : 'working';
     default:
       if (WORKING_KINDS.has(event.kind)) return 'working';
       return null;
