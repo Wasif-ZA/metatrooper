@@ -214,7 +214,11 @@ const termView = (() => {
     set('.lr', x.limitResume === false ? 'At reset: wait' : 'At reset: go on');
     t.el.classList.toggle('shell', Boolean(x.shell));
     const tx = t.el.querySelector('.tx');
-    tx.dataset.action = x.shell ? 'shell-close' : 'hide';
+    // M6-27: no hide on a live agent or one in an unknown state, matching wall.css; a shell keeps its close
+    const live = !x.shell && ['starting', 'working', 'waiting_for_you', 'unknown'].includes(x.state);
+    tx.hidden = live;
+    if (live) delete tx.dataset.action;
+    else tx.dataset.action = x.shell ? 'shell-close' : 'hide';
     tx.title = x.shell ? 'Close this shell' : 'Hide this tile';
     if (x.outside && !t.outside) {
       t.outside = true;

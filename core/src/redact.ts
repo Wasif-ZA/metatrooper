@@ -184,8 +184,40 @@ export function redactCredentials(text: string): string {
 }
 
 /** Replaces every known secret value in text; values under 4 characters are left alone so short words survive. */
+/** Shorter values are not redacted: they would match ordinary words. A browser secret must be at least this long. */
+export const MIN_SECRET_LENGTH = 4;
+
 export function redactSecretValues(text: string, values: Iterable<string>): string {
   let out = text;
-  for (const v of [...values].sort((a, b) => b.length - a.length)) if (v.length >= 4) out = out.split(v).join('[secret]');
+  for (const v of [...values].sort((a, b) => b.length - a.length)) if (v.length >= MIN_SECRET_LENGTH) out = out.split(v).join('[secret]');
   return out;
+}
+
+const TOKEN_KEY = /^(access_?token|refresh_?token|id_?token|token|auth|authorization|api_?key|apikey|key|secret|client_secret|password|passwd|pwd|session|sessionid|sid|sig|signature|code)$/i;
+
+/** Browser output redaction: known secret values, bearer tokens, cookie values, URL credentials, token-named query values and credential-looking runs. */
+export function scrub(text: string, secrets: Iterable<string> = []): string {
+  const out = redactSecretValues(text, secrets)
+    .replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [secret]')
+    .replace(/\b((?:set-)?cookie)(["']?\s*[:=]\s*["']?)[^\r\n"']+/gi, '$1$2[secret]')
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, '$1[secret]@')
+    .replace(/([?&#;])([^=&#\s]+)=([^&#\s"']+)/g, (m, sep: string, key: string, value: string) => (TOKEN_KEY.test(key) || looksLikeCredential(value) ? `${sep}${key}=[secret]` : m));
+  return redactCredentials(out);
+}
+
+/** An object key whose value is a credential however it looks, matched with case and separators removed (`X-Auth-Token`, `sessionId`, `set_cookie`). */
+const SENSITIVE_KEY = /cookie|authoriz|token|passw|pwd|secret|session|credential|apikey|privatekey|bearer|^(auth|authkey|sid)$/;
+
+/** `scrub` applied to every string and key inside a JSON-like value; a credential-named key's whole value becomes [secret] (null and booleans kept); `skip` names keys left as they are. */
+export function scrubDeep<T>(v: T, secrets: string[], skip = new Set<string>()): T {
+  if (typeof v === 'string') return scrub(v, secrets) as T;
+  if (Array.isArray(v)) return v.map((x) => scrubDeep(x, secrets, skip)) as T;
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => {
+      if (skip.has(k)) return [k, x];
+      const blank = x !== null && x !== undefined && typeof x !== 'boolean' && SENSITIVE_KEY.test(k.toLowerCase().replace(/[^a-z]/g, ''));
+      return [scrub(k, secrets), blank ? '[secret]' : scrubDeep(x, secrets, skip)];
+    })) as T;
+  }
+  return v;
 }

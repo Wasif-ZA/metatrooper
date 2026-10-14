@@ -9,6 +9,9 @@ import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/sr
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
+import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
+import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
+import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
@@ -28,7 +31,7 @@ const SNAPSHOT_TOKENS = 4000;
 const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
-/** The focused element through open shadow roots and same-origin frames; 'hidden' when focus is in a frame this world cannot read. */
+/** The focused element through open shadow roots and same-origin frames; the frame element itself when focus is in a frame this world cannot read. */
 const FOCUSED = `(() => {
   let e = document.activeElement;
   for (;;) {
@@ -37,7 +40,7 @@ const FOCUSED = `(() => {
     if (e.tagName === 'IFRAME' || e.tagName === 'FRAME') {
       let d = null;
       try { d = e.contentDocument; } catch {}
-      if (!d) return 'hidden';
+      if (!d) return e;
       e = d.activeElement;
       continue;
     }
@@ -96,6 +99,17 @@ interface Pane {
   popups: Set<BrowserWindow>;
   /** The picked element first, then each parent walked up to. */
   pickStack: number[];
+  /** The reason the agent gave when it handed the pane to the user, or null while the agent has it. */
+  handoff: string | null;
+  /** A secret was filled into the page now loaded; evaluate is off until the main frame navigates. */
+  secretOnPage: boolean;
+  /** An agent `evaluate` ran in the page now loaded; its listeners can outlive it, so no secret is filled until the main frame navigates. */
+  scripted: boolean;
+  /** The user had the page now loaded through a handoff (Wasif, 2026-10-13): they may have signed in, and a script can encode
+   * a cookie past any scrub, so evaluate is off until the main frame navigates. */
+  handedBack: boolean;
+  /** Give back was pressed while the main frame was loading; the page it commits counts as handed back. */
+  handBackNext: boolean;
 }
 
 interface Dialog {
@@ -127,6 +141,10 @@ export function loopbackPort(url: string | null): number[] {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function handedOff(pane: { handoff: string | null }): ToolError {
+  return new ToolError(-32036, `the user has the pane (${pane.handoff}); wait until they give it back`);
 }
 
 const dnsCache = new Map<string, { at: number; addrs: string[] }>();
@@ -270,7 +288,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [] };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -334,7 +352,7 @@ export class PaneManager {
       pane.lastSnapshot.clear();
       pane.cursors.clear();
       pane.pickStack = [];
-      pane.navs++;
+      this.committed(pane);
       if (url.startsWith('data:')) {
         pane.errorFor = this.errorPages.get(url) ?? pane.errorFor;
         return;
@@ -439,7 +457,7 @@ export class PaneManager {
     if (wc.isDestroyed()) return;
     this.hooks.paneEvent({
       kind: 'state', pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
-      can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(),
+      can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(), handoff: pane.handoff,
     });
   }
 
@@ -477,6 +495,12 @@ export class PaneManager {
         break;
       }
       case 'find-stop': wc.stopFindInPage('keepSelection'); break;
+      case 'give-back':
+        if (pane.handoff === null) break;
+        pane.handoff = null;
+        pane.handedBack = true;
+        pane.handBackNext = wc.isLoadingMainFrame();
+        break;
       default: return;
     }
     this.emitState(pane);
@@ -502,7 +526,7 @@ export class PaneManager {
       return;
     }
     if (method === 'Page.javascriptDialogOpening') {
-      pane.dialog = { type: params.type, message: String(params.message ?? '').slice(0, 2000) };
+      pane.dialog = { type: params.type, message: whole(String(params.message ?? '')).slice(0, 2000) };
       this.log(pane, 'dialog', `${params.type} dialog: ${pane.dialog.message}`);
       pane.onDialog?.(pane.dialog);
       return;
@@ -527,7 +551,7 @@ export class PaneManager {
       return;
     }
     if (method === 'Network.requestWillBeSent') {
-      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: logUrl(String(params.request.url)), status: null, bytes: 0 });
+      pane.network.set(params.requestId, { at: Date.now(), method: params.request.method, url: logUrl(whole(String(params.request.url))), status: null, bytes: 0 });
       if (pane.network.size > LOG_KEEP) pane.network.delete(pane.network.keys().next().value as string);
       return;
     }
@@ -559,11 +583,28 @@ export class PaneManager {
   }
 
   private log(pane: Pane, level: string, text: string): void {
-    pane.console.push({ at: Date.now(), level, text: text.slice(0, 2000) });
+    pane.console.push({ at: Date.now(), level, text: whole(text).slice(0, 2000) });
     if (pane.console.length > LOG_KEEP) pane.console.splice(0, pane.console.length - LOG_KEEP);
   }
 
+  /** The main frame committed a new document: what was marked on the old one goes with it. */
+  private committed(pane: Pane): void {
+    pane.secretOnPage = false;
+    pane.scripted = false;
+    pane.handedBack = pane.handBackNext;
+    pane.handBackNext = false;
+    pane.navs++;
+  }
+
+  /** An agent's input event; the take-over flag is checked right before each one is sent. */
+  private async input(pane: Pane, a: Record<string, any>, method: string, params: Record<string, unknown>): Promise<any> {
+    this.notPaused(a);
+    return this.cmd(pane, method, params);
+  }
+
   private cmd(pane: Pane, method: string, params: Record<string, unknown> = {}): Promise<any> {
+    // only agent tools send input; one that began before a handoff sends none after it
+    if (pane.handoff && method.startsWith('Input.')) return Promise.reject(handedOff(pane));
     return pane.dbg.sendCommand(method, params).catch((e: Error) => {
       throw new ToolError(-32099, `${method} failed: ${e.message}`);
     });
@@ -619,9 +660,11 @@ export class PaneManager {
     }
   }
 
-  private async load(pane: Pane, url: string): Promise<void> {
+  /** Loads `url` under the pane's policy; an agent load stops if the user took the pane while the URL was checked. */
+  private async load(pane: Pane, url: string, agent = false): Promise<void> {
     const verdict = await checkUrl(url, this.paneCtx(pane));
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
+    if (agent && pane.handoff) throw handedOff(pane);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
       if (!/ERR_ABORTED/.test(e.message)) throw new ToolError(-32099, `could not load ${url}: ${e.message}`);
     });
@@ -722,14 +765,14 @@ export class PaneManager {
   }
 
   /** `recheck` runs after the cursor glide, right before the mouse events. */
-  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>): Promise<void> {
+  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>, a: Record<string, any> = {}): Promise<void> {
     await this.pointAt(pane, x, y);
     await recheck();
     this.hooks.probe({ kind: 'click', pane: pane.row.id, x, y });
     pane.clickedAt = Date.now();
-    await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-    await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-    await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+    await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   }
 
   private async isolated(pane: Pane, frameId?: string): Promise<number> {
@@ -745,6 +788,8 @@ export class PaneManager {
     const visit = async (t: any, parent?: string): Promise<void> => {
       const id = t.frame.id as string;
       const nodes = (await this.cmd(pane, 'Accessibility.getFullAXTree', { frameId: id }).then((r) => r.nodes as AXNode[], () => []));
+      // the snapshot cuts names and values, so they are scrubbed whole first
+      for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string) };
       const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
       out.push({ id, nodes, parent, owner });
       for (const c of t.childFrames ?? []) await visit(c, id);
@@ -786,6 +831,8 @@ export class PaneManager {
     const navs = pane.navs;
     const before = pane.lastSnapshot.get(key) ?? (await this.lines(pane, undefined, true).catch(() => []));
     const from = Date.now();
+    // the user may have taken the pane while the first snapshot was read; navigate and back send no Input.* to stop them
+    if (pane.handoff) throw handedOff(pane);
     const r = await work();
     await this.settle(pane);
     const wc = pane.view.webContents;
@@ -805,9 +852,14 @@ export class PaneManager {
     return out;
   }
 
-  private async evalIsolated(pane: Pane, expression: string): Promise<unknown> {
+  /** With `doc` (the `navs` the call started on), a call whose page navigates first runs nothing, and one it navigates under returns nothing. */
+  private async evalIsolated(pane: Pane, expression: string, doc?: number): Promise<unknown> {
     const contextId = await this.isolated(pane);
+    if (pane.handoff) throw handedOff(pane);
+    if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
+    if (doc !== undefined && (pane.handedBack || pane.secretOnPage)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
+    if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated while evaluate ran; its result is dropped');
     if (r.exceptionDetails) throw new ToolError(-32099, `evaluate threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
     return r.result?.value;
   }
@@ -826,6 +878,14 @@ export class PaneManager {
   async tool(id: string, name: string, a: Record<string, any>): Promise<unknown> {
     const pane = this.pane(id);
     await pane.ready;
+    if (pane.handoff) throw handedOff(pane);
+    if (name === 'handoff') {
+      if (typeof a.reason !== 'string' || !a.reason.trim()) throw new ToolError(-32602, 'reason is required');
+      pane.handoff = a.reason.replace(/\s+/g, ' ').trim().slice(0, 300);
+      this.emitState(pane);
+      this.hooks.paneEvent({ kind: 'handoff', pane_id: pane.row.id, reason: pane.handoff });
+      return { ok: true };
+    }
     if (pane.crashed && !(name === 'navigate' && pane.crashed.startsWith('the page crashed'))) throw new ToolError(-32034, pane.crashed);
     if (name === 'dialog') {
       this.notPaused(a);
@@ -841,7 +901,52 @@ export class PaneManager {
     return this.race(pane, this.run(pane, name, a));
   }
 
-  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, or the accessibility tree cannot be read for the control, so it cannot be named. The name is whole; only displays shorten it. */
+  /** The origin of the page a pane shows, or an empty string. */
+  origin(id: string): string {
+    const pane = this.panes.get(id);
+    if (!pane || pane.view.webContents.isDestroyed()) return '';
+    try { return new URL(this.pageUrl(pane)).origin; } catch { return ''; }
+  }
+
+  /** The value of browser secret 
+ame, after checking the ref's field is a password field on the origin saved with the secret. */
+  private async secretValue(pane: Pane, name: string, ref: unknown): Promise<string> {
+    const saved = browserSecretOrigin(name);
+    if (!saved) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
+    const d = await this.describeControl(pane, { ref, tool: 'type' });
+    if (d.origin !== saved) throw new ToolError(-32037, `secret ${name} is saved for another origin; nothing was typed`);
+    if (!d.password) throw new ToolError(-32037, `secret ${name} goes only into a password field; nothing was typed`);
+    const value = getSecret(BROWSER_SECRETS, name);
+    if (!value) throw new ToolError(-32037, `there is no browser secret named ${name}; nothing was typed`);
+    // saved again meanwhile: the value read may not be the one saved for the origin checked
+    if (browserSecretOrigin(name) !== saved) throw new ToolError(-32037, `secret ${name} was saved again while it was being typed; nothing was typed`);
+    return value;
+  }
+
+  /** Fails unless focus is still on the ref's node: `Input.insertText` types into whatever has focus, and the page's own handlers for the focus and select-all may have moved it. */
+  private async focusOn(pane: Pane, node: Target, ref: unknown): Promise<void> {
+    const r = await this.cmd(pane, 'Runtime.evaluate', { expression: FOCUSED, contextId: await this.isolated(pane) });
+    const focused = r.result?.objectId ? (await this.cmd(pane, 'DOM.describeNode', { objectId: r.result.objectId })).node : null;
+    if (focused && focused.backendNodeId === node.backendNodeId) return;
+    // a field in a frame the main frame cannot read: focus must be in that frame, and in its own document on the field
+    if (focused?.frameId && focused.frameId === node.frameId) {
+      const own = await this.cmd(pane, 'Runtime.callFunctionOn', {
+        objectId: await this.resolve(pane, node, ref),
+        returnByValue: true,
+        functionDeclaration: 'function () { let a = this.ownerDocument.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement; return a === this; }',
+      });
+      if (own.result?.value === true) return;
+    }
+    throw new ToolError(-32037, 'focus moved off the field; nothing was typed');
+  }
+
+  /** The security origin of a frame of the pane, or '' when it is not in the frame tree. */
+  private async frameOrigin(pane: Pane, frameId: string): Promise<string> {
+    const find = (t: any): string => (t.frame.id === frameId ? String(t.frame.securityOrigin ?? '') : (t.childFrames ?? []).map(find).find(Boolean) ?? '');
+    return find((await this.cmd(pane, 'Page.getFrameTree')).frameTree);
+  }
+
+  /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, or the accessibility tree cannot be read for the control, so it cannot be named. The name is whole; only displays shorten it. */
   private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
@@ -849,10 +954,15 @@ export class PaneManager {
     let backendNodeId: number | undefined;
     if (a.tool === 'key') {
       const r = await this.cmd(pane, 'Runtime.evaluate', { expression: FOCUSED, contextId: await this.isolated(pane) });
-      if (r.result?.value === 'hidden') return { origin, control: null, password: false, hidden: true };
       objectId = r.result?.objectId;
       if (objectId) {
         const node = (await this.cmd(pane, 'DOM.describeNode', { objectId, pierce: true })).node;
+        if (node?.nodeName === 'IFRAME' || node?.nodeName === 'FRAME') {
+          // focus is in a frame this world cannot read: the key goes to that frame's origin, or is not sent
+          const own = normalOrigin(await this.frameOrigin(pane, String(node.frameId ?? '')));
+          if (!own) throw new ToolError(-32030, 'not sent: focus is in a frame whose origin cannot be established');
+          return { origin: own, control: null, password: false, hidden: true };
+        }
         if (node?.shadowRoots?.some((s: any) => s.shadowRootType === 'closed')) return { origin, control: null, password: false, hidden: true };
         backendNodeId = node?.backendNodeId;
       }
@@ -865,12 +975,20 @@ export class PaneManager {
     const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId,
       returnByValue: true,
-      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password" }; }',
+      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const w = e && e.ownerDocument.defaultView; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password", child: !w || w !== w.top, origin: w ? String(w.origin) : "" }; }',
     });
+    // a control inside a child frame belongs to that frame's own origin; one that cannot be established is refused
+    if (el.result?.value?.child !== false) {
+      const own = normalOrigin(String(el.result?.value?.origin ?? ''));
+      if (!own) throw new ToolError(-32030, 'not sent: the control is in a frame whose origin cannot be established');
+      origin = own;
+    }
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
     const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
-    const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim();
-    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
+    // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
+    const secrets = scrubSecretValues();
+    const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets);
+    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
   }
 
   /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
@@ -884,9 +1002,12 @@ export class PaneManager {
 
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
+    // the user may have taken the pane while this call glided the cursor
+    if (pane.handoff) throw handedOff(pane);
     this.notPaused(a);
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describeControl(pane, { ...a, tool });
+    if (pane.handoff) throw handedOff(pane);
     this.notPaused(a);
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
@@ -895,7 +1016,7 @@ export class PaneManager {
     }
   }
 
-  private async pressKeys(pane: Pane, keys: string): Promise<void> {
+  private async pressKeys(pane: Pane, keys: string, a: Record<string, any> = {}): Promise<void> {
     const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
     const key = parts.pop() ?? '';
     const MODS: Record<string, number> = { alt: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
@@ -930,8 +1051,8 @@ export class PaneManager {
     if (!def) throw new ToolError(-32602, `unknown key ${key}`);
     const [k, code, vk, text] = def;
     const typed = text !== undefined && !(modifiers & 7) ? { text } : {};
-    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: typed.text !== undefined ? 'keyDown' : 'rawKeyDown', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...typed });
-    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await this.input(pane, a, 'Input.dispatchKeyEvent', { type: typed.text !== undefined ? 'keyDown' : 'rawKeyDown', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...typed });
+    await this.input(pane, a, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
   }
 
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
@@ -950,7 +1071,7 @@ export class PaneManager {
       case 'key': {
         if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
         await recheck();
-        await this.pressKeys(pane, a.keys);
+        await this.pressKeys(pane, a.keys, a);
         return { ok: true };
       }
       case 'navigate': {
@@ -963,7 +1084,7 @@ export class PaneManager {
         const [prev, navs] = [pane.errorFor, pane.navs];
         pane.errorFor = null;
         const out = await this.answer(pane, session, async () => {
-          await this.load(pane, a.url);
+          await this.load(pane, a.url, true);
           return { status: pane.status };
         }).catch((e) => {
           // nothing loaded (a blocked URL): the error page is still on screen
@@ -993,7 +1114,7 @@ export class PaneManager {
         return this.page(pane, 'snapshot', a.since_last === true && prev ? diffLines(prev, cur) : cur, budget);
       }
       case 'read': {
-        const text = String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? '');
+        const text = whole(String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? ''));
         let lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
         if (typeof a.search === 'string' && a.search) {
           const q = a.search.toLowerCase();
@@ -1004,29 +1125,38 @@ export class PaneManager {
       case 'click':
         return this.answer(pane, session, async () => {
           const p = await this.target(pane, a.ref);
-          await this.clickAt(pane, p.x, p.y, recheck);
+          await this.clickAt(pane, p.x, p.y, recheck, a);
           return { ok: true };
         });
       case 'type': {
         if (typeof a.text !== 'string') throw new ToolError(-32602, 'text is required');
+        const secret = SECRET_PLACEHOLDER.exec(a.text)?.[1];
+        if (!secret && a.text.includes('{{secret:')) throw new ToolError(-32602, 'a {{secret:NAME}} placeholder must be the whole text');
+        if (secret) await this.secretValue(pane, secret, a.ref);
         return this.answer(pane, session, async () => {
           const { node, x, y } = await this.target(pane, a.ref);
-          await this.clickAt(pane, x, y, recheck);
+          await this.clickAt(pane, x, y, recheck, a);
+          let text = a.text;
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
-          this.notPaused(a);
           for (const type of ['keyDown', 'keyUp']) {
-            await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
+            await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
-          this.notPaused(a);
-          if (a.text) await this.cmd(pane, 'Input.insertText', { text: a.text });
+          if (secret) {
+            // the page's handlers for the focus and select-all may have made it a plain field or moved it to another origin
+            text = await this.secretValue(pane, secret, a.ref);
+            await this.focusOn(pane, node, a.ref);
+            // a script, running or done, can have left a listener that copies the value encoded, past the scrub
+            if (pane.scripted) throw new ToolError(-32037, 'evaluate has run on this page; navigate first, nothing was typed');
+            pane.secretOnPage = true;
+          }
+          if (text) await this.input(pane, a, 'Input.insertText', { text });
           else {
-            for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+            for (const type of ['keyDown', 'keyUp']) await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }
           if (a.submit) {
-            this.notPaused(a);
             pane.clickedAt = Date.now();
             for (const type of ['keyDown', 'keyUp']) {
-              await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+              await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
             }
           }
           return { ok: true };
@@ -1049,7 +1179,7 @@ export class PaneManager {
         if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref).backendNodeId });
         else {
           const [w, h] = pane.parked ? [PARKED_VIEWPORT.width, PARKED_VIEWPORT.height] : [pane.view.getBounds().width, pane.view.getBounds().height];
-          await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
+          await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
           await sleep(150);
         }
         return { scroll_y: await this.evalIsolated(pane, 'Math.round(window.scrollY)') };
@@ -1100,7 +1230,14 @@ export class PaneManager {
       }
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
-        const value = await this.evalIsolated(pane, a.expression);
+        if (pane.handedBack) throw new ToolError(-32038, 'evaluate is off on a page the user had through a handoff; navigate first');
+        if (pane.secretOnPage) throw new ToolError(-32038, 'evaluate is off on a page a secret was typed into; navigate first');
+        pane.scripted = true;
+        // a navigation while it waits clears the flag, and the script may then run in, or leave a listener on, the new page
+        const raw = await this.evalIsolated(pane, a.expression, pane.navs).finally(() => { pane.scripted = true; });
+        // the user may have signed in while it ran
+        if (pane.handoff !== null || pane.handedBack) throw new ToolError(-32038, 'the user took the pane while evaluate ran; its result is dropped');
+        const value = scrubDeep(raw, knownSecretValues());
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };
@@ -1161,7 +1298,7 @@ export class PaneManager {
     if (node === null) return;
     await this.cmd(pane, 'Overlay.setInspectMode', { mode: 'none', highlightConfig: {} });
     pane.pickStack = [node];
-    await this.describe(pane, node);
+    await this.describePick(pane, node);
     if (!this.win.isDestroyed()) this.win.webContents.focus();
   }
 
@@ -1194,12 +1331,12 @@ export class PaneManager {
       if (pane.pickStack !== stack) return false;
       stack.push(node.backendNodeId);
     }
-    await this.describe(pane, stack[stack.length - 1]);
+    await this.describePick(pane, stack[stack.length - 1]);
     return true;
   }
 
   /** Sends a picked element's URL, CSS path, raw outer HTML (sanitised and cut to 4 KB when saved) and crop to the workbench UI. */
-  private async describe(pane: Pane, node: number): Promise<void> {
+  private async describePick(pane: Pane, node: number): Promise<void> {
     const html = String((await this.cmd(pane, 'DOM.getOuterHTML', { backendNodeId: node })).outerHTML ?? '').slice(0, PICK_RAW);
     const { object } = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: node, executionContextId: await this.isolated(pane) });
     const sel = await this.cmd(pane, 'Runtime.callFunctionOn', {
@@ -1278,6 +1415,11 @@ export function errorPage(kind: string, url: string, detail: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>`
     + `<style>body{font:14px system-ui,sans-serif;margin:48px;color:#222;background:#fafafa}code{word-break:break-all}@media (prefers-color-scheme:dark){body{color:#ddd;background:#1b1b1b}a{color:#8ab4f8}}</style></head>`
     + `<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><p><code>${escapeHtml(url.slice(0, 2000))}</code></p><p>${escapeHtml(detail.slice(0, 500))}</p>${retry}</body></html>`;
+}
+
+/** Page text scrubbed before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. */
+function whole(text: string): string {
+  return scrub(text, knownSecretValues());
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */

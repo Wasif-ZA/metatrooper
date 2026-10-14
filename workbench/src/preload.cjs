@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('troop', {
   paneShow: (paneId, bounds) => ipcRenderer.invoke('paneShow', paneId, bounds),
   paneNavigate: (paneId, url) => ipcRenderer.invoke('paneNavigate', paneId, url),
   paneAct: (paneId, action, arg) => ipcRenderer.invoke('paneAct', paneId, action, arg),
+  paneAudit: (paneId) => ipcRenderer.invoke('paneAudit', paneId),
   onPaneEvent: (fn) => {
     const listener = (_e, ev) => fn(ev);
     ipcRenderer.on('pane-event', listener);

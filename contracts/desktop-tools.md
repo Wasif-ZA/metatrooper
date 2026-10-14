@@ -117,7 +117,7 @@ foreground}`).
 | `takeover.pause` | `{}` (ui.hello) | `{paused_at}` once no chunk is in flight |
 | `takeover.resume` | `{session_id}` (ui.hello) | `{}` |
 | `desktop.windows` | `{session_id, pid}` | as the `windows` tool |
-| `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, file_dialog, rect}` |
+| `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, hidden, file_dialog, rect}` |
 | `desktop.snapshot` / `desktop.screenshot` | `{session_id, pid, window, ...}` | as the tools |
 | `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | `{status, focus_returned?}`; -32035 when the control no longer matches `expect`; -32030 "paused by the user" |
 

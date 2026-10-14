@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { projectId, resolveProjectPath } from '../src/project.ts';
-import { harness, isolation, root } from './helpers.ts';
+import { harness, isolation, root, runNode } from './helpers.ts';
 
 const cli = join(root, 'core', 'cli.ts');
 
@@ -78,4 +78,33 @@ test('a session prefix matches literally: % and _ are not wildcards', () => {
       assert.match(r.stderr, /no session matches/);
     }
   } finally { rmSync(iso.home, { recursive: true, force: true }); }
+});
+
+test('troop browser secret prints its success line, and with --json the RPC result', async () => {
+  const h = await harness();
+  // the value prompt needs a terminal; node-pty runs in its own process, since its console handle keeps a process alive
+  const script = String.raw`
+    const [cli, ...extra] = JSON.parse(process.argv[1]);
+    const pty = require('module').createRequire(cli)('node-pty');
+    let out = '', sent = false;
+    const child = pty.spawn(process.execPath, [cli, 'browser', 'secret', 'PTY_PW', 'https://pty.test', ...extra], { cols: 200, rows: 24, env: process.env, useConpty: true });
+    child.onData((d) => {
+      out += d;
+      if (!sent && out.includes('Value for PTY_PW')) { sent = true; child.write('abcd1234\r'); }
+    });
+    child.onExit((e) => { console.log(JSON.stringify({ out, code: e.exitCode })); process.exit(0); });
+    setTimeout(() => { console.log(JSON.stringify({ out, code: 'timeout' })); process.exit(0); }, 30000);
+  `;
+  try {
+    const run = async (extra: string[]) => {
+      const r = await runNode(['-e', script, JSON.stringify([cli, ...extra])], h.env) as { stdout: string; stderr: string };
+      const o = JSON.parse(r.stdout.trim().split('\n').pop()!) as { out: string; code: unknown };
+      assert.equal(o.code, 0, o.out + r.stderr);
+      return o.out;
+    };
+    assert.match(await run([]), /saved PTY_PW for https:\/\/pty\.test/);
+    const json = await run(['--json']);
+    assert.match(json, /\{\}/);
+    assert.doesNotMatch(json, /\btrue\b/);
+  } finally { await h.teardown(); }
 });

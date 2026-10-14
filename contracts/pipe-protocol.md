@@ -154,6 +154,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `plugin.install` | `{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}` | {plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk | -32003 |  | yes |
 | `plugin.remove` | `{plugin_id}` | {} |  |  | yes |
 | `plugin.secret.set` | `{plugin_id, name, value}` | {}; `name` must be an approved `secrets:<NAME>` |  |  | yes |
+| `browser.secret.set` | `{name, origin, value}` | {}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values | -32602 |  | yes |
 | `mcp.resolve` | `{plugin_id, server_id}` | {command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |  |  |  |
 | `mcp.missing` | `{plugin_id, names}` | {}; raises a `missing-secret` needs-you item per name | -32002 |  |  |
 | `notify.sink.set` | `{kind, dest, name?, id?, kinds?, enabled?}` | {id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table |  | yes | yes |
@@ -176,7 +177,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |
 | `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only | -32002 |  | yes |
 | `desktop.windows` | `{session_id, pid}` | {windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued | -32030 |  |  |
-| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
+| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
 | `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |
 | `desktop.screenshot` | `{session_id, pid, window}` | {data_base64, mime, width, height}: JPEG, no side over 1,568 px | -32030 |  |  |
 | `desktop.find` | `{session_id, pid, window, text}` | {found}: whether a node Name or value contains `text` | -32030 |  |  |
@@ -219,7 +220,9 @@ Every call carries `pane_id`. The workbench checks that the connection's session
 are in `browser-tools.md`.
 
 `browser.<tool>` for the 12 tools, plus `browser.panes` (lists panes this session may drive) and
-`browser.capture` (`{pane_id, label}`, used by the core for before/after and comments).
+`browser.capture` (`{pane_id, label}`, used by the core for before/after and comments), and `browser.outcome`
+(`{pane_id, tool, status}`: a checked tool and `error <code>`, else -32602; writes the `browser.tool` audit row for a
+call the MCP server stopped before sending it, or whose control changed on every attempt).
 
 `cursor.glide` (`{session, target_rect_px, caption}`, from `metatrooper-desktop` before each desktop input, M6-15):
 `session` must be the connection's bound session, else -32030; result `{arrived: true}` once the session's cursor

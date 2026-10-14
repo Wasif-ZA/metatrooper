@@ -237,18 +237,33 @@ namespace TroopUia {
       return e;
     }
 
-    static AutomationElement Focused(IntPtr hwnd) {
+    // hidden: the control that gets a key is unknown (no focus HWND in this window, or a container HWND while global focus is elsewhere)
+    static AutomationElement Focused(IntPtr hwnd, out bool hidden) {
+      hidden = true;
       uint pid; uint tid = Native.GetWindowThreadProcessId(hwnd, out pid);
       var gti = new Native.GUITHREADINFO(); gti.cbSize = Marshal.SizeOf(gti);
       if (!Native.GetGUIThreadInfo(tid, ref gti) || gti.hwndFocus == IntPtr.Zero) return null;
       if (Native.GetAncestor(gti.hwndFocus, GA_ROOT) != Native.GetAncestor(hwnd, GA_ROOT)) return null;
-      try { return AutomationElement.FromHandle(gti.hwndFocus); } catch { return null; }
+      hidden = false;
+      try {
+        var f = AutomationElement.FocusedElement;
+        var e = f;
+        while (e != null && e.Current.NativeWindowHandle == 0) e = TreeWalker.RawViewWalker.GetParent(e);
+        if (e != null && new IntPtr(e.Current.NativeWindowHandle) == gti.hwndFocus) return f;
+      } catch {}
+      try {
+        var h = AutomationElement.FromHandle(gti.hwndFocus);
+        var t = h.Current.ControlType;
+        hidden = t == ControlType.Pane || t == ControlType.Window || t == ControlType.Document || t == ControlType.Custom || t == ControlType.Group || TreeWalker.ControlViewWalker.GetFirstChild(h) != null;
+        return h;
+      } catch { hidden = true; return null; }
     }
 
     static object Describe(long hwnd, string reference) {
-      AutomationElement e = reference.Length > 0 ? Find(hwnd, reference) : Focused(new IntPtr(hwnd));
-      if (e == null) return new Dictionary<string, object> { { "control", null }, { "password", false }, { "rect", RectOf(new IntPtr(hwnd)) } };
-      return new Dictionary<string, object> { { "control", ControlOf(e) }, { "password", e.Current.IsPassword }, { "rect", RectOfElement(e) } };
+      bool hidden = false;
+      AutomationElement e = reference.Length > 0 ? Find(hwnd, reference) : Focused(new IntPtr(hwnd), out hidden);
+      if (e == null) return new Dictionary<string, object> { { "control", null }, { "password", false }, { "hidden", hidden }, { "rect", RectOf(new IntPtr(hwnd)) } };
+      return new Dictionary<string, object> { { "control", ControlOf(e) }, { "password", e.Current.IsPassword }, { "hidden", hidden }, { "rect", RectOfElement(e) } };
     }
 
     static object Screenshot(IntPtr h) {

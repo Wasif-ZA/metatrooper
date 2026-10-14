@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
+import { scrubSecretValues, setBrowserSecret } from './secrets.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
@@ -19,6 +20,7 @@ import { installClaude, installCodex, installEngineSettings, lineDiff, uninstall
 import { homeDir, repoDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
+import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
@@ -87,6 +89,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'plugin.install', needsUi: true, errors: [E.VALIDATION], params: '{source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}', result: '{plugin_id, missing_secrets}. -32003 when `approved_permissions` differs from what the manifest asks for, or `manifest_hash` differs from the manifest now on disk' },
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
+  { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
   { name: 'mcp.resolve', params: '{plugin_id, server_id}', result: '{command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
   { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names}', result: '{}; raises a `missing-secret` needs-you item per name' },
   { name: 'notify.sink.set', stable: true, needsUi: true, params: '{kind, dest, name?, id?, kinds?, enabled?}', result: '{id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table' },
@@ -109,7 +112,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'takeover.pause', needsUi: true, params: '{}', result: '{paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight' },
   { name: 'takeover.resume', needsUi: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; clears the take-over flag for that session only' },
   { name: 'desktop.windows', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid}', result: "{windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued" },
-  { name: 'desktop.describe', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, ref?}', result: '{grant_id, control, password, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you"' },
+  { name: 'desktop.describe', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, ref?}', result: '{grant_id, control, password, hidden, file_dialog, rect}; -32030 "window not granted; ask the user to give it to you"' },
   { name: 'desktop.snapshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, max_nodes?}', result: '{text, nodes}: the UI Automation tree with refs' },
   { name: 'desktop.screenshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window}', result: '{data_base64, mime, width, height}: JPEG, no side over 1,568 px' },
   { name: 'desktop.find', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, text}', result: '{found}: whether a node Name or value contains `text`' },
@@ -502,6 +505,14 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('browser.secret.set', {
+    handler: (p) => {
+      if (typeof p.value !== 'string') throw new RpcError(E.INVALID_PARAMS, 'value is required');
+      try { setBrowserSecret(db, str(p, 'name'), str(p, 'origin'), p.value); } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); }
+      return {};
+    },
+  });
+
   m.set('notify.sink.set', { handler: (p) => setSink(db, p) });
   m.set('notify.sink.list', { handler: () => listSinks(db) });
   m.set('notify.sink.test', { handler: (p) => testSink(db, str(p, 'id')) });
@@ -513,7 +524,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const pluginId = str(p, 'plugin_id');
       const names = Array.isArray(p.names) ? p.names.filter((n): n is string => typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n)) : [];
-      if (!db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+      if (reservedId(pluginId) || !db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
       for (const n of names) raiseMissingSecret(db, pluginId, n);
       return {};
     },
@@ -595,7 +606,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   const desktop = ctl.desktop ?? new Desktop(db);
   desktop.methods(m);
-  const approvals = new Approvals(db, ctl.approvalTimeoutMs, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
+  const approvals = new Approvals(db, ctl.approvalTimeoutMs, scrubSecretValues, { paused: (s) => desktop.paused(s), granted: (s, t) => desktop.granted(s, t) });
   m.set('approval.check', { handler: (p) => approvals.check(p) });
   m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 

@@ -18,7 +18,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { dataVersion, snapshot, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { browserAudit, dataVersion, snapshot, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
@@ -297,6 +297,11 @@ function handlers(): void {
   on('paneAct', (paneId: unknown, action: unknown, arg: unknown) => {
     if (typeof paneId === 'string' && typeof action === 'string') panes?.act(paneId, action, arg);
     return true;
+  });
+
+  on('paneAudit', (paneId: unknown) => {
+    const d = db();
+    return typeof paneId === 'string' && d ? browserAudit(d, paneId) : [];
   });
 
   on('paneMenu', (items: unknown, x: unknown, y: unknown) => new Promise<string | null>((resolve) => {

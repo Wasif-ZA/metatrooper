@@ -96,7 +96,7 @@ const hwndOf = (v: unknown): number => {
   return n;
 };
 
-interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; rect: number[] | null }
+interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden?: boolean; rect: number[] | null }
 
 /** Grants, the take-over flag and every desktop read and input, through one helper. */
 export class Desktop {
@@ -197,8 +197,10 @@ export class Desktop {
     return run;
   }
 
-  private async dispatch<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
-    if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
+  /** Sends one input; the pause and the grant are rechecked here, with no await before the send. */
+  private async dispatch<T>(sessionId: string, grantId: string, fn: () => Promise<T>, note = ''): Promise<T> {
+    if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
+    if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
     const watchId = beginAction();
     const p = fn();
     this.inFlight = p;
@@ -208,7 +210,7 @@ export class Desktop {
   async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number }> {
     const { grant, info } = await this.resolve(sessionId, hwnd);
     const d = await this.helper.request<Described>('describe', { hwnd, ref, pid: info.pid });
-    return { grant_id: grant.id, control: d.control, password: d.password === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid };
+    return { grant_id: grant.id, control: d.control, password: d.password === true, hidden: d.hidden === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid };
   }
 
   async act(p: Record<string, unknown>, sessionId: string): Promise<Record<string, unknown>> {
@@ -224,19 +226,20 @@ export class Desktop {
       const c = now.control ?? { name: '', automation_id: '', role: '' };
       if (expect.grant_id !== undefined && expect.grant_id !== now.grant_id) throw new RpcError(CONTROL_CHANGED, 'the window changed; nothing was sent');
       if ((expect.name ?? '') !== c.name || (expect.automation_id ?? '') !== c.automation_id || (expect.role ?? '') !== c.role
-        || Boolean(expect.password) !== now.password || Boolean(expect.file_dialog) !== now.file_dialog) {
+        || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       }
-      if (action !== 'type') return this.dispatch(sessionId, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }));
+      if (action !== 'type') return this.dispatch(sessionId, now.grant_id, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }));
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
       let focusLost = false;
       let done = 0;
       do {
         const n = Math.min(done + CHUNK, chars.length);
-        if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, `${PAUSED}; ${done} of ${chars.length} characters were typed`);
-        if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, `${NOT_GRANTED}; ${done} of ${chars.length} characters were typed`);
-        out = await this.dispatch(sessionId, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), pid: now.pid }));
+        const note = `; ${done} of ${chars.length} characters were typed`;
+        if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
+        if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
+        out = await this.dispatch(sessionId, now.grant_id, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), pid: now.pid }), note);
         if (out.focus_returned === false) focusLost = true;
         done = n;
       } while (done < chars.length);

@@ -3,9 +3,14 @@ import net from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
+import { appendEvent } from '../../../core/src/events/append.ts';
+import { scrub, scrubDeep } from '../../../core/src/redact.ts';
+import { knownSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
-const TOOLS = new Set(['navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog']);
+const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
+/** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
+const CHECKED = new Set(['click', 'type', 'select', 'key']);
 
 type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
 
@@ -23,6 +28,14 @@ export function ownedPanes(db: DatabaseSync, sessionId: string): PaneRow[] {
   return db.prepare(
     'SELECT * FROM browser_pane bp WHERE bp.open = 1 AND bp.session_id = ? ORDER BY bp.id',
   ).all(sessionId) as unknown as PaneRow[];
+}
+
+/** Result keys passed through unscrubbed in a screenshot's result only: its image bytes. An evaluate can return anything under the same key. */
+const KEEP = new Set(['data_base64']);
+
+/** One append-only `browser.tool` event row per agent tool call: tool, pane, origin and result status, never the arguments. */
+function audit(sessionId: string, payload: { tool: string; pane: string; origin: string; status: string }): void {
+  try { appendEvent('browser.tool', sessionId, payload)?.close(); } catch {}
 }
 
 function clearDeadSocket(pipePath: string): Promise<void> {
@@ -71,7 +84,8 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       if (method === 'browser.panes') {
         if (bound?.kind !== 'session') return send({ jsonrpc: '2.0', id, result: [] });
         const rows = ownedPanes(db, bound.sessionId);
-        return send({ jsonrpc: '2.0', id, result: rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })) });
+        // a pane URL can carry an OAuth code or a token, like any tool result
+        return send({ jsonrpc: '2.0', id, result: scrubDeep(rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })), knownSecretValues()) });
       }
 
       if (method === 'browser.capture') {
@@ -103,17 +117,35 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
       if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, 'pane not owned by the calling session');
+      if (tool === 'outcome') {
+        const status = typeof params.status === 'string' ? params.status : '';
+        if (!CHECKED.has(String(params.tool)) || !/^error -?\d{1,6}$/.test(status)) return fail(id, -32602, 'outcome takes a checked tool (click, type, select or key) and an error status');
+        audit(bound.sessionId, { tool: String(params.tool), pane: paneId, origin: deps.panes.origin(paneId), status });
+        return send({ jsonrpc: '2.0', id, result: { ok: true } });
+      }
       if (!deps.panes.has(paneId)) {
         deps.refreshPanes();
         for (let i = 0; i < 40 && !deps.panes.has(paneId); i++) await new Promise((r) => setTimeout(r, 50));
       }
-      const result = await deps.panes.tool(paneId, tool, { ...params, _session: bound.sessionId });
-      return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: bound.sessionId, pane_id: paneId } : result });
+      const sessionId = bound.sessionId;
+      let status = 'ok';
+      const origin = deps.panes.origin(paneId);
+      try {
+        const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
+        return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, knownSecretValues(), tool === 'screenshot' ? KEEP : undefined) });
+      } catch (e) {
+        status = `error ${e instanceof ToolError ? e.code : -32099}`;
+        throw e;
+      } finally {
+        // a checked attempt whose control changed sent nothing; the MCP server retries it, or reports it with browser.outcome, so the call is one row
+        const retried = CHECKED.has(tool) && status === 'error -32035';
+        if (tool !== 'describe' && !retried) audit(sessionId, { tool, pane: paneId, origin, status });
+      }
     };
 
     const decode = createDecoder((raw) => {
       const msg = raw as { id?: unknown };
-      handle(raw as never).catch((e) => fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, (e as Error).message));
+      handle(raw as never).catch((e) => fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, scrub((e as Error).message, knownSecretValues())));
     });
     socket.on('data', (chunk) => {
       try {

@@ -41,9 +41,9 @@ async function input(name: string, args: Record<string, unknown>, session_id: st
   for (let attempt = 0; attempt < 3; attempt++) {
     const d = await core('desktop.describe', { ...me, window: args.window, ref: args.ref });
     if (d.error) return d;
-    const { grant_id, control, password, file_dialog, rect } = d.result as { grant_id: string; control: Control | null; password: boolean; file_dialog: boolean; rect: number[] | null };
+    const { grant_id, control, password, hidden, file_dialog, rect } = d.result as { grant_id: string; control: Control | null; password: boolean; hidden: boolean; file_dialog: boolean; rect: number[] | null };
     const check = { session_id, surface: 'desktop', target: grant_id, action: name, args, control };
-    const v = await core('approval.check', { ...check, password, file_dialog, action_hash: actionHash(check) }, APPROVAL_TIMEOUT_MS + 10_000);
+    const v = await core('approval.check', { ...check, password, hidden, file_dialog, action_hash: actionHash(check) }, APPROVAL_TIMEOUT_MS + 10_000);
     if (v.error) return v;
     const out = v.result as { decision: string; reason?: string };
     if (out.decision === 'deny') return { error: { code: -32030, message: out.reason === 'paused by the user' || out.reason?.startsWith('window not granted') ? out.reason : `not sent: ${out.reason}` } };
@@ -51,7 +51,7 @@ async function input(name: string, args: Record<string, unknown>, session_id: st
     if (out.decision === 'expired') return { error: { code: -32030, message: 'not approved in time' } };
     const glide = await workbench.call('cursor.glide', { session: session_id, target_rect_px: rect, caption: caption(name, args, control) });
     if (glide.error) return glide;
-    const r = await core('desktop.act', { ...me, ...args, action: name, expect: { ...(control ?? { name: '', automation_id: '', role: '' }), password, file_dialog, grant_id } }, 10 * 60_000);
+    const r = await core('desktop.act', { ...me, ...args, action: name, expect: { ...(control ?? { name: '', automation_id: '', role: '' }), password, hidden, file_dialog, grant_id } }, 10 * 60_000);
     if (r.error?.code !== CONTROL_CHANGED) return r;
   }
   return { error: { code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' } };

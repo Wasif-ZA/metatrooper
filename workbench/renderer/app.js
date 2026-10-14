@@ -3,6 +3,7 @@
 const api = window.troop;
 const PROBE = new URLSearchParams(location.search).has('probe');
 const DEMO = new URLSearchParams(location.search).has('demo');
+const LIVE_STATES = ['starting', 'working', 'waiting_for_you', 'unknown'];
 const STATE_WORDS = { starting: 'starting', working: 'working', waiting_for_you: 'waiting for you', done: 'done', idle: 'idle', unknown: 'state unknown', exited: 'exited' };
 
 const ui = {
@@ -128,6 +129,8 @@ function renderBrowser() {
   const s = ui.snap;
   if (ui.paneId && !s.panes.some((p) => p.id === ui.paneId)) ui.paneId = null;
   if (!ui.paneId && s.panes[0]) ui.paneId = s.panes[0].id;
+  // the rows are one pane's; whatever selected another pane (an agent opening one, a close) shows that one live
+  if (ui.browserMode === 'timeline' && ui.auditPane !== ui.paneId) ui.browserMode = 'live';
   const ownerOf = (sid) => { const x = s.sessions.find((y) => y.id === sid); return x ? sessionLabel(x) : 'closed session'; };
   const dotOf = (p) => {
     const owner = p.session_id && s.sessions.find((y) => y.id === p.session_id);
@@ -143,6 +146,7 @@ function renderBrowser() {
   if (ui.comment) body = renderCommentForm();
   else if (!pane) body = '<p class="empty">No browser pane. Open one.</p>';
   else if (ui.browserMode === 'compare') body = renderCompare(pane);
+  else if (ui.browserMode === 'timeline') body = renderTimeline();
   else body = '<div id="pane-host" class="pane-host"></div>';
   const st = (pane && ui.paneState[pane.id]) || {};
   const perms = pane ? ui.perms.filter((x) => x.pane_id === pane.id) : [];
@@ -161,15 +165,32 @@ function renderBrowser() {
       <button data-action="find-step" data-dir="next" title="Next (Enter)">&darr;</button>
       <button data-action="find-close" title="Close (Esc)">Close</button>
     </div>` : '';
+  const handed = st.handoff ? `<div class="toolbar permbar"><span>The agent handed you this pane: <b>${esc(st.handoff)}</b></span>
+      <button class="primary" data-action="give-back">Give back</button></div>` : '';
   const asks = perms.map((x) => `<div class="toolbar permbar"><span><b>${esc(x.origin)}</b> wants ${esc(x.permission)}</span>
       <button class="primary" data-action="perm" data-id="${esc(x.id)}" data-allow="1">Allow</button><button data-action="perm" data-id="${esc(x.id)}" data-allow="0">Block</button></div>`).join('');
   return `<div class="browser">
     ${tabs}
     ${controls}
     <div class="loadbar ${st.loading ? 'on' : ''}"></div>
-    ${asks}${find}
+    ${handed}${asks}${find}
     ${body}
   </div>`;
+}
+
+/** Reads a pane's Timeline rows; a read that a later one replaced while it was in flight is dropped. */
+async function loadTimeline(id) {
+  const ask = (ui.auditAsk = (ui.auditAsk || 0) + 1);
+  ui.audit = [];
+  ui.auditPane = id;
+  const rows = await api.paneAudit(id);
+  if (ui.auditAsk === ask) ui.audit = rows;
+}
+
+/** The pane's browser tool calls, newest first: time, tool, origin and result. */
+function renderTimeline() {
+  const rows = (ui.audit || []).map((r) => `<tr><td class="meta">${esc(new Date(r.at).toLocaleString())}</td><td>${esc(r.tool)}</td><td>${esc(r.origin || '')}</td><td class="${r.status === 'ok' ? '' : 'meta'}">${esc(r.status)}</td></tr>`).join('');
+  return rows ? `<div class="panel timeline"><table><tr><th>When</th><th>Tool</th><th>Origin</th><th>Result</th></tr>${rows}</table></div>` : '<p class="empty">No agent browser actions in the last 30 days.</p>';
 }
 
 function renderCommentForm() {
@@ -487,11 +508,17 @@ function resumeButton(x) {
 
 const STATE_ORDER = ['waiting_for_you', 'working', 'starting', 'unknown', 'done', 'idle', 'exited'];
 
+/** False for a live or unknown session, so no click hides an agent that may still need you. */
+function canHide(id) {
+  const x = ui.snap.sessions.find((y) => y.id === id);
+  return Boolean(x) && !LIVE_STATES.includes(x.state);
+}
+
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
   return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Click: big slot. Shift+click: pair. Drop files to send their paths.">
-    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span><button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button></span>
+    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
 
@@ -1228,7 +1255,7 @@ async function onClick(e) {
       return;
     case 'menu-hide':
       document.getElementById('menu').hidden = true;
-      await rpc('session.hide', { session_id: id });
+      if (canHide(id)) await rpc('session.hide', { session_id: id });
       return;
     case 'start-engine':
       ui.startEngine = el.dataset.engine;
@@ -1297,7 +1324,7 @@ async function onClick(e) {
       render();
       return;
     case 'hide':
-      await rpc('session.hide', { session_id: id });
+      if (canHide(id)) await rpc('session.hide', { session_id: id });
       return;
     case 'limit-resume':
       await rpc('session.limit-resume', { session_id: id, on: el.ariaPressed !== 'true' });
@@ -1439,6 +1466,10 @@ async function onClick(e) {
       } else if (pick === 'mode') {
         ui.browserMode = ui.browserMode === 'compare' ? 'live' : 'compare';
         render();
+      } else if (pick === 'timeline') {
+        ui.browserMode = ui.browserMode === 'timeline' ? 'live' : 'timeline';
+        if (ui.browserMode === 'timeline') await loadTimeline(pane.id);
+        render();
       } else if (pick === 'find') openFind();
       else if (pick === 'close') {
         await rpc('pane.close', { pane_id: pane.id });
@@ -1446,6 +1477,9 @@ async function onClick(e) {
       } else if (pick && pick.startsWith('own:')) await rpc('pane.assign', { pane_id: pane.id, session_id: pick.slice(4) || null });
       return;
     }
+    case 'give-back':
+      void api.paneAct(ui.paneId, 'give-back');
+      return;
     case 'pane-act':
       void api.paneAct(ui.paneId, el.dataset.act);
       return;
@@ -1608,7 +1642,7 @@ document.addEventListener('contextmenu', (e) => {
   if (!row || row.dataset.id.startsWith('sh_')) { menu.hidden = true; return; }
   e.preventDefault();
   const id = row.dataset.id;
-  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div><div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>`;
+  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
   menu.hidden = false;
@@ -1805,6 +1839,7 @@ api.onPaneEvent((ev) => {
     return;
   } else if (ev.kind === 'download') { toast(ev.state === 'completed' ? `Downloaded to ${ev.file}` : `Download ${ev.state}: ${ev.file}`, ev.state !== 'completed'); return; }
   else if (ev.kind === 'permission') { ui.perms.push(ev); if (ev.pane_id !== ui.paneId) toast(`${ev.origin} wants ${ev.permission}; open its pane to answer.`); }
+  else if (ev.kind === 'handoff') { ui.paneId = ev.pane_id; ui.tab = 'browser'; ui.split = true; ui.browserMode = 'live'; save('tab', ui.tab); toast(`An agent handed you a browser pane: ${ev.reason}`); }
   else if (ev.kind === 'opened') { ui.paneId = ev.pane_id; ui.urlDraft = null; ui.find = null; ui.tab = 'browser'; ui.split = true; save('tab', ui.tab); }
   render();
 });
