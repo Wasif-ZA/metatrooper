@@ -206,9 +206,10 @@ export class Desktop {
     if (!['click', 'type', 'key', 'scroll'].includes(action)) throw new RpcError(E.INVALID_PARAMS, 'action must be click, type, key or scroll');
     const ref = typeof p.ref === 'string' && p.ref ? p.ref : undefined;
     if ((action === 'click' || action === 'type') && !ref) throw new RpcError(E.INVALID_PARAMS, 'ref is required');
-    const watchId = beginAction();
+    let watchId = '';
     try {
       return await this.serial(async () => {
+        watchId = beginAction();
         if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
         const now = await this.describe(sessionId, hwnd, ref);
         const expect = (p.expect && typeof p.expect === 'object' ? p.expect : {}) as Record<string, unknown>;
@@ -233,7 +234,7 @@ export class Desktop {
         return focusLost ? { ...out, focus_returned: false } : out;
       });
     } finally {
-      endAction(watchId);
+      if (watchId) endAction(watchId);
     }
   }
 
