@@ -8,6 +8,13 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 ### Added
 
+- Browser handoff, origins, secrets and audit (M6-12). An agent can hand a browser pane to the user with `handoff`;
+  every other browser tool then fails with "the user has the pane" until the user presses Give back. The first input
+  on a new origin asks for approval unless `.troop/config.json` lists it in `allow_origins`. `type` with
+  `{{secret:NAME}}` fills a secret saved with `troop browser secret <NAME> <origin>` (DPAPI store), only into a
+  password field on that origin; the value never reaches the agent, an event, a log or an approval row. Browser tool
+  output is scrubbed of secret values, bearer tokens, cookies, URL credentials and token-looking query values, and
+  every browser tool call is a `browser.tool` event row kept 30 days, shown as the pane's Timeline.
 - Sessions come back after a restart (M6-6). At start the core resumes every terminal session the last core left
   open, at most 3 at a time, 2 s apart plus up to 1 s of jitter. An engine whose resumed screen matches its new
   `auth_error` pattern twice is not resumed again and raises one needs-you item. The workbench saves the wall layout

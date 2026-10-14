@@ -60,6 +60,7 @@ const browserChrome = (() => {
       { id: 'after', label: 'Take After' },
       { id: 'mode', label: mode === 'compare' ? 'Live' : 'Compare', enabled: mode === 'compare' || canCompare },
       { id: 'find', label: 'Find in page' },
+      { id: 'timeline', label: mode === 'timeline' ? 'Live' : 'Timeline' },
       { type: 'separator' },
       { label: 'Driven by', submenu: [{ id: 'own:', label: 'You only', checked: !pane.session_id }, ...sessions.map((s) => ({ id: 'own:' + s.id, label: s.label, checked: s.id === pane.session_id }))] },
       { type: 'separator' },

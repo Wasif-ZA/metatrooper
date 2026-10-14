@@ -42,7 +42,7 @@ const page = { view: { webContents: { getURL: () => 'http://a.test/x' } } };
 internal.node = () => ({ backendNodeId: 7 });
 internal.resolve = async () => 'obj7';
 internal.cmd = async (_p: unknown, method: string) => {
-  if (method === 'Runtime.callFunctionOn') return { result: { value: { id: '', password: false } } };
+  if (method === 'Runtime.callFunctionOn') return { result: { value: { id: '', password: false, child: false, origin: 'http://a.test' } } };
   if (method === 'Accessibility.getPartialAXTree') {
     if (axName === null) throw new Error('No node with given id found');
     return { nodes: [{ backendDOMNodeId: 7, name: { value: axName }, role: { value: 'button' } }] };

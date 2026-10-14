@@ -31,6 +31,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
+| `handoff` | `{pane_id, reason}` | `{ok}`; gives the pane to the user until they press Give back (M6-12, below) |
 | `dialog` | `{pane_id, accept: bool, prompt_text?}` | `{ok, handled: {type, message}}`; answers the open alert, confirm or beforeunload dialog; Electron does not implement `prompt()`, which returns null without a dialog |
 
 While a dialog is open, every tool except `dialog`, `console` and `network` fails with -32032 naming it. A tool
@@ -64,6 +65,84 @@ box fails with "not visible".
 - **Crashes.** After `render-process-gone` every tool fails at once with -32034 "the page crashed; call navigate to
   load it again"; `navigate` reloads the renderer, re-attaches the debugger with interception on, then loads. After
   `unresponsive`, every tool fails with -32034 "the page is not responding" until `responsive`.
+
+## Version 2 (M6-12)
+
+- **Handoff.** `handoff {pane_id, reason}` marks the pane the user's. Until the user presses Give back in the tile, every
+  tool on that pane, `describe` and `handoff` included, fails with -32036 `the user has the pane (<reason>); wait until they
+  give it back`, and no approval is asked. The workbench switches to the pane, shows the reason (at most 300 characters)
+  above it with a Give back button, and the pane's `state` events carry `handoff`. The mark is held in the workbench
+  only; closing the workbench clears it. A call already running when the handoff lands sends no input after it: the
+  recheck before dispatch and every `Input.*` command fail with -32036. A `navigate` or `back` still reading its first
+  snapshot, or a `navigate` still checking its URL (DNS included), does not load, and a script-run tool (`evaluate`, `read`, `scroll`, `wait_for`) does not run its script, once
+  the handoff lands; both fail with -32036. A screenshot already in flight still completes.
+  After Give back, `evaluate` on the page then loaded fails with -32038 `evaluate is off on a page the user had through a
+  handoff; navigate first` until the main frame navigates to a new document (`did-navigate`; an in-page navigation
+  keeps the document). If Give back is pressed while the main frame is still loading (`isLoadingMainFrame()`, which stays
+  true after the commit until the load finishes), the next document to commit counts as handed back too, so after a
+  sign-in the agent's first navigation may also leave `evaluate` off; the one after clears it.
+  An `evaluate` running when the handoff lands fails with -32038 `the user took the pane while evaluate ran; its result
+  is dropped`; one still waiting to be sent when Give back (or a fill) lands fails with -32038 `evaluate is off on this
+  page now; nothing was run`. This is Wasif's decision (2026-10-13): the user may have signed in, and a script can encode a cookie or
+  token before returning it, which no output scrub can catch, so evaluate is refused rather than scrubbed. Other tools
+  work after Give back. The refusal is per document, not per origin: after a navigation, the origin's cookies are
+  readable by `evaluate` again.
+- **Origins.** The origin of an input is that of the control's own frame: the pane's for the main frame, the child
+  frame's otherwise. A child frame whose origin is not an http(s) origin (opaque, detached) fails with -32030 and nothing
+  is sent. For `key`, when focus is inside a frame the main frame cannot read, the origin is that frame's
+  (`securityOrigin` in `Page.getFrameTree`) and `hidden` is true; if it is not an http(s) origin or not found, `key`
+  fails with -32030 `not sent: focus is in a frame whose origin cannot be established`. Only the outermost unreadable
+  frame is seen: focus in a frame nested inside it is checked against the outer frame's origin. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
+  `allow_origins` lists origins that never ask for being new.
+- **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
+  (or `troop browser secret <NAME> <origin>`). A value under 4 characters is refused when saved (-32602), since output
+  scrubbing skips values that short. The value is stored in the DPAPI store under plugin id `core-browser`; the
+  origin it may be typed into is saved in plain text beside it. Right before `Input.insertText`, after the click, the
+  approval recheck, and the focus and select-all (whose page handlers could change the field), the workbench main process checks that the origin of the field's own frame is the saved one and the
+  ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed.
+  A decrypted value is cached only until its stored file changes, so saving the name again (from the core) is seen by the
+  next fill. Saving removes the origin file while the value changes, and the fill reads the origin again after the
+  value; if it differs, the call fails with -32037. The last step before `Input.insertText`, which types into whatever has
+  focus, checks focus is still on the ref's node (after the focus and select-all, whose page handlers could move it); for
+  a field in a frame the main frame cannot read, focus must be in that frame and, in its own document, on the field.
+  Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. Once an agent `evaluate` has
+  started on the page now loaded, running or finished, a fill fails with -32037 `evaluate has run on this page; navigate
+  first, nothing was typed` until the main frame navigates (`did-navigate`; an in-page navigation keeps the document),
+  since its script could wait for the value or leave a listener that copies it encoded past the scrub. An `evaluate`
+  is bound to the document it started on: if the main frame navigates before its script is sent, it fails with -32037
+  `the page navigated before evaluate ran; nothing was run`; if it navigates while the script runs, it fails with
+  -32037 `the page navigated while evaluate ran; its result is dropped`. Either way the page then loaded counts as
+  scripted until the next navigation (fail closed, even when nothing ran). The fixed
+  scripts of `read`, `scroll` and `wait_for` do not count, and are not bound (`wait_for` waits across loads). The
+  value is never in a tool argument, result, approval row, event, log or the `command` table. After a fill, `evaluate`
+  fails with -32038 `evaluate is off on a page a secret was typed into; navigate first` until the main frame navigates,
+  since a script could read the field (the same rule as after Give back, above). A field the user approved for a
+  secret once (the spec's other case) is not built: a secret goes only into a password field.
+- **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
+  agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
+  workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
+  and credential patterns become `[secret]`. Object keys are scrubbed the same way, and under a credential-named key
+  (cookie, authorization, auth, token, password, pwd, secret, session, sid, credential, API key, private key, bearer; case and
+  separators ignored, so `X-Auth-Token` and `sessionId` match) the whole value becomes `[secret]`, nested objects and
+  arrays included; `null` and booleans are kept. So `evaluate` returning `{cookie: document.cookie}` shows no cookie.
+  Only a `screenshot` result's `data_base64` (its image bytes) is left as it
+  is; the same key anywhere in another result, such as what an `evaluate` returns, is scrubbed.
+  Page text that is cut to a limit is scrubbed whole before the cut, so a cut through a secret cannot leave a prefix
+  the later scrub no longer matches: accessibility names and values (before the snapshot's 120- and 80-character cuts and
+  the token budget, which also covers `continue` pages and action `changes`), `read` text, the `evaluate` value (before
+  the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters). `describe` scrubs the control's name and id of every known secret value
+  (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
+- **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
+  `ok` or `error <code>`, never arguments. The origin is the pane page's when the call was made (a call that navigates
+  is recorded on the origin it left; an input in a child frame is recorded on the pane's origin; a call stopped before sending is recorded on the
+  origin when the stop is reported). A checked call (`click`, `type`, `select`, `key`) that the MCP server stops
+  before sending it (describe failed, denied, rejected, expired, core offline, or the control kept changing on all
+  three attempts) reports `browser.outcome` so it gets its row too. An attempt that fails with -32035 (the control
+  changed since it was checked; nothing was sent) writes no row, since the MCP server checks again and retries it, so a
+  retried call is one row with its final outcome. Kept 30 days. The pane menu's Timeline lists the pane's rows, newest first. The rows are kept with the pane they
+  were read for: when another pane is selected (by the user, an agent opening a pane, or a close), the Browser tab shows
+  that pane live, never the first pane's rows. A Timeline read still in flight when a later one is asked (the user
+  switches panes and opens its Timeline) is dropped when it returns, so its rows never replace the later pane's.
 
 ## How a tool runs
 

@@ -1,0 +1,33 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { homeDir } from '../paths.ts';
+
+export const BROWSER_SECRETS = 'core-browser';
+export const SECRET_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+/** The whole of a `type` text that names a browser secret: `{{secret:NAME}}`. */
+export const SECRET_PLACEHOLDER = /^\{\{secret:([A-Za-z][A-Za-z0-9_]{0,63})\}\}$/;
+
+/** The origin (scheme, host and port) of an http or https URL, or null. */
+export function normalOrigin(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return /^https?:$/.test(u.protocol) ? u.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The plain-text file beside the DPAPI blob that holds the origin a browser secret was saved for. */
+export function originFile(name: string): string {
+  return path.join(homeDir(), 'secrets', BROWSER_SECRETS, `${name}.origin`);
+}
+
+/** The origin a browser secret was saved for, or null when there is no such secret. */
+export function browserSecretOrigin(name: string): string | null {
+  if (!SECRET_NAME.test(name)) return null;
+  try {
+    return fs.readFileSync(originFile(name), 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
