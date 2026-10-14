@@ -38,15 +38,27 @@ The first matching rule is the row's `reason`. No match means `allow`.
 | `credential text` | `type` whose text matches a credential pattern (`CREDENTIAL_PATTERNS`, or a 32+ character token run mixing digits, lower and upper case, in `core/src/redact.ts`) | never |
 | `credential field` | `type` into a control whose Name or AutomationId has the word password, passcode, token, secret, key, cvv or card | never |
 | `risky control: <name>` (the whole name has credentials redacted, then is cut to 200 characters; the rule matches the whole name) | `click`, `select` or `type` on a control whose Name or AutomationId has the word send, submit, pay, buy, purchase, order, checkout, delete, remove, erase, publish, post, transfer, authorize (authorise) or confirm; `key` of Enter, Space or a Ctrl/Alt/Meta shortcut while such a control has focus | yes |
+| `new origin` | (M6-12) no rule above matched, and a browser `click`, `type`, `select` or `key` acts on an http or https origin (scheme, host and port, after redirects) that this session has no `session`-scope `new origin` approval for and the project's `.troop/config.json` does not list in `allow_origins` (an array of origins) | yes, and it covers every input on that origin for the rest of the session |
 
 Words are matched whole, case-insensitively, after camelCase, `_`, `-` and `.` are split (`sendButton` matches). English
-only. Plain `key` presses (Tab, letters, arrows) never ask.
+only. Plain `key` presses (Tab, letters, arrows) never ask under the other rules; `new origin` still applies to them.
+
+## Secrets (M6-12)
+
+A browser `type` whose `text` holds `{{secret:`, before the rules: `deny` with `a {{secret:NAME}} placeholder must be the
+whole text` unless the text is exactly `{{secret:NAME}}`; `deny` with `there is no browser secret named NAME`, `secret NAME is
+saved for another origin` or `secret NAME goes only into a password field` when the secret is missing, `target` is not the
+origin saved with it, or `password` is false. Otherwise the rules run as usual (`password field`, so every fill asks).
+The core reads only the saved origin (`~/.metatrooper/secrets/core-browser/<NAME>.origin`); it never decrypts the value.
+The workbench checks the origin and the password field again right before it fills.
 
 ## Scopes
 
 - `once` approves the call that asked.
 - `session` approves the same `action` on the same `target` and the same `control` (the stored JSON text, exact) for
-  the rest of the session, with no new row. Renaming the control makes a different `control` and asks again.
+  the rest of the session, with no new row, when the same rule asks (the same `reason`). Renaming the control makes a
+  different `control` and asks again. A `new origin` session row covers only the origin: `key Tab` approved on a Send
+  button does not cover `key Enter` on it, which asks as `risky control`.
 - Rows whose reason never takes session scope are stored with `scope: once` whatever was asked.
 - A row waiting 120 s becomes `expired` and its call returns "not approved in time". Rows still `waiting` when the
   core starts become `expired`.
@@ -55,7 +67,11 @@ only. Plain `key` presses (Tab, letters, arrows) never ask.
 
 ## Redaction
 
-`summary`, `reason` and `control` pass through `redactCredentials` before they are stored. Typed text is never stored;
+`summary` passes through `scrub` (`core/src/redact.ts`: known secret values, bearer tokens, cookies, URL credentials,
+token-looking query values and credential patterns); `reason` and each `control` field have known secret values replaced
+and pass through `redactCredentials` before they are stored. Known secret values are those the core has decrypted plus
+every saved browser secret, which the core decrypts itself when the workbench filled it; if one cannot be read, a check
+that would write a row is denied. Typed text is never stored;
 `approval.check` is never queued, so it never reaches the `command` table.
 
 ## action_hash

@@ -232,3 +232,12 @@ export function withLiveText(s: Snapshot, live: LiveText): Snapshot {
   const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null });
   return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill) };
 }
+
+/** A pane's `browser.tool` audit rows, newest first, at most 200. */
+export function browserAudit(db: DatabaseSync, paneId: string): Array<{ at: string; tool: string; origin: string; status: string }> {
+  const rows = db.prepare("SELECT at, payload FROM event WHERE kind = 'browser.tool' AND json_extract(payload, '$.pane') = ? ORDER BY seq DESC LIMIT 200").all(paneId) as Array<{ at: string; payload: string }>;
+  return rows.map((r) => {
+    const p = JSON.parse(r.payload) as { tool?: unknown; origin?: unknown; status?: unknown };
+    return { at: r.at, tool: String(p.tool ?? ''), origin: String(p.origin ?? ''), status: String(p.status ?? '') };
+  });
+}

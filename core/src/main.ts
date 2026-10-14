@@ -14,6 +14,7 @@ import { PipeClient } from './pipe/client.ts';
 import { buildMethods } from './methods.ts';
 import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
+import { pruneBrowserAudit } from './events/append.ts';
 import { processEvents, resolveSpentNotices, resolveUncommitted, turnJobsIdle } from './events/processor.ts';
 import { checkActivity, checkPids, checkStalled } from './sessions/watch.ts';
 import { ingestSpools } from './sandbox/spool.ts';
@@ -145,6 +146,8 @@ async function main(): Promise<void> {
   };
   sweep();
   every(3_600_000, sweep);
+  try { pruneBrowserAudit(db); } catch {}
+  every(3_600_000, () => pruneBrowserAudit(db));
   const resumer = coreResumer(db, wereLive, async (id) => (await methods.get('session.resume')!.handler({ session_id: id })) as { session_id: string });
   const resuming = setInterval(() => { if (resumer.done()) clearInterval(resuming); else void resumer.tick().catch(() => {}); }, 250);
   timers.push(resuming);
