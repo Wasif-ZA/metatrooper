@@ -217,6 +217,35 @@ test('M6-05a terminal output after a bell does not end a wait a hook asked for a
   } finally { t.done(); }
 });
 
+test('M6-05a terminal output after a bell that came during a hook ask\'s wait does not end that wait', async () => {
+  const t = await memoryDb();
+  try {
+    for (const [kind, payload] of [['codex.PermissionRequest', { tool_name: 'shell' }], ['gemini.Notification', {}], ['claude.Notification', { class: 'permission' }]] as const) {
+      t.db.prepare("UPDATE session SET state = 'working' WHERE id = 's'").run();
+      assert.equal(t.send(kind, payload), 'waiting_for_you');
+      assert.equal(t.send('term.bell'), 'waiting_for_you');
+      assert.equal(t.send('term.output'), 'waiting_for_you', kind);
+    }
+  } finally { t.done(); }
+});
+
+test('M6-05a rollout growth between a bell and a Codex PermissionRequest does not end the approval wait', async () => {
+  const t = await codexRollout();
+  try {
+    t.db.prepare("UPDATE session SET state = 'working' WHERE id = 's'").run();
+    assert.equal(t.send('term.bell'), 'waiting_for_you');
+    await t.tick();
+    t.grow();
+    await t.tick();
+    assert.equal(t.send('codex.PermissionRequest', { tool_name: 'shell' }), 'waiting_for_you');
+    assert.equal(t.poll(1000), 'waiting_for_you');
+    assert.equal(t.poll(22_000), 'waiting_for_you');
+    await t.tick();
+    t.grow();
+    assert.equal(t.poll(23_000), 'working');
+  } finally { t.done(); }
+});
+
 test('M6-05c a Claude permission wait (Notification) holds through another call\'s PreToolUse and PostToolUse and ends on the waited call\'s PostToolUse', async () => {
   const t = await memoryDb();
   try {

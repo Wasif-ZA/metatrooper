@@ -99,11 +99,11 @@ The core processes events in `seq` order and sets `session.state`:
 | `codex.Interrupt` | `idle` |
 | `gemini.BeforeAgent`, `gemini.AfterTool` | `working` |
 | `codex.turn` | `done` |
-| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working`, except from `waiting_for_you` when `changed_at` is not after the time the wait began: growth written before the ask (the turn leading up to it) does not answer it. While `waiting_for_you`, growth after the wait began writes a fresh `working` even if the poll already counted the file as growing |
+| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working`, except from `waiting_for_you` when `changed_at` is not after the time the wait began: growth written before the ask (the turn leading up to it) does not answer it. The time the wait began (`state_at`) is when the event that started it was written, moved to the later hook ask's write time when one of the asks above arrives during the wait. While `waiting_for_you`, growth after the wait began writes a fresh `working` even if the poll already counted the file as growing |
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
-| `term.output` | `waiting_for_you` or `unknown` to `working`, except a wait a hook asked for (`codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, or a `claude.Notification` of class `permission` or `input`) after the last `term.bell`: output after that bell does not answer it |
+| `term.output` | `waiting_for_you` or `unknown` to `working`, except a wait a hook asked for (`codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, or a `claude.Notification` of class `permission` or `input`) written at or after the time the wait began, whether before or after a bell: terminal output does not answer it |
 | `core.process-gone` (5 s check; not for `external` sessions) | `exited` |
 | `claude.SessionEnd` on an `external` session | `exited` |
 | `core.stalled` while `starting` | `waiting_for_you` |

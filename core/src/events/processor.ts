@@ -54,8 +54,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   const openToolId = db.prepare("SELECT json_extract(p.payload, '$.tool_use_id') AS id FROM event p WHERE p.session_id = ?1 AND p.kind = 'claude.PreToolUse' AND p.seq < ?2 AND coalesce(json_extract(p.payload, '$.session_id') = ?3, 1) AND (?4 IS NULL OR json_extract(p.payload, '$.tool_name') = ?4) AND NOT EXISTS (SELECT 1 FROM event f WHERE f.session_id = ?1 AND f.kind IN ('claude.PostToolUse', 'claude.PostToolUseFailure') AND f.seq > p.seq AND f.seq < ?2 AND json_extract(f.payload, '$.tool_use_id') = json_extract(p.payload, '$.tool_use_id') AND coalesce(json_extract(f.payload, '$.session_id') = ?3, 1)) ORDER BY p.seq DESC LIMIT 1");
   const lastAsk = db.prepare("SELECT seq, kind, json_extract(payload, '$.tool_use_id') AS id, json_extract(payload, '$.tool_name') AS tool FROM event WHERE session_id = ? AND seq < ? AND kind IN ('claude.PermissionRequest', 'claude.UserPromptSubmit', 'claude.Stop', 'claude.StopFailure') AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
   const lastPermissionNote = db.prepare("SELECT seq FROM event WHERE session_id = ? AND seq > ? AND seq < ? AND kind = 'claude.Notification' AND json_extract(payload, '$.class') = 'permission' AND coalesce(json_extract(payload, '$.session_id') = ?, 1) ORDER BY seq DESC LIMIT 1");
-  // A hook ask (approval, permission or input prompt) after the last bell: that bell's output is not an answer to it.
-  const askAfterBell = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND seq > coalesce((SELECT max(seq) FROM event WHERE session_id = ?1 AND kind = 'term.bell' AND seq < ?2), 0) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input'))) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
+  // A hook ask (approval, permission or input prompt) written at or after the current wait began (state_at): terminal output is not an answer to it.
+  const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input'))) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
+  const setStateAt = db.prepare('UPDATE session SET state_at = ? WHERE id = ?');
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
@@ -123,12 +124,16 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
           if ((finished && (typeof pending !== 'string' || pending === payload.tool_use_id)) || ev.kind === 'claude.Stop' || ev.kind === 'claude.StopFailure' || ev.kind === 'claude.UserPromptSubmit') setTool.run(null, ev.session_id);
           if (ev.kind === 'claude.StopFailure' && payload.error_type === 'rate_limit') limitHit(db, ev.session_id, ev.seq);
         }
-        // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does output after a bell when a hook asked after that bell.
-        const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askAfterBell.get(ev.session_id, ev.seq, own)));
+        // File growth written before a wait began (the turn that led up to the ask) does not answer it, and neither does terminal output when a hook asked during the wait.
+        const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
         const next = ev.kind === 'launch' || foreign || stale ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         if (!foreign && (ev.kind === 'claude.Stop' || ev.kind === 'claude.SessionEnd')) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
+        // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
+        const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
+        const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input'));
+        if (s.state === 'waiting_for_you' && (!next || next === s.state) && !foreign && hookAsk && !(Date.parse(writtenAt) <= Date.parse(s.state_at))) setStateAt.run(writtenAt, ev.session_id);
         if (next && next !== s.state) {
-          setState.run(next, nowIso(), ev.session_id);
+          setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), ev.session_id);
           changed.push([ev.session_id, next]);
           if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
