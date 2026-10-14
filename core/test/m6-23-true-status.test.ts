@@ -1340,3 +1340,134 @@ test('M6-23 the manifest bounds title sources and fixed fatal patterns', () => {
     fatal_patterns: Array.from({ length: 20 }, () => 'x'.repeat(200)),
   }), []);
 });
+
+test('M6-23 stale and malformed opencode working reports never relink the native session', async () => {
+  // protects=seq guard before native relinking fails_when=stale or malformed reports replace the current root no_claim=live root switching
+  const engine = fixtureEngine('opencode', { state_plugin: 'plugins/opencode-state.js' });
+  const h = await memoryDb(engine.id, [engine]);
+  const native = () => h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id;
+  try {
+    assert.equal(h.send('opencode.state', { state: 'working', session_id: 'B', seq: 20 }), 'working');
+    assert.equal(native(), 'B');
+    const workingAt = h.row().state_at;
+    assert.equal(h.send('opencode.state', { state: 'working', session_id: 'A', seq: 10 }), 'working');
+    assert.equal(native(), 'B');
+    assert.equal(h.row().state_at, workingAt);
+    assert.deepEqual(h.notices('done'), []);
+    assert.equal(h.send('opencode.state', { state: 'done', session_id: 'B', seq: 30 }), 'done');
+    assert.equal(native(), 'B');
+    assert.deepEqual(h.notices('done'), ['opencode finished']);
+    const doneAt = h.row().state_at;
+    for (const fields of [{}, { seq: 1.5 }, { seq: '31' }, { seq: Number.MAX_SAFE_INTEGER + 1 }]) {
+      appendEvent('opencode.state', h.id, { state: 'working', session_id: 'A', ...fields }, h.db);
+      processEvents(h.db);
+      assert.equal(native(), 'B');
+      assert.equal(h.row().state, 'done');
+      assert.equal(h.row().state_at, doneAt);
+      assert.equal(h.row().wait_reason, null);
+      assert.deepEqual(h.notices('done'), ['opencode finished']);
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23e root idle preserves a child permission ask until its reply', async () => {
+  // protects=open asks across root idle fails_when=idle clears a child ask or busy reports work before its reply no_claim=live opencode bus timing
+  const h = await memoryDb();
+  try {
+    const reports = await pluginReports(h.home, [
+      { type: 'session.created', properties: { info: { id: 'C', parentID: 'R' } } },
+      { type: 'permission.asked', properties: { sessionID: 'C', id: 'P' } },
+      { type: 'session.idle', properties: { sessionID: 'R' } },
+      { type: 'session.status', properties: { sessionID: 'R', status: { type: 'busy' } } },
+      { type: 'permission.replied', properties: { sessionID: 'C', permissionID: 'P' } },
+      { type: 'session.idle', properties: { sessionID: 'R' } },
+    ], 4);
+    assert.deepEqual(reports.map((r) => ({
+      state: r.payload.state,
+      ...(r.payload.why === undefined ? {} : { why: r.payload.why }),
+      session_id: r.payload.session_id,
+    })), [
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'working', session_id: 'R' },
+      { state: 'done', session_id: 'R' },
+    ]);
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23e duplicate unknown and ID-less replies release only their own asks', async () => {
+  // protects=ask identity and kind ordering fails_when=duplicate unknown or ID-less answers release another ask no_claim=opencode request ID uniqueness
+  const h = await memoryDb();
+  try {
+    const reports = await pluginReports(h.home, [
+      { type: 'permission.asked', properties: { sessionID: 'R', id: 'P' } },
+      { type: 'question.asked', properties: { sessionID: 'R', id: 'Q' } },
+      { type: 'permission.replied', properties: { sessionID: 'R', permissionID: 'P' } },
+      { type: 'permission.replied', properties: { sessionID: 'R', permissionID: 'P' } },
+      { type: 'permission.replied', properties: { sessionID: 'R', permissionID: 'X' } },
+      { type: 'question.replied', properties: { sessionID: 'R', requestID: 'Q' } },
+    ], 6);
+    assert.deepEqual(reports.map((r) => ({
+      state: r.payload.state,
+      ...(r.payload.why === undefined ? {} : { why: r.payload.why }),
+      session_id: r.payload.session_id,
+    })), [
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'working', session_id: 'R' },
+    ]);
+    const idless = await pluginReports(h.home, [
+      { type: 'permission.asked', properties: { sessionID: 'R', id: 'P' } },
+      { type: 'question.asked', properties: { sessionID: 'R', id: 'Q' } },
+      { type: 'question.asked', properties: { sessionID: 'R', id: 'Q2' } },
+      { type: 'question.replied', properties: { sessionID: 'R' } },
+      { type: 'permission.replied', properties: { sessionID: 'R', permissionID: 'P' } },
+      { type: 'question.replied', properties: { sessionID: 'R', requestID: 'Q' } },
+      { type: 'question.replied', properties: { sessionID: 'R', requestID: 'Q2' } },
+    ], 7);
+    assert.deepEqual(idless.map((r) => ({
+      state: r.payload.state,
+      ...(r.payload.why === undefined ? {} : { why: r.payload.why }),
+      session_id: r.payload.session_id,
+    })), [
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', why: 'permission', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'waiting', session_id: 'R' },
+      { state: 'working', session_id: 'R' },
+    ]);
+  } finally {
+    await h.close();
+  }
+});
+
+test('M6-23 a forged opencode report cannot suppress title states on a process engine without a plugin', async () => {
+  // protects=plugin-only title precedence fails_when=an ignored opencode report blocks process title transitions no_claim=raw title event generation
+  const engine = fixtureEngine('title-without-plugin', {
+    state_titles: { working: '^BUSY ', idle: '^IDLE ' },
+  });
+  const h = await memoryDb(engine.id, [engine]);
+  try {
+    const stateAt = h.row().state_at;
+    assert.equal(h.send('opencode.state', { state: 'working', session_id: 'conv', seq: 1 }), 'starting');
+    assert.equal(h.row().state_at, stateAt);
+    assert.equal(h.row().wait_reason, null);
+    assert.equal(h.db.prepare('SELECT native_id FROM session WHERE id = ?').get(h.id)!.native_id, 'conv');
+    assert.deepEqual(h.notices('done'), []);
+    assert.equal(h.send('core.title-state', { state: 'working' }), 'working');
+    assert.equal(h.send('core.title-state', { state: 'idle' }), 'done');
+    assert.equal(h.row().wait_reason, null);
+    assert.deepEqual(h.notices('done'), ['title-without-plugin finished']);
+  } finally {
+    await h.close();
+  }
+});
