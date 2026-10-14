@@ -14,7 +14,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
 import { spoolDir } from '../sandbox/spool.ts';
 import fs from 'node:fs';
-import { removing } from '../worktree.ts';
+import { beingRemoved } from '../worktree.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -68,10 +68,10 @@ export function launchSession(
   db: DatabaseSync,
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
-  if (removing.has(opts.projectId)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
+  const dir = canonicalPath(opts.cwd ?? opts.projectPath);
+  if (beingRemoved(dir)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
   const id = ulid();
   const host = opts.host ?? 'pty';
-  const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
   let argv: string[];

@@ -29,8 +29,19 @@ async function mainBranch(repo: string): Promise<string | null> {
   return null;
 }
 
-/** Project ids whose worktree the sweep is removing right now; launchSession refuses them. */
-export const removing = new Set<string>();
+/** Worktrees the sweep is removing right now, project id to path; launchSession and shell.open refuse a folder inside one. */
+export const removing = new Map<string, string>();
+
+const inside = (dir: string, root: string) => {
+  const d = canonicalPath(dir).toLowerCase();
+  const r = canonicalPath(root).toLowerCase();
+  return d === r || d.startsWith(r + '/');
+};
+
+export function beingRemoved(dir: string): boolean {
+  for (const root of removing.values()) if (inside(dir, root)) return true;
+  return false;
+}
 
 type Row = { id: string; path: string; older: number; live: number; last_jd: number };
 
@@ -51,11 +62,13 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
   ).all() as Row[];
   const set = db.prepare('UPDATE project SET hidden = ?, older = ? WHERE id = ?');
   const setOlder = db.prepare('UPDATE project SET older = ? WHERE id = ? AND hidden = 0');
-  const liveNow = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
+  const liveOwn = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
+  const liveCwds = db.prepare("SELECT cwd FROM session WHERE state != 'exited' AND cwd IS NOT NULL");
+  const liveNow = (r: Row) => !!liveOwn.get(r.id) || (liveCwds.all() as Array<{ cwd: string }>).some((s) => inside(s.cwd, r.path));
   // Git has let go of this folder (no `.git` entry) but it is still there, as when Windows refused to delete it. Only an empty folder is
   // removed; anything else stays and is tried again next sweep. The workbench never shows such a folder (goneCheckout).
   const leftover = async (r: Row): Promise<void> => {
-    removing.add(r.id);
+    removing.set(r.id, r.path);
     try {
       await fs.promises.rmdir(r.path);
     } catch (e) {
@@ -86,7 +99,7 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
       }
       if (canonicalPath(fs.realpathSync.native(r.path)).toLowerCase().startsWith(canonicalPath(fs.realpathSync.native(root)).toLowerCase() + '/')) {
         if (!fs.existsSync(path.join(r.path, '.git'))) {
-          if (!liveNow.get(r.id)) await leftover(r);
+          if (!liveNow(r)) await leftover(r);
           continue;
         }
         const parent = db.prepare('SELECT path FROM project WHERE id = ?').get(parts[0]) as { path: string } | undefined;
@@ -94,9 +107,9 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
         const clean = (await git(r.path, ['status', '--porcelain'])).trim() === '';
         const merged = parent && main && clean && await ok(r.path, 'merge-base', '--is-ancestor', 'HEAD', `refs/heads/${main}`);
         // A session may have started while git ran: such a worktree is no longer stale, so leave it as it is.
-        if (liveNow.get(r.id)) continue;
+        if (liveNow(r)) continue;
         if (merged && parent) {
-          removing.add(r.id);
+          removing.set(r.id, r.path);
           try {
             // Longer than worktree.create's 60 s add: a timeout mid-remove would leave a half-deleted folder.
             await git(parent.path, ['worktree', 'remove', r.path], 300_000);
