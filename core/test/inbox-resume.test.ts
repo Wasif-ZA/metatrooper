@@ -335,6 +335,32 @@ test('project.clear hides finished sessions and runs and keeps live ones', async
   } finally { await h.teardown(); }
 });
 
+test('project.hide refuses while a session is live, hides past a done one, and project.open brings it back', async () => {
+  const h = await harness();
+  try {
+    const projectPath = join(h.home, 'hide-project');
+    const projectId = await openProject(h.prefix, projectPath);
+    const db = database(h.home);
+    try {
+      insertSession(db, 'hide-working', projectId, 'claude', 'working', projectPath);
+      insertSession(db, 'hide-done', projectId, 'claude', 'done', projectPath);
+    } finally { db.close(); }
+    const hidden = () => { const c = database(h.home, true); try { return (c.prepare('SELECT hidden FROM project WHERE id = ?').get(projectId) as { hidden: number }).hidden; } finally { c.close(); } };
+
+    const pipe = await client(h.prefix);
+    try {
+      assert.ok((await pipe.request('project.hide', { project_id: projectId })).error);
+      assert.equal(hidden(), 0);
+      const w = database(h.home);
+      try { w.prepare("UPDATE session SET state = 'idle' WHERE id = 'hide-working'").run(); } finally { w.close(); }
+      assert.deepEqual((await pipe.request('project.hide', { project_id: projectId })).result, {});
+      assert.equal(hidden(), 1);
+    } finally { pipe.close(); }
+    await openProject(h.prefix, projectPath);
+    assert.equal(hidden(), 0);
+  } finally { await h.teardown(); }
+});
+
 test('resuming a codex session keeps its thread id on the new row', async () => {
   const h = await fakeHarness([{
     id: 'codex', command: process.execPath, args: ['-e', 'setTimeout(()=>{},500)'], prompt_arg: 'positional', resume_args: ['resume', '{native_id}'],

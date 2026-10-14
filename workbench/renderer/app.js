@@ -998,7 +998,7 @@ async function openFolder() {
 
 /** The project menu's groups; a worktree the core's sweep marked older goes in the collapsed Older group, not Worktrees. */
 function projectGroups(list) {
-  const wt = (p) => /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p.path);
+  const wt = (p) => /[\\/]\.(metatrooper|claude)[\\/]worktrees[\\/]/i.test(p.path);
   const scratch = (p) => !wt(p) && /[\\/](\.cache|Temp|tmp)[\\/]/i.test(p.path);
   const fresh = list.filter((p) => !p.older);
   return { projects: fresh.filter((p) => !wt(p) && !scratch(p)), worktrees: fresh.filter(wt), older: list.filter((p) => p.older), scratch: fresh.filter(scratch) };
@@ -1064,14 +1064,19 @@ async function onClick(e) {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
       const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
-      const item = (p) => `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(liveCounts(p.id).replace(/^ · /, ''))}</span></div>`;
+      const item = (p) => {
+        const live = liveCounts(p.id).replace(/^ · /, '');
+        return `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
+          + (live ? '' : `<span class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)">&times;</span>`) + '</div>';
+      };
       const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(item).join('')}` : '');
+      const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(item).join('')}</details>` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
       menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
         + sec('Projects', g.projects)
-        + sec('Worktrees', g.worktrees)
-        + (g.older.length ? `<details><summary class="mh">Older (${g.older.length})</summary>${g.older.map(item).join('')}</details>` : '')
-        + sec('Scratch and temp folders', g.scratch)
+        + fold('Worktrees', g.worktrees)
+        + fold('Older', g.older)
+        + fold('Scratch and temp folders', g.scratch)
         + '<div class="sep"></div><div class="item" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
       menu.style.left = `${Math.max(8, r.left)}px`;
       menu.style.top = `${r.bottom + 4}px`;
@@ -1082,6 +1087,11 @@ async function onClick(e) {
       document.getElementById('menu').hidden = true;
       if (id && id !== ui.projectId) switchProject(id);
       return;
+    case 'project-hide': {
+      const r = await rpc('project.hide', { project_id: id });
+      if (r.result) el.closest('.item').remove();
+      return;
+    }
     case 'open-folder':
       document.getElementById('menu').hidden = true;
       await openFolder();

@@ -208,9 +208,9 @@ test('a second Comment click keeps the pick tracked after the first one settles'
 test('the project menu puts worktrees the sweep marked older in their own group, out of Worktrees', () => {
   const projectGroups = new Function(`${fn('projectGroups')}; return projectGroups;`)();
   const wt = (id: string, older = 0) => ({ id, path: `C:/Users/u/.metatrooper/worktrees/p/${id}`, older });
-  const g = projectGroups([{ id: 'repo', path: 'C:/code/repo', older: 0 }, wt('new'), wt('stale', 1), { id: 'tmp', path: 'C:/Users/u/AppData/Local/Temp/x', older: 0 }]);
+  const g = projectGroups([{ id: 'repo', path: 'C:/code/repo', older: 0 }, wt('new'), wt('stale', 1), { id: 'cc', path: 'C:/code/repo/.claude/worktrees/x', older: 0 }, { id: 'tmp', path: 'C:/Users/u/AppData/Local/Temp/x', older: 0 }]);
   const ids = (l: Array<{ id: string }>) => l.map((p) => p.id);
-  assert.deepEqual({ projects: ids(g.projects), worktrees: ids(g.worktrees), older: ids(g.older), scratch: ids(g.scratch) }, { projects: ['repo'], worktrees: ['new'], older: ['stale'], scratch: ['tmp'] });
+  assert.deepEqual({ projects: ids(g.projects), worktrees: ids(g.worktrees), older: ids(g.older), scratch: ids(g.scratch) }, { projects: ['repo'], worktrees: ['new', 'cc'], older: ['stale'], scratch: ['tmp'] });
 });
 
 test('the palette searches only the open project terminals, so other projects cannot use up the hit cap', () => {
