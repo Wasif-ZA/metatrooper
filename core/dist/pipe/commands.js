@@ -47,6 +47,15 @@ export function scrubParams(params                         )                    
   return out;
 }
 
+function parseParams(text               )                                 {
+  try {
+    const v = JSON.parse(text || '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 function storedOutcome(row                                           )          {
   const parsed = row.result ? JSON.parse(row.result) : null;
   if (row.status === 'error') throw new RpcError(parsed?.code ?? E.INTERNAL, parsed?.message ?? 'error', parsed?.data);
@@ -134,8 +143,8 @@ export class CommandRunner {
     const finished = this.db.prepare("SELECT id, params FROM command WHERE status IN ('ok','error')").all()                                         ;
     const rewrite = this.db.prepare('UPDATE command SET params = ? WHERE id = ?');
     for (const r of finished) {
-      let params                         ;
-      try { params = JSON.parse(r.params || '{}'); } catch { continue; }
+      const params = parseParams(r.params);
+      if (!params) continue;
       const scrubbed = JSON.stringify(scrubParams(params));
       if (scrubbed !== r.params) rewrite.run(scrubbed, r.id);
     }
@@ -154,7 +163,14 @@ export class CommandRunner {
       .all()                                                                                         ;
     for (const row of pending) {
       const spec = this.methods.get(row.method);
-      const params = JSON.parse(row.params || '{}');
+      const params = parseParams(row.params);
+      if (!params) {
+        const err = new RpcError(E.INVALID_PARAMS, 'params are not a JSON object');
+        this.db
+          .prepare("UPDATE command SET status = 'error', result = ?, done_at = ?, params = '{}' WHERE id = ?")
+          .run(JSON.stringify(err.toJSON()), nowIso(), row.id);
+        continue;
+      }
       if (!spec || !isQueueable(row.method) || spec.needsUi) {
         const err = new RpcError(spec ? E.NEEDS_UI : E.METHOD_NOT_FOUND, spec ? `${row.method} cannot run from the queue` : `unknown method ${row.method}`);
         this.db

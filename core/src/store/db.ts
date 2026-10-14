@@ -13,7 +13,7 @@ function pragmas(db: DatabaseSync, busyMs: number): void {
 export function openCoreDb(): DatabaseSync {
   fs.mkdirSync(homeDir(), { recursive: true });
   const db = new DatabaseSync(dbFile());
-  pragmas(db, 200);
+  pragmas(db, 5000);
   const version = () => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
   const v = version();
   if (v === 0) {
@@ -55,6 +55,7 @@ export function openCoreDb(): DatabaseSync {
     db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
   });
   migrate(db);
+  db.exec('PRAGMA busy_timeout = 200');
   return db;
 }
 
@@ -65,7 +66,11 @@ export function migrate(db: DatabaseSync, dir = migrationsDir): number[] {
   db.exec('CREATE TABLE IF NOT EXISTS schema_migration (id INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
   const done = new Set((db.prepare('SELECT id FROM schema_migration').all() as Array<{ id: number }>).map((r) => Number(r.id)));
   const applied: number[] = [];
-  for (const file of fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort()) {
+  const files = fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort();
+  for (let i = 1; i < files.length; i++) {
+    if (files[i].slice(0, 3) === files[i - 1].slice(0, 3)) throw new Error(`migrations ${files[i - 1]} and ${files[i]} share id ${files[i].slice(0, 3)}`);
+  }
+  for (const file of files) {
     const id = Number(file.slice(0, 3));
     if (done.has(id)) continue;
     const ran = tx(db, () => {

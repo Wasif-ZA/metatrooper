@@ -7,7 +7,7 @@ const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div clas
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
   <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button>
   <button class="tx" data-action="hide" title="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
-  <div class="r2"><span class="tile-last fl"></span><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span><button class="tile-changed link" data-action="changed-menu" hidden></button></div>
+  <div class="r2"><span class="tile-last fl"></span><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span><button class="tile-changed link" data-action="changed-menu" hidden></button></div>
   <span class="shim"><i></i></span></div><div class="tile-body"></div>`;
 
 const termView = (() => {
@@ -103,7 +103,8 @@ const termView = (() => {
       if (k === 'v') { void paste(); e.preventDefault(); return false; }
       return true;
     });
-    new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); }).observe(body);
+    t.sizes = new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); });
+    t.sizes.observe(body);
     terms.set(sessionId, t);
     return t;
   }
@@ -137,6 +138,8 @@ const termView = (() => {
     const t = terms.get(sessionId);
     if (!t) return;
     void troop.termDetach(sessionId);
+    t.sizes.disconnect();
+    clearTimeout(t.fitTimer);
     t.term.dispose();
     t.el.remove();
     terms.delete(sessionId);
@@ -194,6 +197,7 @@ const termView = (() => {
     set('.tile-last', x.last || '');
     set('.tile-state', x.words);
     set('.tile-meta', x.meta || '');
+    t.el.querySelector('.tile-watch').hidden = !x.watchOff;
     set('.tile-ctx', x.ctx ? x.ctx.text : '');
     t.el.querySelector('.tile-ctx').classList.toggle('warn', Boolean(x.ctx && x.ctx.warn));
     const previews = (x.previews || []).map((d) => `<button class="btn" data-action="open-preview" data-url="${escapeAttr(d.url)}" title="Open ${escapeAttr(d.url)} in this agent's browser pane">Open preview${x.previews.length > 1 ? ` :${d.port}` : ''}</button>`).join('');

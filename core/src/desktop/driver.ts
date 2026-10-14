@@ -7,6 +7,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
+import { beginAction, endAction } from '../watch/watcher.ts';
 import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow, type WindowInfo } from '../grants.ts';
 
 export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
@@ -97,7 +98,6 @@ export class Desktop {
   private inFlight: Promise<unknown> | null = null;
   private rects = new Map<string, { rect: number[]; minimized: boolean }>();
   private ticking = false;
-  actionsInFlight = 0;
 
   constructor(db: DatabaseSync) {
     this.db = db;
@@ -206,7 +206,7 @@ export class Desktop {
     if (!['click', 'type', 'key', 'scroll'].includes(action)) throw new RpcError(E.INVALID_PARAMS, 'action must be click, type, key or scroll');
     const ref = typeof p.ref === 'string' && p.ref ? p.ref : undefined;
     if ((action === 'click' || action === 'type') && !ref) throw new RpcError(E.INVALID_PARAMS, 'ref is required');
-    this.actionsInFlight++;
+    const watchId = beginAction();
     try {
       return await this.serial(async () => {
         if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
@@ -233,7 +233,7 @@ export class Desktop {
         return focusLost ? { ...out, focus_returned: false } : out;
       });
     } finally {
-      this.actionsInFlight--;
+      endAction(watchId);
     }
   }
 

@@ -99,7 +99,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'pane.url', needsUi: true, params: '{pane_id, url}', result: '{}; the workbench reports each navigation' },
   { name: 'pane.assign', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, session_id?}', result: '{}; sets or clears the one session allowed to drive the pane' },
   { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
-  { name: 'approval.check', params: '{session_id, surface, target, action, args, control, password?, file_dialog?, action_hash?}', result: '{decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`)' },
+  { name: 'approval.check', params: '{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}', result: '{decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`)' },
   { name: 'approval.resolve', needsUi: true, errors: [E.GATE_STALE], params: '{approval_id, decision, scope?}', result: '{status, scope}; -32010 when the row is not `waiting`' },
   { name: 'desktop.ui-window', needsUi: true, params: '{pid}', result: "{}; the workbench's process id, whose windows are never listed or granted (`contracts/desktop-tools.md`)" },
   { name: 'grant.candidates', needsUi: true, params: '{}', result: '{windows: [{hwnd, title, exe, pid}]}: visible top-level windows that may be granted' },

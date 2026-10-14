@@ -186,13 +186,13 @@ export class PaneManager {
     const db = this.hooks.db();
     const allow = new Set<string>();
     if (db) {
-      const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
-      if (project) {
-        try {
+      try {
+        const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
+        if (project) {
           const cfg = JSON.parse(fs.readFileSync(path.join(project.path, '.troop', 'config.json'), 'utf8')) as { allow_hosts?: unknown };
           if (Array.isArray(cfg.allow_hosts)) for (const h of cfg.allow_hosts) if (typeof h === 'string') allow.add(h.toLowerCase());
-        } catch {}
-      }
+        }
+      } catch {}
     }
     this.policyCache.set(projectId, { at: Date.now(), hosts: allow });
     return allow;
@@ -223,7 +223,7 @@ export class PaneManager {
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
       const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
-      checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null })).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
+      Promise.resolve().then(() => checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null }))).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
     });
     ses.on('will-download', (e, item, wc) => {
       const pane = this.byContents(wc);
@@ -275,7 +275,8 @@ export class PaneManager {
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
     pane.ready = this.setUp(pane);
-    await pane.ready;
+    // ponytail: no backoff; a pane that fails every time is rebuilt on each sync
+    await pane.ready.catch((e) => { if (this.panes.get(row.id) === pane) this.destroy(row.id); throw e; });
   }
 
   private async setUp(pane: Pane): Promise<void> {
@@ -483,7 +484,7 @@ export class PaneManager {
 
   private async onDebuggerEvent(pane: Pane, method: string, params: Record<string, any>): Promise<void> {
     if (method === 'Fetch.requestPaused') {
-      const verdict = await checkUrl(params.request.url, this.paneCtx(pane)).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
+      const verdict = await Promise.resolve().then(() => checkUrl(params.request.url, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
       if (verdict.allow) await this.cmd(pane, 'Fetch.continueRequest', { requestId: params.requestId }).catch(() => {});
       else {
         await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' }).catch(() => {});
@@ -535,7 +536,7 @@ export class PaneManager {
       if (r) r.status = params.response.status;
       const ip = params.response.remoteIPAddress;
       if (ip) {
-        const verdict = await connectedVerdict(params.response.url, ip, this.paneCtx(pane));
+        const verdict = await Promise.resolve().then(() => connectedVerdict(params.response.url, ip, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
         if (!verdict.allow) {
           const reason = verdict.reason;
           this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });
@@ -840,8 +841,8 @@ export class PaneManager {
     return this.race(pane, this.run(pane, name, a));
   }
 
-  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, so the control cannot be named. */
-  private async describe(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
+  /** The pane's origin and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, or the accessibility tree cannot be read for the control, so it cannot be named. The name is whole; only displays shorten it. */
+  private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
     let objectId: string | undefined;
@@ -868,8 +869,8 @@ export class PaneManager {
     });
     const ax = await this.cmd(pane, 'Accessibility.getPartialAXTree', { backendNodeId, fetchRelatives: false }).catch(() => ({ nodes: [] }));
     const n = ax.nodes.find((x: any) => x.backendDOMNodeId === backendNodeId) ?? ax.nodes[0];
-    const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
-    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: false };
+    const name = String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim();
+    return { origin, control: { automation_id: String(el.result?.value?.id ?? ''), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
   }
 
   /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
@@ -885,7 +886,7 @@ export class PaneManager {
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
     this.notPaused(a);
     if (!a.expect || typeof a.expect !== 'object') return;
-    const d = await this.describe(pane, { ...a, tool });
+    const d = await this.describeControl(pane, { ...a, tool });
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
     if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
@@ -941,7 +942,7 @@ export class PaneManager {
       pane.cursors.delete(a.continue);
       return this.page(pane, name, rest, budget);
     }
-    if (name === 'describe') return this.describe(pane, a);
+    if (name === 'describe') return this.describeControl(pane, a);
     if (['navigate', 'back', 'scroll', 'evaluate'].includes(name)) this.notPaused(a);
     const recheck = () => this.recheck(pane, name, a);
     switch (name) {

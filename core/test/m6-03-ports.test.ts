@@ -165,6 +165,29 @@ test('M6-03b a port served from outside MetaTrooper before the URL was printed g
   }
 });
 
+test('M6-03 a process table that fails to load leaves the URL watched, so the server still gets its ancestry row', { skip: !windows, timeout: 30_000 }, async () => {
+  const id = session();
+  const table = dev.probe.parentTableAsync;
+  let failed = 0;
+  dev.probe.parentTableAsync = async () => { failed++; return new Map(); };
+  try {
+    try {
+      const code = "require('http').createServer((q,r)=>r.end('ok')).listen(0,'127.0.0.1',function(){console.log('  Local:   http://localhost:'+this.address().port+'/');setInterval(()=>{},1000)})";
+      writeFileSync(join(home.home, 'probe-fail-server.js'), code);
+      term.open(id, ['cmd.exe', '/d', '/k', 'node probe-fail-server.js'], home.home, process.env, 120, 30);
+      await printed(id, /http:\/\/localhost:(\d+)\//);
+      await until(() => failed > 0, 10_000);
+      await dev.pollDevServers(db);
+    } finally {
+      dev.probe.parentTableAsync = table;
+    }
+    const [row] = await until(() => rows(id).length && rows(id), 10_000);
+    assert.equal(row.matched_by, 'ancestry');
+  } finally {
+    term.kill(id);
+  }
+});
+
 test('M6-03 migration 002 is recorded and both tables exist', { skip: !windows }, () => {
   assert.ok(db.prepare('SELECT 1 FROM schema_migration WHERE id = 2').get());
   for (const t of ['session_port', 'session_dev_server']) assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t), t);

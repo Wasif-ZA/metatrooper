@@ -14,7 +14,7 @@ CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
--- rows: ('schema_version','1'), ('core_pid', ...), ('core_heartbeat', <ts, updated every 2 s>), ('resume_pending', <JSON [{id, engine}] of sessions not yet resumed after a restart>)
+-- rows: ('schema_version','1'), ('core_pid', ...), ('core_heartbeat', <ts, updated every 2 s>), ('resume_pending', <JSON [{id, engine}] of sessions not yet resumed after a restart>), ('input_watcher', 'on' | 'off' | 'idle': the M6-22 hook helper runs, failed or was blocked, or no grant is live)
 
 CREATE TABLE schema_migration (                -- numbered migrations applied (core/src/store/migrations/NNN-<name>.sql, M6-4)
   id         INTEGER PRIMARY KEY,

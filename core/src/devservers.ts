@@ -124,6 +124,7 @@ async function decide(db: DatabaseSync): Promise<void> {
     const [pid] = pids;
     parents ??= await (early ?? probe.parentTableAsync());
     if (!parents.has(pid)) parents = await probe.parentTableAsync();
+    if (!parents.has(pid)) continue;
     // devServersGone dropped it while the process table loaded: the terminal exited.
     if (!pending.delete(key)) continue;
     const by = ownership(pid, ptyPid(p.session), parents, p.had);

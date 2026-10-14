@@ -18,6 +18,7 @@ export const DEFAULTS = {
   },
   desktop: {
     takeover_key: 'Control+Alt+Q',
+    watch_pause: true,
   },
   worktree: {
     npm_ci: true,

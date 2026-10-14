@@ -23,9 +23,10 @@ import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
-import { attachTerm, detachTerm, termInput, termResize } from './terminals.ts';
+import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
+import { freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -89,11 +90,15 @@ async function pollLiveText(): Promise<void> {
   } catch {} finally { livePolling = false; }
 }
 
+let readFromDb = false;
+
 function read(): Snapshot {
+  readFromDb = false;
   const d = db();
   if (!d) return emptySnapshot();
   try {
     lastGood = { ...withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
+    readFromDb = true;
     return lastGood;
   } catch {
     try { reader?.close(); } catch {}
@@ -128,12 +133,10 @@ function sessionOf(s: Snapshot, n: Snapshot['needs_you'][number]) {
 }
 
 /** One Windows toast per new needs-you row; clicking it shows the window and selects the session it is about. */
-function toastNew(s: Snapshot): void {
-  const ids = new Set(s.needs_you.map((n) => n.id));
-  if (!toasted) { toasted = ids; return; }
-  for (const n of s.needs_you) {
-    if (toasted.has(n.id) || n.read_at) continue;
-    toasted.add(n.id);
+function toastNew(s: Snapshot, fromDb: boolean): void {
+  const next = freshNeeds(toasted, s, fromDb);
+  toasted = next.seen;
+  for (const n of next.fresh) {
     if (!Notification.isSupported()) continue;
     const toast = toastFor(n, sessionOf(s, n), { window: !!win && !win.isDestroyed() && win.isFocused(), session: focused });
     if (!toast) continue;
@@ -145,7 +148,6 @@ function toastNew(s: Snapshot): void {
     });
     note.show();
   }
-  for (const id of [...toasted]) if (!ids.has(id)) toasted.delete(id);
 }
 
 function push(): void {
@@ -153,7 +155,7 @@ function push(): void {
   syncPanes();
   const s = read();
   lastOnline = s.core.online;
-  toastNew(s);
+  toastNew(s, readFromDb);
   win.webContents.send('snapshot', s);
 }
 
@@ -177,11 +179,7 @@ async function tellCoreOurPid(corePid: number | null): Promise<void> {
 function watch(): void {
   const dir = homeDir();
   fs.mkdirSync(dir, { recursive: true });
-  try {
-    fs.watch(dir, (_event, name) => {
-      if (name && String(name).startsWith(path.basename(dbFile()))) schedulePush();
-    });
-  } catch {}
+  watchDb(dir, path.basename(dbFile()), schedulePush);
   setInterval(() => {
     const d = db();
     let changed = false;
@@ -578,6 +576,8 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.webContents.on('render-process-gone', detachAll);
+  win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));
   win.on('responsive', () => console.error('window responsive again'));
   win.on('close', (e) => {

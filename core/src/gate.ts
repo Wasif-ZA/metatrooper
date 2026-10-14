@@ -264,6 +264,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})?)?$/;
 /** Parses a --since/--until value; null when it is not an accepted form. */
 export function parseGateDate(s: string): Date | null {
   if (!DATE.test(s)) return null;
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  if (new Date(Date.UTC(y, m - 1, d)).getUTCDate() !== d) return null;
   const withZone = s.includes('T') && !/(Z|[+-]\d{2}:\d{2})$/.test(s) ? s + 'Z' : s;
   const t = Date.parse(withZone);
   return Number.isNaN(t) ? null : new Date(t);
