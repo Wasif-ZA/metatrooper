@@ -8,7 +8,7 @@ import { tx } from '../store/db.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { deleteSecrets, hasSecret, setSecret } from '../secrets.ts';
 import {
-  currentPlatform, installScreen, manifestHash, MANIFEST_FILE, readManifest, validateManifest,
+  currentPlatform, installScreen, manifestHash, MANIFEST_FILE, readManifest, reservedId, validateManifest,
   type InstallScreen, type Manifest,
 } from './manifest.ts';
 import { importFromSource, type EnvBinding, type ImportOrigin, type ImportPlan } from './importers.ts';
@@ -283,7 +283,7 @@ export function removePlugin(db: DatabaseSync, id: string): void {
     for (const e of db.prepare('SELECT id FROM engine WHERE plugin_id = ?').all(id) as Array<{ id: string }>) {
       if (!dropEngine(db, e.id)) kept = true;
     }
-    deleteSecrets(db, id);
+    if (!reservedId(id)) deleteSecrets(db, id);
     db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'missing-secret' AND ref = ? AND resolved_at IS NULL").run(nowIso(), id);
     if (kept) db.prepare('UPDATE plugin SET enabled = 0 WHERE id = ?').run(id);
     else db.prepare('DELETE FROM plugin WHERE id = ?').run(id);
