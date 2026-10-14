@@ -364,6 +364,34 @@ test('project.hide refuses while a session is live, hides past a done one, and p
   } finally { await h.teardown(); }
 });
 
+test('a session launched or resumed in a hidden project brings the project back', async () => {
+  // protects=project.hide never leaves a live agent in a project the menu leaves out
+  // fails_when=session.launch or session.resume starts a session while project.hidden stays 1
+  // no_claim=the project menu rendering
+  const h = await fakeHarness([{
+    id: 'quiet', command: process.execPath, args: ['-e', 'setTimeout(()=>{},500)'], prompt_arg: 'positional',
+    state_source: 'process', roles: ['worker'], cost_rank: 1, usage_source: 'none', provider: 'local-cli', version_cmd: [process.execPath, '--version'],
+  }]);
+  try {
+    const projectPath = join(h.home, 'hidden-launch');
+    mkdirSync(projectPath, { recursive: true });
+    const projectId = await openProject(h.prefix, projectPath);
+    const db = database(h.home);
+    try { insertSession(db, 'old-quiet', projectId, 'quiet', 'exited', projectPath); } finally { db.close(); }
+    const hide = () => { const w = database(h.home); try { w.prepare('UPDATE project SET hidden = 1 WHERE id = ?').run(projectId); } finally { w.close(); } };
+    const hidden = () => { const c = database(h.home, true); try { return (c.prepare('SELECT hidden FROM project WHERE id = ?').get(projectId) as { hidden: number }).hidden; } finally { c.close(); } };
+    const pipe = await client(h.prefix);
+    try {
+      hide();
+      assert.ok((await pipe.request('session.launch', { project_id: projectId, engine_id: 'quiet' })).result.session_id);
+      assert.equal(hidden(), 0, 'launch');
+      hide();
+      assert.ok((await pipe.request('session.resume', { session_id: 'old-quiet' })).result.session_id);
+      assert.equal(hidden(), 0, 'resume');
+    } finally { pipe.close(); }
+  } finally { await teardownCore(h.core, h); }
+});
+
 test('resuming a codex session keeps its thread id on the new row', async () => {
   const h = await fakeHarness([{
     id: 'codex', command: process.execPath, args: ['-e', 'setTimeout(()=>{},500)'], prompt_arg: 'positional', resume_args: ['resume', '{native_id}'],

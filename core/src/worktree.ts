@@ -47,6 +47,7 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
      FROM project p WHERE p.hidden = 0`,
   ).all() as Row[];
   const set = db.prepare('UPDATE project SET hidden = ?, older = ? WHERE id = ?');
+  const setOlder = db.prepare('UPDATE project SET older = ? WHERE id = ? AND hidden = 0');
   const liveNow = db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state != 'exited' LIMIT 1");
   // Git has let go of this folder (no `.git` entry) but it is still there, as when Windows refused to delete it. Only an empty folder is
   // removed; anything else stays and is tried again next sweep. The workbench never shows such a folder (goneCheckout).
@@ -74,7 +75,7 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
       }
       const stale = !r.live && now - (r.last_jd - 2440587.5) * DAY_MS >= staleMs;
       if (!stale) {
-        if (r.older) set.run(0, 0, r.id);
+        if (r.older) setOlder.run(0, r.id);
         continue;
       }
       if (canonicalPath(fs.realpathSync.native(r.path)).toLowerCase().startsWith(canonicalPath(fs.realpathSync.native(root)).toLowerCase() + '/')) {
@@ -106,7 +107,7 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
           }
         }
       }
-      if (!r.older) set.run(0, 1, r.id);
+      if (!r.older) setOlder.run(1, r.id);
       out.older.push(r.path);
     } catch (e) {
       console.error(`worktree sweep: left ${r.path} as it was: ${(e as Error).message.split('\n')[0]}`);

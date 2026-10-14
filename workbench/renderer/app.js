@@ -1071,7 +1071,7 @@ async function onClick(e) {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
       const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
-      const sec = (title, list) => (list.length ? `<div class="mh">${title}</div>${list.map(projectMenuItem).join('')}` : '');
+      const sec = (title, list) => (list.length ? `<div><div class="mh">${title}</div>${list.map(projectMenuItem).join('')}</div>` : '');
       const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
       menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
@@ -1091,7 +1091,10 @@ async function onClick(e) {
       return;
     case 'project-hide': {
       const r = await rpc('project.hide', { project_id: id });
-      if (r.result) el.closest('.item').remove();
+      if (!r.result) return;
+      const row = el.closest('.item'), group = row.parentElement;
+      row.remove();
+      if (!group.querySelector('.item')) group.remove();
       return;
     }
     case 'open-folder':
