@@ -10,7 +10,7 @@ const ANSWERS = { 'permission.replied': 'permission', 'question.replied': 'quest
 let seq = Date.now() * 1000;
 let asked = 0;
 const parents = new Map();
-/** Per root session: the asks not yet answered, by id, with their kind. */
+/** Per root session: the asks not yet answered, by id, with their kind and asking session. */
 const open = new Map();
 
 function rootOf(id) {
@@ -40,14 +40,15 @@ function onEvent(event) {
   const root = rootOf(p.sessionID);
   const asks = open.get(root) ?? new Map();
   open.set(root, asks);
-  const waiting = () => ({ state: 'waiting', ...([...asks.values()].includes('permission') ? { why: 'permission' } : {}) });
+  const waiting = () => ({ state: 'waiting', ...([...asks.values()].some((a) => a.kind === 'permission') ? { why: 'permission' } : {}) });
   if (ASKS[type]) {
-    asks.set(p.id ?? p.requestID ?? `ask-${++asked}`, ASKS[type]);
+    asks.set(p.id ?? p.requestID ?? `ask-${++asked}`, { kind: ASKS[type], from: p.sessionID });
     return report(waiting(), root);
   }
   if (ANSWERS[type]) {
     const id = p.permissionID ?? p.requestID ?? p.id;
-    asks.delete(id ?? [...asks].find(([, kind]) => kind === ANSWERS[type])?.[0]);
+    const same = [...asks].filter(([, a]) => a.kind === ANSWERS[type] && a.from === p.sessionID);
+    asks.delete(id ?? (same.length === 1 ? same[0][0] : undefined));
     return report(asks.size ? waiting() : { state: 'working' }, root);
   }
   if (child) return;
