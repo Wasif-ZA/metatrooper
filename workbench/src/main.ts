@@ -45,7 +45,7 @@ const DEBOUNCE_MS = 50;
 const POLL_MS = 1000;
 
 export const UI_METHODS = new Set([
-  'session.search',
+  'session.search', 'session.list',
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
@@ -541,7 +541,7 @@ function handlers(): void {
   });
 
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));
-  on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state }));
+  on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state, app_menu: Menu.getApplicationMenu() !== null, loads }));
 }
 
 /** No network: only the app's own files load; http(s) links open in the system browser. */
@@ -561,6 +561,8 @@ function lockDown(): void {
     });
   });
 }
+
+let loads = 0;
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -584,6 +586,7 @@ function createWindow(): void {
   });
   win.once('ready-to-show', () => win?.show());
   win.webContents.once('did-finish-load', push);
+  win.webContents.on('did-finish-load', () => { loads++; });
   win.webContents.on('render-process-gone', detachAll);
   win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));
@@ -773,6 +776,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     lockDown();
     handlers();
+    Menu.setApplicationMenu(null);
     createWindow();
     void ensureCore().then(checkCoreVersion).then(() => openFolder(folderArg(process.argv, process.cwd())));
     openNeedsYou(needsYouLink(process.argv));

@@ -14,6 +14,14 @@ const HOOK_STATES: Record<string, SessionState> = {
   'gemini.Notification': 'waiting_for_you', 'gemini.AfterAgent': 'done',
 };
 
+const HOLDING_TASKS = new Set(['subagent', 'teammate', 'workflow']);
+const FINISHED_TASKS = new Set(['completed', 'failed', 'killed', 'stopped', 'cancelled']);
+
+/** True when a Claude Stop's payload lists a background subagent, teammate or workflow that has not finished. */
+export function holdsStop(p: Record<string, unknown>): boolean {
+  return Array.isArray(p.background_tasks) && p.background_tasks.some((t: { type?: unknown; status?: unknown } | null) => HOLDING_TASKS.has(String(t?.type)) && !FINISHED_TASKS.has(String(t?.status)));
+}
+
 /** `waited` is the tool_use_id a Claude permission wait is on: while waiting for it, only its own PostToolUse (or a prompt, Stop, ...) moves the session. */
 export function nextState(current: string, event: StateEvent, waited: string | null = null): SessionState | null {
   if (current === 'exited') return null;
@@ -35,7 +43,20 @@ export function nextState(current: string, event: StateEvent, waited: string | n
       if (p.class === 'permission' || p.class === 'input') return 'waiting_for_you';
       return p.class === 'idle' && current === 'starting' ? 'idle' : null;
     case 'claude.Stop':
+      if (holdsStop(p)) return current === 'working' ? null : 'working';
       return 'done';
+    case 'core.stop-fallback':
+      return current === 'working' ? 'done' : null;
+    case 'core.interrupted':
+      return current === 'working' ? 'idle' : null;
+    case 'core.title-state':
+      if (p.state === 'waiting') return 'waiting_for_you';
+      if (p.state === 'working') return 'working';
+      return p.state === 'idle' && current === 'working' ? 'done' : null;
+    case 'opencode.state':
+      if (p.state === 'working') return 'working';
+      if (p.state === 'waiting') return 'waiting_for_you';
+      return p.state === 'done' ? 'done' : null;
     case 'claude.StopFailure':
       return 'waiting_for_you';
     // A Claude conversation can end (clear, resume) while its terminal lives on; core.process-gone marks the real exit.

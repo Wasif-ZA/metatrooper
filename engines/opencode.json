@@ -5,6 +5,7 @@
   "resume_args": ["--session", "{native_id}"],
   "version_cmd": ["opencode", "--version"],
   "state_source": "process",
+  "state_plugin": "plugins/opencode-state.js",
   "mcp_attach": { "kind": "env-json", "env": "OPENCODE_CONFIG_CONTENT", "format": "opencode-mcp" },
   "print_args": ["run", "{prompt}"],
   "roles": ["plan", "worker", "review", "verify"],

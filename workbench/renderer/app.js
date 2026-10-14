@@ -31,6 +31,8 @@ const ui = {
   lastBounds: '',
   rendered: {},
   drafts: {},
+  pendingHide: new Set(),
+  hideDone: new Set(),
 };
 
 function load(key) {
@@ -55,12 +57,51 @@ function ago(iso) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function toast(text, error = false) {
+function toast(text, error = false, action = null) {
   const el = document.createElement('div');
   el.className = `toast${error ? ' error' : ''}`;
-  el.textContent = text;
+  el.textContent = action ? `${text} · ` : text;
+  if (action) {
+    const b = document.createElement('button');
+    b.className = 'link';
+    b.textContent = action.label;
+    b.addEventListener('click', (e) => { e.stopPropagation(); el.remove(); action.run(); });
+    el.append(b);
+  }
   document.getElementById('toasts').append(el);
-  setTimeout(() => el.remove(), error ? (ui.look ? ui.look.ui.error_toast_ms : 7000) : (ui.look ? ui.look.ui.toast_ms : 3500));
+  setTimeout(() => el.remove(), action ? UNDO_MS : error ? (ui.look ? ui.look.ui.error_toast_ms : 7000) : (ui.look ? ui.look.ui.toast_ms : 3500));
+}
+
+const UNDO_MS = 7000;
+
+
+/** Takes the ids off the wall and list at once and sends one session.hide each after UNDO_MS, unless Undo is clicked or the session went live again. */
+function hideLater(ids, text) {
+  ids = ids.filter((id) => canHide(id) && !ui.pendingHide.has(id));
+  if (!ids.length) return;
+  for (const id of ids) ui.pendingHide.add(id);
+  render();
+  const projectId = ui.projectId;
+  const timer = setTimeout(async () => {
+    // after a project switch the snapshot no longer holds these ids, so their state comes from the core
+    let away = null;
+    if (ids.some((id) => !ui.snap.sessions.some((x) => x.id === id))) {
+      const r = await rpc('session.list', { project_id: projectId }, true);
+      away = new Map(((r.result && r.result.sessions) || []).map((x) => [x.id, x.state]));
+    }
+    const settled = (id) => (ui.snap.sessions.some((x) => x.id === id) ? canHide(id) : Boolean(away) && away.has(id) && !LIVE_STATES.includes(away.get(id)));
+    const hide = ids.filter(settled);
+    for (const id of ids) if (!hide.includes(id)) ui.pendingHide.delete(id);
+    render();
+    const out = await Promise.all(hide.map((id) => rpc('session.hide', { session_id: id })));
+    hide.forEach((id, i) => {
+      const x = ui.snap.sessions.find((y) => y.id === id);
+      if (out[i].error || !x || LIVE_STATES.includes(x.state)) ui.pendingHide.delete(id);
+      else ui.hideDone.add(id);
+    });
+    render();
+  }, UNDO_MS);
+  toast(typeof text === 'function' ? text(ids.length) : text, false, { label: 'Undo', run: () => { clearTimeout(timer); for (const id of ids) ui.pendingHide.delete(id); render(); } });
 }
 
 const ONE_AT_A_TIME = new Set(['session.launch', 'session.resume']);
@@ -138,31 +179,31 @@ function renderBrowser() {
     return (ui.paneState[p.id] || {}).loading ? 'working' : 'idle';
   };
   const tabs = browserChrome.tabs(s.panes.map((p) => ({
-    id: p.id, url: (ui.paneState[p.id] || {}).url || p.url || '', title: paneTitle(p), dot: dotOf(p),
+    id: p.id, url: (ui.paneState[p.id] || {}).url || p.url || '', title: paneTitle(p), full: ((ui.paneState[p.id] || {}).title || '').trim(), dot: dotOf(p),
     tag: p.session_id ? ownerOf(p.session_id) : '',
   })), ui.paneId);
   const pane = s.panes.find((p) => p.id === ui.paneId);
   let body;
   if (ui.comment) body = renderCommentForm();
-  else if (!pane) body = '<p class="empty">No browser pane. Open one.</p>';
+  else if (!pane) body = '<p class="empty">No browser pane. <button class="btn" data-action="pane-new">Open a browser pane</button></p>';
   else if (ui.browserMode === 'compare') body = renderCompare(pane);
   else if (ui.browserMode === 'timeline') body = renderTimeline();
   else body = '<div id="pane-host" class="pane-host"></div>';
   const st = (pane && ui.paneState[pane.id]) || {};
   const perms = pane ? ui.perms.filter((x) => x.pane_id === pane.id) : [];
   const controls = pane && !ui.comment ? `<div class="baddr">
-      <button class="ib" data-action="pane-act" data-act="back" title="Back (Alt+Left)" ${st.can_back ? '' : 'disabled'}>&larr;</button>
-      <button class="ib" data-action="pane-act" data-act="forward" title="Forward (Alt+Right)" ${st.can_forward ? '' : 'disabled'}>&rarr;</button>
-      ${st.loading ? '<button class="ib" data-action="pane-act" data-act="stop" title="Stop">&times;</button>' : '<button class="ib" data-action="pane-act" data-act="reload" title="Reload (Ctrl+R)">&#8635;</button>'}
+      <button class="ib" data-action="pane-act" data-act="back" title="Back (Alt+Left)" aria-label="Back" ${st.can_back ? '' : 'disabled'}>&larr;</button>
+      <button class="ib" data-action="pane-act" data-act="forward" title="Forward (Alt+Right)" aria-label="Forward" ${st.can_forward ? '' : 'disabled'}>&rarr;</button>
+      ${st.loading ? '<button class="ib" data-action="pane-act" data-act="stop" title="Stop" aria-label="Stop loading">&times;</button>' : '<button class="ib" data-action="pane-act" data-act="reload" title="Reload (Ctrl+R)" aria-label="Reload">&#8635;</button>'}
       ${browserChrome.urlField(st.url || pane.url || '', ui.urlDraft, st.zoom)}
       <button class="tb" data-action="pane-comment" title="Point at an element and leave a comment for a session (C)">Comment</button>
-      <button class="ib" data-action="pane-menu" title="Before, After, Compare, Find, Driven by, Close">&#8943;</button>
+      <button class="ib" data-action="pane-menu" title="Before, After, Compare, Find, Driven by, Close" aria-label="Pane menu">&#8943;</button>
     </div>` : '';
   const find = pane && ui.find && !ui.comment ? `<div class="toolbar findbar">
       <input id="pane-find" data-key="find" value="${esc(ui.find.text)}" placeholder="Find in page">
       <span class="label">${ui.find.matches ? `${ui.find.active} of ${ui.find.matches}` : ui.find.text ? 'no matches' : ''}</span>
-      <button data-action="find-step" data-dir="back" title="Previous (Shift+Enter)">&uarr;</button>
-      <button data-action="find-step" data-dir="next" title="Next (Enter)">&darr;</button>
+      <button data-action="find-step" data-dir="back" title="Previous (Shift+Enter)" aria-label="Previous match">&uarr;</button>
+      <button data-action="find-step" data-dir="next" title="Next (Enter)" aria-label="Next match">&darr;</button>
       <button data-action="find-close" title="Close (Esc)">Close</button>
     </div>` : '';
   const handed = st.handoff ? `<div class="toolbar permbar"><span>The agent handed you this pane: <b>${esc(st.handoff)}</b></span>
@@ -324,7 +365,7 @@ function ownerGroupsHtml(groups, row, busy) {
 function renderGit() {
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
-  if (!g) return `<div class="panel"><p class="empty">${ui.projectId ? 'Loading.' : 'Pick a project first.'}</p></div>`;
+  if (!g) return '<div class="panel"><p class="empty">Loading.</p></div>';
   if (g.error) return `<div class="panel"><p class="empty">No git here: ${esc(g.error)}</p></div>`;
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
   const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
@@ -493,10 +534,10 @@ function approvalCard(a, i) {
 function renderSheet() {
   const list = ui.snap.approvals || [];
   wall.roll(document.getElementById('sheetN'), list.length);
-  document.getElementById('sheetT').textContent = list.length ? `${list.length === 1 ? 'An agent action waits' : `${list.length} agent actions wait`} for you` : 'Nothing needs you';
+  document.getElementById('sheetT').textContent = list.length ? `${list.length === 1 ? 'An agent action waits' : `${list.length} agent actions wait`} for you` : 'No agent actions waiting';
   setHtml('sheetRuns', '');
   setHtml('sheetAct', '');
-  setHtml('gates', list.length ? list.map(approvalCard).join('') : '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">Nothing needs you.</div>');
+  setHtml('gates', list.length ? list.map(approvalCard).join('') : '<div class="gate" style="grid-column:1/3;justify-content:center;align-items:center;color:var(--work);font-weight:600">No agent actions waiting</div>');
 }
 
 function resumeButton(x) {
@@ -517,8 +558,8 @@ function canHide(id) {
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
-  return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Click: big slot. Shift+click: pair. Drop files to send their paths.">
-    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button>`}</span>
+  return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
+    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session" aria-label="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
 
@@ -552,7 +593,7 @@ function renderTitle() {
   const groups = limitGroups();
   const hot = groups.some((u) => u.ok.some((r) => r.used_pct >= 80));
   const live = groups.filter((u) => u.ok.length);
-  setHtml('usage', live.length ? `<button class="chip uchip${hot ? ' warn' : ''}" data-action="list" title="Usage">${live.map((u) => {
+  setHtml('usage', live.length ? `<button class="chip uchip${hot ? ' warn' : ''}" data-action="usage" title="Usage">${live.map((u) => {
     const r = u.ok[0];
     return `<span>${esc(u.provider)} <span class="mini"><i style="width:${Math.round(r.used_pct)}%"></i></span>${Math.round(r.used_pct)}%</span>`;
   }).join('')}</button>
@@ -585,13 +626,13 @@ function liveCounts(projectId) {
 function renderList(sel) {
   const s = ui.snap;
   const shells = shellRows();
-  const sessions = [...s.sessions].sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${s.sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)">x</button></div>
+  const sessions = s.sessions.filter((x) => !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
+  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)" aria-label="Close the agent list">x</button></div>
     <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
     <div class="lbody" id="sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
       ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
-        <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
+        <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell" aria-label="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
     </div>
     <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
 }
@@ -627,7 +668,7 @@ function renderTabs() {
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
   setHtml('tabs', TABS.map(([id, label]) => `<button class="${ui.tab === id ? 'on' : ''}" data-action="tab" data-tab="${id}">${label}${id === 'diff' && n ? `<span class="n">${n}</span>` : ''}</button>`).join('')
-    + '<button data-action="split-close" title="Close the side panel">x</button>');
+    + '<button data-action="split-close" title="Close the side panel" aria-label="Close the side panel">x</button>');
 }
 
 function loadSessionDiff(sel) {
@@ -772,6 +813,28 @@ async function saveSink() {
   if ((await rpc('notify.sink.set', params)).result) { toast('Sink saved.'); await openSinks(); }
 }
 
+const KEYS = [
+  { keys: 'Ctrl+K', does: 'Open or close the palette and search', where: 'anywhere' },
+  { keys: 'Ctrl+G', does: 'Grid on or off', where: 'anywhere' },
+  { keys: 'Ctrl+B', does: 'Agent list on or off', where: 'anywhere' },
+  { keys: 'Alt+J', does: 'Jump to the agent that has waited longest', where: 'anywhere' },
+  { keys: 'Ctrl+Alt+W', does: 'Open or close the watch layout', where: 'anywhere' },
+  { keys: 'Esc', does: 'Close the open panel or popover', where: 'anywhere' },
+  { keys: 'Shift+Enter', does: 'New line without sending', where: 'agent tile' },
+  { keys: 'Ctrl+C with a selection', does: 'Copy', where: 'tile' },
+  { keys: 'Ctrl+V, right-click', does: 'Paste (an image if the clipboard has no text)', where: 'tile' },
+  { keys: 'Ctrl+click', does: 'Open a link or file path', where: 'tile' },
+  { keys: 'Ctrl+T', does: 'New browser pane', where: 'browser' },
+  { keys: 'Ctrl+L', does: 'Address bar', where: 'browser' },
+  { keys: 'Ctrl+F', does: 'Find in page', where: 'browser' },
+  { keys: 'Ctrl+R, F5', does: 'Reload', where: 'browser' },
+  { keys: 'Alt+Left, Alt+Right', does: 'Back, forward', where: 'browser' },
+  { keys: 'Ctrl+=, Ctrl+-, Ctrl+0', does: 'Zoom in, out, reset', where: 'browser' },
+  { keys: 'F12', does: 'Page devtools', where: 'browser' },
+  { keys: 'C', does: 'Comment on an element', where: 'browser' },
+  { keys: 'Up, Down', does: 'Walk the element stack while picking', where: 'browser pick' },
+];
+
 function paletteItems() {
   const s = ui.snap;
   if (!s) return [];
@@ -787,6 +850,7 @@ function paletteItems() {
   items.push({ group: 'Actions', label: 'Open a project folder', run: openFolder });
   for (const [id, label] of TABS) items.push({ group: 'Panels', label, run: () => openTab(id) });
   items.push({ group: 'Actions', label: 'Toggle the agent list', meta: 'Ctrl+B', run: () => wall.setList(!wall.listOpen()) });
+  items.push({ group: 'Actions', label: 'Keyboard shortcuts', stay: true, run: () => { ui.keysView = true; ui.paletteAt = 0; document.getElementById('palette-input').value = ''; renderPalette(); } });
   const eq = document.body.classList.contains('ind-eq');
   items.push({ group: 'Actions', label: eq ? 'Working indicator: sparkline' : 'Working indicator: equaliser', run: () => { document.body.classList.toggle('ind-eq', !eq); document.body.classList.toggle('ind-spark', eq); save('ind', eq ? 'spark' : 'eq'); } });
   const hdr = load('hdr') || 'line';
@@ -795,8 +859,9 @@ function paletteItems() {
   }
   const themes = (ui.settingsLook && ui.settingsLook.themes) || [];
   for (const t of themes) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look && ui.look.theme.name === t.id ? 'current' : '', run: () => setLook(t.id) });
-  items.push({ group: 'Core', label: 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
-  items.push({ group: 'Core', label: 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
+  const armed = ui.armed && ui.armed.key;
+  items.push({ group: 'Core', confirm: 'restart', name: 'Restart core (loads new core code; open agents stop)', label: armed === 'restart' ? 'Press Enter again to restart; open agents stop' : 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
+  items.push({ group: 'Core', confirm: 'stop', name: 'Stop core (stops every agent)', label: armed === 'stop' ? 'Press Enter again to stop every agent' : 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
   items.push({ group: 'Core', label: 'Notification sinks (Slack, ntfy, webhooks)', run: openSinks });
   return items;
@@ -810,7 +875,9 @@ const CMD_ICON = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" st
 
 function renderPalette() {
   const q = document.getElementById('palette-input').value.trim().toLowerCase();
-  const all = [...paletteItems().filter((x) => !q || `${x.group} ${x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
+  const keys = KEYS.map((k) => ({ group: 'Keys', label: k.does, meta: `${k.keys} · ${k.where}`, stay: true, run() {} }));
+  const all = ui.keysView ? keys.filter((x) => !q || `${x.label} ${x.meta}`.toLowerCase().includes(q))
+    : [...paletteItems().filter((x) => !q || `${x.group} ${x.name || x.label}`.toLowerCase().includes(q)), ...scrollbackItems(q)];
   ui.paletteItems = all;
   ui.paletteAt = Math.min(ui.paletteAt || 0, Math.max(0, all.length - 1));
   const hl = (t) => { const i = t.toLowerCase().indexOf(q); return !q || i < 0 ? esc(t) : `${esc(t.slice(0, i))}<mark>${esc(t.slice(i, i + q.length))}</mark>${esc(t.slice(i + q.length))}`; };
@@ -862,6 +929,8 @@ function openPalette() {
 }
 
 function closePalette() {
+  disarm();
+  ui.keysView = false;
   document.getElementById('palette').hidden = true;
   const input = document.getElementById('palette-input');
   input.value = '';
@@ -869,8 +938,40 @@ function closePalette() {
   wall.closeSearch();
 }
 
-async function runPalette(i) {
+const ARM_MS = 3000;
+
+/** First Enter on a confirm item arms it; a second Enter within ARM_MS runs it. */
+function arm(key) {
+  clearTimeout(ui.armTimer);
+  ui.armed = { key, at: Date.now() };
+  ui.armTimer = setTimeout(disarm, ARM_MS);
+  renderPalette();
+}
+
+function disarm() {
+  if (!ui.armed) return;
+  clearTimeout(ui.armTimer);
+  ui.armed = null;
+  if (!document.getElementById('palette').hidden) renderPalette();
+}
+
+/** Closes the Inbox, the sinks popover and the usage popover; true when one was open. */
+function closePopovers() {
+  let closed = false;
+  for (const id of ['inbox', 'sinks']) {
+    const el = document.getElementById(id);
+    if (!el.hidden) { el.hidden = true; closed = true; }
+  }
+  const usage = document.getElementById('usage');
+  if (usage.classList.contains('open')) { usage.classList.remove('open'); closed = true; }
+  return closed;
+}
+
+async function runPalette(i, enter = false) {
   const item = (ui.paletteItems || [])[i];
+  if (item && item.stay) { item.run(); return; }
+  if (item && item.confirm && !enter) { disarm(); ui.paletteAt = i; renderPalette(); return; }
+  if (item && item.confirm && !(ui.armed && ui.armed.key === item.confirm && Date.now() - ui.armed.at < ARM_MS)) { arm(item.confirm); return; }
   closePalette();
   if (item) await item.run();
 }
@@ -1007,7 +1108,7 @@ function render(focus = false) {
   document.body.classList.toggle('no-split', !ui.split);
   coreRestarted();
   seedLayout();
-  const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => x.state !== 'exited' || x.id === ui.snap.selected || x.shell)
+  const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected || x.shell))
     .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
@@ -1091,6 +1192,9 @@ async function onClick(e) {
   switch (a) {
     case 'list':
       wall.setList(!wall.listOpen());
+      return;
+    case 'usage':
+      document.getElementById('usage').classList.toggle('open');
       return;
     case 'sheet':
       wall.setSheet(!wall.sheetOpen());
@@ -1271,7 +1375,7 @@ async function onClick(e) {
       return;
     case 'menu-hide':
       document.getElementById('menu').hidden = true;
-      if (canHide(id)) await rpc('session.hide', { session_id: id });
+      hideLater([id], 'Agent hidden');
       return;
     case 'start-engine':
       ui.startEngine = el.dataset.engine;
@@ -1340,13 +1444,13 @@ async function onClick(e) {
       render();
       return;
     case 'hide':
-      if (canHide(id)) await rpc('session.hide', { session_id: id });
+      hideLater([id], 'Agent hidden');
       return;
     case 'limit-resume':
       await rpc('session.limit-resume', { session_id: id, on: el.ariaPressed !== 'true' });
       return;
     case 'clear-all':
-      await rpc('project.clear', { project_id: ui.projectId });
+      hideLater(ui.snap.sessions.map((x) => x.id), (n) => `${n} finished agent${n === 1 ? '' : 's'} cleared`);
       return;
     case 'seen': {
       const x = ui.snap.sessions.find((y) => y.id === id);
@@ -1551,6 +1655,7 @@ function onInput(e) {
   const el = e.target;
   if (el.id === 'palette-input') {
     ui.paletteAt = 0;
+    disarm();
     renderPalette();
     searchScrollback();
     return;
@@ -1617,6 +1722,10 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
+  for (const id of ui.hideDone) {
+    const x = s.sessions.find((y) => y.id === id);
+    if (!x || LIVE_STATES.includes(x.state)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
+  }
   if (ui.projectId && !s.projects.some((p) => p.id === ui.projectId)) {
     ui.projectId = null;
     save('projectId', null);
@@ -1643,6 +1752,7 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'git-msg') ui.gitMsg = e.target.value;
 });
 document.addEventListener('click', (e) => {
+  if (!e.target.closest('#usage')) document.getElementById('usage').classList.remove('open');
   const item =e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
   if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
@@ -1692,7 +1802,7 @@ document.addEventListener('keydown', (e) => {
   if (palette) {
     if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ui.paletteAt = Math.max(0, Math.min((ui.paletteItems || []).length - 1, (ui.paletteAt || 0) + (e.key === 'ArrowDown' ? 1 : -1))); renderPalette(); }
-    else if (e.key === 'Enter') { e.preventDefault(); void runPalette(ui.paletteAt || 0); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) void runPalette(ui.paletteAt || 0, true); }
     return;
   }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
@@ -1701,6 +1811,7 @@ document.addEventListener('keydown', (e) => {
     void rpc('pane.open', { project_id: ui.projectId }).then((r) => { if (r.result) ui.paneId = r.result.pane_id; });
     return;
   }
+  if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === 'Escape') {
@@ -1821,6 +1932,7 @@ function browserKeys(e) {
   e.stopImmediatePropagation();
   void api.paneAct(ui.paneId, act);
 }
+document.addEventListener('keydown', (e) => { if (e.key !== 'Enter') disarm(); }, true);
 document.addEventListener('keydown', browserKeys, true);
 
 /** Ctrl+Alt+W opens and closes the watch layout (M6-15). */

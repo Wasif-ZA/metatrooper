@@ -137,7 +137,25 @@
         "cost_rank": { "type": "integer", "minimum": 1, "maximum": 10 },
         "provider": { "enum": ["local-cli", "api-key", "gateway"], "default": "local-cli" },
         "usage_source": { "enum": ["claude-transcript", "codex-session", "none"], "default": "none" },
-        "shift_enter": { "enum": ["paste", "alt-enter"], "default": "paste", "description": "What Shift+Enter sends: a bracketed paste of a newline, or ESC CR." }
+        "shift_enter": { "enum": ["paste", "alt-enter"], "default": "paste", "description": "What Shift+Enter sends: a bracketed paste of a newline, or ESC CR." },
+        "state_titles": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Regex sources matched case-insensitively against the raw terminal title. A pattern that does not compile is logged and ignored. Moves only process engines; idle also arms interrupt detection.",
+          "properties": {
+            "working": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "waiting": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "idle": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        },
+        "fatal_patterns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 3, "maxLength": 200 },
+          "description": "Fixed strings, matched case-insensitively as substrings of the last 20 screen lines of a working session; one frozen for 60 s raises a failed item."
+        },
+        "state_plugin": { "type": "string", "pattern": "^plugins/[A-Za-z0-9_.-]+\\.js$", "description": "A state plugin under engines/ that reports through core/event.js; launch sets TROOP_NODE and TROOP_EVENT_JS." }
       },
       "allOf": [
         { "if": { "required": ["state_source"], "properties": { "state_source": { "const": "file-activity" } } }, "then": { "required": ["activity_glob"] } }
