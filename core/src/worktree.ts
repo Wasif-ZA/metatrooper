@@ -32,9 +32,14 @@ async function mainBranch(repo: string): Promise<string | null> {
 /** Worktrees the sweep is removing right now, project id to path; launchSession and shell.open refuse a folder inside one. */
 export const removing = new Map<string, string>();
 
+const norm = (p: string) => {
+  const c = canonicalPath(path.resolve(p));
+  return process.platform === 'win32' ? c.toLowerCase() : c;
+};
+
 const inside = (dir: string, root: string) => {
-  const d = canonicalPath(dir).toLowerCase();
-  const r = canonicalPath(root).toLowerCase();
+  const d = norm(dir);
+  const r = norm(root);
   return d === r || d.startsWith(r + '/');
 };
 

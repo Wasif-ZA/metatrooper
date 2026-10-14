@@ -76,6 +76,8 @@ test('a launch while the sweep removes a worktree is refused, so no session runs
     }
     assert.throws(() => launchSession(db, { projectId: 'merged', projectPath: merged, projectName: 'merged', engine: { id: 'claude' } as any }), /being removed/);
     assert.throws(() => launchSession(db, { projectId: 'parent2', projectPath: resolveProjectPath(repo), projectName: 'parent2', engine: { id: 'claude' } as any, cwd: `${merged}/sub` }), /being removed/);
+    fs.mkdirSync(path.join(home, 'worktrees', 'parent2', 'mergedx'));
+    assert.throws(() => launchSession(db, { projectId: 'parent2', projectPath: resolveProjectPath(repo), projectName: 'parent2', engine: { id: 'claude' } as any, cwd: `${merged}x/../merged` }), /being removed/);
     assert.throws(() => buildMethods(db, {} as any).get('shell.open')!.handler({ kind: availableShells()[0].kind, project_id: 'merged' }), /being removed/);
     assert.equal((db.prepare("SELECT COUNT(*) AS n FROM session WHERE project_id IN ('merged', 'parent2')").get() as { n: number }).n, 0);
     const r = await sweeping;
