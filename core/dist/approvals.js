@@ -68,8 +68,11 @@ const riskyControl = (c                ) => Boolean(c && (RISKY_NAME.test(words(
 /** The reason for a risky control; the name is matched whole, then redacted whole and shortened only here, for display. */
 const risky = (c         ) => `risky control: ${redactCredentials(c.name || c.automation_id).slice(0, 200)}`;
 
+/** The chord as both executors read it: empty parts dropped. */
+const chord = (keys        ) => keys.split('+').map((k) => k.trim()).filter(Boolean);
+
 function isShortcut(keys        )          {
-  const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
+  const parts = chord(keys);
   return parts.length > 1 && parts.slice(0, -1).some((m) => /^(control|ctrl|alt|meta|cmd|command|win)$/i.test(m));
 }
 
@@ -85,7 +88,7 @@ export function riskReason(p             )                {
   }
   if (p.action === 'key') {
     const keys = typeof p.args.keys === 'string' ? p.args.keys : '';
-    const last = keys.split('+').pop()?.trim() ?? '';
+    const last = chord(keys).pop() ?? '';
     if (!ACTIVATING_KEY.test(last) && !isShortcut(keys)) return null;
     if (p.hidden) return 'hidden control';
     if (riskyControl(c)) return risky(c );

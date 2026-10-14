@@ -85,8 +85,9 @@ namespace TroopUia {
     }
 
     // the control an input reaches must still be the one the core approved, checked in the op that sends it
-    static void Expect(AutomationElement e, bool hidden, Dictionary<string, object> r) {
+    static void Expect(long hwnd, AutomationElement e, bool hidden, Dictionary<string, object> r) {
       if (Num(r, "check") == 0) return;
+      if ((bool)((Dictionary<string, object>)Info(new IntPtr(hwnd)))["file_dialog"] != (Num(r, "file_dialog") != 0)) throw new Exception("control changed");
       var c = e == null ? null : ControlOf(e);
       bool password = e != null && e.Current.IsPassword;
       if (hidden != (Num(r, "hidden") != 0) || password != (Num(r, "password") != 0) || (c == null ? "" : (string)c["name"]) != Str(r, "name")
@@ -105,14 +106,14 @@ namespace TroopUia {
         case "snapshot": return Snapshot(hwnd, (int)Math.Max(1, Num(r, "max_nodes")));
         case "describe": return Describe(hwnd, Str(r, "ref"));
         case "screenshot": return Screenshot(new IntPtr(hwnd));
-        case "set_text": Expect(Find(hwnd, Str(r, "ref")), false, r); return SetText(hwnd, Str(r, "ref"), Str(r, "value"));
-        case "click": Expect(Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
+        case "set_text": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return SetText(hwnd, Str(r, "ref"), Str(r, "value"));
+        case "click": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
         case "key": {
           bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
-          Expect(f, hidden, r);
+          Expect(hwnd, f, hidden, r);
           return Key(target, Str(r, "keys"));
         }
-        case "scroll": if (Str(r, "ref").Length > 0) Expect(Find(hwnd, Str(r, "ref")), false, r); return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
+        case "scroll": if (Str(r, "ref").Length > 0) Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"));
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
         case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
         case "probe": {

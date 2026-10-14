@@ -1173,6 +1173,7 @@ ame, after checking the ref's field is a password field on the origin saved with
           const p = await this.box(pane, node, a.ref, a);
           await this.pointAt(pane, p.x, p.y);
           await recheck();
+          this.notPaused(a);
           await this.cmd(pane, 'Runtime.callFunctionOn', {
             objectId: p.objectId,
             functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',
@@ -1206,7 +1207,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         let png: Buffer;
         let truncated = false;
         if (a.ref) {
-          const b = await this.box(pane, this.node(pane, a.ref), a.ref);
+          const b = await this.box(pane, this.node(pane, a.ref), a.ref, a);
           const m = await this.cmd(pane, 'Page.getLayoutMetrics');
           const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
           const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };

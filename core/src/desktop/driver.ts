@@ -227,9 +227,20 @@ export class Desktop {
     try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; if (watchId !== null) endAction(watchId); }
   }
 
+  /** For a read: the grant is checked again as the request leaves the helper queue. */
+  private still(sessionId: string, grantId: string): () => void {
+    return () => { if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED); };
+  }
+
+  /** Reads one granted window through the helper. */
+  private async read<T>(sessionId: string, hwnd: number, op: string, params: Record<string, unknown> = {}): Promise<T> {
+    const { grant, info } = await this.resolve(sessionId, hwnd);
+    return this.helper.request<T>(op, { hwnd, ...params, pid: info.pid }, undefined, this.still(sessionId, grant.id));
+  }
+
   async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number }> {
     const { grant, info } = await this.resolve(sessionId, hwnd);
-    const d = await this.helper.request<Described>('describe', { hwnd, ref, pid: info.pid });
+    const d = await this.helper.request<Described>('describe', { hwnd, ref, pid: info.pid }, undefined, this.still(sessionId, grant.id));
     return { grant_id: grant.id, control: d.control, password: d.password === true, hidden: d.hidden === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid };
   }
 
@@ -249,7 +260,7 @@ export class Desktop {
         || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       }
-      const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, pid: now.pid };
+      const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, file_dialog: now.file_dialog ? 1 : 0, pid: now.pid };
       if (action !== 'type') return this.dispatch(sessionId, now.grant_id, action, { hwnd, ref, keys: p.keys, dy: p.dy, ...seen });
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
@@ -310,6 +321,8 @@ export class Desktop {
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
       const w = await this.info(hwnd);
+      this.on();
+      if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (!w.alive) throw new RpcError(E.VALIDATION, 'that window is gone');
       if (w.pid === this.uiPid) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');
       if (w.elevated) throw new RpcError(E.VALIDATION, 'an elevated window cannot be granted');
@@ -340,8 +353,10 @@ export class Desktop {
       const grants = liveGrants(this.db, sessionId);
       if (!grants.length) return { windows: [] };
       const { windows } = await this.helper.request<{ windows: WindowInfo[] }>('list');
+      this.on();
       const out: Array<Record<string, unknown>> = [];
       for (const g of grants) {
+        if (!this.granted(sessionId, g.id)) continue;
         const own = windows.find((w) => sameWindow(g, w));
         if (!own) { endGrant(this.db, g.id); continue; }
         out.push({ window: g.hwnd, title: own.title, exe: g.exe, grant_id: g.id, owner: 0 });
@@ -356,22 +371,16 @@ export class Desktop {
     } });
     m.set('desktop.snapshot', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      const hwnd = hwndOf(p.window);
-      const { info } = await this.resolve(sessionId, hwnd);
       const max = typeof p.max_nodes === 'number' && p.max_nodes > 0 ? Math.min(Math.floor(p.max_nodes), 2000) : 400;
-      return this.helper.request('snapshot', { hwnd, max_nodes: max, pid: info.pid });
+      return this.read(sessionId, hwndOf(p.window), 'snapshot', { max_nodes: max });
     } });
     m.set('desktop.screenshot', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      const hwnd = hwndOf(p.window);
-      const { info } = await this.resolve(sessionId, hwnd);
-      return this.helper.request('screenshot', { hwnd, pid: info.pid });
+      return this.read(sessionId, hwndOf(p.window), 'screenshot');
     } });
     m.set('desktop.find', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      const hwnd = hwndOf(p.window);
-      const { info } = await this.resolve(sessionId, hwnd);
-      return this.helper.request('find_text', { hwnd, text: str(p, 'text'), pid: info.pid });
+      return this.read(sessionId, hwndOf(p.window), 'find_text', { text: str(p, 'text') });
     } });
     m.set('desktop.act', { handler: async (p) => this.act(p, await this.bind(p)) });
   }
