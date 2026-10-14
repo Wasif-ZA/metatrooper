@@ -14,6 +14,8 @@ export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
 export const OFF = 'computer use is off: the desktop plugin is disabled';
 export const CHUNK = 8;
+/** A pause acknowledgement waits this long after the last posted key or click. */
+export const POST_SETTLE_MS = 250;
 const CONTROL_CHANGED = -32035;
 const HELPER_TIMEOUT_MS = 30_000;
 
@@ -106,6 +108,7 @@ export class Desktop {
   private bound = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
   private inFlight: Promise<unknown> | null = null;
+  private postedAt = 0;
   private rects = new Map<string, { rect: number[]; minimized: boolean }>();
   private ticking = false;
 
@@ -140,6 +143,8 @@ export class Desktop {
     const at = nowIso();
     this.db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('takeover_paused_at', ?)").run(at);
     while (this.inFlight) await this.inFlight.catch(() => {});
+    const wait = this.postedAt + POST_SETTLE_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     return { paused_at: at };
   }
 
@@ -229,7 +234,10 @@ export class Desktop {
         || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       }
-      if (action !== 'type') return this.dispatch(sessionId, now.grant_id, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }));
+      if (action !== 'type') {
+        const posted = action === 'key' || action === 'click';
+        return this.dispatch(sessionId, now.grant_id, () => this.helper.request<Record<string, unknown>>(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }).finally(() => { if (posted) this.postedAt = Date.now(); }));
+      }
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
       let focusLost = false;

@@ -88,7 +88,7 @@ Save As, Open or Save) is covered, but every input in it carries `file_dialog: t
 ## Take-over (D62)
 
 The workbench registers `desktop.takeover_key` (default `Control+Alt+Q`) as a global shortcut. Pressing it calls
-`takeover.pause`, which sets the pause time, waits for the chunk in flight to land, and replies `{paused_at}`: that
+`takeover.pause`, which sets the pause time, waits for the chunk in flight to land and for 250 ms after the last posted key or click (D78), and replies `{paused_at}`: that
 reply is the acknowledgement. From then on every `desktop.act` chunk and every `approval.check` for a paused
 session (browser and desktop) returns "paused by the user"; queued calls are dropped the same way. The flag is
 `meta.takeover_paused_at`; each session's resume is in `meta.takeover_resumed` (JSON `{session_id: iso}`). A
@@ -142,5 +142,7 @@ among its ancestors.
 
 - A pattern action on a WinUI or UWP control moves keyboard focus to that window for a moment (D78); Windows may
   refuse the hand-back (`focus_returned: false`).
+- A key or click is posted (D78). The take-over acknowledgement waits 250 ms after the last one, which narrows the gap but is not a guarantee: a target that has not read its queue by then gets the input after the acknowledgement (Wasif, 2026-10-14).
+- Browser input already sent to the page when the user presses the take-over key, such as a long `insertText`, may finish after the acknowledgement: the core does not wait on the workbench.
 - A window closed and a new one opened at the same handle by the same process within 500 ms is not told apart.
 - Apps with no UI Automation tree get screenshots only.
