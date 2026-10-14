@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -17,6 +18,9 @@ export const CHUNK = 8;
 /** A pause acknowledgement waits this long after the last posted key or click. */
 export const POST_SETTLE_MS = 250;
 const CONTROL_CHANGED = -32035;
+const SALT = crypto.randomBytes(16);
+/** An opaque stand-in for the element's runtime id, so an approval stays bound to the control it was checked on. */
+const tokenOf = (rid: string, pid: number) => crypto.createHmac('sha256', SALT).update(`${pid}:${rid}`).digest('hex').slice(0, 32);
 const HELPER_TIMEOUT_MS = 30_000;
 
 export function helperScript(): string {
@@ -221,8 +225,11 @@ export class Desktop {
     };
     const posted = op === 'key' || op === 'click';
     const p = this.helper.request<Record<string, unknown>>(op, params, undefined, gate)
-      .catch((e: Error) => { throw /^control changed$/.test(e.message) ? new RpcError(CONTROL_CHANGED, `the control changed since it was checked; nothing was sent${note}`) : e; })
-      .finally(() => { if (posted && watchId !== null) this.postedAt = Date.now(); });
+      .then((r) => { if (posted) this.postedAt = Date.now(); return r; }, (e: Error) => {
+        if (/^control changed$/.test(e.message)) throw new RpcError(CONTROL_CHANGED, `the control changed since it was checked; nothing was sent${note}`);
+        if (posted && watchId !== null) this.postedAt = Date.now();
+        throw e;
+      });
     this.inFlight = p;
     try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; if (watchId !== null) endAction(watchId); }
   }
@@ -258,6 +265,7 @@ export class Desktop {
       const expect = (p.expect && typeof p.expect === 'object' ? p.expect : {}) as Record<string, unknown>;
       const c = now.control ?? { name: '', automation_id: '', role: '' };
       if (expect.grant_id !== undefined && expect.grant_id !== now.grant_id) throw new RpcError(CONTROL_CHANGED, 'the window changed; nothing was sent');
+      if (expect.token !== undefined && expect.token !== tokenOf(now.rid, now.pid)) throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       if ((expect.name ?? '') !== c.name || (expect.automation_id ?? '') !== c.automation_id || (expect.role ?? '') !== c.role
         || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
@@ -368,8 +376,8 @@ export class Desktop {
     } });
     m.set('desktop.describe', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      const { pid: _, rid: __, ...d } = await this.describe(sessionId, hwndOf(p.window), typeof p.ref === 'string' && p.ref ? p.ref : undefined);
-      return d;
+      const { pid, rid, ...d } = await this.describe(sessionId, hwndOf(p.window), typeof p.ref === 'string' && p.ref ? p.ref : undefined);
+      return { ...d, token: tokenOf(rid, pid) };
     } });
     m.set('desktop.snapshot', { handler: async (p) => {
       const sessionId = await this.bind(p);

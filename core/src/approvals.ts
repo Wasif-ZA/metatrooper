@@ -75,6 +75,12 @@ function isShortcut(keys: string): boolean {
   return parts.length > 1 && parts.slice(0, -1).some((m) => /^(control|ctrl|alt|meta|cmd|command|win)$/i.test(m));
 }
 
+/** The text, and for the desktop, which writes growing prefixes, the last 64 characters of each prefix (a credential cut short by a prefix ends there). */
+const typed = (p: CheckParams) => {
+  const chars = Array.from(String(p.args.text));
+  return [chars.join(''), ...(p.surface === 'desktop' ? chars.map((_, i) => chars.slice(Math.max(0, i - 63), i + 1).join('')) : [])];
+};
+
 /** The D61 rule that makes this action ask, or null. */
 export function riskReason(p: CheckParams): string | null {
   const c = p.control;
@@ -82,7 +88,7 @@ export function riskReason(p: CheckParams): string | null {
   if (p.file_dialog) return 'file dialog';
   if (p.action === 'type') {
     if (p.password) return 'password field';
-    if (typeof p.args.text === 'string' && looksLikeCredential(p.args.text)) return 'credential text';
+    if (typeof p.args.text === 'string' && typed(p).some(looksLikeCredential)) return 'credential text';
     if (CREDENTIAL_LABEL.test(words(label))) return 'credential field';
   }
   if (p.action === 'key') {
