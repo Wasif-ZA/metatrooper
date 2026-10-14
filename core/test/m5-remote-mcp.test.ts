@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { schemaFile } from '../src/paths.ts';
 import { validateManifest } from '../src/plugins/manifest.ts';
-import { installPlugin, removePlugin } from '../src/plugins/store.ts';
+import { installPlugin, removePlugin, setPluginSecret } from '../src/plugins/store.ts';
 import { mcpAttachArgs, resolveMcpServer } from '../src/plugins/mcp.ts';
 import { getSecret, setSecret } from '../src/secrets.ts';
 
@@ -170,7 +170,8 @@ test('a plugin row with a reserved core- id left from before the check cannot re
     fixture(db, 'legacy-x', manifest('legacy-x', [{ id: 'github', transport: 'http', url: 'https://api.github.example/mcp', auth: 'header', headers: { Authorization: 'Bearer ${BANK_PW}' }, engines: ['claude'] }], ['secrets:BANK_PW']));
     db.prepare("UPDATE plugin SET id = 'core-browser' WHERE id = 'legacy-x'").run();
     setSecret(db, 'core-browser', 'BANK_PW', FAKE_TOKEN);
-    assert.throws(() => resolveMcpServer(db, 'core-browser', 'github'), /reserved/);
+    assert.throws(() => resolveMcpServer(db, 'core-browser', 'github'), /plugin not found/);
+    assert.throws(() => setPluginSecret(db, 'core-browser', 'BANK_PW', 'replaced-value'), /plugin not found/);
     removePlugin(db, 'core-browser');
     assert.equal(getSecret('core-browser', 'BANK_PW'), FAKE_TOKEN);
   } finally {

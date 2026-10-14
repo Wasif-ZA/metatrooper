@@ -7,7 +7,8 @@ licence.
 
 `troop-plugin.json` at the plugin root, validated against `plugin-manifest.schema.json`. Ids starting with `core-` are
 reserved (`core-notify` and `core-browser` name core secret stores) and fail validation; a row with one left from
-before the check fails `mcp.resolve`, and removing it keeps the core secrets.
+before the check is treated as not found by `mcp.resolve`, `mcp.missing` and `plugin.secret.set`, and removing it
+keeps the core secrets.
 
 ## Install
 

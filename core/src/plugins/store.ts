@@ -307,6 +307,7 @@ function toPlugin(r: Record<string, unknown>): InstalledPlugin {
 
 /** An installed, enabled plugin; null otherwise, so nothing from an unapproved or removed plugin can run. */
 export function loadPlugin(db: DatabaseSync, id: string): InstalledPlugin | null {
+  if (reservedId(id)) return null;
   const r = db.prepare('SELECT * FROM plugin WHERE id = ? AND enabled = 1').get(id) as Record<string, unknown> | undefined;
   return r ? toPlugin(r) : null;
 }

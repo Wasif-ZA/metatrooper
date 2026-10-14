@@ -20,6 +20,7 @@ import { installClaude, installCodex, installEngineSettings, lineDiff, uninstall
 import { homeDir, repoDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
 import { resolveMcpServer } from './plugins/mcp.ts';
+import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import { browserCall } from './browser/client.ts';
 import { writeClipboard } from './clipboard.ts';
@@ -508,7 +509,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       const pluginId = str(p, 'plugin_id');
       const names = Array.isArray(p.names) ? p.names.filter((n): n is string => typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n)) : [];
-      if (!db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
+      if (reservedId(pluginId) || !db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
       for (const n of names) raiseMissingSecret(db, pluginId, n);
       return {};
     },

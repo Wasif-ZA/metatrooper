@@ -5,7 +5,7 @@ import { codexConfigFile, coreDir, homeDir } from '../paths.ts';
 import { getSecret } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
-import { mcpWrites, reservedId, type McpSpec } from './manifest.ts';
+import { mcpWrites, type McpSpec } from './manifest.ts';
 import { listPlugins, loadPlugin, raiseMissingSecret, readImportRecord } from './store.ts';
 
 export interface ResolvedServer {
@@ -19,7 +19,6 @@ export interface ResolvedServer {
 
 /** What the shim needs to start one plugin MCP server: stored secret values, `${VAR}` names it resolves itself, and what is missing. */
 export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: string): ResolvedServer {
-  if (reservedId(pluginId)) throw new RpcError(E.VALIDATION, `${pluginId} is a reserved plugin id`);
   const plugin = loadPlugin(db, pluginId);
   if (!plugin) throw new RpcError(E.NOT_FOUND, 'plugin not found');
   const server = (plugin.manifest.mcp ?? []).find((s) => s.id === serverId);
