@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const src = (f: string) => readFileSync(new URL(`../renderer/${f}`, import.meta.url), 'utf8');
+const UI_METHODS: Set<string> = new Function(`${readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8').match(/^export const UI_METHODS\s*=\s*new Set\(\[[^]*?\]\);/m)![0].replace(/^export\s+/, '')}; return UI_METHODS;`)();
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
 
 /** A fake element: enough DOM for app.js to render into and for a test to read back. */
@@ -56,7 +57,7 @@ function boot() {
   const api = new Proxy({}, {
     get: (_t, name: string) => {
       if (name.startsWith('on')) return (f: (...a: any[]) => any) => { handlers[name] = f; };
-      if (name === 'call') return async (method: string, params: any) => { calls.push({ method, params, at: now }); const r = replies[method]; return { kind: 'ok', reply: { result: (typeof r === 'function' ? await r(params) : r) ?? {} } }; };
+      if (name === 'call') return async (method: string, params: any) => { calls.push({ method, params, at: now }); if (!UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${method}` } } }; const r = replies[method]; return { kind: 'ok', reply: { result: (typeof r === 'function' ? await r(params) : r) ?? {} } }; };
       if (name === 'git') return async () => ({ branch: 'main', changes: [], staged: [], log: '', ahead: 0, behind: 0 });
       if (name === 'uiSettings') return async () => ({ theme: {}, ui: { toast_ms: 3500, error_toast_ms: 7000, layout: {} }, terminal: { git_every_ms: 10000, scrollback: 1000, font_size: 13 }, themes: [] });
       return async (...args: any[]) => { calls.push({ method: `api.${name}`, params: args, at: now }); return undefined; };
@@ -163,6 +164,16 @@ test('M6-26b a hide waits 7 s, Undo cancels only its own hide, and a session tha
   assert.equal(early.t.ui.pendingHide.has('a'), false, 'a snapshot that arrives before the reply still releases the id');
   await early.snap(snapOf([session('a', 'working')]));
   assert.ok(onWall(early).includes('a'), 'and the session shows if it comes back');
+
+  const back = boot();
+  await back.snap(snapOf([session('a', 'done')]));
+  await back.click({ action: 'hide', id: 'a' });
+  back.replies['session.hide'] = () => new Promise((r) => { reply = r; });
+  await back.advance(7000);
+  await back.snap(snapOf([session('a', 'waiting_for_you')]));
+  reply({});
+  await back.advance(0);
+  assert.ok(onWall(back).includes('a'), 'a snapshot showing it live before the reply puts it back at the reply');
 
   for (const [state, hidden] of [['done', ['a']], ['starting', []], ['unknown', []], ['working', []]] as const) {
     const away = boot();
@@ -327,6 +338,9 @@ test('M6-26f the usage chip toggles its popover and leaves the agent list alone'
   await w.click({ action: 'usage' }, ['#usage']);
   await w.click({});
   assert.equal(usage(), false, 'an outside click closes it');
+  await w.click({ action: 'usage' }, ['#usage']);
+  await w.click({ palette: '0' });
+  assert.equal(usage(), false, 'a click on a palette row closes it');
   await w.click({ action: 'usage' }, ['#usage']);
   await w.key('Escape');
   assert.equal(usage(), false, 'Esc closes it');
