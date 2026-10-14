@@ -3,6 +3,7 @@
 const api = window.troop;
 const PROBE = new URLSearchParams(location.search).has('probe');
 const DEMO = new URLSearchParams(location.search).has('demo');
+const LIVE_STATES = ['starting', 'working', 'waiting_for_you', 'unknown'];
 const STATE_WORDS = { starting: 'starting', working: 'working', waiting_for_you: 'waiting for you', done: 'done', idle: 'idle', unknown: 'state unknown', exited: 'exited' };
 
 const ui = {
@@ -487,11 +488,17 @@ function resumeButton(x) {
 
 const STATE_ORDER = ['waiting_for_you', 'working', 'starting', 'unknown', 'done', 'idle', 'exited'];
 
+/** False for a live or unknown session, so no click hides an agent that may still need you. */
+function canHide(id) {
+  const x = ui.snap.sessions.find((y) => y.id === id);
+  return Boolean(x) && !LIVE_STATES.includes(x.state);
+}
+
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
   return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="Click: big slot. Shift+click: pair. Drop files to send their paths.">
-    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span><button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button></span>
+    <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
 
@@ -1160,7 +1167,7 @@ async function onClick(e) {
       return;
     case 'menu-hide':
       document.getElementById('menu').hidden = true;
-      await rpc('session.hide', { session_id: id });
+      if (canHide(id)) await rpc('session.hide', { session_id: id });
       return;
     case 'start-engine':
       ui.startEngine = el.dataset.engine;
@@ -1229,7 +1236,7 @@ async function onClick(e) {
       render();
       return;
     case 'hide':
-      await rpc('session.hide', { session_id: id });
+      if (canHide(id)) await rpc('session.hide', { session_id: id });
       return;
     case 'limit-resume':
       await rpc('session.limit-resume', { session_id: id, on: el.ariaPressed !== 'true' });
@@ -1540,7 +1547,7 @@ document.addEventListener('contextmenu', (e) => {
   if (!row || row.dataset.id.startsWith('sh_')) { menu.hidden = true; return; }
   e.preventDefault();
   const id = row.dataset.id;
-  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div><div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>`;
+  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
   menu.hidden = false;
