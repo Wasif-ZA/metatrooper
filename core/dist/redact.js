@@ -21,6 +21,10 @@ function pick(raw     , keys          )      {
   return out;
 }
 
+function strings(raw     , keys          )      {
+  return Object.fromEntries(keys.filter((k) => typeof raw[k] === 'string').map((k) => [k, (raw[k]          ).slice(0, 4096)]));
+}
+
 /** Redacts a Claude tool_input per the table in contracts/events-and-hooks.md. */
 export function redactToolInput(toolName        , input         )      {
   const o = asObject(input);
@@ -59,36 +63,48 @@ function classifyNotification(type         , message        )                   
 export function buildPayload(kind        , raw        )      {
   const r = asObject(raw);
   const tool = ()      => ({
-    ...pick(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']),
+    ...strings(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']),
     tool_input: redactToolInput(String(r.tool_name ?? ''), r.tool_input),
   });
   switch (kind) {
     case 'launch':
       return pick(r, ['session_id', 'pid', 'cwd', 'engine', 'started_at']);
     case 'claude.PreToolUse':
+    case 'claude.PermissionRequest':
+    case 'claude.PostToolUseFailure':
       return tool();
     case 'claude.PostToolUse':
       return { ...tool(), response_length: lengthOf(r.tool_response) };
     case 'claude.UserPromptSubmit':
-      return { ...pick(r, ['session_id', 'transcript_path', 'cwd']), prompt_length: lengthOf(r.prompt) };
+      return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), prompt_length: lengthOf(r.prompt) };
     case 'claude.Notification': {
       const msg = typeof r.message === 'string' ? r.message : '';
-      return { ...pick(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
+      return { ...strings(r, ['session_id', 'cwd', 'notification_type']), class: classifyNotification(r.notification_type, msg), message_length: msg.length };
     }
     case 'claude.Stop':
-      return pick(r, ['session_id', 'transcript_path', 'cwd', 'stop_hook_active']);
+      return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), ...(typeof r.stop_hook_active === 'boolean' ? { stop_hook_active: r.stop_hook_active } : {}) };
     case 'claude.StopFailure':
-      return pick(r, ['session_id', 'transcript_path', 'cwd', 'error_type']);
+      return strings(r, ['session_id', 'transcript_path', 'cwd', 'error_type']);
     case 'claude.SessionEnd':
-      return pick(r, ['session_id', 'cwd', 'reason']);
+      return strings(r, ['session_id', 'cwd', 'reason']);
     case 'codex.turn':
       return {
-        ...pick(r, ['type', 'thread-id', 'turn-id', 'cwd']),
+        ...strings(r, ['type', 'thread-id', 'turn-id', 'cwd']),
         input_length: lengthOf(r['input-messages']),
         reply_length: lengthOf(r['last-assistant-message']),
       };
     case 'core.activity':
-      return pick(r, ['state']);
+      return pick(r, ['state', 'changed_at', 'session_id']);
+    case 'codex.SessionStart':
+    case 'codex.PermissionRequest':
+    case 'codex.Stop':
+    case 'codex.Interrupt':
+    case 'gemini.SessionStart':
+    case 'gemini.BeforeAgent':
+    case 'gemini.AfterTool':
+    case 'gemini.Notification':
+    case 'gemini.AfterAgent':
+      return strings(r, ['session_id', 'transcript_path', 'cwd', 'tool_name', 'notification_type', 'source']);
     case 'core.process-gone':
       return pick(r, ['pid']);
     default:
@@ -96,7 +112,7 @@ export function buildPayload(kind        , raw        )      {
   }
 }
 
-const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.StopFailure', 'claude.SessionEnd', 'codex.turn']);
+const SPOOL_KINDS = new Set(['claude.PreToolUse', 'claude.PostToolUse', 'claude.PermissionRequest', 'claude.PostToolUseFailure', 'claude.UserPromptSubmit', 'claude.Notification', 'claude.Stop', 'claude.StopFailure', 'claude.SessionEnd', 'codex.turn']);
 const CLASSES = new Set(['permission', 'input', 'idle', 'other']);
 
 export function spoolKind(kind        )          {
@@ -124,6 +140,8 @@ export function rebuildPayload(kind        , built        )      {
   const tool = ()      => ({ ...strs(['session_id', 'transcript_path', 'cwd', 'tool_name', 'tool_use_id']), tool_input: redactedToolInput(String(b.tool_name ?? ''), b.tool_input) });
   switch (kind) {
     case 'claude.PreToolUse':
+    case 'claude.PermissionRequest':
+    case 'claude.PostToolUseFailure':
       return tool();
     case 'claude.PostToolUse':
       return { ...tool(), response_length: n('response_length') };

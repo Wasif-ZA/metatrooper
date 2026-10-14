@@ -30,16 +30,20 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.PreToolUse` | claude-hook | `session_id`, `transcript_path`, `cwd`, `tool_name`, `tool_use_id`, and `tool_input` redacted (below) |
 | `claude.PostToolUse` | claude-hook | as PreToolUse, plus `response_length` (characters). The response itself is never stored |
 | `claude.UserPromptSubmit` | claude-hook | `session_id`, `transcript_path`, `cwd`, `prompt_length`. The prompt text is never stored |
-| `claude.Notification` | claude-hook | `session_id`, `cwd`, `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
+| `claude.Notification` | claude-hook | `session_id`, `cwd`, `notification_type` (Claude's own label, when the hook input has one), `class` (`permission` when the message asks to use a tool, `input` when it says Claude is waiting for input, else `other`), `message_length`. The message text is never stored |
+| `claude.PermissionRequest` | claude-hook | as PreToolUse (Claude Code 2.0.45 and later) |
+| `claude.PostToolUseFailure` | claude-hook | as PreToolUse; the error text is never stored (Claude Code 2.1.119 and later) |
 | `claude.Stop` | claude-hook | `session_id`, `transcript_path`, `cwd`, `stop_hook_active` |
 | `claude.StopFailure` | claude-hook | `session_id`, `transcript_path`, `cwd`, `error_type` (for example `rate_limit`) |
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
+| `codex.SessionStart`, `codex.PermissionRequest`, `codex.Stop`, `codex.Interrupt` | codex-hook | `session_id`, `transcript_path`, `cwd`, `tool_name`, `notification_type`, `source` (whichever the hook input has). No prompt, reply or tool input is stored |
+| `gemini.SessionStart`, `gemini.BeforeAgent`, `gemini.AfterTool`, `gemini.Notification`, `gemini.AfterAgent` | gemini-hook | as the Codex hook kinds |
 | `term.bell` | core | `{}` (terminal bell, used only when the session has been silent 30 s) |
 | `term.output` | core | `{}` (first output after a counted bell) |
 | `core.prompt-written` | core | `{}` (the held prompt was typed into the pty) |
 | `core.status-cleared` | core | `{}` (Clear status from the session menu) |
-| `core.activity` | core | `{"state": "working" or "quiet" or "blocked"}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file) |
+| `core.activity` | core | `{"state": "working" or "quiet" or "blocked", "changed_at": <file mtime, ms; on working only>, "session_id": <codex only: the conversation whose rollout was measured>}`: written by the core when a linked codex or agy file grew in the last 5 s (`working`) or has not changed for 20 s (`quiet`, or `blocked` when the engine's `activity_waiting.last_line_regex` matches the last line of the file); after a relink, a new rollout already written after the current wait began counts as growth; an event naming a conversation other than the session's `native_id` is ignored |
 | `core.process-gone` | core | `{"pid": int}`: the session pid no longer exists. At core start, every `pty` session the last core left open gets one with `pid` null before any event is processed, then is resumed (`core/src/sessions/resume-all.ts`) |
 | `core.resumed` | core | `{"from": session id}`: written on the new session by `session.resume`; the workbench reads it as `resumed_from` to put the new session in the old one's tile. Never changes state |
 | `core.seen` | core | `{}`: the user opened the card or focused the session (`session.seen`) |
@@ -71,7 +75,8 @@ This is what lets test M1-05 (a marker string typed into a session appears nowhe
 | Engine | How `session.native_id` is set |
 |---|---|
 | claude | First hook event carrying `TROOP_SESSION_ID` (inherited from `launch.js`); its `session_id` field is the native id. Exact. |
-| codex | The core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event; the thread id in that file name is the native id. If a `codex.turn` arrives before that match, its `thread-id` is used instead. A `codex.turn` whose `thread-id` differs from the native id (a side thread) changes no state. |
+| codex | With the Codex hooks on, the `session_id` of a `codex.*` hook event. Otherwise: the core matches the newest `~/.codex/sessions/**/rollout-*.jsonl` whose first-line `session_meta.cwd` equals the session cwd and whose file was created within 30 s after the launch event; the thread id in that file name is the native id. If a `codex.turn` arrives before that match, its `thread-id` is used instead. A `codex.turn` whose `thread-id` differs from the native id (a side thread) changes no state. |
+| gemini | The `session_id` of the first `gemini.*` hook event (SessionStart). A later SessionStart with another id (resume, `/clear`) relinks the session; any other `gemini.*` event with another id changes no state. Exact. |
 | agy | The newest folder under `~/.gemini/antigravity-cli/brain/` created within 30 s after the launch event, only if exactly one agy session was launched in that window. Otherwise `native_id` stays NULL and state stays `unknown`. |
 
 ## State mapping
@@ -83,21 +88,41 @@ The core processes events in `seq` order and sets `session.state`:
 | `launch` | `starting` |
 | `claude.UserPromptSubmit`, `claude.PostToolUse` | `working` |
 | `claude.PreToolUse` | `working`, except from `done` or `idle`: Claude Code can fire one after `Stop` for a call that never runs (no PostToolUse, not in the transcript), so a finished session moves on PostToolUse or a prompt instead |
-| `claude.Notification` with `class` `permission` or `input` | `waiting_for_you` |
+| `claude.Notification` with `class` `permission` or `input`, `claude.PermissionRequest` | `waiting_for_you` |
 | `claude.Notification` with `class` `other` | no change |
 | `claude.Stop` | `done` |
 | `claude.StopFailure` | `waiting_for_you` |
-| `claude.SessionEnd` | `exited` |
+| `claude.SessionEnd` | `idle` (the conversation ended; the terminal lives on, and `core.process-gone` marks the real exit) |
+| `claude.PostToolUseFailure` | as `claude.PostToolUse` |
+| `codex.SessionStart`, `gemini.SessionStart` | `idle` from `starting`; otherwise no change (they link `native_id`) |
+| `codex.PermissionRequest`, `gemini.Notification` | `waiting_for_you` |
+| `codex.Stop`, `gemini.AfterAgent` | `done` |
+| `codex.Interrupt` | `idle` |
+| `gemini.BeforeAgent`, `gemini.AfterTool` | `working` |
 | `codex.turn` | `done` |
-| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working` |
+| `core.activity` with `state` `working` (codex rollout file or agy files grew in the last 5 s, 1 s poll) | `working`, except from `waiting_for_you` when `changed_at` is not after the time the wait began: growth written before the ask (the turn leading up to it) does not answer it. The time the wait began (`state_at`) is when the event that started it was written, moved to the later hook ask's write time when one of the asks above arrives during the wait. While `waiting_for_you`, growth after the wait began writes a fresh `working` even if the poll already counted the file as growing |
 | `core.activity` with `state` `quiet` while `working` (no change for 20 s) | `done` |
 | `core.activity` with `state` `blocked` while `working` (no change for 20 s, last line is an unanswered tool call) | `waiting_for_you` |
 | `term.bell` | `working`, `unknown` or `starting` to `waiting_for_you` |
-| `term.output` | `waiting_for_you` or `unknown` to `working` |
+| `term.output` | `waiting_for_you` or `unknown` to `working`, except a wait a hook asked for (`codex.PermissionRequest`, `gemini.Notification`, `claude.PermissionRequest`, or a `claude.Notification` of class `permission` or `input`) written at or after the time the wait began, whether before or after a bell: terminal output does not answer it |
 | `core.process-gone` (5 s check; not for `external` sessions) | `exited` |
 | `claude.SessionEnd` on an `external` session | `exited` |
 | `core.stalled` while `starting` | `waiting_for_you` |
 | `core.seen` while `done` | `idle` |
+
+A Claude permission wait is held on one tool call: the `tool_use_id` of the last `claude.PermissionRequest`, or, with
+no PermissionRequest since the last prompt or Stop, of the last `claude.PreToolUse` before the last permission
+`claude.Notification`. Once the last PermissionRequest's call has finished, a permission Notification after that
+call's PostToolUse (or PostToolUseFailure) is a new wait, held on the last `claude.PreToolUse` before it; a Notification
+from before that finish is not. A PermissionRequest without a `tool_use_id` waits on the last `claude.PreToolUse` before it with
+the same `tool_name`. In both fallbacks only a call still open at the prompt counts: one whose PostToolUse (or
+PostToolUseFailure) came before the PermissionRequest or Notification is skipped. Two open calls with the same
+`tool_name` cannot be told apart (the redacted `tool_input` is not used), so the later one is taken. While a session is `waiting_for_you` on such a call that has not finished, a `claude.PreToolUse`,
+`claude.PostToolUse` or `claude.PostToolUseFailure` for any other `tool_use_id` changes no state and leaves `last_tool`
+alone; that call's own PostToolUse (or PostToolUseFailure), a prompt, Stop or StopFailure ends the wait. Only events
+of the session's own conversation (`session_id` equal to its `native_id`) count here; a side conversation's
+PermissionRequest, Notification or tool events under the same session neither hold nor end the wait. A
+`claude.PermissionRequest` sets `last_tool` from its own `tool_name`, so the tool shown is the call the wait is on.
 
 `exited` is final: once a session is `exited`, no event changes its state again.
 
@@ -145,10 +170,11 @@ event name. It prints a unified diff and asks before writing. It never removes o
 }
 ```
 
-`matcher` is set only on `PreToolUse` and `PostToolUse`; the other events get a group with no matcher.
+`matcher` is set only on `PreToolUse`, `PostToolUse`, `PermissionRequest` and `PostToolUseFailure`; the other events get a group with no matcher.
 
 Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notification`, `Stop`,
-`SessionEnd`. The entry is identified for uninstall by the exact command string containing
+`SessionEnd`, and, when the installed CLI version lists them, `StopFailure` (2.1.78), `PermissionRequest` (2.0.45) and
+`PostToolUseFailure` (2.1.119). `PermissionRequest` and `PostToolUseFailure` get `matcher` `*` like the tool events. Hook and statusline commands run through a shell as `node "<core>/<script>" ...`, so install and launch refuse a core path holding `$`, a backtick, `"` or `%` (cmd expands `%VAR%` inside double quotes), with an error naming the path. The entry is identified for uninstall by the exact command string containing
 `<core>/event.js`. `hooks uninstall` removes only entries whose command matches, and deletes an event name's
 array only if it becomes empty and was absent before install (recorded in
 `~/.metatrooper/hooks-install.json`). With no install record (hooks written by an older first launch),
@@ -198,9 +224,29 @@ Delivery is at least once and never lost. A duplicate is possible only if the ho
 before step 4; each body starts with `[comment <id>]` so a repeat is recognisable. Two prompts within 50 ms can
 both print the same comment for the same reason; that is the accepted cost of never losing one.
 
+## Codex and Gemini hooks
+
+An engine declares its per-session hooks in its engine entry as `hooks: {kind, events}`. Each hook runs
+`node "<core>/event.js" <prefix>.<Event> --session <MetaTrooper session id>`, the session id on the command line
+because an engine may not pass its environment to hooks; it prints nothing.
+
+- `codex-config` (prefix `codex`): one `-c hooks.<Event>=[{hooks=[{type="command",command="..."}]}]` override per
+  event on the launch command line. `config.toml` is never edited and `--dangerously-bypass-hook-trust` is never used.
+  The built-in Codex engine declares no `hooks` until the trust spike in
+  `issues/m6-05-state-from-each-engine-s-hooks-with-the.md` passes; until then it keeps the notify wrapper below. A
+  Codex engine that declares hooks gets them instead of the per-session notify wrapper, not both.
+- `gemini-system-settings` (prefix `gemini`): the core writes `~/.metatrooper/engines/gemini/<session id>.json`
+  holding only `{"hooks": {...}}` (one group per event, `timeout` 5000 ms) and launches with
+  `GEMINI_CLI_SYSTEM_SETTINGS_PATH` set to it. `~/.gemini/settings.json` is never touched. The file is deleted when
+  the session becomes `exited`, and any left behind by a session that is gone are swept at the next launch. The sweep
+  touches only `<id>.json` files there (in `~/.metatrooper/mcp/`, only `<id>.json`, `<id>.settings.json` and `<id>`
+  folders), where `<id>` is a 26-character session ULID, so other files in either folder are left alone.
+  `engines/gemini.json` declares no `hooks` yet: on Windows, Gemini CLI 0.63 skips a system settings file whose folder
+  is not owned by Administrators or SYSTEM (see the M6-5 issue).
+
 ## Codex notify wrapper
 
-A Codex session launched by MetaTrooper gets the wrapper per session as `-c notify=[...]`, wrapping the
+A Codex session launched by MetaTrooper, when its engine declares no `hooks`, gets the wrapper per session as `-c notify=[...]`, wrapping the
 user's own `notify` with any MetaTrooper wrapper peeled off; launching never edits `config.toml`. The install
 below is optional, for users who want the wrapper in every Codex run.
 
@@ -237,7 +283,8 @@ The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
 4. Stops ingesting a spool that passes 10 MiB and adds one `needs_you` row (`kind` `spool-too-large`).
 
 Once a session is `exited`, the core reads its spool a last time, drops any unfinished last line, and deletes the
-spool folder. Only the claude hook kinds and `codex.turn` are accepted from a spool.
+spool folder. Only the claude hook kinds (including `claude.PermissionRequest` and `claude.PostToolUseFailure`) and `codex.turn` are
+accepted from a spool.
 
 ## Notification sinks (outbound)
 

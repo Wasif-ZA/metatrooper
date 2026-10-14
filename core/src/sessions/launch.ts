@@ -7,13 +7,14 @@ import { mcpAttachArgs, mcpAttachEnv, sweepSessionFiles } from '../plugins/mcp.t
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
-import { ensureEngineSetup, sessionHookArgs } from '../hooks/install.ts';
+import { ensureEngineSetup, sessionHookArgs, sessionHookEnv } from '../hooks/install.ts';
 import { engineVersion } from '../engines/health.ts';
 import { canonicalPath, isAskPath, nearAskPath } from '../project.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
 import { spoolDir } from '../sandbox/spool.ts';
 import fs from 'node:fs';
+import { beingRemoved } from '../worktree.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -67,9 +68,10 @@ export function launchSession(
   db: DatabaseSync,
   opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
+  const dir = canonicalPath(opts.cwd ?? opts.projectPath);
+  if (beingRemoved(dir)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
   const id = ulid();
   const host = opts.host ?? 'pty';
-  const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
   let argv: string[];
@@ -91,7 +93,7 @@ export function launchSession(
     const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
-    env = { ...router.env, ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
+    env = { ...router.env, ...sessionHookEnv(opts.engine, id), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
   }
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
@@ -100,6 +102,7 @@ export function launchSession(
     `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, state, state_at, started_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
   ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, nowIso(), nowIso());
+  db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {
     term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env });

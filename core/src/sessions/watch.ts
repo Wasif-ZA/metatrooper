@@ -198,13 +198,19 @@ interface SessionRow {
   project_path: string;
   cwd: string | null;
   state: string;
+  state_at: string;
+}
+
+/** A Codex activity event names the conversation whose rollout it measured, so the processor drops it once the session has moved on. */
+function conv(s: SessionRow): { session_id?: string } {
+  return s.engine_id === 'codex' && s.native_id ? { session_id: s.native_id } : {};
 }
 
 /** Every 1 s: codex and agy sessions get core.activity working/quiet from their session files. */
 export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   const rows = db
     .prepare(
-      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.cwd, s.state
+      `SELECT s.id, s.engine_id, s.native_id, s.started_at, p.path AS project_path, s.cwd, s.state, s.state_at
        FROM session s JOIN project p ON p.id = s.project_id
        WHERE s.state != 'exited' AND s.engine_id IN ('codex','agy')`,
     )
@@ -213,15 +219,21 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   for (const id of activity.keys()) if (!open.has(id)) activity.delete(id);
   for (const s of rows) {
     let a = activity.get(s.id);
+    const prev = a;
+    // A Codex resume or clear relinks the session to another conversation, so its rollout file changes too.
+    if (a?.file && s.engine_id === 'codex' && s.native_id && !a.file.endsWith(s.native_id + '.jsonl')) a = undefined;
     if (!a || !a.file) {
       let file: string | null = null;
       try { file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s); } catch {}
       if (!file) continue;
       const m = measure(file);
-      a = { file, size: m.size, mtime: m.mtime, lastChange: 0, working: false };
+      // A relinked file already written after the wait began holds the answer, so it cannot be only a baseline.
+      const answered = Boolean(prev) && s.state === 'waiting_for_you' && m.mtime > Date.parse(s.state_at);
+      a = { file, size: m.size, mtime: m.mtime, lastChange: prev ? now : 0, working: (Boolean(prev) && s.state === 'working') || answered };
       if (s.engine_id === 'codex') noteCodexSession(s.id, file);
       else noteAgySession(s.id, path.join(file, 'transcript.jsonl'));
       activity.set(s.id, a);
+      if (answered) appendEvent('core.activity', s.id, { state: 'working', changed_at: m.mtime, ...conv(s) }, db);
       continue;
     }
     const m = measure(a.file!);
@@ -229,13 +241,14 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
       a.size = m.size;
       a.mtime = m.mtime;
       a.lastChange = now;
-      if (!a.working) {
+      // A wait that began while the file was already growing still needs a fresh `working` once the file grows after it.
+      if (!a.working || (s.state === 'waiting_for_you' && m.mtime > Date.parse(s.state_at))) {
         a.working = true;
-        appendEvent('core.activity', s.id, { state: 'working' }, db);
+        appendEvent('core.activity', s.id, { state: 'working', changed_at: m.mtime, ...conv(s) }, db);
       }
     } else if (a.working && now - a.lastChange >= 20_000) {
       a.working = false;
-      appendEvent('core.activity', s.id, { state: isBlocked(db, s.engine_id, a.file!) ? 'blocked' : 'quiet' }, db);
+      appendEvent('core.activity', s.id, { state: isBlocked(db, s.engine_id, a.file!) ? 'blocked' : 'quiet', ...conv(s) }, db);
     }
   }
 }

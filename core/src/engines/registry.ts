@@ -29,6 +29,8 @@ export interface EngineSpec {
   ask_near_paths?: boolean;
   settings?: { file: string; set: Record<string, string | number | boolean> };
   mcp_attach?: { kind: string; path?: string; env?: string; format?: 'mcpServers' | 'opencode-mcp'; template?: string[] };
+  /** Per-session hooks: `codex-config` passes them as `-c hooks.*` overrides, `gemini-system-settings` writes a settings file named by GEMINI_CLI_SYSTEM_SETTINGS_PATH. */
+  hooks?: { kind: 'codex-config' | 'gemini-system-settings'; events: string[] };
   roles: string[];
   cost_rank: number;
   provider?: 'local-cli' | 'api-key' | 'gateway';

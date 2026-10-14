@@ -11,6 +11,7 @@ import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { launchSession, writePrompt } from './sessions/launch.ts';
+import { beingRemoved } from './worktree.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
 import { liveText } from './terminal/events.ts';
@@ -61,10 +62,11 @@ export const METHODS: MethodDecl[] = [
   { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not working or waiting, and its runs that are not running or paused" },
+  { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
   { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
-  { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
+  { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
@@ -78,7 +80,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'needs_you.mark-unread', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
   { name: 'needs.dismiss', needsUi: true, errors: [E.NOT_FOUND], params: '{id}', result: '{}; marks one needs-you item resolved (added by child #16 for items nothing else resolves, such as a missed schedule)' },
   { name: 'shell.list', params: '{}', result: '{shells: [{kind, label, argv}]}' },
-  { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
+  { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND, E.VALIDATION], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
   { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
   { name: 'worktree.create', stable: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?}' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
@@ -309,6 +311,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('project.hide', {
+    handler: (p) => {
+      const id = str(p, 'project_id');
+      if (db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state IN ('starting', 'working', 'waiting_for_you', 'unknown') LIMIT 1").get(id)) throw new RpcError(E.VALIDATION, 'a session in this project is still running');
+      if (Number(db.prepare('UPDATE project SET hidden = 1 WHERE id = ?').run(id).changes) === 0) throw new RpcError(E.NOT_FOUND, 'project not found');
+      return {};
+    },
+  });
+
   const markSeen = (id: string) => {
     const s = db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined;
     if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
@@ -388,6 +399,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!shell) throw new RpcError(E.ENGINE_UNAVAILABLE, `${kind} is not available on this machine`);
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      if (beingRemoved(project.path)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
       const id = `sh_${ulid()}`;
       term.open(id, shell.argv, project.path, process.env);
       return { shell_id: id, label: shell.label, cwd: project.path };

@@ -208,9 +208,19 @@ test('a second Comment click keeps the pick tracked after the first one settles'
 test('the project menu puts worktrees the sweep marked older in their own group, out of Worktrees', () => {
   const projectGroups = new Function(`${fn('projectGroups')}; return projectGroups;`)();
   const wt = (id: string, older = 0) => ({ id, path: `C:/Users/u/.metatrooper/worktrees/p/${id}`, older });
-  const g = projectGroups([{ id: 'repo', path: 'C:/code/repo', older: 0 }, wt('new'), wt('stale', 1), { id: 'tmp', path: 'C:/Users/u/AppData/Local/Temp/x', older: 0 }]);
+  const g = projectGroups([{ id: 'repo', path: 'C:/code/repo', older: 0 }, wt('new'), wt('stale', 1), { id: 'cc', path: 'C:/code/repo/.claude/worktrees/x', older: 0 }, { id: 'tmp', path: 'C:/Users/u/AppData/Local/Temp/x', older: 0 }]);
   const ids = (l: Array<{ id: string }>) => l.map((p) => p.id);
-  assert.deepEqual({ projects: ids(g.projects), worktrees: ids(g.worktrees), older: ids(g.older), scratch: ids(g.scratch) }, { projects: ['repo'], worktrees: ['new'], older: ['stale'], scratch: ['tmp'] });
+  assert.deepEqual({ projects: ids(g.projects), worktrees: ids(g.worktrees), older: ids(g.older), scratch: ids(g.scratch) }, { projects: ['repo'], worktrees: ['new', 'cc'], older: ['stale'], scratch: ['tmp'] });
+});
+
+test('a project menu row has a hide x only while none of its sessions is working or waiting', () => {
+  // protects=the project menu x cannot hide a project with a live agent
+  // fails_when=projectMenuItem() renders data-action="project-hide" for a project with a working or waiting session, or none for a quiet one
+  // no_claim=the core refusal in project.hide, which inbox-resume.test.ts covers
+  const ui = { snap: { live: [{ project_id: 'busy', state: 'working' }, { project_id: 'asks', state: 'waiting_for_you' }] } };
+  const item = new Function('ui', `${fn('esc')}\n${fn('liveCounts')}\n${fn('projectMenuItem')}; return projectMenuItem;`)(ui);
+  const hides = (id: string) => (item({ id, name: id, path: `C:/code/${id}` }).match(/data-action="project-hide"/g) || []).length;
+  assert.deepEqual({ busy: hides('busy'), asks: hides('asks'), quiet: hides('quiet') }, { busy: 0, asks: 0, quiet: 1 });
 });
 
 test('the palette searches only the open project terminals, so other projects cannot use up the hit cap', () => {

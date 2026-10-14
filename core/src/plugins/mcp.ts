@@ -194,16 +194,20 @@ export function removeSessionFiles(sessionId: string): void {
   for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`, sessionId]) {
     try { fs.rmSync(path.join(homeDir(), 'mcp', name), { recursive: true, force: true }); } catch {}
   }
+  try { fs.rmSync(path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`), { force: true }); } catch {}
 }
 
-/** Deletes per-session files whose session has exited or no longer exists. */
+/** Deletes per-session files whose session has exited or no longer exists; only entries named the way removeSessionFiles names them, with a session id (ULID) stem, are touched. */
 export function sweepSessionFiles(db: DatabaseSync): void {
-  const dir = path.join(homeDir(), 'mcp');
-  if (!fs.existsSync(dir)) return;
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
-  for (const name of fs.readdirSync(dir)) {
-    const s = get.get(name.split('.')[0]) as { state: string } | undefined;
-    if (!s || s.state === 'exited') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+  const dirs: Array<[string, RegExp, boolean]> = [[path.join(homeDir(), 'mcp'), /^[0-9A-HJKMNP-TV-Z]{26}(\.settings)?\.json$/, true], [path.join(homeDir(), 'engines', 'gemini'), /^[0-9A-HJKMNP-TV-Z]{26}\.json$/, false]];
+  for (const [dir, file, dirsToo] of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!(entry.isDirectory() ? dirsToo && /^[0-9A-HJKMNP-TV-Z]{26}$/.test(entry.name) : entry.isFile() && file.test(entry.name))) continue;
+      const s = get.get(entry.name.split('.')[0]) as { state: string } | undefined;
+      if (!s || s.state === 'exited') fs.rmSync(path.join(dir, entry.name), { recursive: true, force: true });
+    }
   }
 }
 
