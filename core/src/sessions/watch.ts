@@ -214,12 +214,15 @@ export function checkActivity(db: DatabaseSync, now = Date.now()): void {
   for (const id of activity.keys()) if (!open.has(id)) activity.delete(id);
   for (const s of rows) {
     let a = activity.get(s.id);
+    const prev = a;
+    // A Codex resume or clear relinks the session to another conversation, so its rollout file changes too.
+    if (a?.file && s.engine_id === 'codex' && s.native_id && !a.file.endsWith(s.native_id + '.jsonl')) a = undefined;
     if (!a || !a.file) {
       let file: string | null = null;
       try { file = s.engine_id === 'codex' ? linkCodex(db, s) : linkAgy(db, s); } catch {}
       if (!file) continue;
       const m = measure(file);
-      a = { file, size: m.size, mtime: m.mtime, lastChange: 0, working: false };
+      a = { file, size: m.size, mtime: m.mtime, lastChange: prev?.lastChange ?? 0, working: prev?.working ?? false };
       if (s.engine_id === 'codex') noteCodexSession(s.id, file);
       else noteAgySession(s.id, path.join(file, 'transcript.jsonl'));
       activity.set(s.id, a);

@@ -246,6 +246,22 @@ test('M6-05a rollout growth between a bell and a Codex PermissionRequest does no
   } finally { t.done(); }
 });
 
+test('M6-05a after a Codex SessionStart relinks the session, the poll follows the new rollout and ignores the old one', async () => {
+  const t = await codexRollout();
+  try {
+    const next = join(t.home, '.codex', 'sessions', '2026', '10', '13', 'rollout-2026-10-13T11-00-00-conv2.jsonl');
+    writeFileSync(next, '{"type":"session_meta"}\n');
+    t.send('codex.SessionStart', { session_id: 'conv2', source: 'resume' });
+    t.poll(500);
+    assert.equal(t.send('codex.PermissionRequest', { session_id: 'conv2', tool_name: 'shell' }), 'waiting_for_you');
+    await t.tick();
+    t.grow();
+    assert.equal(t.poll(1000), 'waiting_for_you');
+    appendFileSync(next, '{"type":"response_item"}\n');
+    assert.equal(t.poll(2000), 'working');
+  } finally { t.done(); }
+});
+
 test('M6-05c a Claude permission wait (Notification) holds through another call\'s PreToolUse and PostToolUse and ends on the waited call\'s PostToolUse', async () => {
   const t = await memoryDb();
   try {
