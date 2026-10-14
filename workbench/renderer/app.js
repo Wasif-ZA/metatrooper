@@ -364,7 +364,7 @@ function ownerGroupsHtml(groups, row, busy) {
 function renderGit() {
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 5000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
-  if (!g) return `<div class="panel"><p class="empty">${ui.projectId ? 'Loading.' : 'Pick a project first. <button class="btn" data-action="project-menu">Choose a project</button>'}</p></div>`;
+  if (!g) return '<div class="panel"><p class="empty">Loading.</p></div>';
   if (g.error) return `<div class="panel"><p class="empty">No git here: ${esc(g.error)}</p></div>`;
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
   const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>

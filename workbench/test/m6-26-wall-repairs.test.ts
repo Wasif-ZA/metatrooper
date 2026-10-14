@@ -78,7 +78,7 @@ function boot() {
     clearTimeout: (id: number) => { timers = timers.filter((t) => t.id !== id); },
     setInterval: () => 0,
   });
-  vm.runInContext(`${src('diff.js')}\n${src('browser-chrome.js')}\n${src('app.js')}\nthis.t = { ui, KEYS, onClick, render, renderGit };`, ctx);
+  vm.runInContext(`${src('diff.js')}\n${src('browser-chrome.js')}\n${src('app.js')}\nthis.t = { ui, KEYS, onClick, render };`, ctx);
   const t = (ctx as any).t;
   const fire = (type: string, e: any) => {
     let stopped = false;
@@ -370,10 +370,10 @@ test('M6-26i full text sits in the title of cut-off tile, list and pane tab text
   assert.match(src('app.js'), /label: ui\.mode === 'grid' \? 'Show one terminal' : 'Show all agents as a grid', meta: 'Ctrl\+G'/);
 });
 
-test('M6-26j the two empty states carry the button they name', async () => {
-  // protects=empty states that name an action: each has a button that does it
-  // fails_when=the empty browser panel or the no-project Git panel has no working button
-  // no_claim=what pane.open does in the core
+test('M6-26j the empty browser panel carries the button it names', async () => {
+  // protects=the empty browser panel: it has a button that opens a pane
+  // fails_when=the empty browser panel has no working Open a browser pane button
+  // no_claim=what pane.open does in the core; the no-project Git text was dead code and is gone
   const w = boot();
   w.t.ui.tab = 'browser';
   w.t.ui.split = true;
@@ -381,15 +381,6 @@ test('M6-26j the two empty states carry the button they name', async () => {
   assert.match(w.el('view').innerHTML, /<button class="btn" data-action="pane-new">Open a browser pane<\/button>/);
   await w.click({ action: 'pane-new' });
   assert.equal(w.calls.filter((c) => c.method === 'pane.open').length, 1);
-
-  const g = boot();
-  await g.snap(snapOf([], { projects: [] }));
-  g.t.ui.projectId = null;
-  assert.match(g.t.renderGit(), /Pick a project first\. <button class="btn" data-action="project-menu">Choose a project<\/button>/);
-  assert.equal(g.el('menu').hidden, true);
-  await g.click({ action: 'project-menu' });
-  assert.equal(g.el('menu').hidden, false, 'the project picker opens');
-  assert.match(g.el('menu').innerHTML, /Open folder/);
 });
 
 /** terminal.js with a fake xterm: one tile, its key handler, link provider and right-click listener. */
