@@ -31,7 +31,7 @@ function codexScript(): string {
 
 /** A shell command running a core script with node; refuses a script path the hook shell would expand inside double quotes. */
 export function nodeCommand(script: string, args: string): string {
-  if (/[$`"]/.test(script)) throw new Error(`cannot install hooks from ${script}: the path holds $, a backtick or a double quote, which the hook shell would expand; move MetaTrooper to a folder without them`);
+  if (/[$`"%]/.test(script)) throw new Error(`cannot install hooks from ${script}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move MetaTrooper to a folder without them`);
   return `node "${script}" ${args}`;
 }
 

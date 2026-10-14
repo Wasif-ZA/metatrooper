@@ -174,7 +174,7 @@ event name. It prints a unified diff and asks before writing. It never removes o
 
 Event names installed: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Notification`, `Stop`,
 `SessionEnd`, and, when the installed CLI version lists them, `StopFailure` (2.1.78), `PermissionRequest` (2.0.45) and
-`PostToolUseFailure` (2.1.119). `PermissionRequest` and `PostToolUseFailure` get `matcher` `*` like the tool events. Hook and statusline commands run through a shell as `node "<core>/<script>" ...`, so install and launch refuse a core path holding `$`, a backtick or `"`, with an error naming the path. The entry is identified for uninstall by the exact command string containing
+`PostToolUseFailure` (2.1.119). `PermissionRequest` and `PostToolUseFailure` get `matcher` `*` like the tool events. Hook and statusline commands run through a shell as `node "<core>/<script>" ...`, so install and launch refuse a core path holding `$`, a backtick, `"` or `%` (cmd expands `%VAR%` inside double quotes), with an error naming the path. The entry is identified for uninstall by the exact command string containing
 `<core>/event.js`. `hooks uninstall` removes only entries whose command matches, and deletes an event name's
 array only if it becomes empty and was absent before install (recorded in
 `~/.metatrooper/hooks-install.json`). With no install record (hooks written by an older first launch),
