@@ -887,6 +887,7 @@ export class PaneManager {
     this.notPaused(a);
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describeControl(pane, { ...a, tool });
+    this.notPaused(a);
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
     if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
@@ -1015,11 +1016,13 @@ export class PaneManager {
           for (const type of ['keyDown', 'keyUp']) {
             await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
+          this.notPaused(a);
           if (a.text) await this.cmd(pane, 'Input.insertText', { text: a.text });
           else {
             for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }
           if (a.submit) {
+            this.notPaused(a);
             pane.clickedAt = Date.now();
             for (const type of ['keyDown', 'keyUp']) {
               await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });

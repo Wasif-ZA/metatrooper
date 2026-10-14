@@ -59,7 +59,7 @@ export class Helper {
     const child = this.start();
     const id = ++this.next;
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.waiting.delete(id); reject(new RpcError(E.INTERNAL, `desktop helper ${op} timed out`)); }, timeoutMs);
+      const timer = setTimeout(() => { this.waiting.delete(id); this.stop(); reject(new RpcError(E.INTERNAL, `desktop helper ${op} timed out`)); }, timeoutMs);
       this.waiting.set(id, { resolve, reject, timer });
       child.stdin!.write(JSON.stringify({ id, op, ...params }) + '\n');
     });
@@ -194,10 +194,10 @@ export class Desktop {
     try { return await p; } finally { if (this.inFlight === p) this.inFlight = null; }
   }
 
-  async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean }> {
+  async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number }> {
     const { grant, info } = await this.resolve(sessionId, hwnd);
-    const d = await this.helper.request<Described>('describe', { hwnd, ref });
-    return { grant_id: grant.id, control: d.control, password: d.password === true, file_dialog: info.file_dialog, rect: d.rect };
+    const d = await this.helper.request<Described>('describe', { hwnd, ref, pid: info.pid });
+    return { grant_id: grant.id, control: d.control, password: d.password === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid };
   }
 
   async act(p: Record<string, unknown>, sessionId: string): Promise<Record<string, unknown>> {
@@ -219,7 +219,7 @@ export class Desktop {
           || Boolean(expect.password) !== now.password || Boolean(expect.file_dialog) !== now.file_dialog) {
           throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
         }
-        if (action !== 'type') return this.dispatch(sessionId, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy }));
+        if (action !== 'type') return this.dispatch(sessionId, () => this.helper.request(action, { hwnd, ref, keys: p.keys, dy: p.dy, pid: now.pid }));
         const chars = Array.from(typeof p.text === 'string' ? p.text : '');
         let out: Record<string, unknown> = { status: 'unverifiable' };
         let focusLost = false;
@@ -227,7 +227,8 @@ export class Desktop {
         do {
           const n = Math.min(done + CHUNK, chars.length);
           if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, `${PAUSED}; ${done} of ${chars.length} characters were typed`);
-          out = await this.dispatch(sessionId, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join('') }));
+          if (!this.enabled() || !this.granted(sessionId, now.grant_id)) throw new RpcError(E.PANE_NOT_OWNED, `${NOT_GRANTED}; ${done} of ${chars.length} characters were typed`);
+          out = await this.dispatch(sessionId, () => this.helper.request('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), pid: now.pid }));
           if (out.focus_returned === false) focusLost = true;
           done = n;
         } while (done < chars.length);
@@ -269,6 +270,7 @@ export class Desktop {
     } });
     m.set('grant.candidates', { needsUi: true, handler: async () => {
       this.on();
+      if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
       const { windows } = await this.helper.request<{ windows: Array<WindowInfo> }>('list');
       return { windows: windows.filter((w) => w.pid !== this.uiPid && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid })) };
     } });
@@ -325,21 +327,21 @@ export class Desktop {
     m.set('desktop.snapshot', { handler: async (p) => {
       const sessionId = await this.bind(p);
       const hwnd = hwndOf(p.window);
-      await this.resolve(sessionId, hwnd);
+      const { info } = await this.resolve(sessionId, hwnd);
       const max = typeof p.max_nodes === 'number' && p.max_nodes > 0 ? Math.min(Math.floor(p.max_nodes), 2000) : 400;
-      return this.helper.request('snapshot', { hwnd, max_nodes: max });
+      return this.helper.request('snapshot', { hwnd, max_nodes: max, pid: info.pid });
     } });
     m.set('desktop.screenshot', { handler: async (p) => {
       const sessionId = await this.bind(p);
       const hwnd = hwndOf(p.window);
-      await this.resolve(sessionId, hwnd);
-      return this.helper.request('screenshot', { hwnd });
+      const { info } = await this.resolve(sessionId, hwnd);
+      return this.helper.request('screenshot', { hwnd, pid: info.pid });
     } });
     m.set('desktop.find', { handler: async (p) => {
       const sessionId = await this.bind(p);
       const hwnd = hwndOf(p.window);
-      await this.resolve(sessionId, hwnd);
-      return this.helper.request('find_text', { hwnd, text: str(p, 'text') });
+      const { info } = await this.resolve(sessionId, hwnd);
+      return this.helper.request('find_text', { hwnd, text: str(p, 'text'), pid: info.pid });
     } });
     m.set('desktop.act', { handler: async (p) => this.act(p, await this.bind(p)) });
   }

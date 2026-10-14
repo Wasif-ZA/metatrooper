@@ -89,6 +89,7 @@ namespace TroopUia {
 
     static object Dispatch(string op, Dictionary<string, object> r) {
       long hwnd = Num(r, "hwnd");
+      if (Num(r, "pid") != 0) { uint owner; Native.GetWindowThreadProcessId(new IntPtr(hwnd), out owner); if (owner != Num(r, "pid")) throw new Exception("window not granted"); }
       switch (op) {
         case "list": return new Dictionary<string, object> { { "windows", List() } };
         case "info": return Info(new IntPtr(hwnd));
@@ -241,7 +242,7 @@ namespace TroopUia {
       var gti = new Native.GUITHREADINFO(); gti.cbSize = Marshal.SizeOf(gti);
       if (!Native.GetGUIThreadInfo(tid, ref gti) || gti.hwndFocus == IntPtr.Zero) return null;
       if (Native.GetAncestor(gti.hwndFocus, GA_ROOT) != Native.GetAncestor(hwnd, GA_ROOT)) return null;
-      try { return AutomationElement.FocusedElement; } catch { return null; }
+      try { return AutomationElement.FromHandle(gti.hwndFocus); } catch { return null; }
     }
 
     static object Describe(long hwnd, string reference) {
