@@ -9,9 +9,12 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-WT-Hide-'));
 process.env.METATROOPER_HOME = home;
 const { openCoreDb } = await import('../src/store/db.ts');
 const { resolveProjectPath } = await import('../src/project.ts');
-const { sweepWorktrees } = await import('../src/worktree.ts');
+const { removing, sweepWorktrees } = await import('../src/worktree.ts');
+const { launchSession } = await import('../src/sessions/launch.ts');
 
 const git = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@x.example', '-c', 'user.name=T', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+
+test.after(() => fs.rmSync(home, { recursive: true, force: true }));
 
 test('a project hidden by hand while the sweep runs stays hidden', async () => {
   // protects=project.hide during a sweep: the sweep's older writes do not reset hidden from rows read before the hide
@@ -42,6 +45,39 @@ test('a project hidden by hand while the sweep runs stays hidden', async () => {
     assert.deepEqual(state('fresh'), { hidden: 1 });
   } finally {
     db.close();
-    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('a launch while the sweep removes a worktree is refused, so no session runs in a deleted folder', async () => {
+  // protects=a session started during git worktree remove: it is refused instead of losing its folder
+  // fails_when=launchSession starts a session for a project whose worktree the sweep is removing, or the project stays blocked after the sweep
+  // no_claim=when the sweep decides a worktree is stale and merged, which worktree-sweep.test.ts covers
+  const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const db = openCoreDb();
+  try {
+    const repo = path.join(home, 'repo2');
+    fs.mkdirSync(repo);
+    git(repo, 'init', '-q', '-b', 'main');
+    fs.writeFileSync(path.join(repo, 'a.txt'), 'a');
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-q', '-m', 'init');
+    const row = (id: string, p: string) => db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run(id, p, id, old, old);
+    row('parent2', resolveProjectPath(repo));
+    const dir = path.join(home, 'worktrees', 'parent2', 'merged');
+    git(repo, 'worktree', 'add', '-q', dir, '-b', 'merged');
+    const merged = resolveProjectPath(dir);
+    row('merged', merged);
+
+    const sweeping = sweepWorktrees(db, []);
+    while (!removing.has('merged')) {
+      assert.ok(!(await Promise.race([sweeping.then(() => true), new Promise((r) => setImmediate(() => r(false)))])), 'the sweep finished before its removal was seen');
+    }
+    assert.throws(() => launchSession(db, { projectId: 'merged', projectPath: merged, projectName: 'merged', engine: { id: 'claude' } as any }), /being removed/);
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM session WHERE project_id = 'merged'").get() as { n: number }).n, 0);
+    const r = await sweeping;
+    assert.deepEqual(r.removed, [merged]);
+    assert.equal(removing.size, 0);
+  } finally {
+    db.close();
   }
 });

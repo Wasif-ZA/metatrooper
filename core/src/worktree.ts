@@ -29,6 +29,9 @@ async function mainBranch(repo: string): Promise<string | null> {
   return null;
 }
 
+/** Project ids whose worktree the sweep is removing right now; launchSession refuses them. */
+export const removing = new Set<string>();
+
 type Row = { id: string; path: string; older: number; live: number; last_jd: number };
 
 /**
@@ -90,6 +93,7 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
         // A session may have started while git ran: such a worktree is no longer stale, so leave it as it is.
         if (liveNow.get(r.id)) continue;
         if (merged && parent) {
+          removing.add(r.id);
           try {
             // Longer than worktree.create's 60 s add: a timeout mid-remove would leave a half-deleted folder.
             await git(parent.path, ['worktree', 'remove', r.path], 300_000);
@@ -104,6 +108,8 @@ export async function sweepWorktrees(db: DatabaseSync, engines: EngineSpec[], no
               continue;
             }
             console.error(`worktree sweep: could not remove ${r.path}, kept as older: ${(e as Error).message.split('\n')[0]}`);
+          } finally {
+            removing.delete(r.id);
           }
         }
       }
