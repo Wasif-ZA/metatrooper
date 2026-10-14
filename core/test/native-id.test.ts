@@ -179,6 +179,20 @@ test('a codex session never links a rollout another session already owns', async
   } finally { t.done(); }
 });
 
+test('a session whose files cannot be read does not stop activity for the sessions after it', async () => {
+  const t = await setup();
+  try {
+    const { activitySessions } = await import('../src/sessions/watch.ts');
+    fs.mkdirSync(path.join(t.home, '.codex'), { recursive: true });
+    fs.writeFileSync(path.join(t.home, '.codex', 'sessions'), 'not a folder');
+    fs.mkdirSync(path.join(t.home, '.gemini', 'antigravity-cli', 'brain', 'conv-one'), { recursive: true });
+    t.addSession('c-broken', 'codex', Date.now() - 1000);
+    t.addSession('a-after', 'agy', Date.now() - 1000);
+    t.checkActivity(t.db);
+    assert.ok(activitySessions().includes('a-after'));
+  } finally { t.done(); }
+});
+
 test('a codex session with a known thread id links its rollout even when the file is days old', { skip: process.platform !== 'win32' && 'sets the file creation time with PowerShell' }, async () => {
   const t = await setup();
   try {

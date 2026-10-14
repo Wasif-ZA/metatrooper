@@ -41,6 +41,8 @@ const USAGE = `usage: troop <command> [--json]
   route [args...]               metarouter, bundled in router/: recipes, trap hints and short shell output
                                 (troop route alone prints its menu; needs Python 3.11+, or TROOP_PYTHON)
   hooks install|uninstall [--codex] [--yes]
+  skills list|install [--force]  the agent skills bundled in skills/; install copies each into
+                                ~/.claude/skills/, skipping ones already there unless --force
   sandbox build                 build the trooper image, the internal network and the egress proxy
   sandbox selftest              try every listed escape from a trooper container; exits 1 if any succeeds
   plugin list                   installed plugins, their source and original file
@@ -85,6 +87,37 @@ async function confirm(question: string): Promise<boolean> {
   const answer = (await rl.question(`${question} [y/N] `)).trim().toLowerCase();
   rl.close();
   return answer === 'y' || answer === 'yes';
+}
+
+function skills(action: string, flags: Set<string>, json: boolean): number {
+  const src = join(repoDir, 'skills');
+  const dest = process.env.METATROOPER_CLAUDE_SKILLS || join(homedir(), '.claude', 'skills');
+  const names = fs.readdirSync(src, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+  if (action === 'list') {
+    const rows = names.map((name) => ({ name, installed: fs.existsSync(join(dest, name)) }));
+    console.log(json ? JSON.stringify({ dest, skills: rows }) : rows.map((r) => `${r.installed ? 'installed' : '         '}  ${r.name}`).join('\n'));
+    return 0;
+  }
+  if (action !== 'install') {
+    console.error('usage: troop skills list|install [--force]');
+    return 2;
+  }
+  const force = flags.has('--force');
+  const installed: string[] = [];
+  const skipped: string[] = [];
+  for (const name of names) {
+    const to = join(dest, name);
+    if (fs.existsSync(to) && !force) { skipped.push(name); continue; }
+    fs.rmSync(to, { recursive: true, force: true });
+    fs.cpSync(join(src, name), to, { recursive: true });
+    installed.push(name);
+  }
+  if (json) console.log(JSON.stringify({ dest, installed, skipped }));
+  else {
+    console.log(`${installed.length} installed to ${dest}${installed.length ? `: ${installed.join(', ')}` : ''}`);
+    if (skipped.length) console.log(`${skipped.length} already there, kept (--force replaces): ${skipped.join(', ')}`);
+  }
+  return 0;
 }
 
 async function hooks(action: string, flags: Set<string>): Promise<number> {
@@ -430,6 +463,9 @@ async function main(): Promise<number> {
       return r.code;
     }
 
+    case 'skills':
+      return skills(a.pos[0] ?? '', a.flags, json);
+
     case 'ping': {
       const r = await rpc('core.ping', {}, json);
       if (r.result) emit(r.result, `core up, pid ${r.result.pid}, schema ${r.result.schema_version}`);
@@ -560,4 +596,7 @@ async function main(): Promise<number> {
   }
 }
 
-main().then((code) => { if (code >= 0) process.exit(code); });
+main().then((code) => { if (code >= 0) process.exit(code); }, (e) => {
+  console.error(`troop: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+});

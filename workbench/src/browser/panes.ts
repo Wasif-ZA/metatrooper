@@ -203,13 +203,13 @@ export class PaneManager {
     const db = this.hooks.db();
     const allow = new Set<string>();
     if (db) {
-      const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
-      if (project) {
-        try {
+      try {
+        const project = db.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
+        if (project) {
           const cfg = JSON.parse(fs.readFileSync(path.join(project.path, '.troop', 'config.json'), 'utf8')) as { allow_hosts?: unknown };
           if (Array.isArray(cfg.allow_hosts)) for (const h of cfg.allow_hosts) if (typeof h === 'string') allow.add(h.toLowerCase());
-        } catch {}
-      }
+        }
+      } catch {}
     }
     this.policyCache.set(projectId, { at: Date.now(), hosts: allow });
     return allow;
@@ -240,7 +240,7 @@ export class PaneManager {
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
       const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
-      checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null })).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
+      Promise.resolve().then(() => checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null }))).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
     });
     ses.on('will-download', (e, item, wc) => {
       const pane = this.byContents(wc);
@@ -292,7 +292,8 @@ export class PaneManager {
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
     pane.ready = this.setUp(pane);
-    await pane.ready;
+    // ponytail: no backoff; a pane that fails every time is rebuilt on each sync
+    await pane.ready.catch((e) => { if (this.panes.get(row.id) === pane) this.destroy(row.id); throw e; });
   }
 
   private async setUp(pane: Pane): Promise<void> {
@@ -506,7 +507,7 @@ export class PaneManager {
 
   private async onDebuggerEvent(pane: Pane, method: string, params: Record<string, any>): Promise<void> {
     if (method === 'Fetch.requestPaused') {
-      const verdict = await checkUrl(params.request.url, this.paneCtx(pane)).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
+      const verdict = await Promise.resolve().then(() => checkUrl(params.request.url, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
       if (verdict.allow) await this.cmd(pane, 'Fetch.continueRequest', { requestId: params.requestId }).catch(() => {});
       else {
         await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' }).catch(() => {});
@@ -558,7 +559,7 @@ export class PaneManager {
       if (r) r.status = params.response.status;
       const ip = params.response.remoteIPAddress;
       if (ip) {
-        const verdict = await connectedVerdict(params.response.url, ip, this.paneCtx(pane));
+        const verdict = await Promise.resolve().then(() => connectedVerdict(params.response.url, ip, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
         if (!verdict.allow) {
           const reason = verdict.reason;
           this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });

@@ -38,10 +38,11 @@ export function liveAtStart(db: DatabaseSync): Waiting[] {
   return [...queued, ...live.filter((s) => !queued.some((q) => q.id === s.id))];
 }
 
-/** Appends core.process-gone with a null pid for each session and saves them as the resume queue, so a core that stops before resuming them all hands the rest to the next. */
+/** Saves the list as the resume queue, so a core that stops before resuming them all hands the rest to the next, and appends core.process-gone with a null pid for it and every other pty session the last core left open. */
 export function markGone(db: DatabaseSync, list: Waiting[]): void {
   savePending(db, list);
-  for (const s of list) appendEvent('core.process-gone', s.id, { pid: null }, db);
+  const open = (db.prepare("SELECT id FROM session WHERE host = 'pty' AND state != 'exited'").all() as Array<{ id: string }>).map((r) => r.id);
+  for (const id of new Set([...list.map((s) => s.id), ...open])) appendEvent('core.process-gone', id, { pid: null }, db);
 }
 
 export interface ResumeDeps {

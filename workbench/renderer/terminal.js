@@ -103,7 +103,8 @@ const termView = (() => {
       if (k === 'v') { void paste(); e.preventDefault(); return false; }
       return true;
     });
-    new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); }).observe(body);
+    t.sizes = new ResizeObserver(() => { clearTimeout(t.fitTimer); if (!t.attached) resize(t); else t.fitTimer = setTimeout(() => resize(t), 150); });
+    t.sizes.observe(body);
     terms.set(sessionId, t);
     return t;
   }
@@ -137,6 +138,8 @@ const termView = (() => {
     const t = terms.get(sessionId);
     if (!t) return;
     void troop.termDetach(sessionId);
+    t.sizes.disconnect();
+    clearTimeout(t.fitTimer);
     t.term.dispose();
     t.el.remove();
     terms.delete(sessionId);

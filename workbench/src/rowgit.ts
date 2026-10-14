@@ -7,6 +7,7 @@ export interface RowGit { branch: string | null; added: number; deleted: number;
 export type OwnedPaths = Array<{ path: string; owners: Array<{ id: string }> }>;
 
 const cache = new Map<string, RowGit>();
+const CACHE_MAX = 200;
 
 /** Session id to the paths it owns, from session.owners `paths`; a shared path counts for every owner. */
 export function ownedBy(paths: OwnedPaths): Record<string, string[]> {
@@ -41,6 +42,7 @@ export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | 
     };
     const prev = cache.get(s.id);
     if (!prev || prev.branch !== next.branch || prev.added !== next.added || prev.deleted !== next.deleted || JSON.stringify(prev.changed) !== JSON.stringify(next.changed)) changed = true;
+    cache.delete(s.id);
     cache.set(s.id, next);
   }
   // A session left out (exited, still shown) keeps its branch and line counts but its changed list follows the owners map.
@@ -51,6 +53,7 @@ export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | 
     cache.set(id, { ...prev, changed: files });
     changed = true;
   }
+  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
   return changed;
 }
 
