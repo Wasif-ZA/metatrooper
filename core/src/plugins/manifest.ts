@@ -60,7 +60,7 @@ export const MANIFEST_FILE = 'troop-plugin.json';
 
 export const PANE_FORBIDDEN_METHODS = new Set([
   'core.stop', 'ui.hello', 'hooks.install', 'hooks.uninstall',
-  'plugin.install', 'plugin.remove', 'plugin.preview', 'plugin.secret.set', 'mcp.resolve', 'mcp.missing',
+  'plugin.install', 'plugin.remove', 'plugin.preview', 'plugin.secret.set', 'browser.secret.set', 'mcp.resolve', 'mcp.missing',
   'notify.sink.set', 'notify.sink.test', 'notify.sink.remove',
 ]);
 
