@@ -282,6 +282,7 @@ test('M6-26d Stop core and Restart core run only on a second Enter within 3 s', 
     assert.equal((named.t.ui.paletteItems as Array<{ label: string }>)[0].label, armed, 'a search by name keeps the armed row');
     await named.key('Enter');
     assert.equal(named.calls.filter((c) => c.method === fn).length, 1);
+    assert.equal(await bypass(async (b, at) => { await b.key('Enter'); await b.type('palette-input', ''); b.t.ui.paletteAt = at(); await b.key('Enter'); }), 0, 'a pasted change to the search disarms');
   }
 });
 

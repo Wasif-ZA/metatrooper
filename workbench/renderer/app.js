@@ -1579,6 +1579,7 @@ function onInput(e) {
   const el = e.target;
   if (el.id === 'palette-input') {
     ui.paletteAt = 0;
+    disarm();
     renderPalette();
     searchScrollback();
     return;
