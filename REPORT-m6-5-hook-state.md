@@ -444,3 +444,56 @@ commit.
   information only. Its points held against the code: rollout growth is the only post-approval signal, so blocking
   `core.activity` outright would strand the wait; `term.output` is a sibling; `[^.]+` already keeps dots out of the
   stem.
+
+## Review fixes, round 5
+
+Two-engine review of `main..m6-5-hook-state` after merging main (50fc381, then fa74fa0; both clean).
+
+- Round 1: Codex BLOCK with 10 findings; Gemini MERGE with none.
+- Re-review: Codex BLOCK with 8 findings; Gemini not run, because Claude Code stopped the job for low memory.
+
+### Fixed
+
+Each fix has a test that failed before it and passes after it.
+
+- `afdf1e9`:
+  - Codex and Gemini hook payloads keep string fields only, capped at 4096. An object-valued `tool_name` or `source`
+    was being stored whole.
+  - The M6-05b test now seeds `~/.gemini/settings.json` before launch, so it catches a launch-time overwrite.
+- `0e35a02`: `sweepSessionFiles` touches only entries whose stem is a 26-character session ULID. Before this,
+  `notes.json`, `admin.settings.json` and a `cache/` folder in `mcp/` were deleted.
+- `4e0ec37`: the contract lists the `notification_type` that `claude.Notification` already stored.
+- `f5a703e`:
+  - A wait's `state_at` is the write time of the event that started it, not processing time.
+  - A hook ask during a wait moves it to the ask's write time.
+  - `term.output` never ends a wait with a hook ask at or after `state_at`.
+  - This closes round 4's known limit (ask, bell 30 s later, output). It also closes growth between a bell and a
+    Codex PermissionRequest ending the approval wait.
+- `cc2cea9`: after a Codex SessionStart relinks the session, the activity poll follows the new rollout file.
+- `ca62824`:
+  - Claude tool payloads keep string metadata only.
+  - The contract's matcher line lists `PermissionRequest` and `PostToolUseFailure`.
+  - Not re-reviewed by either engine.
+
+### Not fixed
+
+- An answer written within about 50 ms of the ask, before the processor (every 50 ms) handles it, can be missed by the
+  poll. Too narrow to act on.
+
+### Left for Wasif
+
+1. Record a wait's origin (hook ask, bell, activity) and its call on the session row.
+   - It would close two holes. Codex rollout growth during an open approval ends the wait. Unrelated Claude tool
+     events end an `input` Notification wait.
+   - Or keep the current rules and enable Codex hooks only after the trust spike.
+2. Sweep ownership: keep the ULID-stem guard, or record created paths and delete only those.
+3. Hook command paths are open to shell expansion (`$`, backtick). Main's Claude hooks share this. Options: quote per
+   shell, or refuse such install paths.
+4. A Claude Notification with no type that says "waiting for your input" is classed `idle`, not `input`. This is
+   main's classifier; changing it changes behaviour.
+
+### Suites
+
+- Core, nothing else running (cc2cea9): 460 tests, 454 pass, 0 fail, 6 skipped.
+- Core after ca62824: 4 timing tests failed under load. Run alone, the same files gave 39 pass, 0 fail.
+- Workbench after the fa74fa0 merge: 144 tests, 105 pass, 0 fail, 35 skipped, 4 todo.
