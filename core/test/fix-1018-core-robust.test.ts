@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import fs, { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openCoreDb } from '../src/store/db.ts';
 import { call, enqueue } from '../src/pipe/client.ts';
-import { corePipe, dbFile, schemaFile } from '../src/paths.ts';
+import { browserPipe, corePipe, dbFile, schemaFile } from '../src/paths.ts';
 import { NOTIFY_PLUGIN, notifyTick, setSink } from '../src/notify.ts';
 import { setSecret } from '../src/secrets.ts';
 import { readClaudeTranscript, sessionTokens } from '../src/meter.ts';
@@ -243,4 +244,29 @@ test('h-c-trust a write the engine makes between trust.ts reading and writing it
   const doc = JSON.parse(read(file, 'utf8'));
   assert.equal(doc.engineOwn, 1);
   assert.equal(Object.values(doc.projects).length, 1);
+});
+
+test('h-c-browsermcp a message that makes handle() throw gets a JSON-RPC error, and two first calls share one browser connection', async (t) => {
+  const { env } = home(t);
+  let connections = 0;
+  const browser = net.createServer((s) => {
+    connections++;
+    s.on('data', createDecoder((m) => s.write(encode({ jsonrpc: '2.0', id: (m as { id: string }).id, result: { panes: [] } }))));
+  });
+  await new Promise<void>((r) => browser.listen(withEnv(env, browserPipe), r));
+  const child = spawn(process.execPath, ['src/hook/browser-mcp.ts'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
+  t.after(async () => {
+    if (child.exitCode === null) { child.kill(); await new Promise((r) => child.once('exit', r)); }
+    await new Promise<void>((r) => browser.close(() => r()));
+  });
+  let stderr = '';
+  child.stderr.on('data', (c) => { stderr += c; });
+  const replies: Array<{ id: unknown; result?: unknown; error?: { code: number } }> = [];
+  child.stdout.on('data', createDecoder((m) => replies.push(m as never)));
+  const call = (id: number) => JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'panes', arguments: {} } });
+  child.stdin.write(`null\n${call(1)}\n${call(2)}\n`);
+  await until(() => replies.length >= 3 || child.exitCode !== null, 5000).catch(() => {});
+  assert.equal(child.exitCode, null, stderr);
+  assert.deepEqual(replies.map((r) => [r.id, r.error?.code ?? null]).sort(), [[null, -32603], [1, null], [2, null]]);
+  assert.equal(connections, 1);
 });

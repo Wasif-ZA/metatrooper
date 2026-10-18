@@ -54,12 +54,19 @@ function findSession(): string | null {
 
 class Browser {
   private socket: net.Socket | null = null;
+  private connecting: Promise<net.Socket> | null = null;
   private pending = new Map<string, (r: { result?: unknown; error?: { code: number; message: string } }) => void>();
   private next = 0;
   private sessionId: string | null | undefined;
 
   private connect(): Promise<net.Socket> {
+    if (this.connecting) return this.connecting;
     if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
+    this.connecting = this.open().finally(() => { this.connecting = null; });
+    return this.connecting;
+  }
+
+  private open(): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const s = net.connect(browserPipe());
       const decode = createDecoder((raw) => {
@@ -191,11 +198,14 @@ process.stdin.on('data', (chunk: string) => {
     const line = buf.slice(0, i).trim();
     buf = buf.slice(i + 1);
     if (!line) continue;
+    let msg: Parameters<typeof handle>[0];
     try {
-      void handle(JSON.parse(line));
+      msg = JSON.parse(line);
     } catch {
       send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'parse error' } });
+      continue;
     }
+    handle(msg).catch((e) => send({ jsonrpc: '2.0', id: msg?.id ?? null, error: { code: -32603, message: e instanceof Error ? e.message : String(e) } }));
   }
 });
 process.stdin.on('end', () => process.exit(0));
