@@ -10,7 +10,8 @@ The version lives in the root `package.json`; `node tests/version-check.mjs` che
 
 - Browser handoff, origins, secrets and audit (M6-12). An agent can hand a browser pane to the user with `handoff`;
   every other browser tool then fails with "the user has the pane" until the user presses Give back. The first input
-  on a new origin asks for approval unless `.troop/config.json` lists it in `allow_origins`. `type` with
+  on a new origin asks for approval unless the `browser.allow_origins` setting lists it (a UI-only setting since D5, not the
+  agent-writable `.troop/config.json`). `type` with
   `{{secret:NAME}}` fills a secret saved with `troop browser secret <NAME> <origin>` (DPAPI store), only into a
   password field on that origin; the value never reaches the agent, an event, a log or an approval row. Browser tool
   output is scrubbed of secret values, bearer tokens, cookies, URL credentials and token-looking query values, and

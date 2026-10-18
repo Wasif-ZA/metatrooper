@@ -92,8 +92,9 @@ box fails with "not visible".
   is sent. For `key`, when focus is inside a frame the main frame cannot read, the origin is that frame's
   (`securityOrigin` in `Page.getFrameTree`) and `hidden` is true; if it is not an http(s) origin or not found, `key`
   fails with -32030 `not sent: focus is in a frame whose origin cannot be established`. Only the outermost unreadable
-  frame is seen: focus in a frame nested inside it is checked against the outer frame's origin. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
-  `allow_origins` lists origins that never ask for being new.
+  frame is seen: focus in a frame nested inside it is checked against the outer frame's origin. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); the
+  `browser.allow_origins` setting lists origins that never ask for being new. Only the user changes it (`settings.set`
+  needs a trusted UI connection); `allow_origins` in the agent-writable `.troop/config.json` is ignored (D5).
 - **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
   (or `troop browser secret <NAME> <origin>`). A value under 4 characters is refused when saved (-32602), since output
   scrubbing skips values that short. The value is stored in the DPAPI store under plugin id `core-browser`; the

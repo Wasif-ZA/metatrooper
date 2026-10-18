@@ -49,3 +49,26 @@ test('D9 a re-save whose write or encrypt fails keeps the old secret and its ori
   assert.equal(browserSecretOrigin('KEEP_ME'), 'https://b.test');
   assert.equal(getSecret('core-browser', 'KEEP_ME'), 'second-value');
 }));
+
+test('D5 allow_origins in the agent-writable .troop/config.json no longer silences the new-origin ask; only the UI-only browser.allow_origins setting does', () => withDb(async (db, home) => {
+  const { Approvals } = await import('../src/approvals.ts');
+  const { buildMethods } = await import('../src/methods.ts');
+  const project = `${home}/project`;
+  fs.mkdirSync(`${project}/.troop`, { recursive: true });
+  fs.writeFileSync(`${project}/.troop/config.json`, JSON.stringify({ allow_origins: ['https://agent.test'] }));
+  const at = new Date().toISOString();
+  db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', project, 'p', at, at);
+  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+  db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p1', 'e1', 'pty', 'working', ?, ?)").run(at, at);
+  const approvals = new Approvals(db, 60_000);
+  const check = { session_id: 's1', surface: 'browser', target: 'https://agent.test', action: 'click', args: { ref: 'e1' }, control: { automation_id: 'go', name: 'Go', role: 'button' } };
+  const asked = approvals.check(check);
+  const row = await new Promise<{ id: string; reason: string }>((res) => { const t = setInterval(() => { const r = db.prepare("SELECT id, reason FROM approval WHERE status = 'waiting'").get(); if (r) { clearInterval(t); res(r as never); } }, 10); });
+  assert.equal(row.reason, 'new origin');
+  approvals.resolve({ approval_id: row.id, decision: 'reject' });
+  assert.equal((await asked).decision, 'rejected');
+  const methods = buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k' });
+  assert.equal(methods.get('settings.set')!.needsUi, true);
+  await methods.get('settings.set')!.handler({ key: 'browser.allow_origins', value: ['https://agent.test/'] });
+  assert.deepEqual(await approvals.check({ ...check, args: { ref: 'e2' } }), { decision: 'allow' });
+}));

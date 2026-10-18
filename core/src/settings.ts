@@ -20,6 +20,9 @@ export const DEFAULTS = {
     takeover_key: 'Control+Alt+Q',
     watch_pause: true,
   },
+  browser: {
+    allow_origins: [] as string[],
+  },
   worktree: {
     npm_ci: true,
     stale_days: 7,

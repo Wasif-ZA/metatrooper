@@ -1,11 +1,10 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
 import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } from './redact.ts';
 import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.ts';
 import { nowIso, ulid } from './time.ts';
+import { settings } from './settings.ts';
 
 export const APPROVAL_TIMEOUT_MS = 120_000;
 export const SURFACES = ['browser', 'desktop'] as const;
@@ -210,11 +209,11 @@ export class Approvals {
     return { decision: status, approval_id: id };
   }
 
-  /** A browser input on an http(s) origin that this session has no session-scope `new origin` approval for and the project's `.troop/config.json` does not list in `allow_origins`. */
+  /** A browser input on an http(s) origin that this session has no session-scope `new origin` approval for and the `browser.allow_origins` setting does not list. */
   private newOrigin(p: CheckParams): boolean {
     const origin = p.surface === 'browser' && INPUTS.has(p.action) ? normalOrigin(p.target) : null;
     if (!origin) return false;
-    if (allowedOrigins(this.db, p.session_id).has(origin)) return false;
+    if (allowedOrigins().has(origin)) return false;
     return !this.db.prepare(
       "SELECT 1 FROM approval WHERE session_id = ? AND surface = 'browser' AND target = ? AND reason = 'new origin' AND status = 'approved' AND scope = 'session' LIMIT 1",
     ).get(p.session_id, p.target);
@@ -237,15 +236,10 @@ export class Approvals {
 
 const INPUTS = new Set(['click', 'type', 'select', 'key']);
 
-/** The origins the session's project lists under `allow_origins` in `.troop/config.json`. */
-function allowedOrigins(db: DatabaseSync, sessionId: string): Set<string> {
-  const row = db.prepare('SELECT p.path FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?').get(sessionId) as { path: string } | undefined;
+/** The origins the user lists in the `browser.allow_origins` setting, which only a trusted UI connection can change (D5); never the agent-writable `.troop/config.json`. */
+function allowedOrigins(): Set<string> {
   const out = new Set<string>();
-  if (!row) return out;
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(row.path, '.troop', 'config.json'), 'utf8')) as { allow_origins?: unknown };
-    if (Array.isArray(cfg.allow_origins)) for (const o of cfg.allow_origins) if (typeof o === 'string' && normalOrigin(o)) out.add(normalOrigin(o)!);
-  } catch {}
+  for (const o of settings().browser.allow_origins) if (typeof o === 'string' && normalOrigin(o)) out.add(normalOrigin(o)!);
   return out;
 }
 
