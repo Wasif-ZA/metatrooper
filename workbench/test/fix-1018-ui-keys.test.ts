@@ -146,6 +146,29 @@ test('UI-07: menu items and list rows take focus, arrows move between them, Ente
   assert.equal(w.el('menu').hidden, true);
 });
 
+test('UI-07: a focused list row keeps focus when streaming output re-renders the list', () => {
+  const w = boot();
+  const list = w.el('list');
+  let rows = new Map<string, any>();
+  Object.defineProperty(list, 'innerHTML', {
+    get: () => '',
+    set: (html: string) => { rows = new Map([...html.matchAll(/data-key="([^"]+)"/g)].map((m) => [m[1], Object.assign(makeEl('', 'DIV'), { dataset: { key: m[1] } })])); },
+  });
+  list.contains = (x: any) => [...rows.values()].includes(x);
+  list.querySelector = (sel: string) => rows.get(sel.match(/data-key="([^"]+)"/)![1]) ?? null;
+  list.querySelectorAll = () => [];
+  w.ctx.ui.snap = { sessions: [{ id: 's1', engine_id: 'claude', state: 'working', state_at: new Date().toISOString(), title: 't', last_line: 'one' }], engines: [], git: {}, limits: [], projects: [] };
+  w.ctx.ui.shellKinds = [];
+  w.ctx.renderList(null);
+  const first = list.querySelector('[data-key="row:s1"]');
+  first.focus();
+  w.ctx.ui.snap.sessions[0].last_line = 'two';
+  w.ctx.renderList(null);
+  const again = list.querySelector('[data-key="row:s1"]');
+  assert.notEqual(again, first);
+  assert.equal(doc.activeElement, again);
+});
+
 test('UI-08: the project remove and browser tab close are real buttons with labels, none nested in another button', () => {
   const w = boot();
   w.ctx.ui.snap = { live: [] };

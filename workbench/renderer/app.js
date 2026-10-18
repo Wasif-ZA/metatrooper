@@ -558,7 +558,7 @@ function canHide(id) {
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
-  return `<div class="li srow${sel ? ' sel' : ''}" role="option" tabindex="0" aria-selected="${Boolean(sel)}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
+  return `<div class="li srow${sel ? ' sel' : ''}" role="option" tabindex="0" aria-selected="${Boolean(sel)}" data-key="row:${esc(x.id)}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
     <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session" aria-label="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
@@ -631,7 +631,7 @@ function renderList(sel) {
     <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
     <div class="lbody" id="sessions" role="listbox" aria-label="Sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
-      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" role="option" tabindex="0" aria-selected="${Boolean(sel && sel.id === x.id)}" data-action="pick-shell" data-id="${esc(x.id)}">
+      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" role="option" tabindex="0" aria-selected="${Boolean(sel && sel.id === x.id)}" data-key="row:${esc(x.id)}" data-action="pick-shell" data-id="${esc(x.id)}">
         <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell" aria-label="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
     </div>
     <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
