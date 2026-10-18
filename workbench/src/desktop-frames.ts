@@ -1,17 +1,13 @@
 import { BrowserWindow, screen } from 'electron';
+import { sessionColour } from './colour.ts';
+
+export { sessionColour };
 
 /** A live grant as `grant.live` reports it; `rect` is `[x, y, w, h]` in physical pixels. */
 export interface LiveGrant { id: string; session_id: string; hwnd: number; title: string; rect: number[] | null; minimized: boolean }
 
 const BORDER = 3;
 const frames = new Map<string, BrowserWindow>();
-
-/** A stable colour per session, so a frame and a session's cursor match. */
-export function sessionColour(sessionId: string): string {
-  let h = 0;
-  for (const c of sessionId) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `hsl(${h}, 85%, 60%)`;
-}
 
 /** The frame's bounds in DIPs: the window's rectangle grown by the border on every side. */
 export function frameBounds(rect: number[], toDip: (r: { x: number; y: number; width: number; height: number }) => { x: number; y: number; width: number; height: number }) {
