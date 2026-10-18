@@ -502,7 +502,7 @@ What MetaTrooper adds around the driver:
   GW_OWNER)` chains back to the granted window, same pid and process start). A standard file dialog (`#32770` with a
   file list) is covered but every input in it asks (D61). A grant ends when its window is destroyed, its process
   ends, the user revokes it on the tile, or the core restarts. Grants are made only from the workbench (`grant.window
-  {session_id, hwnd}`, `ui.hello`): pick a window from a list, or drag the tile's "give window" handle onto it. The
+  {session_id, hwnd, pid, process_start}`, `ui.hello`): the user picks a window from the tile's "Give window" list. The
   workbench window, its children, elevated windows and the secure desktop can never be granted.
 - **The MCP server.** `metatrooper-desktop` is a stdio MCP server MetaTrooper attaches like `metatrooper-browser`.
   It finds its session by process ancestry. For every input it: (1) calls `approval.check` on the core pipe (grant,
