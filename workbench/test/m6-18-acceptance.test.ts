@@ -610,3 +610,33 @@ test('M6-18e browser: mode off still writes a cursor row, shown false', async ()
   const row = b.probes.find((p) => p.kind === 'cursor');
   assert.deepEqual([row.ms, row.late, row.shown], [0, false, false]);
 });
+
+test('M6-18 browser key and scroll show the cursor: a showing cursor stays put inside the target (D56), a fresh one appears at the centre, before the input', async () => {
+  // protects=D56 / rule 1 key and scroll use the cursor like click does, and the glide comes before the key or wheel
+  // fails_when=the key or scroll case skips pointAt, or pointAt drops keep for "press" and "scroll"
+  // no_claim=which element the key reaches (focus is never queried, D56)
+  const b = browser();
+  b.manager.evalIsolated = async () => 0;
+  b.pane.view.getBounds = () => ({ x: 0, y: 0, width: 1920, height: 1080 });
+  b.manager.node = () => ({ backendNodeId: 7 });
+  b.manager.box = async () => ({ objectId: 'o', x: 700, y: 300, left: 600, top: 250, right: 800, bottom: 350 });
+  assert.deepEqual(await b.manager.run(b.pane, 'key', { _session: 'session-a', keys: 'Enter' }), { ok: true });
+  let g = b.wc.glides().at(-1);
+  assert.deepEqual([g.caption, g.to], ['press Enter', { x: 960, y: 540 }], 'first action: the viewport centre');
+  await b.click('100,100');
+  const t0 = b.inputs.length;
+  await b.manager.run(b.pane, 'key', { _session: 'session-a', keys: 'Tab' });
+  g = b.wc.glides().at(-1);
+  assert.deepEqual([g.caption, g.to, g.ms], ['press Tab', { x: 100, y: 100 }, 0], 'the cursor stays where it is');
+  const row = b.probes.filter((p) => p.kind === 'cursor').at(-1);
+  assert.ok(b.inputs.slice(t0).every((i) => i.at >= row.requested_at) && b.inputs.slice(t0).some((i) => i.method === 'Input.dispatchKeyEvent'));
+  await b.manager.run(b.pane, 'scroll', { _session: 'session-a', dy: 200 });
+  g = b.wc.glides().at(-1);
+  assert.deepEqual([g.caption, g.to], ['scroll', { x: 100, y: 100 }]);
+  assert.ok(b.inputs.at(-1).method === 'Input.dispatchMouseEvent' && b.inputs.at(-1).params.type === 'mouseWheel');
+  await b.manager.run(b.pane, 'scroll', { _session: 'session-a', ref: 'e3', dy: 0 });
+  g = b.wc.glides().at(-1);
+  assert.deepEqual([g.caption, g.to, g.targetRect], ['scroll', { x: 700, y: 300 }, { x: 600, y: 250, width: 200, height: 100 }], 'outside the element: its centre');
+  await b.manager.run(b.pane, 'key', { _session: 'session-a', keys: `${MARKER}` }).catch(() => {});
+  assert.equal(b.wc.glides().at(-1).caption, 'press', 'a key that is not a key name is not shown');
+});

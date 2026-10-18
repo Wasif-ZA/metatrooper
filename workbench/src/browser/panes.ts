@@ -15,7 +15,7 @@ const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
-import { awaitArrived, planGlide, type Mode } from '../cursor-glide.ts';
+import { awaitArrived, planGlide, safeCaption, type Mode } from '../cursor-glide.ts';
 import { sessionColour } from '../colour.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -806,7 +806,8 @@ export class PaneManager {
     this.marks.set(pane.row.id, marks);
     const last = marks.get(session);
     const prev = last && Date.now() - last.at < look.idleFadeMs ? last : null;
-    const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: targetRect, host: pane.shownSize ?? PARKED_VIEWPORT });
+    caption = safeCaption(caption, knownSecretValues());
+    const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: targetRect, keep: /^(press|scroll)\b/.test(caption), host: pane.shownSize ?? PARKED_VIEWPORT });
     const wc = pane.overlay.webContents;
     const live = !wc.isDestroyed();
     if (live && !this.win.contentView.children.includes(pane.overlay)) this.win.contentView.addChildView(pane.overlay);
@@ -819,6 +820,13 @@ export class PaneManager {
     marks.set(session, mark);
     this.hooks.probe({ kind: 'cursor', pane: pane.row.id, session, target, at: got ? { x: got.x, y: got.y } : null, ms, late: !got, requested_at, arrived_at: got ? got.at : null });
     this.fadeLater(pane, session, mark, look.idleFadeMs);
+  }
+
+  /** Key and scroll without a ref: the whole viewport is the target, so a showing cursor stays put (D56, no focus query). */
+  private async pointAtViewport(pane: Pane, a: Record<string, any>, caption: string): Promise<void> {
+    const zoom = pane.view.webContents.getZoomFactor();
+    const v = pane.shownSize ?? PARKED_VIEWPORT;
+    await this.pointAt(pane, v.width / zoom / 2, v.height / zoom / 2, a, { width: v.width / zoom, height: v.height / zoom }, caption);
   }
 
   /** Fades a cursor still idle after `idleMs`, then detaches the pane's overlay view once its last cursor has faded. */
@@ -1147,6 +1155,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     switch (name) {
       case 'key': {
         if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
+        await this.pointAtViewport(pane, a, `press ${a.keys}`);
         await recheck();
         await this.pressKeys(pane, a.keys, a);
         return { ok: true };
@@ -1272,8 +1281,13 @@ ame, after checking the ref's field is a password field on the origin saved with
           return { ok: true };
         });
       case 'scroll': {
-        if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref).backendNodeId });
-        else {
+        if (a.ref) {
+          const node = this.node(pane, a.ref);
+          const p = await this.box(pane, node, a.ref, a).catch(() => null);
+          if (p) await this.pointAt(pane, p.x, p.y, a, { width: p.right - p.left, height: p.bottom - p.top }, 'scroll');
+          else await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: node.backendNodeId });
+        } else {
+          await this.pointAtViewport(pane, a, 'scroll');
           const { width: w, height: h } = pane.parked ? this.parkedMetrics(pane) : pane.view.getBounds();
           await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
           await sleep(150);
