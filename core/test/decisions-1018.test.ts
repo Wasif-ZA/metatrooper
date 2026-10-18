@@ -100,3 +100,32 @@ test('D16 a hook event that meets a held database lock is spooled, not dropped, 
   const rows = db.prepare("SELECT session_id, json_extract(payload, '$.session_id') AS native FROM event WHERE kind = 'claude.Stop'").all();
   assert.deepEqual(rows.map((x) => ({ ...x })), [{ session_id: id, native: 'native-1' }]);
 }));
+
+test('D19 the sweep and session exit delete only files MetaTrooper recorded as its own, never a user file named like a session id', () => withDb(async (db, home) => {
+  const { recordSessionFile, removeSessionFiles, sweepSessionFiles } = await import('../src/plugins/mcp.ts');
+  const { ulid } = await import('../src/time.ts');
+  const at = new Date().toISOString();
+  db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', home, 'p', at, at);
+  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+  const [gone, live] = [ulid(), ulid()];
+  for (const [id, state] of [[gone, 'exited'], [live, 'working']]) db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p1', 'e1', 'pty', ?, ?, ?)").run(id, state, at, at);
+  const mcp = `${home}/mcp`;
+  fs.mkdirSync(mcp, { recursive: true });
+  for (const name of [`${gone}.json`, `${gone}.settings.json`, `${live}.json`]) fs.writeFileSync(`${mcp}/${name}`, '{}');
+  recordSessionFile(db, gone, `${mcp}/${gone}.json`);
+  recordSessionFile(db, live, `${mcp}/${live}.json`);
+  // a recorded path outside MetaTrooper's home is never deleted
+  const outside = `${home}-outside.txt`;
+  fs.writeFileSync(outside, 'keep');
+  recordSessionFile(db, gone, outside);
+  try {
+    sweepSessionFiles(db);
+    assert.deepEqual(fs.readdirSync(mcp).sort(), [`${gone}.settings.json`, `${live}.json`].sort(), 'the unrecorded file named like a session survives');
+    assert.ok(fs.existsSync(outside));
+    removeSessionFiles(db, gone);
+    assert.ok(fs.existsSync(`${mcp}/${gone}.settings.json`));
+    removeSessionFiles(db, live);
+    assert.deepEqual(fs.readdirSync(mcp), [`${gone}.settings.json`]);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM meta WHERE key LIKE 'session_files:%'").get()!.n, 0);
+  } finally { fs.rmSync(outside, { force: true }); }
+}));

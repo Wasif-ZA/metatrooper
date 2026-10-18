@@ -125,8 +125,8 @@ test('untrustFolder removes only the folder trustFolder added from each store', 
   for (const [f, t] of Object.entries(files)) assert.equal(fs.readFileSync(f, 'utf8'), t, f);
 }));
 
-test('per-session files of exited and unknown sessions are swept; a live session keeps its files', () => withHome(async (home) => {
-  const { sweepSessionFiles, removeSessionFiles } = await import('../src/plugins/mcp.ts');
+test('recorded per-session files of exited and unknown sessions are swept; a live session keeps its files (D19)', () => withHome(async (home) => {
+  const { sweepSessionFiles, removeSessionFiles, recordSessionFile } = await import('../src/plugins/mcp.ts');
   const { openCoreDb } = await import('../src/store/db.ts');
   const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
   const db = openCoreDb();
@@ -147,10 +147,12 @@ test('per-session files of exited and unknown sessions are swept; a live session
     const userFiles = ['README.md', '.keep', 'admin.settings.json', 'backup-json', 'READMEjson', 'notes.json', `${GONE}Xjson`];
     for (const name of [`${LIVE}.json`, `${GONE}.json`, `${ORPHAN}.json`, ...userFiles]) fs.writeFileSync(path.join(gemini, name), '{}');
     for (const name of [...userFiles, `${GONE}XsettingsXjson`]) fs.writeFileSync(path.join(dir, name), '');
+    for (const id of [LIVE, GONE, ORPHAN]) for (const file of [path.join(dir, `${id}.json`), path.join(dir, `${id}.settings.json`), path.join(gemini, `${id}.json`)]) recordSessionFile(db, id, file);
+    recordSessionFile(db, GONE, path.join(dir, GONE));
     sweepSessionFiles(db);
     assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache', `${LIVE}.json`, `${LIVE}.settings.json`].sort());
     assert.deepEqual(fs.readdirSync(gemini).sort(), [...userFiles, 'notes', `${LIVE}.json`].sort());
-    removeSessionFiles(LIVE);
+    removeSessionFiles(db, LIVE);
     assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache'].sort());
     assert.deepEqual(fs.readdirSync(gemini).sort(), [...userFiles, 'notes'].sort());
   } finally {

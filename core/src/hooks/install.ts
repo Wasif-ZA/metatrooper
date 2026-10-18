@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile } from '../paths.ts';
-import { removeCodexMcp } from '../plugins/mcp.ts';
+import type { DatabaseSync } from 'node:sqlite';
+import { recordSessionFile, removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { older } from '../engines/health.ts';
 import { expandHome, writeAtomic } from '../trust.ts';
@@ -107,7 +108,7 @@ function globalClaudeHooks(): Set<string> {
 }
 
 /** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or the declared Codex hooks (else the Codex notify wrapper), so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
-export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: string | null = null): string[] {
+export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: string | null = null, db?: DatabaseSync): string[] {
   const codexHooks = engine.hooks?.kind === 'codex-config' ? codexHookArgs(engine.hooks.events, sessionId) : [];
   if (engine.mcp_attach?.kind === 'codex-config') return codexHooks.length ? codexHooks : codexNotifyArgs();
   if (engine.mcp_attach?.kind !== 'claude-mcp-config-flag') return codexHooks;
@@ -118,6 +119,7 @@ export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: 
   if (events.length) settings.hooks = Object.fromEntries(events.map((ev) => [ev, [ourGroup(ev)]]));
   const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  recordSessionFile(db, sessionId, file);
   fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
   return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
@@ -193,11 +195,12 @@ export function geminiSettingsFile(sessionId: string): string {
 }
 
 /** Environment for engines whose hooks travel in a per-session file: the Gemini CLI system settings file holding only MetaTrooper's hooks. */
-export function sessionHookEnv(engine: EngineSpec, sessionId: string): Record<string, string> {
+export function sessionHookEnv(engine: EngineSpec, sessionId: string, db?: DatabaseSync): Record<string, string> {
   if (engine.hooks?.kind !== 'gemini-system-settings') return {};
   const file = geminiSettingsFile(sessionId);
   const hooks = Object.fromEntries(engine.hooks.events.map((ev) => [ev, [{ hooks: [{ name: `metatrooper-${ev}`, type: 'command', command: engineHookCommand('gemini', ev, sessionId), timeout: 5000 }] }]]));
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  recordSessionFile(db, sessionId, file);
   fs.writeFileSync(file, JSON.stringify({ hooks }, null, 2) + '\n');
   return { GEMINI_CLI_SYSTEM_SETTINGS_PATH: file };
 }

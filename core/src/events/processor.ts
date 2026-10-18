@@ -150,7 +150,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         if (next && next !== s.state) {
           setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), next === 'waiting_for_you' ? waitReason(ev.kind, payload) : null, ev.session_id);
           changed.push([ev.session_id, next]);
-          if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
+          if (next === 'exited') { setEnded.run(nowIso(), ev.session_id); removeSessionFiles(db, ev.session_id); turns.push({ kind: 'exit', id: ev.session_id, seq: ev.seq }); }
           if (next === 'done' && s.run_id === null) note('done', ev.session_id, s.engine_id, 'finished');
           if (next === 'working') turns.push({ kind: 'start', id: ev.session_id, seq: ev.seq });
           if (next === 'exited' && typeof payload.code === 'number' && payload.code !== 0) note('failed', ev.session_id, s.engine_id, `exited with code ${payload.code}`);

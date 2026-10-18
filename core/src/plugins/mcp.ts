@@ -169,6 +169,7 @@ export function mcpAttachEnv(db: DatabaseSync, engine: EngineSpec, sessionId: st
   if (attach.kind === 'env-json') return { [attach.env]: JSON.stringify(json) };
   const dir = path.join(homeDir(), 'mcp', sessionId);
   fs.mkdirSync(dir, { recursive: true });
+  recordSessionFile(db, sessionId, dir);
   fs.writeFileSync(path.join(dir, 'mcp-config.json'), JSON.stringify(json, null, 2) + '\n');
   return { [attach.env]: dir };
 }
@@ -181,6 +182,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       if (!servers.length) return [];
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
+      recordSessionFile(db, sessionId, file);
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, s.http
         ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${s.args[0]}" headers "${s.args[1]}" "${s.args[2]}" "${s.args[3]}"` } : {}) }
         : { command: node, args: s.args }]));
@@ -211,25 +213,40 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
 /** The block older versions wrote into Codex's config.toml; only removeCodexMcp still looks for it. */
 const CODEX_BLOCK = /^# metatrooper mcp: begin[^\n]*\n[\s\S]*?^# metatrooper mcp: end[^\n]*(\n|$)/m;
 
-/** Deletes a session's per-session MCP and settings files. */
-export function removeSessionFiles(sessionId: string): void {
-  for (const name of [`${sessionId}.json`, `${sessionId}.settings.json`, sessionId]) {
-    try { fs.rmSync(path.join(homeDir(), 'mcp', name), { recursive: true, force: true }); } catch {}
-  }
-  try { fs.rmSync(path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`), { force: true }); } catch {}
+/** Records a per-session file or folder MetaTrooper wrote, in `meta` under `session_files:<session id>`, so cleanup deletes only what it made (D19). Without `db` nothing is recorded and the file is never deleted. */
+export function recordSessionFile(db: DatabaseSync | undefined, sessionId: string, file: string): void {
+  if (!db) return;
+  const key = `session_files:${sessionId}`;
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
+  const list: string[] = row ? JSON.parse(row.value) : [];
+  if (!list.includes(file)) list.push(file);
+  db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(key, JSON.stringify(list));
 }
 
-/** Deletes per-session files whose session has exited or no longer exists; only entries named the way removeSessionFiles names them, with a session id (ULID) stem, are touched. */
+/** Deletes the files recorded under one `session_files:` key, only inside MetaTrooper's home, and forgets them. */
+function dropSessionFiles(db: DatabaseSync, key: string, value: string): void {
+  const home = path.resolve(homeDir()) + path.sep;
+  let list: unknown;
+  try { list = JSON.parse(value); } catch { list = []; }
+  for (const file of Array.isArray(list) ? list : []) {
+    if (typeof file === 'string' && path.resolve(file).startsWith(home)) try { fs.rmSync(file, { recursive: true, force: true }); } catch {}
+  }
+  db.prepare('DELETE FROM meta WHERE key = ?').run(key);
+}
+
+/** Deletes a session's recorded per-session MCP and settings files. */
+export function removeSessionFiles(db: DatabaseSync, sessionId: string): void {
+  const key = `session_files:${sessionId}`;
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
+  if (row) dropSessionFiles(db, key, row.value);
+}
+
+/** Deletes the recorded per-session files of sessions that have exited or no longer exist; a file MetaTrooper did not record is never touched, whatever its name. */
 export function sweepSessionFiles(db: DatabaseSync): void {
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
-  const dirs: Array<[string, RegExp, boolean]> = [[path.join(homeDir(), 'mcp'), /^[0-9A-HJKMNP-TV-Z]{26}(\.settings)?\.json$/, true], [path.join(homeDir(), 'engines', 'gemini'), /^[0-9A-HJKMNP-TV-Z]{26}\.json$/, false]];
-  for (const [dir, file, dirsToo] of dirs) {
-    if (!fs.existsSync(dir)) continue;
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!(entry.isDirectory() ? dirsToo && /^[0-9A-HJKMNP-TV-Z]{26}$/.test(entry.name) : entry.isFile() && file.test(entry.name))) continue;
-      const s = get.get(entry.name.split('.')[0]) as { state: string } | undefined;
-      if (!s || s.state === 'exited') fs.rmSync(path.join(dir, entry.name), { recursive: true, force: true });
-    }
+  for (const { key, value } of db.prepare("SELECT key, value FROM meta WHERE key LIKE 'session_files:%'").all() as Array<{ key: string; value: string }>) {
+    const s = get.get(key.slice('session_files:'.length)) as { state: string } | undefined;
+    if (!s || s.state === 'exited') dropSessionFiles(db, key, value);
   }
 }
 
