@@ -95,10 +95,10 @@ export function launchSession(
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
     const router = metarouterLaunch(opts.engine);
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id), db), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
-    env = { ...router.env, ...sessionHookEnv(opts.engine, id), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }), ...statePluginEnv(opts.engine) };
+    env = { ...router.env, ...sessionHookEnv(opts.engine, id, db), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }), ...statePluginEnv(opts.engine) };
   }
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');

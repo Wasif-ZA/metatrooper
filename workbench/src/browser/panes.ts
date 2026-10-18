@@ -13,7 +13,7 @@ import { takeoverPaused } from '../../../core/src/grants.ts';
 /** Typed text goes in pieces of this many characters, with the pause checked before each, as on the desktop. */
 const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
-import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
+import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -819,7 +819,8 @@ export class PaneManager {
       const id = t.frame.id as string;
       const nodes = (await this.cmd(pane, 'Accessibility.getFullAXTree', { frameId: id }).then((r) => r.nodes as AXNode[], () => []));
       // the snapshot cuts names and values, so they are scrubbed whole first
-      for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string) };
+      const secrets = scrubSecretValues();
+      for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string, secrets) };
       const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
       out.push({ id, nodes, parent, owner });
       for (const c of t.childFrames ?? []) await visit(c, id);
@@ -1238,7 +1239,8 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'wait_for': {
         const end = Date.now() + Math.min(Number(a.timeout_ms) || 10_000, 30_000);
         while (Date.now() < end) {
-          if (typeof a.text === 'string' && (await this.evalIsolated(pane, `document.body ? document.body.innerText.includes(${JSON.stringify(a.text)}) : false`))) return { found: true };
+          // matched against the scrubbed text, so waiting on a guess cannot confirm a secret on the page
+          if (typeof a.text === 'string' && scrub(String(await this.evalIsolated(pane, 'document.body ? document.body.innerText : ""') ?? ''), scrubSecretValues()).includes(a.text)) return { found: true };
           const t = typeof a.ref === 'string' ? resolveRef(pane.refs, a.ref) : 'unknown';
           if (typeof t === 'object') {
             const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: t.backendNodeId }).then(() => true, () => false);
@@ -1288,7 +1290,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         const raw = await this.evalIsolated(pane, a.expression, pane.navs, a).finally(() => { pane.scripted = true; });
         // the user may have signed in while it ran
         if (pane.handoff !== null || pane.handedBack) throw new ToolError(-32038, 'the user took the pane while evaluate ran; its result is dropped');
-        const value = scrubDeep(raw, knownSecretValues());
+        const value = scrubDeep(raw, scrubSecretValues());
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };
@@ -1468,9 +1470,13 @@ export function errorPage(kind: string, url: string, detail: string): string {
     + `<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><p><code>${escapeHtml(url.slice(0, 2000))}</code></p><p>${escapeHtml(detail.slice(0, 500))}</p>${retry}</body></html>`;
 }
 
-/** Page text scrubbed before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. */
-function whole(text: string): string {
-  return scrub(text, knownSecretValues());
+/** Shown in place of captured text when the saved secrets cannot all be read, so a secret, or the prefix a later cut leaves of it, is never kept. */
+export const UNSCRUBBED = '[withheld: the saved secrets could not be read to scrub this text]';
+
+/** Page text scrubbed of every saved secret before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. A store that cannot be read gives UNSCRUBBED, so a CDP listener never throws and never keeps text it could not scrub. */
+function whole(text: string, secrets?: string[]): string {
+  if (secrets) return scrub(text, secrets);
+  try { return scrub(text, scrubSecretValues()); } catch { return UNSCRUBBED; }
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */

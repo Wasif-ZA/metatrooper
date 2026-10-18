@@ -110,14 +110,14 @@ test('M6-12 a session-scope new origin approval on a control does not cover a ri
   assert.equal((await decide(check({ target: 'https://k.test', action: 'key', args: { keys: 'Enter' }, control: send }), 'reject')).reason, 'risky control: Send');
 });
 
-test('M6-12 an origin listed in .troop/config.json allow_origins never asks for being new', async () => {
-  mkdirSync(join(project, '.troop'), { recursive: true });
-  writeFileSync(join(project, '.troop', 'config.json'), JSON.stringify({ allow_origins: ['https://c.test/'] }));
+test('M6-12 an origin listed in the browser.allow_origins setting never asks for being new', async () => {
+  const { setSetting } = await import('../src/settings.ts');
+  setSetting('browser', 'allow_origins', ['https://c.test/']);
   try {
     assert.deepEqual(await approvals.check(check({ target: 'https://c.test' })), { decision: 'allow' });
     assert.equal((await decide(check({ target: 'https://c.test:8443' }), 'reject')).reason, 'new origin');
   } finally {
-    rmSync(join(project, '.troop'), { recursive: true, force: true });
+    setSetting('browser', 'allow_origins', []);
   }
 });
 

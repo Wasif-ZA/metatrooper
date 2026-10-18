@@ -23,6 +23,13 @@ request, so only the creating user (and admins) can issue commands. Other proces
 connect; that is the same trust boundary as the user's own files. A test proves a second, standard local
 account cannot complete a request.
 
+Invariant (D3, 2026-10-18): the core, `-term` and `-browser` pipes never speak first. A server writes only after
+the client has sent a line (a reply, or the terminal stream after an `attach` that carried the ui key), so a
+read-only client (Everyone, Anonymous) that connects learns nothing; it cannot send the line a reply needs. The read grant is therefore harmless only while this holds, and Node has
+no API to create the pipe owner-only. Any server-initiated message (a greeting, a push, a broadcast) needs an
+owner-only pipe first, which means native code. `core/test/decisions-1018.test.ts` (core and `-term`) and
+`workbench/test/decisions-1018.test.ts` (`-browser`) connect, send nothing, and assert no byte arrives.
+
 ## Framing
 
 Newline-delimited JSON (one JSON object per line, UTF-8, `\n` terminated, no embedded newlines). JSON-RPC 2.0.

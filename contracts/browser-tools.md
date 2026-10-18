@@ -92,8 +92,9 @@ box fails with "not visible".
   is sent. For `key`, when focus is inside a frame the main frame cannot read, the origin is that frame's
   (`securityOrigin` in `Page.getFrameTree`) and `hidden` is true; if it is not an http(s) origin or not found, `key`
   fails with -32030 `not sent: focus is in a frame whose origin cannot be established`. Only the outermost unreadable
-  frame is seen: focus in a frame nested inside it is checked against the outer frame's origin. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); `.troop/config.json`
-  `allow_origins` lists origins that never ask for being new.
+  frame is seen: focus in a frame nested inside it is checked against the outer frame's origin. The first input on a new origin asks (`contracts/approvals.md`, `new origin`); the
+  `browser.allow_origins` setting lists origins that never ask for being new. It lives in `~/.metatrooper/settings.json`,
+  outside every project (`settings.set` needs a trusted UI connection); `allow_origins` in the agent-writable `.troop/config.json` is ignored (D5).
 - **Secrets by placeholder.** `type` with `text` exactly `{{secret:NAME}}` fills the secret saved with `browser.secret.set`
   (or `troop browser secret <NAME> <origin>`). A value under 4 characters is refused when saved (-32602), since output
   scrubbing skips values that short. The value is stored in the DPAPI store under plugin id `core-browser`; the
@@ -101,8 +102,9 @@ box fails with "not visible".
   approval recheck, and the focus and select-all (whose page handlers could change the field), the workbench main process checks that the origin of the field's own frame is the saved one and the
   ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed.
   A decrypted value is cached only until its stored file changes, so saving the name again (from the core) is seen by the
-  next fill. Saving removes the origin file while the value changes, and the fill reads the origin again after the
-  value; if it differs, the call fails with -32037. The last step before `Input.insertText`, which types into whatever has
+  next fill. Saving encrypts first, then moves the origin file aside while the value changes, and the fill reads the
+  origin again after the value; if it differs, the call fails with -32037. The new blob is written to a temp file and
+  renamed over the old one, so a save whose encrypt or write fails keeps the old value and its origin (D9). The last step before `Input.insertText`, which types into whatever has
   focus, checks focus is still on the ref's node (after the focus and select-all, whose page handlers could move it); for
   a field in a frame the main frame cannot read, focus must be in that frame and, in its own document, on the field.
   Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. Once an agent `evaluate` has
@@ -119,8 +121,8 @@ box fails with "not visible".
   since a script could read the field (the same rule as after Give back, above). A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
 - **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
-  agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
-  workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
+  agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: every saved browser secret (decrypted
+  here when another process saved or filled it, D4) and every secret value the workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
   and credential patterns become `[secret]`. Object keys are scrubbed the same way, and under a credential-named key
   (cookie, authorization, auth, token, password, pwd, secret, session, sid, credential, API key, private key, bearer; case and
   separators ignored, so `X-Auth-Token` and `sessionId` match) the whole value becomes `[secret]`, nested objects and
@@ -130,7 +132,11 @@ box fails with "not visible".
   Page text that is cut to a limit is scrubbed whole before the cut, so a cut through a secret cannot leave a prefix
   the later scrub no longer matches: accessibility names and values (before the snapshot's 120- and 80-character cuts and
   the token budget, which also covers `continue` pages and action `changes`), `read` text, the `evaluate` value (before
-  the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters). `describe` scrubs the control's name and id of every known secret value
+  the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters).
+  `wait_for` with `text` matches against the page's scrubbed `innerText`, so waiting on a guess cannot confirm a
+  secret on the page (D6). A secret store that cannot be read fails the tool call (its error message is withheld);
+  page text captured from CDP events then is scrubbed of the values decrypted so far and scrubbed again in full on
+  the way out. `describe` scrubs the control's name and id of every known secret value
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. The origin is the pane page's when the call was made (a call that navigates
@@ -143,6 +149,34 @@ box fails with "not visible".
   were read for: when another pane is selected (by the user, an agent opening a pane, or a close), the Browser tab shows
   that pane live, never the first pane's rows. A Timeline read still in flight when a later one is asked (the user
   switches panes and opens its Timeline) is dropped when it returns, so its rows never replace the later pane's.
+
+## Known limits
+
+Kept as limits by the 2026-10-18 decisions (D5, D7, D8, D10); each is a gap, not a guarantee.
+
+- `browser.allow_origins` lives in `~/.metatrooper/settings.json`, which the browser tools and the pipe cannot
+  change (`settings.set` needs a trusted UI connection; an agent connection gets -32012). An agent with shell access
+  runs as the same user and can edit that file directly, and an origin it adds then skips the new-origin ask. Only a
+  filesystem sandbox around the agent would stop that, and MetaTrooper has none for unsandboxed sessions (D5).
+
+- A checked call the MCP server stopped before sending is recorded on the pane's origin when `browser.outcome`
+  reports the stop, not the origin that was checked, so its Timeline row can name a later origin. Passing the
+  checked origin through would mean trusting the MCP server's word for it (D7).
+- The audit row is tried 3 times, 250 ms apart; a database busy past that drops the row and logs
+  `browser audit row dropped` on the workbench main process's error output (D8).
+- `evaluate` after Give back is refused per document, not per origin: after a navigation the origin's cookies are
+  readable again (D10).
+- A listener a page script left before a handoff stays on a single-page app that signs the user in without a
+  main-frame navigation (D10).
+- Give back pressed during a load also marks the next document as handed back, so the agent's first navigation
+  after a sign-in may leave `evaluate` off (D10).
+- The `did-navigate` wiring that clears the handed-back and scripted marks is tested against a mocked
+  `webContents` only; no real-Electron run checks it yet (D10).
+- An attempt that fails with -32035 writes no row because the MCP server retries it or reports it with
+  `browser.outcome`; that the row appears trusts the MCP server (D10).
+- The browser pipe takes a bound session's MCP server at its word for what it reports (`outcome` status, tool
+  names). A same-user process that calls the browser pipe directly, without the MCP server, is not checked
+  (Threat model; D10).
 
 ## How a tool runs
 

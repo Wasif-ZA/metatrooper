@@ -226,6 +226,33 @@ in `ask`.
 `troop skills install` copies the skills in `skills/` into `~/.claude/skills/`. The `troop` skill teaches an agent to
 start and follow other sessions through this CLI.
 
+### Approval profiles
+
+`--approval ask|edits|contained` on `launch`. A new install starts every agent in `ask` (each tool call needs your
+OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on a MetaTrooper worktree. A
+settings file from an older version keeps its value.
+
+Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
+requested, as does a folder holding one of them one or two levels down. Engines that send your code to another
+company (`codex`, `agy`) also ask anywhere under the folder two levels above a listed path. The list is empty by
+default:
+
+```json
+{ "sessions": { "ask_paths": ["C:/Users/you/notes/work/client"] } }
+```
+
+The first agent click or keystroke on a new website origin in a browser pane asks you first. Origins you list in
+`browser.allow_origins` never ask for being new (risky actions still ask). A project's `.troop/config.json` cannot
+add to it, since an agent can write that file:
+
+```json
+{ "browser": { "allow_origins": ["https://staging.example.com"] } }
+```
+
+Every session also runs with metarouter on by default: `router/bin` goes first on its `PATH`, so `metarouter` is the
+bundled copy, and Claude sessions are told to send shell commands through it. Turn it off with
+`{ "sessions": { "metarouter": false } }`.
+
 </details>
 
 ## Privacy

@@ -67,6 +67,10 @@ person approving that exact action in the workbench, and stops at the take-over 
 grant methods need a trusted UI connection (`ui.hello`); the MCP servers, plugins and pipeline apps get no path to
 them. A process that deliberately reads the UI key is a hostile same-user process and out of scope, as before.
 
+The named pipes keep Windows' default DACL, which lets Everyone and Anonymous connect read-only (Node cannot set
+it). That is safe only because no pipe speaks first: a reader that cannot write gets nothing (D3; the invariant
+and its tests are in `contracts/pipe-protocol.md` Access). A server-pushed message would need an owner-only pipe.
+
 ## Decisions
 
 Decisions D4 to D51 and M4-D1 to M5-D29 stay in the archived spec as history. These still bind and are restated
@@ -928,6 +932,30 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - Grants and approvals do not stop a hostile process running as the user (Threat model).
 - Fatal patterns (M6-23) are checked only while a session is `working`; an engine that never reaches `working`
   never trips one.
+- Browser use (M6-12): the recorded gaps (D5, D7, D8, D10) are in `contracts/browser-tools.md` Known limits.
+- An agent with shell access can edit `~/.metatrooper/settings.json` itself (it runs as the same user), so moving
+  `browser.allow_origins` there (D5) keeps it out of reach of the browser tools and the pipe only, not of the agent's
+  shell. That needs a filesystem sandbox, which unsandboxed sessions do not have.
+- D1 chose a per-plugin token in each MCP shim's launch environment. The token travels in the shim's arguments
+  instead (`mcp-shim.js <plugin id> <server id> <token>`), because the shim is started by the engine from its MCP
+  config, and Codex `-c` overrides and `args-template` engines have no per-server environment slot. Either way the
+  token lands in the per-session MCP config or the engine's command line; the argument form also shows it in process
+  listings to the same user, who can read `shim.key` anyway (`contracts/plugins.md`).
+- A detached child an agent started (a dev server run with `start` or `nohup`) keeps running and holds its port
+  after a core stop or restart: `term.killAll()` closes each conpty only. M7-10's job object per session fixes it
+  (D82); nothing kills those processes before then, so a server the user wanted is never killed either (D17).
+- A wait records its kind (`wait_reason`), not the call it belongs to: Codex rollout growth during an approval
+  still counts as the answer, and an unrelated Claude tool event can release an input wait. Codex hooks stay off
+  until the trust spike shows what Codex writes while an approval is open (D18, D22).
+- A Claude `Notification` with no type that says "waiting for your input" is classed `idle`, so the tile does not
+  wait. It changes only once a live capture shows the text is stable (D21).
+- The Codex trust spike, a Gemini hook route that works on Windows (CLI 0.63 skips the system settings file), and
+  one live Claude `tool_use_id` check need Wasif's config or account and are deferred past the freeze. Codex and
+  Gemini tiles keep activity watching until then (D22).
+- A hook event spooled because `troop.db` was locked (D16) lands after any event stored directly in the meantime.
+  It moves no state when a newer hook event of the session was already applied, but the processor's other lookups
+  (last tool asked for, last ask) still go by arrival order, so it can set `last_tool` from an older call. An event
+  from a session MetaTrooper did not start (no session id) has no spool and is still dropped.
 - Interrupt detection (M6-23) reads each CLI's terminal title glyphs, which are not a contract; a CLI update can turn
   it off silently, leaving the tile `working` as before.
 - An auto-mode agent can script the desktop through its own shell (D70). The input watcher catches injected input
@@ -1174,8 +1202,9 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
 - **Drag a header** (wall-layout 12). A tile header dragged more than 6 px shows where it lands: over the big
   tile's left or right 25% it pairs, over a tile's centre it swaps the two. Esc cancels. This adds pointer drag and
   side-tile swaps to M6-9's keys.
-- **Fold stack** (wall-layout 13). When folded bars pass the cap (`wall.js` `const bars`; today tiles past it get no rect and are hidden), the wall shows cap minus 1 bars plus
-  a "+N more" bar that opens an inline list, one row open at a time. No session is left without a place on the wall.
+- **Fold stack** (wall-layout 13). Since D35 (2026-10-18) the wall already shows cap minus 1 bars plus a "+N more"
+  count bar when folded bars pass the cap (`wall.js` `rects()`, `moreBar`); clicking it opens the session list. M7-7
+  turns that bar into an inline list, one row open at a time. No session is left without a place on the wall.
 - **Where new agents land** (wall-layout 15). `ui.newAgent`: `big` (default, as today), `side`, or `big-if-idle`.
   Sessions started through the public API (M6-17) follow the same setting, so nothing changes until it is set.
 - **Wheel on other tiles** (wall-layout 16). A capture-phase `wheel` listener swallows the wheel over a tile that is

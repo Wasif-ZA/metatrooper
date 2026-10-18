@@ -163,6 +163,9 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .pane.fold .ph .fl { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); font-family: var(--mono); font-size: 11px; }
 .pane.fold :is(.badge, .br, .spk, .eq, .act, .meta) { display: none !important; }
 .pane.done-open .ph { cursor: pointer; }
+.fold-more { position: absolute; border-radius: var(--r); background: var(--pane); border: 1px dotted var(--hairline-strong); color: var(--faint); font: inherit; font-family: var(--mono); font-size: 11px; text-align: left; padding: 0 12px; cursor: pointer; }
+.fold-more:hover { background: var(--canvas-soft); color: var(--body-strong); }
+.fold-more[hidden] { display: none; }
 .ph { position: relative; height: 56px; flex: none; display: flex; flex-direction: column; white-space: nowrap; font-size: 11.5px; border-bottom: 1px dotted var(--hairline-strong); overflow: clip; overflow-clip-margin: 2px; }
 .ph .r1, .ph .r2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ph .r1 { height: 32px; padding: 0 4px 0 12px; }

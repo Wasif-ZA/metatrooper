@@ -326,7 +326,7 @@ test('M6-23a PreToolUse resets the fallback window and a later Stop starts a new
   // protects=last nonterminal event fallback fails_when=an older Stop times out after newer work no_claim=timer scheduling
   const h = await memoryDb();
   try {
-    h.send('claude.UserPromptSubmit');
+    h.send('claude.UserPromptSubmit', {}, START - 1000);
     h.send('claude.Stop', CAPTURED_STOP, START);
     h.send('claude.PreToolUse', { tool_name: 'Read', tool_use_id: 'synthetic-tool' }, START + 300_000);
     checkHeldStops(h.db, START + 600_000);

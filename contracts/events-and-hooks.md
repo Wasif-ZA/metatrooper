@@ -15,9 +15,18 @@ One invocation form: `node event.js <kind> [--session <id>] [--pid <n>] [--engin
 
 1. Read stdin (hooks) or build the payload from the flags (launch).
 2. Open `troop.db` with `busy_timeout = 200`. Insert one `event` row.
-3. On any error (no database, locked past 200 ms, bad JSON): write one line to
+3. Locked past the wait (200 ms; 1,500 ms for `claude.Stop`, `claude.StopFailure` and `claude.SessionEnd`), for a
+   kind the spool accepts and a session id from `--session` or `TROOP_SESSION_ID`: append the event to that session's
+   spool, `~/.metatrooper/spool/<session id>/events.ndjson`, in the sandbox line shape, which the core moves into
+   `event` (Spool ingest below; D16). So a held lock delays a `claude.Stop` instead of leaving the session `working`.
+   The event's `at`, direct or spooled, is the time the hook started, before the lock wait, and the ingest keeps it
+   (a missing, malformed or future `at` becomes the ingest time). A spooled event lands after any event stored
+   directly in the meantime, so the processor gives event time the last word on state: a hook event whose `at` is
+   older than a hook event of the same session already applied moves no state and ends no turn. An event from
+   outside MetaTrooper (no session id) has no spool and is still dropped.
+4. On any other error (no database, bad JSON, a kind the spool does not accept): write one line to
    `~/.metatrooper/logs/event-errors.log` if that is possible, then exit 0.
-4. Never write to stdout, except for `UserPromptSubmit` (below).
+5. Never write to stdout, except for `UserPromptSubmit` (below).
 
 Total time budget: 250 ms from start to exit. A Claude hook that exceeds it is still fine for Claude (its own
 hook timeout is far longer); the budget exists so nothing the user sees slows down.
@@ -257,9 +266,14 @@ because an engine may not pass its environment to hooks; it prints nothing.
 - `gemini-system-settings` (prefix `gemini`): the core writes `~/.metatrooper/engines/gemini/<session id>.json`
   holding only `{"hooks": {...}}` (one group per event, `timeout` 5000 ms) and launches with
   `GEMINI_CLI_SYSTEM_SETTINGS_PATH` set to it. `~/.gemini/settings.json` is never touched. The file is deleted when
-  the session becomes `exited`, and any left behind by a session that is gone are swept at the next launch. The sweep
-  touches only `<id>.json` files there (in `~/.metatrooper/mcp/`, only `<id>.json`, `<id>.settings.json` and `<id>`
-  folders), where `<id>` is a 26-character session ULID, so other files in either folder are left alone.
+  the session becomes `exited`, and any left behind by a session that is gone are swept at the next launch. The core
+  records each per-session file it writes (this one, and `<id>.json`, `<id>.settings.json` and `<id>/mcp-config.json`
+  in `~/.metatrooper/mcp/`) in `meta` under `session_files:<id>`, only after creating it exclusively; a file already at
+  that path that the session does not own is refused and the launch fails. The exit cleanup and the sweep delete only
+  recorded files, never recursively, and only when their folder is inside `~/.metatrooper` both by name and on disk
+  (no junction or symlink above it leads out); the `<id>/` folder goes only once empty (D19). A user file named like a
+  session id, or put inside a generated folder, is never touched; files written by a version before D19 are not
+  recorded and are no longer swept.
   `engines/gemini.json` declares no `hooks` yet: on Windows, Gemini CLI 0.63 skips a system settings file whose folder
   is not owned by Administrators or SYSTEM (see the M6-5 issue).
 
@@ -290,7 +304,8 @@ appends one line per event to `$METATROOPER_SPOOL/events.ndjson` instead of open
 `{"kind": str, "at": ts, "payload": {...}}`, payload already built by `buildPayload`. It never writes stdout,
 keeps the 250 ms budget, and on any error exits 0 silently.
 
-The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
+The core, every 250 ms, for each folder under `~/.metatrooper/spool/` named for a known session (a sandboxed
+session's, or any session's hook events spooled while `troop.db` was locked, D16):
 
 1. Reads `~/.metatrooper/spool/<session id>/events.ndjson` from the byte offset stored in `meta` under
    `spool_offset:<session id>`, and only whole lines.
@@ -302,7 +317,7 @@ The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
 4. Stops ingesting a spool that passes 10 MiB and adds one `needs_you` row (`kind` `spool-too-large`).
 
 Once a session is `exited`, the core reads its spool a last time, drops any unfinished last line, and deletes the
-spool folder. Only the claude hook kinds (including `claude.PermissionRequest` and `claude.PostToolUseFailure`) and `codex.turn` are
+spool folder (and, for a sandboxed session, its container). Only the claude hook kinds (including `claude.PermissionRequest` and `claude.PostToolUseFailure`) and `codex.turn` are
 accepted from a spool.
 
 ## Notification sinks (outbound)

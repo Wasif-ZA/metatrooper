@@ -141,6 +141,10 @@ export function spoolKind(kind: string): boolean {
   return SPOOL_KINDS.has(kind);
 }
 
+export function spoolKinds(): string[] {
+  return [...SPOOL_KINDS];
+}
+
 function redactedToolInput(toolName: string, input: unknown): Obj {
   const o = asObject(input);
   const s = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
