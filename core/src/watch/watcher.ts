@@ -7,19 +7,21 @@ import { settings } from '../settings.ts';
 import { nowIso, ulid } from '../time.ts';
 
 export const SLACK_MS = 200;
+/** A window event in the acted-on process this long after the action ended is the action's own result (a dialog it opened). */
+export const FOLLOW_MS = 1500;
 export const AWAY_MS = 2000;
 export const READY_MS = 15_000;
 export const HELPER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'input-hook.ps1');
 
-/** One line from the helper: `t` is epoch ms, `idle_ms` the time since the last input (-1 for key and mouse). */
-export interface WatchEvent { kind: 'key' | 'mouse' | 'focus' | 'opened' | 'invoked'; t: number; idle_ms: number; hwnd: number; title: string }
+/** One line from the helper: `t` is epoch ms, `idle_ms` the time since the last input (-1 for key and mouse), `pid` the process owning `hwnd` (0 when unknown). */
+export interface WatchEvent { kind: 'key' | 'mouse' | 'focus' | 'opened' | 'invoked'; t: number; idle_ms: number; hwnd: number; title: string; pid?: number }
 
-const actions = new Map<string, { start: number; end: number }>();
+const actions = new Map<string, { start: number; end: number; pid: number }>();
 
-/** Marks a `metatrooper-desktop` action as in flight until `endAction`; returns its id. */
-export function beginAction(now = Date.now()): string {
+/** Marks a `metatrooper-desktop` action on a window of process `pid` as in flight until `endAction`; returns its id. */
+export function beginAction(now = Date.now(), pid = 0): string {
   const id = `da_${ulid(now)}`;
-  actions.set(id, { start: now, end: Infinity });
+  actions.set(id, { start: now, end: Infinity, pid });
   return id;
 }
 
@@ -34,10 +36,17 @@ function inFlight(t: number): boolean {
   return false;
 }
 
-/** Which needs-you item an event raises: `input` for injected input no action explains, `away` for a UI Automation event after 2 s with no input. */
+function followsAction(ev: WatchEvent): boolean {
+  if (!ev.pid) return false;
+  for (const a of actions.values()) if (a.pid === ev.pid && ev.t >= a.start && ev.t <= a.end + FOLLOW_MS) return true;
+  return false;
+}
+
+/** Which needs-you item an event raises: `input` for injected input no action explains, `away` for a UI Automation event after 2 s with no input that is not in the acted-on process shortly after an action. */
 export function judge(ev: WatchEvent): 'input' | 'away' | null {
   if (inFlight(ev.t)) return null;
   if (ev.kind === 'key' || ev.kind === 'mouse') return 'input';
+  if (followsAction(ev)) return null;
   return ev.idle_ms >= AWAY_MS ? 'away' : null;
 }
 

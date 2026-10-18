@@ -224,7 +224,7 @@ export class Desktop {
     const gate = () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
       if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
-      watchId = beginAction();
+      watchId = beginAction(Date.now(), Number(params.pid) || 0);
     };
     const posted = op === 'key' || op === 'click';
     const p = this.helper.request<Record<string, unknown>>(op, params, undefined, gate)

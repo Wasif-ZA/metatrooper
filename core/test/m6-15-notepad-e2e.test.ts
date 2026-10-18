@@ -123,9 +123,6 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
       assert.ok(clicked.result, JSON.stringify(clicked.error));
     }
     const dialog = (await until(async () => (await call(agent, 'desktop.windows', me)).result.windows.find((w: any) => w.owner === notepad.hwnd || (w.window !== notepad.hwnd && /save/i.test(w.title))), 10_000)) as any;
-    // the dialog can open more than 200 ms after the click returns, which the watcher reads as a change while away
-    await sleep(1000);
-    await call(ui, 'takeover.resume', { session_id: 's1' });
     const dTree = (await call(agent, 'desktop.snapshot', { ...me, window: dialog.window, max_nodes: 600 })).result.text as string;
     const nameRef = /edit "File name:".*\[ref=(e\d+)\]/m.exec(dTree)?.[1] ?? /edit .*\[ref=(e\d+)\]/m.exec(dTree)![1];
     const d = (await call(agent, 'desktop.describe', { ...me, window: dialog.window, ref: nameRef })).result;

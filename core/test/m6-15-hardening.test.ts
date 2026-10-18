@@ -9,6 +9,7 @@ import { registerHooks } from 'node:module';
 import { Approvals } from '../src/approvals.ts';
 import { Desktop, Helper } from '../src/desktop/driver.ts';
 import { until } from './helpers.ts';
+import { FOLLOW_MS, judge } from '../src/watch/watcher.ts';
 
 const WINDOW = { hwnd: 100, pid: 4100, process_start: '2026-10-12T01:00:00.000Z', exe: 'fake.exe', title: 'Fixture', controls: [{ name: 'Editor', automation_id: 'editor', role: 'edit', rid: '42.7' }] };
 const EXPECT = { name: 'Editor', automation_id: 'editor', role: 'edit', password: false, hidden: false, file_dialog: false, grant_id: 'gr_fixture' };
@@ -117,6 +118,16 @@ for (const [method, op] of [['desktop.describe','describe'],['desktop.snapshot',
     else { assert.ok(r.value); assert.equal(f.requests().filter(r => r.op === op).length, 1); }
   });
 }
+
+test('M6-15 hardening: a dialog the granted process opens just after a click is the agent\'s, one from another process is not', async t => {
+  const f = fixture(t);
+  assert.deepEqual(await f.act({ action: 'click' }), { status: 'confirmed' });
+  const after = Date.now() + 1000;
+  const opened = (pid: number) => ({ kind: 'opened' as const, t: after, idle_ms: 10_000, hwnd: 101, title: 'Save as', pid });
+  assert.ok(1000 < FOLLOW_MS);
+  assert.equal(judge(opened(WINDOW.pid)), null);
+  assert.equal(judge(opened(4200)), 'away');
+});
 
 test('M6-15 hardening: describe exposes exactly the public fields', async t => {
   const f = fixture(t);

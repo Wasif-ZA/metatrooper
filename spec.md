@@ -534,8 +534,9 @@ What MetaTrooper adds around the driver:
   if Smart App Control or PowerShell policy blocks it, the wall shows "input watcher off" in orange on every
   granted tile. The same helper subscribes to UI Automation's desktop-wide events (`FocusChangedEvent`,
   `Window_WindowOpenedEvent`, `Invoke_InvokedEvent`) on its own thread. It reports an event only when
-  `GetLastInputInfo` shows no physical input for 2 s and the core has no `metatrooper-desktop` action in flight;
-  the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
+  `GetLastInputInfo` shows no physical input for 2 s and the core has no `metatrooper-desktop` action in flight,
+  and the event's window is not in the process an action targeted within the last 1.5 s (a dialog or window the
+  agent's own click or key opened; the helper reports each event's pid); the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
   `desktop.watch_pause` is on. Apps that change on their own (a toast, a timer, a download finishing) also trip it,
   so it only runs while a grant is live and each window can be muted for the session from the needs-you item.
 - **Spike first** (M6-14, time-boxed to 1 day, nothing installed). On this laptop, with Smart App Control on, the
