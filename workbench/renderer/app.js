@@ -522,9 +522,11 @@ function selectedSession() {
 }
 
 function approvalCard(a, i) {
-  const x = ui.snap.sessions.find((y) => y.id === a.session_id);
+  const x = ui.snap.sessions.find((y) => y.id === a.session_id) || (ui.snap.live || []).find((y) => y.id === a.session_id);
+  const away = x && x.project_id && x.project_id !== ui.projectId ? `${(ui.snap.projects.find((p) => p.id === x.project_id) || {}).name || 'other project'}: ` : '';
+  const who = x ? `${away}${sessionLabel(x)}` : 'an agent in another project';
   return `<div class="gate${i === 0 ? ' cur' : ''}" data-approval="${esc(a.id)}">
-    <div class="gt"><span class="dm"></span><b>${esc(x ? taskOf(x) : a.session_id)}</b><span data-short="${esc(a.created_at)}">${esc(short(a.created_at))}</span></div>
+    <div class="gt"><span class="dm"></span><b>${x ? `<button class="link" data-action="pick" data-id="${esc(a.session_id)}" title="Jump to this agent">${esc(who)}</button>` : esc(who)}</b><span data-short="${esc(a.created_at)}">${esc(short(a.created_at))}</span></div>
     <div class="gs">${esc(a.summary)}</div>
     <div class="gd">${esc(a.reason)}</div>
     <div class="ga"><button class="btn acc" data-action="approval" data-id="${esc(a.id)}" data-decision="approve" data-scope="once">Approve once</button><button class="btn" data-action="approval" data-id="${esc(a.id)}" data-decision="approve" data-scope="session">Approve for this session</button><button class="btn" data-action="approval" data-id="${esc(a.id)}" data-decision="reject">Reject</button></div>
@@ -534,6 +536,7 @@ function approvalCard(a, i) {
 function renderSheet() {
   const list = ui.snap.approvals || [];
   wall.roll(document.getElementById('sheetN'), list.length);
+  document.getElementById('sheet-tab').title = 'Counts agent actions waiting for approval, in every project';
   document.getElementById('sheetT').textContent = list.length ? `${list.length === 1 ? 'An agent action waits' : `${list.length} agent actions wait`} for you` : 'No agent actions waiting';
   setHtml('sheetRuns', '');
   setHtml('sheetAct', '');
@@ -589,7 +592,11 @@ function renderTitle() {
     : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`) + (warn ? ` ${warn}` : ''));
   const cur = s.projects.find((p) => p.id === ui.projectId);
   setHtml('project-pick', `${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}${cur ? `<span class="meta">${esc(liveCounts(cur.id))}</span>` : ''} <svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`);
-  wall.roll(document.getElementById('needsN'), needsCount());
+  const needs = needsCount();
+  wall.roll(document.getElementById('needsN'), needs);
+  const chip = document.getElementById('needs');
+  chip.classList.toggle('zero', !needs);
+  chip.title = `${NEEDS_COUNTS}. Click: Inbox. Alt+J: jump to the longest wait.`;
   const groups = limitGroups();
   const hot = groups.some((u) => u.ok.some((r) => r.used_pct >= 80));
   const live = groups.filter((u) => u.ok.length);
@@ -605,6 +612,7 @@ function renderTitle() {
 }
 
 const INFO_KINDS = ['gate', 'approval', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
+const NEEDS_COUNTS = 'Counts agents waiting in every project, agent actions waiting for approval and unread Inbox alerts';
 
 function needsCount() {
   const s = ui.snap;
@@ -729,7 +737,7 @@ function renderStrip(sel) {
   const working = s.sessions.filter((x) => x.state === 'working').length;
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
-  setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox"><span class="dot waiting_for_you"></span>${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">Inbox</span>');
+  setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox" title="${NEEDS_COUNTS}"><span class="dot waiting_for_you"></span>${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">Inbox</span>');
   setHtml('strip-info', sel ? `${esc(sel.engine_id)} · ${esc(sel.task || taskOf(sel))} · ${working} working` : `${working} working`);
   document.getElementById('diffN').textContent = n ? ` ${n}` : '';
   for (const b of document.querySelectorAll('#strip [data-action="tab"]')) b.classList.toggle('on', ui.split && ui.tab === b.dataset.tab);
@@ -1018,6 +1026,16 @@ async function pick(id, focus = true) {
   render(focus);
 }
 
+/** A live session in another project: switches there and picks it once its snapshot lands; false when it is in this project. */
+function pickAcross(id) {
+  const other = (ui.snap.live || []).find((x) => x.id === id && x.project_id !== ui.projectId);
+  if (!other) return false;
+  document.getElementById('inbox').hidden = true;
+  ui.pendingPick = id;
+  switchProject(other.project_id);
+  return true;
+}
+
 function waitReason(x) {
   return x.reason || (x.last_tool ? `permission: ${x.last_tool}` : 'question');
 }
@@ -1234,13 +1252,7 @@ async function onClick(e) {
       return;
     case 'pick': {
       wall.setList(false);
-      const other = (ui.snap.live || []).find((x) => x.id === id && x.project_id !== ui.projectId);
-      if (other) {
-        document.getElementById('inbox').hidden = true;
-        ui.pendingPick = id;
-        switchProject(other.project_id);
-        return;
-      }
+      if (pickAcross(id)) return;
       if (e.shiftKey && !wall.isBig(id)) { wall.pair(id); return; }
       await pick(id);
       return;
@@ -1870,8 +1882,8 @@ function wallKeys(e) {
   if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyJ' || !ui.snap) return;
   e.preventDefault();
   e.stopImmediatePropagation();
-  const x = oldestWaiting(ui.snap.sessions);
-  if (x) void pick(x.id);
+  const x = oldestWaiting(ui.snap.live || []);
+  if (x && !pickAcross(x.id)) void pick(x.id);
 }
 document.addEventListener('keydown', wallKeys, true);
 wall.onWake(() => render());

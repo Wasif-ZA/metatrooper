@@ -156,3 +156,53 @@ test('UI-21 the empty Hand-back says how to stage and that MetaTrooper never com
   await w.snap(snapOf([]));
   assert.match(w.el('view').innerHTML, /Nothing staged\. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab<\/button> or with git add\. MetaTrooper never commits/);
 });
+
+test('UI-11 the need-you chip is neutral at 0 and coloured when something needs you', async () => {
+  const w = boot();
+  await w.snap(snapOf([session('a', 'done')]));
+  assert.equal(w.el('needs').classList.contains('zero'), true);
+  await w.snap(snapOf([session('a', 'waiting_for_you')]));
+  assert.equal(w.el('needs').classList.contains('zero'), false);
+  assert.match(src('index.html'), /class="chip needs" id="needs"/);
+});
+
+test('UI-05 the title chip, footer and sheet tab each say what they count', async () => {
+  const w = boot();
+  await w.snap(snapOf([session('a', 'waiting_for_you')]));
+  assert.match(w.el('needs').title, /^Counts agents waiting in every project, agent actions waiting for approval and unread Inbox alerts\./);
+  assert.match(w.el('strip-needs').innerHTML, /title="Counts agents waiting in every project, agent actions waiting for approval and unread Inbox alerts"/);
+  assert.equal(w.el('sheet-tab').title, 'Counts agent actions waiting for approval, in every project');
+});
+
+test('UI-03 Alt+J jumps to the longest wait in any project, switching project first', async () => {
+  const w = boot();
+  const away = session('far', 'waiting_for_you', { project_id: 'p2', state_at: at(1) });
+  await w.snap(snapOf([session('near', 'waiting_for_you', { state_at: at(20) })], { live: [session('near', 'waiting_for_you', { state_at: at(20) }), away] }));
+  assert.equal(w.t.ui.projectId, 'p1');
+  await w.key('j', { altKey: true });
+  assert.equal(w.t.ui.projectId, 'p2');
+  assert.equal(w.t.ui.pendingPick, 'far');
+  await w.snap(snapOf([away], { live: [away] }));
+  assert.deepEqual(w.calls.filter((c) => c.method === 'session.focus').map((c) => c.params.session_id), ['far']);
+
+  const here = boot();
+  await here.snap(snapOf([session('old', 'waiting_for_you', { state_at: at(1) }), session('new', 'waiting_for_you', { state_at: at(9) })]));
+  await here.key('j', { altKey: true });
+  assert.equal(here.t.ui.projectId, 'p1');
+  assert.deepEqual(here.calls.filter((c) => c.method === 'session.focus').map((c) => c.params.session_id), ['old']);
+});
+
+test('UI-04 an approval for another project names the project and agent and jumps there on click', async () => {
+  const w = boot();
+  const away = session('far', 'waiting_for_you', { project_id: 'p2', title: 'fix login' });
+  await w.snap(snapOf([], { live: [away], approvals: [{ id: 'ap1', session_id: 'far', summary: 'run rm', reason: 'shell', created_at: at() }] }));
+  const html = w.el('gates').innerHTML;
+  assert.match(html, /<button class="link" data-action="pick" data-id="far" title="Jump to this agent">beta: claude · fix login<\/button>/);
+  await w.click({ action: 'pick', id: 'far' });
+  assert.equal(w.t.ui.projectId, 'p2');
+  assert.equal(w.t.ui.pendingPick, 'far');
+
+  const gone = boot();
+  await gone.snap(snapOf([], { approvals: [{ id: 'ap1', session_id: 's_raw', summary: 'x', reason: 'y', created_at: at() }] }));
+  assert.ok(!gone.el('gates').innerHTML.includes('s_raw'), 'no raw session id');
+});
