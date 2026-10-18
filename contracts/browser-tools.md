@@ -119,8 +119,8 @@ box fails with "not visible".
   since a script could read the field (the same rule as after Give back, above). A field the user approved for a
   secret once (the spec's other case) is not built: a secret goes only into a password field.
 - **Scrubbed output.** Every tool result (the `panes` list included) and error message except `describe` (which goes to the MCP server, not the
-  agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: secret values the
-  workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
+  agent) passes through `scrubDeep` in `core/src/redact.ts` in the workbench: every saved browser secret (decrypted
+  here when another process saved or filled it, D4) and every secret value the workbench has decrypted, bearer tokens, cookie values, URL credentials, token-named or credential-looking query values
   and credential patterns become `[secret]`. Object keys are scrubbed the same way, and under a credential-named key
   (cookie, authorization, auth, token, password, pwd, secret, session, sid, credential, API key, private key, bearer; case and
   separators ignored, so `X-Auth-Token` and `sessionId` match) the whole value becomes `[secret]`, nested objects and
@@ -130,7 +130,11 @@ box fails with "not visible".
   Page text that is cut to a limit is scrubbed whole before the cut, so a cut through a secret cannot leave a prefix
   the later scrub no longer matches: accessibility names and values (before the snapshot's 120- and 80-character cuts and
   the token budget, which also covers `continue` pages and action `changes`), `read` text, the `evaluate` value (before
-  the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters). `describe` scrubs the control's name and id of every known secret value
+  the 20 KB cut), `console` lines and dialog messages (2,000 characters) and `network` URLs (2,000 characters).
+  `wait_for` with `text` matches against the page's scrubbed `innerText`, so waiting on a guess cannot confirm a
+  secret on the page (D6). A secret store that cannot be read fails the tool call (its error message is withheld);
+  page text captured from CDP events then is scrubbed of the values decrypted so far and scrubbed again in full on
+  the way out. `describe` scrubs the control's name and id of every known secret value
   (decrypted in the workbench, or any saved browser secret) before it leaves the workbench.
 - **Audit.** Every tool call is one `browser.tool` event row (`contracts/events-and-hooks.md`): tool, pane, origin and
   `ok` or `error <code>`, never arguments. The origin is the pane page's when the call was made (a call that navigates

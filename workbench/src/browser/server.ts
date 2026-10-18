@@ -3,9 +3,9 @@ import net from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
-import { appendEvent } from '../../../core/src/events/append.ts';
+import { appendEvent, openWriterDb } from '../../../core/src/events/append.ts';
 import { scrub, scrubDeep } from '../../../core/src/redact.ts';
-import { knownSecretValues } from '../../../core/src/secrets.ts';
+import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 
 const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
@@ -33,9 +33,24 @@ export function ownedPanes(db: DatabaseSync, sessionId: string): PaneRow[] {
 /** Result keys passed through unscrubbed in a screenshot's result only: its image bytes. An evaluate can return anything under the same key. */
 const KEEP = new Set(['data_base64']);
 
-/** One append-only `browser.tool` event row per agent tool call: tool, pane, origin and result status, never the arguments. */
-function audit(sessionId: string, payload: { tool: string; pane: string; origin: string; status: string }): void {
-  try { appendEvent('browser.tool', sessionId, payload)?.close(); } catch {}
+const AUDIT_TRIES = 3;
+const AUDIT_GAP_MS = 250;
+
+/** One append-only `browser.tool` event row per agent tool call: tool, pane, origin and result status, never the arguments. A busy database is tried again twice, 250 ms apart; a row still not written is logged. */
+export async function audit(sessionId: string, payload: { tool: string; pane: string; origin: string; status: string }): Promise<void> {
+  for (let i = 1; ; i++) {
+    let db: DatabaseSync | null = null;
+    try {
+      db = openWriterDb();
+      if (db) appendEvent('browser.tool', sessionId, payload, db);
+      return;
+    } catch (e) {
+      if (i >= AUDIT_TRIES) return console.error(`browser audit row dropped after ${i} tries (${payload.tool} ${payload.status}): ${(e as Error).message}`);
+    } finally {
+      db?.close();
+    }
+    await new Promise((r) => setTimeout(r, AUDIT_GAP_MS));
+  }
 }
 
 function clearDeadSocket(pipePath: string): Promise<void> {
@@ -85,7 +100,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         if (bound?.kind !== 'session') return send({ jsonrpc: '2.0', id, result: [] });
         const rows = ownedPanes(db, bound.sessionId);
         // a pane URL can carry an OAuth code or a token, like any tool result
-        return send({ jsonrpc: '2.0', id, result: scrubDeep(rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })), knownSecretValues()) });
+        return send({ jsonrpc: '2.0', id, result: scrubDeep(rows.map((r) => ({ pane_id: r.id, url: r.url, dev_port: r.dev_port })), scrubSecretValues()) });
       }
 
       if (method === 'browser.capture') {
@@ -120,7 +135,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       if (tool === 'outcome') {
         const status = typeof params.status === 'string' ? params.status : '';
         if (!CHECKED.has(String(params.tool)) || !/^error -?\d{1,6}$/.test(status)) return fail(id, -32602, 'outcome takes a checked tool (click, type, select or key) and an error status');
-        audit(bound.sessionId, { tool: String(params.tool), pane: paneId, origin: deps.panes.origin(paneId), status });
+        void audit(bound.sessionId, { tool: String(params.tool), pane: paneId, origin: deps.panes.origin(paneId), status });
         return send({ jsonrpc: '2.0', id, result: { ok: true } });
       }
       if (!deps.panes.has(paneId)) {
@@ -132,20 +147,24 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       const origin = deps.panes.origin(paneId);
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
-        return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, knownSecretValues(), tool === 'screenshot' ? KEEP : undefined) });
+        return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, scrubSecretValues(), tool === 'screenshot' ? KEEP : undefined) });
       } catch (e) {
         status = `error ${e instanceof ToolError ? e.code : -32099}`;
         throw e;
       } finally {
         // a checked attempt whose control changed sent nothing; the MCP server retries it, or reports it with browser.outcome, so the call is one row
         const retried = CHECKED.has(tool) && status === 'error -32035';
-        if (tool !== 'describe' && !retried) audit(sessionId, { tool, pane: paneId, origin, status });
+        if (tool !== 'describe' && !retried) void audit(sessionId, { tool, pane: paneId, origin, status });
       }
     };
 
     const decode = createDecoder((raw) => {
       const msg = raw as { id?: unknown };
-      handle(raw as never).catch((e) => fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, scrub((e as Error).message, knownSecretValues())));
+      handle(raw as never).catch((e) => {
+        let text: string;
+        try { text = scrub((e as Error).message, scrubSecretValues()); } catch { text = 'the secret store could not be read, so this error is not shown'; }
+        fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, text);
+      });
     });
     socket.on('data', (chunk) => {
       try {

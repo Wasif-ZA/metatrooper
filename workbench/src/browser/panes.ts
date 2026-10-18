@@ -1236,7 +1236,8 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'wait_for': {
         const end = Date.now() + Math.min(Number(a.timeout_ms) || 10_000, 30_000);
         while (Date.now() < end) {
-          if (typeof a.text === 'string' && (await this.evalIsolated(pane, `document.body ? document.body.innerText.includes(${JSON.stringify(a.text)}) : false`))) return { found: true };
+          // matched against the scrubbed text, so waiting on a guess cannot confirm a secret on the page
+          if (typeof a.text === 'string' && scrub(String(await this.evalIsolated(pane, 'document.body ? document.body.innerText : ""') ?? ''), scrubSecretValues()).includes(a.text)) return { found: true };
           const t = typeof a.ref === 'string' ? resolveRef(pane.refs, a.ref) : 'unknown';
           if (typeof t === 'object') {
             const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: t.backendNodeId }).then(() => true, () => false);
@@ -1286,7 +1287,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         const raw = await this.evalIsolated(pane, a.expression, pane.navs, a).finally(() => { pane.scripted = true; });
         // the user may have signed in while it ran
         if (pane.handoff !== null || pane.handedBack) throw new ToolError(-32038, 'the user took the pane while evaluate ran; its result is dropped');
-        const value = scrubDeep(raw, knownSecretValues());
+        const value = scrubDeep(raw, scrubSecretValues());
         const text = JSON.stringify(value ?? null);
         if (text.length > EVAL_CAP) return { value: text.slice(0, EVAL_CAP), truncated: true };
         return { value: value ?? null };
@@ -1466,9 +1467,11 @@ export function errorPage(kind: string, url: string, detail: string): string {
     + `<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><p><code>${escapeHtml(url.slice(0, 2000))}</code></p><p>${escapeHtml(detail.slice(0, 500))}</p>${retry}</body></html>`;
 }
 
-/** Page text scrubbed before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. */
+/** Page text scrubbed of every saved secret before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. A store that cannot be read falls back to the values decrypted here, so a CDP listener never throws; the tool result is scrubbed of every saved secret again before it leaves. */
 function whole(text: string): string {
-  return scrub(text, knownSecretValues());
+  let secrets: string[];
+  try { secrets = scrubSecretValues(); } catch { secrets = knownSecretValues(); }
+  return scrub(text, secrets);
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
