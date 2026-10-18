@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { isolation, withEnv } from './helpers.ts';
 
@@ -49,6 +50,76 @@ test('D9 a re-save whose write or encrypt fails keeps the old secret and its ori
   assert.equal(browserSecretOrigin('KEEP_ME'), 'https://b.test');
   assert.equal(getSecret('core-browser', 'KEEP_ME'), 'second-value');
 }));
+
+test('D9 a re-save that fails at any file write or rename leaves the old origin and value together, or the new ones together, never a mix', () => withDb(async (db, home) => {
+  const { setBrowserSecret } = await import('../src/secrets.ts');
+  const { browserSecretOrigin } = await import('../src/browser/secret-origin.ts');
+  const dir = `${home}/secrets/core-browser`;
+  const real = { write: fs.writeFileSync, rename: fs.renameSync };
+  for (let k = 1; ; k++) {
+    setBrowserSecret(db, 'PAIR', 'https://a.test', 'first-value');
+    let calls = 0;
+    const failing = <F extends (...a: never[]) => unknown>(f: F) => ((...a: never[]) => { if (++calls === k) throw new Error(`fault ${k}`); return f(...a); }) as unknown as F;
+    fs.writeFileSync = failing(real.write);
+    fs.renameSync = failing(real.rename);
+    let threw = false;
+    try { setBrowserSecret(db, 'PAIR', 'https://b.test', 'second-value'); } catch { threw = true; } finally { Object.assign(fs, { writeFileSync: real.write, renameSync: real.rename }); }
+    // a module copy with an empty cache reads the value from disk
+    const fresh = await import(`../src/secrets.ts?fault=${k}`);
+    const pair = [browserSecretOrigin('PAIR'), fresh.getSecret('core-browser', 'PAIR')];
+    assert.deepEqual(pair, threw ? ['https://a.test', 'first-value'] : ['https://b.test', 'second-value'], `fault at call ${k}`);
+    assert.deepEqual(fs.readdirSync(dir).filter((f) => f.startsWith('PAIR')).sort(), ['PAIR.dpapi', 'PAIR.origin'], `no file left over after a fault at call ${k}`);
+    if (!threw) break;
+  }
+}));
+
+test('D9 Linux keyring: a re-save stores the value under a new entry id; a failed save clears its new entry and keeps the old, and a committed one clears the old', async () => {
+  const iso = isolation();
+  try {
+    const bin = `${iso.home}/bin`;
+    fs.mkdirSync(bin, { recursive: true });
+    fs.writeFileSync(`${bin}/secret-tool`, '');
+    const src = (f: string) => JSON.stringify(new URL(`../src/${f}`, import.meta.url).href);
+    // secret-tool and the platform are faked, so the Linux path runs on any machine
+    const script = `
+      import { mock } from 'node:test';
+      import fs from 'node:fs';
+      import * as cp from 'node:child_process';
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      const entries = [];
+      const has = (e, attrs) => Object.entries(attrs).every(([k, v]) => e.attrs[k] === v);
+      const fake = (cmd, args, opts) => {
+        if (cmd !== 'secret-tool') return cp.spawnSync(cmd, args, opts);
+        const rest = args.slice(1).filter((a) => !a.startsWith('--label='));
+        const attrs = Object.fromEntries(rest.flatMap((a, i) => (i % 2 ? [] : [[a, rest[i + 1]]])));
+        if (args[0] === 'store') { const i = entries.findIndex((e) => JSON.stringify(e.attrs) === JSON.stringify(attrs)); if (i >= 0) entries.splice(i, 1); entries.push({ attrs, secret: opts.input }); return { status: 0, stdout: '' }; }
+        if (args[0] === 'lookup') { const e = entries.find((x) => has(x, attrs)); return e ? { status: 0, stdout: e.secret } : { status: 1, stdout: '', stderr: 'no entry' }; }
+        if (args[0] === 'clear') { for (let i = entries.length - 1; i >= 0; i--) if (has(entries[i], attrs)) entries.splice(i, 1); return { status: 0, stdout: '' }; }
+      };
+      mock.module('node:child_process', { namedExports: { ...cp, spawnSync: fake } });
+      const { openCoreDb } = await import(${src('store/db.ts')});
+      const { setBrowserSecret } = await import(${src('secrets.ts')});
+      const db = openCoreDb();
+      setBrowserSecret(db, 'KR', 'https://a.test', 'first-value');
+      const write = fs.writeFileSync;
+      fs.writeFileSync = (f, ...a) => { if (String(f).endsWith('.tmp')) throw new Error('disk full'); return write(f, ...a); };
+      try { setBrowserSecret(db, 'KR', 'https://b.test', 'second-value'); } catch {}
+      fs.writeFileSync = write;
+      const afterFail = [entries.length, (await import(${src('secrets.ts')} + '?1')).getSecret('core-browser', 'KR')];
+      setBrowserSecret(db, 'KR', 'https://b.test', 'second-value');
+      const afterSave = [entries.length, (await import(${src('secrets.ts')} + '?2')).getSecret('core-browser', 'KR')];
+      db.close();
+      console.log(JSON.stringify({ afterFail, afterSave }));
+    `;
+    const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', '--input-type=module', '-e', script], {
+      encoding: 'utf8', env: { ...iso.env, PATH: bin, Path: bin, METATROOPER_FAKE_DPAPI: '' },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { afterFail: [1, 'first-value'], afterSave: [1, 'second-value'] });
+  } finally {
+    rmSync(iso.home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
 
 test('D5 allow_origins in the agent-writable .troop/config.json no longer silences the new-origin ask; only the UI-only browser.allow_origins setting does', () => withDb(async (db, home) => {
   const { Approvals } = await import('../src/approvals.ts');

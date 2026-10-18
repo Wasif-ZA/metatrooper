@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { homeDir } from './paths.ts';
 import { nowIso } from './time.ts';
@@ -39,8 +40,19 @@ function secretTool(args: string[], stdin = ''): string {
   return r.stdout;
 }
 
-function keyringAttrs(pluginId: string, name?: string): string[] {
-  return ['service', 'metatrooper', 'plugin', pluginId, ...(name ? ['name', name] : [])];
+function keyringAttrs(pluginId: string, name?: string, id?: string | null): string[] {
+  return ['service', 'metatrooper', 'plugin', pluginId, ...(name ? ['name', name] : []), ...(id ? ['id', id] : [])];
+}
+
+/** The keyring entry id a stored blob names; null for other blobs, and for a blob saved before entries had ids. */
+function keyringId(blob: string | null): string | null {
+  return blob?.startsWith(KEYRING_PREFIX) ? blob.slice(KEYRING_PREFIX.length) || null : null;
+}
+
+/** Clears the keyring entry a blob names, if it names one; a failed clear leaves an orphan entry, never a broken secret. */
+function dropKeyring(pluginId: string, name: string, blob: string | null): void {
+  const id = keyringId(blob);
+  if (id) try { secretTool(['clear', ...keyringAttrs(pluginId, name, id)]); } catch {}
 }
 
 /** Off Windows without secret-tool, secrets are kept in plain 0600 files; the plugin screen says so. */
@@ -49,11 +61,12 @@ export function secretStoreWarning(): string | null {
   return 'secret-tool (libsecret) was not found, so plugin secrets are stored unencrypted in files only you can read (~/.metatrooper/secrets).';
 }
 
-/** Linux: the value goes to the keyring through secret-tool when present, otherwise into the 0600 file itself. */
+/** Linux: the value goes to the keyring through secret-tool when present, under a new entry id the file names, so a save never overwrites the entry the file still points at (D9); otherwise into the 0600 file itself. */
 function linuxBlob(pluginId: string, name: string, value: string): string {
   if (secretStoreWarning()) return PLAIN_PREFIX + value;
-  secretTool(['store', `--label=MetaTrooper ${pluginId} ${name}`, ...keyringAttrs(pluginId, name)], value);
-  return KEYRING_PREFIX;
+  const id = randomUUID();
+  secretTool(['store', `--label=MetaTrooper ${pluginId} ${name}`, ...keyringAttrs(pluginId, name, id)], value);
+  return KEYRING_PREFIX + id;
 }
 
 export function secretPath(pluginId: string, name: string): string {
@@ -83,15 +96,27 @@ function writePrivate(file: string, text: string): void {
   }
 }
 
-/** Encrypts and stores the blob, replacing an older one only once the new one is written. */
-export function setSecret(db: DatabaseSync, pluginId: string, name: string, value: string): void {
-  storeSecret(db, pluginId, name, value, encrypt(pluginId, name, value));
+function readBlob(file: string): string | null {
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
 }
 
-function storeSecret(db: DatabaseSync, pluginId: string, name: string, value: string, blob: string): void {
+/** Encrypts and stores the blob, replacing an older one only once the new one is written; the old keyring entry goes only after that. */
+export function setSecret(db: DatabaseSync, pluginId: string, name: string, value: string): void {
   const file = secretPath(pluginId, name);
-  writePrivate(file, blob);
+  const old = readBlob(file);
+  const blob = encrypt(pluginId, name, value);
+  try {
+    writePrivate(file, blob);
+  } catch (e) {
+    dropKeyring(pluginId, name, blob);
+    throw e;
+  }
+  dropKeyring(pluginId, name, old);
   if (pluginId !== 'core-notify' && pluginId !== BROWSER_SECRETS) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
+  noteSaved(pluginId, name, value, file);
+}
+
+function noteSaved(pluginId: string, name: string, value: string, file: string): void {
   const prev = cache.get(`${pluginId}/${name}`);
   if (prev !== undefined && prev !== value) retired.add(prev);
   cache.set(`${pluginId}/${name}`, value);
@@ -119,7 +144,7 @@ export function getSecret(pluginId: string, name: string): string | null {
   if (fakeDpapi()) value = Buffer.from(fs.readFileSync(file, 'utf8').slice(FAKE_PREFIX.length), 'base64').reverse().toString('utf8');
   else if (process.platform !== 'win32') {
     const blob = fs.readFileSync(file, 'utf8');
-    value = blob.startsWith(KEYRING_PREFIX) ? secretTool(['lookup', ...keyringAttrs(pluginId, name)]) : blob.slice(PLAIN_PREFIX.length);
+    value = blob.startsWith(KEYRING_PREFIX) ? secretTool(['lookup', ...keyringAttrs(pluginId, name, keyringId(blob))]) : blob.slice(PLAIN_PREFIX.length);
   } else {
     const script =
       `$s = Get-Content -Raw -LiteralPath $env:TROOP_SECRET_IN | ConvertTo-SecureString; ` +
@@ -162,20 +187,30 @@ export function setBrowserSecret(db: DatabaseSync, name: string, origin: string,
   if (!o) throw new Error('origin must be an http or https URL');
   if (!value) throw new Error('value is required');
   if (value.length < MIN_SECRET_LENGTH) throw new Error(`value must be at least ${MIN_SECRET_LENGTH} characters, or output scrubbing cannot catch it`);
+  const file = secretPath(BROWSER_SECRETS, name);
+  const oFile = originFile(name);
+  const old = readBlob(file);
   const blob = encrypt(BROWSER_SECRETS, name, value);
-  // no origin while the value changes: a fill reads the origin before and after the value and needs both to agree
-  const file = originFile(name);
-  const held = `${file}.${process.pid}.old`;
-  const had = fs.existsSync(file);
-  if (had) fs.renameSync(file, held);
+  const next = `${oFile}.${process.pid}.new`;
+  // both old files are held until both new ones are in place; no origin while the value changes, since a fill reads the origin before and after the value and needs both to agree
+  const held = [file, oFile].map((f) => ({ f, h: `${f}.${process.pid}.old`, had: fs.existsSync(f), moved: false }));
   try {
-    storeSecret(db, BROWSER_SECRETS, name, value, blob);
+    writePrivate(next, o);
+    for (const x of held) if (x.had) { fs.renameSync(x.f, x.h); x.moved = true; }
+    writePrivate(file, blob);
+    fs.renameSync(next, oFile);
   } catch (e) {
-    if (had) fs.renameSync(held, file);
+    for (const x of held) {
+      if (x.moved) fs.renameSync(x.h, x.f);
+      else if (!x.had && x.f === file) fs.rmSync(file, { force: true });
+    }
+    fs.rmSync(next, { force: true });
+    dropKeyring(BROWSER_SECRETS, name, blob);
     throw e;
   }
-  fs.rmSync(held, { force: true });
-  writePrivate(file, o);
+  for (const x of held) fs.rmSync(x.h, { force: true });
+  dropKeyring(BROWSER_SECRETS, name, old);
+  noteSaved(BROWSER_SECRETS, name, value, file);
 }
 
 /** Every secret value decrypted in this process, including values a later save replaced. */
