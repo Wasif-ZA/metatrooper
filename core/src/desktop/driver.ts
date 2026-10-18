@@ -330,11 +330,12 @@ export class Desktop {
       this.on();
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
       const { windows } = await this.helper.request<{ windows: Array<WindowInfo> }>('list');
-      return { windows: windows.filter((w) => w.pid !== this.uiPid && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid })) };
+      return { windows: windows.filter((w) => w.pid !== this.uiPid && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid, process_start: w.process_start })) };
     } });
     m.set('grant.window', { needsUi: true, handler: async (p) => {
       const sessionId = str(p, 'session_id');
       const hwnd = hwndOf(p.hwnd);
+      if (typeof p.pid !== 'number' || !Number.isInteger(p.pid) || typeof p.process_start !== 'string') throw new RpcError(E.INVALID_PARAMS, 'pid and process_start are required, from the grant.candidates entry the user picked');
       this.on();
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
@@ -345,6 +346,7 @@ export class Desktop {
       pausable();
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (!w.alive) throw new RpcError(E.VALIDATION, 'that window is gone');
+      if (w.pid !== p.pid || w.process_start !== p.process_start) throw new RpcError(E.VALIDATION, 'that window now belongs to another process; pick it again from the list');
       if (w.pid === this.uiPid) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');
       if (w.elevated) throw new RpcError(E.VALIDATION, 'an elevated window cannot be granted');
       if (w.root !== hwnd) throw new RpcError(E.VALIDATION, 'only a top-level window can be granted');

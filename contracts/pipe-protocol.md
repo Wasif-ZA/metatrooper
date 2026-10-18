@@ -171,8 +171,8 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `approval.check` | `{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?}; never queued; waits until a person decides or 120 s pass (`contracts/approvals.md`) |  |  |  |
 | `approval.resolve` | `{approval_id, decision, scope?}` | {status, scope}; -32010 when the row is not `waiting` | -32010 |  | yes |
 | `desktop.ui-window` | `{pid, takeover_key, takeover_error}` | {}; the workbench's process id, whose windows are never listed or granted, and the take-over key it registered (`takeover_error` null) or why it failed; until a registered key is reported no window can be granted, and a failure ends live grants (`contracts/desktop-tools.md`) |  |  | yes |
-| `grant.candidates` | `{}` | {windows: [{hwnd, title, exe, pid}]}: visible top-level windows that may be granted |  |  | yes |
-| `grant.window` | `{session_id, hwnd}` | {grant_id}; -32003 for the workbench, an elevated window, a gone window or a non top-level window | -32002, -32003 |  | yes |
+| `grant.candidates` | `{}` | {windows: [{hwnd, title, exe, pid, process_start}]}: visible top-level windows that may be granted |  |  | yes |
+| `grant.window` | `{session_id, hwnd, pid, process_start}` | {grant_id}; -32003 for a window whose pid or process start differ from the picked candidate, the workbench, an elevated window, a gone window or a non top-level window | -32002, -32003 |  | yes |
 | `grant.revoke` | `{grant_id}` | {}; ends the grant | -32002 |  | yes |
 | `grant.live` | `{}` | {grants: [{id, session_id, hwnd, title, rect, minimized}]}; `rect` is `[x, y, w, h]` in physical pixels from the last 500 ms check |  |  | yes |
 | `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |

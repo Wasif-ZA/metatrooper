@@ -154,6 +154,18 @@ test('M6-15 tile chips: paused, driving, or give window; none for shells and exi
   assert.doesNotMatch(driving, /grant-give/);
 });
 
+test('M6-15 give window grants the picked candidate with the pid and process start the list showed', async () => {
+  const sent: any[] = [];
+  const windows = [{ hwnd: 100, title: 'Untitled - Notepad', exe: 'Notepad.exe', pid: 4100, process_start: '2026-10-12T01:00:00.000Z' }, { hwnd: 200, title: 'Calculator', exe: 'CalculatorApp.exe', pid: 4200, process_start: '2026-10-12T01:00:01.000Z' }];
+  const rpc = async (method: string, params: any) => { sent.push([method, params]); return { result: method === 'grant.candidates' ? { windows } : {} }; };
+  let menu: any[] = [];
+  const api = { paneMenu: async (items: any[]) => { menu = items; return '200'; } };
+  const giveWindow = new Function('rpc', 'toast', 'api', `${fn('giveWindow')}; return giveWindow;`)(rpc, () => {}, api);
+  await giveWindow('session-a', { left: 0, bottom: 0 });
+  assert.deepEqual(menu.map((m) => m.id), ['100', '200']);
+  assert.deepEqual(sent.at(-1), ['grant.window', { session_id: 'session-a', hwnd: 200, pid: 4200, process_start: '2026-10-12T01:00:01.000Z' }]);
+});
+
 test('M6-15 watch layout rows group granted windows under their session, and Ctrl+Alt+W toggles it', () => {
   const { watchRows } = new Function(`${fn('watchRows')}; return { watchRows };`)();
   const snap = { sessions: [{ id: 'a', engine_id: 'claude', state: 'working' }], grants: [{ id: 'g1', session_id: 'a', title: 'N' }, { id: 'g2', session_id: 'z', title: 'C' }, { id: 'g3', session_id: 'a', title: 'S' }] };

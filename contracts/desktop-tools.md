@@ -82,7 +82,9 @@ own dialogs). A window handle is first taken to its root (`GetAncestor(GA_ROOT)`
 counts as its top-level window. A standard file dialog (`#32770` holding a file list, or a `#32770` whose title is
 Save As, Open or Save) is covered, but every input in it carries `file_dialog: true`, so it asks every time (D61).
 
-- Made only from the workbench: `grant.window {session_id, hwnd}` over a `ui.hello` connection.
+- Made only from the workbench: `grant.window {session_id, hwnd, pid, process_start}` over a `ui.hello` connection,
+  with the pid and process start of the `grant.candidates` entry the user picked; a window that no longer matches
+  them (its handle reused by another process since the list was shown) is refused.
 - Never granted: the workbench's own windows (the pid the workbench reports with `desktop.ui-window`; a grant
   waits until it has), elevated windows (`OpenProcess` refused or a raised token), and windows the helper cannot
   read.
@@ -116,8 +118,8 @@ foreground}`).
 | Method | Params | Result |
 |---|---|---|
 | `desktop.ui-window` | `{pid, takeover_key, takeover_error}` (ui.hello) | `{}`; the workbench's process id, whose windows are never listed or granted, and the take-over key it registered (`takeover_error` null) or failed to register (`takeover_error` says why). Until a registered key is reported, `grant.window` fails with a message naming the reason, and a failure ends every live grant (decision 7, Wasif may reverse) |
-| `grant.candidates` | `{}` (ui.hello) | `{windows: [{hwnd, title, exe, pid}]}`: visible top-level windows that may be granted |
-| `grant.window` | `{session_id, hwnd}` (ui.hello) | `{grant_id}`; -32003 for a window that cannot be granted |
+| `grant.candidates` | `{}` (ui.hello) | `{windows: [{hwnd, title, exe, pid, process_start}]}`: visible top-level windows that may be granted |
+| `grant.window` | `{session_id, hwnd, pid, process_start}` (ui.hello) | `{grant_id}`; -32003 for a window that cannot be granted or whose pid or process start differ from the picked candidate |
 | `grant.revoke` | `{grant_id}` (ui.hello) | `{}` |
 | `grant.live` | `{}` (ui.hello) | `{grants: [{id, session_id, hwnd, title, rect, minimized}]}`, `rect` = `[x, y, w, h]` in physical pixels |
 | `takeover.pause` | `{}` (ui.hello) | `{paused_at}` once no chunk is in flight |

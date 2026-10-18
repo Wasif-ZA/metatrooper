@@ -155,7 +155,7 @@ test('M6-15 metatrooper-desktop: workbench closed, then describe, approval, glid
 
     wb = await fakeWorkbench(iso.prefix, iso.env.FAKE_UIA_LOG!);
     assert.match((await mcp.tool('snapshot', { window: 100 })).content[0].text, /window not granted; ask the user to give it to you/);
-    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     assert.deepEqual(JSON.parse((await mcp.tool('windows')).content[0].text).windows.map((w: any) => w.window), [100, 101]);
     assert.match((await mcp.tool('snapshot', { window: 100 })).content[0].text, /document "Text editor" \[ref=e1\]/);
     assert.equal((await mcp.tool('screenshot', { window: 100 })).content[0].type, 'image');
@@ -193,14 +193,14 @@ test('M6-15 rollback: with the desktop plugin disabled, desktop calls refuse and
   const db = seed(iso.home);
   const { agent, ui } = await connect(iso);
   try {
-    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     db.prepare("UPDATE plugin SET enabled = 0 WHERE id = 'desktop'").run();
     await until(() => (db.prepare('SELECT ended_at FROM grant WHERE id = ?').get(grant) as any).ended_at, 3000);
     assert.match((await call(ui, 'grant.candidates', {})).error.message, /computer use is off: the desktop plugin is disabled/);
-    assert.match((await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).error.message, /computer use is off/);
+    assert.match((await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).error.message, /computer use is off/);
     assert.match((await call(agent, 'desktop.windows', me('s1'))).error.message, /computer use is off/);
     db.prepare("UPDATE plugin SET enabled = 1 WHERE id = 'desktop'").run();
-    assert.match((await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id, /^gr_/);
+    assert.match((await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id, /^gr_/);
   } finally {
     agent.close(); ui.close(); release(db);
     await teardownCore(core, iso);
@@ -273,8 +273,8 @@ test('M6-15a: a session granted Notepad types into it; Calculator is not granted
     assert.deepEqual((await call(agent, 'desktop.windows', me('s1'))).result, { windows: [] });
 
     // grant.window needs ui.hello
-    assert.equal((await call(agent, 'grant.window', { session_id: 's1', hwnd: 100 })).error.code, -32012);
-    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.equal((await call(agent, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).error.code, -32012);
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     assert.match(grant, /^gr_/);
     const row = db.prepare('SELECT * FROM grant WHERE id = ?').get(grant) as any;
     assert.equal(row.pid, 4100);
@@ -343,7 +343,7 @@ test('M6-15b: after the core acknowledges Ctrl+Alt+Q, no further character of a 
   const db = seed(iso.home);
   const { agent, ui } = await connect(iso);
   try {
-    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     const text = 'abcdefghij'.repeat(200);
     const typing = act(agent, 's1', { window: 100, ref: 'e1', action: 'type', text });
     await until(() => inputs().length >= 20, 10_000);
@@ -390,8 +390,8 @@ test('M6-15c: the workbench is never granted, a closed window ends its grant, a 
     // The workbench never appears and cannot be granted or named
     const candidates = (await call(ui, 'grant.candidates', {})).result.windows;
     assert.deepEqual(candidates.map((w: any) => w.hwnd).sort(), [100, 200]);
-    assert.equal((await call(ui, 'grant.window', { session_id: 's1', hwnd: 300 })).error.code, -32003);
-    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    assert.equal((await call(ui, 'grant.window', { session_id: 's1', hwnd: 300, pid: WORKBENCH.pid, process_start: WORKBENCH.process_start })).error.code, -32003);
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     assert.ok(!(await call(agent, 'desktop.windows', me('s1'))).result.windows.some((w: any) => w.window === 300));
     assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 300 })).error.message, /window not granted/);
     assert.match((await call(agent, 'desktop.screenshot', { ...me('s1'), window: 300 })).error.message, /window not granted/);
@@ -407,19 +407,19 @@ test('M6-15c: the workbench is never granted, a closed window ends its grant, a 
 
     // Same handle reused before the check ran: the call itself ends the grant
     setWindows([NOTEPAD, CALC, WORKBENCH]);
-    const second = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const second = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     setWindows([{ ...NOTEPAD, process_start: '2026-10-12T03:00:00.000Z' }, CALC, WORKBENCH]);
     assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted/);
     assert.ok((db.prepare('SELECT ended_at FROM grant WHERE id = ?').get(second) as any).ended_at);
 
     // Revoke ends a grant
     setWindows([NOTEPAD, CALC, WORKBENCH]);
-    const third = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const third = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     assert.deepEqual((await call(ui, 'grant.revoke', { grant_id: third })).result, {});
     assert.match((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).error.message, /window not granted/);
 
     // After a core restart no grant is live
-    const fourth = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100 })).result.grant_id;
+    const fourth = (await call(ui, 'grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start })).result.grant_id;
     assert.equal((await call(agent, 'desktop.describe', { ...me('s1'), window: 100, ref: 'e1' })).result.grant_id, fourth);
     agent.close(); ui.close();
     await stopCore(core, iso);
@@ -449,7 +449,7 @@ async function desktopFixture() {
   desktop.methods(methods);
   const request = (method: string, params: any = {}) => methods.get(method).handler(params);
   await request('desktop.ui-window', { pid: UI_PID, takeover_key: 'Control+Alt+Q', takeover_error: null });
-  const { grant_id } = await request('grant.window', { session_id: 's1', hwnd: 100 });
+  const { grant_id } = await request('grant.window', { session_id: 's1', hwnd: 100, pid: NOTEPAD.pid, process_start: NOTEPAD.process_start });
   return { desktop, db, request, grant_id, inputs,
     state: (extra: object = {}) => writeFileSync(iso.env.FAKE_UIA_STATE!, JSON.stringify({ windows: [NOTEPAD, WORKBENCH], ...extra })),
     close: () => {

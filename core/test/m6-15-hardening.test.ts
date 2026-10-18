@@ -14,6 +14,7 @@ import { FOLLOW_MS, judge } from '../src/watch/watcher.ts';
 const WINDOW = { hwnd: 100, pid: 4100, process_start: '2026-10-12T01:00:00.000Z', exe: 'fake.exe', title: 'Fixture', controls: [{ name: 'Editor', automation_id: 'editor', role: 'edit', rid: '42.7' }] };
 const EXPECT = { name: 'Editor', automation_id: 'editor', role: 'edit', password: false, hidden: false, file_dialog: false, grant_id: 'gr_fixture' };
 const PARAMS = { session_id: 's1', pid: process.pid, window: 100, ref: 'e1' };
+const GRANT = { session_id: 's1', hwnd: 100, pid: WINDOW.pid, process_start: WINDOW.process_start };
 const rows = (file: string): any[] => existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(s => JSON.parse(s)) : [];
 
 function fixture(t: any, options: Record<string, unknown> = {}) {
@@ -129,6 +130,20 @@ test('M6-15 hardening: a dialog the granted process opens just after a click is 
   assert.equal(judge(opened(4200)), 'away');
 });
 
+for (const reused of [{ pid: 5100 }, { process_start: '2026-10-12T02:00:00.000Z' }]) test('M6-15 hardening: grant.window refuses a handle reused since the list was shown ' + JSON.stringify(reused), async t => {
+  const f = fixture(t);
+  f.db.exec('DELETE FROM grant');
+  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  const listed = (await f.call('grant.candidates', {}) as any).windows[0];
+  assert.deepEqual(listed, { hwnd: 100, title: 'Fixture', exe: 'fake.exe', pid: WINDOW.pid, process_start: WINDOW.process_start });
+  f.update({ windows: [{ ...WINDOW, ...reused }] });
+  await assert.rejects(f.call('grant.window', { session_id: 's1', ...listed }), refused(-32003, /that window now belongs to another process/));
+  await assert.rejects(f.call('grant.window', { session_id: 's1', hwnd: 100 }), refused(-32602, /pid and process_start are required/));
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
+  f.update({ windows: [WINDOW] });
+  assert.match((await f.call('grant.window', { session_id: 's1', ...listed }) as any).grant_id, /^gr_/);
+});
+
 test('M6-15 hardening: describe exposes exactly the public fields', async t => {
   const f = fixture(t);
   const { token, ...fields } = await f.call('desktop.describe') as any;
@@ -217,7 +232,7 @@ for(const change of ['end','disable','live'] as const)test('M6-15 hardening: gra
   const f=fixture(t,{delay_op:'info',delay_ms:600});
   f.db.exec("DELETE FROM grant");
   await f.call('desktop.ui-window',{pid:999001,takeover_key:'Control+Alt+Q',takeover_error:null});
-  const pending=f.call('grant.window',{session_id:'s1',hwnd:100}).then(value=>({value}),error=>({error}));
+  const pending=f.call('grant.window',GRANT).then(value=>({value}),error=>({error}));
   await until(()=>f.requests().some(r=>r.op==='info'),10000);
   if(change==='end')f.db.exec("UPDATE session SET ended_at='ended' WHERE id='s1'");
   if(change==='disable')f.disable();
@@ -399,7 +414,7 @@ for (const report of [
   const f = fixture(t);
   f.db.exec('DELETE FROM grant');
   await f.call('desktop.ui-window', { pid: 999001, takeover_key: report.takeover_key, takeover_error: report.takeover_error });
-  await assert.rejects(f.call('grant.window', { session_id: 's1', hwnd: 100 }), (error: any) => {
+  await assert.rejects(f.call('grant.window', GRANT), (error: any) => {
     refused(-32003, /no window can be given/)(error);
     assert.match(error.message, report.reason);
     return true;
@@ -407,7 +422,7 @@ for (const report of [
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
   assert.deepEqual(f.requests(), []);
   await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
-  const result: any = await f.call('grant.window', { session_id: 's1', hwnd: 100 });
+  const result: any = await f.call('grant.window', GRANT);
   assert.match(result.grant_id, /^gr_/);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 1);
 });
@@ -428,7 +443,7 @@ for (const failure of [false, true]) test('M6-15 hardening: grant rechecks takeo
   const f = fixture(t, { delay_op: 'info', delay_ms: 1000 });
   f.db.exec('DELETE FROM grant');
   await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
-  const pending = f.call('grant.window', { session_id: 's1', hwnd: 100 }).then(value => ({ value }), error => ({ error }));
+  const pending = f.call('grant.window', GRANT).then(value => ({ value }), error => ({ error }));
   await until(() => f.requests().some(r => r.op === 'info'), 10000);
   if (failure) await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: 'held by another program' });
   const result: any = await pending;
@@ -509,10 +524,10 @@ test('M6-15 hardening: a takeover report must explicitly confirm registration wi
   const f = fixture(t);
   f.db.exec('DELETE FROM grant');
   await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q' });
-  await assert.rejects(f.call('grant.window', { session_id: 's1', hwnd: 100 }), refused(-32003, /no window can be given/));
+  await assert.rejects(f.call('grant.window', GRANT), refused(-32003, /no window can be given/));
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
   await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
-  const result: any = await f.call('grant.window', { session_id: 's1', hwnd: 100 });
+  const result: any = await f.call('grant.window', GRANT);
   assert.match(result.grant_id, /^gr_/);
 });
 

@@ -49,7 +49,7 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
     const calc = (await until(async () => (await probe.request('list')).windows.find((w: any) => /^Calculator$/.test(w.title)), 15_000)) as any;
     await sleep(1500);
 
-    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: notepad.hwnd })).result.grant_id;
+    const grant = (await call(ui, 'grant.window', { session_id: 's1', hwnd: notepad.hwnd, pid: notepad.pid, process_start: notepad.process_start })).result.grant_id;
     assert.match(grant, /^gr_/);
     const tree = (await call(agent, 'desktop.snapshot', { ...me, window: notepad.hwnd, max_nodes: 400 })).result.text as string;
     const docRef = /^\s*document\b.*\[ref=(e\d+)\]/m.exec(tree)![1];

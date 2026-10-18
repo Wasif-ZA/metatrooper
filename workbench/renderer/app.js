@@ -1060,6 +1060,17 @@ function deskChips(x) {
   return { paused: (ui.snap.paused || []).includes(x.id), grants: (ui.snap.grants || []).filter((g) => g.session_id === x.id).map((g) => ({ id: g.id, title: g.title })) };
 }
 
+/** Lists the windows that may be given and grants the one picked, with the pid and process start the list showed. */
+async function giveWindow(id, box) {
+  const r = await rpc('grant.candidates', {});
+  if (!r.result) return;
+  if (!r.result.windows.length) { toast('No window can be given right now.'); return; }
+  const items = r.result.windows.map((w) => ({ id: String(w.hwnd), label: `${w.title.slice(0, 70)} (${w.exe})` }));
+  const picked = await api.paneMenu(items, box.left, box.bottom + 4);
+  const w = r.result.windows.find((c) => String(c.hwnd) === picked);
+  if (w) await rpc('grant.window', { session_id: id, hwnd: w.hwnd, pid: w.pid, process_start: w.process_start });
+}
+
 /** The watch layout's rows: each session holding a grant, with its granted windows, in grant order. */
 function watchRows(snap) {
   const rows = new Map();
@@ -1202,16 +1213,9 @@ async function onClick(e) {
     case 'open-panel':
       await openTab(el.dataset.tab);
       return;
-    case 'grant-give': {
-      const r = await rpc('grant.candidates', {});
-      if (!r.result) return;
-      if (!r.result.windows.length) { toast('No window can be given right now.'); return; }
-      const box = el.getBoundingClientRect();
-      const items = r.result.windows.map((w) => ({ id: String(w.hwnd), label: `${w.title.slice(0, 70)} (${w.exe})` }));
-      const hwnd = await api.paneMenu(items, box.left, box.bottom + 4);
-      if (hwnd) await rpc('grant.window', { session_id: id, hwnd: Number(hwnd) });
+    case 'grant-give':
+      await giveWindow(id, el.getBoundingClientRect());
       return;
-    }
     case 'grant-menu': {
       const g = (ui.snap.grants || []).find((x) => x.id === el.dataset.grant);
       if (!g) return;

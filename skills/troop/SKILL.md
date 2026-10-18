@@ -73,7 +73,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   approval.resolve       {approval_id, decision, scope?}
   desktop.ui-window      {pid, takeover_key, takeover_error}
   grant.candidates       {}
-  grant.window           {session_id, hwnd}
+  grant.window           {session_id, hwnd, pid, process_start}
   grant.revoke           {grant_id}
   grant.live             {}
   takeover.pause         {}
