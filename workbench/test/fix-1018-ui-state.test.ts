@@ -242,3 +242,24 @@ test('UI-13 a blank browser pane shows a New tab title and an empty address bar 
   assert.match(html, /<span class="nm">New tab<\/span>/);
   assert.match(html, /<input data-key="url" id="pane-url" value="" placeholder="Search, or type a URL/);
 });
+
+test('UI-16 the title-bar Restart core runs only on a second click within 3 s', async () => {
+  const w = boot();
+  await w.snap(snapOf([], { core_mismatch: 'core is older than the app' }));
+  const runs = () => w.calls.filter((c) => c.method === 'api.restartCore').length;
+  assert.match(w.el('core').innerHTML, />Restart core<\/button>/);
+  await w.click({ action: 'restart-core' });
+  assert.equal(runs(), 0);
+  assert.match(w.el('core').innerHTML, />Click again to restart; open agents stop<\/button>/);
+  await w.advance(2999);
+  await w.click({ action: 'restart-core' });
+  assert.equal(runs(), 1);
+
+  const late = boot();
+  await late.snap(snapOf([], { core_mismatch: 'core is older than the app' }));
+  await late.click({ action: 'restart-core' });
+  await late.advance(3000);
+  assert.match(late.el('core').innerHTML, />Restart core<\/button>/, 'label back at 3,000 ms');
+  await late.click({ action: 'restart-core' });
+  assert.equal(late.calls.filter((c) => c.method === 'api.restartCore').length, 0);
+});

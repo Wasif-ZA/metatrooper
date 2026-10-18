@@ -585,7 +585,7 @@ function renderTitle() {
   const age = s.core.heartbeat_age_ms;
   const warn = [
     s.settings_error ? `<span class="badge offline" title="The core runs on defaults and will not overwrite the file">${esc(s.settings_error)}</span>` : '',
-    s.core_mismatch ? `<span class="badge offline">${esc(s.core_mismatch)}</span> <button class="link" data-action="restart-core">Restart core</button>` : '',
+    s.core_mismatch ? `<span class="badge offline">${esc(s.core_mismatch)}</span> <button class="link" data-action="restart-core" title="Loads new core code; open agents stop">${restartArmed() ? 'Click again to restart; open agents stop' : 'Restart core'}</button>` : '',
     s.core_log ? `<span class="badge offline" title="${esc(s.core_log.join('\n'))}">core stopped 3 times in 60 s; hover for the log</span> <button class="link" data-action="open-logs">Open logs</button>` : '',
   ].filter(Boolean).join(' ');
   setHtml('core', (s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
@@ -955,6 +955,10 @@ function arm(key) {
   ui.armed = { key, at: Date.now() };
   ui.armTimer = setTimeout(disarm, ARM_MS);
   renderPalette();
+}
+
+function restartArmed() {
+  return Date.now() - (ui.restartAt || 0) < ARM_MS;
 }
 
 function disarm() {
@@ -1358,6 +1362,8 @@ async function onClick(e) {
       return;
     }
     case 'restart-core':
+      if (!restartArmed()) { ui.restartAt = Date.now(); render(); setTimeout(render, ARM_MS); return; }
+      ui.restartAt = 0;
       toast('Restarting core');
       await api.restartCore();
       toast('Core restarted');
