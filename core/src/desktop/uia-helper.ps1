@@ -123,6 +123,7 @@ namespace TroopUia {
         }
         case "click": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
         case "key": {
+          Chord(Str(r, "keys"));
           if (FocusHwnd(new IntPtr(hwnd)) == IntPtr.Zero) throw new Exception("this window has no keyboard focus (another window is in front), so there is no checked control to post a key to; nothing was sent");
           bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
           if (Num(r, "check") != 0 && hidden && Num(r, "hidden") == 0 && Rid(f) == Str(r, "rid")) throw new Exception("this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent");
@@ -435,12 +436,18 @@ namespace TroopUia {
       return new IntPtr(unchecked((int)lp));
     }
 
-    static object Key(IntPtr target, string keys) {
+    // the chord's parts, refused before anything is read or posted
+    static List<string> Chord(string keys) {
       var parts = keys.Split('+').Select(k => k.Trim()).Where(k => k.Length > 0).ToList();
       if (parts.Count == 0) throw new Exception("keys is required");
       foreach (var m in parts.Take(parts.Count - 1)) if (!Keys.ContainsKey(m) || !(Keys[m] == 0x10 || Keys[m] == 0x11 || Keys[m] == 0x12)) throw new Exception("unknown modifier " + m + "; use Control, Shift or Alt");
+      if (parts.Any(p => Keys.ContainsKey(p) && (Keys[p] == 0x10 || Keys[p] == 0x11))) throw new Exception("Control and Shift cannot be sent: apps read them from the keyboard state, which a posted key does not change, so " + keys + " would not arrive as pressed; nothing was sent");
+      return parts;
+    }
+
+    static object Key(IntPtr target, string keys) {
+      var parts = Chord(keys);
       var mods = parts.Take(parts.Count - 1).Select(m => Keys[m]).ToList();
-      if (mods.Contains(0x10) || mods.Contains(0x11)) throw new Exception("Control and Shift cannot be sent: apps read them from the keyboard state, which a posted key does not change, so " + keys + " would arrive as a bare " + parts[parts.Count - 1] + "; nothing was sent");
       bool alt = mods.Contains(0x12);
       string last = parts[parts.Count - 1];
       int vk; char ch = '\0';

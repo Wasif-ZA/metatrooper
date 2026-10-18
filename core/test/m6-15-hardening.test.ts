@@ -82,7 +82,7 @@ for (const keys of ['Space\u0085', 'Enter\t', '\u00a0Enter', 'Tab\n', 'Tab\u007f
   });
 }
 
-for (const keys of ['Control+S', 'ctrl+s', 'Shift+Tab', ' Control +Alt+S', 'Alt+Shift+F']) test('M6-15 hardening: ' + JSON.stringify(keys) + ' is refused with -32602 before any approval or input', async t => {
+for (const keys of ['Control+S', 'ctrl+s', 'Shift+Tab', ' Control +Alt+S', 'Alt+Shift+F', 'Alt+Shift', 'Alt+Control', 'alt+ctrl', 'Shift']) test('M6-15 hardening: ' + JSON.stringify(keys) + ' is refused with -32602 before any approval or input', async t => {
   const f = fixture(t);
   await assert.rejects(f.act({ keys }), refused(-32602, /Control and Shift cannot be sent/));
   await assert.rejects(new Approvals(f.db, 5000, () => [], { granted: () => true }).check({ session_id: 's1', surface: 'desktop', target: 'gr_fixture', action: 'key', args: { window: 100, keys }, control: EXPECT, hidden: true }), refused(-32602, /Control and Shift cannot be sent/));
@@ -601,10 +601,10 @@ async function hookTool(t: any, f: ReturnType<typeof fixture>) {
 }
 let bridgeId = 0;
 
-test('M6-15 hardening: the MCP key tool refuses Control+S before describe or approval', { timeout: 30000 }, async t => {
+for (const keys of ['Control+S', 'Alt+Shift']) test('M6-15 hardening: the MCP key tool refuses ' + keys + ' before describe or approval', { timeout: 30000 }, async t => {
   const f = fixture(t);
   const hook = await hookTool(t, f);
-  const result = await hook.tool('key', { window: 100, keys: 'Control+S' });
+  const result = await hook.tool('key', { window: 100, keys });
   assert.equal(result.isError, true);
   assert.match(result.content[0].text, /Control and Shift cannot be sent/);
   assert.equal(hook.approvals.length, 0);
