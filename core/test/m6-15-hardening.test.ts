@@ -162,6 +162,13 @@ test('M6-15 hardening: no input is sent once the workbench that registered the t
   assert.match((await f.call('grant.window', GRANT) as any).grant_id, /^gr_/);
 });
 
+test('M6-15 hardening: desktop.ui-window refuses a pid that is not a positive integer, since process.kill(0, 0) always succeeds', async t => {
+  const f = fixture(t);
+  for (const pid of [0, -1, 1.5]) await assert.rejects(async () => f.call('desktop.ui-window', { pid, takeover_key: 'Control+Alt+Q', takeover_error: null }), refused(-32602, /pid is required/));
+  assert.equal((f.desktop as any).uiPid, process.pid);
+  assert.deepEqual(await f.act(), { status: 'confirmed' });
+});
+
 test('M6-15 hardening: no input is sent before the workbench reports a registered take-over key (F10)', async t => {
   const f = fixture(t);
   Object.assign(f.desktop as any, { noTakeover: 'the workbench has not reported its take-over key' });

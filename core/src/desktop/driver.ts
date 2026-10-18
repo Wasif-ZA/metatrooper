@@ -325,7 +325,7 @@ export class Desktop {
 
   methods(m: Map<string, MethodSpec>): void {
     m.set('desktop.ui-window', { needsUi: true, handler: (p) => {
-      if (typeof p.pid !== 'number' || !Number.isInteger(p.pid)) throw new RpcError(E.INVALID_PARAMS, 'pid is required');
+      if (typeof p.pid !== 'number' || !Number.isInteger(p.pid) || p.pid <= 0) throw new RpcError(E.INVALID_PARAMS, 'pid is required, a positive process id');
       this.uiPid = p.pid;
       const key = typeof p.takeover_key === 'string' ? p.takeover_key : '';
       this.noTakeover = key && p.takeover_error === null ? null
