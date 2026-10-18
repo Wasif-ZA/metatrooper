@@ -665,11 +665,21 @@ function renderStart() {
     <p>Install: <code>${esc(e.install)}</code></p>${e.login ? `<p>Log in: <code>${esc(e.login)}</code></p>` : ''}
     <button data-action="check-engines">Check again</button></div>`).join('')}</div>`;
   setHtml('start', `${firstRun}${cards}<h3>Start an agent</h3><ol>
-    <li class="${p ? 'done' : ''}">${p ? `Folder: <b>${esc(p.name)}</b> <span class="meta">${esc(p.path)}</span>` : '<button class="primary" data-action="open-folder">Open a project folder</button>'}</li>
+    <li class="${p ? 'done' : ''}">${p ? `Folder: <b>${esc(p.name)}</b> <span class="meta" title="${esc(p.path)}">${esc(shortPath(p.path))}</span>` : '<button class="primary" data-action="open-folder">Open a project folder</button>'}</li>
     <li>${p ? `Agent: ${engines.map((e) => `<button class="${ui.startEngine === e.id ? 'primary' : ''}" data-action="start-engine" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">${esc(e.id)}</button>`).join(' ')}` : 'Pick an agent'}</li>
     <li>${p ? `Task (optional):<textarea rows="3" id="start-task" data-key="start-task" placeholder="What should it do? Leave empty to just open it."></textarea>
       <div class="actions"><button class="primary" data-action="start-go" ${ui.startEngine ? '' : 'disabled'}>Start</button></div>` : 'Say what to do, or leave it empty'}</li>
   </ol>`);
+}
+
+/** ~ for the home folder, and the first and last two parts with an ellipsis between once it passes 48 characters. */
+function shortPath(full) {
+  const sep = full.includes('\\') ? '\\' : '/';
+  const home = ((ui.settingsLook && ui.settingsLook.home) || '').replace(/[\\/]+$/, '');
+  let s = full;
+  if (home && (s.toLowerCase() === home.toLowerCase() || s.toLowerCase().startsWith(home.toLowerCase() + sep))) s = `~${s.slice(home.length)}`;
+  const parts = s.split(sep);
+  return s.length <= 48 || parts.length <= 3 ? s : [parts[0], '…', ...parts.slice(-2)].join(sep);
 }
 
 function renderTabs() {

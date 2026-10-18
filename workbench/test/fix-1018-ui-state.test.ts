@@ -274,3 +274,18 @@ test('UI-19 the side panel open state survives a restart, and Esc closing it is 
   assert.equal(boot({ storage: { 'troop.split': '0' } }).t.ui.split, false);
   assert.equal(boot().t.ui.split, false);
 });
+
+test('UI-22 the start screen folder line shows a short path: ~ for home, an ellipsis in the middle of a long one, full path in the title', async () => {
+  const folder = (path: string) => async () => {
+    const w = boot();
+    await w.advance(0);
+    w.t.ui.settingsLook.home = String.raw`C:\Users\me`;
+    await w.snap(snapOf([], { projects: [{ id: 'p1', name: 'x', path }] }));
+    return Array.from(w.el('start').innerHTML.match(/<span class="meta" title="([^"]*)">([^<]*)<\/span>/) || []).slice(1);
+  };
+  assert.deepEqual(await folder(String.raw`C:\Users\me\code\app`)(), [String.raw`C:\Users\me\code\app`, String.raw`~\code\app`]);
+  const long = String.raw`C:\Users\me\AppData\Local\Temp\metatrooper-e2e-123456\work\repo`;
+  assert.deepEqual(await folder(long)(), [long, String.raw`~\…\work\repo`]);
+  assert.deepEqual(await folder('/srv/projects/app')(), ['/srv/projects/app', '/srv/projects/app']);
+  assert.match(readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8'), /firstRun: [^\n]*, home: app\.getPath\('home'\)/);
+});
