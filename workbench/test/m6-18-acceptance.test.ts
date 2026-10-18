@@ -323,7 +323,7 @@ test('M6-18n browser: an idle cursor gets cursor.hide after idle_fade_ms, and th
   assert.ok(!b.children.includes(b.pane.overlay), 'detached after the last cursor faded');
 });
 
-test('M6-18n browser: the view stays attached through the last cursor fade (300 ms)', { todo: 'defect: panes.ts fadeLater: the first cursor removal timer (scheduled when it faded alone) detaches the view while a later cursor is still fading' }, async () => {
+test('M6-18n browser: the view stays attached through the last cursor fade (300 ms)', async () => {
   // protects=M6-18n "detached once its last cursor is gone", not part way through its fade
   // fails_when=an older cursor's removal timer detaches the view during a newer cursor's fade
   // no_claim=the renderer's fade itself

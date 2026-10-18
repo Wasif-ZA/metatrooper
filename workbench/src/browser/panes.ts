@@ -186,6 +186,8 @@ export class PaneManager {
   /** Each visible pane cursor's last drawn point, by pane id then session. */
   private marks = new Map<string, Map<string, { x: number; y: number; at: number }>>();
   private glides = 0;
+  /** Each pane's pending overlay detach, replaced when a later cursor fades. */
+  private detaches = new Map<string, NodeJS.Timeout>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -828,10 +830,12 @@ export class PaneManager {
       const wc = pane.overlay.webContents;
       if (!wc.isDestroyed()) wc.send('cursor.hide', { session });
       if (marks.size) return;
-      setTimeout(() => {
+      clearTimeout(this.detaches.get(pane.row.id));
+      this.detaches.set(pane.row.id, setTimeout(() => {
+        this.detaches.delete(pane.row.id);
         if (marks.size || this.panes.get(pane.row.id) !== pane || this.win.isDestroyed()) return;
         try { this.win.contentView.removeChildView(pane.overlay); } catch {}
-      }, FADE_MS).unref?.();
+      }, FADE_MS).unref());
     }, idleMs).unref?.();
   }
 
