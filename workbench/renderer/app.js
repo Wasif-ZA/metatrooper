@@ -1009,7 +1009,7 @@ function hideMenu() {
 
 /** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
 function overlayOpen() {
-  return ['inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || document.getElementById('usage').classList.contains('open')
+  return ['palette', 'inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || document.getElementById('usage').classList.contains('open')
     || wall.sheetOpen() || wall.listOpen();
 }
 
@@ -1803,7 +1803,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && (!typing || inTerm)) {
     if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
-    else if (ui.split) { ui.split = false; save('split', '0'); render(); }
+    else if (ui.split && !inTerm) { ui.split = false; save('split', '0'); render(); }
     return;
   }
   if (typing) return;
@@ -1811,7 +1811,9 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && ['button', 'menuitem', 'listitem'].includes(role)) { e.preventDefault(); active.click(); return; }
   if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (role === 'menuitem' || role === 'listitem')) {
     e.preventDefault();
-    const all = [...active.closest('#menu, #sessions').querySelectorAll(`[role="${role}"]`)].filter((x) => x.getClientRects().length);
+    const box = active.closest('#menu, #sessions');
+    if (!box) return;
+    const all = [...box.querySelectorAll(`[role="${role}"]`)].filter((x) => x.getClientRects().length);
     const next = all[all.indexOf(active) + (e.key === 'ArrowDown' ? 1 : -1)];
     if (next) next.focus();
     return;

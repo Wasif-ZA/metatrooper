@@ -45,6 +45,7 @@ function boot() {
   const ctx: any = vm.createContext({
     window: { troop: api, addEventListener() {} }, document: doc, location: { search: '' }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     URLSearchParams, URL, wall, termView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }), Date, console,
+    MutationObserver: class { observe() {} },
     setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0,
   });
   vm.runInContext(`${src('diff.js')}\n${src('browser-chrome.js')}\n${src('app.js')}\nthis.ui = ui; this.browserChrome = browserChrome;`, ctx);
@@ -102,6 +103,49 @@ test('UI-01: Esc in a tile stays out of the agent while an overlay is open, and 
   doc.activeElement = makeEl('', 'TEXTAREA');
   await w.key('Escape');
   assert.equal(w.state.list, true, 'Esc in a real text box leaves the list alone');
+});
+
+/** xterm sends a key its custom handler passes and stops it there; a key the handler refuses bubbles on to the document. */
+async function pressInTile(k: string, mods: any = {}) {
+  const w = boot();
+  const term = makeEl('', 'TEXTAREA');
+  term.classList.add('xterm-helper-textarea');
+  const key = tile(() => w.ctx.overlayOpen());
+  return { w, term, press: async () => { doc.activeElement = term; const toPty = key({ key: k, ...mods }); if (!toPty) await w.key(k, mods); return toPty; } };
+}
+
+test('UI-01: Esc in a focused tile with the side panel open reaches the agent and leaves the panel open', async () => {
+  const { w, term, press } = await pressInTile('Escape');
+  w.ctx.ui.split = true;
+  assert.equal(await press(), true, 'Esc goes to the agent');
+  assert.equal(w.ctx.ui.split, true, 'the side panel stays open');
+  doc.activeElement = term;
+  await w.key('Escape');
+  assert.equal(w.ctx.ui.split, true, 'an Esc from the terminal that does reach the document still leaves the panel');
+});
+
+test('UI-01: Esc in a focused tile with the palette open closes the palette and stays out of the agent', async () => {
+  const { w, press } = await pressInTile('Escape');
+  w.el('palette').hidden = false;
+  assert.equal(await press(), false);
+  assert.equal(w.el('palette').hidden, true);
+});
+
+test('D28: Ctrl+K in a focused tile opens the palette and nothing reaches the pty; other Ctrl keys still do', async () => {
+  const { w, press } = await pressInTile('k', { ctrlKey: true });
+  w.ctx.ui.snap = { engines: [], projects: [], sessions: [], live: [], git: {}, limits: [], panes: [], needs_you: [], approvals: [] };
+  assert.equal(await press(), false, 'Ctrl+K is kept from the pty');
+  assert.equal(w.el('palette').hidden, false, 'the palette opens');
+  const key = tile(() => false);
+  for (const k of ['g', 'b']) assert.equal(key({ key: k, ctrlKey: true }), false, `Ctrl+${k}`);
+  assert.equal(key({ key: 'a', ctrlKey: true }), true, 'Ctrl+A still reaches the shell');
+  assert.equal(key({ key: 'K', ctrlKey: true, shiftKey: true }), true, 'Ctrl+Shift+K is not an app key');
+});
+
+test('UI-07: an arrow key on a menuitem outside #menu and #sessions does nothing instead of throwing', async () => {
+  const w = boot();
+  doc.activeElement = makeEl('', 'DIV', { role: 'menuitem' });
+  assert.equal(await w.key('ArrowDown'), true);
 });
 
 test('UI-06: the approval sheet tab is a focusable button that Enter and Space press', async () => {
