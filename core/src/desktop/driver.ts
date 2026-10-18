@@ -103,16 +103,20 @@ export class Helper {
   }
 }
 
-/** This install's workbench Electron executable, as written and with links resolved, lowercased. */
+/** An executable path as written and with links resolved, lowercased. */
+const exeKeys = (exe: string): string[] => {
+  const keys = [path.resolve(exe).toLowerCase()];
+  try { keys.push(fs.realpathSync.native(exe).toLowerCase()); } catch {}
+  return keys;
+};
+
+/** This install's workbench Electron executable, as written and with links resolved, lowercased; empty when it cannot be identified. */
 export function workbenchExes(): Set<string> {
-  const out = new Set<string>();
   const dir = path.join(repoDir, 'workbench', 'node_modules', 'electron');
-  let exe: string;
-  try { exe = path.join(dir, 'dist', fs.readFileSync(path.join(dir, 'path.txt'), 'utf8').trim()); } catch { return out; }
-  out.add(path.resolve(exe).toLowerCase());
-  try { out.add(fs.realpathSync.native(exe).toLowerCase()); } catch {}
-  return out;
+  try { return new Set(exeKeys(path.join(dir, 'dist', fs.readFileSync(path.join(dir, 'path.txt'), 'utf8').trim()))); } catch { return new Set(); }
 }
+
+const NO_WORKBENCH_EXE = 'no window can be given: the workbench executable could not be identified (workbench/node_modules/electron/path.txt is unreadable)';
 
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; } };
 
@@ -172,11 +176,13 @@ export class Desktop {
     if (!this.enabled()) throw new RpcError(E.VALIDATION, OFF);
   }
 
-  /** Whether no session here may be given this window: any workbench, except a demo core's own. */
-  private refused(w: { pid: number; exe_path?: string }): boolean {
-    const own = this.uiPid !== null && w.pid === this.uiPid;
-    if (this.demo && own) return false;
-    return own || Boolean(w.exe_path && this.workbench.has(path.resolve(w.exe_path).toLowerCase()));
+  /** Whether no session here may be given this window: any workbench, or any window when the workbench or its exe cannot be identified, except a demo core's own workbench. */
+  private refused(w: { pid: number; process_start: string; exe_path?: string }): boolean {
+    if (!this.workbench.size || !w.exe_path) return true;
+    const pidMatch = this.uiPid !== null && w.pid === this.uiPid;
+    const isWorkbench = exeKeys(w.exe_path).some((k) => this.workbench.has(k));
+    if (this.demo && pidMatch && isWorkbench && this.uiStart && w.process_start === this.uiStart) return false;
+    return pidMatch || isWorkbench;
   }
 
   paused(sessionId: string): boolean {
@@ -381,6 +387,7 @@ export class Desktop {
     m.set('grant.candidates', { needsUi: true, handler: async () => {
       this.on();
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
+      if (!this.workbench.size) throw new RpcError(E.VALIDATION, NO_WORKBENCH_EXE);
       const { windows } = await this.helper.request<{ windows: Array<WindowInfo> }>('list');
       return { windows: windows.filter((w) => !this.refused(w) && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid, process_start: w.process_start })) };
     } });
@@ -399,6 +406,8 @@ export class Desktop {
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (!w.alive) throw new RpcError(E.VALIDATION, 'that window is gone');
       if (w.pid !== p.pid || w.process_start !== p.process_start) throw new RpcError(E.VALIDATION, 'that window now belongs to another process; pick it again from the list');
+      if (!this.workbench.size) throw new RpcError(E.VALIDATION, NO_WORKBENCH_EXE);
+      if (!w.exe_path) throw new RpcError(E.VALIDATION, 'that window\'s executable could not be read, so it cannot be granted');
       if (this.refused(w)) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');
       if (w.elevated) throw new RpcError(E.VALIDATION, 'an elevated window cannot be granted');
       if (w.root !== hwnd) throw new RpcError(E.VALIDATION, 'only a top-level window can be granted');
@@ -434,8 +443,9 @@ export class Desktop {
         if (!this.granted(sessionId, g.id)) continue;
         const own = windows.find((w) => sameWindow(g, w));
         if (!own) { endGrant(this.db, g.id); continue; }
+        if (this.refused(own)) continue;
         out.push({ window: g.hwnd, title: own.title, exe: g.exe, grant_id: g.id, owner: 0 });
-        for (const w of windows) if (w.hwnd !== g.hwnd && covers(g, w)) out.push({ window: w.hwnd, title: w.title, exe: w.exe, grant_id: g.id, owner: w.owner_chain[0] ?? g.hwnd });
+        for (const w of windows) if (w.hwnd !== g.hwnd && covers(g, w) && !this.refused(w)) out.push({ window: w.hwnd, title: w.title, exe: w.exe, grant_id: g.id, owner: w.owner_chain[0] ?? g.hwnd });
       }
       return { windows: out };
     } });

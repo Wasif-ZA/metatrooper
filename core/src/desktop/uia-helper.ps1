@@ -53,7 +53,7 @@ namespace TroopUia {
     [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll")] public static extern bool GetProcessTimes(IntPtr h, out long create, out long exit, out long kernel, out long user);
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool QueryFullProcessImageName(IntPtr h, uint flags, StringBuilder s, ref uint n);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool QueryFullProcessImageName(IntPtr h, uint flags, StringBuilder s, ref uint n);
     [DllImport("advapi32.dll")] public static extern bool OpenProcessToken(IntPtr h, uint access, out IntPtr token);
     [DllImport("advapi32.dll")] public static extern bool GetTokenInformation(IntPtr token, int cls, out int value, int len, out int ret);
   }
@@ -167,8 +167,11 @@ namespace TroopUia {
       try {
         long create, exit, kernel, user;
         if (Native.GetProcessTimes(p, out create, out exit, out kernel, out user)) start = DateTime.FromFileTimeUtc(create).ToString("o");
-        var s = new StringBuilder(1024); uint n = 1024;
-        if (Native.QueryFullProcessImageName(p, 0, s, ref n)) { exePath = s.ToString(); exe = Path.GetFileName(exePath); }
+        for (uint size = 1024; size <= 32768; size *= 2) {
+          var s = new StringBuilder((int)size); uint n = size;
+          if (Native.QueryFullProcessImageName(p, 0, s, ref n)) { exePath = s.ToString(); exe = Path.GetFileName(exePath); break; }
+          if (Marshal.GetLastWin32Error() != 122) break;
+        }
         IntPtr token;
         if (Native.OpenProcessToken(p, 0x0008, out token)) {
           int value, ret;
