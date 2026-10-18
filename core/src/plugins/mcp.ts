@@ -1,8 +1,9 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
-import { codexConfigFile, coreDir, homeDir, repoDir } from '../paths.ts';
+import { codexConfigFile, coreDir, homeDir, repoDir, uiKeyFile } from '../paths.ts';
 import { getSecret } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
@@ -60,6 +61,22 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
   return out;
 }
 
+const fallbackKey = crypto.randomBytes(32).toString('hex');
+
+/** The token a shim launch carries for its plugin, keyed by this core launch's ui key so it dies with the core. */
+export function shimToken(pluginId: string): string {
+  let key = fallbackKey;
+  try { key = fs.readFileSync(uiKeyFile(), 'utf8'); } catch {}
+  return crypto.createHmac('sha256', key).update(pluginId).digest('hex');
+}
+
+/** Refuses a shim request whose token was not handed out for this plugin. */
+export function checkShimToken(pluginId: string, token: string): void {
+  const want = Buffer.from(shimToken(pluginId));
+  const got = Buffer.from(token);
+  if (got.length !== want.length || !crypto.timingSafeEqual(got, want)) throw new RpcError(E.INVALID_PARAMS, `shim token does not match ${pluginId}`);
+}
+
 export function shimPath(): string {
   return path.join(coreDir, 'mcp-shim.js');
 }
@@ -109,7 +126,7 @@ function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, c
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
   const servers: AttachServer[] = [
     ...(browser ? [{ name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
-    ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId], http: e.http })),
+    ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId, shimToken(e.pluginId)], http: e.http })),
   ];
   return { node, servers };
 }
@@ -147,7 +164,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const file = path.join(homeDir(), 'mcp', `${sessionId}.json`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const mcpServers = Object.fromEntries(servers.map((s) => [s.name, s.http
-        ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${s.args[0]}" headers "${s.args[1]}" "${s.args[2]}"` } : {}) }
+        ? { type: 'http', url: s.http.url, ...(s.http.headers ? { headersHelper: `"${node}" "${s.args[0]}" headers "${s.args[1]}" "${s.args[2]}" "${s.args[3]}"` } : {}) }
         : { command: node, args: s.args }]));
       fs.writeFileSync(file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
@@ -164,8 +181,8 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
       const template = engine.mcp_attach.template ?? [];
       const wantsUrl = template.some((t) => t.includes('{url}'));
       return servers.filter((s) => Boolean(s.http) === wantsUrl && !s.http?.headers).flatMap((s) => {
-        const values: Record<string, string> = { name: s.name, node, shim: s.args[0], plugin: s.args[1] ?? '', server: s.args[2] ?? '', url: s.http?.url ?? '' };
-        return template.map((t) => t.replace(/\{(name|node|shim|plugin|server|url)\}/g, (_, k: string) => values[k]));
+        const values: Record<string, string> = { name: s.name, node, shim: s.args[0], plugin: s.args[1] ?? '', server: s.args[2] ?? '', token: s.args[3] ?? '', url: s.http?.url ?? '' };
+        return template.map((t) => t.replace(/\{(name|node|shim|plugin|server|token|url)\}/g, (_, k: string) => values[k]));
       });
     }
     default:

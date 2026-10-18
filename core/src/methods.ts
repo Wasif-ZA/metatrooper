@@ -20,7 +20,7 @@ import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
 import { homeDir, repoDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
-import { resolveMcpServer } from './plugins/mcp.ts';
+import { checkShimToken, resolveMcpServer } from './plugins/mcp.ts';
 import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import { browserCall } from './browser/client.ts';
@@ -91,8 +91,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
   { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
-  { name: 'mcp.resolve', params: '{plugin_id, server_id}', result: '{command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
-  { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names}', result: '{}; raises a `missing-secret` needs-you item per name' },
+  { name: 'mcp.resolve', params: '{plugin_id, server_id, token}', result: '{command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
+  { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names, token}', result: '{}; raises a `missing-secret` needs-you item per name' },
   { name: 'notify.sink.set', stable: true, needsUi: true, params: '{kind, dest, name?, id?, kinds?, enabled?}', result: '{id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table' },
   { name: 'notify.sink.list', stable: true, params: '{}', result: '{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination' },
   { name: 'notify.sink.test', stable: true, needsUi: true, params: '{id}', result: '{ok, error?}' },
@@ -515,11 +515,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('notify.sink.test', { handler: (p) => testSink(db, str(p, 'id')) });
   m.set('notify.sink.remove', { handler: (p) => removeSink(db, str(p, 'id')) });
 
-  m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
+  m.set('mcp.resolve', {
+    handler: (p) => {
+      checkShimToken(str(p, 'plugin_id'), str(p, 'token'));
+      return resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id'));
+    },
+  });
 
   m.set('mcp.missing', {
     handler: (p) => {
       const pluginId = str(p, 'plugin_id');
+      checkShimToken(pluginId, str(p, 'token'));
       const names = Array.isArray(p.names) ? p.names.filter((n): n is string => typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n)) : [];
       if (reservedId(pluginId) || !db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
       for (const n of names) raiseMissingSecret(db, pluginId, n);

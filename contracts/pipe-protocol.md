@@ -156,8 +156,8 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `plugin.remove` | `{plugin_id}` | {} |  |  | yes |
 | `plugin.secret.set` | `{plugin_id, name, value}` | {}; `name` must be an approved `secrets:<NAME>` |  |  | yes |
 | `browser.secret.set` | `{name, origin, value}` | {}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values | -32602 |  | yes |
-| `mcp.resolve` | `{plugin_id, server_id}` | {command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |  |  |  |
-| `mcp.missing` | `{plugin_id, names}` | {}; raises a `missing-secret` needs-you item per name | -32002 |  |  |
+| `mcp.resolve` | `{plugin_id, server_id, token}` | {command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin's shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment |  |  |  |
+| `mcp.missing` | `{plugin_id, names, token}` | {}; raises a `missing-secret` needs-you item per name | -32002 |  |  |
 | `notify.sink.set` | `{kind, dest, name?, id?, kinds?, enabled?}` | {id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table |  | yes | yes |
 | `notify.sink.list` | `{}` | {sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination |  | yes |  |
 | `notify.sink.test` | `{id}` | {ok, error?} |  | yes | yes |

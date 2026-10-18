@@ -58,9 +58,9 @@ function refuse(message        )       {
 }
 
 /** Prints an http server's resolved headers as JSON for Claude's headersHelper; exits 1 naming any missing secret. */
-async function printHeaders(pluginId        , serverId        )                {
+async function printHeaders(pluginId        , serverId        , token        )                {
   try {
-    const r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId }, 8000))            ;
+    const r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId, token }, 8000))            ;
     if (r.missing.length) throw new Error(`set ${r.missing.join(', ')} for ${pluginId}`);
     process.stdout.write(JSON.stringify(r.headers ?? {}) + '\n', () => process.exit(0));
   } catch (e) {
@@ -69,12 +69,12 @@ async function printHeaders(pluginId        , serverId        )                {
 }
 
 async function main()                {
-  if (process.argv[2] === 'headers') return printHeaders(process.argv[3] ?? '', process.argv[4] ?? '');
-  const [pluginId, serverId] = process.argv.slice(2);
-  if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id>');
+  if (process.argv[2] === 'headers') return printHeaders(process.argv[3] ?? '', process.argv[4] ?? '', process.argv[5] ?? '');
+  const [pluginId, serverId, token = ''] = process.argv.slice(2);
+  if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id> <token>');
   let r          ;
   try {
-    r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId }))            ;
+    r = (await request('mcp.resolve', { plugin_id: pluginId, server_id: serverId, token }))            ;
   } catch (e) {
     return refuse(`${(e         ).message}; ${serverId} from ${pluginId} did not start`);
   }
@@ -88,7 +88,7 @@ async function main()                {
   }
   if (unsetRefs.length) {
     missing.push(...unsetRefs);
-    try { await request('mcp.missing', { plugin_id: pluginId, names: unsetRefs }); } catch {}
+    try { await request('mcp.missing', { plugin_id: pluginId, names: unsetRefs, token }); } catch {}
   }
   if (missing.length) return refuse(`set ${missing.join(', ')} for ${pluginId}; MCP server ${serverId} did not start`);
 

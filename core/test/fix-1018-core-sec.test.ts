@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { blockedAddress, checkUrl } from '../src/browser/policy.ts';
 import { titlePatterns, unsafePattern } from '../src/engines/registry.ts';
+import { shimToken } from '../src/plugins/mcp.ts';
+import { client, isolation, startCore, teardownCore, uiHello, withEnv } from './helpers.ts';
 
 function ctx(ownedPorts: number[] = [], lookup?: (host: string) => Promise<string[]>) {
   return { ownedPorts: new Set(ownedPorts), allowHosts: new Set<string>(), lookup };
@@ -35,4 +39,31 @@ test('m6-23-d1 state_titles rejects nested quantifiers, backreferences and long 
   const re = titlePatterns(spec as never);
   assert.equal(re.working, undefined);
   assert.ok(re.idle?.test('idle now'));
+});
+
+test('c-sec-d1 mcp.resolve and mcp.missing answer only with the token the core put in that plugin shim command', async () => {
+  const isolated = isolation();
+  const core = await startCore(isolated);
+  try {
+    const pipe = await client(isolated.prefix);
+    try {
+      await uiHello(pipe, isolated.home);
+      for (const id of ['tok-a', 'tok-b']) {
+        const dir = join(isolated.home, 'src', id);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'troop-plugin.json'), JSON.stringify({ schema: 1, id, version: '1.0.0', name: id, mcp: [{ id: 's', command: 'node', args: [id], engines: ['claude'] }] }));
+        const preview = await pipe.request('plugin.preview', { source: dir });
+        const installed = await pipe.request('plugin.install', { source: dir, approved_permissions: [], manifest_hash: preview.result.manifest_hash });
+        assert.equal(installed.error, undefined, JSON.stringify(installed));
+      }
+      const tokenA = withEnv({ METATROOPER_HOME: isolated.home }, () => shimToken('tok-a'));
+      assert.deepEqual((await pipe.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token: tokenA })).result.args, ['tok-a']);
+      for (const token of [undefined, '', tokenA.replace(/^./, (c: string) => (c === '0' ? '1' : '0'))]) {
+        assert.ok((await pipe.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token })).error);
+      }
+      assert.match((await pipe.request('mcp.resolve', { plugin_id: 'tok-b', server_id: 's', token: tokenA })).error.message, /token/);
+      assert.match((await pipe.request('mcp.missing', { plugin_id: 'tok-b', names: ['X'], token: tokenA })).error.message, /token/);
+      assert.deepEqual((await pipe.request('mcp.missing', { plugin_id: 'tok-a', names: [], token: tokenA })).result, {});
+    } finally { pipe.close(); }
+  } finally { await teardownCore(core, isolated); }
 });

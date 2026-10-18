@@ -7,12 +7,13 @@ import { pathToFileURL } from 'node:url';
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
-import { buildGenerated, client, isolation, root, startCore, teardownCore, uiHello } from './helpers.ts';
+import { buildGenerated, client, isolation, root, startCore, teardownCore, uiHello, withEnv } from './helpers.ts';
 
 before(buildGenerated);
 
 const manifestFile = join(root, 'plugins', 'optional', 'code-map', 'troop-plugin.json');
 const { validateManifest } = await import(pathToFileURL(join(root, 'core', 'src', 'plugins', 'manifest.ts')).href);
+const { shimToken } = await import(pathToFileURL(join(root, 'core', 'src', 'plugins', 'mcp.ts')).href);
 
 test('M4-03 manifest accepts code-map and rejects env/env_keys overlap', () => {
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
@@ -41,7 +42,7 @@ test('M4-03 mcp shim replaces the exact {{cwd}} argument with its working direct
       const installed = await pipe.request('plugin.install', { source: pluginDir, approved_permissions: [], manifest_hash: preview.result.manifest_hash });
       assert.equal(installed.error, undefined, JSON.stringify(installed));
     } finally { pipe.close(); }
-    const child = spawn(process.execPath, [join(root, 'core', 'mcp-shim.js'), 'cwd-check', 'cwd'], { cwd: project, env: { ...process.env, ...isolated.env, METATROOPER_ENGINES: registry }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(process.execPath, [join(root, 'core', 'mcp-shim.js'), 'cwd-check', 'cwd', withEnv({ METATROOPER_HOME: isolated.home }, () => shimToken('cwd-check'))], { cwd: project, env: { ...process.env, ...isolated.env, METATROOPER_ENGINES: registry }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     const output = await new Promise<string>((resolve, reject) => {
       let data = '';
       const timer = setTimeout(() => { child.kill(); reject(new Error('shim did not spawn cwd fixture')); }, 8000);
