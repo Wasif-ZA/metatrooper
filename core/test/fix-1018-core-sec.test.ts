@@ -64,6 +64,8 @@ test('c-sec-d1 mcp.resolve and mcp.missing answer only with the token the core p
       assert.match((await pipe.request('mcp.resolve', { plugin_id: 'tok-b', server_id: 's', token: tokenA })).error.message, /token/);
       assert.match((await pipe.request('mcp.missing', { plugin_id: 'tok-b', names: ['X'], token: tokenA })).error.message, /token/);
       assert.deepEqual((await pipe.request('mcp.missing', { plugin_id: 'tok-a', names: [], token: tokenA })).result, {});
+      writeFileSync(join(isolated.home, 'ui.key'), 'f'.repeat(64));
+      assert.deepEqual((await pipe.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token: tokenA })).result?.args, ['tok-a'], 'a new ui key from a core restart keeps live shim tokens valid');
     } finally { pipe.close(); }
   } finally { await teardownCore(core, isolated); }
 });

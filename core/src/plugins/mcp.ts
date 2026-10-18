@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
-import { codexConfigFile, coreDir, homeDir, repoDir, uiKeyFile } from '../paths.ts';
+import { codexConfigFile, coreDir, homeDir, repoDir } from '../paths.ts';
 import { getSecret } from '../secrets.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { EngineSpec } from '../engines/registry.ts';
@@ -63,10 +63,12 @@ export function resolveMcpServer(db: DatabaseSync, pluginId: string, serverId: s
 
 const fallbackKey = crypto.randomBytes(32).toString('hex');
 
-/** The token a shim launch carries for its plugin, keyed by this core launch's ui key so it dies with the core. */
+/** The token a shim launch carries for its plugin, keyed by a per-home key that outlives core restarts so live sessions keep working. */
 export function shimToken(pluginId: string): string {
+  const file = path.join(homeDir(), 'shim.key');
   let key = fallbackKey;
-  try { key = fs.readFileSync(uiKeyFile(), 'utf8'); } catch {}
+  try { fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 }); } catch {}
+  try { key = fs.readFileSync(file, 'utf8') || key; } catch {}
   return crypto.createHmac('sha256', key).update(pluginId).digest('hex');
 }
 
