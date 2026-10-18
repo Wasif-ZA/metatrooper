@@ -11,7 +11,7 @@ function makeEl(id = '', tagName = 'DIV', attrs: Record<string, string> = {}): a
   const el: any = {
     id, tagName, hidden: false, innerHTML: '', textContent: '', value: '', dataset: {}, style: { removeProperty() {}, setProperty() {} }, clicks: 0,
     classList: { add: (c: string) => classes.add(c), remove: (c: string) => classes.delete(c), contains: (c: string) => classes.has(c), toggle: (c: string, f?: boolean) => { const on = f ?? !classes.has(c); if (on) classes.add(c); else classes.delete(c); return on; }, [Symbol.iterator]: () => classes.values() },
-    addEventListener() {}, append() {}, querySelector: () => null, querySelectorAll: () => [], closest: () => null, getAttribute: (k: string) => attrs[k] ?? null,
+    addEventListener() {}, append() {}, contains: () => false, querySelector: () => null, querySelectorAll: () => [], closest: () => null, getAttribute: (k: string) => attrs[k] ?? null,
     getClientRects: () => [{}], focus: () => { doc.activeElement = el; }, click: () => { el.clicks++; }, blur() {}, select() {}, scrollIntoView() {},
     getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 }),
   };
@@ -167,6 +167,30 @@ test('UI-07: a focused list row keeps focus when streaming output re-renders the
   const again = list.querySelector('[data-key="row:s1"]');
   assert.notEqual(again, first);
   assert.equal(doc.activeElement, again);
+});
+
+test('UI-07: closing a menu by Esc or by picking an item hands focus back to what opened it', async () => {
+  const w = boot();
+  w.ctx.ui.snap = { engines: [{ id: 'claude' }], projects: [], sessions: [] };
+  w.ctx.ui.shellKinds = [];
+  const menu = w.el('menu');
+  const item = makeEl('', 'DIV', { role: 'menuitem' });
+  menu.querySelector = () => item;
+  menu.contains = (x: any) => x === item;
+  const opener = Object.assign(makeEl('', 'BUTTON'), { isConnected: true });
+  const open = async () => {
+    doc.activeElement = opener;
+    await w.ctx.onClick({ target: { closest: (s: string) => (s === '[data-action]' ? { dataset: { action: 'launch-menu' }, closest: () => null, getBoundingClientRect: () => ({ right: 300, bottom: 20 }) } : null) }, stopPropagation() {} });
+    assert.equal(doc.activeElement, item);
+  };
+  await open();
+  await w.key('Escape');
+  assert.equal(menu.hidden, true);
+  assert.equal(doc.activeElement, opener, 'Esc');
+  await open();
+  await w.ctx.onClick({ target: { closest: () => ({ dataset: { action: 'project-go' }, closest: () => null }) }, stopPropagation() {} });
+  assert.equal(menu.hidden, true);
+  assert.equal(doc.activeElement, opener, 'pick');
 });
 
 test('UI-08: the project remove and browser tab close are real buttons with labels, none nested in another button', () => {

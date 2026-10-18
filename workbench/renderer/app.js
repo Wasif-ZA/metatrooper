@@ -957,13 +957,28 @@ function disarm() {
 /** Closes the Inbox, the sinks popover and the usage popover; true when one was open. */
 function closePopovers() {
   let closed = false;
-  for (const id of ['inbox', 'sinks', 'menu']) {
+  for (const id of ['inbox', 'sinks']) {
     const el = document.getElementById(id);
     if (!el.hidden) { el.hidden = true; closed = true; }
   }
+  if (!document.getElementById('menu').hidden) { hideMenu(); closed = true; }
   const usage = document.getElementById('usage');
   if (usage.classList.contains('open')) { usage.classList.remove('open'); closed = true; }
   return closed;
+}
+
+function showMenu(menu) {
+  if (menu.hidden || !menu.contains(document.activeElement)) ui.menuFrom = document.activeElement;
+  menu.hidden = false;
+  menu.querySelector('[role="menuitem"]')?.focus();
+}
+
+/** Hides #menu; focus inside it goes back to whatever had it when the menu opened. */
+function hideMenu() {
+  const menu = document.getElementById('menu');
+  const back = !menu.hidden && menu.contains(document.activeElement) ? ui.menuFrom : null;
+  menu.hidden = true;
+  if (back && back.isConnected) back.focus();
 }
 
 /** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
@@ -1180,12 +1195,11 @@ async function onClick(e) {
       menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" role="menuitem" tabindex="-1" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
       menu.style.left = `${Math.max(8, r.right - 260)}px`;
       menu.style.top = `${r.bottom + 4}px`;
-      menu.hidden = false;
-      menu.querySelector('[role="menuitem"]')?.focus();
+      showMenu(menu);
       return;
     }
     case 'changed-open':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       ui.diffAll = false;
       ui.diffScope = 'uncommitted';
       ui.sdFile = el.dataset.file;
@@ -1201,8 +1215,7 @@ async function onClick(e) {
         + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" role="menuitem" tabindex="-1" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
       menu.style.left = `${Math.max(8, r.right - 220)}px`;
       menu.style.top = `${r.bottom + 4}px`;
-      menu.hidden = false;
-      menu.querySelector('[role="menuitem"]')?.focus();
+      showMenu(menu);
       return;
     }
     case 'project-menu': {
@@ -1220,12 +1233,11 @@ async function onClick(e) {
         + '<div class="sep"></div><div class="item" role="menuitem" tabindex="-1" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
       menu.style.left = `${Math.max(8, r.left)}px`;
       menu.style.top = `${r.bottom + 4}px`;
-      menu.hidden = false;
-      menu.querySelector('[role="menuitem"]')?.focus();
+      showMenu(menu);
       return;
     }
     case 'project-go':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       if (id && id !== ui.projectId) switchProject(id);
       return;
     case 'project-hide': {
@@ -1238,7 +1250,7 @@ async function onClick(e) {
       return;
     }
     case 'open-folder':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       await openFolder();
       return;
     case 'pick': {
@@ -1310,11 +1322,11 @@ async function onClick(e) {
       return;
     }
     case 'clear-status':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       await rpc('session.clear-status', { session_id: id });
       return;
     case 'menu-hide':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       hideLater([id], 'Agent hidden');
       return;
     case 'start-engine':
@@ -1361,7 +1373,7 @@ async function onClick(e) {
       await api.openLogs();
       return;
     case 'launch': {
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       wall.setList(false);
       save('engine', el.dataset.engine);
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
@@ -1370,7 +1382,7 @@ async function onClick(e) {
       return;
     }
     case 'shell-open':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       await openShell(el.dataset.kind);
       return;
     case 'pick-shell':
@@ -1696,7 +1708,7 @@ document.addEventListener('click', (e) => {
   const item =e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
   if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
-  if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
+  if (!e.target.closest('#menu')) hideMenu();
   if (!document.getElementById('inbox').hidden && !e.target.closest('#inbox') && !e.target.closest('[data-action="inbox"]')) document.getElementById('inbox').hidden = true;
   if (!document.getElementById('sinks').hidden && !e.target.closest('#sinks') && !e.target.closest('[data-palette]')) document.getElementById('sinks').hidden = true;
   void onClick(e);
@@ -1705,14 +1717,13 @@ document.addEventListener('contextmenu', (e) => {
   const row = e.target.closest && e.target.closest('.srow, .tile-head');
   const menu = document.getElementById('menu');
   if (row && !row.dataset.id) row.dataset.id = row.closest('.tile').dataset.id;
-  if (!row || row.dataset.id.startsWith('sh_')) { menu.hidden = true; return; }
+  if (!row || row.dataset.id.startsWith('sh_')) { hideMenu(); return; }
   e.preventDefault();
   const id = row.dataset.id;
   menu.innerHTML = `<div class="item" role="menuitem" tabindex="-1" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" role="menuitem" tabindex="-1" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
-  menu.hidden = false;
-  menu.querySelector('[role="menuitem"]')?.focus();
+  showMenu(menu);
 });
 document.addEventListener('dragover', (e) => {
   e.preventDefault();
