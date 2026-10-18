@@ -26,19 +26,25 @@ export function usdFor(model: string | null, inT: number, outT: number, cacheRea
   return (inT * p.in + outT * p.out + cacheRead * p.cache_read + cacheWrite * p.cache_write) / 1e6;
 }
 
+const READ_CHUNK = 8 * 1024 * 1024;
+
+/** Complete lines added since the last read, at most READ_CHUNK bytes per call; a line longer than that is skipped. */
 function newLines(file: string): string[] | null {
   let size: number;
   try { size = fs.statSync(file).size; } catch { return null; }
   let from = offsets.get(file) ?? 0;
   if (size < from) from = 0;
   if (size === from) return null;
-  const buf = Buffer.alloc(size - from);
+  const buf = Buffer.alloc(Math.min(size - from, READ_CHUNK));
   try {
     const fd = fs.openSync(file, 'r');
     try { fs.readSync(fd, buf, 0, buf.length, from); } finally { fs.closeSync(fd); }
   } catch { return null; }
   const end = buf.lastIndexOf(0x0a) + 1;
-  if (end === 0) return null;
+  if (end === 0) {
+    if (buf.length === READ_CHUNK) offsets.set(file, from + buf.length);
+    return null;
+  }
   offsets.set(file, from + end);
   return buf.subarray(0, end).toString('utf8').split('\n');
 }

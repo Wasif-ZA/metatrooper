@@ -10,6 +10,8 @@ import { call, enqueue } from '../src/pipe/client.ts';
 import { corePipe, dbFile, schemaFile } from '../src/paths.ts';
 import { NOTIFY_PLUGIN, notifyTick, setSink } from '../src/notify.ts';
 import { setSecret } from '../src/secrets.ts';
+import { readClaudeTranscript, sessionTokens } from '../src/meter.ts';
+import { BUILT_IN, syncEngines } from '../src/engines/registry.ts';
 import { createDecoder, encode } from '../src/pipe/framing.ts';
 import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
@@ -117,4 +119,22 @@ test('h-a-notify a sink with unreadable kinds or a bad command dest is skipped a
   for (const id of ['g1', 'g2']) db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'gate', ?, 'fixture')").run(id, at, id);
   await notifyTick(db);
   assert.deepEqual(bodies.map((b) => JSON.parse(b).id).sort(), ['g1', 'g2']);
+});
+
+test('h-a-meter a transcript is read in bounded chunks and a line longer than a chunk is skipped', (t) => {
+  const { home: dir, env } = home(t);
+  const db = withEnv(env, openCoreDb);
+  try {
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(dir);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p', 'claude', 'pty', 'working', 'x', 'x')").run();
+    const rec = (id: string) => JSON.stringify({ type: 'assistant', message: { id, model: 'x', usage: { input_tokens: 10, output_tokens: 1 } } }) + '\n';
+    const file = join(dir, 't.jsonl');
+    writeFileSync(file, rec('m1') + JSON.stringify({ pad: 'p'.repeat(8 * 1024 * 1024 + 1024) }) + '\n' + rec('m2'));
+    assert.equal(readClaudeTranscript(db, 's1', file), 1);
+    let n = 0;
+    for (let i = 0; i < 4; i++) n += readClaudeTranscript(db, 's1', file);
+    assert.equal(n, 1);
+    assert.deepEqual(sessionTokens(db, 's1'), { in: 20, out: 2, cache_read: 0, cache_write: 0 });
+  } finally { db.close(); }
 });
