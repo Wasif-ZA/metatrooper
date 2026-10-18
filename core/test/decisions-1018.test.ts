@@ -172,6 +172,21 @@ test('D16 a hook event that meets a held database lock is spooled, not dropped, 
   assert.deepEqual(rows.map((x) => ({ ...x })), [{ session_id: id, native: 'native-1' }]);
 }));
 
+test('D16 an oversized spool of an exited session is still deleted, after the too-large notice', () => withDb(async (db, home) => {
+  const { ingestSpools } = await import('../src/sandbox/spool.ts');
+  const { ulid } = await import('../src/time.ts');
+  const id = ulid();
+  const at = new Date().toISOString();
+  db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', home, 'p', at, at);
+  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+  db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p1', 'e1', 'pty', 'exited', ?, ?)").run(id, at, at);
+  fs.mkdirSync(`${home}/spool/${id}`, { recursive: true });
+  fs.writeFileSync(`${home}/spool/${id}/events.ndjson`, Buffer.alloc(10 * 1024 * 1024 + 1, 10));
+  ingestSpools(db);
+  assert.equal(fs.existsSync(`${home}/spool/${id}`), false);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM needs_you WHERE kind = 'spool-too-large' AND ref = ?").get(id)!.n, 1);
+}));
+
 test('D19 the sweep and session exit delete only files MetaTrooper recorded as its own, never a user file named like a session id', () => withDb(async (db, home) => {
   const { recordSessionFile, removeSessionFiles, sweepSessionFiles } = await import('../src/plugins/mcp.ts');
   const { ulid } = await import('../src/time.ts');

@@ -20,15 +20,13 @@ function ingestOne(db: DatabaseSync, id: string, exited: boolean, sandbox: boole
   const key = `spool_offset:${id}`;
   const getOffset = () => Number((db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? 0);
   const size = fs.existsSync(file) ? fs.statSync(file).size : 0;
-  if (size > MAX_SPOOL) {
-    if (!db.prepare("SELECT 1 FROM needs_you WHERE kind = 'spool-too-large' AND ref = ?").get(id)) {
-      db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'spool-too-large', ?, ?)")
-        .run(ulid(), nowIso(), id, `Sandboxed session ${id.slice(0, 8)} wrote more than 10 MiB of events; MetaTrooper stopped reading them.`);
-    }
-    return;
+  const tooLarge = size > MAX_SPOOL;
+  if (tooLarge && !db.prepare("SELECT 1 FROM needs_you WHERE kind = 'spool-too-large' AND ref = ?").get(id)) {
+    db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'spool-too-large', ?, ?)")
+      .run(ulid(), nowIso(), id, `Sandboxed session ${id.slice(0, 8)} wrote more than 10 MiB of events; MetaTrooper stopped reading them.`);
   }
   const offset = getOffset();
-  if (size > offset) {
+  if (!tooLarge && size > offset) {
     const fd = fs.openSync(file, 'r');
     const buf = Buffer.alloc(size - offset);
     try { fs.readSync(fd, buf, 0, buf.length, offset); } finally { fs.closeSync(fd); }
