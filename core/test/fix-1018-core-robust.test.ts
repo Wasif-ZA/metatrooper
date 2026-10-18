@@ -198,3 +198,14 @@ test('h-b-maps an exited terminal drops its typed time and exit code map entry, 
     for (const k of Object.keys(env)) if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
   }
 });
+
+test('m6-27-clear-unknown project.clear keeps unknown-state sessions visible', async (t) => {
+  const db = withEnv(home(t).env, openCoreDb);
+  try {
+    db.exec('PRAGMA foreign_keys = OFF');
+    const add = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', 'fake', 'pty', ?, 'x', 'x')");
+    for (const state of ['unknown', 'idle', 'working']) add.run(state, state);
+    await buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k' }).get('project.clear')!.handler({ project_id: 'p' }, { ui: true, origin: 'test' });
+    assert.deepEqual(db.prepare('SELECT id FROM session WHERE hidden = 0 ORDER BY id').all().map((r) => r.id), ['unknown', 'working']);
+  } finally { db.close(); }
+});

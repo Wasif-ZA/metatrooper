@@ -292,7 +292,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('project.clear', {
     handler: (p) => {
       const id = str(p, 'project_id');
-      const hide = db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('starting', 'working', 'waiting_for_you') RETURNING id").all(id) as Array<{ id: string }>;
+      const hide = db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('starting', 'working', 'waiting_for_you', 'unknown') RETURNING id").all(id) as Array<{ id: string }>;
       for (const s of hide) forgetLive(s.id);
       db.prepare("UPDATE run SET hidden = 1 WHERE project_id = ? AND status NOT IN ('running', 'paused')").run(id);
       return {};
