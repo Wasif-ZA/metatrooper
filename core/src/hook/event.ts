@@ -4,7 +4,9 @@ process.removeAllListeners('warning');
 process.on('warning', () => {});
 
 const BUDGET_MS = 240;
+const lockWaitMs = (kind: string) => (['claude.Stop', 'claude.StopFailure', 'claude.SessionEnd'].includes(kind) ? 1500 : 200);
 const started = Date.now();
+let stored = false;
 setTimeout(() => process.exit(0), BUDGET_MS).unref();
 
 interface Parsed {
@@ -35,13 +37,13 @@ function readStdin(limitMs: number): Promise<string> {
   });
 }
 
-async function logError(err: unknown): Promise<void> {
+async function logError(err: unknown, kind = process.argv[2] ?? ''): Promise<void> {
   try {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const { logsDir } = await import('../paths.ts');
     fs.mkdirSync(logsDir(), { recursive: true });
-    fs.appendFileSync(path.join(logsDir(), 'event-errors.log'), `${new Date().toISOString()} ${String((err as Error)?.stack ?? err)}\n`);
+    fs.appendFileSync(path.join(logsDir(), 'event-errors.log'), `${new Date().toISOString()} ${stored ? 'after storing' : 'dropped'} ${kind}: ${String((err as Error)?.stack ?? err)}\n`);
   } catch {}
 }
 
@@ -114,7 +116,7 @@ async function main(): Promise<void> {
   if (outside) {
     if (typeof payload.session_id !== 'string' || typeof payload.cwd !== 'string' || process.env.METATROOPER_SPOOL) return;
     const { openWriterDb } = await import('../events/append.ts');
-    db = openWriterDb(200);
+    db = openWriterDb(lockWaitMs(kind));
     if (!db) return;
     const known = db.prepare("SELECT id FROM session WHERE native_id = ? AND NOT (host = 'external' AND state = 'exited') ORDER BY julianday(started_at) DESC LIMIT 1").get(payload.session_id) as { id: string } | undefined;
     if (!known) {
@@ -122,9 +124,11 @@ async function main(): Promise<void> {
       if (!projectFor(db.prepare('SELECT id, path FROM project').all() as Array<{ id: string; path: string }>, payload.cwd)) { db.close(); return; }
     }
     appendEvent(kind, null, payload, db);
+    stored = true;
     sessionId = known?.id ?? '';
   } else {
-    db = appendEvent(kind, sessionId, payload);
+    db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind));
+    stored = db !== null;
   }
   if (!db) return;
   try {

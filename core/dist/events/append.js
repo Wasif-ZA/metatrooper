@@ -21,13 +21,13 @@ export function openWriterDb(busyMs = 200)                      {
   return db;
 }
 
-export function appendEvent(kind        , sessionId               , payload        , db               )                      {
+export function appendEvent(kind        , sessionId               , payload        , db               , busyMs = 200)                      {
   const spool = process.env.METATROOPER_SPOOL;
   if (spool && !db) {
     fs.appendFileSync(path.join(spool, 'events.ndjson'), JSON.stringify({ kind, at: nowIso(), payload }) + '\n');
     return null;
   }
-  const conn = db ?? openWriterDb(200);
+  const conn = db ?? openWriterDb(busyMs);
   if (!conn) return null;
   conn
     .prepare('INSERT INTO event (at, source, session_id, kind, payload) VALUES (?, ?, ?, ?, ?)')

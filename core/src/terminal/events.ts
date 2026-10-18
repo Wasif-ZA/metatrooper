@@ -14,6 +14,11 @@ export function liveText(): Record<string, LiveText> {
   return Object.fromEntries(live);
 }
 
+/** Drops a session's live text, for a session no longer shown. */
+export function forgetLive(id: string): void {
+  live.delete(id);
+}
+
 function put(id: string, field: keyof LiveText, value: string): void {
   live.set(id, { ...live.get(id), [field]: value });
 }

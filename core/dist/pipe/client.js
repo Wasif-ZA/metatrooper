@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import { corePipe, uiKeyFile } from '../paths.js';
 import { nowIso, ulid } from '../time.js';
-import { openCoreDb } from '../store/db.js';
+import { checkSchema } from '../store/db.js';
+import { openWriterDb } from '../events/append.js';
 import { encode, createDecoder } from './framing.js';
 import { isQueueable } from './commands.js';
 
@@ -75,8 +76,10 @@ export class PipeClient {
 }
 
 export function enqueue(id        , method        , params                         )       {
-  const db = openCoreDb();
+  const db = openWriterDb();
+  if (!db) throw new Error('troop.db does not exist');
   try {
+    checkSchema(db);
     db.prepare(
       `INSERT INTO command (id, at, origin, method, params, status) VALUES (?, ?, 'cli', ?, ?, 'queued')
        ON CONFLICT(id) DO NOTHING`,
@@ -110,9 +113,9 @@ export async function call(method        , params                          = {},
     return { kind: 'queued', id };
   }
   let wait                            ;
-  const expired = new Promise      ((r) => { wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); });
+  const expired = () => new Promise      ((r) => { clearTimeout(wait); wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); });
   try {
-    if (opts.ui && (await Promise.race([client.hello(), expired])) === null) return { kind: 'offline' };
+    if (opts.ui && (await Promise.race([client.hello(), expired()])) === null) return { kind: 'offline' };
     const { reply } = client.send(method, params, id);
     let queued = false;
     const timer = queueable
@@ -123,7 +126,7 @@ export async function call(method        , params                          = {},
           } catch {}
         }, QUEUE_AFTER_MS)
       : null;
-    const waited = await Promise.race([reply, expired]);
+    const waited = await Promise.race([reply, expired()]);
     if (timer) clearTimeout(timer);
     if (waited) return { kind: 'reply', reply: waited };
     if (!queued) return { kind: 'offline' };
