@@ -70,7 +70,12 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
   const server = net.createServer((socket) => {
     let bound: Bound = null;
     const send = (msg: object) => { if (!socket.destroyed) socket.write(encode(msg)); };
-    const fail = (id: unknown, code: number, message: string) => send({ jsonrpc: '2.0', id, error: { code, message } });
+    // every error text is scrubbed of the saved secrets, or withheld when they cannot be read
+    const fail = (id: unknown, code: number, message: string) => {
+      let text: string;
+      try { text = scrub(message, scrubSecretValues()); } catch { text = 'the secret store could not be read, so this error is not shown'; }
+      send({ jsonrpc: '2.0', id, error: { code, message: text } });
+    };
 
     const handle = async (msg: { id?: unknown; method?: unknown; params?: unknown }) => {
       const id = typeof msg.id === 'string' ? msg.id : null;
@@ -119,7 +124,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       }
 
       const tool = method.startsWith('browser.') ? method.slice(8) : '';
-      if (!TOOLS.has(tool)) return fail(id, -32601, `unknown method ${method}`);
+      if (!TOOLS.has(tool)) return fail(id, -32601, 'unknown method');
       if (bound?.kind !== 'session') return fail(id, -32030, 'this connection is not bound to a session');
       const owned = ownedPanes(db, bound.sessionId);
       let paneId = typeof params.pane_id === 'string' ? params.pane_id : null;
@@ -160,11 +165,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
 
     const decode = createDecoder((raw) => {
       const msg = raw as { id?: unknown };
-      handle(raw as never).catch((e) => {
-        let text: string;
-        try { text = scrub((e as Error).message, scrubSecretValues()); } catch { text = 'the secret store could not be read, so this error is not shown'; }
-        fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, text);
-      });
+      handle(raw as never).catch((e) => fail(typeof msg?.id === 'string' ? msg.id : null, e instanceof ToolError ? e.code : -32099, String((e as Error)?.message)));
     });
     socket.on('data', (chunk) => {
       try {
