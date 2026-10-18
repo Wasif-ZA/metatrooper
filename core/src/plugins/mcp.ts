@@ -220,7 +220,7 @@ export function writeSessionFile(db: DatabaseSync | undefined, sessionId: string
   if (!db) return fs.writeFileSync(file, text);
   const list = recordedFiles(db, sessionId);
   const owned = list.includes(file);
-  if (!owned && !insideHome(file)) throw new Error(`${file} is not inside MetaTrooper's home`);
+  if (!insideHome(file)) throw new Error(`${file} is not inside MetaTrooper's home`);
   try {
     fs.writeFileSync(file, text, { flag: owned ? 'w' : 'wx' });
   } catch (e) {
