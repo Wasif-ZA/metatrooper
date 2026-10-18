@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
-import { coreDir } from '../paths.ts';
+import { coreDir, repoDir } from '../paths.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
@@ -102,6 +103,17 @@ export class Helper {
   }
 }
 
+/** This install's workbench Electron executable, as written and with links resolved, lowercased. */
+export function workbenchExes(): Set<string> {
+  const out = new Set<string>();
+  const dir = path.join(repoDir, 'workbench', 'node_modules', 'electron');
+  let exe: string;
+  try { exe = path.join(dir, 'dist', fs.readFileSync(path.join(dir, 'path.txt'), 'utf8').trim()); } catch { return out; }
+  out.add(path.resolve(exe).toLowerCase());
+  try { out.add(fs.realpathSync.native(exe).toLowerCase()); } catch {}
+  return out;
+}
+
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; } };
 
 const str = (p: Record<string, unknown>, k: string) => {
@@ -133,9 +145,13 @@ export class Desktop {
   private postedAt = 0;
   private rects = new Map<string, { rect: number[]; minimized: boolean }>();
   private ticking = false;
+  /** A core started with --demo may grant the windows of the workbench that reported itself to it (M6-16). */
+  private demo: boolean;
+  private workbench = workbenchExes();
 
-  constructor(db: DatabaseSync) {
+  constructor(db: DatabaseSync, opts: { demo?: boolean } = {}) {
     this.db = db;
+    this.demo = Boolean(opts.demo);
     try { db.prepare("DELETE FROM meta WHERE key IN ('takeover_paused_at', 'takeover_resumed')").run(); } catch {}
   }
 
@@ -154,6 +170,13 @@ export class Desktop {
 
   private on(): void {
     if (!this.enabled()) throw new RpcError(E.VALIDATION, OFF);
+  }
+
+  /** Whether no session here may be given this window: any workbench, except a demo core's own. */
+  private refused(w: { pid: number; exe_path?: string }): boolean {
+    const own = this.uiPid !== null && w.pid === this.uiPid;
+    if (this.demo && own) return false;
+    return own || Boolean(w.exe_path && this.workbench.has(path.resolve(w.exe_path).toLowerCase()));
   }
 
   paused(sessionId: string): boolean {
@@ -193,7 +216,7 @@ export class Desktop {
     const grants = liveGrants(this.db, sessionId);
     if (!grants.length) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED);
     const w = await this.info(hwnd);
-    if (!w.alive || w.elevated || (this.uiPid !== null && w.pid === this.uiPid)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED);
+    if (!w.alive || w.elevated || this.refused(w)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED);
     for (const g of grants) {
       if (w.root === g.hwnd && !sameWindow(g, w)) { endGrant(this.db, g.id); continue; }
       if (!covers(g, w)) continue;
@@ -359,7 +382,7 @@ export class Desktop {
       this.on();
       if (this.uiPid === null) throw new RpcError(E.VALIDATION, 'the workbench has not reported its own windows yet');
       const { windows } = await this.helper.request<{ windows: Array<WindowInfo> }>('list');
-      return { windows: windows.filter((w) => w.pid !== this.uiPid && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid, process_start: w.process_start })) };
+      return { windows: windows.filter((w) => !this.refused(w) && !w.elevated && w.title).map((w) => ({ hwnd: w.hwnd, title: w.title, exe: w.exe, pid: w.pid, process_start: w.process_start })) };
     } });
     m.set('grant.window', { needsUi: true, handler: async (p) => {
       const sessionId = str(p, 'session_id');
@@ -376,7 +399,7 @@ export class Desktop {
       if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (!w.alive) throw new RpcError(E.VALIDATION, 'that window is gone');
       if (w.pid !== p.pid || w.process_start !== p.process_start) throw new RpcError(E.VALIDATION, 'that window now belongs to another process; pick it again from the list');
-      if (w.pid === this.uiPid) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');
+      if (this.refused(w)) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');
       if (w.elevated) throw new RpcError(E.VALIDATION, 'an elevated window cannot be granted');
       if (w.root !== hwnd) throw new RpcError(E.VALIDATION, 'only a top-level window can be granted');
       const live = liveGrants(this.db, sessionId).find((g) => sameWindow(g, w));

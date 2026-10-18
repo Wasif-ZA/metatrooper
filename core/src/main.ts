@@ -99,7 +99,7 @@ async function main(): Promise<void> {
 
   const uiKey = rotateUiKey();
   endAllGrants(db);
-  const desktop = new Desktop(db);
+  const desktop = new Desktop(db, { demo: process.argv.includes('--demo') });
   const methods = buildMethods(db, { engines: () => activeEngines(db), stop, uiKey, desktop });
   const commands = new CommandRunner(db, methods);
   const home = settings().projects.default;

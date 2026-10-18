@@ -152,7 +152,7 @@ export async function uiHello(connection, home) {
 }
 
 export async function startCore(isolated) {
-  const child = spawn(process.execPath, ['core/src/main.ts'], { cwd: root, env: isolated.env, stdio: 'ignore', windowsHide: true });
+  const child = spawn(process.execPath, ['core/src/main.ts', ...(isolated.args ?? [])], { cwd: root, env: isolated.env, stdio: 'ignore', windowsHide: true });
   try {
     await until(async () => {
       if (child.exitCode !== null) throw new Error(`core exited ${child.exitCode}`);
