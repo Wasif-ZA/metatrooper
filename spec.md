@@ -936,6 +936,11 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - An agent with shell access can edit `~/.metatrooper/settings.json` itself (it runs as the same user), so moving
   `browser.allow_origins` there (D5) keeps it out of reach of the browser tools and the pipe only, not of the agent's
   shell. That needs a filesystem sandbox, which unsandboxed sessions do not have.
+- D1 chose a per-plugin token in each MCP shim's launch environment. The token travels in the shim's arguments
+  instead (`mcp-shim.js <plugin id> <server id> <token>`), because the shim is started by the engine from its MCP
+  config, and Codex `-c` overrides and `args-template` engines have no per-server environment slot. Either way the
+  token lands in the per-session MCP config or the engine's command line; the argument form also shows it in process
+  listings to the same user, who can read `shim.key` anyway (`contracts/plugins.md`).
 - A detached child an agent started (a dev server run with `start` or `nohup`) keeps running and holds its port
   after a core stop or restart: `term.killAll()` closes each conpty only. M7-10's job object per session fixes it
   (D82); nothing kills those processes before then, so a server the user wanted is never killed either (D17).
