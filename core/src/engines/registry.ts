@@ -105,6 +105,11 @@ export const BUILT_IN: EngineSpec[] = [
 export function loadEngines(): EngineSpec[] {
   const override = process.env.METATROOPER_ENGINES;
   if (override) return JSON.parse(fs.readFileSync(path.resolve(override), 'utf8')) as EngineSpec[];
+  return shippedEngines();
+}
+
+/** The registry this install ships, ignoring METATROOPER_ENGINES. */
+export function shippedEngines(): EngineSpec[] {
   return [...BUILT_IN, ...dataEngines(path.join(repoDir, 'engines')).filter((e) => !BUILT_IN.some((b) => b.id === e.id))];
 }
 

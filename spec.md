@@ -642,7 +642,7 @@ review engines called the first draft too low.
 | M6-13 | Browser pane hygiene and picks | High | 2.0 | M6-11 |
 | M6-14 | Computer-use spike on this laptop, built-in UI Automation | Critical | 1.0 | none |
 | M6-15 | Computer use: `metatrooper-desktop`, grants, frame, take-over, watch layout | Critical | 12.0 | M6-2, M6-14 |
-| M6-16 | Agents test the workbench through the desktop tools | Medium | 1.5 | M6-15, M6-18 |
+| M6-16 | Agents test the workbench through the desktop tools | Medium | 1.5 | M6-15, M6-26 (M6-18 only for the hand run's cursor) |
 | M6-17 | Public API: one method list, exact shapes, `session.wait` | High | 2.0 | M6-1 |
 | M6-18 | Agent cursor for browser and desktop | Critical | 4.5 | M6-11, M6-15 |
 | M6-19 | Search all terminals | High | 1.0 | M6-7 |

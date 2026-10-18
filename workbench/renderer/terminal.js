@@ -56,8 +56,11 @@ const termView = (() => {
     const el = document.createElement('div');
     el.className = 'tile pane';
     el.dataset.id = sessionId;
+    el.role = 'group';
     el.innerHTML = TILE_HTML;
     el.querySelector('.tile-head').addEventListener('click', (e) => { if (!e.target.closest('button')) onPick(sessionId, e); });
+    // a UI Automation invoke clicks the tile itself, not a point inside it
+    el.addEventListener('click', (e) => { if (e.target === el) onPick(sessionId, e); });
     const body = el.querySelector('.tile-body');
     const term = new window.Terminal({ cursorBlink: true, allowProposedApi: true, scrollback: look.terminal.scrollback, fontSize: look.terminal.font_size, fontFamily: look.theme.font_mono, theme: xtermTheme() });
     const fit = new window.FitAddon.FitAddon();
@@ -212,6 +215,8 @@ const termView = (() => {
     set('.tile-changed', x.changed ? `${x.changed} changed` : '');
     t.el.querySelector('.tile-changed').hidden = !x.changed;
     t.el.dataset.state = x.state;
+    const name = `${x.task || x.engine_id}, ${x.words || x.state}`;
+    if (t.el.ariaLabel !== name) t.el.ariaLabel = name;
     const lr = t.el.querySelector('.lr');
     lr.hidden = x.shell || x.outside || t.engine !== 'claude';
     lr.ariaPressed = String(x.limitResume !== false);

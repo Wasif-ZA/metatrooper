@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +33,24 @@ export function logsDir(): string {
 
 export function pipePrefix(): string {
   return process.env.METATROOPER_PIPE_PREFIX || 'metatrooper';
+}
+
+/** `p` with links resolved through its deepest existing folder, lowercased on Windows. */
+function canonical(p: string): string {
+  let dir = path.resolve(p);
+  const tail: string[] = [];
+  while (!fs.existsSync(dir) && path.dirname(dir) !== dir) { tail.unshift(path.basename(dir)); dir = path.dirname(dir); }
+  try { dir = fs.realpathSync.native(dir); } catch {}
+  const out = path.join(dir, ...tail);
+  return process.platform === 'win32' ? out.toLowerCase() : out;
+}
+
+/** Why a demo with this home and pipe prefix could touch the real data folder or pipes, or null (M6-16). */
+export function demoProblem(home: string | undefined, prefix: string | undefined, realHome = path.join(os.homedir(), '.metatrooper')): string | null {
+  if (!home || !prefix) return 'demo needs METATROOPER_HOME and METATROOPER_PIPE_PREFIX set to its own folder and prefix';
+  const rel = path.relative(canonical(realHome), canonical(home));
+  const inside = rel === '' || (rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel));
+  return inside || prefix.toLowerCase() === 'metatrooper' ? 'demo would use the real data folder' : null;
 }
 
 /** Windows named pipe; on other hosts an absolute unix socket file (the code stays portable). */

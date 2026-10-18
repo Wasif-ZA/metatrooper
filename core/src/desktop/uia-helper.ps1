@@ -53,7 +53,7 @@ namespace TroopUia {
     [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll")] public static extern bool GetProcessTimes(IntPtr h, out long create, out long exit, out long kernel, out long user);
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool QueryFullProcessImageName(IntPtr h, uint flags, StringBuilder s, ref uint n);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern bool QueryFullProcessImageName(IntPtr h, uint flags, StringBuilder s, ref uint n);
     [DllImport("advapi32.dll")] public static extern bool OpenProcessToken(IntPtr h, uint access, out IntPtr token);
     [DllImport("advapi32.dll")] public static extern bool GetTokenInformation(IntPtr token, int cls, out int value, int len, out int ret);
   }
@@ -160,15 +160,18 @@ namespace TroopUia {
     }
 
     /** Process start (UTC, ISO), exe name and elevation; a process whose token cannot be read counts as elevated. */
-    static void ProcessFacts(uint pid, out string start, out string exe, out bool elevated) {
-      start = ""; exe = ""; elevated = true;
+    static void ProcessFacts(uint pid, out string start, out string exe, out string exePath, out bool elevated) {
+      start = ""; exe = ""; exePath = ""; elevated = true;
       IntPtr p = Native.OpenProcess(0x1000, false, pid);
       if (p == IntPtr.Zero) return;
       try {
         long create, exit, kernel, user;
         if (Native.GetProcessTimes(p, out create, out exit, out kernel, out user)) start = DateTime.FromFileTimeUtc(create).ToString("o");
-        var s = new StringBuilder(1024); uint n = 1024;
-        if (Native.QueryFullProcessImageName(p, 0, s, ref n)) exe = Path.GetFileName(s.ToString());
+        for (uint size = 1024; size <= 32768; size *= 2) {
+          var s = new StringBuilder((int)size); uint n = size;
+          if (Native.QueryFullProcessImageName(p, 0, s, ref n)) { exePath = s.ToString(); exe = Path.GetFileName(exePath); break; }
+          if (Marshal.GetLastWin32Error() != 122) break;
+        }
         IntPtr token;
         if (Native.OpenProcessToken(p, 0x0008, out token)) {
           int value, ret;
@@ -202,19 +205,19 @@ namespace TroopUia {
       var o = new Dictionary<string, object>();
       o["hwnd"] = h.ToInt64();
       if (h == IntPtr.Zero || !Native.IsWindow(h)) {
-        o["alive"] = false; o["root"] = h.ToInt64(); o["pid"] = 0; o["process_start"] = ""; o["exe"] = ""; o["title"] = ""; o["class"] = "";
+        o["alive"] = false; o["root"] = h.ToInt64(); o["pid"] = 0; o["process_start"] = ""; o["exe"] = ""; o["exe_path"] = ""; o["title"] = ""; o["class"] = "";
         o["owner_chain"] = new long[0]; o["file_dialog"] = false; o["elevated"] = false; o["rect"] = new[] { 0, 0, 0, 0 }; o["minimized"] = false;
         return o;
       }
       IntPtr root = Native.GetAncestor(h, GA_ROOT);
       if (root == IntPtr.Zero) root = h;
       uint pid; Native.GetWindowThreadProcessId(root, out pid);
-      string start, exe; bool elevated;
-      ProcessFacts(pid, out start, out exe, out elevated);
+      string start, exe, exePath; bool elevated;
+      ProcessFacts(pid, out start, out exe, out exePath, out elevated);
       var chain = new List<long>();
       for (IntPtr w = Native.GetWindow(root, GW_OWNER); w != IntPtr.Zero && chain.Count < 16; w = Native.GetWindow(w, GW_OWNER)) chain.Add(w.ToInt64());
       string cls = ClassOf(root), title = TitleOf(root);
-      o["alive"] = true; o["root"] = root.ToInt64(); o["pid"] = (long)pid; o["process_start"] = start; o["exe"] = exe; o["title"] = title;
+      o["alive"] = true; o["root"] = root.ToInt64(); o["pid"] = (long)pid; o["process_start"] = start; o["exe"] = exe; o["exe_path"] = exePath; o["title"] = title;
       o["class"] = cls; o["owner_chain"] = chain; o["file_dialog"] = FileDialog(root, cls, title); o["elevated"] = elevated;
       o["rect"] = RectOf(root); o["minimized"] = Native.IsIconic(root);
       return o;

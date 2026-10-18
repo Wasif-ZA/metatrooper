@@ -526,7 +526,7 @@ function approvalCard(a, i) {
   const x = ui.snap.sessions.find((y) => y.id === a.session_id) || (ui.snap.live || []).find((y) => y.id === a.session_id);
   const away = x && x.project_id && x.project_id !== ui.projectId ? `${(ui.snap.projects.find((p) => p.id === x.project_id) || {}).name || 'other project'}: ` : '';
   const who = x ? `${away}${sessionLabel(x)}` : 'an agent in another project';
-  return `<div class="gate${i === 0 ? ' cur' : ''}" data-approval="${esc(a.id)}">
+  return `<div class="gate${i === 0 ? ' cur' : ''}" data-approval="${esc(a.id)}" role="dialog" aria-label="Approval: ${esc(a.summary)}">
     <div class="gt"><span class="dm"></span><b>${x ? `<button class="link" data-action="pick" data-id="${esc(a.session_id)}" title="Jump to this agent">${esc(who)}</button>` : esc(who)}</b><span data-short="${esc(a.created_at)}">${esc(short(a.created_at))}</span></div>
     <div class="gs">${esc(a.summary)}</div>
     <div class="gd">${esc(a.reason)}</div>

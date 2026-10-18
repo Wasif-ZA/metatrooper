@@ -1,3 +1,4 @@
+import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -6,7 +7,7 @@ import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { syncFrames } from './desktop-frames.ts';
 import { DatabaseSync } from 'node:sqlite';
@@ -571,7 +572,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 560,
-    title: 'MetaTrooper',
+    title: demo ? DEMO_TITLE : 'MetaTrooper',
     backgroundColor: activeTheme().bg,
     show: false,
     webPreferences: {
@@ -585,6 +586,7 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => win?.show());
+  if (demo) win.on('page-title-updated', (e) => e.preventDefault());
   win.webContents.on('did-finish-load', push);
   win.webContents.on('did-finish-load', () => { loads++; });
   let reloadedAt = -Infinity;
@@ -676,13 +678,17 @@ function coreUp(): Promise<boolean> {
 /** Starts the core detached when none answers, without the parent Claude Code session's identity; it outlives the window. */
 let ownCore = false;
 let closing = false;
+/** The pid of the core a --demo window started, so quitting can confirm it stopped before the demo home goes. */
+let demoCorePid: number | null = null;
 
 async function ensureCore(): Promise<void> {
   if (await coreUp()) return;
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
-  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
+  const child = spawn('node', [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env });
+  child.on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
+  if (demo && child.pid) demoCorePid = child.pid;
   for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
@@ -711,6 +717,19 @@ function registersProtocol(): boolean {
   try { return fs.statSync(path.join(APP_DIR, '..', '.git')).isDirectory(); } catch { return false; }
 }
 
+/** `--demo`: seeds the empty demo home before its core starts, and points the core at the demo engines (D46). */
+async function seedDemoHome(): Promise<{ project: string; launch: () => Promise<void> }> {
+  const seed = await import(pathToFileURL(path.join(APP_DIR, '..', 'tests', 'demo', 'seed.mjs')).href);
+  const { project, engines } = seed.seedDemo(homeDir());
+  process.env.METATROOPER_ENGINES = engines;
+  const request = async (method: string, params: Record<string, unknown>) => {
+    const out = await call(method, params, { ui: true });
+    if (out.kind !== 'reply' || out.reply.error) throw new Error(`${method}: ${out.kind === 'reply' ? out.reply.error?.message : 'the demo core is offline'}`);
+    return out.reply.result;
+  };
+  return { project, launch: () => seed.launchDemo(request, project) };
+}
+
 function openNeedsYou(id: string | null): void {
   if (!id || !win) return;
   const send = () => win?.webContents.send('open-needs-you', id);
@@ -721,6 +740,10 @@ function openNeedsYou(id: string | null): void {
 async function stopCore(): Promise<void> {
   ownCore = false;
   await call('core.stop', {}, { ui: true });
+  if (demoCorePid !== null) {
+    if (!(await stopPid(demoCorePid, 10_000))) console.error(`demo core ${demoCorePid} did not stop`);
+    return;
+  }
   for (let i = 0; i < 40 && (await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
@@ -737,7 +760,7 @@ function busy(): boolean {
 
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
 async function onClose(): Promise<void> {
-  if (ownCore && busy()) {
+  if (ownCore && busy() && !demo) {
     const { response } = await dialog.showMessageBox(win!, {
       type: 'question',
       buttons: ['Keep running in the background', 'Stop everything', 'Cancel'],
@@ -781,11 +804,32 @@ if (!app.requestSingleInstanceLock()) {
       if (process.defaultApp) app.setAsDefaultProtocolClient('metatrooper', process.execPath, [APP_DIR]);
       else app.setAsDefaultProtocolClient('metatrooper');
     }
+    if (demo) {
+      app.setAccessibilitySupportEnabled(true);
+      // every quit path, not only the window's close, stops the demo core before its home is removed
+      let stoppingDemo = false;
+      app.on('will-quit', (e) => {
+        if (!stoppingDemo && demoCorePid !== null && alive(demoCorePid)) {
+          stoppingDemo = true;
+          e.preventDefault();
+          void stopCore().finally(() => app.quit());
+          return;
+        }
+        removeWhenGone(homeDir(), demoCorePid === null ? [process.pid] : [process.pid, demoCorePid]);
+      });
+    }
     lockDown();
     handlers();
     Menu.setApplicationMenu(null);
     createWindow();
-    void ensureCore().then(checkCoreVersion).then(() => openFolder(folderArg(process.argv, process.cwd())));
+    const seeded = demo ? seedDemoHome() : null;
+    void (async () => {
+      const home = seeded ? await seeded : null;
+      await ensureCore();
+      await checkCoreVersion();
+      await openFolder(home ? home.project : folderArg(process.argv, process.cwd()));
+      await home?.launch();
+    })().catch((e) => console.error(`start failed: ${(e as Error).message}`));
     openNeedsYou(needsYouLink(process.argv));
     watch();
     const gitTick = async () => {
@@ -798,7 +842,7 @@ if (!app.requestSingleInstanceLock()) {
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
     void gitTick();
-    const takeover = takeoverKey = settings().desktop.takeover_key;
+    const takeover = takeoverKey = demo ? DEMO_TAKEOVER_KEY : settings().desktop.takeover_key;
     try {
       takeoverError = globalShortcut.register(takeover, () => { void call('takeover.pause', {}, { ui: true }).then(schedulePush); }) ? null : 'held by another program';
     } catch (e) {

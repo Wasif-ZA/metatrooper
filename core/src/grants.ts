@@ -9,6 +9,8 @@ export interface WindowInfo {
   pid: number;
   process_start: string;
   exe: string;
+  /** The full image path, '' when it cannot be read. */
+  exe_path?: string;
   title: string;
   class: string;
   owner_chain: number[];

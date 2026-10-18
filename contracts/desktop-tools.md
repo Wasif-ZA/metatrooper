@@ -88,8 +88,14 @@ Save As, Open or Save) is covered, but every input in it carries `file_dialog: t
   with the pid and process start of the `grant.candidates` entry the user picked; a window that no longer matches
   them (its handle reused by another process since the list was shown) is refused.
 - Never granted: the workbench's own windows (the pid the workbench reports with `desktop.ui-window`; a grant
-  waits until it has), elevated windows (`OpenProcess` refused or a raised token), and windows the helper cannot
-  read.
+  waits until it has), any window whose process image is this install's workbench Electron executable
+  (`workbench/node_modules/electron/dist/<path.txt>`, as written and with links resolved, compared
+  case-insensitively against the helper's `exe_path`; this covers the real and a demo workbench alike), elevated
+  windows (`OpenProcess` refused or a raised token), and windows the helper cannot read. These are refused with
+  -32003 on `grant.window`, left out of `grant.candidates`, and unreadable through every `desktop.*` call.
+- One exception (M6-16): a core started with `--demo` lists, grants and reads the windows of the pid that called
+  `desktop.ui-window` on it, so its own sessions can drive the demo workbench. Every other workbench window stays
+  refused there too, and grants still go only to that core's own sessions.
 - Ended (`ended_at` set) when the window is destroyed, its pid or process start time no longer match, its process
   ends, the user revokes it (`grant.revoke`), or the core restarts. The core checks live grants every 500 ms and at
   every call.
@@ -120,7 +126,8 @@ every live grant ends; a workbench that starts again reports its key and pid ane
 `list`, `info {hwnd}`, `snapshot {hwnd, max_nodes}`, `describe {hwnd, ref?}`, `screenshot {hwnd}`,
 `set_text {hwnd, ref, value}`, `click {hwnd, ref}`, `key {hwnd, keys}`, `scroll {hwnd, ref?, dy}`,
 `find_text {hwnd, text}`, `process {process}` (`{process_start}`, '' when that pid is not running). `set_text`,
-`click`, `key` and `scroll` also take `ui_pid` and `ui_start` (above). Two read-only ops serve the laptop test only and are never reachable through the core:
+`click`, `key` and `scroll` also take `ui_pid` and `ui_start` (above). A window from `list` or `info` carries `exe`
+(the image file name) and `exe_path` (the full image path, '' when it cannot be read). Two read-only ops serve the laptop test only and are never reachable through the core:
 `value {hwnd, ref}` (a control's whole value, null for a password field) and `probe` (`{cursor: [x, y],
 foreground}`).
 

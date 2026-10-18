@@ -14,7 +14,7 @@ function chain(w, all) {
 
 function info(w, all) {
   return {
-    alive: true, hwnd: w.hwnd, root: w.hwnd, pid: w.pid, process_start: w.process_start, exe: w.exe, title: w.title,
+    alive: true, hwnd: w.hwnd, root: w.hwnd, pid: w.pid, process_start: w.process_start, exe: w.exe, exe_path: w.exe_path ?? `C:\\fixture\\${w.exe}`, title: w.title,
     class: w.class ?? '', owner_chain: chain(w, all), file_dialog: Boolean(w.file_dialog), elevated: Boolean(w.elevated),
     rect: w.rect ?? [0, 0, 800, 600], minimized: false,
   };
