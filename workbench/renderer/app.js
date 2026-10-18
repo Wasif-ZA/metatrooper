@@ -1150,17 +1150,26 @@ function renderWatch() {
   }
   const rows = watchRows(ui.snap);
   const html = rows.length
-    ? rows.map((r) => `<div class="wrow"><div class="wtile" data-action="watch-pick" data-id="${esc(r.session.id)}"><b>${esc(r.session.engine_id)}</b> <span class="badge">${esc(STATE_WORDS[r.session.state] || r.session.state)}</span>${(ui.snap.paused || []).includes(r.session.id) ? ' <span class="badge warn">paused by you</span>' : ''}<div class="fl">${esc(r.session.last_line || '')}</div></div>${r.grants.map((g) => `<figure class="wthumb"><img data-grant="${esc(g.id)}" alt="${esc(g.title)}"><figcaption>${esc(g.title)}</figcaption></figure>`).join('')}</div>`).join('')
+    ? rows.map((r) => `<div class="wrow"><div class="wtile" data-action="watch-pick" data-id="${esc(r.session.id)}"><b>${esc(r.session.engine_id)}</b> <span class="badge">${esc(STATE_WORDS[r.session.state] || r.session.state)}</span>${(ui.snap.paused || []).includes(r.session.id) ? ' <span class="badge warn">paused by you</span>' : ''}<div class="fl">${esc(r.session.last_line || '')}</div></div>${r.grants.map((g) => `<figure class="wthumb"><span class="wimg"><img data-grant="${esc(g.id)}" alt="${esc(g.title)}"><i class="wdot" data-dot="${esc(g.id)}" hidden></i></span><figcaption>${esc(g.title)}</figcaption></figure>`).join('')}</div>`).join('')
     : '<p class="empty">No agent holds a window. Give one from a tile (Give window). Ctrl+Alt+W closes this.</p>';
   if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
 }
 
 async function refreshThumbs() {
   if (!ui.watch || !(ui.snap.grants || []).length) return;
-  const shots = await api.desktopThumbs();
+  const { shots, dots } = (await api.desktopThumbs()) || {};
   for (const img of document.querySelectorAll('#watch img[data-grant]')) {
     const src = shots && shots[img.dataset.grant];
     if (src && img.src !== src) img.src = src;
+  }
+  // M6-18: the session's cursor, in its colour, at its last point on the window while it shows
+  for (const dot of document.querySelectorAll('#watch .wdot')) {
+    const d = dots && dots[dot.dataset.dot];
+    dot.hidden = !d || d.fx < 0 || d.fx > 1 || d.fy < 0 || d.fy > 1;
+    if (dot.hidden) continue;
+    dot.style.left = `${d.fx * 100}%`;
+    dot.style.top = `${d.fy * 100}%`;
+    dot.style.background = d.colour;
   }
 }
 setInterval(() => { void refreshThumbs().catch(() => {}); }, 500);
@@ -1177,7 +1186,7 @@ function render(focus = false) {
   coreRestarted();
   seedLayout();
   const shown = !project() ? [] : [...ui.snap.sessions, ...shellRows()].filter((x) => !ui.pendingHide.has(x.id) && (x.state !== 'exited' || x.id === ui.snap.selected || x.shell))
-    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
+    .map((x) => ({ id: x.id, from: x.resumed_from || x.from || null, engine_id: x.driven_engine ? `${x.engine_id} > ${x.driven_engine}` : x.engine_id, colour: x.shell ? '' : x.colour || '', state: x.state, shell: Boolean(x.shell), outside: x.host === 'external', task: x.shell ? x.task : taskOf(x), last: x.shell ? '' : x.state === 'waiting_for_you' ? waitReason(x) : x.last_line, meta: x.shell ? '' : tileMeta(x), previews: x.shell ? [] : (ui.snap.dev_servers || []).filter((d) => d.session_id === x.id), ctx: x.shell ? null : ctxChip(x), desk: deskChips(x), changed: x.shell ? 0 : changedFiles(x.id).length, limitResume: x.limit_resume !== 0, unseen: !x.shell && unseen(x), words: x.shell ? 'shell' : `${x.host === 'external' ? 'outside · ' : ''}${STATE_WORDS[x.state] || x.state}` }));
   const big = wall.decide(shown, ui.shellSel || ui.snap.selected);
   reportFocus(big);
   for (const x of shown) x.watchOff = !x.shell && (ui.snap.watcher_off || []).includes(x.id);

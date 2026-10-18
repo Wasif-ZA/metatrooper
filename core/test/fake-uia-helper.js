@@ -52,7 +52,7 @@ function handle(req) {
       if (!req.ref) return { control: null, password: false, rect: w.rect ?? null };
       const c = control(w, req.ref);
       changePid('after_describe_pid');
-      return { control: { automation_id: c.automation_id ?? '', name: c.name ?? '', role: c.role ?? '' }, password: Boolean(c.password), hidden: Boolean(c.hidden), rid: c.rid ?? '', rect: [10, 10, 50, 20] };
+      return { control: { automation_id: c.automation_id ?? '', name: c.name ?? '', role: c.role ?? '' }, password: Boolean(c.password), hidden: Boolean(c.hidden), rid: c.rid ?? '', rect: [10, 10, 50, 20], ...(w.describe_extra ?? {}) };
     }
     case 'snapshot': return { text: (w?.controls ?? []).map((c, i) => `${c.role} "${c.name}" [ref=e${i + 1}]`).join('\n'), nodes: (w?.controls ?? []).length };
     case 'screenshot': return { data_base64: '/9j/', mime: 'image/jpeg', width: 1, height: 1 };

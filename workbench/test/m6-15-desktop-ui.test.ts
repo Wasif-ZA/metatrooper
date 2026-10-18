@@ -88,7 +88,7 @@ test('M6-15 cursor.glide on the workbench pipe answers only the bound session', 
     };
     assert.equal((await call('0', 'cursor.glide', { session: 'session-a', target_rect_px: [1, 2, 3, 4], caption: 'click Save' })).error.code, -32030, 'unbound');
     assert.equal((await call('1', 'browser.hello', { session_id: 'session-a', pid: process.pid })).result.bound, 'session');
-    assert.deepEqual((await call('2', 'cursor.glide', { session: 'session-a', target_rect_px: [1, 2, 3, 4], caption: 'click Save' })).result, { arrived: true });
+    assert.deepEqual((await call('2', 'cursor.glide', { session: 'session-a', target_rect_px: [1, 2, 3, 4], caption: 'click Save' })).result, { arrived: true, ms: 0, shown: false, late: false });
     assert.equal((await call('3', 'cursor.glide', { session: 'session-b', target_rect_px: [1, 2, 3, 4], caption: 'x' })).error.code, -32030, 'another session');
   } finally {
     sock.destroy();

@@ -3,16 +3,30 @@ html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
   position: absolute;
   left: 0;
   top: 0;
-  width: 22px;
-  height: 22px;
-  margin: -11px 0 0 -11px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  background: rgb(47 111 228 / 0.85);
-  box-shadow: 0 0 0 2px rgb(47 111 228 / 0.35), 0 2px 8px rgb(0 0 0 / 0.35);
-  transition-property: transform;
-  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --c: #888;
   will-change: transform;
+  font: 600 11px/1.3 'Segoe UI', system-ui, sans-serif;
 }
-.cursor.pulse { animation: pulse 260ms ease-out; }
-@keyframes pulse { from { box-shadow: 0 0 0 0 rgb(47 111 228 / 0.6); } to { box-shadow: 0 0 0 14px rgb(47 111 228 / 0); } }
+.cursor svg { display: block; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.45)); }
+.cursor svg path { fill: var(--c); stroke: #fff; stroke-width: 1.5; stroke-linejoin: round; }
+.cursor .chip, .cursor .caption {
+  position: absolute;
+  left: 16px;
+  white-space: nowrap;
+  padding: 1px 6px;
+  color: #111;
+  background: var(--c);
+  border: 1px solid rgb(255 255 255 / 0.85);
+}
+.cursor .chip { top: 18px; }
+.cursor .caption { top: 38px; color: #fff; background: rgb(20 20 20 / 0.85); border-color: var(--c); opacity: 0; transition: opacity 150ms; }
+.cursor .caption.on { opacity: 1; }
+.cursor .ripple { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--c); opacity: 0; }
+.cursor .ripple.on { animation: ripple 300ms ease-out; }
+@keyframes ripple { from { transform: scale(0.3); opacity: 0.9; } to { transform: scale(1.4); opacity: 0; } }
+.cursor.flash svg path { animation: flash 120ms linear; }
+@keyframes flash { 50% { fill: #fff; } }
+.cursor.appear { animation: appear 120ms ease-out; }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+.cursor.fading { opacity: 0; transition: opacity 300ms; }
+@media (prefers-reduced-motion: reduce) { .cursor .ripple.on, .cursor.appear { animation: none; } }

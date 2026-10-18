@@ -8,8 +8,11 @@ import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, Notification, session, shell, systemPreferences, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { syncFrames } from './desktop-frames.ts';
+import { closeDesktopOverlay, cursorDots, cursorsShowing, desktopGlide, initDesktopOverlay, refitCursors, type DesktopLook } from './desktop-overlay.ts';
+import { chipLabel, modeOf } from './cursor-glide.ts';
+import { sessionColour } from './colour.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, corePipe, dbFile, homeDir, logsDir, uiKeyFile } from '../../core/src/paths.ts';
 import { captureProcessLog } from '../../core/src/log.ts';
@@ -19,7 +22,7 @@ import { startBrowserServer } from './browser/server.ts';
 import { typedUrl } from '../../core/src/browser/policy.ts';
 import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
-import { browserAudit, dataVersion, snapshot, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
+import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
@@ -98,7 +101,8 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    lastGood = { ...withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
+    const s = withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText);
+    lastGood = { ...s, sessions: s.sessions.map((x) => ({ ...x, colour: sessionColour(x.id) })), git: rowGit(), settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
     readFromDb = true;
     return lastGood;
   } catch {
@@ -114,6 +118,19 @@ function syncPanes(): void {
   try {
     panes.sync(d.prepare('SELECT * FROM browser_pane WHERE open = 1').all() as unknown as PaneRow[]);
   } catch {}
+}
+
+/** How a session's agent cursor looks and moves: agent_cursor settings, reduced motion, its colour and its chip. */
+function cursorLook(sessionId: string): DesktopLook {
+  const c = settings().agent_cursor;
+  let reducedMotion = false;
+  try { reducedMotion = systemPreferences.getAnimationSettings().prefersReducedMotion; } catch {}
+  let row: { engine_id: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string } | undefined = lastGood?.sessions.find((x) => x.id === sessionId);
+  if (!row) {
+    try { row = db()?.prepare('SELECT engine_id, NULL AS title, cwd, step_id, started_at FROM session WHERE id = ?').get(sessionId) as typeof row; } catch {}
+    if (row) row = { ...row, title: liveText[sessionId]?.title ?? null };
+  }
+  return { mode: modeOf(c.mode), reducedMotion, colour: sessionColour(sessionId), label: row ? chipLabel(row.engine_id, taskOf(row)) : 'agent', showCaption: c.show_caption, idleFadeMs: c.idle_fade_ms, protect: !c.show_in_recordings };
 }
 
 let toasted: Set<string> | null = null;
@@ -531,14 +548,14 @@ function handlers(): void {
 
   on('desktopThumbs', async () => {
     const grants = lastGood?.grants ?? [];
-    if (!grants.length) return {};
+    if (!grants.length) return { shots: {}, dots: {} };
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 480, height: 300 }, fetchWindowIcons: false });
     const out: Record<string, string> = {};
     for (const g of grants) {
       const s = sources.find((x) => x.id.startsWith(`window:${g.hwnd}:`));
       if (s && !s.thumbnail.isEmpty()) out[g.id] = s.thumbnail.toDataURL();
     }
-    return out;
+    return { shots: out, dots: cursorDots() };
   });
 
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));
@@ -608,6 +625,7 @@ function createWindow(): void {
   win.on('closed', () => {
     panes?.closeAll();
     syncFrames([]);
+    closeDesktopOverlay();
     win = null;
   });
   panes = new PaneManager(win, {
@@ -616,6 +634,7 @@ function createWindow(): void {
     urlChanged: (paneId, url) => { void call('pane.url', { pane_id: paneId, url }, { ui: true }); },
     commentPicked: (info) => win?.webContents.send('comment-picked', info),
     paneEvent: (ev) => { if (win && !win.isDestroyed()) win.webContents.send('pane-event', ev); },
+    cursor: cursorLook,
     openPane: (projectId, url) => {
       void call('pane.open', { project_id: projectId, url }, { ui: true }).then((out) => {
         const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
@@ -854,11 +873,14 @@ if (!app.requestSingleInstanceLock()) {
       try {
         if (win && (lastGood?.grants?.length || syncFrames.count())) {
           const out = await call('grant.live', {}, { ui: true, waitMs: 1000 });
-          syncFrames(out.kind === 'reply' && out.reply.result ? (out.reply.result as { grants: Parameters<typeof syncFrames>[0] }).grants : []);
+          const live = out.kind === 'reply' && out.reply.result ? (out.reply.result as { grants: Parameters<typeof syncFrames>[0] }).grants : [];
+          syncFrames(live);
+          refitCursors(live);
         }
       } catch {}
-      setTimeout(frameTick, 500);
+      setTimeout(frameTick, cursorsShowing() ? 250 : 500);
     };
+    initDesktopOverlay(cursorLook, (entry) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state: entry }));
     void frameTick();
     void startBrowserServer(browserPipe(), {
       db,
@@ -871,6 +893,7 @@ if (!app.requestSingleInstanceLock()) {
       },
       panes: panes as PaneManager,
       refreshPanes: syncPanes,
+      glide: (sessionId, rect, caption) => desktopGlide(sessionId, rect, caption, cursorLook(sessionId)),
       openPane: async (projectId, sessionId) => {
         const out = await call('pane.open', { project_id: projectId, session_id: sessionId, agent: true }, { ui: true });
         const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;

@@ -15,10 +15,12 @@ const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
+import { awaitArrived, planGlide, safeCaption, type Mode } from '../cursor-glide.ts';
+import { sessionColour } from '../colour.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
-export const EASE_MS = 150;
+const FADE_MS = 300;
 const MAX_CAPTURE_PX = 16_384;
 const EVAL_CAP = 20 * 1024;
 const URL_KEEP = 2000;
@@ -87,7 +89,6 @@ interface Pane {
   console: Array<{ at: number; level: string; text: string }>;
   network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
   status: number | null;
-  overlayShownUntil: number;
   picking: ((node: number | null) => void) | null;
   parked: boolean;
   shownSize?: { width: number; height: number };
@@ -130,7 +131,11 @@ export interface Hooks {
   paneEvent: (ev: Record<string, unknown>) => void;
   /** Opens a user pane in the project at this URL. */
   openPane: (projectId: string, url: string) => void;
+  /** How a session's agent cursor looks and moves (agent_cursor settings, its colour and chip). */
+  cursor?: (sessionId: string) => Partial<CursorLook>;
 }
+
+export interface CursorLook { mode: Mode; reducedMotion: boolean; colour: string; label: string; showCaption: boolean; idleFadeMs: number }
 
 /** The port of a literal-loopback http(s) URL, as a one-item list, or an empty list. */
 export function loopbackPort(url: string | null): number[] {
@@ -178,6 +183,11 @@ export class PaneManager {
   private walking = new Set<string>();
   /** Consecutive setup failures per pane row; from the second one on, the next rebuild waits (1 s doubling, 60 s cap). */
   private failed = new Map<string, { n: number; until: number }>();
+  /** Each visible pane cursor's last drawn point, by pane id then session. */
+  private marks = new Map<string, Map<string, { x: number; y: number; at: number }>>();
+  private glides = 0;
+  /** Each pane's pending overlay detach, replaced when a later cursor fades. */
+  private detaches = new Map<string, NodeJS.Timeout>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -292,10 +302,10 @@ export class PaneManager {
   private async create(row: PaneRow): Promise<void> {
     const ses = this.guardPartition(row);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false } });
-    const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(here, 'overlay-preload.cjs') } });
+    const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, overlayShownUntil: 0, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -625,6 +635,7 @@ export class PaneManager {
     const pane = this.panes.get(id);
     if (!pane) return;
     this.panes.delete(id);
+    this.marks.delete(id);
     this.hooks.paneEvent({ kind: 'closed', pane_id: id });
     if (this.shown === id) this.shown = null;
     pane.picking?.(null);
@@ -736,7 +747,7 @@ export class PaneManager {
   }
 
   /** The point to click for a ref, after checking the element is enabled and is what a click there hits; the hit test runs in the element's own frame. */
-  private async target(pane: Pane, ref: unknown, a?: Record<string, any>): Promise<{ node: Target; x: number; y: number }> {
+  private async target(pane: Pane, ref: unknown, a?: Record<string, any>): Promise<{ node: Target; x: number; y: number; size: { width: number; height: number } }> {
     const node = this.node(pane, ref);
     const p = await this.box(pane, node, ref, a);
     const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
@@ -764,7 +775,8 @@ export class PaneManager {
     });
     const v = r.result?.value;
     if (typeof v === 'string') throw new ToolError(-32033, `ref ${String(ref)} ${v}; nothing was clicked`);
-    return v && typeof v.dx === 'number' ? { node, x: p.x + v.dx, y: p.y + v.dy } : { node, x: p.x, y: p.y };
+    const size = { width: p.right - p.left, height: p.bottom - p.top };
+    return v && typeof v.dx === 'number' ? { node, x: p.x + v.dx, y: p.y + v.dy, size } : { node, x: p.x, y: p.y, size };
   }
 
   /** Runs a tool action, returning early with the dialog if one opens while it runs. */
@@ -778,25 +790,66 @@ export class PaneManager {
     }
   }
 
-  /** Moves the overlay cursor to a CSS-pixel point of the pane and waits for its ease to finish. */
-  private async pointAt(pane: Pane, x: number, y: number): Promise<void> {
+  /** Glides the session's cursor to a CSS-pixel point of the pane; resolves on the overlay's `cursor.arrived` or at `ms + 16` (contracts/agent-cursor.md). */
+  private async pointAt(pane: Pane, x: number, y: number, a: Record<string, any> = {}, size = { width: 0, height: 0 }, caption = 'click'): Promise<void> {
+    const session = String(a._session ?? pane.row.session_id ?? '');
+    const look: CursorLook = { mode: 'snappy', reducedMotion: false, colour: sessionColour(session), label: '', showCaption: true, idleFadeMs: 5000, ...this.hooks.cursor?.(session) };
+    if (look.mode === 'off') {
+      this.hooks.probe({ kind: 'cursor', pane: pane.row.id, session, target: { x, y }, at: null, ms: 0, late: false, shown: false, requested_at: Date.now(), arrived_at: null });
+      return;
+    }
     const zoom = pane.view.webContents.getZoomFactor();
-    if (!this.win.contentView.children.includes(pane.overlay)) this.win.contentView.addChildView(pane.overlay);
-    pane.overlayShownUntil = Date.now() + 1500;
-    pane.overlay.webContents.send('cursor', { x: x * zoom, y: y * zoom, ease: EASE_MS });
-    await sleep(EASE_MS + 30);
-    const at = await pane.overlay.webContents.executeJavaScript('window.cursorAt ? window.cursorAt() : null').catch(() => null);
-    this.hooks.probe({ kind: 'cursor', pane: pane.row.id, target: { x: x * zoom, y: y * zoom }, at });
+    const target = { x: x * zoom, y: y * zoom };
+    const w = size.width * zoom, h = size.height * zoom;
+    const targetRect = { x: target.x - w / 2, y: target.y - h / 2, width: w, height: h };
+    const marks = this.marks.get(pane.row.id) ?? new Map<string, { x: number; y: number; at: number }>();
+    this.marks.set(pane.row.id, marks);
+    const last = marks.get(session);
+    const prev = last && Date.now() - last.at < look.idleFadeMs ? last : null;
+    caption = safeCaption(caption, knownSecretValues());
+    const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: targetRect, keep: /^(press|scroll)\b/.test(caption), host: pane.shownSize ?? PARKED_VIEWPORT });
+    const wc = pane.overlay.webContents;
+    const live = !wc.isDestroyed();
+    if (live && !this.win.contentView.children.includes(pane.overlay)) this.win.contentView.addChildView(pane.overlay);
+    const id = `${pane.row.id}:${++this.glides}`;
+    const requested_at = Date.now();
+    const arrival = awaitArrived(live ? wc : null, id, ms);
+    if (live) wc.send('cursor.glide', { id, session, colour: look.colour, label: look.label, from, to, targetRect, ms, caption: look.showCaption ? caption : '', mode: look.mode, reducedMotion: look.reducedMotion });
+    const got = await arrival;
+    const mark = { ...to, at: Date.now() };
+    marks.set(session, mark);
+    this.hooks.probe({ kind: 'cursor', pane: pane.row.id, session, target, at: got ? { x: got.x, y: got.y } : null, ms, late: !got, requested_at, arrived_at: got ? got.at : null });
+    this.fadeLater(pane, session, mark, look.idleFadeMs);
+  }
+
+  /** Key and scroll without a ref: the whole viewport is the target, so a showing cursor stays put (D56, no focus query). */
+  private async pointAtViewport(pane: Pane, a: Record<string, any>, caption: string): Promise<void> {
+    const zoom = pane.view.webContents.getZoomFactor();
+    const v = pane.shownSize ?? PARKED_VIEWPORT;
+    await this.pointAt(pane, v.width / zoom / 2, v.height / zoom / 2, a, { width: v.width / zoom, height: v.height / zoom }, caption);
+  }
+
+  /** Fades a cursor still idle after `idleMs`, then detaches the pane's overlay view once its last cursor has faded. */
+  private fadeLater(pane: Pane, session: string, mark: { at: number }, idleMs: number): void {
     setTimeout(() => {
-      if (Date.now() >= pane.overlayShownUntil) {
+      const marks = this.marks.get(pane.row.id);
+      if (!marks || marks.get(session) !== mark) return;
+      marks.delete(session);
+      const wc = pane.overlay.webContents;
+      if (!wc.isDestroyed()) wc.send('cursor.hide', { session });
+      if (marks.size) return;
+      clearTimeout(this.detaches.get(pane.row.id));
+      this.detaches.set(pane.row.id, setTimeout(() => {
+        this.detaches.delete(pane.row.id);
+        if (marks.size || this.panes.get(pane.row.id) !== pane || this.win.isDestroyed()) return;
         try { this.win.contentView.removeChildView(pane.overlay); } catch {}
-      }
-    }, 1600);
+      }, FADE_MS).unref());
+    }, idleMs).unref?.();
   }
 
   /** `recheck` runs after the cursor glide, right before the mouse events. */
-  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>, a: Record<string, any> = {}): Promise<void> {
-    await this.pointAt(pane, x, y);
+  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>, a: Record<string, any> = {}, size?: { width: number; height: number }, caption = 'click'): Promise<void> {
+    await this.pointAt(pane, x, y, a, size, caption);
     await recheck();
     this.hooks.probe({ kind: 'click', pane: pane.row.id, x, y });
     pane.clickedAt = Date.now();
@@ -1103,6 +1156,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     switch (name) {
       case 'key': {
         if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
+        await this.pointAtViewport(pane, a, `press ${a.keys}`);
         await recheck();
         await this.pressKeys(pane, a.keys, a);
         return { ok: true };
@@ -1158,7 +1212,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'click':
         return this.answer(pane, session, async () => {
           const p = await this.target(pane, a.ref, a);
-          await this.clickAt(pane, p.x, p.y, recheck, a);
+          await this.clickAt(pane, p.x, p.y, recheck, a, p.size);
           return { ok: true };
         });
       case 'type': {
@@ -1167,8 +1221,8 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (!secret && a.text.includes('{{secret:')) throw new ToolError(-32602, 'a {{secret:NAME}} placeholder must be the whole text');
         if (secret) await this.secretValue(pane, secret, a.ref);
         return this.answer(pane, session, async () => {
-          const { node, x, y } = await this.target(pane, a.ref, a);
-          await this.clickAt(pane, x, y, recheck, a);
+          const { node, x, y, size } = await this.target(pane, a.ref, a);
+          await this.clickAt(pane, x, y, recheck, a, size, `type ${Array.from(a.text).length} characters`);
           let text = a.text;
           this.notPaused(a);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
@@ -1217,7 +1271,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         return this.answer(pane, session, async () => {
           const node = this.node(pane, a.ref);
           const p = await this.box(pane, node, a.ref, a);
-          await this.pointAt(pane, p.x, p.y);
+          await this.pointAt(pane, p.x, p.y, a, { width: p.right - p.left, height: p.bottom - p.top }, 'select');
           await recheck();
           this.notPaused(a);
           await this.cmd(pane, 'Runtime.callFunctionOn', {
@@ -1228,8 +1282,13 @@ ame, after checking the ref's field is a password field on the origin saved with
           return { ok: true };
         });
       case 'scroll': {
-        if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref).backendNodeId });
-        else {
+        if (a.ref) {
+          const node = this.node(pane, a.ref);
+          const p = await this.box(pane, node, a.ref, a).catch(() => null);
+          if (p) await this.pointAt(pane, p.x, p.y, a, { width: p.right - p.left, height: p.bottom - p.top }, 'scroll');
+          else await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: node.backendNodeId });
+        } else {
+          await this.pointAtViewport(pane, a, 'scroll');
           const { width: w, height: h } = pane.parked ? this.parkedMetrics(pane) : pane.view.getBounds();
           await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
           await sleep(150);

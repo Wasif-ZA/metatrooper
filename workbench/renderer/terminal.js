@@ -1,6 +1,6 @@
 // Live terminals: one xterm.js instance per shown session, fed from the core's terminal pipe through the main process.
 const TILE_HTML = `<span class="edge"></span><div class="tile-head ph"><div class="r1">
-  <span class="dot"></span><b class="tile-engine eng"></b><span class="tile-task task"></span>
+  <span class="dot"></span><span class="cdot" hidden></span><b class="tile-engine eng"></b><span class="tile-task task"></span>
   <span class="tile-state badge"></span><span class="tile-previews"></span><span class="tile-desk"></span>
   <span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
   <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
@@ -196,6 +196,9 @@ const termView = (() => {
   function label(t, x) {
     const set = (sel, text) => { const e = t.el.querySelector(sel); if (e.textContent !== text) e.textContent = text; };
     t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
+    const cdot = t.el.querySelector('.cdot');
+    cdot.hidden = !x.colour;
+    if (x.colour && cdot.dataset.c !== x.colour) { cdot.dataset.c = x.colour; cdot.style.background = x.colour; }
     set('.tile-engine', x.engine_id);
     t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);

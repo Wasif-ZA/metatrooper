@@ -7,6 +7,7 @@ import { appendEvent, openWriterDb } from '../../../core/src/events/append.ts';
 import { scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
+import { safeCaption } from '../cursor-glide.ts';
 
 const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
@@ -21,6 +22,8 @@ export interface ServerDeps {
   refreshPanes: () => void;
   /** Opens a pane owned by the session through the core's `pane.open` and returns its id. */
   openPane: (projectId: string, sessionId: string) => Promise<string>;
+  /** The desktop cursor host: glides the session's cursor to a physical-pixel rectangle (contracts/agent-cursor.md). */
+  glide?: (sessionId: string, rectPx: unknown, caption: string) => Promise<{ arrived: true; ms: number; shown: boolean; late: boolean }>;
 }
 
 /** Panes a session may drive: those it owns. */
@@ -119,8 +122,10 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
 
       if (method === 'cursor.glide') {
         if (bound?.kind !== 'session' || params.session !== bound.sessionId) return fail(id, -32030, 'this connection is not bound to that session');
-        // ponytail: replies at once; M6-18 draws the cursor glide before replying
-        return send({ jsonrpc: '2.0', id, result: { arrived: true } });
+        const caption = safeCaption(typeof params.caption === 'string' ? params.caption.slice(0, 200) : '', knownSecretValues());
+        // an overlay failure never blocks the input (D57)
+        const result = deps.glide ? await deps.glide(bound.sessionId, params.target_rect_px, caption).catch(() => ({ arrived: true, ms: 0, shown: false, late: true })) : { arrived: true, ms: 0, shown: false, late: false };
+        return send({ jsonrpc: '2.0', id, result });
       }
 
       const tool = method.startsWith('browser.') ? method.slice(8) : '';

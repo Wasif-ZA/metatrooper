@@ -143,7 +143,7 @@ foreground}`).
 | `takeover.pause` | `{}` (ui.hello) | `{paused_at}` once no chunk is in flight |
 | `takeover.resume` | `{session_id}` (ui.hello) | `{}` |
 | `desktop.windows` | `{session_id, pid}` | as the `windows` tool |
-| `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, hidden, file_dialog, rect, token}`; `token` is opaque and names the element itself (its UI Automation runtime id and process), so an `expect` carrying it matches only that element |
+| `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}`; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program's top-level window over the target's centre, else empty (M6-18); `token` is opaque and names the element itself (its UI Automation runtime id and process), so an `expect` carrying it matches only that element |
 | `desktop.snapshot` / `desktop.screenshot` | `{session_id, pid, window, ...}` | as the tools |
 | `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | `{status, focus_returned?}`; -32035 when the control no longer matches `expect`; -32030 "paused by the user" |
 
@@ -152,8 +152,10 @@ among its ancestors.
 
 ## Workbench
 
-- `cursor.glide {session, target_rect_px, caption}` on `\\.\pipe\metatrooper-browser` replies `{arrived: true}`
-  (M6-18 draws the cursor before replying).
+- `cursor.glide {session, target_rect_px, caption}` on `\\.\pipe\metatrooper-browser` replies
+  `{arrived: true, ms, shown, late}` once the session's cursor reached the target, or at `ms + 16` (`late: true`);
+  `metatrooper-desktop` sends a null `target_rect_px` for a minimised window and appends " behind <title>" to the
+  caption when `covered_by` is set. Shapes and timing: `agent-cursor.md`.
 - While a session holds a grant, a thin frame in the session's colour outlines the window (a transparent,
   click-through, non-focusable window per grant, moved with the grant's rect) and the tile shows
   "driving: <title>", which revokes on click. A paused session's tile shows "paused by you" with Resume.
