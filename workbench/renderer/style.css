@@ -344,7 +344,7 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .menu .kmenu .item { display: flex; gap: 10px; align-items: center; }
 .menu .kmenu .item .grow { flex: 1; }
 .menu .kmenu .item .dismiss { color: var(--muted); padding: 0 4px; visibility: hidden; }
-.menu .kmenu .item:hover .dismiss { visibility: visible; }
+.menu .kmenu .item:hover .dismiss, .menu .kmenu .item:focus-within .dismiss { visibility: visible; }
 .menu .kmenu .item .dismiss:hover { color: var(--ink); }
 .menu .kmenu .item.on { color: var(--ink); background: var(--canvas-soft); cursor: default; }
 .menu .sep { height: 1px; background: var(--hairline); margin: 4px 0; }

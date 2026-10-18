@@ -1141,7 +1141,7 @@ function projectGroups(list) {
 function projectMenuItem(p) {
   const live = liveCounts(p.id).replace(/^ · /, '');
   return `<div class="item" role="menuitem" tabindex="-1" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
-    + (live ? '' : `<span class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)">&times;</span>`) + '</div>';
+    + (live ? '' : `<button class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)" aria-label="Remove ${esc(p.name)} from this menu">&times;</button>`) + '</div>';
 }
 
 async function onClick(e) {
