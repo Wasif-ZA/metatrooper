@@ -101,8 +101,9 @@ box fails with "not visible".
   approval recheck, and the focus and select-all (whose page handlers could change the field), the workbench main process checks that the origin of the field's own frame is the saved one and the
   ref is an `input type=password`, then decrypts the value itself; otherwise the call fails with -32037 and nothing is typed.
   A decrypted value is cached only until its stored file changes, so saving the name again (from the core) is seen by the
-  next fill. Saving removes the origin file while the value changes, and the fill reads the origin again after the
-  value; if it differs, the call fails with -32037. The last step before `Input.insertText`, which types into whatever has
+  next fill. Saving encrypts first, then moves the origin file aside while the value changes, and the fill reads the
+  origin again after the value; if it differs, the call fails with -32037. The new blob is written to a temp file and
+  renamed over the old one, so a save whose encrypt or write fails keeps the old value and its origin (D9). The last step before `Input.insertText`, which types into whatever has
   focus, checks focus is still on the ref's node (after the focus and select-all, whose page handlers could move it); for
   a field in a frame the main frame cannot read, focus must be in that frame and, in its own document, on the field.
   Otherwise the call fails with -32037 `focus moved off the field; nothing was typed`. Once an agent `evaluate` has

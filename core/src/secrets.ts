@@ -60,17 +60,37 @@ export function secretPath(pluginId: string, name: string): string {
   return path.join(homeDir(), 'secrets', pluginId, `${name}.dpapi`);
 }
 
-/** Encrypts with DPAPI (current user) and stores the blob; the value never appears on a command line. */
-export function setSecret(db: DatabaseSync, pluginId: string, name: string, value: string): void {
-  const blob = fakeDpapi()
+/** Encrypts with DPAPI (current user); the value never appears on a command line. */
+function encrypt(pluginId: string, name: string, value: string): string {
+  return fakeDpapi()
     ? FAKE_PREFIX + Buffer.from(value, 'utf8').reverse().toString('base64')
     : process.platform === 'win32'
       ? powershell('$v = $env:TROOP_SECRET_IN; ConvertTo-SecureString -String $v -AsPlainText -Force | ConvertFrom-SecureString', value)
       : linuxBlob(pluginId, name, value);
-  const file = secretPath(pluginId, name);
+}
+
+/** Writes through a temp file and a rename, so a failed write leaves the old file whole (D9). */
+function writePrivate(file: string, text: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(file, blob, { encoding: 'utf8', mode: 0o600 });
-  if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, text, { encoding: 'utf8', mode: 0o600 });
+    if (process.platform !== 'win32') fs.chmodSync(tmp, 0o600);
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
+/** Encrypts and stores the blob, replacing an older one only once the new one is written. */
+export function setSecret(db: DatabaseSync, pluginId: string, name: string, value: string): void {
+  storeSecret(db, pluginId, name, value, encrypt(pluginId, name, value));
+}
+
+function storeSecret(db: DatabaseSync, pluginId: string, name: string, value: string, blob: string): void {
+  const file = secretPath(pluginId, name);
+  writePrivate(file, blob);
   if (pluginId !== 'core-notify' && pluginId !== BROWSER_SECRETS) db.prepare('INSERT OR REPLACE INTO plugin_secret (plugin_id, name, blob_path, set_at) VALUES (?, ?, ?, ?)').run(pluginId, name, file, nowIso());
   const prev = cache.get(`${pluginId}/${name}`);
   if (prev !== undefined && prev !== value) retired.add(prev);
@@ -142,10 +162,20 @@ export function setBrowserSecret(db: DatabaseSync, name: string, origin: string,
   if (!o) throw new Error('origin must be an http or https URL');
   if (!value) throw new Error('value is required');
   if (value.length < MIN_SECRET_LENGTH) throw new Error(`value must be at least ${MIN_SECRET_LENGTH} characters, or output scrubbing cannot catch it`);
+  const blob = encrypt(BROWSER_SECRETS, name, value);
   // no origin while the value changes: a fill reads the origin before and after the value and needs both to agree
-  fs.rmSync(originFile(name), { force: true });
-  setSecret(db, BROWSER_SECRETS, name, value);
-  fs.writeFileSync(originFile(name), o, { encoding: 'utf8', mode: 0o600 });
+  const file = originFile(name);
+  const held = `${file}.${process.pid}.old`;
+  const had = fs.existsSync(file);
+  if (had) fs.renameSync(file, held);
+  try {
+    storeSecret(db, BROWSER_SECRETS, name, value, blob);
+  } catch (e) {
+    if (had) fs.renameSync(held, file);
+    throw e;
+  }
+  fs.rmSync(held, { force: true });
+  writePrivate(file, o);
 }
 
 /** Every secret value decrypted in this process, including values a later save replaced. */
