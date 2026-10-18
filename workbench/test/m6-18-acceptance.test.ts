@@ -670,3 +670,21 @@ test('M6-18 desktop: a window moved onto another display takes its showing curso
     mods.closeDesktopOverlay();
   }
 });
+
+test('M6-18o watch dot: the thumbnail dot sits at the cursor, not the centre of its last target', async () => {
+  // protects=D56 with the watch layout: a key that keeps the cursor still keeps the dot still
+  // fails_when=cursorDots maps the stored target rect's centre instead of the stored cursor point
+  // no_claim=DPI scaling between physical and DIP pixels (the stub's screenToDipRect is identity)
+  fake.wins.length = 0;
+  try {
+    const grant = { id: 'gr_w', session_id: 'w-desk', hwnd: 1, title: 'W', rect: [0, 0, 800, 600], minimized: false };
+    mods.refitCursors([grant]);
+    await mods.desktopGlide('w-desk', [100, 100, 80, 30], 'click', deskLook('w-desk'));
+    await mods.desktopGlide('w-desk', [0, 0, 800, 600], 'press Enter', deskLook('w-desk'));
+    assert.deepEqual(fake.wins[0].webContents.glides().at(-1).to, { x: 140, y: 115 }, 'the cursor stayed (D56)');
+    const dot = mods.cursorDots().gr_w;
+    assert.ok(Math.abs(dot.fx - 140 / 800) < 1e-9 && Math.abs(dot.fy - 115 / 600) < 1e-9, JSON.stringify(dot));
+  } finally {
+    mods.closeDesktopOverlay();
+  }
+});

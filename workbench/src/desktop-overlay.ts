@@ -18,7 +18,7 @@ export interface GlideReply { arrived: true; ms: number; shown: boolean; late: b
 
 const wins = new Map<number, { win: BrowserWindow; ready: Promise<void> }>();
 /** Each session's cursor: the display it is on, its point in that window, the physical rect it went to, and when. */
-const marks = new Map<string, { display: number; x: number; y: number; rect: number[]; at: number }>();
+const marks = new Map<string, { display: number; x: number; y: number; px: number[]; rect: number[]; at: number }>();
 /** Each session's idle timer: `cursor.hide` once its cursor has been still for `idle_fade_ms`. */
 const fades = new Map<string, NodeJS.Timeout>();
 let grants: LiveGrant[] = [];
@@ -125,7 +125,8 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
     await new Promise((r) => setTimeout(r, Math.max(0, due - Date.now())));
   }
   const at = quiet && m ? m.at : Date.now();
-  marks.set(session, { display: display.id, x: to.x, y: to.y, rect: rectPx, at });
+  const px = [rectPx[0] + ((to.x - rect.x) / rect.width) * rectPx[2], rectPx[1] + ((to.y - rect.y) / rect.height) * rectPx[3]];
+  marks.set(session, { display: display.id, x: to.x, y: to.y, px, rect: rectPx, at });
   clearTimeout(fades.get(session));
   fades.set(session, setTimeout(() => {
     fades.delete(session);
@@ -169,7 +170,7 @@ export function cursorDots(): Record<string, { fx: number; fy: number; colour: s
   for (const [session, m] of marks) {
     const g = grantOf(session, m.rect, grants);
     if (!g?.rect) continue;
-    out[g.id] = { fx: (m.rect[0] + m.rect[2] / 2 - g.rect[0]) / g.rect[2], fy: (m.rect[1] + m.rect[3] / 2 - g.rect[1]) / g.rect[3], colour: sessionColour(session) };
+    out[g.id] = { fx: (m.px[0] - g.rect[0]) / g.rect[2], fy: (m.px[1] - g.rect[1]) / g.rect[3], colour: sessionColour(session) };
   }
   return out;
 }
