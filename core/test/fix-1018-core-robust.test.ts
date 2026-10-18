@@ -23,7 +23,7 @@ import { markGone } from '../src/sessions/resume-all.ts';
 import * as term from '../src/terminal/index.ts';
 import { liveText, wireTermEvents } from '../src/terminal/events.ts';
 import { buildMethods } from '../src/methods.ts';
-import { isolation, until, withEnv } from './helpers.ts';
+import { isolation, runNode, until, withEnv } from './helpers.ts';
 
 function home(t): { home: string; env: Record<string, string> } {
   const isolated = isolation();
@@ -269,4 +269,21 @@ test('h-c-browsermcp a message that makes handle() throw gets a JSON-RPC error, 
   assert.equal(child.exitCode, null, stderr);
   assert.deepEqual(replies.map((r) => [r.id, r.error?.code ?? null]).sort(), [[null, -32603], [1, null], [2, null]]);
   assert.equal(connections, 1);
+});
+
+test('h-b-d2 a Stop hook waits out a 600 ms write lock instead of dropping the event', async (t) => {
+  const { home: dir, env } = home(t);
+  withEnv(env, openCoreDb).close();
+  const file = join(dir, 'troop.db');
+  const script = `const { DatabaseSync } = await import('node:sqlite'); const db = new DatabaseSync(${JSON.stringify(file)}); db.exec('BEGIN IMMEDIATE'); console.log('held'); const end = Date.now() + 600; while (Date.now() < end) {} db.exec('COMMIT'); db.close();`;
+  const holder = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const exited = new Promise((r) => holder.once('exit', r));
+  await new Promise<void>((r) => holder.stdout.once('data', () => r()));
+  const hook = await runNode(['core/src/hook/event.ts', 'claude.Stop', '--session', 's-stop'], { ...process.env, ...env }, '{}');
+  await exited;
+  assert.equal(hook.code, 0);
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    assert.equal(db.prepare("SELECT count(*) AS n FROM event WHERE kind = 'claude.Stop' AND session_id = 's-stop'").get().n, 1);
+  } finally { db.close(); }
 });
