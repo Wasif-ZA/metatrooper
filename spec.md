@@ -556,8 +556,8 @@ What MetaTrooper adds around the driver:
 
 ## The agent cursor (M6-18, D69)
 
-One cursor per agent session, in the session's colour (the same colour as its tile), with a chip naming the agent
-and its task (28 characters at most). It glides to each target like a person's mouse, the click fires the moment
+One cursor per agent session, in the session's colour (the same colour as the dot beside its tile's state dot, D48),
+with a chip naming the agent and its task (the whole chip 28 characters at most, D50). It glides to each target like a person's mouse, the click fires the moment
 it arrives, and a ripple and a one-line caption ("click Sign in", "type 14 characters", "press Enter") play after,
 off the critical path. Typed text is never shown. The real pointer never moves.
 
@@ -567,7 +567,7 @@ off the critical path. Typed text is never shown. The real pointer never moves.
   `showInactive()`), hidden when no agent is acting.
 - **Flow.** Browser: the workbench main process already runs every browser tool, so it glides the pane cursor
   itself after `approval.check` allows. Desktop: `metatrooper-desktop` asks for the glide with `cursor.glide` on the
-  workbench pipe (Computer use). In both, the workbench main process sends the overlay `{session, colour, label, from, to, targetRect, ms, caption, reducedMotion}`; the overlay plans the path
+  workbench pipe (Computer use). In both, the workbench main process sends the overlay `{id, session, colour, label, from, to, targetRect, ms, caption, mode, reducedMotion}` (`contracts/agent-cursor.md`, D51); the overlay plans the path
   once as timed samples, plays it by the clock, and replies `arrived`. Main fires the input on `arrived`, or at
   `ms + 16` if the reply is late. Repeated actions on the same target skip the glide.
 - **Timing.** Glide time is `clamp(70 + 55 * log2(D / W + 1), 90, 220)` ms, D the distance and W the target width
@@ -579,17 +579,19 @@ off the critical path. Typed text is never shown. The real pointer never moves.
   with `screen.screenToDipRect` and picks the display with `screen.getDisplayMatching`, one overlay window per
   display so mixed 100% and 150% screens stay sharp. It refits on `display-metrics-changed`, `display-added`,
   `display-removed`, and every 250 ms while a cursor shows. A minimised, closed or empty target hides the cursor; a
-  jump over 25% of the display snaps instead of gliding. A target covered by another window still gets the cursor,
+  jump over half the display's diagonal snaps instead of gliding (D54: 1,101 px on 1920x1080, so ordinary moves glide). A target covered by another window still gets the cursor,
   drawn on top, and the caption adds "behind <window title>".
 - **Z-order.** Only while an action is in flight: `setAlwaysOnTop(true, 'floating')` and `moveTop()`, re-asserted
   every 100 ms; 1.5 s after the last action, `setAlwaysOnTop(false)` and hide. Never left in the always-on-top band.
-- **Out of the agent's screenshots.** `setContentProtection(true)` at creation, and one frame (about 16 ms) is
-  waited after showing before the next agent screenshot. If protection is not available, the screenshot result says
-  `overlay_may_show: true`. Pane cursors live in a separate view and never appear in page captures. Agent
-  screenshots themselves cannot hold an overlay (`Page.captureScreenshot` on the pane, `PrintWindow` on the target
-  window); content protection matters for whole-screen captures.
+- **Out of the agent's screenshots** (D52). Agent screenshots cannot hold an overlay (`Page.captureScreenshot` on the
+  pane, `PrintWindow` on the target window), so there is no screenshot wait and no `overlay_may_show` flag. Pane
+  cursors live in a separate view and never appear in page captures. `setContentProtection(true)` at creation keeps
+  the desktop overlay out of whole-screen captures.
 - **Many agents.** Each session's cursor stays; the latest mover draws on top. Idle for 5 s, a cursor fades over
   300 ms. Reduced motion (CSS and `systemPreferences.getAnimationSettings()`): snap and a 120 ms colour flash.
+  A session's first cursor, or the first after it faded, appears at its target with a 120 ms fade-in, no glide
+  (D55). A key or scroll keeps the cursor where it is when it is inside the target, else the target's centre, with no
+  focus query (D56). A late or broken overlay never blocks input: it goes at `ms + 16` and is marked late (D57).
 - **Settings.** `agent_cursor.mode`: `off`, `instant` (snap and ripple), `snappy` (default, above), `human` (slower
   curved paths with overshoot, for demos; breaks the 250 ms budget on purpose). `agent_cursor.show_caption` (true),
   `agent_cursor.idle_fade_ms` (5000), `agent_cursor.show_in_recordings` (false; true turns content protection off
@@ -816,7 +818,7 @@ criteria (M1-18 to M1-21, M1-26, M1-31, M1-38, M2, M3, M4) move with the split.
 - M6-18b. Two agents acting at once show two cursors in their own colours. The real pointer's position is unchanged
   throughout (read before and after).
 - M6-18c. An agent screenshot taken while its cursor is visible does not show the cursor (pixel check at the cursor's
-  position), or the result carries `overlay_may_show: true`.
+  position).
 - M6-18d. On two displays at 100% and 150%, the cursor lands within 3 px of the target after the target window is
   dragged from one display to the other.
 - M6-19a. A unique marker printed in one of 4 tiles is found by Ctrl+K within 1 s and opens that tile at the line.
