@@ -3,7 +3,7 @@ import { appendEvent } from '../events/append.ts';
 import { lastLine, setTermHooks } from './index.ts';
 import { settings } from '../settings.ts';
 import { devServersGone, scanOutput } from '../devservers.ts';
-import { getEngine, titlePatterns, type TitleState } from '../engines/registry.ts';
+import { getEngine, MAX_TITLE, titlePatterns, type TitleState } from '../engines/registry.ts';
 
 export interface LiveText { line?: string; title?: string }
 
@@ -49,6 +49,7 @@ export function wireTermEvents(db: DatabaseSync): void {
     escapes.set(id, { at: Date.now(), state_at: s.state_at, seq: (lastSeq.get(id) as { seq: number | null }).seq });
   };
   const onRawTitle = (id: string, title: string) => {
+    title = title.slice(0, MAX_TITLE);
     const s = sessionRow.get(id) as { state: string; state_at: string; engine_id: string } | undefined;
     if (!s) return;
     const e = engineOf(id, s.engine_id);

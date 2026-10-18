@@ -13,7 +13,7 @@ A fix ships in the next release, and the advisory credits you unless you ask not
 ## Scope
 
 In scope: the core (`core/`), the workbench (`workbench/`), the hooks it installs, the named pipe, the plugin
-installer and permission screen, the sandbox, and the plugins and pipelines in this repository.
+installer and permission screen, the sandbox, and the plugins in this repository.
 
 Out of scope: the agent CLIs themselves (Claude Code, Codex, agy), which have their own vendors; and anything that
 needs another process already running as the same Windows or Linux user, since that process can read your files

@@ -116,7 +116,7 @@
             "path": { "type": "string" },
             "env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$", "description": "env-json: variable that receives the JSON. config-dir: variable that receives the folder." },
             "format": { "enum": ["mcpServers", "opencode-mcp"], "default": "mcpServers", "description": "Shape of the JSON written." },
-            "template": { "type": "array", "items": { "type": "string" }, "description": "args-template: per server; {name}, {node}, {shim}, {plugin}, {server}, {url}." }
+            "template": { "type": "array", "items": { "type": "string" }, "description": "args-template: per server; {name}, {node}, {shim}, {plugin}, {server}, {token}, {url}." }
           },
           "allOf": [
             { "if": { "properties": { "kind": { "enum": ["env-json", "config-dir"] } } }, "then": { "required": ["env"] } },

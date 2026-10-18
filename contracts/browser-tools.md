@@ -170,9 +170,11 @@ then `Page.captureScreenshot` with `captureBeyondViewport: true` and a clip of t
    the user typed into its URL box.
    Blocked: `file:`, `chrome:`, `devtools:`, other loopback ports, and these ranges unless the project's
    `.troop/config.json` lists the host: IPv4 `0.0.0.0/8`, `10.0.0.0/8`, `127.0.0.0/8` (except owned dev
-   ports), `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`; IPv6 `::/128`, `::1/128`
-   (except owned dev ports), `fc00::/7`, `fe80::/10`, and IPv4-mapped `::ffff:0:0/96` checked against the IPv4
-   list. Enforced with `Fetch.enable` interception on every request, not only top-level navigation, so a
+   ports), `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`, multicast `224.0.0.0/4`,
+   broadcast `255.255.255.255`; IPv6 `::/128`, `::1/128` (except owned dev ports), `fc00::/7`, `fe80::/10`,
+   site-local `fec0::/10`, multicast `ff00::/8`, and the IPv4 address inside IPv4-mapped `::ffff:0:0/96`,
+   IPv4-compatible `::/96` (so `::7f00:1` is loopback), NAT64 `64:ff9b::/96` and 6to4 `2002::/16`, checked
+   against the IPv4 list. Enforced with `Fetch.enable` interception on every request, not only top-level navigation, so a
    page script cannot reach a blocked host either. On each `Fetch.requestPaused`, the workbench resolves the
    host with node's `dns.lookup(host, {all: true})` and blocks the request if any returned address is in a
    blocked range, so a public name that resolves to a private address is blocked too. The browser resolves the
