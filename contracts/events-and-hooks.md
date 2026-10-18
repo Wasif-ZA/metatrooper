@@ -15,9 +15,15 @@ One invocation form: `node event.js <kind> [--session <id>] [--pid <n>] [--engin
 
 1. Read stdin (hooks) or build the payload from the flags (launch).
 2. Open `troop.db` with `busy_timeout = 200`. Insert one `event` row.
-3. On any error (no database, locked past 200 ms, bad JSON): write one line to
+3. Locked past the wait (200 ms; 1,500 ms for `claude.Stop`, `claude.StopFailure` and `claude.SessionEnd`), for a
+   kind the spool accepts and a session id from `--session` or `TROOP_SESSION_ID`: append the event to that session's
+   spool, `~/.metatrooper/spool/<session id>/events.ndjson`, in the sandbox line shape, which the core moves into
+   `event` (Spool ingest below; D16). So a held lock delays a `claude.Stop` instead of leaving the session `working`.
+   A spooled event lands after any event stored directly in the meantime. An event from outside MetaTrooper (no
+   session id) has no spool and is still dropped.
+4. On any other error (no database, bad JSON, a kind the spool does not accept): write one line to
    `~/.metatrooper/logs/event-errors.log` if that is possible, then exit 0.
-4. Never write to stdout, except for `UserPromptSubmit` (below).
+5. Never write to stdout, except for `UserPromptSubmit` (below).
 
 Total time budget: 250 ms from start to exit. A Claude hook that exceeds it is still fine for Claude (its own
 hook timeout is far longer); the budget exists so nothing the user sees slows down.
@@ -290,7 +296,8 @@ appends one line per event to `$METATROOPER_SPOOL/events.ndjson` instead of open
 `{"kind": str, "at": ts, "payload": {...}}`, payload already built by `buildPayload`. It never writes stdout,
 keeps the 250 ms budget, and on any error exits 0 silently.
 
-The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
+The core, every 250 ms, for each folder under `~/.metatrooper/spool/` named for a known session (a sandboxed
+session's, or any session's hook events spooled while `troop.db` was locked, D16):
 
 1. Reads `~/.metatrooper/spool/<session id>/events.ndjson` from the byte offset stored in `meta` under
    `spool_offset:<session id>`, and only whole lines.
@@ -302,7 +309,7 @@ The core, every 250 ms, for each non-`exited` session on the `sandbox` host:
 4. Stops ingesting a spool that passes 10 MiB and adds one `needs_you` row (`kind` `spool-too-large`).
 
 Once a session is `exited`, the core reads its spool a last time, drops any unfinished last line, and deletes the
-spool folder. Only the claude hook kinds (including `claude.PermissionRequest` and `claude.PostToolUseFailure`) and `codex.turn` are
+spool folder (and, for a sandboxed session, its container). Only the claude hook kinds (including `claude.PermissionRequest` and `claude.PostToolUseFailure`) and `codex.turn` are
 accepted from a spool.
 
 ## Notification sinks (outbound)

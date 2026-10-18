@@ -14,7 +14,7 @@ export function spoolDir(sessionId: string): string {
   return path.join(homeDir(), 'spool', sessionId);
 }
 
-function ingestOne(db: DatabaseSync, id: string, exited: boolean): void {
+function ingestOne(db: DatabaseSync, id: string, exited: boolean, sandbox: boolean): void {
   const dir = spoolDir(id);
   const file = path.join(dir, 'events.ndjson');
   const key = `spool_offset:${id}`;
@@ -57,17 +57,21 @@ function ingestOne(db: DatabaseSync, id: string, exited: boolean): void {
     }
   }
   if (exited) {
-    removeContainer(id);
+    if (sandbox) removeContainer(id);
     fs.rmSync(dir, { recursive: true, force: true });
     db.prepare('DELETE FROM meta WHERE key = ?').run(key);
   }
 }
 
-/** Moves whole spooled lines of every sandboxed session into `event`; once its session has exited, a last read drops any unfinished line and deletes the spool. */
+/** Moves whole spooled lines into `event`: a sandboxed session's events, and any session's hook events written while the database was busy (D16). Once its session has exited, a last read drops any unfinished line and deletes the spool. */
 export function ingestSpools(db: DatabaseSync): void {
-  const rows = db.prepare("SELECT id, state FROM session WHERE host = 'sandbox'").all() as Array<{ id: string; state: string }>;
-  for (const r of rows) {
-    if (r.state === 'exited' && !fs.existsSync(spoolDir(r.id))) continue;
-    try { ingestOne(db, r.id, r.state === 'exited'); } catch {}
+  const root = path.join(homeDir(), 'spool');
+  let ids: string[];
+  try { ids = fs.readdirSync(root); } catch { return; }
+  const get = db.prepare('SELECT state, host FROM session WHERE id = ?');
+  for (const id of ids) {
+    const r = get.get(id) as { state: string; host: string } | undefined;
+    if (!r) continue;
+    try { ingestOne(db, id, r.state === 'exited', r.host === 'sandbox'); } catch {}
   }
 }

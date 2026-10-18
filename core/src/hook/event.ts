@@ -128,7 +128,23 @@ async function main(): Promise<void> {
     stored = true;
     sessionId = known?.id ?? '';
   } else {
-    db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind));
+    // loaded before the lock wait: after it the exit timer is due, and it would fire at the first await
+    const { spoolKind } = await import('../redact.ts');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { homeDir } = await import('../paths.ts');
+    const { nowIso } = await import('../time.ts');
+    try {
+      db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind));
+    } catch (e) {
+      // a busy database: the session's spool, which the core moves into `event` (D16)
+      if (!/locked|busy/i.test(String((e as Error)?.message)) || !spoolKind(kind) || !/^[0-9A-Za-z_-]+$/.test(sessionId)) throw e;
+      const dir = path.join(homeDir(), 'spool', sessionId);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, 'events.ndjson'), JSON.stringify({ kind, at: nowIso(), payload }) + '\n');
+      stored = true;
+      return;
+    }
     stored = db !== null;
   }
   if (!db) return;

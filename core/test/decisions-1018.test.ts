@@ -72,3 +72,31 @@ test('D5 allow_origins in the agent-writable .troop/config.json no longer silenc
   await methods.get('settings.set')!.handler({ key: 'browser.allow_origins', value: ['https://agent.test/'] });
   assert.deepEqual(await approvals.check({ ...check, args: { ref: 'e2' } }), { decision: 'allow' });
 }));
+
+test('D16 a hook event that meets a held database lock is spooled, not dropped, and the core moves it into event', () => withDb(async (db, home) => {
+  const { runNode } = await import('./helpers.ts');
+  const { ingestSpools } = await import('../src/sandbox/spool.ts');
+  const { ulid } = await import('../src/time.ts');
+  const { DatabaseSync } = await import('node:sqlite');
+  const id = ulid();
+  const at = new Date().toISOString();
+  db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', home, 'p', at, at);
+  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+  db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p1', 'e1', 'pty', 'working', ?, ?)").run(id, at, at);
+  const locker = new DatabaseSync(`${home}/troop.db`);
+  locker.exec('BEGIN IMMEDIATE');
+  let r: { code: number; stderr: string };
+  try {
+    r = await runNode(['core/src/hook/event.ts', 'claude.Stop', '--session', id], { ...process.env, METATROOPER_HOME: home }, JSON.stringify({ session_id: 'native-1', hook_event_name: 'Stop' })) as never;
+  } finally {
+    locker.exec('COMMIT');
+    locker.close();
+  }
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(fs.existsSync(`${home}/logs/event-errors.log`), false, 'nothing was dropped');
+  const line = JSON.parse(fs.readFileSync(`${home}/spool/${id}/events.ndjson`, 'utf8').trim());
+  assert.equal(line.kind, 'claude.Stop');
+  ingestSpools(db);
+  const rows = db.prepare("SELECT session_id, json_extract(payload, '$.session_id') AS native FROM event WHERE kind = 'claude.Stop'").all();
+  assert.deepEqual(rows.map((x) => ({ ...x })), [{ session_id: id, native: 'native-1' }]);
+}));
