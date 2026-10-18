@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import type { DatabaseSync } from 'node:sqlite';
 import { repoDir } from '../paths.ts';
 import { engineSchemaErrors } from '../plugins/manifest.ts';
@@ -129,7 +130,7 @@ const compiled = new Map<string, RegExp | null>();
 const MAX_PATTERN = 200;
 export const MAX_TITLE = 256;
 
-/** Why a state_titles pattern could backtrack without bound (a backreference, or a quantified group that holds a quantifier), or null. */
+/** Why a state_titles pattern is refused at load (too long, a backreference, or a quantified group that holds a quantifier), or null; other slow patterns are stopped at match time. */
 export function unsafePattern(src: string): string | null {
   if (src.length > MAX_PATTERN) return `is longer than ${MAX_PATTERN} characters`;
   if (/\\[1-9]|\\k</.test(src)) return 'has a backreference';
@@ -153,9 +154,27 @@ export function unsafePattern(src: string): string | null {
   return null;
 }
 
-/** The engine's state_titles as case-insensitive regexes, each compiled once; a pattern that does not compile is logged once and left out. */
-export function titlePatterns(e: EngineSpec): Partial<Record<TitleState, RegExp>> {
-  const out: Partial<Record<TitleState, RegExp>> = {};
+const TITLE_MATCH_MS = 50;
+const matchContext = vm.createContext({});
+const matchScript = new vm.Script('re.test(s)');
+
+export interface TitleMatcher { test(title: string): boolean }
+
+/** A pattern whose match runs past TITLE_MATCH_MS is stopped, logged once and dropped for every session. */
+function bounded(key: string, label: string, re: RegExp): TitleMatcher {
+  return {
+    test(title) {
+      if (!compiled.get(key)) return false;
+      Object.assign(matchContext, { re, s: title });
+      try { return matchScript.runInContext(matchContext, { timeout: TITLE_MATCH_MS }) === true; }
+      catch { console.warn(`${label} ran over ${TITLE_MATCH_MS} ms on a title, ignored`); compiled.set(key, null); return false; }
+    },
+  };
+}
+
+/** The engine's state_titles as case-insensitive matchers, each compiled once; a pattern that does not compile is logged once and left out. */
+export function titlePatterns(e: EngineSpec): Partial<Record<TitleState, TitleMatcher>> {
+  const out: Partial<Record<TitleState, TitleMatcher>> = {};
   for (const [state, src] of Object.entries(e.state_titles ?? {}) as Array<[TitleState, string]>) {
     const key = `${e.id}\0${state}\0${src}`;
     if (!compiled.has(key)) {
@@ -164,7 +183,7 @@ export function titlePatterns(e: EngineSpec): Partial<Record<TitleState, RegExp>
       else try { compiled.set(key, new RegExp(src, 'i')); } catch { console.warn(`engine ${e.id}: state_titles.${state} does not compile, ignored`); compiled.set(key, null); }
     }
     const re = compiled.get(key);
-    if (re) out[state] = re;
+    if (re) out[state] = bounded(key, `engine ${e.id}: state_titles.${state}`, re);
   }
   return out;
 }

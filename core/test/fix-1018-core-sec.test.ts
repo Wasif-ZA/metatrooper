@@ -41,6 +41,19 @@ test('m6-23-d1 state_titles rejects nested quantifiers, backreferences and long 
   assert.ok(re.idle?.test('idle now'));
 });
 
+test('m6-23-d1-redos-bypass a state_titles pattern that backtracks past the load check is stopped at match time and dropped', { timeout: 5000 }, () => {
+  const slow = { '(a|a)*$': 'a'.repeat(28) + '!', '(a|aa)+$': 'a'.repeat(40) + '!', '.*.*.*.*x': 'a'.repeat(256) };
+  for (const [src, title] of Object.entries(slow)) {
+    assert.equal(unsafePattern(src), null, src);
+    const spec = { id: `fix-1018-slow-${src}`, command: 'x', version_cmd: ['x'], roles: [], cost_rank: 1, state_titles: { working: src } };
+    const m = titlePatterns(spec as never).working!;
+    const t = Date.now();
+    assert.equal(m.test(title), false, src);
+    assert.ok(Date.now() - t < 1000, src);
+    assert.equal(titlePatterns(spec as never).working, undefined, src);
+  }
+});
+
 test('c-sec-d1 mcp.resolve and mcp.missing answer only with the token the core put in that plugin shim command', async () => {
   const isolated = isolation();
   const core = await startCore(isolated);
