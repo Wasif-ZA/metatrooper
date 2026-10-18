@@ -21,7 +21,7 @@ async function startup(t: any, outcome: 'true' | 'false' | 'throw') {
   const sources: Record<string, string> = {
     'electron': `const s = globalThis.__takeoverTest;
       export const app = { on() {}, setPath() {}, requestSingleInstanceLock: () => true, whenReady: () => ({ then: fn => { s.ready = fn; } }), quit() {}, setAsDefaultProtocolClient() {} };
-      export const clipboard = {}, desktopCapturer = {}, dialog = {}, shell = {}, Notification = {};
+      export const clipboard = {}, desktopCapturer = {}, dialog = {}, shell = {}, Notification = {}, systemPreferences = {};
       export const globalShortcut = { register: key => s.register(key), unregisterAll() {} };
       export const ipcMain = { handle() {} }, Menu = { setApplicationMenu() {} };
       export const session = { defaultSession: { webRequest: { onBeforeRequest() {} }, setPermissionRequestHandler() {} } };
@@ -32,6 +32,7 @@ async function startup(t: any, outcome: 'true' | 'false' | 'throw') {
     '../../core/src/hook/resolve.ts': 'export const resolveLaunch = () => null;',
     './terminals.ts': 'export const termAck = () => {}, attachTerm = () => {}, detachAll = () => {}, detachTerm = () => {}, termInput = () => {}, termResize = () => {};',
     './desktop-frames.ts': 'export const syncFrames = Object.assign(() => {}, { count: () => 0 });',
+    './desktop-overlay.ts': 'export const closeDesktopOverlay = () => {}, cursorDots = () => ({}), cursorsShowing = () => false, desktopGlide = async () => ({}), initDesktopOverlay = () => {}, refitCursors = () => {};',
     '../../core/src/paths.ts': 'export const homeDir = () => globalThis.__takeoverTest.home, dbFile = () => homeDir() + "/synthetic.sqlite", browserPipe = () => "synthetic", corePipe = () => "synthetic", logsDir = homeDir, uiKeyFile = () => homeDir() + "/key";',
     '../../core/src/log.ts': 'export const captureProcessLog = () => {};',
     '../../core/src/time.ts': 'export const ulid = () => "synthetic";',
@@ -40,7 +41,7 @@ async function startup(t: any, outcome: 'true' | 'false' | 'throw') {
     '../../core/src/browser/policy.ts': 'export const typedUrl = x => x;',
     '../../core/src/store/db.ts': 'export const openReaderDb = () => ({ exec() {} });',
     '../../core/src/pipe/client.ts': 'export const call = async (method, params, options) => { globalThis.__takeoverTest.sent.push({ method, params, options }); return { kind: "reply", reply: { result: {} } }; };',
-    './queries.ts': 'export const snapshot = () => ({ core: { pid: 1234, online: true }, sessions: [], needs_you: [], grants: [] }), withContext = x => x, withLiveText = x => x, dataVersion = () => 0, freshNeeds = () => ({ seen: new Set(), fresh: [] }), crashAction = () => "none", watchDb = () => {}, browserAudit = () => [], toastFor = () => null;',
+    './queries.ts': 'export const snapshot = () => ({ core: { pid: 1234, online: true }, sessions: [], needs_you: [], grants: [] }), withContext = x => x, withLiveText = x => x, dataVersion = () => 0, freshNeeds = () => ({ seen: new Set(), fresh: [] }), crashAction = () => "none", watchDb = () => {}, browserAudit = () => [], toastFor = () => null, taskOf = () => "";',
     './handback.ts': 'export const fileDiff = () => {}, gitIn = () => {}, handback = () => {}, sessionChanges = () => {};',
     './gitpane.ts': 'export const gitAct = () => {}, gitView = () => {}, ownerGroups = () => {}, runIn = () => {};',
     '../../core/src/sessions/owners.ts': 'export const ownersAsync = async () => ({}), repoOfAsync = async () => null;',

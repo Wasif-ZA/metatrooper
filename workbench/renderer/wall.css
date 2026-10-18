@@ -42,6 +42,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .crumb .proj { color: var(--body-strong); }
 .crumb .core { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: 2px; border: 1px dotted var(--hairline-strong); color: var(--work); font-size: 11px; margin-left: 4px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+.cdot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: none; margin-left: 3px; }
+.cdot[hidden] { display: none; }
 .sp { flex: 1; align-self: stretch; -webkit-app-region: drag; }
 .chip { height: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 2px; font-size: 11px; color: var(--body); border: 1px dotted var(--hairline-strong); }
 .chip:hover { background: var(--canvas); }
@@ -277,5 +279,8 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 #watch .wtile { flex: 0 0 240px; cursor: pointer; border: 1px var(--bstyle) var(--line); padding: 8px; background: var(--panel); }
 #watch .wtile .fl { color: var(--muted); font-size: 11px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #watch .wthumb { margin: 0; flex: 1 1 0; max-width: 480px; }
+#watch .wimg { position: relative; display: block; }
+#watch .wdot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 1px solid #fff; pointer-events: none; }
+#watch .wdot[hidden] { display: none; }
 #watch .wthumb img { width: 100%; min-height: 60px; display: block; border: 1px var(--bstyle) var(--line); background: var(--panel); }
 #watch .wthumb figcaption { font-size: 11px; color: var(--muted); margin-top: 4px; }
