@@ -16,6 +16,7 @@ import { createDecoder, encode } from '../src/pipe/framing.ts';
 import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
+import { Approvals } from '../src/approvals.ts';
 import { markGone } from '../src/sessions/resume-all.ts';
 import * as term from '../src/terminal/index.ts';
 import { liveText, wireTermEvents } from '../src/terminal/events.ts';
@@ -207,5 +208,17 @@ test('m6-27-clear-unknown project.clear keeps unknown-state sessions visible', a
     for (const state of ['unknown', 'idle', 'working']) add.run(state, state);
     await buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k' }).get('project.clear')!.handler({ project_id: 'p' }, { ui: true, origin: 'test' });
     assert.deepEqual(db.prepare('SELECT id FROM session WHERE hidden = 0 ORDER BY id').all().map((r) => r.id), ['unknown', 'working']);
+  } finally { db.close(); }
+});
+
+test('h-c-control a long control name still asks but is stored capped like the summary', async (t) => {
+  const db = withEnv(home(t).env, openCoreDb);
+  try {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p', 'fake', 'pty', 'working', 'x', 'x')").run();
+    const out = await new Approvals(db, 50).check({ session_id: 's1', surface: 'desktop', target: 'app', action: 'click', args: {}, control: { name: `${'x '.repeat(3000)}Delete`, automation_id: 'a'.repeat(5000), role: 'button' } });
+    assert.equal(out.decision, 'expired');
+    const row = db.prepare('SELECT control FROM approval').get() as { control: string };
+    assert.ok(row.control.length < 1000, `${row.control.length} chars`);
   } finally { db.close(); }
 });

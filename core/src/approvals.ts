@@ -152,7 +152,7 @@ export class Approvals {
     }
     // every stored field is scrubbed of known secret values: a page can copy a filled secret into a control's name or id
     const clean = (s: string) => redactCredentials(redactSecretValues(s, secrets));
-    const control = p.control ? clean(canonicalJson(Object.fromEntries(Object.entries(p.control).map(([k, v]) => [k, redactSecretValues(v, secrets)])))) : null;
+    const control = p.control ? clean(canonicalJson(Object.fromEntries(Object.entries(p.control).map(([k, v]) => [k, redactCredentials(redactSecretValues(v, secrets)).slice(0, 200)])))) : null;
     if (!ALWAYS.has(reason.split(':')[0])) {
       // a session approval covers only the rule it was given for: a `new origin` row never covers a risky action
       const covered = this.db.prepare(
