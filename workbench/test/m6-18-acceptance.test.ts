@@ -28,7 +28,7 @@ function contents() {
     destroyed: false,
     isDestroyed() { return wc.destroyed; },
     send(ch: string, m: any) {
-      if (wc.destroyed) throw new Error('Object has been destroyed');
+      if (wc.destroyed || (globalThis as any).__m618.sendThrows) throw new Error('Object has been destroyed');
       wc.sent.push([ch, structuredClone(m)]);
       if (ch === 'cursor.glide' && wc.answer === 'yes') setTimeout(() => { for (const f of [...listeners]) f({}, { id: m.id, at: Date.now(), x: m.to.x, y: m.to.y }); }, m.ms);
     },
@@ -57,10 +57,10 @@ async function load() {
               export const app = {}, clipboard = {}, Menu = {}, nativeImage = {}, session = {}, WebContentsView = {};
               export const screen = { screenToDipRect: (_w, r) => r, getDisplayMatching: (r) => S().displays.find((d) => r.x + r.width / 2 >= d.bounds.x && r.x + r.width / 2 < d.bounds.x + d.bounds.width) ?? S().displays[0], getAllDisplays: () => S().displays, on() {} };
               export class BrowserWindow {
-                constructor(opts) { this.opts = opts; this.calls = []; this.bounds = { x: 0, y: 0, width: 0, height: 0 }; this.visible = false; this.top = false; this.destroyed = false; this.webContents = S().contents(); S().wins.push(this); }
+                constructor(opts) { if (S().ctorThrows) throw new Error('could not make a window'); this.opts = opts; this.calls = []; this.bounds = { x: 0, y: 0, width: 0, height: 0 }; this.visible = false; this.top = false; this.destroyed = false; this.webContents = S().contents(); S().wins.push(this); }
                 setIgnoreMouseEvents(v) { this.calls.push(['ignore', v]); } setContentProtection(v) { this.calls.push(['protect', v]); }
                 setAlwaysOnTop(v, level) { this.top = v; this.calls.push(['top', v, level]); } isAlwaysOnTop() { return this.top; } moveTop() { this.calls.push(['moveTop']); }
-                loadFile(f) { this.file = f; return Promise.resolve(); } loadURL(u) { this.url = u; return Promise.resolve(); }
+                loadFile(f) { this.file = f; return S().loadNever ? new Promise(() => {}) : S().destroyOnLoad ? Promise.resolve().then(() => { this.destroyed = true; }) : Promise.resolve(); } loadURL(u) { this.url = u; return Promise.resolve(); }
                 getBounds() { return this.bounds; } setBounds(b) { this.bounds = b; }
                 isVisible() { return this.visible; } showInactive() { this.visible = true; this.calls.push(['showInactive']); } show() { this.visible = true; this.calls.push(['show']); } focus() { this.calls.push(['focus']); }
                 hide() { this.visible = false; this.calls.push(['hide']); } isDestroyed() { return this.destroyed; } destroy() { this.destroyed = true; }
@@ -530,5 +530,47 @@ test('M6-18h pipe: a desktop host that throws replies late and the input goes on
     assert.deepEqual(r.result, { arrived: true, ms: 0, shown: false, late: true });
   } finally {
     p.close();
+  }
+});
+
+test('M6-18h desktop: an overlay page that never loads still replies late at ms + 16', async () => {
+  // protects=D57 window creation and page load sit inside the input deadline
+  // fails_when=desktopGlide awaits the page load before starting the ms + 16 wait
+  // no_claim=a real slow Electron load
+  fake.wins.length = 0;
+  fake.loadNever = true;
+  try {
+    let t0 = Date.now();
+    const first = await mods.desktopGlide('hl-desk', [100, 100, 80, 30], 'click', deskLook('hl-desk'));
+    assert.deepEqual(first, { arrived: true, ms: 0, shown: true, late: true });
+    assert.ok(Date.now() - t0 <= 16 + 40, `first took ${Date.now() - t0}`);
+    t0 = Date.now();
+    const r = await mods.desktopGlide('hl-desk', [400, 100, 80, 30], 'click', deskLook('hl-desk'));
+    const took = Date.now() - t0;
+    assert.deepEqual(r, { arrived: true, ms: glideMs(300, 80), shown: true, late: true });
+    assert.ok(took >= r.ms + 16 - 10 && took <= r.ms + 16 + 40, `took ${took} for ms ${r.ms}`);
+    assert.equal(fake.wins[0].webContents.glides().length, 0, 'nothing sent to a page that never loaded');
+  } finally {
+    fake.loadNever = false;
+    mods.closeDesktopOverlay();
+  }
+});
+
+test('M6-18h desktop: a window that cannot be made, a send that throws, or a window destroyed during load reply late, never reject', async () => {
+  // protects=D57 an overlay failure gives a late reply at ms + 16 and the input goes on
+  // fails_when=a throw from new BrowserWindow or webContents.send escapes desktopGlide, or a destroyed-during-load window replies at once with ms 0
+  // no_claim=the core's handling of the reply (core test)
+  for (const flag of ['ctorThrows', 'sendThrows', 'destroyOnLoad']) {
+    fake.wins.length = 0;
+    try {
+      fake[flag] = true;
+      const t0 = Date.now();
+      const r = await mods.desktopGlide('ht-desk', [100, 100, 80, 30], 'click', deskLook('ht-desk'));
+      assert.deepEqual(r, { arrived: true, ms: 0, shown: true, late: true }, flag);
+      assert.ok(Date.now() - t0 >= 16 - 10 && Date.now() - t0 <= 16 + 40, `${flag} took ${Date.now() - t0}`);
+    } finally {
+      fake[flag] = false;
+      mods.closeDesktopOverlay();
+    }
   }
 });

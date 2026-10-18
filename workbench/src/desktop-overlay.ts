@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, screen } from 'electron';
-import { awaitArrived, place, planGlide, usableRect, type Display, type Mode, type Rect } from './cursor-glide.ts';
+import { awaitArrived, LATE_MS, place, planGlide, usableRect, type Arrival, type Display, type Mode, type Rect } from './cursor-glide.ts';
 import { sessionColour } from './colour.ts';
 import type { LiveGrant } from './desktop-frames.ts';
 
@@ -98,14 +98,22 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
   for (const [other, om] of [...marks]) if (other !== session && now - om.at >= look.idleFadeMs) hide(other);
   const prev = m && now - m.at < look.idleFadeMs ? m : null;
   const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: rect, keep: /^(press|scroll)\b/.test(caption), host: display.bounds });
-  const w = windowFor(display, look.protect);
-  await w.ready;
-  if (w.win.isDestroyed()) return { arrived: true, ms: 0, shown: false, late: true };
-  if (!quiet) acted(w.win);
   const id = `desk:${++glides}`;
-  const arrival = awaitArrived(w.win.webContents, id, ms);
-  w.win.webContents.send('cursor.glide', { id, session, colour: look.colour, label: look.label, from, to, targetRect: rect, ms, caption: look.showCaption ? caption : '', mode: look.mode, reducedMotion: look.reducedMotion });
-  const got = await arrival;
+  const due = Date.now() + ms + LATE_MS;
+  let got: Arrival | null = null;
+  try {
+    // window creation, page load, send and arrival all sit inside the one ms + 16 deadline (D57)
+    const w = windowFor(display, look.protect);
+    const arrival = awaitArrived(w.win.isDestroyed() ? null : w.win.webContents, id, ms);
+    void w.ready.then(() => {
+      if (w.win.isDestroyed() || Date.now() >= due) return;
+      if (!quiet) acted(w.win);
+      w.win.webContents.send('cursor.glide', { id, session, colour: look.colour, label: look.label, from, to, targetRect: rect, ms, caption: look.showCaption ? caption : '', mode: look.mode, reducedMotion: look.reducedMotion });
+    }).catch(() => {});
+    got = await arrival;
+  } catch {
+    await new Promise((r) => setTimeout(r, Math.max(0, due - Date.now())));
+  }
   marks.set(session, { display: display.id, x: to.x, y: to.y, rect: rectPx, at: quiet && m ? m.at : Date.now() });
   return { arrived: true, ms, shown: true, late: !got };
 }
