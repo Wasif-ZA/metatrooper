@@ -27,6 +27,15 @@ export function appendLog(name: string, text: string): void {
   } catch {}
 }
 
+const logged = new Set<string>();
+
+/** Writes `text` to stderr the first time it is seen in this process; a repeat is dropped. */
+export function logOnce(text: string): void {
+  if (logged.has(text)) return;
+  logged.add(text);
+  console.error(text);
+}
+
 function stamp(text: string): string {
   return text.split(/(?<=\n)/).map((l) => `${new Date().toISOString()} ${l}`).join('');
 }

@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import { corePipe, uiKeyFile } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
-import { openCoreDb } from '../store/db.ts';
+import { checkSchema, openCoreDb } from '../store/db.ts';
+import { openWriterDb } from '../events/append.ts';
 import { encode, createDecoder } from './framing.ts';
 import { isQueueable } from './commands.ts';
 
@@ -74,8 +75,10 @@ export class PipeClient {
 }
 
 export function enqueue(id: string, method: string, params: Record<string, unknown>): void {
-  const db = openCoreDb();
+  // A fresh home has no core DB to migrate under, so creating it here is safe.
+  const db = openWriterDb() ?? openCoreDb();
   try {
+    checkSchema(db);
     db.prepare(
       `INSERT INTO command (id, at, origin, method, params, status) VALUES (?, ?, 'cli', ?, ?, 'queued')
        ON CONFLICT(id) DO NOTHING`,
@@ -109,9 +112,9 @@ export async function call(method: string, params: Record<string, unknown> = {},
     return { kind: 'queued', id };
   }
   let wait: NodeJS.Timeout | undefined;
-  const expired = new Promise<null>((r) => { wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); });
+  const expired = () => new Promise<null>((r) => { clearTimeout(wait); wait = setTimeout(() => r(null), opts.waitMs ?? 30_000); });
   try {
-    if (opts.ui && (await Promise.race([client.hello(), expired])) === null) return { kind: 'offline' };
+    if (opts.ui && (await Promise.race([client.hello(), expired()])) === null) return { kind: 'offline' };
     const { reply } = client.send(method, params, id);
     let queued = false;
     const timer = queueable
@@ -122,7 +125,7 @@ export async function call(method: string, params: Record<string, unknown> = {},
           } catch {}
         }, QUEUE_AFTER_MS)
       : null;
-    const waited = await Promise.race([reply, expired]);
+    const waited = await Promise.race([reply, expired()]);
     if (timer) clearTimeout(timer);
     if (waited) return { kind: 'reply', reply: waited };
     if (!queued) return { kind: 'offline' };

@@ -75,6 +75,7 @@ function boot() {
   const ctx = vm.createContext({
     window: { troop: api, addEventListener() {} }, document: doc, location: { search: '' }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     URLSearchParams, URL, wall, termView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }), Date: FakeDate, console,
+    MutationObserver: class { observe() {} },
     setTimeout: (f: () => void, ms = 0) => { const id = ++seq; timers.push({ id, at: now + ms, f }); return id; },
     clearTimeout: (id: number) => { timers = timers.filter((t) => t.id !== id); },
     setInterval: () => 0,

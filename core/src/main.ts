@@ -1,4 +1,5 @@
 import './log-core.ts';
+import { logOnce } from './log.ts';
 import type { Server } from 'node:net';
 import { openCoreDb } from './store/db.ts';
 import { corePipe, termPipe } from './paths.ts';
@@ -108,12 +109,14 @@ async function main(): Promise<void> {
   ready({ runner: commands, uiKey });
   termServer = await startTermServer(termPipe(), uiKey);
 
+  const failed = (name: string) => (e: unknown) => logOnce(`core timer ${name} failed: ${e instanceof Error ? e.message : String(e)}`);
   const every = (ms: number, fn: () => unknown) => {
+    const tickFailed = failed(String(fn).replace(/^\(\) => /, '').slice(0, 60));
     const t = setInterval(() => {
       try {
         const r = fn();
-        if (r instanceof Promise) r.catch(() => {});
-      } catch {}
+        if (r instanceof Promise) r.catch(tickFailed);
+      } catch (e) { tickFailed(e); }
     }, ms);
     timers.push(t);
   };
@@ -128,7 +131,7 @@ async function main(): Promise<void> {
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
   every(2000, () => readMeters(db));
   const limits = () => { readLimits(db); recordReadings(db); earlyEnd(db); };
-  try { limits(); } catch {}
+  try { limits(); } catch (e) { failed('limits')(e); }
   every(60_000, limits);
   every(5000, () => resumeAtReset(db));
   every(2000, () => notifyTick(db));
@@ -146,17 +149,17 @@ async function main(): Promise<void> {
   const sweep = () => {
     if (sweeping) return;
     sweeping = true;
-    void sweepWorktrees(db, activeEngines(db)).catch(() => {}).finally(() => { sweeping = false; });
+    void sweepWorktrees(db, activeEngines(db)).catch(failed('sweepWorktrees')).finally(() => { sweeping = false; });
   };
   sweep();
   every(3_600_000, sweep);
-  try { pruneBrowserAudit(db); } catch {}
+  try { pruneBrowserAudit(db); } catch (e) { failed('pruneBrowserAudit')(e); }
   every(3_600_000, () => pruneBrowserAudit(db));
   const resumer = coreResumer(db, wereLive, async (id) => (await methods.get('session.resume')!.handler({ session_id: id })) as { session_id: string });
-  const resuming = setInterval(() => { if (resumer.done()) clearInterval(resuming); else void resumer.tick().catch(() => {}); }, 250);
+  const resuming = setInterval(() => { if (resumer.done()) clearInterval(resuming); else void resumer.tick().catch(failed('resumer')); }, 250);
   timers.push(resuming);
   checkPids(db);
-  void checkAll(db, activeEngines(db)).catch(() => {});
+  void checkAll(db, activeEngines(db)).catch(failed('checkAll'));
 
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'] as const) process.on(sig, () => stop(sig));
   process.on('exit', (code) => console.error(`core exit ${code}`));

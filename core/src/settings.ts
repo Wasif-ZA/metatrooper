@@ -29,7 +29,6 @@ export const DEFAULTS = {
     scrollback: 10_000,
     font_size: 13,
     chunk_bytes: 64 * 1024,
-    slow_viewer_bytes: 4 * 1024 * 1024,
     bell_silent_ms: 30_000,
     prompt_wait_ms: 60_000,
     last_line_every_ms: 1000,

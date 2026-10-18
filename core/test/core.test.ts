@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync }
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { buildGenerated, client, harness, isolation, root, runNode, startCore, stopCore, teardownCore, until, uiHello } from './helpers.ts';
+import { migrate } from '../src/store/db.ts';
 
 before(buildGenerated);
 
@@ -275,6 +276,7 @@ test('offline CLI rejects focus and engine checks, queues project.open, and repl
     try {
       db.exec('PRAGMA foreign_keys = ON');
       db.exec(readFileSync(join(root, 'contracts/schema.sql'), 'utf8'));
+      migrate(db);
       db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)')
         .run('seed-project', isolated.home, 'seed', at, at);
       db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, ?, ?)')

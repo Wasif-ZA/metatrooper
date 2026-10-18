@@ -10,17 +10,17 @@ import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
-import { launchSession, writePrompt } from './sessions/launch.ts';
+import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { beingRemoved } from './worktree.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
-import { liveText } from './terminal/events.ts';
+import { forgetLive, liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
 import { homeDir, repoDir } from './paths.ts';
 import { installPlugin, previewPlugin, removePlugin, raiseMissingSecret, setPluginSecret } from './plugins/store.ts';
-import { resolveMcpServer } from './plugins/mcp.ts';
+import { checkShimToken, resolveMcpServer } from './plugins/mcp.ts';
 import { reservedId } from './plugins/manifest.ts';
 import { listSinks, removeSink, setSink, testSink } from './notify.ts';
 import { browserCall } from './browser/client.ts';
@@ -60,14 +60,14 @@ export const METHODS: MethodDecl[] = [
   { name: 'core.stop', needsUi: true, params: '{}', result: '{}; the core exits a moment after replying' },
   { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
-  { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not working or waiting, and its runs that are not running or paused" },
+  { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused" },
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
   { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
-  { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
+  { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
@@ -91,8 +91,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'plugin.remove', needsUi: true, params: '{plugin_id}', result: '{}' },
   { name: 'plugin.secret.set', needsUi: true, params: '{plugin_id, name, value}', result: '{}; `name` must be an approved `secrets:<NAME>`' },
   { name: 'browser.secret.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, origin, value}', result: '{}; saves a secret the browser 	ype tool fills from {{secret:NAME}}, only into a password field on origin (scheme, host and port); the value goes to the DPAPI store under plugin id core-browser, never to the command table; a value under 4 characters is refused, since output scrubbing skips such short values' },
-  { name: 'mcp.resolve', params: '{plugin_id, server_id}', result: '{command, args, env, refs, missing} for the MCP shim: `env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
-  { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names}', result: '{}; raises a `missing-secret` needs-you item per name' },
+  { name: 'mcp.resolve', params: '{plugin_id, server_id, token}', result: '{command, args, env, refs, missing} for the MCP shim, refused unless `token` is the one the core put in that plugin\'s shim command:`env` holds stored secret values, `refs` maps keys to `${VAR}` names the shim reads from its own environment' },
+  { name: 'mcp.missing', errors: [E.NOT_FOUND], params: '{plugin_id, names, token}', result: '{}; raises a `missing-secret` needs-you item per name' },
   { name: 'notify.sink.set', stable: true, needsUi: true, params: '{kind, dest, name?, id?, kinds?, enabled?}', result: '{id}; `kind` is `ntfy`, `slack-webhook`, `discord-webhook`, `teams-workflow`, `webhook` or `command`; `dest` is the URL (or a JSON argv array for `command`) and is stored only in the secret store under plugin id `core-notify`; never written to the `command` table' },
   { name: 'notify.sink.list', stable: true, params: '{}', result: '{sinks: [{id, kind, name, kinds, enabled, dest_hash, approved_at}]}; no destination' },
   { name: 'notify.sink.test', stable: true, needsUi: true, params: '{id}', result: '{ok, error?}' },
@@ -272,8 +272,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('session.hide', {
     handler: (p) => {
-      const r = db.prepare('UPDATE session SET hidden = 1 WHERE id = ?').run(str(p, 'session_id'));
+      const id = str(p, 'session_id');
+      const r = db.prepare('UPDATE session SET hidden = 1 WHERE id = ?').run(id);
       if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'session not found');
+      forgetLive(id);
       return {};
     },
   });
@@ -290,7 +292,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('project.clear', {
     handler: (p) => {
       const id = str(p, 'project_id');
-      db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('starting', 'working', 'waiting_for_you')").run(id);
+      const hide = db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('starting', 'working', 'waiting_for_you', 'unknown') RETURNING id").all(id) as Array<{ id: string }>;
+      for (const s of hide) forgetLive(s.id);
       db.prepare("UPDATE run SET hidden = 1 WHERE project_id = ? AND status NOT IN ('running', 'paused')").run(id);
       return {};
     },
@@ -301,6 +304,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const id = str(p, 'project_id');
       if (db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state IN ('starting', 'working', 'waiting_for_you', 'unknown') LIMIT 1").get(id)) throw new RpcError(E.VALIDATION, 'a session in this project is still running');
       if (Number(db.prepare('UPDATE project SET hidden = 1 WHERE id = ?').run(id).changes) === 0) throw new RpcError(E.NOT_FOUND, 'project not found');
+      for (const s of db.prepare('SELECT id FROM session WHERE project_id = ?').all(id) as Array<{ id: string }>) forgetLive(s.id);
       return {};
     },
   });
@@ -315,7 +319,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   };
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
-  m.set('session.live-text', { handler: () => liveText() });
+  m.set('session.live-text', {
+    handler: () => {
+      const out: Record<string, { line?: string; title?: string; held?: boolean }> = liveText();
+      for (const id of heldPrompts()) out[id] = { ...out[id], held: true };
+      return out;
+    },
+  });
   m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50, Array.isArray(p.session_ids) ? new Set(p.session_ids.filter((x): x is string => typeof x === 'string')) : undefined) }) });
 
   m.set('session.focus', {
@@ -515,11 +525,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('notify.sink.test', { handler: (p) => testSink(db, str(p, 'id')) });
   m.set('notify.sink.remove', { handler: (p) => removeSink(db, str(p, 'id')) });
 
-  m.set('mcp.resolve', { handler: (p) => resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id')) });
+  m.set('mcp.resolve', {
+    handler: (p) => {
+      checkShimToken(str(p, 'plugin_id'), str(p, 'token'));
+      return resolveMcpServer(db, str(p, 'plugin_id'), str(p, 'server_id'));
+    },
+  });
 
   m.set('mcp.missing', {
     handler: (p) => {
       const pluginId = str(p, 'plugin_id');
+      checkShimToken(pluginId, str(p, 'token'));
       const names = Array.isArray(p.names) ? p.names.filter((n): n is string => typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n)) : [];
       if (reservedId(pluginId) || !db.prepare('SELECT 1 FROM plugin WHERE id = ?').get(pluginId)) throw new RpcError(E.NOT_FOUND, 'plugin not found');
       for (const n of names) raiseMissingSecret(db, pluginId, n);

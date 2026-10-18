@@ -4,7 +4,7 @@ mock.module('electron', { exports: { app: {}, clipboard: {}, Menu: {}, nativeIma
 const { PaneManager } = await import('../../src/browser/panes.ts');
 
 const gone = { isDestroyed: () => true };
-const pm = new PaneManager({ isDestroyed: () => true } as never, {} as never);
+const pm = new PaneManager({ isDestroyed: () => true } as never, { paneEvent() {} } as never);
 const fake = () => ({ row: { id: 'p' }, picking: null, popups: new Set(), view: { webContents: gone }, overlay: { webContents: gone }, dbg: { sendCommand: async () => ({}), detach() {} } });
 const panes = (pm as unknown as { panes: Map<string, unknown> }).panes;
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -263,6 +263,8 @@ export function buildGenerated() {
   buildPromise ??= (async () => {
     const key = createHash('sha1').update(root).digest('hex').slice(0, 12);
     const lock = join(tmpdir(), `metatrooper-build-${key}-${process.ppid}`);
+    // a lock older than 15 min belongs to a dead run whose parent pid was reused
+    try { if (Date.now() - statSync(lock).mtimeMs > 15 * 60_000) rmSync(lock, { recursive: true, force: true }); } catch {}
     let owner = false;
     try { mkdirSync(lock); owner = true; }
     catch (error) { if (error.code !== 'EEXIST') throw error; }

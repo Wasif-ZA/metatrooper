@@ -65,7 +65,9 @@ const ALWAYS = new Set(['password field', 'credential text', 'credential field',
 const words = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_\-.]+/g, ' ');
 const riskyControl = (c: Control | null) => Boolean(c && (RISKY_NAME.test(words(c.name)) || RISKY_NAME.test(words(c.automation_id))));
 /** The reason for a risky control; the name is matched whole, then redacted whole and shortened only here, for display. */
-const risky = (c: Control) => `risky control: ${redactCredentials(c.name || c.automation_id).slice(0, 200)}`;
+// a long field keeps a hash of its whole text so two controls sharing a 200-char prefix stay distinct
+const cap = (s: string) => (s.length > 200 ? `${s.slice(0, 200)}…${sha256(s).slice(0, 16)}` : s);
+const risky = (c: Control) =>`risky control: ${redactCredentials(c.name || c.automation_id).slice(0, 200)}`;
 
 function isShortcut(keys: string): boolean {
   const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
@@ -152,7 +154,7 @@ export class Approvals {
     }
     // every stored field is scrubbed of known secret values: a page can copy a filled secret into a control's name or id
     const clean = (s: string) => redactCredentials(redactSecretValues(s, secrets));
-    const control = p.control ? clean(canonicalJson(Object.fromEntries(Object.entries(p.control).map(([k, v]) => [k, redactSecretValues(v, secrets)])))) : null;
+    const control = p.control ? clean(canonicalJson(Object.fromEntries(Object.entries(p.control).map(([k, v]) => [k, cap(redactCredentials(redactSecretValues(v, secrets)))])))) : null;
     if (!ALWAYS.has(reason.split(':')[0])) {
       // a session approval covers only the rule it was given for: a `new origin` row never covers a risky action
       const covered = this.db.prepare(

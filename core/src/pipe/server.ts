@@ -72,13 +72,18 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
         send({ jsonrpc: '2.0', id, error: toRpcError(e).toJSON() });
       }
     }, (e) => send({ jsonrpc: '2.0', id: null, error: { code: E.PARSE, message: e.message } }));
+    let dead = false;
     socket.on('data', (chunk) => {
+      if (dead) return;
       try {
         decode(chunk);
       } catch (e) {
         const code = e instanceof LineTooLong ? E.INVALID_REQUEST : E.PARSE;
         send({ jsonrpc: '2.0', id: null, error: { code, message: e instanceof Error ? e.message : 'parse error' } });
-        if (e instanceof LineTooLong) socket.end();
+        if (e instanceof LineTooLong) {
+          dead = true;
+          socket.destroySoon();
+        }
       }
     });
     socket.on('error', () => {});

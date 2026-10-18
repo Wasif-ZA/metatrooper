@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -39,9 +39,10 @@ test('the per-session git cache keeps a bounded number of sessions, dropping the
 
 test('a data-folder watcher that errors (folder deleted or locked) does not throw', async () => {
   const { watchDb } = await import('../src/queries.ts');
-  const w = watchDb(mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-watch-')), 'troop.db', () => {});
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-watch-'));
+  const w = watchDb(dir, 'troop.db', () => {});
   assert.ok(w);
-  try { assert.doesNotThrow(() => w.emit('error', new Error('EPERM'))); } finally { w.close(); }
+  try { assert.doesNotThrow(() => w.emit('error', new Error('EPERM'))); } finally { w.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('a browser pane whose database read fails still blanks a rebound page and answers its requests with a block', () => {
@@ -52,7 +53,7 @@ test('a browser pane whose database read fails still blanks a rebound page and a
 
 test('a reloaded or crashed window lets go of every terminal connection it had attached', async () => {
   process.env.METATROOPER_PIPE_PREFIX = `mt-harden-d-${process.pid}`;
-  process.env.METATROOPER_HOME = mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-'));
+  const home = (process.env.METATROOPER_HOME = mkdtempSync(path.join(os.tmpdir(), 'mt-harden-d-')));
   const { termPipe } = await import('../../core/src/paths.ts');
   const terminals = await import('../src/terminals.ts');
   const open = new Set<net.Socket>();
@@ -71,6 +72,7 @@ test('a reloaded or crashed window lets go of every terminal connection it had a
   } finally {
     for (const s of open) s.destroy();
     await new Promise((r) => server.close(r));
+    rmSync(home, { recursive: true, force: true });
   }
 });
 

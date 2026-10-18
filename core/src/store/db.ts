@@ -7,7 +7,7 @@ import { nowIso } from '../time.ts';
 export type Db = DatabaseSync;
 
 function pragmas(db: DatabaseSync, busyMs: number): void {
-  db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${busyMs}; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON;`);
+  db.exec(`PRAGMA busy_timeout = ${busyMs}; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON;`);
 }
 
 export function openCoreDb(): DatabaseSync {
@@ -62,12 +62,25 @@ export function openCoreDb(): DatabaseSync {
 
 export const migrationsDir = path.join(coreDir, 'src', 'store', 'migrations');
 
+const migrationFiles = (dir: string) => fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort();
+
+/** Throws unless troop.db is at schema version 2 and its newest migration is exactly the newest this code knows; changes nothing. */
+export function checkSchema(db: DatabaseSync, dir = migrationsDir): void {
+  const v = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+  if (v !== 2) throw new Error(`troop.db schema version ${v} is not supported`);
+  const tracked = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migration'").get();
+  const newest = tracked ? Number((db.prepare('SELECT max(id) AS id FROM schema_migration').get() as { id: number | null }).id ?? 0) : 0;
+  const known = Math.max(0, ...migrationFiles(dir).map((f) => Number(f.slice(0, 3))));
+  if (newest > known) throw new Error(`troop.db has migration ${newest}, newer than this MetaTrooper`);
+  if (newest < known) throw new Error(`troop.db is at migration ${newest}, behind this MetaTrooper (${known}); restart the core to migrate it`);
+}
+
 /** Applies each `NNN-<name>.sql` in `dir` not yet in `schema_migration`, in id order, one transaction each. */
 export function migrate(db: DatabaseSync, dir = migrationsDir): number[] {
   db.exec('CREATE TABLE IF NOT EXISTS schema_migration (id INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
   const done = new Set((db.prepare('SELECT id FROM schema_migration').all() as Array<{ id: number }>).map((r) => Number(r.id)));
   const applied: number[] = [];
-  const files = fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort();
+  const files = migrationFiles(dir);
   for (let i = 1; i < files.length; i++) {
     if (files[i].slice(0, 3) === files[i - 1].slice(0, 3)) throw new Error(`migrations ${files[i - 1]} and ${files[i]} share id ${files[i].slice(0, 3)}`);
   }

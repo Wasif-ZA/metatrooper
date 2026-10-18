@@ -26,19 +26,25 @@ export function usdFor(model: string | null, inT: number, outT: number, cacheRea
   return (inT * p.in + outT * p.out + cacheRead * p.cache_read + cacheWrite * p.cache_write) / 1e6;
 }
 
+const READ_CHUNK = 8 * 1024 * 1024;
+
+/** Complete lines added since the last read, at most READ_CHUNK bytes per call; a line longer than that is skipped. */
 function newLines(file: string): string[] | null {
   let size: number;
   try { size = fs.statSync(file).size; } catch { return null; }
   let from = offsets.get(file) ?? 0;
   if (size < from) from = 0;
   if (size === from) return null;
-  const buf = Buffer.alloc(size - from);
+  const buf = Buffer.alloc(Math.min(size - from, READ_CHUNK));
   try {
     const fd = fs.openSync(file, 'r');
     try { fs.readSync(fd, buf, 0, buf.length, from); } finally { fs.closeSync(fd); }
   } catch { return null; }
   const end = buf.lastIndexOf(0x0a) + 1;
-  if (end === 0) return null;
+  if (end === 0) {
+    if (buf.length === READ_CHUNK) offsets.set(file, from + buf.length);
+    return null;
+  }
   offsets.set(file, from + end);
   return buf.subarray(0, end).toString('utf8').split('\n');
 }
@@ -102,18 +108,16 @@ export function readMeters(db: DatabaseSync): number {
     const r = ended.get(sid) as { ended_at: string | null } | undefined;
     return !r || r.ended_at !== null;
   };
-  for (const [sid, tp] of transcripts) {
-    n += readClaudeTranscript(db, sid, tp);
-    if (gone(sid)) { transcripts.delete(sid); offsets.delete(tp); }
-  }
-  for (const [sid, f] of codexFiles) {
-    n += readCodexSession(db, sid, f);
-    if (gone(sid)) { codexFiles.delete(sid); offsets.delete(f); codexTurns.delete(f); }
-  }
-  for (const [sid, f] of agyFiles) {
-    n += readAgyTranscript(db, sid, f);
-    if (gone(sid)) { agyFiles.delete(sid); offsets.delete(f); }
-  }
+  // an ended session is read to the end before its offset is dropped
+  const take = (sid: string, f: string, read: () => number): boolean => {
+    if (!gone(sid)) { n += read(); return false; }
+    let at: number;
+    do { at = offsets.get(f) ?? 0; n += read(); } while ((offsets.get(f) ?? 0) !== at);
+    return true;
+  };
+  for (const [sid, tp] of transcripts) if (take(sid, tp, () => readClaudeTranscript(db, sid, tp))) { transcripts.delete(sid); offsets.delete(tp); }
+  for (const [sid, f] of codexFiles) if (take(sid, f, () => readCodexSession(db, sid, f))) { codexFiles.delete(sid); offsets.delete(f); codexTurns.delete(f); }
+  for (const [sid, f] of agyFiles) if (take(sid, f, () => readAgyTranscript(db, sid, f))) { agyFiles.delete(sid); offsets.delete(f); }
   return n;
 }
 

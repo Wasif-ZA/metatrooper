@@ -106,7 +106,7 @@ body { position: relative; }
 .alist .li .dot.done, .alist .li .dot.unseen { background: var(--unseen); }
 .alist .li .dot.exited { background: transparent; border: 1px solid var(--faint); }
 .alist .li .hide { visibility: hidden; margin-left: 4px; color: var(--mute); }
-.alist .li:hover .hide { visibility: visible; }
+.alist .li:hover .hide, .alist .li:focus-within .hide { visibility: visible; }
 .alist .li.drop { outline: 2px dashed var(--ink); }
 .alist .li .m button { margin-top: 4px; height: 22px; padding: 0 8px; border: 1px solid var(--hairline-strong); border-radius: 2px; background: var(--canvas); color: var(--body-strong); }
 .alist .run1 { cursor: pointer; }
@@ -324,6 +324,7 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .strip .stab { all: unset; cursor: pointer; padding: 0 8px; height: 26px; display: inline-flex; align-items: center; gap: 5px; color: var(--mute); font-size: 11.5px; border-bottom: 2px solid transparent; flex: none; }
 .strip .stab:hover { color: var(--body-strong); }
 .strip .stab.on { color: var(--ink); border-bottom-color: var(--ink); }
+.strip .stab:focus-visible, .title .kpick:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .git-sync { border: 1px var(--bstyle, dotted) var(--hairline-strong); border-radius: var(--r); padding: 10px 12px; margin-bottom: 12px; }
 .git-sync .actions { margin-top: 8px; }
 .git-hist { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px dotted var(--hairline); }
@@ -344,7 +345,7 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .menu .kmenu .item { display: flex; gap: 10px; align-items: center; }
 .menu .kmenu .item .grow { flex: 1; }
 .menu .kmenu .item .dismiss { color: var(--muted); padding: 0 4px; visibility: hidden; }
-.menu .kmenu .item:hover .dismiss { visibility: visible; }
+.menu .kmenu .item:hover .dismiss, .menu .kmenu .item:focus-within .dismiss { visibility: visible; }
 .menu .kmenu .item .dismiss:hover { color: var(--ink); }
 .menu .kmenu .item.on { color: var(--ink); background: var(--canvas-soft); cursor: default; }
 .menu .sep { height: 1px; background: var(--hairline); margin: 4px 0; }

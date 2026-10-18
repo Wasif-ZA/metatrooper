@@ -57,8 +57,8 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   plugin.remove          {plugin_id}
   plugin.secret.set      {plugin_id, name, value}
   browser.secret.set     {name, origin, value}
-  mcp.resolve            {plugin_id, server_id}
-  mcp.missing            {plugin_id, names}
+  mcp.resolve            {plugin_id, server_id, token}
+  mcp.missing            {plugin_id, names, token}
   notify.sink.set        {kind, dest, name?, id?, kinds?, enabled?}  (stable)
   notify.sink.list       {}  (stable)
   notify.sink.test       {id}  (stable)

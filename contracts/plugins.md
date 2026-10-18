@@ -101,7 +101,11 @@ Every message carries `plugin_id` and the workbench checks the sender frame belo
 ## MCP servers from plugins and imports
 
 Engines never receive a plugin's MCP server command directly. Their MCP configuration points at a shim:
-`node <core>/mcp-shim.js <plugin id> <server id>`. The shim asks the core over the pipe for the server's
+`node <core>/mcp-shim.js <plugin id> <server id> <token>`. The token is an HMAC of the plugin id under
+`~/.metatrooper/shim.key`, which survives core restarts; `mcp.resolve` and `mcp.missing` refuse a plugin id the
+token was not made for, so a pipe client that cannot read your files cannot ask for a plugin's secrets. It does not
+separate plugins from each other: a plugin's server runs as you and can read that key, like any same-user process
+(SECURITY.md). The shim asks the core over the pipe for the server's
 command, args and resolved secrets (DPAPI values and `${VAR}` references resolved from the user's environment
 at that moment), then spawns the real server with that environment and relays stdio. No secret is written into
 any engine's config file.

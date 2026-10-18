@@ -45,12 +45,11 @@ export interface TermHooks {
 }
 
 const terms = new Map<string, Term>();
-const exitCodes = new Map<string, number>();
 let hooks: TermHooks = {};
 
-/** The exit code of a terminal that has exited, kept after the terminal itself is gone. */
+/** The exit code of a terminal that has exited, from its saved screen once the terminal itself is gone. */
 export function exitCodeOf(id: string): number | undefined {
-  return exitCodes.get(id);
+  return terms.get(id)?.exitCode ?? savedScreen(id)?.code ?? undefined;
 }
 
 export function setTermHooks(h: TermHooks): void {
@@ -88,7 +87,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
   });
   proc.onExit(({ exitCode }) => {
     t.exitCode = exitCode;
-    exitCodes.set(id, exitCode);
+    typed.delete(id);
     if (!t.killed) releasePty(proc);
     for (const v of t.viewers) v.exit(exitCode);
     t.viewers.clear();

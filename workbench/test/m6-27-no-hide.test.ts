@@ -98,9 +98,9 @@ test('M6-27 context menu: Hide is offered only for a settled session', () => {
   const block = appSource.match(/^document\.addEventListener\('contextmenu'[^]*?\r?\n}\);\r?\n/m)![0];
   for (const state of [...LIVE, ...SETTLED]) {
     let handler: any;
-    const menu: any = { style: {}, hidden: true, innerHTML: '' };
+    const menu: any = { style: {}, hidden: true, innerHTML: '', querySelector: () => null };
     const doc = { addEventListener: (_: string, h: any) => { handler = h; }, getElementById: () => menu };
-    new Function('document', 'ui', `${line('const LIVE_STATES')}\n${fn('esc', appSource)}\n${fn('canHide', appSource)}\n${block}`)(doc, snapOfEveryState());
+    new Function('document', 'ui', `${line('const LIVE_STATES')}\n${fn('esc', appSource)}\n${fn('canHide', appSource)}\n${fn('showMenu', appSource)}\n${block}`)(doc, snapOfEveryState());
     handler({ target: { closest: () => ({ dataset: { id: state } }) }, preventDefault() {}, clientX: 0, clientY: 0 });
     assert.equal((menu.innerHTML.match(/data-action="menu-hide"/g) || []).length, LIVE.includes(state) ? 0 : 1, state);
   }
@@ -114,8 +114,8 @@ test('M6-27 click: hide and menu-hide send no session.hide for a live session, e
   const rpc = async (method: string, p: any) => { sent.push(`${method}:${p.session_id}`); return {}; };
   const fired: Array<() => Promise<void>> = [];
   for (const action of ['hide', 'menu-hide']) {
-    const onClick = new Function('ui', 'rpc', 'document', 'render', 'toast', 'setTimeout', `${line('const LIVE_STATES')}\n${line('const UNDO_MS')}\n${fn('canHide', appSource)}\n${fn('hideLater', appSource)}\n${fn('onClick', appSource)}; return onClick;`)(
-      { ...snapOfEveryState(), pendingHide: new Set(), hideDone: new Set() }, rpc, { getElementById: () => ({}) }, () => {}, () => {}, (f: () => Promise<void>) => fired.push(f));
+    const onClick = new Function('ui', 'rpc', 'document', 'render', 'toast', 'setTimeout', `${line('const LIVE_STATES')}\n${line('const UNDO_MS')}\n${fn('canHide', appSource)}\n${fn('hideLater', appSource)}\n${fn('hideMenu', appSource)}\n${fn('onClick', appSource)}; return onClick;`)(
+      { ...snapOfEveryState(), pendingHide: new Set(), hideDone: new Set() }, rpc, { getElementById: () => ({ hidden: true }) }, () => {}, () => {}, (f: () => Promise<void>) => fired.push(f));
     for (const state of [...LIVE, ...SETTLED]) {
       const el = { dataset: { action, id: state }, tagName: 'DIV', closest: () => null };
       await onClick({ target: { closest: () => el }, stopPropagation() {} });

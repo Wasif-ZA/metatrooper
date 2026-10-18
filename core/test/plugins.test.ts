@@ -12,7 +12,7 @@ import { actionEnv, BASE_ENV, runAction } from '../src/plugins/actions.ts';
 import { checkPaneMessage, paneCsp, resolvePaneFile } from '../src/plugins/bridge.ts';
 import { importClaude, importCodex, parseToml } from '../src/plugins/importers.ts';
 import { bindRole } from '../src/engines/registry.ts';
-import { mcpAttachArgs } from '../src/plugins/mcp.ts';
+import { mcpAttachArgs, shimToken } from '../src/plugins/mcp.ts';
 
 before(buildGenerated);
 
@@ -491,13 +491,14 @@ test('M1-17 and M1-25b an imported Claude plugin: secrets:<KEY> asked for, liter
 
         const shimEnv = { ...process.env, METATROOPER_HOME: h.home, METATROOPER_PIPE_PREFIX: h.prefix };
         delete shimEnv.TROOP_TEST_UNSET_VAR;
-        const ok = await mcpClient(['claude-fixture-tools', 'tools'], shimEnv);
+        const token = withEnv({ METATROOPER_HOME: h.home }, () => shimToken('claude-fixture-tools'));
+        const ok = await mcpClient(['claude-fixture-tools', 'tools', token], shimEnv);
         assert.deepEqual(ok.reply, { jsonrpc: '2.0', id: 1, result: { key: literal, other: null } }, ok.stderr);
 
-        const missing = await mcpClient(['claude-fixture-tools', 'needs'], shimEnv);
+        const missing = await mcpClient(['claude-fixture-tools', 'needs', token], shimEnv);
         assert.equal(missing.code, 1);
         assert.match(missing.reply.error.message, /OTHER_KEY/);
-        const withVar = await mcpClient(['claude-fixture-tools', 'needs'], { ...shimEnv, TROOP_TEST_UNSET_VAR: 'from-env' });
+        const withVar = await mcpClient(['claude-fixture-tools', 'needs', token], { ...shimEnv, TROOP_TEST_UNSET_VAR: 'from-env' });
         assert.equal(withVar.reply.result.other, 'from-env');
 
         const db = new DatabaseSync(join(h.home, 'troop.db'));

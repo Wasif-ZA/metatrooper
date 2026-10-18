@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { validate } from '../src/jsonschema.ts';
 import { validateManifest } from '../src/plugins/manifest.ts';
 import { BUILT_IN, bindRole, dataEngines, syncEngines, type EngineSpec } from '../src/engines/registry.ts';
-import { mcpAttachArgs, mcpAttachEnv } from '../src/plugins/mcp.ts';
+import { mcpAttachArgs, mcpAttachEnv, shimToken } from '../src/plugins/mcp.ts';
 import { installPlugin, pluginsDir } from '../src/plugins/store.ts';
 import { root } from './helpers.ts';
 
@@ -162,7 +162,7 @@ test('M5-14c env-json and config-dir expose shim commands only; launch leaves us
     const env = mcpAttachEnv(db, opencode, 'opencode-session');
     const json = JSON.parse(env.OPENCODE_CONFIG_CONTENT) as { mcp: Record<string, { type: string; command?: string[] }> };
     assert.deepEqual(json.mcp['fixture-plugin-server'], {
-      type: 'local', command: [process.execPath.replaceAll('\\', '/'), expectShim(), 'fixture-plugin', 'server'], enabled: true,
+      type: 'local', command: [process.execPath.replaceAll('\\', '/'), expectShim(), 'fixture-plugin', 'server', shimToken('fixture-plugin')], enabled: true,
     });
     assert.ok(!JSON.stringify(env).includes('FIXTURE_SECRET_VALUE'));
     assert.ok(!JSON.stringify(env).includes('real-server'));
@@ -175,16 +175,16 @@ test('M5-14c env-json and config-dir expose shim commands only; launch leaves us
     const configText = readFileSync(join(configDirEnv.FIXTURE_CONFIG_DIR, 'mcp-config.json'), 'utf8');
     const configJson = JSON.parse(configText) as { mcpServers: Record<string, { command: string; args: string[] }> };
     assert.deepEqual(configJson.mcpServers['fixture-plugin-server'], {
-      command: process.execPath.replaceAll('\\', '/'), args: [expectShim(), 'fixture-plugin', 'server'],
+      command: process.execPath.replaceAll('\\', '/'), args: [expectShim(), 'fixture-plugin', 'server', shimToken('fixture-plugin')],
     });
     assert.ok(!configText.includes('FIXTURE_SECRET_VALUE'));
     assert.ok(!configText.includes('real-server'));
 
     const argsEngine: EngineSpec = {
-      ...opencode, id: 'args-template-fixture', mcp_attach: { kind: 'args-template', template: ['--mcp={node}:{shim}:{plugin}:{server}'] },
+      ...opencode, id: 'args-template-fixture', mcp_attach: { kind: 'args-template', template: ['--mcp={node}:{shim}:{plugin}:{server}:{token}'] },
     };
     const args = mcpAttachArgs(db, argsEngine, 'args-session');
-    assert.deepEqual(args, [`--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:fixture-plugin:server`]);
+    assert.deepEqual(args, [`--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:fixture-plugin:server:${shimToken('fixture-plugin')}`]);
     assert.ok(!JSON.stringify(args).includes('FIXTURE_SECRET_VALUE'));
   } finally {
     db.close();

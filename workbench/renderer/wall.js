@@ -313,9 +313,10 @@ const wall = (() => {
     sheetOpen = open;
     sheetByKey = open && Boolean(byKey);
     const sh = $('#sheet');
-    sh.classList.toggle('up', open);
+    if (open) sh.classList.add('up');
     sh.querySelector('.tab').setAttribute('aria-expanded', open);
-    gsap.to(sh, RM ? { y: open ? 0 : 208, duration: 0 } : { y: open ? 0 : 208, duration: T(open, 0.28), ease: open ? 'back.out(1.2)' : 'power2.in' });
+    const done = () => sh.classList.toggle('up', sheetOpen);
+    gsap.to(sh, RM ? { y: open ? 0 : 208, duration: 0, onComplete: done } : { y: open ? 0 : 208, duration: T(open, 0.28), ease: open ? 'back.out(1.2)' : 'power2.in', onComplete: done });
     gsap.to('.sheet .chev', { rotation: open ? 180 : 0, duration: T(open, 0.28) });
   }
   /** Closed: the title bar's free gap, or a 34px icon when the gap is under 160px. Open: centred, up to 600px. */
