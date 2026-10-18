@@ -1,4 +1,4 @@
-import { demo, DEMO_TAKEOVER_KEY, DEMO_TITLE } from './demo.ts';
+import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -678,13 +678,17 @@ function coreUp(): Promise<boolean> {
 /** Starts the core detached when none answers, without the parent Claude Code session's identity; it outlives the window. */
 let ownCore = false;
 let closing = false;
+/** The pid of the core a --demo window started, so quitting can confirm it stopped before the demo home goes. */
+let demoCorePid: number | null = null;
 
 async function ensureCore(): Promise<void> {
   if (await coreUp()) return;
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
-  spawn('node', [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
+  const child = spawn('node', [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env });
+  child.on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
+  if (demo && child.pid) demoCorePid = child.pid;
   for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
@@ -726,14 +730,6 @@ async function seedDemoHome(): Promise<{ project: string; launch: () => Promise<
   return { project, launch: () => seed.launchDemo(request, project) };
 }
 
-/** Deletes the demo home once this process has exited and released its files. */
-function removeWhenGone(dir: string): void {
-  const script = `const fs=require('fs');const pid=${process.pid};const dir=${JSON.stringify(dir)};`
-    + `const alive=()=>{try{process.kill(pid,0);return true}catch(e){return e.code==='EPERM'}};`
-    + `const t=setInterval(()=>{if(alive())return;try{fs.rmSync(dir,{recursive:true,force:true});process.exit(0)}catch{}},250);setTimeout(()=>process.exit(1),60000);`;
-  spawn('node', ['-e', script], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', (e) => console.error(`demo home not removed: ${e.message}`)).unref();
-}
-
 function openNeedsYou(id: string | null): void {
   if (!id || !win) return;
   const send = () => win?.webContents.send('open-needs-you', id);
@@ -744,6 +740,10 @@ function openNeedsYou(id: string | null): void {
 async function stopCore(): Promise<void> {
   ownCore = false;
   await call('core.stop', {}, { ui: true });
+  if (demoCorePid !== null) {
+    if (!(await stopPid(demoCorePid, 10_000))) console.error(`demo core ${demoCorePid} did not stop`);
+    return;
+  }
   for (let i = 0; i < 40 && (await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
@@ -806,7 +806,17 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (demo) {
       app.setAccessibilitySupportEnabled(true);
-      app.on('will-quit', () => removeWhenGone(homeDir()));
+      // every quit path, not only the window's close, stops the demo core before its home is removed
+      let stoppingDemo = false;
+      app.on('will-quit', (e) => {
+        if (!stoppingDemo && demoCorePid !== null && alive(demoCorePid)) {
+          stoppingDemo = true;
+          e.preventDefault();
+          void stopCore().finally(() => app.quit());
+          return;
+        }
+        removeWhenGone(homeDir(), demoCorePid === null ? [process.pid] : [process.pid, demoCorePid]);
+      });
     }
     lockDown();
     handlers();

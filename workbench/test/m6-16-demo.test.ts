@@ -6,7 +6,8 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { client, root, runNode, startCore, teardownCore, uiHello, until } from '../../core/test/helpers.ts';
-import { demoEnv, demoProblem } from '../src/demo.ts';
+import { alive, demoEnv, demoProblem, removeWhenGone, stopPid } from '../src/demo.ts';
+import { spawn } from 'node:child_process';
 
 const sha = (file: string) => createHash('sha256').update(readFileSync(file)).digest('hex');
 
@@ -47,6 +48,31 @@ test('M6-16b a --demo start whose generated home lands inside the real data fold
   assert.match(r.stderr, /demo would use the real data folder/);
   assert.doesNotMatch(r.stdout, /started/);
   assert.deepEqual(readdirSync(real), []);
+});
+
+test('M6-16b stopping the demo core kills its process tree when it does not exit in time', { timeout: 30_000 }, async (t) => {
+  // protects=demo quit confirms its own core stopped fails_when=a core that ignores the stop, or a process it started, outlives the quit no_claim=the Electron will-quit wiring (the opt-in E2E)
+  const script = "process.on('SIGTERM',()=>{});const c=require('child_process').spawn(process.execPath,['-e','setInterval(()=>{},1e3)'],{stdio:'ignore',detached:true});console.log(c.pid);setInterval(()=>{},1e3)";
+  const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+  const grandchild = Number(await new Promise<string>((r) => child.stdout.once('data', (d) => r(String(d)))));
+  t.after(() => { for (const p of [child.pid!, grandchild]) try { process.kill(p); } catch {} });
+  assert.ok(alive(child.pid!) && alive(grandchild));
+  assert.equal(await stopPid(child.pid!, 300), true);
+  assert.equal(alive(child.pid!), false);
+  await until(() => !alive(grandchild), 5000);
+});
+
+test('M6-16b the demo home is removed only after every named process has exited', { timeout: 30_000 }, async (t) => {
+  // protects=deletion waits for the demo core as well as the window fails_when=the home is deleted while the core still runs no_claim=Chromium's own file locks
+  const dir = mkdtempSync(join(tmpdir(), 'metatrooper-demo-rm-'));
+  writeFileSync(join(dir, 'troop.db'), 'x');
+  const core = spawn(process.execPath, ['-e', 'setInterval(()=>{},1e3)'], { stdio: 'ignore', windowsHide: true });
+  t.after(() => { try { process.kill(core.pid!); } catch {} rmSync(dir, { recursive: true, force: true }); });
+  removeWhenGone(dir, [core.pid!]);
+  await new Promise((r) => setTimeout(r, 1000));
+  assert.ok(existsSync(dir), 'the home stays while the core runs');
+  core.kill();
+  await until(() => !existsSync(dir), 10_000);
 });
 
 test('M6-16b isolation: a --demo start overrides an inherited home and prefix, seeds only its own folder, and a --demo core with live fixture sessions leaves the sentinel troop.db byte for byte', { timeout: 120_000 }, async () => {
