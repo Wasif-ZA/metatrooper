@@ -15,6 +15,12 @@ test('h-rv-ponytail: a pane that fails setup twice in a row is not rebuilt on th
   assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), { retried: 4, waited: 4 });
 });
 
+test('UI-02-agent-viewport: a pane hidden under an overlay keeps its shown viewport, set before the view shrinks', () => {
+  const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/pane-park-size.ts', import.meta.url))], { encoding: 'utf8', timeout: 20000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout.trim().split('\n').pop()!), ['override 959x776', 'bounds 1x1']);
+});
+
 test('h-d-d1: a crashed main window reloads once, and a second crash within a minute stops instead of looping', () => {
   assert.equal(crashAction('crashed', -Infinity, 1_000_000), 'reload');
   assert.equal(crashAction('oom', 1_000_000, 1_030_000), 'stop');
