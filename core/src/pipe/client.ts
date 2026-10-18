@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import { corePipe, uiKeyFile } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
-import { checkSchema } from '../store/db.ts';
+import { checkSchema, openCoreDb } from '../store/db.ts';
 import { openWriterDb } from '../events/append.ts';
 import { encode, createDecoder } from './framing.ts';
 import { isQueueable } from './commands.ts';
@@ -75,8 +75,8 @@ export class PipeClient {
 }
 
 export function enqueue(id: string, method: string, params: Record<string, unknown>): void {
-  const db = openWriterDb();
-  if (!db) throw new Error('troop.db does not exist');
+  // A fresh home has no core DB to migrate under, so creating it here is safe.
+  const db = openWriterDb() ?? openCoreDb();
   try {
     checkSchema(db);
     db.prepare(

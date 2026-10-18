@@ -31,17 +31,16 @@ function home(t): { home: string; env: Record<string, string> } {
   return { home: isolated.home, env: { METATROOPER_HOME: isolated.home, METATROOPER_PIPE_PREFIX: isolated.prefix } };
 }
 
-test('h-a-d1 CLI enqueue never creates or migrates troop.db and refuses one migrated by a newer core', (t) => {
+test('h-a-d1 CLI enqueue creates troop.db on a fresh home and refuses one migrated by a newer core', (t) => {
   const { env } = home(t);
-  assert.throws(() => withEnv(env, () => enqueue('c0', 'project.open', {})), /does not exist/);
-  assert.equal(withEnv(env, () => existsSync(dbFile())), false);
-  withEnv(env, openCoreDb).close();
+  withEnv(env, () => enqueue('c0', 'project.open', {}));
+  assert.equal(withEnv(env, () => existsSync(dbFile())), true);
   withEnv(env, () => enqueue('c1', 'project.open', { path: 'x' }));
   const db = new DatabaseSync(withEnv(env, dbFile));
   try {
     db.prepare("INSERT INTO schema_migration (id, applied_at) VALUES (999, 'x')").run();
     assert.throws(() => withEnv(env, () => enqueue('c2', 'project.open', {})), /migration 999/);
-    assert.deepEqual(db.prepare('SELECT id FROM command ORDER BY id').all().map((r) => r.id), ['c1']);
+    assert.deepEqual(db.prepare('SELECT id FROM command ORDER BY id').all().map((r) => r.id), ['c0', 'c1']);
   } finally { db.close(); }
 });
 
