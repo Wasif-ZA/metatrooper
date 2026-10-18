@@ -267,10 +267,13 @@ because an engine may not pass its environment to hooks; it prints nothing.
   holding only `{"hooks": {...}}` (one group per event, `timeout` 5000 ms) and launches with
   `GEMINI_CLI_SYSTEM_SETTINGS_PATH` set to it. `~/.gemini/settings.json` is never touched. The file is deleted when
   the session becomes `exited`, and any left behind by a session that is gone are swept at the next launch. The core
-  records each per-session file or folder it writes (this one, and `<id>.json`, `<id>.settings.json` and `<id>/` in
-  `~/.metatrooper/mcp/`) in `meta` under `session_files:<id>`, and the exit cleanup and the sweep delete only recorded
-  paths inside `~/.metatrooper` (D19). A user file named like a session id is never touched; files written by a
-  version before D19 are not recorded and are no longer swept.
+  records each per-session file it writes (this one, and `<id>.json`, `<id>.settings.json` and `<id>/mcp-config.json`
+  in `~/.metatrooper/mcp/`) in `meta` under `session_files:<id>`, only after creating it exclusively; a file already at
+  that path that the session does not own is refused and the launch fails. The exit cleanup and the sweep delete only
+  recorded files, never recursively, and only when their folder is inside `~/.metatrooper` both by name and on disk
+  (no junction or symlink above it leads out); the `<id>/` folder goes only once empty (D19). A user file named like a
+  session id, or put inside a generated folder, is never touched; files written by a version before D19 are not
+  recorded and are no longer swept.
   `engines/gemini.json` declares no `hooks` yet: on Windows, Gemini CLI 0.63 skips a system settings file whose folder
   is not owned by Administrators or SYSTEM (see the M6-5 issue).
 

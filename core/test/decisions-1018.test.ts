@@ -212,33 +212,36 @@ test('D16 an oversized spool of an exited session is still deleted, after the to
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM needs_you WHERE kind = 'spool-too-large' AND ref = ?").get(id)!.n, 1);
 }));
 
-test('D19 the sweep and session exit delete only files MetaTrooper recorded as its own, never a user file named like a session id', () => withDb(async (db, home) => {
-  const { recordSessionFile, removeSessionFiles, sweepSessionFiles } = await import('../src/plugins/mcp.ts');
+test('D19 a writer refuses a destination it does not own and records nothing; deletion never follows a junction or symlink out of the home', () => withDb(async (db, home) => {
+  const { mcpAttachArgs, removeSessionFiles } = await import('../src/plugins/mcp.ts');
+  const { sessionHookEnv } = await import('../src/hooks/install.ts');
+  const { BUILT_IN } = await import('../src/engines/registry.ts');
   const { ulid } = await import('../src/time.ts');
-  const at = new Date().toISOString();
-  db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', home, 'p', at, at);
-  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
-  const [gone, live] = [ulid(), ulid()];
-  for (const [id, state] of [[gone, 'exited'], [live, 'working']]) db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p1', 'e1', 'pty', ?, ?, ?)").run(id, state, at, at);
-  const mcp = `${home}/mcp`;
-  fs.mkdirSync(mcp, { recursive: true });
-  for (const name of [`${gone}.json`, `${gone}.settings.json`, `${live}.json`]) fs.writeFileSync(`${mcp}/${name}`, '{}');
-  recordSessionFile(db, gone, `${mcp}/${gone}.json`);
-  recordSessionFile(db, live, `${mcp}/${live}.json`);
-  // a recorded path outside MetaTrooper's home is never deleted
-  const outside = `${home}-outside.txt`;
-  fs.writeFileSync(outside, 'keep');
-  recordSessionFile(db, gone, outside);
+  const claude = BUILT_IN.find((e) => e.id === 'claude')!;
+  const gemini = { id: 'gem', hooks: { kind: 'gemini-system-settings', events: ['AfterAgent'] } } as never;
+  const records = () => db.prepare("SELECT COUNT(*) AS n FROM meta WHERE key LIKE 'session_files:%'").get()!.n;
+  const [taken, moved] = [ulid(), ulid()];
+  fs.mkdirSync(`${home}/mcp`, { recursive: true });
+  fs.writeFileSync(`${home}/mcp/${taken}.json`, 'mine');
+  assert.throws(() => mcpAttachArgs(db, claude, taken, true), /already exists and MetaTrooper did not write it/);
+  assert.equal(fs.readFileSync(`${home}/mcp/${taken}.json`, 'utf8'), 'mine');
+  assert.equal(records(), 0, 'nothing recorded for a file it did not write');
+  // a recorded file whose folder is later swapped for a junction to a folder outside the home
+  sessionHookEnv(gemini, moved, db);
+  const outside = `${home}-outside`;
+  fs.mkdirSync(outside, { recursive: true });
+  fs.writeFileSync(`${outside}/${moved}.json`, 'keep');
   try {
-    sweepSessionFiles(db);
-    assert.deepEqual(fs.readdirSync(mcp).sort(), [`${gone}.settings.json`, `${live}.json`].sort(), 'the unrecorded file named like a session survives');
-    assert.ok(fs.existsSync(outside));
-    removeSessionFiles(db, gone);
-    assert.ok(fs.existsSync(`${mcp}/${gone}.settings.json`));
-    removeSessionFiles(db, live);
-    assert.deepEqual(fs.readdirSync(mcp), [`${gone}.settings.json`]);
-    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM meta WHERE key LIKE 'session_files:%'").get()!.n, 0);
-  } finally { fs.rmSync(outside, { force: true }); }
+    fs.renameSync(`${home}/engines/gemini`, `${home}/engines/gemini-real`);
+    fs.symlinkSync(outside, `${home}/engines/gemini`, 'junction');
+    assert.throws(() => sessionHookEnv(gemini, ulid(), db), /not inside MetaTrooper's home/);
+    removeSessionFiles(db, moved);
+    assert.equal(fs.readFileSync(`${outside}/${moved}.json`, 'utf8'), 'keep');
+    assert.equal(records(), 0);
+  } finally {
+    fs.rmSync(`${home}/engines/gemini`, { force: true, recursive: false });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
 }));
 
 test('D5 an agent connection (no ui.hello) cannot set browser.allow_origins over the core pipe', async () => {

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { claudeSettingsFile, codexConfigFile, coreDir, homeDir, hooksStateFile } from '../paths.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { recordSessionFile, removeCodexMcp } from '../plugins/mcp.ts';
+import { writeSessionFile, removeCodexMcp } from '../plugins/mcp.ts';
 import type { EngineSpec } from '../engines/registry.ts';
 import { older } from '../engines/health.ts';
 import { expandHome, writeAtomic } from '../trust.ts';
@@ -118,9 +118,7 @@ export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: 
   const events = claudeHookEvents(version).filter((ev) => !global.has(ev));
   if (events.length) settings.hooks = Object.fromEntries(events.map((ev) => [ev, [ourGroup(ev)]]));
   const file = path.join(homeDir(), 'mcp', `${sessionId}.settings.json`);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  recordSessionFile(db, sessionId, file);
-  fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
+  writeSessionFile(db, sessionId, file, JSON.stringify(settings, null, 2) + '\n');
   return [`--settings=${file.split(String.fromCharCode(92)).join('/')}`];
 }
 
@@ -199,9 +197,7 @@ export function sessionHookEnv(engine: EngineSpec, sessionId: string, db?: Datab
   if (engine.hooks?.kind !== 'gemini-system-settings') return {};
   const file = geminiSettingsFile(sessionId);
   const hooks = Object.fromEntries(engine.hooks.events.map((ev) => [ev, [{ hooks: [{ name: `metatrooper-${ev}`, type: 'command', command: engineHookCommand('gemini', ev, sessionId), timeout: 5000 }] }]]));
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  recordSessionFile(db, sessionId, file);
-  fs.writeFileSync(file, JSON.stringify({ hooks }, null, 2) + '\n');
+  writeSessionFile(db, sessionId, file, JSON.stringify({ hooks }, null, 2) + '\n');
   return { GEMINI_CLI_SYSTEM_SETTINGS_PATH: file };
 }
 

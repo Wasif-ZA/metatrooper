@@ -125,8 +125,9 @@ test('untrustFolder removes only the folder trustFolder added from each store', 
   for (const [f, t] of Object.entries(files)) assert.equal(fs.readFileSync(f, 'utf8'), t, f);
 }));
 
-test('recorded per-session files of exited and unknown sessions are swept; a live session keeps its files (D19)', () => withHome(async (home) => {
-  const { sweepSessionFiles, removeSessionFiles, recordSessionFile } = await import('../src/plugins/mcp.ts');
+test('per-session files are recorded by the writers that make them; the sweep deletes those of exited and unknown sessions and nothing else, and a live session keeps its own (D19)', () => withHome(async (home) => {
+  const { sweepSessionFiles, removeSessionFiles, mcpAttachArgs, mcpAttachEnv } = await import('../src/plugins/mcp.ts');
+  const { sessionHookArgs, sessionHookEnv } = await import('../src/hooks/install.ts');
   const { openCoreDb } = await import('../src/store/db.ts');
   const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
   const db = openCoreDb();
@@ -138,23 +139,34 @@ test('recorded per-session files of exited and unknown sessions are swept; a liv
     const add = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', 'claude', 'pty', ?, 'x', 'x')");
     add.run(LIVE, 'working');
     add.run(GONE, 'exited');
+    const claude = BUILT_IN.find((e) => e.id === 'claude')!;
+    const configDir = { id: 'cfg', mcp_attach: { kind: 'config-dir', env: 'CFG_DIR' } } as never;
+    const gem = { id: 'gem', hooks: { kind: 'gemini-system-settings', events: ['AfterAgent'] } } as never;
+    for (const id of [LIVE, GONE, ORPHAN]) {
+      mcpAttachArgs(db, claude, id, true);
+      sessionHookArgs(claude, id, null, db);
+      mcpAttachEnv(db, configDir, id, true);
+      sessionHookEnv(gem, id, db);
+    }
     const dir = path.join(home, 'mt', 'mcp');
-    fs.mkdirSync(path.join(dir, 'cache'), { recursive: true });
-    for (const id of [LIVE, GONE, ORPHAN]) for (const ext of ['.json', '.settings.json']) fs.writeFileSync(path.join(dir, id + ext), '{}');
-    fs.mkdirSync(path.join(dir, GONE));
     const gemini = path.join(home, 'mt', 'engines', 'gemini');
+    fs.mkdirSync(path.join(dir, 'cache'), { recursive: true });
     fs.mkdirSync(path.join(gemini, 'notes'), { recursive: true });
     const userFiles = ['README.md', '.keep', 'admin.settings.json', 'backup-json', 'READMEjson', 'notes.json', `${GONE}Xjson`];
-    for (const name of [`${LIVE}.json`, `${GONE}.json`, `${ORPHAN}.json`, ...userFiles]) fs.writeFileSync(path.join(gemini, name), '{}');
+    for (const name of userFiles) fs.writeFileSync(path.join(gemini, name), '{}');
     for (const name of [...userFiles, `${GONE}XsettingsXjson`]) fs.writeFileSync(path.join(dir, name), '');
-    for (const id of [LIVE, GONE, ORPHAN]) for (const file of [path.join(dir, `${id}.json`), path.join(dir, `${id}.settings.json`), path.join(gemini, `${id}.json`)]) recordSessionFile(db, id, file);
-    recordSessionFile(db, GONE, path.join(dir, GONE));
+    // files a user or agent put in generated per-session folders: never recorded, never deleted
+    for (const id of [LIVE, GONE]) fs.writeFileSync(path.join(dir, id, 'notes.txt'), 'keep');
     sweepSessionFiles(db);
-    assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache', `${LIVE}.json`, `${LIVE}.settings.json`].sort());
+    assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache', `${LIVE}.json`, `${LIVE}.settings.json`, LIVE, GONE].sort());
+    assert.deepEqual(fs.readdirSync(path.join(dir, GONE)), ['notes.txt']);
+    assert.deepEqual(fs.readdirSync(path.join(dir, LIVE)).sort(), ['mcp-config.json', 'notes.txt']);
     assert.deepEqual(fs.readdirSync(gemini).sort(), [...userFiles, 'notes', `${LIVE}.json`].sort());
     removeSessionFiles(db, LIVE);
-    assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache'].sort());
+    assert.deepEqual(fs.readdirSync(dir).sort(), [...userFiles, `${GONE}XsettingsXjson`, 'cache', LIVE, GONE].sort());
+    assert.deepEqual(fs.readdirSync(path.join(dir, LIVE)), ['notes.txt']);
     assert.deepEqual(fs.readdirSync(gemini).sort(), [...userFiles, 'notes'].sort());
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM meta WHERE key LIKE 'session_files:%'").get()!.n, 0);
   } finally {
     db.close();
   }
