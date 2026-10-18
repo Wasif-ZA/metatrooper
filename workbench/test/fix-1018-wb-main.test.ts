@@ -80,3 +80,15 @@ test('UI-02-sheet-anim: the approval sheet keeps its up class until the close sl
   done.at(-2)!();
   assert.ok(cls.has('up'), 'a reopen mid-slide keeps it up');
 });
+
+test('UI-02-pick-end: a comment pick that ends re-checks the pane, so the hint toast hides it again', async () => {
+  const app = readFileSync(new URL('../renderer/app.js', import.meta.url), 'utf8');
+  const fn = app.match(/^async function startComment\([^]*?\n}\n/m)![0];
+  let reported = 0;
+  const ui: { paneId: string; picking: unknown } = { paneId: 'bp_1', picking: null };
+  const api = { panePick: async () => { throw new Error('cancelled'); } };
+  const start = new Function('ui', 'api', 'toast', 'reportPaneBounds', `${fn}; return startComment;`)(ui, api, () => {}, () => { reported++; });
+  await start().catch(() => {});
+  assert.equal(ui.picking, null);
+  assert.equal(reported, 1);
+});

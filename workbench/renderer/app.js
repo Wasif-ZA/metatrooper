@@ -293,7 +293,7 @@ async function startComment() {
   toast('Click the element you want to comment on.');
   const pick = { pane: ui.paneId };
   ui.picking = pick;
-  try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) ui.picking = null; }
+  try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) { ui.picking = null; reportPaneBounds(); } }
 }
 
 
@@ -1112,7 +1112,7 @@ function switchProject(id) {
   ui.hbLine = null;
   ui.gitFile = false;
   ui.comment = null;
-  if (ui.picking) { void api.panePickCancel(ui.picking.pane); ui.picking = null; }
+  if (ui.picking) { void api.panePickCancel(ui.picking.pane); ui.picking = null; reportPaneBounds(); }
   save('projectId', id);
   setView();
 }
