@@ -123,7 +123,9 @@ namespace TroopUia {
         }
         case "click": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
         case "key": {
+          if (FocusHwnd(new IntPtr(hwnd)) == IntPtr.Zero) throw new Exception("this window has no keyboard focus (another window is in front), so there is no checked control to post a key to; nothing was sent");
           bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
+          if (Num(r, "check") != 0 && hidden && Num(r, "hidden") == 0 && Rid(f) == Str(r, "rid")) throw new Exception("this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent");
           Expect(hwnd, f, hidden, r);
           return Key(target, Str(r, "keys"));
         }
@@ -275,24 +277,30 @@ namespace TroopUia {
     // hidden: the control that gets a key is unknown (no focus HWND in this window, or a container HWND while global focus is elsewhere)
     static AutomationElement Focused(IntPtr hwnd, out bool hidden) { IntPtr target; return Focused(hwnd, out hidden, out target); }
 
+    // Zero when the window's thread has no focus HWND in it, as a background window often reports
+    static IntPtr FocusHwnd(IntPtr hwnd) {
+      uint pid; uint tid = Native.GetWindowThreadProcessId(hwnd, out pid);
+      var gti = new Native.GUITHREADINFO(); gti.cbSize = Marshal.SizeOf(gti);
+      if (!Native.GetGUIThreadInfo(tid, ref gti) || gti.hwndFocus == IntPtr.Zero) return IntPtr.Zero;
+      return Native.GetAncestor(gti.hwndFocus, GA_ROOT) == Native.GetAncestor(hwnd, GA_ROOT) ? gti.hwndFocus : IntPtr.Zero;
+    }
+
     // target: the HWND a key for this window is posted to
     static AutomationElement Focused(IntPtr hwnd, out bool hidden, out IntPtr target) {
       hidden = true;
       target = hwnd;
-      uint pid; uint tid = Native.GetWindowThreadProcessId(hwnd, out pid);
-      var gti = new Native.GUITHREADINFO(); gti.cbSize = Marshal.SizeOf(gti);
-      if (!Native.GetGUIThreadInfo(tid, ref gti) || gti.hwndFocus == IntPtr.Zero) return null;
-      if (Native.GetAncestor(gti.hwndFocus, GA_ROOT) != Native.GetAncestor(hwnd, GA_ROOT)) return null;
+      IntPtr focus = FocusHwnd(hwnd);
+      if (focus == IntPtr.Zero) return null;
       hidden = false;
-      target = gti.hwndFocus;
+      target = focus;
       try {
         var f = AutomationElement.FocusedElement;
         var e = f;
         while (e != null && e.Current.NativeWindowHandle == 0) e = TreeWalker.RawViewWalker.GetParent(e);
-        if (e != null && new IntPtr(e.Current.NativeWindowHandle) == gti.hwndFocus) return f;
+        if (e != null && new IntPtr(e.Current.NativeWindowHandle) == focus) return f;
       } catch {}
       try {
-        var h = AutomationElement.FromHandle(gti.hwndFocus);
+        var h = AutomationElement.FromHandle(focus);
         var t = h.Current.ControlType;
         hidden = t == ControlType.Pane || t == ControlType.Window || t == ControlType.Document || t == ControlType.Custom || t == ControlType.Group || TreeWalker.ControlViewWalker.GetFirstChild(h) != null;
         return h;
@@ -432,7 +440,8 @@ namespace TroopUia {
       if (parts.Count == 0) throw new Exception("keys is required");
       foreach (var m in parts.Take(parts.Count - 1)) if (!Keys.ContainsKey(m) || !(Keys[m] == 0x10 || Keys[m] == 0x11 || Keys[m] == 0x12)) throw new Exception("unknown modifier " + m + "; use Control, Shift or Alt");
       var mods = parts.Take(parts.Count - 1).Select(m => Keys[m]).ToList();
-      bool alt = mods.Contains(0x12), ctrl = mods.Contains(0x11);
+      if (mods.Contains(0x10) || mods.Contains(0x11)) throw new Exception("Control and Shift cannot be sent: apps read them from the keyboard state, which a posted key does not change, so " + keys + " would arrive as a bare " + parts[parts.Count - 1] + "; nothing was sent");
+      bool alt = mods.Contains(0x12);
       string last = parts[parts.Count - 1];
       int vk; char ch = '\0';
       if (Keys.TryGetValue(last, out vk)) { if (vk == 0x0D) ch = '\r'; else if (vk == 0x09) ch = '\t'; else if (vk == 0x08) ch = '\b'; else if (vk == 0x20) ch = ' '; else if (vk == 0x1B) ch = (char)0x1B; }
@@ -442,7 +451,7 @@ namespace TroopUia {
       uint down = alt ? WM_SYSKEYDOWN : WM_KEYDOWN, upMsg = alt ? WM_SYSKEYUP : WM_KEYUP;
       foreach (var m in mods) Native.PostMessage(target, down, new IntPtr(m), KeyLParam(m, false, alt));
       if (vk != 0) Native.PostMessage(target, down, new IntPtr(vk), KeyLParam(vk, false, alt));
-      if (ch != '\0' && !alt && !ctrl) Native.PostMessage(target, WM_CHAR, new IntPtr(ch), KeyLParam(vk, false, false));
+      if (ch != '\0' && !alt) Native.PostMessage(target, WM_CHAR, new IntPtr(ch), KeyLParam(vk, false, false));
       if (vk != 0) Native.PostMessage(target, upMsg, new IntPtr(vk), KeyLParam(vk, true, alt));
       for (int i = mods.Count - 1; i >= 0; i--) Native.PostMessage(target, upMsg, new IntPtr(mods[i]), KeyLParam(mods[i], true, alt));
       return new Dictionary<string, object> { { "status", "unverifiable" } };

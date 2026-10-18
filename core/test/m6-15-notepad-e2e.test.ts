@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { client, isolation, sleep, startCore, teardownCore, uiHello, until } from './helpers.ts';
@@ -28,14 +29,22 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
   const agent = await client(iso.prefix);
   const ui = await client(iso.prefix);
   let notepadPid = 0;
+  let calcsBefore: string[] | null = null;
+  const calcPids = () => [...execFileSync('tasklist', ['/FI', 'IMAGENAME eq CalculatorApp.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8' }).matchAll(/^"[^"]+","(\d+)"/gm)].map((m) => m[1]);
   try {
     await uiHello(ui, iso.home);
     await call(ui, 'desktop.ui-window', { pid: 1, takeover_key: 'Control+Alt+Q', takeover_error: null });
     const me = { session_id: 's1', pid: process.pid };
 
-    spawn('notepad.exe', [], { detached: true, stdio: 'ignore' }).unref();
-    const notepad = (await until(async () => (await notepads())[0], 15_000)) as any;
+    // Windows 11 Notepad restores the last session's tabs, so open a file of our own and type only while it is the active tab
+    const scratch = join(iso.home, 'm6-15-e2e-scratch.txt');
+    writeFileSync(scratch, '');
+    spawn('notepad.exe', [scratch], { detached: true, stdio: 'ignore' }).unref();
+    const ours = (w: any) => w.title.startsWith('m6-15-e2e-scratch.txt');
+    const notepad = (await until(async () => (await notepads()).find(ours), 15_000)) as any;
+    const assertOurs = async () => assert.ok(ours((await notepads()).find((w: any) => w.hwnd === notepad.hwnd) ?? { title: '' }), 'the scratch file is not the active Notepad tab');
     notepadPid = notepad.pid;
+    calcsBefore = calcPids();
     spawn('calc.exe', [], { detached: true, stdio: 'ignore' }).unref();
     const calc = (await until(async () => (await probe.request('list')).windows.find((w: any) => /^Calculator$/.test(w.title)), 15_000)) as any;
     await sleep(1500);
@@ -46,17 +55,30 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
     const docRef = /^\s*document\b.*\[ref=(e\d+)\]/m.exec(tree)![1];
 
     const act = async (window: number, params: Record<string, unknown>) => {
+      if (window === notepad.hwnd) await assertOurs();
       const d = await call(agent, 'desktop.describe', { ...me, window, ref: params.ref });
       if (d.error) return d;
-      const check = { session_id: 's1', surface: 'desktop', target: d.result.grant_id, action: params.action, args: { window, ...params }, control: d.result.control, password: d.result.password, file_dialog: d.result.file_dialog };
+      const { control, password, hidden, file_dialog, grant_id, token } = d.result;
+      const check = { session_id: 's1', surface: 'desktop', target: grant_id, action: params.action, args: { window, ...params }, control, password, hidden, file_dialog };
       const v = await call(agent, 'approval.check', check, 130_000);
       if (v.result.decision !== 'allow' && v.result.decision !== 'approved') return { error: { message: `not allowed: ${JSON.stringify(v.result)}` } };
-      return call(agent, 'desktop.act', { ...me, window, ...params, expect: { ...(d.result.control ?? {}), password: d.result.password, file_dialog: d.result.file_dialog, grant_id: d.result.grant_id } }, 300_000);
+      return call(agent, 'desktop.act', { ...me, window, ...params, expect: { ...(control ?? { name: '', automation_id: '', role: '' }), password, hidden, file_dialog, grant_id, token } }, 300_000);
     };
 
     // M6-15a: another app has focus, the pointer does not move
     const before = await probe.request('probe');
     assert.notEqual(before.foreground, notepad.hwnd, 'another app holds the foreground');
+    // a background window may report no focused control, and a posted Control or Shift never reaches the app,
+    // so Control+Shift+S is refused even once approved, and nothing lands in the document
+    const chord = act(notepad.hwnd, { action: 'key', keys: 'Control+Shift+S' });
+    const asked = await until(async () => (db.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any) ?? (await Promise.race([chord.then(() => 'done'), sleep(200).then(() => null)])), 10_000);
+    if (asked !== 'done') await call(ui, 'approval.resolve', { approval_id: asked.id, decision: 'approve' });
+    const refused = (await chord).error?.message;
+    assert.match(refused, /no keyboard focus|Control and Shift cannot be sent/);
+    console.log(`Control+Shift+S refused: ${refused}`);
+    await sleep(300);
+    await probe.request('snapshot', { hwnd: notepad.hwnd, max_nodes: 400 });
+    assert.equal((await probe.request('value', { hwnd: notepad.hwnd, ref: docRef })).value, '');
     const typed = await act(notepad.hwnd, { action: 'type', ref: docRef, text: 'typed by M6-15' });
     assert.ok(typed.result, JSON.stringify(typed.error));
     const after = await probe.request('probe');
@@ -68,22 +90,44 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
     // Calculator was not granted
     assert.match((await call(agent, 'desktop.describe', { ...me, window: calc.hwnd, ref: 'e1' })).error.message, /window not granted/);
 
+    // M6-15b: Ctrl+Alt+Q while typing 2,000 characters; nothing lands after the acknowledgement
+    const text = 'abcdefghij'.repeat(200);
+    const tree2 = (await call(agent, 'desktop.snapshot', { ...me, window: notepad.hwnd, max_nodes: 400 })).result.text as string;
+    const docRef2 = /^\s*document\b.*\[ref=(e\d+)\]/m.exec(tree2)![1];
+    const typing = act(notepad.hwnd, { action: 'type', ref: docRef2, text });
+    await probe.request('snapshot', { hwnd: notepad.hwnd, max_nodes: 400 });
+    for (let i = 0; i < 400 && !/abcdefghij/.test((await probe.request('value', { hwnd: notepad.hwnd, ref: docRef2 })).value as string); i++) await sleep(25);
+    const ack = await call(ui, 'takeover.pause', {});
+    assert.ok(ack.result.paused_at);
+    await probe.request('snapshot', { hwnd: notepad.hwnd, max_nodes: 400 });
+    const atAck = (await probe.request('value', { hwnd: notepad.hwnd, ref: docRef2 })).value as string;
+    await sleep(2000);
+    const later = (await probe.request('value', { hwnd: notepad.hwnd, ref: docRef2 })).value as string;
+    assert.match(atAck, /abcdefghij/, 'typing had started before the pause');
+    assert.equal(later, atAck, 'no character reached Notepad after the acknowledgement');
+    assert.ok(atAck.length < text.length, `paused before the end (${atAck.length} of ${text.length})`);
+    assert.match((await typing).error.message, /paused by the user/);
+    console.log(`paused after ${atAck.length} of ${text.length} characters`);
+    await call(ui, 'takeover.resume', { session_id: 's1' });
+
     // Save As is reachable as an owned window, and every input in it raises an approval
-    const npTree = (await call(agent, 'desktop.snapshot', { ...me, window: notepad.hwnd, max_nodes: 400 })).result.text as string;
-    const fileRef = /menuitem "File".*\[ref=(e\d+)\]/m.exec(npTree)![1];
-    assert.ok((await act(notepad.hwnd, { action: 'click', ref: fileRef })).result);
-    await sleep(800);
-    const menu = await until(async () => {
-      const ws = (await call(agent, 'desktop.windows', me)).result.windows;
-      for (const w of ws) {
-        const t = (await call(agent, 'desktop.snapshot', { ...me, window: w.window, max_nodes: 400 })).result?.text ?? '';
-        const m = /menuitem "Save as".*\[ref=(e\d+)\]/m.exec(t);
-        if (m) return { window: w.window, ref: m[1] };
-      }
-      return null;
-    }, 10_000) as { window: number; ref: string };
-    assert.ok((await act(menu.window, { action: 'click', ref: menu.ref })).result);
+    // Posted Control+Shift+S lands as a bare S, and Notepad's flyout closes when a click hands focus back,
+    // so bring Notepad to the front and open Save As from the menu
+    execFileSync('powershell.exe', ['-NoProfile', '-Command', `(New-Object -ComObject WScript.Shell).AppActivate(${notepad.pid}) | Out-Null`]);
+    await until(async () => (await probe.request('probe')).foreground === notepad.hwnd, 10_000);
+    // the input watcher (M6-22) pauses on that focus change, as it would for any program; resume as the user would
+    await sleep(1500);
+    await call(ui, 'takeover.resume', { session_id: 's1' });
+    for (const item of ['File', 'Save as']) {
+      const pattern = new RegExp(`^\\s*menuitem "${item}".*\\[ref=(e\\d+)\\]`, 'm');
+      const ref = (await until(async () => pattern.exec((await call(agent, 'desktop.snapshot', { ...me, window: notepad.hwnd, max_nodes: 600 })).result.text)?.[1], 10_000)) as string;
+      const clicked = await act(notepad.hwnd, { action: 'click', ref });
+      assert.ok(clicked.result, JSON.stringify(clicked.error));
+    }
     const dialog = (await until(async () => (await call(agent, 'desktop.windows', me)).result.windows.find((w: any) => w.owner === notepad.hwnd || (w.window !== notepad.hwnd && /save/i.test(w.title))), 10_000)) as any;
+    // the dialog can open more than 200 ms after the click returns, which the watcher reads as a change while away
+    await sleep(1000);
+    await call(ui, 'takeover.resume', { session_id: 's1' });
     const dTree = (await call(agent, 'desktop.snapshot', { ...me, window: dialog.window, max_nodes: 600 })).result.text as string;
     const nameRef = /edit "File name:".*\[ref=(e\d+)\]/m.exec(dTree)?.[1] ?? /edit .*\[ref=(e\d+)\]/m.exec(dTree)![1];
     const d = (await call(agent, 'desktop.describe', { ...me, window: dialog.window, ref: nameRef })).result;
@@ -99,26 +143,13 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
       else assert.ok(r.result, JSON.stringify(r.error));
     }
 
-    // M6-15b: Ctrl+Alt+Q while typing 2,000 characters; nothing lands after the acknowledgement
-    const text = 'abcdefghij'.repeat(200);
-    const typing = act(notepad.hwnd, { action: 'type', ref: docRef, text });
-    await sleep(1500);
-    const ack = await call(ui, 'takeover.pause', {});
-    assert.ok(ack.result.paused_at);
-    await probe.request('snapshot', { hwnd: notepad.hwnd, max_nodes: 400 });
-    const atAck = (await probe.request('value', { hwnd: notepad.hwnd, ref: docRef })).value as string;
-    await sleep(2000);
-    const later = (await probe.request('value', { hwnd: notepad.hwnd, ref: docRef })).value as string;
-    assert.equal(later, atAck, 'no character reached Notepad after the acknowledgement');
-    assert.ok(atAck.length < text.length, `paused before the end (${atAck.length} of ${text.length})`);
-    assert.match((await typing).error.message, /paused by the user/);
-    console.log(`paused after ${atAck.length} of ${text.length} characters`);
   } finally {
     agent.close(); ui.close();
     db.prepare('UPDATE session SET pid = NULL').run();
     db.close();
     probe.stop();
     if (notepadPid) try { process.kill(notepadPid); } catch {}
+    if (calcsBefore) for (const pid of calcPids()) if (!calcsBefore.includes(pid)) try { process.kill(Number(pid)); } catch {}
     await teardownCore(core, iso);
   }
 });

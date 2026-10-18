@@ -34,7 +34,7 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 | `screenshot` | `{window}` | JPEG of that window through `PrintWindow(PW_RENDERFULLCONTENT)`, so a covered window still captures; no side over 1,568 px, and quality then size lowered until the base64 is at most 900,000 characters, since replies travel a pipe whose lines stop at 1 MiB |
 | `click` | `{window, ref}` | `{status, focus_returned?}` |
 | `type` | `{window, ref, text}` | `{status, focus_returned?}`; replaces the control's text |
-| `key` | `{window, keys}` | `{status}`; keys like `Enter`, `Tab`, `Control+S` |
+| `key` | `{window, keys}` | `{status}`; keys like `Enter`, `Tab`, `Escape`; a chord with Control or Shift is refused (see Acting) |
 | `scroll` | `{window, ref?, dy}` | `{status}`; `dy` positive scrolls down |
 | `wait_for` | `{window, text, timeout_ms?: 10000}` | `{found}`; polls the tree every 250 ms for a node whose Name or value contains `text` |
 
@@ -51,6 +51,9 @@ expected, else `unverifiable`.
 | `desktop not available: the MetaTrooper workbench is closed` | the workbench pipe does not answer |
 | `not sent: the MetaTrooper core is offline, so this action cannot be checked` | the core pipe does not answer |
 | `unknown ref <ref>; take a new snapshot` | the ref is not in the latest snapshot of that window |
+| `this window has no keyboard focus (another window is in front), ...; nothing was sent` | `key` on a window whose thread reports no focused control |
+| `this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent` | `key` checked against a control (with a `ref`) that, with the window in the background, only reads back as its container |
+| `Control and Shift cannot be sent: ...; nothing was sent` | a `key` chord with Control or Shift |
 
 ## Acting (D78)
 
@@ -64,7 +67,10 @@ The helper never calls `SendInput`, `mouse_event` or `SetCursorPos`, so the poin
   foreground moved, the helper calls `SetForegroundWindow` on the window that had it and returns
   `focus_returned: true|false`.
 - `key` posts `WM_KEYDOWN`/`WM_KEYUP` (and `WM_CHAR` for a printable key) to the window's focused control
-  (`GetGUIThreadInfo`), or the window itself.
+  (`GetGUIThreadInfo`). A window whose thread reports no focused control, as a background window often does, is
+  refused ("this window has no keyboard focus"), since there is no checked control to post to. A chord with
+  Control or Shift is refused: apps read those from the keyboard state, which a posted key does not change, so
+  `Control+Shift+S` would arrive as a bare `s` (measured on Windows 11 Notepad, foreground and background).
 - `type` is sent in chunks of at most 8 characters: chunk n sets the control's text to the first 8n characters.
   The core checks the pause flag before each chunk and waits for each chunk's reply before the next.
 
