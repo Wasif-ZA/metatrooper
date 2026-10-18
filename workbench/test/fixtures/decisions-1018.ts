@@ -1,4 +1,4 @@
-// Drives the workbench browser server and a mocked pane for the 2026-10-18 decisions D3, D4, D6 and D8; prints one JSON line.
+// Drives the workbench browser server and a mocked pane for the 2026-10-18 decisions D3, D4, D6 and D8; M612_MODE picks one D4 output boundary to run first. Prints one JSON line.
 import { mock } from 'node:test';
 import { EventEmitter } from 'node:events';
 import { spawnSync } from 'node:child_process';
@@ -25,7 +25,7 @@ if (saved.status !== 0) throw new Error(saved.stderr);
 const { openCoreDb } = await import(core('store/db.ts'));
 const { browserPipe, dbFile } = await import(core('paths.ts'));
 const { createDecoder, encode } = await import(core('pipe/framing.ts'));
-const { PaneManager } = await import('../../src/browser/panes.ts');
+const { PaneManager, UNSCRUBBED } = await import('../../src/browser/panes.ts');
 const { startBrowserServer } = await import('../../src/browser/server.ts');
 
 const db = openCoreDb();
@@ -51,12 +51,37 @@ internal.panes.set('bp_agent_1', pane);
 internal.evalIsolated = async (_p: unknown, expression: string) => (expression.includes('.includes(') ? expression.includes(marker) : `Welcome ${marker} home`);
 
 const r: Record<string, unknown> = {};
+// D4: each output boundary runs first in its own process (M612_MODE), before anything here decrypts the saved secret
+const mode = process.env.M612_MODE ?? '';
+const fs = await import('node:fs');
+const store = path.join(home, 'secrets', 'core-browser');
+// a plain file where the folder was: its stat works and listing it throws, so the saved secrets cannot be read
+const breakStore = () => { fs.renameSync(store, `${store}.away`); fs.writeFileSync(store, ''); };
+const mendStore = () => { fs.rmSync(store); fs.renameSync(`${store}.away`, store); };
 
-// D6: a guess at the secret is not found; plain page text is
-r.waitGuess = await internal.run(pane, 'wait_for', { text: marker, timeout_ms: 300 });
-r.waitPlain = await internal.run(pane, 'wait_for', { text: 'Welcome', timeout_ms: 300 });
-// D4: evaluate scrubs a saved secret this process never decrypted
-r.evaluate = await internal.run(pane, 'evaluate', { expression: 'document.body.innerText' });
+if (mode === 'evaluate') r.evaluate = await internal.run(pane, 'evaluate', { expression: 'document.body.innerText' });
+if (mode === 'read') r.read = await internal.run(pane, 'read', {});
+if (mode === 'capture') {
+  // the cut at 2000 characters falls inside the secret, leaving its first 15 characters
+  const long = `${'x'.repeat(1985)}${marker}`;
+  breakStore();
+  await internal.onDebuggerEvent(pane, 'Runtime.consoleAPICalled', { type: 'log', args: [{ value: long }] });
+  await internal.onDebuggerEvent(pane, 'Page.javascriptDialogOpening', { type: 'alert', message: long });
+  r.dialogWithheld = pane.dialog.message === UNSCRUBBED;
+  pane.dialog = null;
+  mendStore();
+  await internal.onDebuggerEvent(pane, 'Runtime.consoleAPICalled', { type: 'log', args: [{ value: long }] });
+}
+if (mode === 'evaluate' || mode === 'read') {
+  console.log(JSON.stringify(r));
+  process.exit(0);
+}
+
+if (!mode) {
+  // D6: a guess at the secret is not found; plain page text is
+  r.waitGuess = await internal.run(pane, 'wait_for', { text: marker, timeout_ms: 300 });
+  r.waitPlain = await internal.run(pane, 'wait_for', { text: 'Welcome', timeout_ms: 300 });
+}
 pane.scripted = false;
 
 await startBrowserServer(browserPipe(), { db: () => db, uiKey: () => null, panes: pm, refreshPanes() {}, openPane: async () => 'x' });
@@ -68,8 +93,10 @@ let unasked = 0;
 const waiting = new Map<string, (m: any) => void>();
 sock.on('data', (chunk) => { if (!waiting.size) unasked += chunk.length; });
 sock.on('data', createDecoder((m: any) => { const w = waiting.get(m.id); waiting.delete(m.id); w?.(m); }));
-await new Promise((res) => setTimeout(res, 300));
-r.unaskedBytes = unasked;
+if (!mode) {
+  await new Promise((res) => setTimeout(res, 300));
+  r.unaskedBytes = unasked;
+}
 let n = 0;
 const call = (method: string, params: Record<string, unknown> = {}) => new Promise<any>((resolve) => {
   const id = `t${++n}`;
@@ -78,25 +105,38 @@ const call = (method: string, params: Record<string, unknown> = {}) => new Promi
 });
 r.hello = (await call('browser.hello', { session_id: 's1', pid: process.pid })).result?.bound;
 
-// D4: a console line that reached the log unscrubbed is scrubbed on the way out
-pane.console.push({ at: Date.now(), level: 'log', text: `typed ${marker}` });
-r.console = (await call('browser.console', { pane_id: 'bp_agent_1' })).result;
+if (mode === 'console') {
+  // a console line that reached the log unscrubbed is scrubbed on the way out
+  pane.console.push({ at: 1, level: 'log', text: `typed ${marker}` });
+  r.console = (await call('browser.console', { pane_id: 'bp_agent_1' })).result;
+}
+if (mode === 'panes') {
+  db.prepare('UPDATE browser_pane SET url = ? WHERE id = ?').run(`https://bank.test/cb?code=${marker}`, 'bp_agent_1');
+  r.panes = (await call('browser.panes')).result;
+}
+if (mode === 'unknown') r.unknown = (await call(`browser.${marker}`)).error;
+if (mode === 'capture') {
+  const lines = (await call('browser.console', { pane_id: 'bp_agent_1' })).result as Array<{ text: string }>;
+  r.capture = lines.map((l) => (l.text === UNSCRUBBED ? 'withheld' : l.text.replace(/^x+/, (x) => `x*${x.length}`)));
+}
 
-// D8: a busy database delays the audit row instead of dropping it; one busy past every try is logged
-const rows = () => (db.prepare("SELECT COUNT(*) AS n FROM event WHERE kind = 'browser.tool'").get() as { n: number }).n;
-const holdWhile = async (ms: number, work: () => Promise<unknown>) => {
-  const locker = new DatabaseSync(dbFile());
-  locker.exec('BEGIN IMMEDIATE');
-  setTimeout(() => { locker.exec('COMMIT'); locker.close(); }, ms);
-  await work();
-  await new Promise((res) => setTimeout(res, ms + 900));
-};
-const before = rows();
-await holdWhile(300, () => call('browser.console', { pane_id: 'bp_agent_1' }));
-r.auditAfterBusy = rows() - before;
-const mid = rows();
-await holdWhile(1600, () => call('browser.console', { pane_id: 'bp_agent_1' }));
-r.auditAfterLongBusy = rows() - mid;
+if (!mode) {
+  // D8: a busy database delays the audit row instead of dropping it; one busy past every try is logged
+  const rows = () => (db.prepare("SELECT COUNT(*) AS n FROM event WHERE kind = 'browser.tool'").get() as { n: number }).n;
+  const holdWhile = async (ms: number, work: () => Promise<unknown>) => {
+    const locker = new DatabaseSync(dbFile());
+    locker.exec('BEGIN IMMEDIATE');
+    setTimeout(() => { locker.exec('COMMIT'); locker.close(); }, ms);
+    await work();
+    await new Promise((res) => setTimeout(res, ms + 900));
+  };
+  const before = rows();
+  await holdWhile(300, () => call('browser.console', { pane_id: 'bp_agent_1' }));
+  r.auditAfterBusy = rows() - before;
+  const mid = rows();
+  await holdWhile(1600, () => call('browser.console', { pane_id: 'bp_agent_1' }));
+  r.auditAfterLongBusy = rows() - mid;
+}
 
 sock.destroy();
 console.log(JSON.stringify(r));

@@ -13,7 +13,7 @@ import { takeoverPaused } from '../../../core/src/grants.ts';
 /** Typed text goes in pieces of this many characters, with the pause checked before each, as on the desktop. */
 const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
-import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
+import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1470,13 +1470,13 @@ export function errorPage(kind: string, url: string, detail: string): string {
     + `<body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><p><code>${escapeHtml(url.slice(0, 2000))}</code></p><p>${escapeHtml(detail.slice(0, 500))}</p>${retry}</body></html>`;
 }
 
-/** Page text scrubbed of every saved secret before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. A store that cannot be read falls back to the values decrypted here, so a CDP listener never throws; the tool result is scrubbed of every saved secret again before it leaves. */
-function whole(text: string, secrets = outputSecrets()): string {
-  return scrub(text, secrets);
-}
+/** Shown in place of captured text when the saved secrets cannot all be read, so a secret, or the prefix a later cut leaves of it, is never kept. */
+export const UNSCRUBBED = '[withheld: the saved secrets could not be read to scrub this text]';
 
-function outputSecrets(): string[] {
-  try { return scrubSecretValues(); } catch { return knownSecretValues(); }
+/** Page text scrubbed of every saved secret before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. A store that cannot be read gives UNSCRUBBED, so a CDP listener never throws and never keeps text it could not scrub. */
+function whole(text: string, secrets?: string[]): string {
+  if (secrets) return scrub(text, secrets);
+  try { return scrub(text, scrubSecretValues()); } catch { return UNSCRUBBED; }
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
