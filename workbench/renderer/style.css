@@ -106,7 +106,7 @@ body { position: relative; }
 .alist .li .dot.done, .alist .li .dot.unseen { background: var(--unseen); }
 .alist .li .dot.exited { background: transparent; border: 1px solid var(--faint); }
 .alist .li .hide { visibility: hidden; margin-left: 4px; color: var(--mute); }
-.alist .li:hover .hide { visibility: visible; }
+.alist .li:hover .hide, .alist .li:focus-within .hide { visibility: visible; }
 .alist .li.drop { outline: 2px dashed var(--ink); }
 .alist .li .m button { margin-top: 4px; height: 22px; padding: 0 8px; border: 1px solid var(--hairline-strong); border-radius: 2px; background: var(--canvas); color: var(--body-strong); }
 .alist .run1 { cursor: pointer; }

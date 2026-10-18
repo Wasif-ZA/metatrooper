@@ -558,7 +558,7 @@ function canHide(id) {
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
-  return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
+  return `<div class="li srow${sel ? ' sel' : ''}" role="option" tabindex="0" aria-selected="${Boolean(sel)}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
     <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session" aria-label="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
@@ -629,9 +629,9 @@ function renderList(sel) {
   const sessions = s.sessions.filter((x) => !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
   setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)" aria-label="Close the agent list">x</button></div>
     <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
-    <div class="lbody" id="sessions">
+    <div class="lbody" id="sessions" role="listbox" aria-label="Sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
-      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
+      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" role="option" tabindex="0" aria-selected="${Boolean(sel && sel.id === x.id)}" data-action="pick-shell" data-id="${esc(x.id)}">
         <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell" aria-label="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
     </div>
     <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
@@ -957,7 +957,7 @@ function disarm() {
 /** Closes the Inbox, the sinks popover and the usage popover; true when one was open. */
 function closePopovers() {
   let closed = false;
-  for (const id of ['inbox', 'sinks']) {
+  for (const id of ['inbox', 'sinks', 'menu']) {
     const el = document.getElementById(id);
     if (!el.hidden) { el.hidden = true; closed = true; }
   }
@@ -1140,7 +1140,7 @@ function projectGroups(list) {
 /** One project menu row; the x that hides it shows only when none of its sessions is working or waiting. */
 function projectMenuItem(p) {
   const live = liveCounts(p.id).replace(/^ · /, '');
-  return `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
+  return `<div class="item" role="menuitem" tabindex="-1" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
     + (live ? '' : `<span class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)">&times;</span>`) + '</div>';
 }
 
@@ -1177,10 +1177,11 @@ async function onClick(e) {
     case 'changed-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
+      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" role="menuitem" tabindex="-1" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
       menu.style.left = `${Math.max(8, r.right - 260)}px`;
       menu.style.top = `${r.bottom + 4}px`;
       menu.hidden = false;
+      menu.querySelector('[role="menuitem"]')?.focus();
       return;
     }
     case 'changed-open':
@@ -1196,11 +1197,12 @@ async function onClick(e) {
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = `<div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
-        + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
+      menu.innerHTML = `<div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" role="menuitem" tabindex="-1" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
+        + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" role="menuitem" tabindex="-1" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
       menu.style.left = `${Math.max(8, r.right - 220)}px`;
       menu.style.top = `${r.bottom + 4}px`;
       menu.hidden = false;
+      menu.querySelector('[role="menuitem"]')?.focus();
       return;
     }
     case 'project-menu': {
@@ -1210,15 +1212,16 @@ async function onClick(e) {
       const sec = (title, list) => (list.length ? `<div><div class="mh">${title}</div>${list.map(projectMenuItem).join('')}</div>` : '');
       const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
-      menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
+      menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" role="menuitem" tabindex="-1" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
         + sec('Projects', g.projects)
         + fold('Worktrees', g.worktrees)
         + fold('Older', g.older)
         + fold('Scratch and temp folders', g.scratch)
-        + '<div class="sep"></div><div class="item" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
+        + '<div class="sep"></div><div class="item" role="menuitem" tabindex="-1" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
       menu.style.left = `${Math.max(8, r.left)}px`;
       menu.style.top = `${r.bottom + 4}px`;
       menu.hidden = false;
+      menu.querySelector('[role="menuitem"]')?.focus();
       return;
     }
     case 'project-go':
@@ -1705,10 +1708,11 @@ document.addEventListener('contextmenu', (e) => {
   if (!row || row.dataset.id.startsWith('sh_')) { menu.hidden = true; return; }
   e.preventDefault();
   const id = row.dataset.id;
-  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
+  menu.innerHTML = `<div class="item" role="menuitem" tabindex="-1" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" role="menuitem" tabindex="-1" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
   menu.hidden = false;
+  menu.querySelector('[role="menuitem"]')?.focus();
 });
 document.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -1762,6 +1766,13 @@ document.addEventListener('keydown', (e) => {
   if (typing) return;
   const role = active && active.getAttribute && active.getAttribute('role');
   if ((e.key === 'Enter' || e.key === ' ') && ['button', 'menuitem', 'option'].includes(role)) { e.preventDefault(); active.click(); return; }
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (role === 'menuitem' || role === 'option')) {
+    e.preventDefault();
+    const all = [...active.closest('#menu, #sessions').querySelectorAll(`[role="${role}"]`)].filter((x) => x.getClientRects().length);
+    const next = all[all.indexOf(active) + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (next) next.focus();
+    return;
+  }
   if (ui.tab !== 'browser' || !ui.split) return;
   if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
   if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {

@@ -98,7 +98,7 @@ test('M6-27 context menu: Hide is offered only for a settled session', () => {
   const block = appSource.match(/^document\.addEventListener\('contextmenu'[^]*?\r?\n}\);\r?\n/m)![0];
   for (const state of [...LIVE, ...SETTLED]) {
     let handler: any;
-    const menu: any = { style: {}, hidden: true, innerHTML: '' };
+    const menu: any = { style: {}, hidden: true, innerHTML: '', querySelector: () => null };
     const doc = { addEventListener: (_: string, h: any) => { handler = h; }, getElementById: () => menu };
     new Function('document', 'ui', `${line('const LIVE_STATES')}\n${fn('esc', appSource)}\n${fn('canHide', appSource)}\n${block}`)(doc, snapOfEveryState());
     handler({ target: { closest: () => ({ dataset: { id: state } }) }, preventDefault() {}, clientX: 0, clientY: 0 });
