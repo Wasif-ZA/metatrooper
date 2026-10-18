@@ -129,3 +129,23 @@ test('D19 the sweep and session exit delete only files MetaTrooper recorded as i
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM meta WHERE key LIKE 'session_files:%'").get()!.n, 0);
   } finally { fs.rmSync(outside, { force: true }); }
 }));
+
+test('D3 the core and terminal pipes never speak first: a connected client that sends nothing receives nothing, and a line then gets a reply', async () => {
+  const { harness, pipePath } = await import('./helpers.ts');
+  const net = await import('node:net');
+  const h = await harness();
+  try {
+    for (const [name, line] of [[h.prefix, { jsonrpc: '2.0', id: 'p', method: 'core.ping' }], [`${h.prefix}-term`, { op: 'nonsense' }]] as const) {
+      const sock = net.connect(pipePath(name));
+      await new Promise((res, rej) => { sock.once('connect', res); sock.once('error', rej); });
+      let got = '';
+      sock.on('data', (c) => { got += c; });
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(got, '', `${name} spoke first`);
+      sock.write(JSON.stringify(line) + '\n');
+      for (let i = 0; i < 100 && !got.includes('\n'); i++) await new Promise((res) => setTimeout(res, 20));
+      assert.ok(got.includes('\n'), `${name} answered a line`);
+      sock.destroy();
+    }
+  } finally { await h.teardown(); }
+});

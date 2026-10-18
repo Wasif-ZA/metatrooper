@@ -67,6 +67,10 @@ person approving that exact action in the workbench, and stops at the take-over 
 grant methods need a trusted UI connection (`ui.hello`); the MCP servers, plugins and pipeline apps get no path to
 them. A process that deliberately reads the UI key is a hostile same-user process and out of scope, as before.
 
+The named pipes keep Windows' default DACL, which lets Everyone and Anonymous connect read-only (Node cannot set
+it). That is safe only because no pipe speaks first: a reader that cannot write gets nothing (D3; the invariant
+and its tests are in `contracts/pipe-protocol.md` Access). A server-pushed message would need an owner-only pipe.
+
 ## Decisions
 
 Decisions D4 to D51 and M4-D1 to M5-D29 stay in the archived spec as history. These still bind and are restated
