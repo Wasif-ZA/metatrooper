@@ -67,6 +67,11 @@ test('M6-16b isolation: a --demo start overrides an inherited home and prefix, s
       const ready = () => db.prepare("SELECT status FROM session_dev_server WHERE session_id = ? AND status = 'ready'").get(sessions.preview);
       await until(ready, 30_000);
       assert.equal(db.prepare('SELECT COUNT(*) AS n FROM session_dev_server WHERE session_id = ?').get(sessions.asker)!.n, 0);
+      // each role names its terminal, which is the tile name an agent finds it by
+      await until(async () => {
+        const titles: any = (await ui.request('session.live-text', {})).result ?? {};
+        return titles[sessions.preview]?.title === 'preview' && titles[sessions.asker]?.title === 'asker';
+      }, 10_000);
 
       const check = { session_id: sessions.asker, surface: 'browser', target: 'https://shop.example.invalid/', action: 'click', args: {}, control: { name: 'Send', role: 'button', automation_id: '' } };
       const decided = pipe.request('approval.check', check, { timeout: 130_000 }) as Promise<any>;

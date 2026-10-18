@@ -97,21 +97,28 @@ test('M6-16a-f a scripted agent drives a --demo workbench through metatrooper-de
         odb.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p1', '/p1', 'p1', ?, ?)").run(now, now);
         odb.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, hidden, started_at) VALUES ('s1', 'p1', 'claude', 'pty', 'idle', ?, 0, ?)").run(now, now);
         odb.close();
-        for (const w of [demoWin, otherWin]) assert.equal((await oui.request('grant.window', { session_id: 's1', hwnd: w.hwnd, pid: w.pid, process_start: w.process_start }, { timeout: 15_000 })).error?.code, -32003);
+        for (const w of [demoWin, otherWin]) {
+          const r = await oui.request('grant.window', { session_id: 's1', hwnd: w.hwnd, pid: w.pid, process_start: w.process_start }, { timeout: 15_000 });
+          assert.equal(r.error?.code, -32003);
+          assert.match(r.error.message, /workbench cannot be granted/, 'refused by the exe rule, not by a take-over key that failed to register');
+        }
       } finally { oui.close(); }
 
       // the user's part: a live approval waits on asker (D45), driver starts, and the demo window is given to it
-      const check = { session_id: asker, surface: 'browser', target: 'https://shop.example.invalid/', action: 'click', args: {}, control: { name: 'Send', role: 'button', automation_id: '' } };
-      const decided = pipe.request('approval.check', check, { timeout: 200_000 }) as Promise<any>;
       const driver = (await pipe.request('session.launch', { project_id: project, engine_id: 'demo-fixture', prompt: 'driver' }, { timeout: 15_000 })).result.session_id;
       await until(() => (db.prepare('SELECT pid FROM session WHERE id = ?').get(driver) as any)?.pid, 20_000);
       await until(async () => !(await ui.request('grant.candidates', {}, { timeout: 15_000 })).error, 30_000);
       const candidates = (await ui.request('grant.candidates', {}, { timeout: 15_000 })).result.windows;
       assert.ok(candidates.some((w: any) => w.hwnd === demoWin.hwnd), 'the demo core lists its own window');
       assert.ok(!candidates.some((w: any) => w.hwnd === otherWin.hwnd), 'the demo core does not list another workbench');
-      assert.equal((await ui.request('grant.window', { session_id: driver, hwnd: otherWin.hwnd, pid: otherWin.pid, process_start: otherWin.process_start }, { timeout: 15_000 })).error?.code, -32003);
+      const refused = await ui.request('grant.window', { session_id: driver, hwnd: otherWin.hwnd, pid: otherWin.pid, process_start: otherWin.process_start }, { timeout: 15_000 });
+      assert.equal(refused.error?.code, -32003);
+      assert.match(refused.error.message, /workbench cannot be granted/);
       const grant = await ui.request('grant.window', { session_id: driver, hwnd: demoWin.hwnd, pid: demoWin.pid, process_start: demoWin.process_start }, { timeout: 15_000 });
       assert.match(grant.result?.grant_id ?? '', /^gr_/, JSON.stringify(grant));
+      // the 120 s approval clock starts only now; the agent's step 4 retries until the card is there
+      const check = { session_id: asker, surface: 'browser', target: 'https://shop.example.invalid/', action: 'click', args: {}, control: { name: 'Send', role: 'button', automation_id: '' } };
+      const decided = pipe.request('approval.check', check, { timeout: 200_000 }) as Promise<any>;
 
       const out = await until(() => lines(agentLog).find((l) => 'exit' in l), 300_000);
       const steps = lines(agentLog).filter((l) => 'step' in l);
@@ -156,7 +163,12 @@ test('M6-16a-f a scripted agent drives a --demo workbench through metatrooper-de
     if (demo.pid && alive(demo.pid)) killTree(demo.pid);
     if (otherWb.pid) killTree(otherWb.pid);
     await sleep(500);
-    if (existsSync(home)) await teardownCore(null, iso);
+    if (existsSync(home)) {
+      // the close path failed: stop the detached demo core before removing its home
+      try { const c = await client(prefix); try { await uiHello(c, home); await c.request('core.stop'); } finally { c.close(); } } catch {}
+      await sleep(1500);
+      await teardownCore(null, iso);
+    }
     await teardownCore(otherCore, other);
     assert.equal(sha(join(sentinel, 'troop.db')), before, 'the sentinel troop.db is unchanged');
     rmSync(sentinel, { recursive: true, force: true });
