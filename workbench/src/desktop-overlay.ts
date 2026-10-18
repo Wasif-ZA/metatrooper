@@ -24,7 +24,9 @@ let lastAction = 0;
 let topTimer: NodeJS.Timeout | null = null;
 let hideTimer: NodeJS.Timeout | null = null;
 let glides = 0;
-let lookOf: (sessionId: string) => DesktopLook = () => ({ mode: 'snappy', reducedMotion: false, colour: '#888', label: '', showCaption: true, idleFadeMs: 5000, protect: true });
+/** M6-18e's timing row, written with METATROOPER_WORKBENCH_PROBE; never the caption. */
+let probe: (row: Record<string, unknown>) => void = () => {};
+let lookOf:(sessionId: string) => DesktopLook = () => ({ mode: 'snappy', reducedMotion: false, colour: '#888', label: '', showCaption: true, idleFadeMs: 5000, protect: true });
 
 const toDip = (r: Rect): Rect => (process.platform === 'win32' ? screen.screenToDipRect(null, r) : r);
 
@@ -83,7 +85,10 @@ function hide(session: string): void {
 
 /** The pipe's `cursor.glide`: draws the session's cursor gliding to a physical-pixel rectangle, then replies. */
 export async function desktopGlide(session: string, rectPx: unknown, caption: string, look = lookOf(session), quiet = false): Promise<GlideReply> {
-  if (look.mode === 'off') return { arrived: true, ms: 0, shown: false, late: false };
+  if (look.mode === 'off') {
+    if (!quiet) probe({ kind: 'cursor', host: 'desktop', session, ms: 0, late: false, shown: false, requested_at: Date.now(), arrived_at: null });
+    return { arrived: true, ms: 0, shown: false, late: false };
+  }
   if (!usableRect(rectPx)) {
     hide(session);
     return { arrived: true, ms: 0, shown: false, late: false };
@@ -99,7 +104,8 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
   const prev = m && now - m.at < look.idleFadeMs ? m : null;
   const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: rect, keep: /^(press|scroll)\b/.test(caption), host: display.bounds });
   const id = `desk:${++glides}`;
-  const due = Date.now() + ms + LATE_MS;
+  const requested_at = Date.now();
+  const due = requested_at + ms + LATE_MS;
   let got: Arrival | null = null;
   try {
     // window creation, page load, send and arrival all sit inside the one ms + 16 deadline (D57)
@@ -115,6 +121,7 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
     await new Promise((r) => setTimeout(r, Math.max(0, due - Date.now())));
   }
   marks.set(session, { display: display.id, x: to.x, y: to.y, rect: rectPx, at: quiet && m ? m.at : Date.now() });
+  if (!quiet) probe({ kind: 'cursor', host: 'desktop', session, ms, late: !got, shown: true, requested_at, arrived_at: got ? got.at : null });
   return { arrived: true, ms, shown: true, late: !got };
 }
 
@@ -173,8 +180,9 @@ function displaysChanged(): void {
 }
 
 /** Wires display changes and the per-session look; call once after app ready. */
-export function initDesktopOverlay(look: (sessionId: string) => DesktopLook): void {
+export function initDesktopOverlay(look: (sessionId: string) => DesktopLook, probeRow?: (row: Record<string, unknown>) => void): void {
   lookOf = look;
+  if (probeRow) probe = probeRow;
   for (const ev of ['display-metrics-changed', 'display-added', 'display-removed'] as const) screen.on(ev as 'display-added', displaysChanged);
 }
 

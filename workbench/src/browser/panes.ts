@@ -792,7 +792,10 @@ export class PaneManager {
   private async pointAt(pane: Pane, x: number, y: number, a: Record<string, any> = {}, size = { width: 0, height: 0 }, caption = 'click'): Promise<void> {
     const session = String(a._session ?? pane.row.session_id ?? '');
     const look: CursorLook = { mode: 'snappy', reducedMotion: false, colour: sessionColour(session), label: '', showCaption: true, idleFadeMs: 5000, ...this.hooks.cursor?.(session) };
-    if (look.mode === 'off') return;
+    if (look.mode === 'off') {
+      this.hooks.probe({ kind: 'cursor', pane: pane.row.id, session, target: { x, y }, at: null, ms: 0, late: false, shown: false, requested_at: Date.now(), arrived_at: null });
+      return;
+    }
     const zoom = pane.view.webContents.getZoomFactor();
     const target = { x: x * zoom, y: y * zoom };
     const w = size.width * zoom, h = size.height * zoom;

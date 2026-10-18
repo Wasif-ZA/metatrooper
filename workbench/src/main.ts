@@ -836,7 +836,7 @@ if (!app.requestSingleInstanceLock()) {
       } catch {}
       setTimeout(frameTick, cursorsShowing() ? 250 : 500);
     };
-    initDesktopOverlay(cursorLook);
+    initDesktopOverlay(cursorLook, (entry) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state: entry }));
     void frameTick();
     void startBrowserServer(browserPipe(), {
       db,

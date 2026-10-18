@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { call as coreCall } from '../pipe/client.ts';
 import { actionHash, APPROVAL_TIMEOUT_MS, desktopKeysProblem, type Control } from '../approvals.ts';
 import { WorkbenchPipe, findSession, type Reply } from './workbench-pipe.ts';
@@ -28,6 +29,15 @@ async function core(method: string, params: Record<string, unknown>, waitMs = 60
   return out.reply;
 }
 
+/** The input's time for M6-18e, beside the workbench's cursor rows; never the args or the caption. */
+function probe(state: Record<string, unknown>): void {
+  const file = process.env.METATROOPER_WORKBENCH_PROBE;
+  if (!file) return;
+  try {
+    appendFileSync(file, JSON.stringify({ at: Date.now(), state }) + '\n');
+  } catch {}
+}
+
 /** The cursor's caption: never the typed text; " behind <title>" when another window covers the target. */
 function caption(name: string, args: Record<string, unknown>, control: Control | null, coveredBy: string): string {
   const what = name === 'type' ? `type ${Array.from(String(args.text ?? '')).length} characters`
@@ -55,7 +65,9 @@ async function input(name: string, args: Record<string, unknown>, session_id: st
     if (out.decision === 'rejected') return { error: { code: -32030, message: 'not approved: the user rejected this action' } };
     if (out.decision === 'expired') return { error: { code: -32030, message: 'not approved in time' } };
     const glide = await workbench.call('cursor.glide', { session: session_id, target_rect_px: minimized ? null : rect, caption: caption(name, args, control, String(covered_by ?? '')) });
-    if (glide.error) return glide;
+    // only a refused session stops the input; a cursor that failed to draw never blocks it (D57)
+    if (glide.error?.code === -32030) return glide;
+    probe({ kind: 'desktop-input', session: session_id, tool: name });
     const r = await core('desktop.act', { ...me, ...args, action: name, expect: { ...(control ?? { name: '', automation_id: '', role: '' }), password, hidden, file_dialog, grant_id, token } }, 10 * 60_000);
     if (r.error?.code !== CONTROL_CHANGED) return r;
   }

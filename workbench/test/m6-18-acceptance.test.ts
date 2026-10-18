@@ -574,3 +574,39 @@ test('M6-18h desktop: a window that cannot be made, a send that throws, or a win
     }
   }
 });
+
+test('M6-18e desktop: each glide writes a timing row (requested_at, arrived_at, late) without the caption; mode off writes one too', async () => {
+  // protects=M6-18e the desktop half of the p95 measurement; M6-18g mode off is still measured
+  // fails_when=desktopGlide writes no row, drops a timing field, or puts the caption in the row
+  // no_claim=the core's input row (core test)
+  const rows: any[] = [];
+  mods.initDesktopOverlay((s: string) => deskLook(s), (r: any) => rows.push(structuredClone(r)));
+  fake.wins.length = 0;
+  try {
+    await mods.desktopGlide('e-desk', [100, 100, 80, 30], 'click Save', deskLook('e-desk'));
+    await mods.desktopGlide('e-desk', [400, 100, 80, 30], 'type 24 characters', deskLook('e-desk'));
+    fake.wins[0].webContents.answer = 'never';
+    await mods.desktopGlide('e-desk', [100, 100, 80, 30], 'click Save', deskLook('e-desk'));
+    await mods.desktopGlide('e-desk', [100, 100, 80, 30], 'click Save', deskLook('e-desk', { mode: 'off' }));
+    assert.equal(rows.length, 4);
+    for (const r of rows) assert.deepEqual(Object.keys(r).sort(), ['arrived_at', 'host', 'kind', 'late', 'ms', 'requested_at', 'session', 'shown']);
+    assert.ok(!JSON.stringify(rows).includes('Save') && !JSON.stringify(rows).includes('characters'));
+    assert.equal(rows[1].ms, glideMs(300, 80));
+    assert.equal(rows[1].late, false);
+    assert.ok(rows[1].arrived_at - rows[1].requested_at >= rows[1].ms - 5);
+    assert.deepEqual([rows[2].late, rows[2].arrived_at], [true, null]);
+    assert.deepEqual([rows[3].shown, rows[3].ms, rows[3].late], [false, 0, false]);
+  } finally {
+    mods.initDesktopOverlay((s: string) => deskLook(s), () => {});
+    mods.closeDesktopOverlay();
+  }
+});
+
+test('M6-18e browser: mode off still writes a cursor row, shown false', async () => {
+  // protects=M6-18e/g every browser action has a cursor row, so mode off runs are measurable
+  // fails_when=pointAt returns in mode off without a row
+  const b = browser(() => ({ mode: 'off' }));
+  await b.click('100,100');
+  const row = b.probes.find((p) => p.kind === 'cursor');
+  assert.deepEqual([row.ms, row.late, row.shown], [0, false, false]);
+});

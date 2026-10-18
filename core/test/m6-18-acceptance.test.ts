@@ -176,3 +176,41 @@ test('M6-18 settings: agent_cursor defaults; an unknown mode reads as snappy and
   assert.equal(logged.length, 1, 'logged once');
   assert.match(logged[0], /zoom/);
 });
+
+test('M6-18h desktop hook: a workbench glide error other than -32030 still sends the input; -32030 stops it', { timeout: 30000 }, async t => {
+  // protects=D57 a cursor that failed to draw never blocks the input; the bound-session refusal still does
+  // fails_when=input() returns on any glide error
+  // no_claim=the workbench side (workbench/test/m6-18-acceptance)
+  const f = fixture(t);
+  const hook = await hookTool(t, f);
+  hook.glide = () => ({ error: { code: -32099, message: 'overlay failed' } });
+  const out = await hook.tool('click', { window: 100, ref: 'e1' });
+  assert.equal(out.isError, undefined, JSON.stringify(out));
+  const sent = f.inputs().length;
+  assert.ok(sent > 0, 'the click was sent');
+  hook.glide = () => ({ error: { code: -32030, message: 'this connection is not bound to that session' } });
+  const refused = await hook.tool('click', { window: 100, ref: 'e1' });
+  assert.equal(refused.isError, true);
+  assert.equal(f.inputs().length, sent, 'nothing sent after a refusal');
+});
+
+test('M6-18e desktop hook: with METATROOPER_WORKBENCH_PROBE set, each input writes its time after the glide reply and no typed text', { timeout: 30000 }, async t => {
+  // protects=M6-18e the desktop input time row the p95 measurement needs
+  // fails_when=input() writes no probe row, writes it before the glide reply, or puts args in it
+  // no_claim=the workbench cursor row (workbench test)
+  const f = fixture(t);
+  const hook = await hookTool(t, f);
+  const file = join(mkdtempSync(join(tmpdir(), 'm6-18-probe-')), 'probe.jsonl');
+  const saved = process.env.METATROOPER_WORKBENCH_PROBE;
+  process.env.METATROOPER_WORKBENCH_PROBE = file;
+  t.after(() => { if (saved === undefined) delete process.env.METATROOPER_WORKBENCH_PROBE; else process.env.METATROOPER_WORKBENCH_PROBE = saved; });
+  let repliedAt = 0;
+  const glide = hook.glide;
+  hook.glide = (p: any) => { repliedAt = Date.now(); return glide(p); };
+  await hook.tool('type', { window: 100, ref: 'e1', text: MARKER });
+  const got = rows(file);
+  assert.equal(got.length, 1);
+  assert.deepEqual(got[0].state, { kind: 'desktop-input', session: 's1', tool: 'type' });
+  assert.ok(got[0].at >= repliedAt);
+  assert.ok(!readFileSync(file, 'utf8').includes(MARKER.slice(0, 8)));
+});
