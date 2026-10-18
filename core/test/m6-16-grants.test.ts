@@ -71,6 +71,7 @@ test('M6-16c a --demo core grants its own workbench window to its own session an
     assert.match(g.result?.grant_id ?? '', /^gr_/, JSON.stringify(g));
     const other = await c.grant(OTHER as any);
     assert.equal(other.error?.code, -32003);
+    assert.match(other.error.message, /workbench cannot be granted/);
     const me = { session_id: 's1', pid: process.pid };
     const windows = (await c.call(c.agent, 'desktop.windows', me)).result.windows;
     assert.deepEqual(windows.map((w: any) => w.window), [OWN.hwnd], 'windows lists only the grant');
