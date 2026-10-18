@@ -1,3 +1,4 @@
+import { demo, DEMO_TAKEOVER_KEY, DEMO_TITLE } from './demo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -6,7 +7,7 @@ import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { syncFrames } from './desktop-frames.ts';
 import { DatabaseSync } from 'node:sqlite';
@@ -571,7 +572,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 560,
-    title: 'MetaTrooper',
+    title: demo ? DEMO_TITLE : 'MetaTrooper',
     backgroundColor: activeTheme().bg,
     show: false,
     webPreferences: {
@@ -585,6 +586,7 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => win?.show());
+  if (demo) win.on('page-title-updated', (e) => e.preventDefault());
   win.webContents.on('did-finish-load', push);
   win.webContents.on('did-finish-load', () => { loads++; });
   let reloadedAt = -Infinity;
@@ -682,7 +684,7 @@ async function ensureCore(): Promise<void> {
   ownCore = true;
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
-  spawn('node', [CORE_MAIN], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
+  spawn('node', [CORE_MAIN, ...(demo ? ['--demo'] : [])], { cwd: path.dirname(path.dirname(CORE_MAIN)), detached: true, stdio: 'ignore', windowsHide: true, env }).on('error', (e) => console.error(`could not start the core: ${e.message}`)).unref();
   for (let i = 0; i < 40 && !(await coreUp()); i++) await new Promise((r) => setTimeout(r, 250));
 }
 
@@ -711,6 +713,27 @@ function registersProtocol(): boolean {
   try { return fs.statSync(path.join(APP_DIR, '..', '.git')).isDirectory(); } catch { return false; }
 }
 
+/** `--demo`: seeds the empty demo home before its core starts, and points the core at the demo engines (D46). */
+async function seedDemoHome(): Promise<{ project: string; launch: () => Promise<void> }> {
+  const seed = await import(pathToFileURL(path.join(APP_DIR, '..', 'tests', 'demo', 'seed.mjs')).href);
+  const { project, engines } = seed.seedDemo(homeDir());
+  process.env.METATROOPER_ENGINES = engines;
+  const request = async (method: string, params: Record<string, unknown>) => {
+    const out = await call(method, params, { ui: true });
+    if (out.kind !== 'reply' || out.reply.error) throw new Error(`${method}: ${out.kind === 'reply' ? out.reply.error?.message : 'the demo core is offline'}`);
+    return out.reply.result;
+  };
+  return { project, launch: () => seed.launchDemo(request, project) };
+}
+
+/** Deletes the demo home once this process has exited and released its files. */
+function removeWhenGone(dir: string): void {
+  const script = `const fs=require('fs');const pid=${process.pid};const dir=${JSON.stringify(dir)};`
+    + `const alive=()=>{try{process.kill(pid,0);return true}catch(e){return e.code==='EPERM'}};`
+    + `const t=setInterval(()=>{if(alive())return;try{fs.rmSync(dir,{recursive:true,force:true});process.exit(0)}catch{}},250);setTimeout(()=>process.exit(1),60000);`;
+  spawn('node', ['-e', script], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', (e) => console.error(`demo home not removed: ${e.message}`)).unref();
+}
+
 function openNeedsYou(id: string | null): void {
   if (!id || !win) return;
   const send = () => win?.webContents.send('open-needs-you', id);
@@ -737,7 +760,7 @@ function busy(): boolean {
 
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
 async function onClose(): Promise<void> {
-  if (ownCore && busy()) {
+  if (ownCore && busy() && !demo) {
     const { response } = await dialog.showMessageBox(win!, {
       type: 'question',
       buttons: ['Keep running in the background', 'Stop everything', 'Cancel'],
@@ -781,11 +804,22 @@ if (!app.requestSingleInstanceLock()) {
       if (process.defaultApp) app.setAsDefaultProtocolClient('metatrooper', process.execPath, [APP_DIR]);
       else app.setAsDefaultProtocolClient('metatrooper');
     }
+    if (demo) {
+      app.setAccessibilitySupportEnabled(true);
+      app.on('will-quit', () => removeWhenGone(homeDir()));
+    }
     lockDown();
     handlers();
     Menu.setApplicationMenu(null);
     createWindow();
-    void ensureCore().then(checkCoreVersion).then(() => openFolder(folderArg(process.argv, process.cwd())));
+    const seeded = demo ? seedDemoHome() : null;
+    void (async () => {
+      const home = seeded ? await seeded : null;
+      await ensureCore();
+      await checkCoreVersion();
+      await openFolder(home ? home.project : folderArg(process.argv, process.cwd()));
+      await home?.launch();
+    })().catch((e) => console.error(`start failed: ${(e as Error).message}`));
     openNeedsYou(needsYouLink(process.argv));
     watch();
     const gitTick = async () => {
@@ -798,7 +832,7 @@ if (!app.requestSingleInstanceLock()) {
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
     void gitTick();
-    const takeover = takeoverKey = settings().desktop.takeover_key;
+    const takeover = takeoverKey = demo ? DEMO_TAKEOVER_KEY : settings().desktop.takeover_key;
     try {
       takeoverError = globalShortcut.register(takeover, () => { void call('takeover.pause', {}, { ui: true }).then(schedulePush); }) ? null : 'held by another program';
     } catch (e) {
