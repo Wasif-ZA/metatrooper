@@ -675,9 +675,10 @@ function renderStart() {
 /** ~ for the home folder, and the first and last two parts with an ellipsis between once it passes 48 characters. */
 function shortPath(full) {
   const sep = full.includes('\\') ? '\\' : '/';
-  const home = ((ui.settingsLook && ui.settingsLook.home) || '').replace(/[\\/]+$/, '');
+  const fwd = (x) => x.replace(/\\/g, '/').toLowerCase();
+  const home = fwd((ui.settingsLook && ui.settingsLook.home) || '').replace(/\/+$/, '');
   let s = full;
-  if (home && (s.toLowerCase() === home.toLowerCase() || s.toLowerCase().startsWith(home.toLowerCase() + sep))) s = `~${s.slice(home.length)}`;
+  if (home && (fwd(s) === home || fwd(s).startsWith(`${home}/`))) s = `~${s.slice(home.length)}`;
   const parts = s.split(sep);
   return s.length <= 48 || parts.length <= 3 ? s : [parts[0], '…', ...parts.slice(-2)].join(sep);
 }
@@ -1799,7 +1800,8 @@ window.addEventListener('resize', reportPaneBounds);
 api.onCommentPicked((info) => {
   ui.comment = info;
   ui.tab = 'browser';
-      ui.split = true;
+  ui.split = true;
+  save('split', '1');
   render();
 });
 document.addEventListener('change', onInput);
@@ -1919,8 +1921,8 @@ api.onPaneEvent((ev) => {
     return;
   } else if (ev.kind === 'download') { toast(ev.state === 'completed' ? `Downloaded to ${ev.file}` : `Download ${ev.state}: ${ev.file}`, ev.state !== 'completed'); return; }
   else if (ev.kind === 'permission') { ui.perms.push(ev); if (ev.pane_id !== ui.paneId) toast(`${ev.origin} wants ${ev.permission}; open its pane to answer.`); }
-  else if (ev.kind === 'handoff') { ui.paneId = ev.pane_id; ui.tab = 'browser'; ui.split = true; ui.browserMode = 'live'; save('tab', ui.tab); toast(`An agent handed you a browser pane: ${ev.reason}`); }
+  else if (ev.kind === 'handoff') { ui.paneId = ev.pane_id; ui.tab = 'browser'; ui.split = true; ui.browserMode = 'live'; save('tab', ui.tab); save('split', '1'); toast(`An agent handed you a browser pane: ${ev.reason}`); }
   else if (ev.kind === 'closed') { delete ui.paneState[ev.pane_id]; ui.perms = ui.perms.filter((x) => x.pane_id !== ev.pane_id); }
-  else if (ev.kind === 'opened') { ui.paneId = ev.pane_id; ui.urlDraft = null; ui.find = null; ui.tab = 'browser'; ui.split = true; save('tab', ui.tab); }
+  else if (ev.kind === 'opened') { ui.paneId = ev.pane_id; ui.urlDraft = null; ui.find = null; ui.tab = 'browser'; ui.split = true; save('tab', ui.tab); save('split', '1'); }
   render();
 });

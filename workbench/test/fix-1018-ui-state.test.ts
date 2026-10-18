@@ -273,6 +273,18 @@ test('UI-19 the side panel open state survives a restart, and Esc closing it is 
   assert.equal(open.store['troop.split'], '0');
   assert.equal(boot({ storage: { 'troop.split': '0' } }).t.ui.split, false);
   assert.equal(boot().t.ui.split, false);
+
+  for (const open of [
+    async (w: any) => w.handlers.onCommentPicked({ selector: 'a' }),
+    async (w: any) => w.handlers.onPaneEvent({ kind: 'handoff', pane_id: 'bp1', reason: 'login' }),
+    async (w: any) => w.handlers.onPaneEvent({ kind: 'opened', pane_id: 'bp1' }),
+  ]) {
+    const w = boot({ storage: { 'troop.split': '0' } });
+    await w.snap(snapOf([]));
+    await open(w);
+    await flush();
+    assert.equal(w.store['troop.split'], '1');
+  }
 });
 
 test('UI-22 the start screen folder line shows a short path: ~ for home, an ellipsis in the middle of a long one, full path in the title', async () => {
@@ -286,6 +298,7 @@ test('UI-22 the start screen folder line shows a short path: ~ for home, an elli
   assert.deepEqual(await folder(String.raw`C:\Users\me\code\app`)(), [String.raw`C:\Users\me\code\app`, String.raw`~\code\app`]);
   const long = String.raw`C:\Users\me\AppData\Local\Temp\metatrooper-e2e-123456\work\repo`;
   assert.deepEqual(await folder(long)(), [long, String.raw`~\…\work\repo`]);
+  assert.deepEqual(await folder('c:/Users/me/code/app')(), ['c:/Users/me/code/app', '~/code/app'], 'canonical core path vs backslash home');
   assert.deepEqual(await folder('/srv/projects/app')(), ['/srv/projects/app', '/srv/projects/app']);
   assert.match(readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8'), /firstRun: [^\n]*, home: app\.getPath\('home'\)/);
 });
