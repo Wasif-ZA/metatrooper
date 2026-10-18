@@ -1,6 +1,6 @@
 # Contributing
 
-Windows and Linux (beta). Local only: no account, no telemetry.
+Windows first, Linux beta, from source. Local only: no account, no telemetry.
 
 ## Before you write code
 
@@ -25,7 +25,16 @@ cd workbench && npm test
 ```
 
 Run one file while you work: `node --test test/<file>.test.ts`. A bug fix comes with a test that fails without it.
-No test may reach the network; `workbench/test/no-network.test.ts` checks this for the whole app.
+No test may reach the network.
+
+Some suites need a real desktop and are off by default:
+
+- `METATROOPER_UI_REVISION_E2E=1` runs the Electron window tests.
+- `METATROOPER_DESKTOP_E2E=1` runs the computer-use tests that drive real Windows apps. They need the desktop to
+  themselves; do not touch the mouse or keyboard while they run.
+
+Never point a test at your real `~/.metatrooper`. Use `METATROOPER_HOME` with a temp folder, or `npm run dev -- --demo`
+in `workbench/` for a throwaway copy of the app.
 
 ## Style
 
@@ -35,6 +44,6 @@ No test may reach the network; `workbench/test/no-network.test.ts` checks this f
 
 ## Licence
 
-The core and workbench are AGPL-3.0; the SDK, contracts' public formats, pipelines, plugins, skills and engine files
+The core and workbench are AGPL-3.0; the SDK, contracts' public formats, plugins, skills, engine files and `router/`
 are MIT (see the licence map in the README). By sending a pull request you agree your change is released under the
 licence of the folder it touches.
