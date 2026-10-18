@@ -564,6 +564,7 @@ function createWindow(): void {
   let reloadedAt = -Infinity;
   win.webContents.on('render-process-gone', (_e, d) => {
     detachAll();
+    panes?.show(null, null);
     const act = crashAction(d.reason, reloadedAt, Date.now());
     if (act === 'reload') { reloadedAt = Date.now(); win?.webContents.reload(); }
     else if (act === 'stop') dialog.showErrorBox('MetaTrooper', `The window crashed again (${d.reason}). Restart MetaTrooper; the logs folder has details.`);
