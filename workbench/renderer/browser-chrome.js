@@ -14,7 +14,7 @@ const browserChrome = (() => {
     seen.tab = items.length ? i : null;
     const move = hold('tab', moved, TAB_MS, now);
     return `<div class="bstrip" style="--i:${i};--from:${seen.from}">${items.length ? `<i class="ind${move ? ' move' : ''}"></i>` : ''}
-      ${items.map((t, k) => `<button class="bt${k === i ? ' on' : ''}" data-action="pane" data-id="${esc(t.id)}" title="${t.full ? `${esc(t.full)}&#10;` : ''}${esc(t.url)}"><span class="dot ${esc(t.dot)}"></span><span class="nm">${esc(t.title)}</span>${t.tag ? `<span class="tag">${esc(t.tag)}</span>` : ''}<span class="x" data-action="pane-close" data-id="${esc(t.id)}" title="Close pane">&times;</span></button>`).join('')}
+      ${items.map((t, k) => `<div class="bt${k === i ? ' on' : ''}"><button class="bsel" data-action="pane" data-id="${esc(t.id)}" title="${t.full ? `${esc(t.full)}&#10;` : ''}${esc(t.url)}"><span class="dot ${esc(t.dot)}"></span><span class="nm">${esc(t.title)}</span>${t.tag ? `<span class="tag">${esc(t.tag)}</span>` : ''}</button><button class="x" data-action="pane-close" data-id="${esc(t.id)}" title="Close pane" aria-label="Close pane">&times;</button></div>`).join('')}
       <button class="plus" data-action="pane-new" title="New pane (Ctrl+T)" aria-label="New pane">+</button></div>`;
   }
 

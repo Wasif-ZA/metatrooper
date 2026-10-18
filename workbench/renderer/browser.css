@@ -5,7 +5,8 @@
 .bstrip .ind { position: absolute; left: 6px; bottom: 0; width: var(--tab-w); height: 32px; background: var(--canvas); border: 1px solid var(--hairline); border-bottom: 0; border-radius: 7px 7px 0 0; transform: translateX(calc(var(--i) * var(--tab-w))); }
 .bstrip .ind.move { animation: b-tab 240ms steps(3) both; }
 @keyframes b-tab { from { transform: translateX(calc(var(--from) * var(--tab-w))); } }
-.bstrip .bt { position: relative; z-index: 1; flex: none; width: var(--tab-w); height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 12px; color: var(--mute); border-radius: 7px 7px 0 0; text-align: left; }
+.bstrip .bt { position: relative; z-index: 1; flex: none; width: var(--tab-w); height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 6px 0 0; color: var(--mute); border-radius: 7px 7px 0 0; text-align: left; }
+.bstrip .bsel { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 7px; padding-left: 12px; color: inherit; text-align: left; }
 .bstrip .bt + .bt::before { content: ''; position: absolute; left: 0; top: 9px; height: 14px; width: 1px; background: var(--hairline); }
 .bstrip .bt.on::before, .bstrip .bt.on + .bt::before { display: none; }
 .bstrip .bt.on { color: var(--ink); }
@@ -13,7 +14,7 @@
 .bstrip .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bstrip .tag { flex: none; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--faint); }
 .bstrip .x { flex: none; width: 18px; height: 18px; border-radius: 4px; display: grid; place-items: center; color: var(--faint); visibility: hidden; }
-.bstrip .bt.on .x, .bstrip .bt:hover .x { visibility: visible; }
+.bstrip .bt.on .x, .bstrip .bt:hover .x, .bstrip .bt:focus-within .x { visibility: visible; }
 .bstrip .x:hover { background: var(--hairline); color: var(--ink); }
 .bstrip .plus { flex: none; width: 28px; height: 28px; margin: 0 0 2px 6px; color: var(--mute); border-radius: 6px; font-size: 15px; }
 .bstrip .plus:hover { background: var(--canvas-soft); color: var(--ink); }

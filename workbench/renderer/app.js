@@ -559,7 +559,7 @@ function canHide(id) {
 function rowHtml(x, sel) {
   const g = (ui.snap.git || {})[x.id];
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
-  return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
+  return `<div class="li srow${sel ? ' sel' : ''}" role="listitem" tabindex="0" aria-current="${Boolean(sel)}" data-key="row:${esc(x.id)}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
     <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session" aria-label="Hide this session">x</button>`}</span>
     <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
@@ -630,9 +630,9 @@ function renderList(sel) {
   const sessions = s.sessions.filter((x) => !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
   setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)" aria-label="Close the agent list">x</button></div>
     <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
-    <div class="lbody" id="sessions">
+    <div class="lbody" id="sessions" role="list" aria-label="Sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
-      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" data-action="pick-shell" data-id="${esc(x.id)}">
+      ${shells.length ? `<div class="lsec">Shells</div>${shells.map((x) => `<div class="li srow${sel && sel.id === x.id ? ' sel' : ''}" role="listitem" tabindex="0" aria-current="${Boolean(sel && sel.id === x.id)}" data-key="row:${esc(x.id)}" data-action="pick-shell" data-id="${esc(x.id)}">
         <span class="dot ${x.state === 'exited' ? 'exited' : 'idle'}"></span><span class="t">${esc(x.engine_id)}</span><span class="a"><button class="link hide" data-action="shell-close" data-id="${esc(x.id)}" title="Close this shell" aria-label="Close this shell">x</button></span><span class="m">${esc(x.task)}</span></div>`).join('')}` : ''}
     </div>
     <div class="lfoot"><div class="lsec">Usage</div>${limitRows('u')}</div>`);
@@ -962,9 +962,30 @@ function closePopovers() {
     const el = document.getElementById(id);
     if (!el.hidden) { el.hidden = true; closed = true; }
   }
+  if (!document.getElementById('menu').hidden) { hideMenu(); closed = true; }
   const usage = document.getElementById('usage');
   if (usage.classList.contains('open')) { usage.classList.remove('open'); closed = true; }
   return closed;
+}
+
+function showMenu(menu) {
+  if (menu.hidden || !menu.contains(document.activeElement)) ui.menuFrom = document.activeElement;
+  menu.hidden = false;
+  menu.querySelector('[role="menuitem"]')?.focus();
+}
+
+/** Hides #menu; focus inside it goes back to whatever had it when the menu opened. */
+function hideMenu() {
+  const menu = document.getElementById('menu');
+  const back = !menu.hidden && menu.contains(document.activeElement) ? ui.menuFrom : null;
+  menu.hidden = true;
+  if (back && back.isConnected) back.focus();
+}
+
+/** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
+function overlayOpen() {
+  return ['inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || document.getElementById('usage').classList.contains('open')
+    || wall.sheetOpen() || wall.listOpen();
 }
 
 async function runPalette(i, enter = false) {
@@ -1135,8 +1156,8 @@ function projectGroups(list) {
 /** One project menu row; the x that hides it shows only when none of its sessions is working or waiting. */
 function projectMenuItem(p) {
   const live = liveCounts(p.id).replace(/^ · /, '');
-  return `<div class="item" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
-    + (live ? '' : `<span class="dismiss" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)">&times;</span>`) + '</div>';
+  return `<div class="item" role="none" data-action="project-go" data-id="${esc(p.id)}" title="${esc(p.path)}"><span class="grow" role="menuitem" tabindex="-1">${esc(p.name)}</span><span class="meta">${esc(live)}</span>`
+    + (live ? '' : `<button class="dismiss" role="menuitem" tabindex="-1" data-action="project-hide" data-id="${esc(p.id)}" title="Remove from this menu (files stay; Open folder brings it back)" aria-label="Remove ${esc(p.name)} from this menu">&times;</button>`) + '</div>';
 }
 
 async function onClick(e) {
@@ -1172,14 +1193,14 @@ async function onClick(e) {
     case 'changed-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
+      menu.innerHTML = `<div class="mh">Changed by this agent</div>${changedFiles(id).map((f) => `<div class="item" role="menuitem" tabindex="-1" data-action="changed-open" data-id="${esc(id)}" data-file="${esc(f)}">${esc(f)}</div>`).join('')}`;
       menu.style.left = `${Math.max(8, r.right - 260)}px`;
       menu.style.top = `${r.bottom + 4}px`;
-      menu.hidden = false;
+      showMenu(menu);
       return;
     }
     case 'changed-open':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       ui.diffAll = false;
       ui.diffScope = 'uncommitted';
       ui.sdFile = el.dataset.file;
@@ -1191,11 +1212,11 @@ async function onClick(e) {
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = `<div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
-        + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
+      menu.innerHTML = `<div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" role="menuitem" tabindex="-1" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
+        + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" role="menuitem" tabindex="-1" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
       menu.style.left = `${Math.max(8, r.right - 220)}px`;
       menu.style.top = `${r.bottom + 4}px`;
-      menu.hidden = false;
+      showMenu(menu);
       return;
     }
     case 'project-menu': {
@@ -1203,21 +1224,21 @@ async function onClick(e) {
       const r = el.getBoundingClientRect();
       const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
       const sec = (title, list) => (list.length ? `<div><div class="mh">${title}</div>${list.map(projectMenuItem).join('')}</div>` : '');
-      const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
+      const fold = (title, list) => (list.length ? `<details><summary class="mh" role="menuitem" tabindex="-1">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
-      menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
+      menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" role="menuitem" tabindex="-1" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
         + sec('Projects', g.projects)
         + fold('Worktrees', g.worktrees)
         + fold('Older', g.older)
         + fold('Scratch and temp folders', g.scratch)
-        + '<div class="sep"></div><div class="item" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
+        + '<div class="sep"></div><div class="item" role="menuitem" tabindex="-1" data-action="open-folder"><span class="grow">Open folder...</span></div>' + '</div>';
       menu.style.left = `${Math.max(8, r.left)}px`;
       menu.style.top = `${r.bottom + 4}px`;
-      menu.hidden = false;
+      showMenu(menu);
       return;
     }
     case 'project-go':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       if (id && id !== ui.projectId) switchProject(id);
       return;
     case 'project-hide': {
@@ -1230,7 +1251,7 @@ async function onClick(e) {
       return;
     }
     case 'open-folder':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       await openFolder();
       return;
     case 'pick': {
@@ -1302,11 +1323,11 @@ async function onClick(e) {
       return;
     }
     case 'clear-status':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       await rpc('session.clear-status', { session_id: id });
       return;
     case 'menu-hide':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       hideLater([id], 'Agent hidden');
       return;
     case 'start-engine':
@@ -1353,7 +1374,7 @@ async function onClick(e) {
       await api.openLogs();
       return;
     case 'launch': {
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       wall.setList(false);
       save('engine', el.dataset.engine);
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
@@ -1362,7 +1383,7 @@ async function onClick(e) {
       return;
     }
     case 'shell-open':
-      document.getElementById('menu').hidden = true;
+      hideMenu();
       await openShell(el.dataset.kind);
       return;
     case 'pick-shell':
@@ -1688,7 +1709,7 @@ document.addEventListener('click', (e) => {
   const item =e.target.closest && e.target.closest('[data-palette]');
   if (item) { void runPalette(Number(item.dataset.palette)); return; }
   if (!document.getElementById('palette').hidden && !e.target.closest('#search')) closePalette();
-  if (!e.target.closest('#menu')) document.getElementById('menu').hidden = true;
+  if (!e.target.closest('#menu')) hideMenu();
   if (!document.getElementById('inbox').hidden && !e.target.closest('#inbox') && !e.target.closest('[data-action="inbox"]')) document.getElementById('inbox').hidden = true;
   if (!document.getElementById('sinks').hidden && !e.target.closest('#sinks') && !e.target.closest('[data-palette]')) document.getElementById('sinks').hidden = true;
   void onClick(e);
@@ -1697,13 +1718,13 @@ document.addEventListener('contextmenu', (e) => {
   const row = e.target.closest && e.target.closest('.srow, .tile-head');
   const menu = document.getElementById('menu');
   if (row && !row.dataset.id) row.dataset.id = row.closest('.tile').dataset.id;
-  if (!row || row.dataset.id.startsWith('sh_')) { menu.hidden = true; return; }
+  if (!row || row.dataset.id.startsWith('sh_')) { hideMenu(); return; }
   e.preventDefault();
   const id = row.dataset.id;
-  menu.innerHTML = `<div class="item" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
+  menu.innerHTML = `<div class="item" role="menuitem" tabindex="-1" data-action="clear-status" data-id="${esc(id)}">Clear status</div>${canHide(id) ? `<div class="item" role="menuitem" tabindex="-1" data-action="menu-hide" data-id="${esc(id)}">Hide</div>` : ''}`;
   menu.style.left = `${e.clientX}px`;
   menu.style.top = `${e.clientY}px`;
-  menu.hidden = false;
+  showMenu(menu);
 });
 document.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -1744,12 +1765,24 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
-  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === 'Escape') {
+  const active = document.activeElement;
+  const inTerm = Boolean(active && active.classList && active.classList.contains('xterm-helper-textarea'));
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(active && active.tagName);
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape' && (!typing || inTerm)) {
     if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
     else if (ui.split) { ui.split = false; render(); }
+    return;
+  }
+  if (typing) return;
+  const role = active && active.getAttribute && active.getAttribute('role');
+  if ((e.key === 'Enter' || e.key === ' ') && ['button', 'menuitem', 'listitem'].includes(role)) { e.preventDefault(); active.click(); return; }
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (role === 'menuitem' || role === 'listitem')) {
+    e.preventDefault();
+    const all = [...active.closest('#menu, #sessions').querySelectorAll(`[role="${role}"]`)].filter((x) => x.getClientRects().length);
+    const next = all[all.indexOf(active) + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (next) next.focus();
     return;
   }
   if (ui.tab !== 'browser' || !ui.split) return;
