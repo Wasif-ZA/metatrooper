@@ -615,6 +615,7 @@ export class PaneManager {
     const pane = this.panes.get(id);
     if (!pane) return;
     this.panes.delete(id);
+    this.hooks.paneEvent({ kind: 'closed', pane_id: id });
     if (this.shown === id) this.shown = null;
     pane.picking?.(null);
     for (const w of pane.popups) if (!w.isDestroyed()) w.close();

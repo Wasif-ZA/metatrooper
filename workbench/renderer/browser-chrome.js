@@ -19,6 +19,7 @@ const browserChrome = (() => {
   }
 
   function urlField(url, draft, zoom) {
+    if (url === 'about:blank') url = '';
     let host = url || '', path = '';
     try { const u = new URL(url); host = u.host ? `${u.protocol === 'https:' ? '' : u.protocol + '//'}${u.host}` : url; path = u.host ? u.pathname + u.search + u.hash : ''; } catch {}
     if (path === '/') path = '';

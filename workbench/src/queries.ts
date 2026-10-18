@@ -28,7 +28,7 @@ export interface Snapshot {
   sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
-  live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
+  live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
@@ -169,7 +169,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     sessions,
     needs_you,
     approvals,
-    live: db.prepare("SELECT id, project_id, engine_id, state, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC").all() as Snapshot['live'],
+    live: db.prepare("SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC").all() as Snapshot['live'],
     panes,
     dev_servers,
     snapshots,
@@ -233,11 +233,11 @@ export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
 }
 
-export type LiveText = Record<string, { line?: string; title?: string }>;
+export type LiveText = Record<string, { line?: string; title?: string; held?: boolean }>;
 
 /** Fills each session's last_line and title from the core's in-memory live text (session.live-text); the database never holds them. */
 export function withLiveText(s: Snapshot, live: LiveText): Snapshot {
-  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null });
+  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null, held: Boolean(live[x.id]?.held) });
   return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill) };
 }
 
