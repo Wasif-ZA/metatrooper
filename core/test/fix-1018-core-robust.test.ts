@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { createServer } from 'node:http';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs, { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openCoreDb } from '../src/store/db.ts';
@@ -17,6 +17,7 @@ import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
 import { Approvals } from '../src/approvals.ts';
+import { trustFolder } from '../src/trust.ts';
 import { markGone } from '../src/sessions/resume-all.ts';
 import * as term from '../src/terminal/index.ts';
 import { liveText, wireTermEvents } from '../src/terminal/events.ts';
@@ -221,4 +222,25 @@ test('h-c-control a long control name still asks but is stored capped like the s
     const row = db.prepare('SELECT control FROM approval').get() as { control: string };
     assert.ok(row.control.length < 1000, `${row.control.length} chars`);
   } finally { db.close(); }
+});
+
+test('h-c-trust a write the engine makes between trust.ts reading and writing its config is kept', (t) => {
+  const { home: dir } = home(t);
+  const file = join(dir, 'claude.json');
+  writeFileSync(file, JSON.stringify({ projects: {} }));
+  const read = fs.readFileSync;
+  let first = true;
+  t.mock.method(fs, 'readFileSync', (p: fs.PathOrFileDescriptor, o?: unknown) => {
+    const text = read(p, o as never);
+    if (first && p === file) {
+      first = false;
+      writeFileSync(file, JSON.stringify({ projects: {}, engineOwn: 1 }));
+    }
+    return text;
+  });
+  const engine = { id: 'fake', trust: { kind: 'json-map', file, at: ['projects'], set: { ok: true }, path_style: 'posix' } } as never;
+  assert.deepEqual(trustFolder(dir, [engine]), ['fake']);
+  const doc = JSON.parse(read(file, 'utf8'));
+  assert.equal(doc.engineOwn, 1);
+  assert.equal(Object.values(doc.projects).length, 1);
 });
