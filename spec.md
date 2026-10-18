@@ -1174,8 +1174,9 @@ Files: `workbench/renderer/wall.js`, new `workbench/renderer/splitter.js`, `work
 - **Drag a header** (wall-layout 12). A tile header dragged more than 6 px shows where it lands: over the big
   tile's left or right 25% it pairs, over a tile's centre it swaps the two. Esc cancels. This adds pointer drag and
   side-tile swaps to M6-9's keys.
-- **Fold stack** (wall-layout 13). When folded bars pass the cap (`wall.js` `const bars`; today tiles past it get no rect and are hidden), the wall shows cap minus 1 bars plus
-  a "+N more" bar that opens an inline list, one row open at a time. No session is left without a place on the wall.
+- **Fold stack** (wall-layout 13). Since D35 (2026-10-18) the wall already shows cap minus 1 bars plus a "+N more"
+  count bar when folded bars pass the cap (`wall.js` `rects()`, `moreBar`); clicking it opens the session list. M7-7
+  turns that bar into an inline list, one row open at a time. No session is left without a place on the wall.
 - **Where new agents land** (wall-layout 15). `ui.newAgent`: `big` (default, as today), `side`, or `big-if-idle`.
   Sessions started through the public API (M6-17) follow the same setting, so nothing changes until it is set.
 - **Wheel on other tiles** (wall-layout 16). A capture-phase `wheel` listener swallows the wheel over a tile that is

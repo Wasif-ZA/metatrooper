@@ -136,8 +136,11 @@ const wall = (() => {
     BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });
     const rest = ORDER.filter((id) => !BIG.includes(id));
     const work = rest.filter((id) => active(S[id])), open = rest.filter((id) => !active(S[id]) && S[id].open);
-    const bars = rest.filter((id) => folded(S[id])).slice(0, Math.max(0, Math.floor((H * 0.5) / (BAR + G))));
-    const A = H - bars.length * (BAR + G);
+    const all = rest.filter((id) => folded(S[id])), cap = Math.max(0, Math.floor((H * 0.5) / (BAR + G)));
+    // past the cap the last slot counts the rest, so no session leaves the wall unseen
+    const bars = all.length > cap ? all.slice(0, Math.max(0, cap - 1)) : all;
+    const more = all.length - bars.length;
+    const A = H - (bars.length + (more ? 1 : 0)) * (BAR + G);
     const wh = !open.length ? A : !work.length ? 0 : (A - G) * 1.2 / 2.2;
     const row = (list, y, hh) => {
       const cols = Math.min(list.length, Math.max(1, Math.floor((RW + G) / (200 + G)))), rows = Math.ceil(list.length / cols);
@@ -147,11 +150,29 @@ const wall = (() => {
     row(work, TOP, wh);
     row(open, work.length ? TOP + wh + G : TOP, work.length ? A - wh - G : A);
     bars.forEach((id, i) => R[id] = { left: RX, top: TOP + A + G + i * (BAR + G), width: RW, height: BAR });
-    return { R, C, RX, H };
+    const M = more ? { n: more, left: RX, top: TOP + A + G + bars.length * (BAR + G), width: RW, height: BAR } : null;
+    return { R, C, RX, H, M };
+  }
+
+  /** The "+N more" bar in the last fold slot; it opens the session list, which names every session. */
+  function moreBar(M) {
+    let el = $('#foldMore');
+    if (!el && M) {
+      el = h('<button type="button" id="foldMore" class="fold-more"></button>');
+      el.addEventListener('click', () => setList(true));
+      $('#centre').appendChild(el);
+    }
+    if (!el) return;
+    el.hidden = !M;
+    if (!M) return;
+    el.textContent = `+${M.n} more`;
+    el.title = `${M.n} more finished ${M.n === 1 ? 'session' : 'sessions'}; open the session list (Ctrl+B)`;
+    gsap.set(el, { left: M.left, top: M.top, width: M.width, height: M.height });
   }
 
   function layout(animate, dur = 1.1) {
-    const { R, C, RX, H } = rects();
+    const { R, C, RX, H, M } = rects();
+    moreBar(M);
     document.body.classList.toggle('paired', BIG.length > 1 && mode !== 'grid');
     for (const id of Object.keys(S)) {
       const el = pane(id), r = R[id];
