@@ -96,9 +96,7 @@ test('UI-01: Esc in a tile stays out of the agent while an overlay is open, and 
   await w.key('Escape');
   assert.equal(w.state.list, false, 'then the list');
   w.ctx.ui.split = true;
-  assert.equal(w.ctx.overlayOpen(), true);
-  await w.key('Escape');
-  assert.equal(w.ctx.ui.split, false, 'then the side panel');
+  assert.equal(w.ctx.overlayOpen(), false, 'a side panel, which an agent can open, keeps Esc for the agent');
 
   w.state.list = true;
   doc.activeElement = makeEl('', 'TEXTAREA');

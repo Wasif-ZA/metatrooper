@@ -969,7 +969,7 @@ function closePopovers() {
 /** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
 function overlayOpen() {
   return ['inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || document.getElementById('usage').classList.contains('open')
-    || wall.sheetOpen() || wall.listOpen() || Boolean(ui.split);
+    || wall.sheetOpen() || wall.listOpen();
 }
 
 async function runPalette(i, enter = false) {
