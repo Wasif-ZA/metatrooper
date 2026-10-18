@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { demoProblem } from '../../core/src/paths.ts';
 
 export const DEMO_TITLE = 'MetaTrooper (demo)';
 /** The demo registers its own take-over key, so it never collides with a real workbench holding the default one. */
@@ -11,11 +12,7 @@ export function demoEnv(pid: number, tmp = os.tmpdir()): Record<string, string> 
   return { METATROOPER_HOME: path.join(tmp, `metatrooper-demo-${pid}`), METATROOPER_PIPE_PREFIX: `metatrooper-demo-${pid}`, METATROOPER_DEMO: '1' };
 }
 
-/** Why a demo with this home and prefix would touch the real data, or null. */
-export function demoProblem(home: string, prefix: string, realHome = path.join(os.homedir(), '.metatrooper')): string | null {
-  const same = path.resolve(home).toLowerCase() === path.resolve(realHome).toLowerCase();
-  return same || prefix.toLowerCase() === 'metatrooper' ? 'demo would use the real data folder' : null;
-}
+export { demoProblem };
 
 export const demo = process.argv.includes('--demo');
 

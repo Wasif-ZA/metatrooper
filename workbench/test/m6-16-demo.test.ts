@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -18,6 +18,35 @@ test('M6-16b the demo guard refuses the real data folder or pipe prefix, and a d
   assert.equal(demoProblem(join(tmpdir(), 'x'), 'metatrooper'), 'demo would use the real data folder');
   assert.equal(demoProblem(join(tmpdir(), 'x'), 'metatrooper-demo-1'), null);
   assert.deepEqual(demoEnv(42, 'T:'), { METATROOPER_HOME: join('T:', 'metatrooper-demo-42'), METATROOPER_PIPE_PREFIX: 'metatrooper-demo-42', METATROOPER_DEMO: '1' });
+  assert.equal(demoProblem(join(real, 'metatrooper-demo-1'), 'metatrooper-demo-1'), 'demo would use the real data folder');
+  assert.equal(demoProblem(join(real.toUpperCase(), 'a', 'b'), 'metatrooper-demo-1'), 'demo would use the real data folder');
+  assert.equal(demoProblem(`${real}-other`, 'metatrooper-demo-1'), null);
+});
+
+test('M6-16b the demo guard follows a junction into the real data folder', (t) => {
+  // protects=canonical comparison fails_when=a demo home reached through a link inside ~/.metatrooper is taken as isolated no_claim=symlinks on other hosts
+  const dir = mkdtempSync(join(tmpdir(), 'metatrooper-junction-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const fakeReal = join(dir, 'real');
+  mkdirSync(fakeReal);
+  symlinkSync(fakeReal, join(dir, 'link'), 'junction');
+  assert.equal(demoProblem(join(dir, 'link', 'demo-1'), 'metatrooper-demo-1', fakeReal), 'demo would use the real data folder');
+  assert.equal(demoProblem(join(dir, 'link'), 'metatrooper-demo-1', fakeReal), 'demo would use the real data folder');
+  assert.equal(demoProblem(join(dir, 'elsewhere'), 'metatrooper-demo-1', fakeReal), null);
+});
+
+test('M6-16b a --demo start whose generated home lands inside the real data folder exits 2 and creates nothing', async (t) => {
+  // protects=the exit-2 branch of the import-time guard fails_when=the guard is skipped and the demo home is made inside ~/.metatrooper no_claim=the Electron start itself
+  const fake = mkdtempSync(join(tmpdir(), 'metatrooper-fakeuser-'));
+  t.after(() => rmSync(fake, { recursive: true, force: true }));
+  const real = join(fake, '.metatrooper');
+  mkdirSync(real);
+  const r = await runNode(['--input-type=module', '-e', "await import('./workbench/src/demo.ts'); console.log('started')", '--', '--demo'],
+    { ...process.env, USERPROFILE: fake, HOME: fake, TEMP: real, TMP: real, TMPDIR: real }) as { code: number; stdout: string; stderr: string };
+  assert.equal(r.code, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /demo would use the real data folder/);
+  assert.doesNotMatch(r.stdout, /started/);
+  assert.deepEqual(readdirSync(real), []);
 });
 
 test('M6-16b isolation: a --demo start overrides an inherited home and prefix, seeds only its own folder, and a --demo core with live fixture sessions leaves the sentinel troop.db byte for byte', { timeout: 120_000 }, async () => {

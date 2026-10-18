@@ -1,3 +1,4 @@
+import './demo-guard.ts';
 import './log-core.ts';
 import { logOnce } from './log.ts';
 import type { Server } from 'node:net';
