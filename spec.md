@@ -934,6 +934,23 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
   UI Automation script is caught only by the away-from-desktop listener: it fires on focus, new windows and
   invoked controls, but not on a value set silently in a window that keeps focus (`ValuePattern.SetValue`), and it
   stays quiet while the user is actively using the machine.
+- Computer use (M6-15; the full list is in `contracts/desktop-tools.md` Known limits):
+  - A process that calls `desktop.act` on the core pipe directly, with an `expect` that matches the control and
+    without `approval.check`, is not stopped; the grant and the pause flag still apply.
+  - A key or click is posted (D78). The take-over acknowledgement waits 250 ms after the last one, which narrows
+    the gap but is not a guarantee: a target that has not read its queue by then gets the input after it.
+  - A key chord with Control or Shift cannot be sent: a posted key does not change the keyboard state apps read, so
+    it is refused before any approval is asked.
+  - A window closed and a new one opened at the same handle by the same process within 500 ms is not told apart
+    (D37).
+  - F9 (D43): an app that detaches an owned dialog from the granted window while a request is in flight, keeping
+    its handle and process, still gets that request.
+  - F11 (D43): an approval card approved after the session was paused or its grant revoked returns `approved` to
+    the waiting check; dispatch still refuses the input.
+  - The workbench is known to be running by its pid, so a process that reuses that pid after the workbench exits
+    keeps input allowed until the next core start.
+  - The input watcher treats a change in the process an action targeted, up to 1.5 s after it, as the action's own
+    result; a change someone else makes in that process inside that window is not reported.
 
 ## Hand-back (only Wasif)
 

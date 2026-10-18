@@ -53,6 +53,7 @@ expected, else `unverifiable`.
 | `unknown ref <ref>; take a new snapshot` | the ref is not in the latest snapshot of that window |
 | `this window has no keyboard focus (another window is in front), ...; nothing was sent` | `key` on a window whose thread reports no focused control |
 | `this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent` | `key` checked against a control (with a `ref`) that, with the window in the background, only reads back as its container |
+| `not sent: the workbench is not running, so the agent could not be paused` | an input while the workbench that reported the take-over key has exited; the same `not sent: ..., so the agent could not be paused` names a key that never registered or was never reported (D43, F10) |
 | `Control and Shift cannot be sent: ...; nothing was sent` | a `key` chord with Control or Shift; the MCP server, `approval.check` and `desktop.act` refuse it with -32602 before any approval is asked, and the helper refuses it again |
 
 ## Acting (D78)
@@ -105,6 +106,11 @@ flag right before every browser input it dispatches (after the cursor glide), an
 `scroll`, `dialog` and `evaluate`. `takeover.resume {session_id}`
 (from the tile) clears it for that session only. Both reset on core start.
 
+Input is sent only while the take-over key can pause it (D43, F10): right before each helper write the core checks
+that the workbench reported a registered key and that the workbench process it named (`desktop.ui-window {pid}`) is
+still running. Otherwise the input is refused with "not sent: ..., so the agent could not be paused", and within
+500 ms of the workbench exiting every live grant ends; a workbench that starts again reports its key and pid anew.
+
 ## Helper ops
 
 `list`, `info {hwnd}`, `snapshot {hwnd, max_nodes}`, `describe {hwnd, ref?}`, `screenshot {hwnd}`,
@@ -153,4 +159,14 @@ among its ancestors.
 - A key or click is posted (D78). The take-over acknowledgement waits 250 ms after the last one, which narrows the gap but is not a guarantee: a target that has not read its queue by then gets the input after the acknowledgement (Wasif, 2026-10-14).
 - Browser input already sent to the page when the user presses the take-over key, such as a long `insertText`, may finish after the acknowledgement: the core does not wait on the workbench.
 - A window closed and a new one opened at the same handle by the same process within 500 ms is not told apart.
+- F9 (D43, recorded): an app that detaches an owned dialog from the granted window while a request is in flight,
+  keeping its handle and process, still gets that request; the owner chain is checked in the request before the
+  action, not in the helper op that acts.
+- F11 (D43, recorded): an approval card that is approved after the session was paused or its grant revoked returns
+  `approved` to the waiting `approval.check`; the input is still refused at dispatch, by the pause or grant check.
+- The workbench is known to be running by its pid (`process.kill(pid, 0)`), so a new process that reuses that pid
+  after the workbench exits keeps input allowed until the next core start.
+- The input watcher (M6-22) treats a focus change, new window or invoke in the process an action targeted, up to
+  1.5 s after that action, as the action's own result (the dialog it opened). A change someone else makes in that
+  same process inside that window is not reported; changes in any other process still are.
 - Apps with no UI Automation tree get screenshots only.

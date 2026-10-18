@@ -33,7 +33,7 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
   const calcPids = () => [...execFileSync('tasklist', ['/FI', 'IMAGENAME eq CalculatorApp.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8' }).matchAll(/^"[^"]+","(\d+)"/gm)].map((m) => m[1]);
   try {
     await uiHello(ui, iso.home);
-    await call(ui, 'desktop.ui-window', { pid: 1, takeover_key: 'Control+Alt+Q', takeover_error: null });
+    await call(ui, 'desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
     const me = { session_id: 's1', pid: process.pid };
 
     // Windows 11 Notepad restores the last session's tabs, so open a file of our own and type only while it is the active tab

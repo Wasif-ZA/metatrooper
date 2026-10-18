@@ -101,6 +101,8 @@ export class Helper {
   }
 }
 
+const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; } };
+
 const str = (p: Record<string, unknown>, k: string) => {
   const v = p[k];
   if (typeof v !== 'string' || !v) throw new RpcError(E.INVALID_PARAMS, `${k} is required`);
@@ -119,7 +121,7 @@ export class Desktop {
   readonly helper = new Helper();
   private db: DatabaseSync;
   private uiPid: number | null = null;
-  /** Why no window can be granted: the workbench's take-over key is not registered. */
+  /** Why no window can be granted: the workbench's take-over key is not registered, or the workbench that registered it closed. */
   private noTakeover: string | null = 'the workbench has not reported its take-over key';
   private bound = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
@@ -224,6 +226,8 @@ export class Desktop {
     const gate = () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
       if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
+      const unpausable = this.noTakeover ?? (alive(this.uiPid!) ? null : 'the workbench is not running');
+      if (unpausable) throw new RpcError(E.PANE_NOT_OWNED, `not sent: ${unpausable}, so the agent could not be paused${note}`);
       watchId = beginAction(Date.now(), Number(params.pid) || 0);
     };
     const posted = op === 'key' || op === 'click';
@@ -299,6 +303,10 @@ export class Desktop {
       for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
       if (this.helper.running()) this.helper.stop();
       return;
+    }
+    if (!this.noTakeover && !alive(this.uiPid!)) {
+      this.noTakeover = 'the workbench that registered the take-over key has closed';
+      for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
     }
     const grants = liveGrants(this.db);
     if (!grants.length) { this.rects.clear(); return; }

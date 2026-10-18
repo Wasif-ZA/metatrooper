@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
+import { spawn } from 'node:child_process';
 import { registerHooks } from 'node:module';
 import { Approvals } from '../src/approvals.ts';
 import { Desktop, Helper } from '../src/desktop/driver.ts';
@@ -35,6 +36,7 @@ function fixture(t: any, options: Record<string, unknown> = {}) {
   const methods = new Map<string, any>();
   desktop.methods(methods);
   (desktop as any).bound.add('s1 ' + process.pid);
+  Object.assign(desktop as any, { uiPid: process.pid, noTakeover: null });
   db.prepare("UPDATE session SET pid=? WHERE id='s1'").run(process.pid);
   const call = (method: string, p: object = PARAMS) => Promise.resolve(methods.get(method).handler(p));
   const act = (p: object = {}) => call('desktop.act', { ...PARAMS, action: 'key', keys: 'Tab', expect: EXPECT, ...p });
@@ -133,7 +135,7 @@ test('M6-15 hardening: a dialog the granted process opens just after a click is 
 for (const reused of [{ pid: 5100 }, { process_start: '2026-10-12T02:00:00.000Z' }]) test('M6-15 hardening: grant.window refuses a handle reused since the list was shown ' + JSON.stringify(reused), async t => {
   const f = fixture(t);
   f.db.exec('DELETE FROM grant');
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const listed = (await f.call('grant.candidates', {}) as any).windows[0];
   assert.deepEqual(listed, { hwnd: 100, title: 'Fixture', exe: 'fake.exe', pid: WINDOW.pid, process_start: WINDOW.process_start });
   f.update({ windows: [{ ...WINDOW, ...reused }] });
@@ -142,6 +144,29 @@ for (const reused of [{ pid: 5100 }, { process_start: '2026-10-12T02:00:00.000Z'
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
   f.update({ windows: [WINDOW] });
   assert.match((await f.call('grant.window', { session_id: 's1', ...listed }) as any).grant_id, /^gr_/);
+});
+
+test('M6-15 hardening: no input is sent once the workbench that registered the take-over key has exited, and its grants end (F10)', async t => {
+  const f = fixture(t);
+  const gone = spawn(process.execPath, ['-e', '0']);
+  await once(gone, 'exit');
+  await f.call('desktop.ui-window', { pid: gone.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  await assert.rejects(f.act(), refused(-32030, /^not sent: the workbench is not running, so the agent could not be paused$/));
+  await assert.rejects(f.act({ action: 'type', text: 'abc' }), refused(-32030, /the workbench is not running, so the agent could not be paused; 0 of 3 characters were typed/));
+  assert.equal(f.requests().filter(r => ['key', 'set_text'].includes(r.op)).length, 0);
+  assert.deepEqual(f.inputs(), []);
+  await f.desktop.tick();
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 0);
+  await assert.rejects(f.call('grant.window', GRANT), refused(-32003, /the workbench that registered the take-over key has closed/));
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  assert.match((await f.call('grant.window', GRANT) as any).grant_id, /^gr_/);
+});
+
+test('M6-15 hardening: no input is sent before the workbench reports a registered take-over key (F10)', async t => {
+  const f = fixture(t);
+  Object.assign(f.desktop as any, { noTakeover: 'the workbench has not reported its take-over key' });
+  await assert.rejects(f.act(), refused(-32030, /^not sent: the workbench has not reported its take-over key, so the agent could not be paused$/));
+  assert.equal(f.requests().filter(r => r.op === 'key').length, 0);
 });
 
 test('M6-15 hardening: describe exposes exactly the public fields', async t => {
@@ -231,7 +256,7 @@ test('M6-15 hardening: a complete 2000-character type lands in 250 chunks',async
 for(const change of ['end','disable','live'] as const)test('M6-15 hardening: grant.window rechecks after info '+change,async t=>{
   const f=fixture(t,{delay_op:'info',delay_ms:600});
   f.db.exec("DELETE FROM grant");
-  await f.call('desktop.ui-window',{pid:999001,takeover_key:'Control+Alt+Q',takeover_error:null});
+  await f.call('desktop.ui-window',{pid:process.pid,takeover_key:'Control+Alt+Q',takeover_error:null});
   const pending=f.call('grant.window',GRANT).then(value=>({value}),error=>({error}));
   await until(()=>f.requests().some(r=>r.op==='info'),10000);
   if(change==='end')f.db.exec("UPDATE session SET ended_at='ended' WHERE id='s1'");
@@ -413,7 +438,7 @@ for (const report of [
 ]) test('M6-15 hardening: grant refuses an unregistered takeover key ' + report.takeover_key, async t => {
   const f = fixture(t);
   f.db.exec('DELETE FROM grant');
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: report.takeover_key, takeover_error: report.takeover_error });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: report.takeover_key, takeover_error: report.takeover_error });
   await assert.rejects(f.call('grant.window', GRANT), (error: any) => {
     refused(-32003, /no window can be given/)(error);
     assert.match(error.message, report.reason);
@@ -421,7 +446,7 @@ for (const report of [
   });
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
   assert.deepEqual(f.requests(), []);
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const result: any = await f.call('grant.window', GRANT);
   assert.match(result.grant_id, /^gr_/);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 1);
@@ -430,9 +455,9 @@ for (const report of [
 test('M6-15 hardening: takeover registration failure ends every live grant across sessions', async t => {
   const f = fixture(t);
   f.db.exec("INSERT INTO grant (id,session_id,hwnd,pid,process_start,exe,title,created_at) VALUES ('gr_second','s2',200,4200,'t','other.exe','Other','t')");
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 2);
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: 'held by another program' });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: 'held by another program' });
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 0);
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NOT NULL').get()!.n, 2);
   await assert.rejects(f.act(), refused(-32030, /window not granted/));
@@ -442,10 +467,10 @@ test('M6-15 hardening: takeover registration failure ends every live grant acros
 for (const failure of [false, true]) test('M6-15 hardening: grant rechecks takeover registration after slow info ' + failure, async t => {
   const f = fixture(t, { delay_op: 'info', delay_ms: 1000 });
   f.db.exec('DELETE FROM grant');
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const pending = f.call('grant.window', GRANT).then(value => ({ value }), error => ({ error }));
   await until(() => f.requests().some(r => r.op === 'info'), 10000);
-  if (failure) await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: 'held by another program' });
+  if (failure) await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: 'held by another program' });
   const result: any = await pending;
   if (failure) {
     refused(-32003, /no window can be given.*the take-over key Control\+Alt\+Q did not register \(held by another program\)/)(result.error);
@@ -523,10 +548,10 @@ for (const keys of ['aé', '\u200b', '\u00a0Enter', 'Space\u0085', 'e\u0301', '\
 test('M6-15 hardening: a takeover report must explicitly confirm registration with null error', async t => {
   const f = fixture(t);
   f.db.exec('DELETE FROM grant');
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q' });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q' });
   await assert.rejects(f.call('grant.window', GRANT), refused(-32003, /no window can be given/));
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
-  await f.call('desktop.ui-window', { pid: 999001, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const result: any = await f.call('grant.window', GRANT);
   assert.match(result.grant_id, /^gr_/);
 });

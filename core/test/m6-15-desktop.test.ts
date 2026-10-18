@@ -14,7 +14,7 @@ import { covers, sameWindow, type GrantRow, type WindowInfo } from '../src/grant
 import { isQueueable } from '../src/pipe/commands.ts';
 import { migrate } from '../src/store/db.ts';
 
-const UI_PID = 999_001;
+const UI_PID = process.pid;
 const NOTEPAD = { hwnd: 100, pid: 4100, process_start: '2026-10-12T01:00:00.000Z', exe: 'Notepad.exe', title: 'Untitled - Notepad', controls: [{ role: 'document', name: 'Text editor', automation_id: 'RichEditD2DPT' }, { role: 'menuitem', name: 'File', automation_id: 'File' }] };
 const SAVE_AS = { hwnd: 101, owner: 100, pid: 4100, process_start: NOTEPAD.process_start, exe: 'Notepad.exe', title: 'Save as', class: '#32770', file_dialog: true, controls: [{ role: 'edit', name: 'File name:', automation_id: '1001' }, { role: 'button', name: 'Save', automation_id: '1' }] };
 const CALC = { hwnd: 200, pid: 4200, process_start: '2026-10-12T01:00:01.000Z', exe: 'CalculatorApp.exe', title: 'Calculator', controls: [{ role: 'button', name: 'Seven', automation_id: 'num7Button' }] };
