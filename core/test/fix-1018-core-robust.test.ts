@@ -15,6 +15,7 @@ import { BUILT_IN, syncEngines } from '../src/engines/registry.ts';
 import { createDecoder, encode } from '../src/pipe/framing.ts';
 import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
+import { CommandRunner } from '../src/pipe/commands.ts';
 import { isolation, withEnv } from './helpers.ts';
 
 function home(t): { home: string; env: Record<string, string> } {
@@ -137,4 +138,19 @@ test('h-a-meter a transcript is read in bounded chunks and a line longer than a 
     assert.equal(n, 1);
     assert.deepEqual(sessionTokens(db, 's1'), { in: 20, out: 2, cache_read: 0, cache_write: 0 });
   } finally { db.close(); }
+});
+
+test('h-a-recover recover scrubs the rows it interrupts and never scans finished rows', async (t) => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec(readFileSync(schemaFile, 'utf8'));
+  const insert = db.prepare("INSERT INTO command (id, at, origin, method, params, status) VALUES (?, 'x', 'cli', 'fixture.do', ?, ?)");
+  insert.run('cut', JSON.stringify({ prompt: 'PRIVATE' }), 'running');
+  for (let i = 0; i < 3; i++) insert.run(`old${i}`, '{"n":1}', 'ok');
+  const sql: string[] = [];
+  const prepare = db.prepare.bind(db);
+  t.mock.method(db, 'prepare', (s: string) => { sql.push(s); return prepare(s); });
+  await new CommandRunner(db, new Map()).recover();
+  assert.deepEqual(JSON.parse((prepare("SELECT params FROM command WHERE id = 'cut'").get() as { params: string }).params), { prompt_length: 7 });
+  assert.ok(!sql.some((s) => /status IN \('ok'/.test(s)), sql.join('\n'));
 });

@@ -129,23 +129,15 @@ export class CommandRunner {
 
   /** Startup recovery per pipe-protocol.md: interrupted running rows fail, accepted rows re-run, queued rows run. */
   async recover(): Promise<void> {
-    const running = this.db.prepare("SELECT id, method FROM command WHERE status = 'running'").all() as Array<{ id: string; method: string }>;
+    const running = this.db.prepare("SELECT id, method, params FROM command WHERE status = 'running'").all() as Array<{ id: string; method: string; params: string }>;
     for (const r of running) {
       const err = new RpcError(E.INTERRUPTED, 'interrupted by core restart');
       this.db
-        .prepare("UPDATE command SET status = 'error', result = ?, done_at = ? WHERE id = ?")
-        .run(JSON.stringify(err.toJSON()), nowIso(), r.id);
+        .prepare("UPDATE command SET status = 'error', result = ?, done_at = ?, params = ? WHERE id = ?")
+        .run(JSON.stringify(err.toJSON()), nowIso(), JSON.stringify(scrubParams(parseParams(r.params) ?? {})), r.id);
       this.db
         .prepare('INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, ?, ?, ?)')
         .run(ulid(), nowIso(), 'interrupted-command', r.id, `${r.method} was interrupted by a core restart and was not re-run`);
-    }
-    const finished = this.db.prepare("SELECT id, params FROM command WHERE status IN ('ok','error')").all() as Array<{ id: string; params: string }>;
-    const rewrite = this.db.prepare('UPDATE command SET params = ? WHERE id = ?');
-    for (const r of finished) {
-      const params = parseParams(r.params);
-      if (!params) continue;
-      const scrubbed = JSON.stringify(scrubParams(params));
-      if (scrubbed !== r.params) rewrite.run(scrubbed, r.id);
     }
     await this.runPending(true);
   }
