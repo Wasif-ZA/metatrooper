@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { openCoreDb } from '../src/store/db.ts';
 import { call, enqueue } from '../src/pipe/client.ts';
-import { corePipe, dbFile } from '../src/paths.ts';
+import { corePipe, dbFile, schemaFile } from '../src/paths.ts';
+import { NOTIFY_PLUGIN, notifyTick, setSink } from '../src/notify.ts';
+import { setSecret } from '../src/secrets.ts';
 import { createDecoder, encode } from '../src/pipe/framing.ts';
 import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
@@ -86,4 +89,32 @@ test('h-a-d3 lines after a too-long line on the same socket never run', async (t
   await new Promise((r) => setTimeout(r, 400));
   assert.deepEqual(ran, ['before.ok']);
   assert.ok(replies.some((m) => (m as { error?: { code: number } }).error?.code === -32600));
+});
+
+test('h-a-notify a sink with unreadable kinds or a bad command dest is skipped and the good sink still sends every row', async (t) => {
+  const { home: dir } = home(t);
+  const saved = { home: process.env.METATROOPER_HOME, fake: process.env.METATROOPER_FAKE_DPAPI };
+  process.env.METATROOPER_HOME = dir;
+  process.env.METATROOPER_FAKE_DPAPI = '1';
+  t.after(() => {
+    if (saved.home === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = saved.home;
+    if (saved.fake === undefined) delete process.env.METATROOPER_FAKE_DPAPI; else process.env.METATROOPER_FAKE_DPAPI = saved.fake;
+  });
+  t.mock.method(console, 'error', () => {});
+  const bodies: string[] = [];
+  const web = createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { bodies.push(b); res.writeHead(204); res.end(); }); });
+  await new Promise<void>((r) => web.listen(0, '127.0.0.1', r));
+  t.after(() => new Promise<void>((r) => web.close(() => r())));
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec(readFileSync(schemaFile, 'utf8'));
+  const insertSink = db.prepare("INSERT INTO notify_sink (id, kind, name, dest_hash, kinds, enabled, approved_at) VALUES (?, ?, ?, 'h', ?, 1, 'x')");
+  insertSink.run('a-bad-kinds', 'webhook', 'a', 'not json');
+  insertSink.run('b-bad-cmd', 'command', 'b', '["gate"]');
+  setSecret(db, NOTIFY_PLUGIN, 'SINK_b-bad-cmd', 'not json');
+  setSink(db, { id: 'c-good', kind: 'webhook', dest: `http://127.0.0.1:${(web.address() as net.AddressInfo).port}/hook`, kinds: ['gate'] });
+  const at = new Date().toISOString();
+  for (const id of ['g1', 'g2']) db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'gate', ?, 'fixture')").run(id, at, id);
+  await notifyTick(db);
+  assert.deepEqual(bodies.map((b) => JSON.parse(b).id).sort(), ['g1', 'g2']);
 });

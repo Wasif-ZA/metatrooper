@@ -32,7 +32,16 @@ interface Item {
 }
 
 const secretName = (sinkId: string) => `SINK_${sinkId}`;
-const sinkKinds = (s: SinkRow): string[] => JSON.parse(s.kinds) as string[];
+const badKinds = new Set<string>();
+function sinkKinds(s: SinkRow): string[] {
+  try {
+    const kinds = JSON.parse(s.kinds);
+    if (Array.isArray(kinds)) return kinds;
+  } catch {}
+  if (!badKinds.has(s.id)) console.error(`notify sink ${s.id} has unreadable kinds and is skipped`);
+  badKinds.add(s.id);
+  return [];
+}
 
 function loopback(host: string): boolean {
   return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
@@ -138,7 +147,14 @@ export async function notifyTick(db: DatabaseSync): Promise<void> {
       const states = await Promise.all(targets.map(async (sink) => {
         const d = (get.get(row.id, sink.id) as Delivery | undefined) ?? { state: 'pending', tries: 0, next_at: 0 };
         if (d.state !== 'pending' || Date.now() < d.next_at) return d.state;
-        if ((await deliver(sink, row)) === null) { put.run(row.id, sink.id, 'done', d.tries + 1, 0); return 'done'; }
+        let failed: string | null;
+        try {
+          failed = await deliver(sink, row);
+        } catch {
+          console.error(`notify sink ${sink.id} could not send`);
+          failed = 'send failed';
+        }
+        if (failed === null) { put.run(row.id, sink.id, 'done', d.tries + 1, 0); return 'done'; }
         const tries = d.tries + 1;
         if (tries > RETRY_MS.length) { put.run(row.id, sink.id, 'failed', tries, 0); raiseFailed(db, sink); return 'failed'; }
         put.run(row.id, sink.id, 'pending', tries, Date.now() + RETRY_MS[tries - 1]);
