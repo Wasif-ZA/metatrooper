@@ -228,7 +228,7 @@ export class Desktop {
       if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
       const unpausable = this.noTakeover ?? (alive(this.uiPid!) ? null : 'the workbench is not running');
       if (unpausable) throw new RpcError(E.PANE_NOT_OWNED, `not sent: ${unpausable}, so the agent could not be paused${note}`);
-      watchId = beginAction(Date.now(), Number(params.pid) || 0);
+      watchId = beginAction(Date.now(), Number(params.pid) || 0, Number(params.hwnd) || 0);
     };
     const posted = op === 'key' || op === 'click';
     const p = this.helper.request<Record<string, unknown>>(op, params, undefined, gate)

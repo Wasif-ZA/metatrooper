@@ -82,19 +82,23 @@ test('M6-22c: a UI Automation event after 2 s with no input raises "the desktop 
   assert.ok(meta(db, 'takeover_paused_at'));
 });
 
-test('M6-22: a window event in the acted-on process up to 1500 ms after the action is the action\'s own; another process, a later event or injected input still raises', () => {
+test('M6-22: only a window the acted-on window owns, opened up to 1500 ms after the action, is the action\'s own; a focus change or invoke there, an unowned window, another process, a later event or injected input still raises', () => {
   const db = setup();
   const t = Date.now() + 450_000;
-  const id = beginAction(t, 4100);
+  const id = beginAction(t, 4100, 200);
   endAction(id, t + 100);
-  const opened = (at: number, pid: number, hwnd = 300) => ({ kind: 'opened' as const, t: at, idle_ms: 10_000, hwnd, title: 'Save as', pid });
-  assert.equal(raise(db, opened(t + 100 + FOLLOW_MS, 4100)), false, 'dialog of the acted-on process inside the window');
-  assert.equal(raise(db, { ...opened(t + 900, 4100), kind: 'focus' }), false);
+  const opened = (at: number, pid: number, hwnd = 300, owners = [200]) => ({ kind: 'opened' as const, t: at, idle_ms: 10_000, hwnd, title: 'Save as', pid, owners });
+  assert.equal(raise(db, opened(t + 100 + FOLLOW_MS, 4100)), false, 'dialog owned by the acted-on window inside the window');
+  assert.equal(raise(db, opened(t + 900, 4100, 300, [250, 200])), false, 'owned through another owned window');
+  assert.equal(raise(db, { ...opened(t + 900, 4100, 200, []), kind: 'focus' }), true, 'the user Alt-Tabbing into the acted-on window');
+  assert.equal(raise(db, { ...opened(t + 900, 4100, 305), kind: 'invoked' }), true, 'another program invoking a control there');
+  assert.equal(raise(db, opened(t + 900, 4100, 306, [])), true, 'an unowned window of the same process');
+  assert.equal(raise(db, opened(t + 900, 4100, 307, [999])), true, 'a window owned by an ungranted window of the same process');
   assert.equal(raise(db, opened(t + 900, 4200, 301)), true, 'another process');
   assert.equal(raise(db, opened(t + 101 + FOLLOW_MS, 4100, 302)), true, 'past the window');
   assert.equal(raise(db, opened(t + 900, 0, 303)), true, 'unknown process');
   assert.equal(raise(db, { ...key(t + 900, 304), pid: 4100 }), true, 'injected input is never the action\'s own');
-  assert.equal(items(db, 'away').length, 3);
+  assert.equal(items(db, 'away').length, 7);
   assert.equal(items(db, 'input').length, 1);
 });
 

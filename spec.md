@@ -535,8 +535,10 @@ What MetaTrooper adds around the driver:
   granted tile. The same helper subscribes to UI Automation's desktop-wide events (`FocusChangedEvent`,
   `Window_WindowOpenedEvent`, `Invoke_InvokedEvent`) on its own thread. It reports an event only when
   `GetLastInputInfo` shows no physical input for 2 s and the core has no `metatrooper-desktop` action in flight,
-  and the event's window is not in the process an action targeted within the last 1.5 s (a dialog or window the
-  agent's own click or key opened; the helper reports each event's pid); the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
+  and the event is not a new window owned by the window an action targeted, opened within 1.5 s of that action (a
+  dialog the agent's own click or key opened; the helper reports each event's pid and owner chain, and hwnd 0 and
+  pid 0 when the sender has no window). A focus change or invoke is never the action's own past the 200 ms slack;
+  the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
   `desktop.watch_pause` is on. Apps that change on their own (a toast, a timer, a download finishing) also trip it,
   so it only runs while a grant is live and each window can be muted for the session from the needs-you item.
 - **Spike first** (M6-14, time-boxed to 1 day, nothing installed). On this laptop, with Smart App Control on, the
@@ -951,8 +953,9 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
     the waiting check; dispatch still refuses the input.
   - The workbench is known to be running by its pid, so a process that reuses that pid after the workbench exits
     keeps input allowed until the next `desktop.ui-window` report or core start.
-  - The input watcher treats a change in the process an action targeted, up to 1.5 s after it, as the action's own
-    result; a change someone else makes in that process inside that window is not reported.
+  - The input watcher treats a new window owned by the window an action targeted, opened up to 1.5 s after it, as
+    the action's own result; another program opening an owned window of that same window inside those 1.5 s is not
+    reported. Focus moving into the agent's own dialog is reported (and pauses with `desktop.watch_pause`).
 
 ## Hand-back (only Wasif)
 

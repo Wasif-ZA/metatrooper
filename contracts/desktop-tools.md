@@ -167,7 +167,8 @@ among its ancestors.
   `approved` to the waiting `approval.check`; the input is still refused at dispatch, by the pause or grant check.
 - The workbench is known to be running by its pid (`process.kill(pid, 0)`), so a new process that reuses that pid
   after the workbench exits keeps input allowed until the next `desktop.ui-window` report or core start.
-- The input watcher (M6-22) treats a focus change, new window or invoke in the process an action targeted, up to
-  1.5 s after that action, as the action's own result (the dialog it opened). A change someone else makes in that
-  same process inside that window is not reported; changes in any other process still are.
+- The input watcher (M6-22) treats only a new window owned (GW_OWNER chain) by the window an action targeted,
+  opened up to 1.5 s after that action, as the action's own result (the dialog it opened). Another program opening
+  such a window inside those 1.5 s is not reported. Focus changes and invokes, unowned windows, other processes and
+  events whose sender has no window (hwnd 0, pid 0) are reported as before.
 - Apps with no UI Automation tree get screenshots only.

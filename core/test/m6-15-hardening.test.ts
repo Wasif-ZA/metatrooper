@@ -122,14 +122,16 @@ for (const [method, op] of [['desktop.describe','describe'],['desktop.snapshot',
   });
 }
 
-test('M6-15 hardening: a dialog the granted process opens just after a click is the agent\'s, one from another process is not', async t => {
+test('M6-15 hardening: a dialog the clicked window owns, opened just after the click, is the agent\'s; a focus change or unowned window in that process is not', async t => {
   const f = fixture(t);
   assert.deepEqual(await f.act({ action: 'click' }), { status: 'confirmed' });
   const after = Date.now() + 1000;
-  const opened = (pid: number) => ({ kind: 'opened' as const, t: after, idle_ms: 10_000, hwnd: 101, title: 'Save as', pid });
+  const ev = (kind: 'opened' | 'focus', hwnd: number, owners: number[]) => ({ kind, t: after, idle_ms: 10_000, hwnd, title: 'Save as', pid: WINDOW.pid, owners });
   assert.ok(1000 < FOLLOW_MS);
-  assert.equal(judge(opened(WINDOW.pid)), null);
-  assert.equal(judge(opened(4200)), 'away');
+  assert.equal(judge(ev('opened', 101, [WINDOW.hwnd])), null);
+  assert.equal(judge(ev('focus', WINDOW.hwnd, [])), 'away', 'the user switching into the acted-on window');
+  assert.equal(judge(ev('opened', 102, [])), 'away', 'a window the clicked window does not own');
+  assert.equal(judge({ ...ev('opened', 101, [WINDOW.hwnd]), pid: 4200 }), 'away');
 });
 
 for (const reused of [{ pid: 5100 }, { process_start: '2026-10-12T02:00:00.000Z' }]) test('M6-15 hardening: grant.window refuses a handle reused since the list was shown ' + JSON.stringify(reused), async t => {
