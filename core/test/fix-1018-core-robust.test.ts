@@ -245,6 +245,25 @@ test('h-c-trust a write the engine makes between trust.ts reading and writing it
   assert.equal(Object.values(doc.projects).length, 1);
 });
 
+test('h-c-trust-review an engine write while the temp file is written aborts the rename and is logged, never overwritten', (t) => {
+  const { home: dir } = home(t);
+  const file = join(dir, 'claude.json');
+  writeFileSync(file, JSON.stringify({ projects: {} }));
+  const chmod = fs.chmodSync;
+  let n = 0;
+  t.mock.method(fs, 'chmodSync', (p: fs.PathLike, m: fs.Mode) => {
+    chmod(p, m);
+    writeFileSync(file, JSON.stringify({ projects: {}, engineOwn: ++n }));
+  });
+  const warn = t.mock.method(console, 'warn', () => {});
+  const engine = { id: 'fake', trust: { kind: 'json-map', file, at: ['projects'], set: { ok: true }, path_style: 'posix' } } as never;
+  assert.deepEqual(trustFolder(dir, [engine]), []);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { projects: {}, engineOwn: 3 });
+  assert.equal(warn.mock.callCount(), 3);
+  assert.match(String(warn.mock.calls[0].arguments[0]), /changed while MetaTrooper was writing it/);
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith('.troop-tmp')), []);
+});
+
 test('h-c-browsermcp a message that makes handle() throw gets a JSON-RPC error, and two first calls share one browser connection', async (t) => {
   const { env } = home(t);
   let connections = 0;

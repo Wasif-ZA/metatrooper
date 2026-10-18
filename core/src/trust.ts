@@ -7,6 +7,8 @@ import { loadEngines, type EngineSpec, type TrustSpec } from './engines/registry
 
 const BS = String.fromCharCode(92);
 
+class Changed extends Error {}
+
 export function expandHome(p: string): string {
   return p === '~' || p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p;
 }
@@ -18,13 +20,16 @@ function styled(dir: string, style: TrustSpec['path_style']): string {
   return style === 'windows-lower' ? win.toLowerCase() : win;
 }
 
-export function writeAtomic(file: string, text: string): void {
+/** With `before`, the rename is skipped (Changed) when the file no longer holds it, re-read just before the rename. */
+export function writeAtomic(file: string, text: string, before?: string): void {
   const tmp = `${file}.${process.pid}-${randomUUID()}.troop-tmp`;
   let mode: number | undefined;
   try { mode = fs.statSync(file).mode & 0o777; } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
   try {
     fs.writeFileSync(tmp, text, mode === undefined ? undefined : { mode });
     if (mode !== undefined) fs.chmodSync(tmp, mode);
+    // Known limit: a write landing between this read and the rename is still lost; only a lock the engine honoured would close it.
+    if (before !== undefined && fs.readFileSync(file, 'utf8') !== before) throw new Changed();
     fs.renameSync(tmp, file);
   } catch (e) {
     fs.rmSync(tmp, { force: true });
@@ -32,20 +37,20 @@ export function writeAtomic(file: string, text: string): void {
   }
 }
 
-class Changed extends Error {}
-
 /** Writes `text` over `file` unless the file no longer holds `before`, so a concurrent writer's change is not lost. */
 function writeIfSame(file: string, before: string, text: string): void {
   if (fs.readFileSync(file, 'utf8') !== before) throw new Changed();
-  writeAtomic(file, text);
+  writeAtomic(file, text, before);
 }
 
-function retried(fn: () => void): void {
+function retried(file: string, fn: () => void): void {
   for (let i = 0; ; i++) {
     try {
       return fn();
     } catch (e) {
-      if (!(e instanceof Changed) || i === 2) throw e;
+      if (!(e instanceof Changed)) throw e;
+      console.warn(`trust: ${file} changed while MetaTrooper was writing it; write abandoned, the other change kept`);
+      if (i === 2) throw e;
     }
   }
 }
@@ -130,7 +135,7 @@ export function untrustFolder(dir: string, engines: EngineSpec[] = loadEngines()
     const file = expandHome(spec.file);
     if (!fs.existsSync(file)) continue;
     try {
-      retried(() => removeKey(file, spec, styled(real, spec.path_style)));
+      retried(file, () => removeKey(file, spec, styled(real, spec.path_style)));
       done.push(e.id);
     } catch {
       // a store we cannot parse is left untouched
@@ -149,7 +154,7 @@ export function trustFolder(dir: string, engines: EngineSpec[]): string[] {
     if (!fs.existsSync(file)) continue;
     const key = styled(dir, spec.path_style);
     try {
-      retried(() => {
+      retried(file, () => {
         if (spec.kind === 'json-map') applyJsonMap(file, spec, key);
         else if (spec.kind === 'json-list') applyJsonList(file, spec, key);
         else applyTomlTable(file, spec, key);
