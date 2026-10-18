@@ -5,7 +5,7 @@ import { demoProblem } from '../../core/src/paths.ts';
 
 export const DEMO_TITLE = 'MetaTrooper (demo)';
 /** The demo registers its own take-over key, so it never collides with a real workbench holding the default one. */
-export const DEMO_TAKEOVER_KEY = 'Control+Alt+F12';
+export const DEMO_TAKEOVER_KEY = 'Control+Alt+Shift+Q';
 
 /** The demo's own data folder, pipe prefix and demo flag for this process. */
 export function demoEnv(pid: number, tmp = os.tmpdir()): Record<string, string> {
