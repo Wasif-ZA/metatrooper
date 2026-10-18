@@ -304,6 +304,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const id = str(p, 'project_id');
       if (db.prepare("SELECT 1 FROM session WHERE project_id = ? AND state IN ('starting', 'working', 'waiting_for_you', 'unknown') LIMIT 1").get(id)) throw new RpcError(E.VALIDATION, 'a session in this project is still running');
       if (Number(db.prepare('UPDATE project SET hidden = 1 WHERE id = ?').run(id).changes) === 0) throw new RpcError(E.NOT_FOUND, 'project not found');
+      for (const s of db.prepare('SELECT id FROM session WHERE project_id = ?').all(id) as Array<{ id: string }>) forgetLive(s.id);
       return {};
     },
   });

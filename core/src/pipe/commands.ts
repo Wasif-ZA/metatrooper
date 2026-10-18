@@ -92,20 +92,20 @@ export class CommandRunner {
 
   private async execute(id: string, method: string, params: Record<string, unknown>, spec: MethodSpec, ctx: CallContext): Promise<unknown> {
     this.db.prepare("UPDATE command SET status = 'running' WHERE id = ?").run(id);
+    const scrubbed = JSON.stringify(scrubParams(params));
     try {
       const result = await spec.handler(params, ctx);
       this.db
-        .prepare("UPDATE command SET status = 'ok', result = ?, done_at = ? WHERE id = ?")
-        .run(JSON.stringify(result ?? {}), nowIso(), id);
+        .prepare("UPDATE command SET status = 'ok', result = ?, done_at = ?, params = ? WHERE id = ?")
+        .run(JSON.stringify(result ?? {}), nowIso(), scrubbed, id);
       return result ?? {};
     } catch (e) {
       const err = toRpcError(e);
       this.db
-        .prepare("UPDATE command SET status = 'error', result = ?, done_at = ? WHERE id = ?")
-        .run(JSON.stringify(err.toJSON()), nowIso(), id);
+        .prepare("UPDATE command SET status = 'error', result = ?, done_at = ?, params = ? WHERE id = ?")
+        .run(JSON.stringify(err.toJSON()), nowIso(), scrubbed, id);
       throw err;
     } finally {
-      this.db.prepare('UPDATE command SET params = ? WHERE id = ?').run(JSON.stringify(scrubParams(params)), id);
       for (const w of this.waiters.get(id) ?? []) w();
       this.waiters.delete(id);
     }

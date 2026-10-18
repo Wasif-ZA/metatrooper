@@ -108,18 +108,16 @@ export function readMeters(db: DatabaseSync): number {
     const r = ended.get(sid) as { ended_at: string | null } | undefined;
     return !r || r.ended_at !== null;
   };
-  for (const [sid, tp] of transcripts) {
-    n += readClaudeTranscript(db, sid, tp);
-    if (gone(sid)) { transcripts.delete(sid); offsets.delete(tp); }
-  }
-  for (const [sid, f] of codexFiles) {
-    n += readCodexSession(db, sid, f);
-    if (gone(sid)) { codexFiles.delete(sid); offsets.delete(f); codexTurns.delete(f); }
-  }
-  for (const [sid, f] of agyFiles) {
-    n += readAgyTranscript(db, sid, f);
-    if (gone(sid)) { agyFiles.delete(sid); offsets.delete(f); }
-  }
+  // an ended session is read to the end before its offset is dropped
+  const take = (sid: string, f: string, read: () => number): boolean => {
+    if (!gone(sid)) { n += read(); return false; }
+    let at: number;
+    do { at = offsets.get(f) ?? 0; n += read(); } while ((offsets.get(f) ?? 0) !== at);
+    return true;
+  };
+  for (const [sid, tp] of transcripts) if (take(sid, tp, () => readClaudeTranscript(db, sid, tp))) { transcripts.delete(sid); offsets.delete(tp); }
+  for (const [sid, f] of codexFiles) if (take(sid, f, () => readCodexSession(db, sid, f))) { codexFiles.delete(sid); offsets.delete(f); codexTurns.delete(f); }
+  for (const [sid, f] of agyFiles) if (take(sid, f, () => readAgyTranscript(db, sid, f))) { agyFiles.delete(sid); offsets.delete(f); }
   return n;
 }
 

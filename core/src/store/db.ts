@@ -64,13 +64,15 @@ export const migrationsDir = path.join(coreDir, 'src', 'store', 'migrations');
 
 const migrationFiles = (dir: string) => fs.readdirSync(dir).filter((f) => /^\d{3}-[\w-]+\.sql$/.test(f)).sort();
 
-/** Throws unless troop.db is at schema version 2 and holds no migration newer than this code knows; changes nothing. */
+/** Throws unless troop.db is at schema version 2 and its newest migration is exactly the newest this code knows; changes nothing. */
 export function checkSchema(db: DatabaseSync, dir = migrationsDir): void {
   const v = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
   if (v !== 2) throw new Error(`troop.db schema version ${v} is not supported`);
   const tracked = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migration'").get();
   const newest = tracked ? Number((db.prepare('SELECT max(id) AS id FROM schema_migration').get() as { id: number | null }).id ?? 0) : 0;
-  if (newest > Math.max(0, ...migrationFiles(dir).map((f) => Number(f.slice(0, 3))))) throw new Error(`troop.db has migration ${newest}, newer than this MetaTrooper`);
+  const known = Math.max(0, ...migrationFiles(dir).map((f) => Number(f.slice(0, 3))));
+  if (newest > known) throw new Error(`troop.db has migration ${newest}, newer than this MetaTrooper`);
+  if (newest < known) throw new Error(`troop.db is at migration ${newest}, behind this MetaTrooper (${known}); restart the core to migrate it`);
 }
 
 /** Applies each `NNN-<name>.sql` in `dir` not yet in `schema_migration`, in id order, one transaction each. */

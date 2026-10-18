@@ -11,7 +11,7 @@ import { call, enqueue } from '../src/pipe/client.ts';
 import { browserPipe, corePipe, dbFile, schemaFile } from '../src/paths.ts';
 import { NOTIFY_PLUGIN, notifyTick, setSink } from '../src/notify.ts';
 import { setSecret } from '../src/secrets.ts';
-import { readClaudeTranscript, sessionTokens } from '../src/meter.ts';
+import { noteTranscript, readClaudeTranscript, readMeters, sessionTokens } from '../src/meter.ts';
 import { BUILT_IN, syncEngines } from '../src/engines/registry.ts';
 import { createDecoder, encode } from '../src/pipe/framing.ts';
 import { logOnce } from '../src/log.ts';
@@ -286,4 +286,110 @@ test('h-b-d2 a Stop hook waits out a 600 ms write lock instead of dropping the e
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM event WHERE kind = 'claude.Stop' AND session_id = 's-stop'").get().n, 1);
   } finally { db.close(); }
+});
+
+test('h-c-control-review a session approval for one long control does not cover another with the same 200-char prefix', async (t) => {
+  const db = withEnv(home(t).env, openCoreDb);
+  try {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s1', 'p', 'fake', 'pty', 'working', 'x', 'x')").run();
+    const approvals = new Approvals(db, 300);
+    const ask = (tail: string) => approvals.check({ session_id: 's1', surface: 'desktop', target: 'app', action: 'click', args: {}, control: { name: `Confirm ${'x'.repeat(300)} ${tail}`, automation_id: '', role: 'button' } });
+    const first = ask('subscription');
+    await until(() => db.prepare("SELECT 1 FROM approval WHERE status = 'waiting'").get(), 2000);
+    const { id } = db.prepare("SELECT id FROM approval WHERE status = 'waiting'").get() as { id: string };
+    approvals.resolve({ approval_id: id, decision: 'approve', scope: 'session' });
+    assert.equal((await first).decision, 'approved');
+    assert.equal((await ask('subscription')).decision, 'allow');
+    assert.equal((await ask('transfer funds')).decision, 'expired');
+  } finally { db.close(); }
+});
+
+test('h-a-recover-review a finished command is scrubbed by the same update that finishes it', async (t) => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec(readFileSync(schemaFile, 'utf8'));
+  const prepare = db.prepare.bind(db);
+  t.mock.method(db, 'prepare', (s: string) => {
+    if (/^UPDATE command SET params = \? WHERE id = \?$/.test(s)) throw new Error('database is locked');
+    return prepare(s);
+  });
+  const runner = new CommandRunner(db, new Map([['fixture.do', { handler: () => ({ ok: true }) }]]));
+  await runner.call({ id: 'c1', method: 'fixture.do', params: { prompt: 'PRIVATE' }, origin: 'cli' }, { ui: false, origin: 'cli' }).catch(() => {});
+  const row = prepare("SELECT status, params FROM command WHERE id = 'c1'").get() as { status: string; params: string };
+  assert.equal(row.status, 'ok');
+  assert.deepEqual(JSON.parse(row.params), { prompt_length: 7 });
+});
+
+test('h-a-d2-review no core timer or startup task swallows its error without logOnce', () => {
+  const main = readFileSync(join(import.meta.dirname, '..', 'src', 'main.ts'), 'utf8');
+  const start = main.indexOf('const failed =');
+  assert.ok(start > 0);
+  assert.doesNotMatch(main.slice(start), /catch\s*\{\s*\}|\.catch\(\(\)\s*=>\s*\{\s*\}\)/);
+});
+
+test('h-a-meter-review an ended session with an unread backlog over one chunk is read to the end before it is dropped', (t) => {
+  const { home: dir, env } = home(t);
+  const db = withEnv(env, openCoreDb);
+  try {
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', ?, 'p', 'x', 'x')").run(dir);
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, ended_at) VALUES ('s-end', 'p', 'claude', 'pty', 'exited', 'x', 'x', 'x')").run();
+    const rec = (id: string) => JSON.stringify({ type: 'assistant', message: { id, model: 'x', usage: { input_tokens: 10, output_tokens: 1 } } }) + '\n';
+    const pad = JSON.stringify({ pad: 'p'.repeat(5 * 1024 * 1024) }) + '\n';
+    const file = join(dir, 'ended.jsonl');
+    writeFileSync(file, rec('m1') + pad + pad + rec('m2'));
+    noteTranscript('s-end', file);
+    readMeters(db);
+    assert.deepEqual(sessionTokens(db, 's-end'), { in: 20, out: 2, cache_read: 0, cache_write: 0 });
+  } finally { db.close(); }
+});
+
+test('h-a-d1-review CLI enqueue refuses a troop.db behind the migrations this code knows', (t) => {
+  const { env } = home(t);
+  withEnv(env, openCoreDb).close();
+  const db = new DatabaseSync(withEnv(env, dbFile));
+  try {
+    db.exec('DELETE FROM schema_migration WHERE id = (SELECT max(id) FROM schema_migration)');
+    assert.throws(() => withEnv(env, () => enqueue('c3', 'project.open', {})), /behind/);
+    db.exec('DROP TABLE schema_migration');
+    assert.throws(() => withEnv(env, () => enqueue('c4', 'project.open', {})), /behind/);
+    assert.equal(db.prepare('SELECT count(*) AS n FROM command').get().n, 0);
+  } finally { db.close(); }
+});
+
+test('h-b-d2-log an error after the event row is stored is not logged as a dropped event', async (t) => {
+  const { home: dir, env } = home(t);
+  const db = withEnv(env, openCoreDb);
+  db.exec('DROP TABLE comment');
+  db.close();
+  const hook = await runNode(['core/src/hook/event.ts', 'claude.UserPromptSubmit', '--session', 's-log'], { ...process.env, ...env }, '{}');
+  assert.equal(hook.code, 0);
+  const log = readFileSync(join(dir, 'logs', 'event-errors.log'), 'utf8');
+  assert.match(log, /after storing claude\.UserPromptSubmit/);
+  assert.doesNotMatch(log, /dropped/);
+});
+
+test('h-b-maps-review hiding a project drops the live text of its sessions', async (t) => {
+  const { home: dir, env } = home(t);
+  const saved = { ...process.env };
+  Object.assign(process.env, env);
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(schemaFile, 'utf8'));
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p-hide', 'x', 'p', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s-ph', 'p-hide', 'fake', 'pty', 'idle', 'x', 'x')").run();
+    wireTermEvents(db);
+    term.open('s-ph', [process.execPath, '-e', "const c = String.fromCharCode; process.stdout.write(c(27) + ']0;PH TITLE' + c(7) + 'hi'); setTimeout(() => process.exit(0), 300)"], dir, process.env, 80, 24);
+    await until(() => liveText()['s-ph']?.title === 'PH TITLE', 8000);
+    await until(() => term.savedScreen('s-ph') !== null, 8000);
+    db.prepare("UPDATE session SET state = 'exited' WHERE id = 's-ph'").run();
+    buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k' }).get('project.hide')!.handler({ project_id: 'p-hide' }, { ui: true, origin: 'test' });
+    assert.equal(liveText()['s-ph'], undefined);
+    await new Promise((r) => setTimeout(r, 200));
+  } finally {
+    db.close();
+    for (const k of Object.keys(env)) if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
+  }
 });
