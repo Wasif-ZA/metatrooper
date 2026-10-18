@@ -7,7 +7,8 @@ const BUDGET_MS = 240;
 const lockWaitMs = (kind: string) => (['claude.Stop', 'claude.StopFailure', 'claude.SessionEnd'].includes(kind) ? 1500 : 200);
 const started = Date.now();
 let stored = false;
-setTimeout(() => process.exit(0), BUDGET_MS).unref();
+// The lock wait blocks the event loop, so this timer can only cut the async steps before it; a long-wait kind gets its lock budget on top.
+setTimeout(() => process.exit(0), BUDGET_MS + lockWaitMs(process.argv[2] ?? '') - lockWaitMs('')).unref();
 
 interface Parsed {
   kind: string;

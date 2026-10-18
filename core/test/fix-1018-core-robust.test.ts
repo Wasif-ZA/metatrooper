@@ -289,11 +289,11 @@ test('h-c-browsermcp a message that makes handle() throw gets a JSON-RPC error, 
   assert.equal(connections, 1);
 });
 
-test('h-b-d2 a Stop hook waits out a 600 ms write lock instead of dropping the event', async (t) => {
+test('h-b-d2 a Stop hook waits out a 1 s write lock, far past the 200 ms other kinds wait, instead of dropping the event', async (t) => {
   const { home: dir, env } = home(t);
   withEnv(env, openCoreDb).close();
   const file = join(dir, 'troop.db');
-  const script = `const { DatabaseSync } = await import('node:sqlite'); const db = new DatabaseSync(${JSON.stringify(file)}); db.exec('BEGIN IMMEDIATE'); console.log('held'); const end = Date.now() + 600; while (Date.now() < end) {} db.exec('COMMIT'); db.close();`;
+  const script = `const { DatabaseSync } = await import('node:sqlite'); const db = new DatabaseSync(${JSON.stringify(file)}); db.exec('BEGIN IMMEDIATE'); console.log('held'); const end = Date.now() + 1000; while (Date.now() < end) {} db.exec('COMMIT'); db.close();`;
   const holder = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: ['ignore', 'pipe', 'inherit'] });
   const exited = new Promise((r) => holder.once('exit', r));
   await new Promise<void>((r) => holder.stdout.once('data', () => r()));
