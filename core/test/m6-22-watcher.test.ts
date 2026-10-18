@@ -349,3 +349,16 @@ $s = -join ([char[]]@(${Array.from({ length: title.length }, (_, i) => title.cha
 `);
   assert.equal(out?.title, title);
 });
+
+test('M6-22: a UI Automation event whose sender has no window reports hwnd 0 and pid 0, not the foreground window\'s', { skip: !windows && 'Windows only', timeout: 60_000 }, async () => {
+  const helper = readFileSync(join(import.meta.dirname, '..', 'src', 'watch', 'input-hook.ps1'), 'utf8').replace(/^exit .*$/m, '');
+  const out = await runPs(`${helper}
+$flags = [Reflection.BindingFlags]'NonPublic,Static'
+[void][MtInputWatch].GetMethod('OnUia', $flags).Invoke($null, @(2, $null))
+$e = [MtInputWatch].GetField('queue', $flags).GetValue($null).Take()
+[Console]::Out.WriteLine('{"hwnd":' + $e[3] + ',"pid":' + $e[4] + ',"foreground":' + [MtInputWatch].GetMethod('GetForegroundWindow', $flags).Invoke($null, @()).ToInt64() + '}')
+`);
+  assert.notEqual(out?.foreground, 0, 'a window holds the foreground, so the old fallback would have named it');
+  assert.equal(out?.hwnd, 0);
+  assert.equal(out?.pid, 0);
+});

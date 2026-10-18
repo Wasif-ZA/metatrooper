@@ -55,9 +55,12 @@ public static class MtInputWatch {
         if (hwnd == 0) el = TreeWalker.RawViewWalker.GetParent(el);
       }
     } catch { }
-    hwnd = hwnd == 0 ? GetForegroundWindow().ToInt64() : GetAncestor(new IntPtr(hwnd), 2).ToInt64();
-    uint pid;
-    GetWindowThreadProcessId(new IntPtr(hwnd), out pid);
+    // a sender with no window stays unknown (hwnd 0, pid 0), never the foreground window's
+    uint pid = 0;
+    if (hwnd != 0) {
+      hwnd = GetAncestor(new IntPtr(hwnd), 2).ToInt64();
+      GetWindowThreadProcessId(new IntPtr(hwnd), out pid);
+    }
     queue.Add(new long[] { kind, t, idle, hwnd, pid });
   }
 
