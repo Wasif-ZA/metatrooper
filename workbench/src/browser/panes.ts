@@ -171,6 +171,8 @@ export class PaneManager {
   private errorPages = new Map<string, string>();
   /** Panes with a pick walk in flight; arrow keys that arrive meanwhile (auto-repeat) are dropped. */
   private walking = new Set<string>();
+  /** Consecutive setup failures per pane row; from the second one on, the next rebuild waits (1 s doubling, 60 s cap). */
+  private failed = new Map<string, { n: number; until: number }>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -278,7 +280,8 @@ export class PaneManager {
       if (!open.has(id)) this.destroy(id);
       else pane.row = open.get(id) as PaneRow;
     }
-    for (const row of open.values()) if (!this.panes.has(row.id)) this.create(row).catch(() => {});
+    for (const id of this.failed.keys()) if (!open.has(id)) this.failed.delete(id);
+    for (const row of open.values()) if (!this.panes.has(row.id) && Date.now() >= (this.failed.get(row.id)?.until ?? 0)) this.create(row).catch(() => {});
   }
 
   private async create(row: PaneRow): Promise<void> {
@@ -292,8 +295,12 @@ export class PaneManager {
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
     pane.ready = this.setUp(pane);
-    // ponytail: no backoff; a pane that fails every time is rebuilt on each sync
-    await pane.ready.catch((e) => { if (this.panes.get(row.id) === pane) this.destroy(row.id); throw e; });
+    await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
+      if (this.panes.get(row.id) === pane) this.destroy(row.id);
+      const n = (this.failed.get(row.id)?.n ?? 0) + 1;
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0 });
+      throw e;
+    });
   }
 
   private async setUp(pane: Pane): Promise<void> {
