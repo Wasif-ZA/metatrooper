@@ -16,6 +16,7 @@ import { createDecoder, encode } from '../src/pipe/framing.ts';
 import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
+import { markGone } from '../src/sessions/resume-all.ts';
 import { isolation, withEnv } from './helpers.ts';
 
 function home(t): { home: string; env: Record<string, string> } {
@@ -153,4 +154,18 @@ test('h-a-recover recover scrubs the rows it interrupts and never scans finished
   await new CommandRunner(db, new Map()).recover();
   assert.deepEqual(JSON.parse((prepare("SELECT params FROM command WHERE id = 'cut'").get() as { params: string }).params), { prompt_length: 7 });
   assert.ok(!sql.some((s) => /status IN \('ok'/.test(s)), sql.join('\n'));
+});
+
+test('h-b-sandbox markGone marks open sandbox sessions process-gone like pty ones', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(schemaFile, 'utf8'));
+    db.exec('PRAGMA foreign_keys = OFF');
+    const add = db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p', 'claude', ?, ?, 'x', 'x')");
+    add.run('pty1', 'pty', 'working');
+    add.run('box1', 'sandbox', 'working');
+    add.run('box2', 'sandbox', 'exited');
+    markGone(db, []);
+    assert.deepEqual(db.prepare("SELECT session_id FROM event WHERE kind = 'core.process-gone' ORDER BY session_id").all().map((r) => r.session_id), ['box1', 'pty1']);
+  } finally { db.close(); }
 });
