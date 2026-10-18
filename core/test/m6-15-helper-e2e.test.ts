@@ -39,7 +39,13 @@ test('M6-15 helper on this laptop: a Control or Shift chord and a key to a backg
     const front = await helper.request('describe', { hwnd });
     assert.equal(front.control?.role, 'document');
     assert.equal(front.hidden, false);
-    const seen = { check: 1, name: front.control.name, automation_id: front.control.automation_id, role: front.control.role, password: 0, hidden: 0, file_dialog: 0, rid: front.rid, pid: notepad.pid };
+    // this test stands in for the workbench the helper requires to be running
+    const ui = { ui_pid: process.pid, ui_start: (await helper.request('process', { process: process.pid })).process_start };
+    assert.ok(ui.ui_start);
+    const seen = { check: 1, name: front.control.name, automation_id: front.control.automation_id, role: front.control.role, password: 0, hidden: 0, file_dialog: 0, rid: front.rid, pid: notepad.pid, ...ui };
+    // a pid reused by a later process, or none, gets no key even with focus in the document
+    await assert.rejects(helper.request('key', { hwnd, keys: 'X', ...seen, ui_start: '2000-01-01T00:00:00.0000000Z' }), /the workbench is not running/);
+    await assert.rejects(helper.request('key', { hwnd, keys: 'X', ...seen, ui_pid: 0 }), /the workbench is not running/);
     for (const keys of ['Shift+X', 'Control+V', 'Alt+Shift', 'Shift']) {
       await assert.rejects(helper.request('key', { hwnd, keys, ...seen }), /Control and Shift cannot be sent/, keys);
     }

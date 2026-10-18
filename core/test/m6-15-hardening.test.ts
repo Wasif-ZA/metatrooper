@@ -36,7 +36,7 @@ function fixture(t: any, options: Record<string, unknown> = {}) {
   const methods = new Map<string, any>();
   desktop.methods(methods);
   (desktop as any).bound.add('s1 ' + process.pid);
-  Object.assign(desktop as any, { uiPid: process.pid, noTakeover: null });
+  Object.assign(desktop as any, { uiPid: process.pid, uiStart: `start-of-${process.pid}`, noTakeover: null });
   db.prepare("UPDATE session SET pid=? WHERE id='s1'").run(process.pid);
   const call = (method: string, p: object = PARAMS) => Promise.resolve(methods.get(method).handler(p));
   const act = (p: object = {}) => call('desktop.act', { ...PARAMS, action: 'key', keys: 'Tab', expect: EXPECT, ...p });
@@ -162,6 +162,46 @@ test('M6-15 hardening: no input is sent once the workbench that registered the t
   await assert.rejects(f.call('grant.window', GRANT), refused(-32003, /the workbench that registered the take-over key has closed/));
   await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   assert.match((await f.call('grant.window', GRANT) as any).grant_id, /^gr_/);
+});
+
+test('M6-15 hardening: a process reusing the workbench pid after an action queued gets no input: the helper checks the start time right before the write', async t => {
+  const f = fixture(t, { delay_op: 'process_id', delay_ms: 600 });
+  const queued = queueBehind(f, 'describe', 'key');
+  const result = f.act().then(value => ({ value }), error => ({ error }));
+  await queued();
+  f.update({ processes: { [process.pid]: 'a later process with the same pid' } });
+  const r: any = await result;
+  refused(-32030, /^not sent: the workbench is not running, so the agent could not be paused$/)(r.error);
+  assert.deepEqual(f.inputs(), []);
+  assert.equal((f.desktop as any).postedAt, 0);
+});
+
+test('M6-15 hardening: a workbench pid reused between typing chunks stops the next chunk, and the next tick ends the grants', async t => {
+  const f = fixture(t);
+  const helper: any = f.desktop.helper;
+  const original = helper.request.bind(helper);
+  helper.request = (...args: any[]) => original(...args).then((v: unknown) => {
+    if (args[0] === 'set_text') f.update({ processes: { [process.pid]: 'a later process with the same pid' } });
+    return v;
+  });
+  await assert.rejects(f.act({ action: 'type', text: 'abcdefghijklmnopq' }), refused(-32030, /^not sent: the workbench is not running, so the agent could not be paused; 8 of 17 characters were typed$/));
+  assert.deepEqual(f.inputs().map(r => r.value), ['abcdefgh']);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 1);
+  await f.desktop.tick();
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant WHERE ended_at IS NULL').get()!.n, 0);
+  await assert.rejects(f.call('grant.window', GRANT), refused(-32003, /the workbench that registered the take-over key has closed/));
+});
+
+test('M6-15 hardening: desktop.ui-window records the workbench start time and the helper refuses input once it differs', async t => {
+  const f = fixture(t);
+  f.update({ processes: { [process.pid]: 'first start' } });
+  await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
+  assert.equal((f.desktop as any).uiStart, 'first start');
+  assert.deepEqual(await f.act(), { status: 'confirmed' });
+  assert.equal(f.requests().find(r => r.op === 'key').ui_start, 'first start');
+  f.update({ processes: { [process.pid]: 'second start' } });
+  await assert.rejects(f.act(), refused(-32030, /the workbench is not running/));
+  assert.equal(f.inputs().length, 1);
 });
 
 test('M6-15 hardening: desktop.ui-window refuses a pid that is not a positive integer, since process.kill(0, 0) always succeeds', async t => {
@@ -454,7 +494,7 @@ for (const report of [
     return true;
   });
   assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM grant').get()!.n, 0);
-  assert.deepEqual(f.requests(), []);
+  assert.deepEqual(f.requests(), [], 'a failed report needs no helper read');
   await f.call('desktop.ui-window', { pid: process.pid, takeover_key: 'Control+Alt+Q', takeover_error: null });
   const result: any = await f.call('grant.window', GRANT);
   assert.match(result.grant_id, /^gr_/);

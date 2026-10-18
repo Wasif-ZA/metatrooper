@@ -107,16 +107,20 @@ flag right before every browser input it dispatches (after the cursor glide; typ
 `scroll`, `dialog` and `evaluate`. `takeover.resume {session_id}`
 (from the tile) clears it for that session only. Both reset on core start.
 
-Input is sent only while the take-over key can pause it (D43, F10): right before each helper write the core checks
-that the workbench reported a registered key and that the workbench process it named (`desktop.ui-window {pid}`) is
-still running. Otherwise the input is refused with "not sent: ..., so the agent could not be paused", and within
-500 ms of the workbench exiting every live grant ends; a workbench that starts again reports its key and pid anew.
+Input is sent only while the take-over key can pause it (D43, F10). On `desktop.ui-window {pid}` the core reads that
+process's start time through the helper. Right before each helper write the core checks that the workbench reported
+a registered key and that its pid is alive, and every input op carries `ui_pid` and `ui_start`: the helper refuses
+the write ("the workbench is not running") unless that pid is still a running process with that start time, so a
+process that reuses the pid is not taken for the workbench. A refusal reads "not sent: ..., so the agent could not
+be paused". Within 500 ms of the workbench exiting (or, while a grant is live, of its pid naming another process)
+every live grant ends; a workbench that starts again reports its key and pid anew.
 
 ## Helper ops
 
 `list`, `info {hwnd}`, `snapshot {hwnd, max_nodes}`, `describe {hwnd, ref?}`, `screenshot {hwnd}`,
 `set_text {hwnd, ref, value}`, `click {hwnd, ref}`, `key {hwnd, keys}`, `scroll {hwnd, ref?, dy}`,
-`find_text {hwnd, text}`. Two read-only ops serve the laptop test only and are never reachable through the core:
+`find_text {hwnd, text}`, `process {process}` (`{process_start}`, '' when that pid is not running). `set_text`,
+`click`, `key` and `scroll` also take `ui_pid` and `ui_start` (above). Two read-only ops serve the laptop test only and are never reachable through the core:
 `value {hwnd, ref}` (a control's whole value, null for a password field) and `probe` (`{cursor: [x, y],
 foreground}`).
 
@@ -165,8 +169,6 @@ among its ancestors.
   action, not in the helper op that acts.
 - F11 (D43, recorded): an approval card that is approved after the session was paused or its grant revoked returns
   `approved` to the waiting `approval.check`; the input is still refused at dispatch, by the pause or grant check.
-- The workbench is known to be running by its pid (`process.kill(pid, 0)`), so a new process that reuses that pid
-  after the workbench exits keeps input allowed until the next `desktop.ui-window` report or core start.
 - The input watcher (M6-22) treats only a new window owned (GW_OWNER chain) by the window an action targeted,
   opened up to 1.5 s after that action, as the action's own result (the dialog it opened). Another program opening
   such a window inside those 1.5 s is not reported. Focus changes and invokes, unowned windows, other processes and

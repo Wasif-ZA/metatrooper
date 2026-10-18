@@ -28,16 +28,22 @@ function control(w, ref) {
 
 const log = (entry) => fs.appendFileSync(process.env.FAKE_UIA_LOG, JSON.stringify({ ...entry, at: Date.now() }) + '\n');
 
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+/** A process's start time: FAKE_UIA_STATE's `processes[pid]` when given, else `start-of-<pid>` while it runs. */
+const startOf = (current, pid) => current.processes?.[pid] ?? (pid > 0 && alive(pid) ? `start-of-${pid}` : '');
+
 function handle(req) {
   const current = state();
   const all = current.windows;
   const w = req.hwnd ? all.find((x) => x.hwnd === req.hwnd) : null;
   if (req.pid !== undefined && req.pid !== w?.pid) throw new Error('window not granted');
+  if (['set_text', 'click', 'key', 'scroll'].includes(req.op) && (!startOf(current, req.ui_pid) || startOf(current, req.ui_pid) !== req.ui_start)) throw new Error('the workbench is not running');
   const changePid = (key) => {
     if (current[key] !== undefined && w) { w.pid = current[key]; delete current[key]; fs.writeFileSync(process.env.FAKE_UIA_STATE, JSON.stringify(current)); }
   };
   switch (req.op) {
     case 'process_id': return { pid: process.pid };
+    case 'process': return { process_start: startOf(current, req.process) };
     case 'never_answer': return new Promise(() => {});
     case 'list': return { windows: all.map((x) => info(x, all)) };
     case 'info': if (w) { const result = info(w, all); changePid('after_info_pid'); return result; } return { alive: false, hwnd: req.hwnd, root: req.hwnd, pid: 0, process_start: '', exe: '', title: '', class: '', owner_chain: [], file_dialog: false, elevated: false, rect: [0, 0, 0, 0], minimized: false };

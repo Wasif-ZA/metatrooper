@@ -110,7 +110,10 @@ namespace TroopUia {
     static object Dispatch(string op, Dictionary<string, object> r) {
       long hwnd = Num(r, "hwnd");
       if (Num(r, "pid") != 0) { uint owner; Native.GetWindowThreadProcessId(new IntPtr(hwnd), out owner); if (owner != Num(r, "pid")) throw new Exception("window not granted"); }
+      // an input goes only while the workbench that can pause it is the process the core registered
+      if (op == "set_text" || op == "click" || op == "key" || op == "scroll") { string ui = StartOf(Num(r, "ui_pid")); if (ui == "" || ui != Str(r, "ui_start")) throw new Exception("the workbench is not running"); }
       switch (op) {
+        case "process": return new Dictionary<string, object> { { "process_start", StartOf(Num(r, "process")) } };
         case "list": return new Dictionary<string, object> { { "windows", List() } };
         case "info": return Info(new IntPtr(hwnd));
         case "snapshot": return Snapshot(hwnd, (int)Math.Max(1, Num(r, "max_nodes")));
@@ -172,6 +175,17 @@ namespace TroopUia {
           if (Native.GetTokenInformation(token, 20, out value, 4, out ret)) elevated = value != 0;
           Native.CloseHandle(token);
         }
+      } finally { Native.CloseHandle(p); }
+    }
+
+    // '' for a process that is gone, including one that exited while something still holds a handle to it
+    static string StartOf(long pid) {
+      if (pid <= 0 || pid > uint.MaxValue) return "";
+      IntPtr p = Native.OpenProcess(0x1000, false, (uint)pid);
+      if (p == IntPtr.Zero) return "";
+      try {
+        long create, exit, kernel, user;
+        return Native.GetProcessTimes(p, out create, out exit, out kernel, out user) && exit == 0 ? DateTime.FromFileTimeUtc(create).ToString("o") : "";
       } finally { Native.CloseHandle(p); }
     }
 

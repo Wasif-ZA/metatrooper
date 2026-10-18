@@ -16,6 +16,7 @@ export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
 export const OFF = 'computer use is off: the desktop plugin is disabled';
 export const CHUNK = 8;
+const NOT_RUNNING = 'the workbench is not running';
 /** A pause acknowledgement waits this long after the last posted key or click. */
 export const POST_SETTLE_MS = 250;
 const CONTROL_CHANGED = -32035;
@@ -121,6 +122,9 @@ export class Desktop {
   readonly helper = new Helper();
   private db: DatabaseSync;
   private uiPid: number | null = null;
+  /** The workbench process's start time, so a later process reusing its pid is not taken for it ('' when it was not running). */
+  private uiStart = '';
+  private reports = 0;
   /** Why no window can be granted: the workbench's take-over key is not registered, or the workbench that registered it closed. */
   private noTakeover: string | null = 'the workbench has not reported its take-over key';
   private bound = new Set<string>();
@@ -226,14 +230,16 @@ export class Desktop {
     const gate = () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
       if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
-      const unpausable = this.noTakeover ?? (alive(this.uiPid!) ? null : 'the workbench is not running');
+      const unpausable = this.noTakeover ?? (this.uiStart && alive(this.uiPid!) ? null : NOT_RUNNING);
       if (unpausable) throw new RpcError(E.PANE_NOT_OWNED, `not sent: ${unpausable}, so the agent could not be paused${note}`);
       watchId = beginAction(Date.now(), Number(params.pid) || 0, Number(params.hwnd) || 0);
     };
     const posted = op === 'key' || op === 'click';
-    const p = this.helper.request<Record<string, unknown>>(op, params, undefined, gate)
+    // the helper compares the workbench's start time right before it writes, so a reused pid is caught there
+    const p = this.helper.request<Record<string, unknown>>(op, { ...params, ui_pid: this.uiPid, ui_start: this.uiStart }, undefined, gate)
       .then((r) => { if (posted) this.postedAt = Date.now(); return r; }, (e: Error) => {
         if (/^control changed$/.test(e.message)) throw new RpcError(CONTROL_CHANGED, `the control changed since it was checked; nothing was sent${note}`);
+        if (e.message === NOT_RUNNING) throw new RpcError(E.PANE_NOT_OWNED, `not sent: ${NOT_RUNNING}, so the agent could not be paused${note}`);
         if (posted && watchId !== null) this.postedAt = Date.now();
         throw e;
       });
@@ -304,14 +310,17 @@ export class Desktop {
       if (this.helper.running()) this.helper.stop();
       return;
     }
-    if (!this.noTakeover && !alive(this.uiPid!)) {
-      this.noTakeover = 'the workbench that registered the take-over key has closed';
-      for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
-    }
-    const grants = liveGrants(this.db);
-    if (!grants.length) { this.rects.clear(); return; }
     this.ticking = true;
     try {
+      const pid = this.uiPid;
+      // the start time needs the helper, so it is read only while a grant could be driven
+      const gone = !this.noTakeover && (!this.uiStart || !alive(pid!) || (liveGrants(this.db).length > 0 && await this.processStart(pid!, this.uiStart) !== this.uiStart));
+      if (gone && !this.noTakeover && pid === this.uiPid) {
+        this.noTakeover = 'the workbench that registered the take-over key has closed';
+        for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
+      }
+      const grants = liveGrants(this.db);
+      if (!grants.length) { this.rects.clear(); return; }
       for (const g of grants) {
         let w: WindowInfo;
         try { w = await this.info(g.hwnd); } catch { continue; }
@@ -323,15 +332,27 @@ export class Desktop {
     }
   }
 
+  /** A process's start time from the helper, '' when it is not running, `fallback` when the helper fails. */
+  private async processStart(pid: number, fallback: string): Promise<string> {
+    try { return String((await this.helper.request<{ process_start: string }>('process', { process: pid })).process_start ?? ''); }
+    catch { return fallback; }
+  }
+
   methods(m: Map<string, MethodSpec>): void {
-    m.set('desktop.ui-window', { needsUi: true, handler: (p) => {
+    m.set('desktop.ui-window', { needsUi: true, handler: async (p) => {
       if (typeof p.pid !== 'number' || !Number.isInteger(p.pid) || p.pid <= 0) throw new RpcError(E.INVALID_PARAMS, 'pid is required, a positive process id');
-      this.uiPid = p.pid;
       const key = typeof p.takeover_key === 'string' ? p.takeover_key : '';
-      this.noTakeover = key && p.takeover_error === null ? null
+      const noTakeover = key && p.takeover_error === null ? null
         : key && typeof p.takeover_error === 'string' && p.takeover_error ? `the take-over key ${key} did not register (${p.takeover_error})`
         : 'the workbench has not reported its take-over key';
-      if (this.noTakeover) for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
+      const report = ++this.reports;
+      // a failure applies at once; a success waits for the start time and yields to any report made meanwhile
+      const start = noTakeover ? '' : await this.processStart(p.pid, '');
+      if (report !== this.reports) return {};
+      this.uiPid = p.pid;
+      this.uiStart = start;
+      this.noTakeover = noTakeover;
+      if (noTakeover) for (const g of liveGrants(this.db)) endGrant(this.db, g.id);
       return {};
     } });
     m.set('grant.candidates', { needsUi: true, handler: async () => {
