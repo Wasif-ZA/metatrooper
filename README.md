@@ -291,6 +291,14 @@ default:
 { "sessions": { "ask_paths": ["C:/Users/you/notes/work/client"] } }
 ```
 
+The first agent click or keystroke on a new website origin in a browser pane asks you first. Origins you list in
+`browser.allow_origins` never ask for being new (risky actions still ask). A project's `.troop/config.json` cannot
+add to it, since an agent can write that file:
+
+```json
+{ "browser": { "allow_origins": ["https://staging.example.com"] } }
+```
+
 Every session also runs with metarouter on by default: `router/bin` goes first on its `PATH`, so `metarouter` is the
 bundled copy, and Claude sessions are told to send shell commands through it. Turn it off with
 `{ "sessions": { "metarouter": false } }`.
