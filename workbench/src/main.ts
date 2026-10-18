@@ -25,7 +25,7 @@ import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
-import { freshNeeds, watchDb } from './queries.ts';
+import { crashAction, freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -456,7 +456,7 @@ function handlers(): void {
   });
   on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
   on('setTheme', async (name: unknown) => {
-    if (typeof name !== 'string' || !settings().ui.themes[name]) return { error: 'unknown theme' };
+    if (typeof name !== 'string' || !Object.hasOwn(settings().ui.themes, name)) return { error: 'unknown theme' };
     const error = await writeSetting('ui.theme', name);
     return error ? { error } : activeTheme({ ...settings(), ui: { ...settings().ui, theme: name } });
   });
@@ -559,9 +559,16 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => win?.show());
-  win.webContents.once('did-finish-load', push);
+  win.webContents.on('did-finish-load', push);
   win.webContents.on('did-finish-load', () => { loads++; });
-  win.webContents.on('render-process-gone', detachAll);
+  let reloadedAt = -Infinity;
+  win.webContents.on('render-process-gone', (_e, d) => {
+    detachAll();
+    panes?.show(null, null);
+    const act = crashAction(d.reason, reloadedAt, Date.now());
+    if (act === 'reload') { reloadedAt = Date.now(); win?.webContents.reload(); }
+    else if (act === 'stop') dialog.showErrorBox('MetaTrooper', `The window crashed again (${d.reason}). Restart MetaTrooper; the logs folder has details.`);
+  });
   win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));
   win.on('responsive', () => console.error('window responsive again'));

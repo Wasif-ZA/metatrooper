@@ -55,7 +55,14 @@ export function engineFix(e: { id: string; install?: string; login?: string; min
   if (detail === 'too-old') return `Needs ${e.min_version} or newer${e.install ? `: ${e.install}` : ''}`;
   if (detail === 'not-logged-in') return e.login ?? `Log in to ${e.id}`;
   if (detail === 'timeout') return `${e.id} did not answer in 10 s; run it in a terminal, then Check again`;
+  if (detail === 'check-error') return `Checking ${e.id} failed; see the core log, then Check again`;
   return null;
+}
+
+/** The main window's renderer died: reload it, unless it already crashed within a minute of the last reload. */
+export function crashAction(reason: string, reloadedAt: number, now: number): 'reload' | 'stop' | 'none' {
+  if (reason === 'clean-exit') return 'none';
+  return now - reloadedAt < 60_000 ? 'stop' : 'reload';
 }
 
 function parse<T>(text: string | null, fallback: T): T {

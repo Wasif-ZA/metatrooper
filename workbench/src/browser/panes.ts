@@ -86,6 +86,7 @@ interface Pane {
   overlayShownUntil: number;
   picking: ((node: number | null) => void) | null;
   parked: boolean;
+  shownSize?: { width: number; height: number };
   /** Loopback ports the user typed into this pane. */
   typed: Set<number>;
   ready: Promise<void>;
@@ -171,6 +172,8 @@ export class PaneManager {
   private errorPages = new Map<string, string>();
   /** Panes with a pick walk in flight; arrow keys that arrive meanwhile (auto-repeat) are dropped. */
   private walking = new Set<string>();
+  /** Consecutive setup failures per pane row; from the second one on, the next rebuild waits (1 s doubling, 60 s cap). */
+  private failed = new Map<string, { n: number; until: number }>();
 
   constructor(win: BrowserWindow, hooks: Hooks) {
     this.win = win;
@@ -278,7 +281,8 @@ export class PaneManager {
       if (!open.has(id)) this.destroy(id);
       else pane.row = open.get(id) as PaneRow;
     }
-    for (const row of open.values()) if (!this.panes.has(row.id)) this.create(row).catch(() => {});
+    for (const id of this.failed.keys()) if (!open.has(id)) this.failed.delete(id);
+    for (const row of open.values()) if (!this.panes.has(row.id) && Date.now() >= (this.failed.get(row.id)?.until ?? 0)) this.create(row).catch(() => {});
   }
 
   private async create(row: PaneRow): Promise<void> {
@@ -292,8 +296,12 @@ export class PaneManager {
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
     pane.ready = this.setUp(pane);
-    // ponytail: no backoff; a pane that fails every time is rebuilt on each sync
-    await pane.ready.catch((e) => { if (this.panes.get(row.id) === pane) this.destroy(row.id); throw e; });
+    await pane.ready.then(() => { this.failed.delete(row.id); }, (e) => {
+      if (this.panes.get(row.id) === pane) this.destroy(row.id);
+      const n = (this.failed.get(row.id)?.n ?? 0) + 1;
+      this.failed.set(row.id, { n, until: n > 1 ? Date.now() + Math.min(60_000, 1000 * 2 ** (n - 2)) : 0 });
+      throw e;
+    });
   }
 
   private async setUp(pane: Pane): Promise<void> {
@@ -633,20 +641,36 @@ export class PaneManager {
   /** A pane not on screen stays attached as a 1 px view in the window corner with an emulated viewport, so it still lays out, takes input and renders captures. */
   private layout(): void {
     const win = this.win.getContentBounds();
+    const onScreen = (id: string) => id === this.shown && this.bounds !== null && this.bounds.width > 0;
     for (const [id, pane] of this.panes) {
-      const visible = id === this.shown && this.bounds !== null && this.bounds.width > 0;
-      const b = visible ? (this.bounds as { x: number; y: number; width: number; height: number }) : { x: win.width - 1, y: win.height - 1, width: 1, height: 1 };
-      pane.view.setBounds(b);
-      pane.overlay.setBounds(b);
-      void this.applyViewport(pane, !visible);
+      if (onScreen(id)) {
+        const b = this.bounds as { x: number; y: number; width: number; height: number };
+        pane.shownSize = { width: b.width, height: b.height };
+        pane.view.setBounds(b);
+        pane.overlay.setBounds(b);
+        void this.applyViewport(pane, false);
+        continue;
+      }
+      // the override lands before the shrink, so the page never sees a 1 px viewport
+      void this.applyViewport(pane, true).finally(() => {
+        if (this.panes.get(id) !== pane || onScreen(id)) return;
+        const b = { x: win.width - 1, y: win.height - 1, width: 1, height: 1 };
+        pane.view.setBounds(b);
+        pane.overlay.setBounds(b);
+      });
     }
+  }
+
+  /** The viewport a parked pane emulates: the size it was last shown at, else PARKED_VIEWPORT. */
+  private parkedMetrics(pane: Pane) {
+    return pane.shownSize ? { ...pane.shownSize, deviceScaleFactor: 0, mobile: false } : { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false };
   }
 
   private async applyViewport(pane: Pane, parked: boolean): Promise<void> {
     if (parked === pane.parked) return;
     pane.parked = parked;
     try {
-      if (parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
+      if (parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', this.parkedMetrics(pane));
       else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
     } catch {
       pane.parked = !parked; // the next layout() retries
@@ -1158,7 +1182,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'scroll': {
         if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref).backendNodeId });
         else {
-          const [w, h] = pane.parked ? [PARKED_VIEWPORT.width, PARKED_VIEWPORT.height] : [pane.view.getBounds().width, pane.view.getBounds().height];
+          const { width: w, height: h } = pane.parked ? this.parkedMetrics(pane) : pane.view.getBounds();
           await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
           await sleep(150);
         }
@@ -1256,7 +1280,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       failed.push(e);
     } finally {
       try {
-        if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', { ...PARKED_VIEWPORT, deviceScaleFactor: 1, mobile: false });
+        if (pane.parked) await this.cmd(pane, 'Emulation.setDeviceMetricsOverride', this.parkedMetrics(pane));
         else await this.cmd(pane, 'Emulation.clearDeviceMetricsOverride');
       } catch (e) {
         failed.push(e);

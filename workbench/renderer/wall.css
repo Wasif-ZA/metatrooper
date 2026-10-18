@@ -181,7 +181,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .ph .meta { color: var(--faint); font-size: 11px; display: inline-flex; gap: 8px; align-items: center; font-family: var(--mono); }
 .ph .tile-watch { color: var(--wait); font-size: 11px; font-family: var(--mono); white-space: nowrap; }
 @container (max-width: 300px) { .ph .meta { display: none; } }
-@container (max-width: 340px) { .ph :is(.spk, .eq) { display: none; } }
+@container (max-width: 340px) { .ph :is(.spk, .eq, .tile-previews) { display: none; } }
 @container (max-width: 280px) { .ph :is(.eng, .pb) { display: none; } }
 .ad { color: var(--add); } .dl { color: var(--del); }
 .badge { height: 20px; display: inline-flex; align-items: center; padding: 0 7px; border-radius: 1px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; border: 1px dotted currentColor; }

@@ -278,8 +278,9 @@ function renderCompare(pane) {
     </div>`).join('')}`;
 }
 
+const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
 function reportPaneBounds() {
-  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' ? document.getElementById('pane-host') : null;
+  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && (ui.picking || !document.querySelector(PANE_OVERLAYS)) ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
   const key = r ? `${ui.paneId}:${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}` : 'none';
   if (key === ui.lastBounds) return;
@@ -292,7 +293,7 @@ async function startComment() {
   toast('Click the element you want to comment on.');
   const pick = { pane: ui.paneId };
   ui.picking = pick;
-  try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) ui.picking = null; }
+  try { await api.panePick(pick.pane); } finally { if (ui.picking === pick) { ui.picking = null; reportPaneBounds(); } }
 }
 
 
@@ -1766,6 +1767,8 @@ document.addEventListener('keyup', (e) => {
   }
 });
 window.addEventListener('resize', reportPaneBounds);
+const overlayWatch = new MutationObserver(reportPaneBounds);
+for (const id of ['toasts', 'palette', 'inbox', 'sinks', 'menu', 'usage', 'sheet']) overlayWatch.observe(document.getElementById(id), { attributes: true, attributeFilter: ['hidden', 'class'], childList: id === 'toasts' });
 api.onCommentPicked((info) => {
   ui.comment = info;
   ui.tab = 'browser';
