@@ -966,6 +966,12 @@ function closePopovers() {
   return closed;
 }
 
+/** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
+function overlayOpen() {
+  return ['inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || document.getElementById('usage').classList.contains('open')
+    || wall.sheetOpen() || wall.listOpen() || Boolean(ui.split);
+}
+
 async function runPalette(i, enter = false) {
   const item = (ui.paletteItems || [])[i];
   if (item && item.stay) { item.run(); return; }
@@ -1743,14 +1749,17 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && closePopovers()) { e.preventDefault(); return; }
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
-  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === 'Escape') {
+  const active = document.activeElement;
+  const inTerm = Boolean(active && active.classList && active.classList.contains('xterm-helper-textarea'));
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(active && active.tagName);
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape' && (!typing || inTerm)) {
     if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
     else if (ui.split) { ui.split = false; render(); }
     return;
   }
+  if (typing) return;
   if (ui.tab !== 'browser' || !ui.split) return;
   if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
   if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {

@@ -97,6 +97,7 @@ const termView = (() => {
         e.preventDefault();
         return false;
       }
+      if (e.type === 'keydown' && e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey && typeof overlayOpen === 'function' && overlayOpen()) return false;
       if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
       const k = e.key.toLowerCase();
       if (!e.shiftKey && (k === 'k' || k === 'g' || k === 'b')) return false;
