@@ -206,3 +206,26 @@ test('UI-04 an approval for another project names the project and agent and jump
   await gone.snap(snapOf([], { approvals: [{ id: 'ap1', session_id: 's_raw', summary: 'x', reason: 'y', created_at: at() }] }));
   assert.ok(!gone.el('gates').innerHTML.includes('s_raw'), 'no raw session id');
 });
+
+test('UI-10 cut-off text carries its full text in a title: Inbox rows, palette labels, git and diff paths, footer task, list meta', async () => {
+  const long = 'x'.repeat(150);
+  const path = `src/${'deep/'.repeat(20)}file.ts`;
+  const w = boot();
+  w.el('inbox').hidden = false;
+  const a = session('a', 'waiting_for_you', { title: long, last_line: 'Allow edit?' });
+  await w.snap(snapOf([a], { needs_you: [{ id: 'n1', kind: 'failed', text: long, at: at() }] }));
+  const inbox = w.el('inbox-list').innerHTML;
+  assert.ok(inbox.includes(`title="claude ${long} is asking you`), 'ask row');
+  assert.ok(inbox.includes(`title="${long}`), 'needs-you row');
+  assert.ok(w.el('list').innerHTML.includes(`<span class="m" title="claude`), 'list meta');
+  assert.equal(w.el('strip-info').title, `claude \u00b7 ${long} \u00b7 0 working`);
+  await w.key('k', { ctrlKey: true });
+  assert.ok(w.el('palette-list').innerHTML.includes(`<span class="lab" title="claude ${long}">`), 'palette label');
+
+  w.t.ui.tab = 'git';
+  w.t.ui.split = true;
+  w.t.ui.git = { project: 'p1', at: 1_000_000, branch: 'main', changes: [{ code: 'M', path, added: 1, deleted: 0 }], staged: [], log: '', ahead: 0, behind: 0 };
+  w.t.render();
+  assert.ok(w.el('view').innerHTML.includes(`data-action="git-file" data-file="${path}" title="${path}"`), 'git path');
+  assert.match(src('app.js'), /data-action="diff-open" data-id="\$\{esc\(f\.who\.id\)\}" data-file="\$\{esc\(f\.path\)\}" title="\$\{esc\(f\.path\)\}"/);
+});

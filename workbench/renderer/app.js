@@ -368,7 +368,7 @@ function renderGit() {
   if (!g) return '<div class="panel"><p class="empty">Loading.</p></div>';
   if (g.error) return `<div class="panel"><p class="empty">No git here: ${esc(g.error)}</p></div>`;
   const busy = ui.gitBusy && ui.gitBusy !== 'view' ? 'disabled' : '';
-  const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
+  const row = (f, staged) => `<div class="git-row"><button class="link grow ${ui.hbFile === f.path ? 'on' : ''}" data-action="git-file" data-file="${esc(f.path)}" title="${esc(f.path)}" data-staged="${staged ? 1 : ''}"><b>${esc(f.code)}</b> ${esc(f.path)}</button>
     <span class="meta">${f.added === null ? '' : `+${f.added} -${f.deleted}`}</span>
     <button class="btn sm" data-action="${staged ? 'git-unstage' : 'git-stage'}" data-file="${esc(f.path)}" ${busy}>${staged ? 'Unstage' : 'Stage'}</button></div>`;
   const n = g.staged.length;
@@ -563,7 +563,7 @@ function rowHtml(x, sel) {
   const m = [x.engine_id, STATE_WORDS[x.state] || x.state, g && g.branch ? `${g.branch} +${g.added} -${g.deleted}` : '', x.last_line || ''].filter(Boolean).join(' · ');
   return `<div class="li srow${sel ? ' sel' : ''}" data-action="pick" data-id="${esc(x.id)}" data-drop-session="${esc(x.id)}" title="${esc(taskOf(x))}&#10;Click: big slot. Shift+click: pair. Drop files to send their paths.">
     <span class="dot ${esc(x.state)}${unseen(x) ? ' unseen' : ''}"></span><span class="t">${esc(taskOf(x))}</span><span class="a"><span data-short="${esc(x.state_at)}">${esc(short(x.state_at))}</span>${LIVE_STATES.includes(x.state) ? '' : `<button class="link hide" data-action="hide" data-id="${esc(x.id)}" title="Hide this session" aria-label="Hide this session">x</button>`}</span>
-    <span class="m">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
+    <span class="m" title="${esc(m)}">${esc(m)}</span>${x.state === 'exited' ? `<span class="m">${resumeButton(x)}</span>` : ''}</div>`;
 }
 
 function limitGroups() {
@@ -705,7 +705,7 @@ function renderAllChanges(sel) {
     const d = ui.allDiff[x.id] && ui.allDiff[x.id].data;
     return d && d.files ? d.files.map((f) => ({ ...f, who: x })) : [];
   });
-  const rows = files.map((f) => `<div class="git-row"><button class="link grow" data-action="diff-open" data-id="${esc(f.who.id)}" data-file="${esc(f.path)}">${esc(f.path)}</button><span class="meta">${esc(f.who.engine_id)}</span><span class="meta">+${f.added ?? '?'} -${f.deleted ?? '?'}</span></div>`).join('');
+  const rows = files.map((f) => `<div class="git-row"><button class="link grow" data-action="diff-open" data-id="${esc(f.who.id)}" data-file="${esc(f.path)}" title="${esc(f.path)}">${esc(f.path)}</button><span class="meta">${esc(f.who.engine_id)}</span><span class="meta">+${f.added ?? '?'} -${f.deleted ?? '?'}</span></div>`).join('');
   return `${chips}${rows || (agents.length ? '<p class="empty">Loading.</p>' : '<p class="empty">No agent has changed anything yet. Your own changes are in the Git tab.</p>')}`;
 }
 
@@ -738,7 +738,9 @@ function renderStrip(sel) {
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
   setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox" title="${NEEDS_COUNTS}"><span class="dot waiting_for_you"></span>${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">Inbox</span>');
-  setHtml('strip-info', sel ? `${esc(sel.engine_id)} · ${esc(sel.task || taskOf(sel))} · ${working} working` : `${working} working`);
+  const info = sel ? `${sel.engine_id} · ${sel.task || taskOf(sel)} · ${working} working` : `${working} working`;
+  setHtml('strip-info', esc(info));
+  document.getElementById('strip-info').title = info;
   document.getElementById('diffN').textContent = n ? ` ${n}` : '';
   for (const b of document.querySelectorAll('#strip [data-action="tab"]')) b.classList.toggle('on', ui.split && ui.tab === b.dataset.tab);
 }
@@ -751,9 +753,9 @@ function renderInbox() {
   const away = (x) => (x.project_id === ui.projectId ? '' : `${(s.projects.find((p) => p.id === x.project_id) || {}).name || 'other project'}: `);
   const rows = s.needs_you.map((n) => `<div class="item${n.read_at ? ' read' : ''}" data-action="inbox-open" data-id="${esc(n.id)}">
       <span class="dot ${n.kind === 'done' ? 'done unseen' : n.kind === 'failed' ? 'failed' : 'waiting_for_you'}"></span>
-      <span class="grow">${esc(n.text)}<span class="meta"> · ${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></span></span>
+      <span class="grow" title="${esc(`${n.text} · ${n.kind}`)}">${esc(n.text)}<span class="meta"> · ${esc(n.kind)} · <span data-ago="${esc(n.at)}">${esc(ago(n.at))}</span></span></span>
       ${n.kind === 'uncommitted' ? `<button class="link" data-action="inbox-open" data-id="${esc(n.id)}">Open Git tab</button>` : ''}<button class="link" data-action="${n.read_at ? 'inbox-unread' : 'inbox-read'}" data-id="${esc(n.id)}">${n.read_at ? 'Mark unread' : 'Mark read'}</button></div>`).join('');
-  const asks = waiting.map((x) => `<div class="item" data-action="pick" data-id="${esc(x.id)}"><span class="dot waiting_for_you"></span><span class="grow">${esc(away(x))}${esc(x.engine_id)} ${esc(taskOf(x))} is asking you<span class="meta"> · ${esc(x.last_line || '')}</span></span></div>`).join('');
+  const asks = waiting.map((x) => `<div class="item" data-action="pick" data-id="${esc(x.id)}"><span class="dot waiting_for_you"></span><span class="grow" title="${esc(`${away(x)}${x.engine_id} ${taskOf(x)} is asking you${x.last_line ? ` · ${x.last_line}` : ''}`)}">${esc(away(x))}${esc(x.engine_id)} ${esc(taskOf(x))} is asking you<span class="meta"> · ${esc(x.last_line || '')}</span></span></div>`).join('');
   setHtml('inbox-list', asks + rows || '<p class="empty" style="padding:6px 14px">Nothing here.</p>');
 }
 
@@ -892,7 +894,7 @@ function renderPalette() {
   document.getElementById('palette-list').innerHTML = all.map((x, i) => {
     const head = x.group !== last ? `<div class="rg">${esc(x.group)}</div>` : '';
     last = x.group;
-    return `${head}<button class="ri${i === ui.paletteAt ? ' cur' : ''}" data-palette="${i}"><span class="ic">${ICONS[x.group] || CMD_ICON}</span><span class="lab">${hl(x.label)}</span>${x.meta ? `<span class="sub">${esc(x.meta)}</span>` : ''}</button>`;
+    return `${head}<button class="ri${i === ui.paletteAt ? ' cur' : ''}" data-palette="${i}"><span class="ic">${ICONS[x.group] || CMD_ICON}</span><span class="lab" title="${esc(x.label)}">${hl(x.label)}</span>${x.meta ? `<span class="sub">${esc(x.meta)}</span>` : ''}</button>`;
   }).join('') || '<div class="rg">No matches</div>';
   const cur = document.querySelector('#palette-list .ri.cur');
   if (cur) cur.scrollIntoView({ block: 'nearest' });
