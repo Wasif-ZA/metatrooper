@@ -289,3 +289,16 @@ test('UI-22 the start screen folder line shows a short path: ~ for home, an elli
   assert.deepEqual(await folder('/srv/projects/app')(), ['/srv/projects/app', '/srv/projects/app']);
   assert.match(readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8'), /firstRun: [^\n]*, home: app\.getPath\('home'\)/);
 });
+
+test('h-d-uimaps a closed pane drops its state and permission asks; another pane keeps its own', async () => {
+  const w = boot();
+  await w.snap(snapOf([], { panes: [{ id: 'bp1', url: 'https://a.example/' }, { id: 'bp2', url: 'https://b.example/' }] }));
+  for (const id of ['bp1', 'bp2']) {
+    await w.handlers.onPaneEvent({ kind: 'state', pane_id: id, url: `https://${id}.example/`, title: id });
+    await w.handlers.onPaneEvent({ kind: 'permission', pane_id: id, id: `perm-${id}`, origin: 'https://x.example', permission: 'geolocation' });
+  }
+  await w.handlers.onPaneEvent({ kind: 'closed', pane_id: 'bp1' });
+  assert.deepEqual(Object.keys(w.t.ui.paneState), ['bp2']);
+  assert.deepEqual(Array.from(w.t.ui.perms, (x: any) => x.id), ['perm-bp2']);
+  assert.match(readFileSync(new URL('../src/browser/panes.ts', import.meta.url), 'utf8'), /private destroy\(id: string\): void \{[^}]*this\.hooks\.paneEvent\(\{ kind: 'closed', pane_id: id \}\)/);
+});
