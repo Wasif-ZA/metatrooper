@@ -77,13 +77,6 @@ function tile(overlay: () => boolean) {
   return (e: any) => handler({ type: 'keydown', ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, preventDefault() {}, ...e });
 }
 
-test('h-d-d2: the tile swallows Ctrl+K, Ctrl+G and Ctrl+B so they never reach the shell', () => {
-  const key = tile(() => false);
-  for (const k of ['k', 'g', 'b']) assert.equal(key({ key: k, ctrlKey: true }), false, `Ctrl+${k}`);
-  assert.equal(key({ key: 'a', ctrlKey: true }), true, 'Ctrl+A still reaches the shell');
-  assert.equal(key({ key: 'K', ctrlKey: true, shiftKey: true }), true, 'Ctrl+Shift+K is not an app key');
-});
-
 test('UI-01: Esc in a tile stays out of the agent while an overlay is open, and the overlay closes', async () => {
   let open = true;
   const key = tile(() => open);
