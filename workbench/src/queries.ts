@@ -226,11 +226,11 @@ export function dataVersion(db: DatabaseSync): number {
   return Number((db.prepare('PRAGMA data_version').get() as { data_version: number }).data_version);
 }
 
-export type LiveText = Record<string, { line?: string; title?: string }>;
+export type LiveText = Record<string, { line?: string; title?: string; held?: boolean }>;
 
 /** Fills each session's last_line and title from the core's in-memory live text (session.live-text); the database never holds them. */
 export function withLiveText(s: Snapshot, live: LiveText): Snapshot {
-  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null });
+  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null, held: Boolean(live[x.id]?.held) });
   return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill) };
 }
 

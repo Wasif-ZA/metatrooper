@@ -10,7 +10,7 @@ import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
-import { launchSession, writePrompt } from './sessions/launch.ts';
+import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { beingRemoved } from './worktree.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
@@ -315,7 +315,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   };
 
   m.set('session.seen', { handler: (p) => { markSeen(str(p, 'session_id')); return {}; } });
-  m.set('session.live-text', { handler: () => liveText() });
+  m.set('session.live-text', {
+    handler: () => {
+      const out: Record<string, { line?: string; title?: string; held?: boolean }> = liveText();
+      for (const id of heldPrompts()) out[id] = { ...out[id], held: true };
+      return out;
+    },
+  });
   m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50, Array.isArray(p.session_ids) ? new Set(p.session_ids.filter((x): x is string => typeof x === 'string')) : undefined) }) });
 
   m.set('session.focus', {

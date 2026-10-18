@@ -302,3 +302,21 @@ test('h-d-uimaps a closed pane drops its state and permission asks; another pane
   assert.deepEqual(Array.from(w.t.ui.perms, (x: any) => x.id), ['perm-bp2']);
   assert.match(readFileSync(new URL('../src/browser/panes.ts', import.meta.url), 'utf8'), /private destroy\(id: string\): void \{[^}]*this\.hooks\.paneEvent\(\{ kind: 'closed', pane_id: id \}\)/);
 });
+
+test('UI-12 Paste the held prompt shows only for an agent whose prompt the core still holds', async () => {
+  const { withLiveText } = await import('../src/queries.ts');
+  const filled = withLiveText({ sessions: [{ id: 'a', title: null, last_line: null }, { id: 'b', title: null, last_line: null }], live: [] } as any, { a: { held: true }, b: { line: 'x' } });
+  assert.deepEqual(filled.sessions.map((x: any) => x.held), [true, false]);
+
+  const paste = async (row: any, shell = false) => {
+    const w = boot();
+    if (shell) w.t.ui.shells.push({ id: 'sh_1', label: 'pwsh', cwd: '/p', project_id: 'p1', kind: 'pwsh' });
+    w.t.ui.shellSel = shell ? 'sh_1' : null;
+    await w.snap(snapOf([row], { selected: row.id }));
+    return Array.from(w.t.paletteItems() as Array<{ label: string }>).some((x) => x.label === 'Paste the held prompt into this terminal');
+  };
+  assert.equal(await paste(session('a', 'idle', { held: true })), true);
+  assert.equal(await paste(session('a', 'idle', { held: false })), false);
+  assert.equal(await paste(session('a', 'idle', { held: true }), true), false, 'a selected shell never offers it');
+  assert.match(readFileSync(new URL('../../core/src/methods.ts', import.meta.url), 'utf8'), /for \(const id of heldPrompts\(\)\) out\[id\] = \{ \.\.\.out\[id\], held: true \};/);
+});

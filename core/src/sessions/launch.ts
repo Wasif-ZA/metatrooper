@@ -141,6 +141,6 @@ export function deliverPrompts(db: DatabaseSync): void {
   }
 }
 
-export function promptHeld(sessionId: string): boolean {
-  return pendingPrompts.has(sessionId);
+export function heldPrompts(): string[] {
+  return [...pendingPrompts.keys()];
 }
