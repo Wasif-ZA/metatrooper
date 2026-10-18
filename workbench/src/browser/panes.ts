@@ -1159,7 +1159,20 @@ ame, after checking the ref's field is a password field on the origin saved with
           }
           if (text) {
             const chars = Array.from(text);
-            for (let i = 0; i < chars.length; i += TYPE_CHUNK) await this.input(pane, a, 'Input.insertText', { text: chars.slice(i, i + TYPE_CHUNK).join('') });
+            const originOf = () => { try { return new URL(this.pageUrl(pane)).origin; } catch { return ''; } };
+            const [navs, origin] = [pane.navs, originOf()];
+            for (let i = 0; i < chars.length; i += TYPE_CHUNK) {
+              // a page handler can move focus, swap the field or navigate between pieces; the next piece would follow it
+              try {
+                if (pane.navs !== navs || originOf() !== origin) throw new ToolError(-32037, 'the page navigated; nothing was typed');
+                await this.focusOn(pane, node, a.ref);
+                if (secret && (await this.secretValue(pane, secret, a.ref)) !== text) throw new ToolError(-32037, `secret ${secret} was saved again while it was being typed; nothing was typed`);
+              } catch (e) {
+                if (i > 0 && e instanceof ToolError) e.message = e.message.replace(/nothing was typed$/, secret ? 'the rest of the secret was not typed' : `${i} of ${chars.length} characters were typed, the rest were not`);
+                throw e;
+              }
+              await this.input(pane, a, 'Input.insertText', { text: chars.slice(i, i + TYPE_CHUNK).join('') });
+            }
           } else {
             for (const type of ['keyDown', 'keyUp']) await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }

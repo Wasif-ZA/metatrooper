@@ -51,8 +51,11 @@ async function fixture() {
   manager.target = async () => ({ node: { backendNodeId: 1, frameId: 'frame-1' }, x: 10, y: 20 });
   manager.node = () => ({ backendNodeId: 1, frameId: 'frame-1' });
   manager.pointAt = async () => {};
+  const focus = { backendNodeId: 1 };
   manager.cmd = async (_pane: any, method: string, params: any = {}) => {
     sent.push({ method, params });
+    if (method === 'Runtime.evaluate' && String(params.expression).includes('document.activeElement')) return { result: { objectId: 'focused-1' } };
+    if (method === 'DOM.describeNode' && params.objectId === 'focused-1') return { node: { ...focus, frameId: 'frame-1' } };
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'frame-1' } } };
     if (method === 'Page.createIsolatedWorld') return { executionContextId: 7 };
     if (method === 'DOM.resolveNode') return { object: { objectId: 'object-1' } };
@@ -75,7 +78,7 @@ async function fixture() {
     };
     return hold;
   };
-  return { manager, pane, args, sent, pause, stopAt, close: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { manager, pane, args, sent, pause, stopAt, focus, close: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 async function pausedDuring(f: Awaited<ReturnType<typeof fixture>>, hold: ReturnType<typeof gate>, work: Promise<unknown>) {
@@ -126,6 +129,30 @@ test('M6-15 hardening unpaused type focuses, selects, inserts and submits', asyn
     assert.equal(f.sent.filter((c) => c.method === 'DOM.focus').length, 1);
     assert.deepEqual(keyEvents(f.sent), [['a', 'keyDown'], ['a', 'keyUp'], ['Enter', 'keyDown'], ['Enter', 'keyUp']]);
     assert.deepEqual(f.sent.filter((c) => c.method === 'Input.insertText').map((c) => c.params.text), ['hello']);
+  } finally { f.close(); }
+});
+
+for (const change of ['focus', 'navigate'] as const) test('M6-15 hardening type stops before the next 8-character piece when the page ' + (change === 'focus' ? 'moves focus to another field' : 'navigates') + ' after the first', async () => {
+  const f = await fixture();
+  try {
+    const cmd = f.manager.cmd;
+    f.manager.cmd = async (p: any, method: string, params: any = {}) => {
+      const r = await cmd(p, method, params);
+      if (method === 'Input.insertText') { if (change === 'focus') f.focus.backendNodeId = 2; else f.pane.navs++; }
+      return r;
+    };
+    await assert.rejects(f.manager.run(f.pane, 'type', { ...f.args, text: 'abcdefghijklmnopq', submit: true }), { code: -32037, message: change === 'focus' ? 'focus moved off the field; 8 of 17 characters were typed, the rest were not' : 'the page navigated; 8 of 17 characters were typed, the rest were not' });
+    assert.deepEqual(f.sent.filter((c) => c.method === 'Input.insertText').map((c) => c.params.text), ['abcdefgh']);
+    assert.equal(keyEvents(f.sent).filter(([k]) => k === 'Enter').length, 0);
+  } finally { f.close(); }
+});
+
+test('M6-15 hardening type checks focus before the first piece too', async () => {
+  const f = await fixture();
+  try {
+    f.focus.backendNodeId = 2;
+    await assert.rejects(f.manager.run(f.pane, 'type', { ...f.args, text: 'hello' }), { code: -32037, message: 'focus moved off the field; nothing was typed' });
+    assert.equal(f.sent.filter((c) => c.method === 'Input.insertText').length, 0);
   } finally { f.close(); }
 });
 

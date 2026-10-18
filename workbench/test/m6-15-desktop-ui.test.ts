@@ -248,6 +248,7 @@ for (const pauseAt of [2, 0]) test('M6-15 browser type inserts 8 characters at a
     const typed: string[] = [];
     manager.answer = async (_pane: any, _session: string, action: () => Promise<unknown>) => action();
     manager.target = async () => ({ node: { backendNodeId: 1 }, x: 10, y: 20 });
+    manager.focusOn = async () => {};
     manager.pointAt = async () => {};
     manager.cmd = async (_pane: any, method: string, params: any) => {
       if (method === 'Input.insertText' && typed.push(params.text) === pauseAt) pause(d, new Date().toISOString());
@@ -268,6 +269,7 @@ for (const after of ['click', 'insertText'] as const) {
       const sent: Array<{ method: string; params: any }> = [];
       manager.answer = async (_pane: any, _session: string, action: () => Promise<unknown>) => action();
       manager.target = async () => ({ node: { backendNodeId: 1 }, x: 10, y: 20 });
+      manager.focusOn = async () => {};
       manager.pointAt = async () => {};
       manager.cmd = async (_pane: any, method: string, params: any) => {
         sent.push({ method, params });
