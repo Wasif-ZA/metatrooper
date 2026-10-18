@@ -312,7 +312,7 @@ function renderHandback() {
   const byName = h.files.filter((f) => f.kind !== 'text').map((f) => `<li>${esc(f.path)} <span class="meta">${esc(f.kind)}</span></li>`).join('');
   const texts = h.files.filter((f) => f.kind === 'text').map((f) => `<button class="chip ${ui.hbFile === f.path ? 'on' : ''}" data-action="hb-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added} -${f.deleted}</span></button>`).join('');
   return `<div class="panel">${bar}
-    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged.</p>'}
+    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. MetaTrooper never commits; it gives you the command to run yourself.</p>'}
     ${texts ? `<h3>Comment on a line</h3><div class="toolbar">${texts}</div>${renderDiff()}` : ''}
     ${byName ? `<h3>Binary and submodules</h3><ul>${byName}</ul>` : ''}
     ${h.untracked.length ? `<h3>Untracked (never staged here)</h3><ul>${h.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -374,7 +374,7 @@ function renderGit() {
   const n = g.staged.length;
   const history = (g.log || '').split('\n').filter(Boolean).map((l) => { const [subject, when] = l.split('\t'); return `<div class="git-hist"><span class="grow">${esc(subject)}</span><span class="meta">${esc(when || '')}</span></div>`; }).join('');
   return `<div class="panel">
-    <div class="git-sync"><div class="toolbar"><h3 style="margin:0" class="grow">${esc(g.branch)}</h3><span class="meta">${g.ahead || g.behind ? 'origin' : 'up to date with origin'}</span></div>
+    <div class="git-sync"><div class="toolbar"><h3 style="margin:0" class="grow">${esc(g.branch)}</h3><span class="meta">${g.ahead || g.behind ? `${[g.ahead && `${g.ahead} ahead`, g.behind && `${g.behind} behind`].filter(Boolean).join(', ')} origin` : 'up to date with origin'}</span></div>
       <div class="actions"><button class="btn${g.ahead ? ' acc' : ''}" data-action="git-push" ${busy || (g.ahead ? '' : 'disabled')}>${ui.gitBusy === 'push' ? 'Pushing' : `Push${g.ahead ? ` ${g.ahead} commit${g.ahead === 1 ? '' : 's'}` : ''}`}</button>
         <button class="btn" data-action="git-pull" ${busy || (g.behind ? '' : 'disabled')} title="Bring in commits from origin">${ui.gitBusy === 'pull' ? 'Pulling' : `Pull${g.behind ? ` ${g.behind} commit${g.behind === 1 ? '' : 's'}` : ''}`}</button></div></div>
     <div class="toolbar"><h3 style="margin:0" class="grow">Changes (${g.changes.length})</h3>${g.changes.length ? `<button class="btn sm" data-action="git-stage" data-file="" ${busy}>Stage all</button>` : ''}</div>
@@ -838,7 +838,7 @@ function paletteItems() {
   const s = ui.snap;
   if (!s) return [];
   const items = [];
-  for (const x of s.sessions) items.push({ group: 'Agents', label: `${x.engine_id} ${taskOf(x)}`, meta: STATE_WORDS[x.state] || x.state, run: () => pick(x.id) });
+  for (const x of s.sessions.filter((y) => !ui.pendingHide.has(y.id))) items.push({ group: 'Agents', label: `${x.engine_id} ${taskOf(x)}`, meta: STATE_WORDS[x.state] || x.state, run: () => pick(x.id) });
   if (project()) for (const e of s.engines) if (e.light !== 'red') items.push({ group: 'Start', label: `New ${e.id} agent`, run: async () => { const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: e.id }); if (r.result) await pick(r.result.session_id); } });
   const sel = selectedSession();
   if (sel && !sel.shell && sel.engine_id === 'claude' && sel.host !== 'external') items.push({ group: 'Actions', label: sel.limit_resume === 0 ? 'At a usage limit reset: go on in this session' : 'At a usage limit reset: wait in this session', run: () => rpc('session.limit-resume', { session_id: sel.id, on: sel.limit_resume === 0 }) });
