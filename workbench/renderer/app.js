@@ -280,7 +280,7 @@ function renderCompare(pane) {
 
 const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
 function reportPaneBounds() {
-  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && !document.querySelector(PANE_OVERLAYS) ? document.getElementById('pane-host') : null;
+  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && (ui.picking || !document.querySelector(PANE_OVERLAYS)) ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
   const key = r ? `${ui.paneId}:${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}` : 'none';
   if (key === ui.lastBounds) return;

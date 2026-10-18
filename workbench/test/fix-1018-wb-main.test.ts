@@ -43,4 +43,9 @@ test('UI-02: the native browser pane hides while a toast, sheet, palette, Inbox,
     report();
   }
   assert.deepEqual(shown, ['bp_1', ...Array(7).fill([null, 'bp_1']).flat()]);
+  open = '#toasts';
+  Object.assign(ui, { picking: { pane: 'bp_1' }, lastBounds: null });
+  shown.length = 0;
+  report();
+  assert.deepEqual(shown, ['bp_1'], 'the pick hint toast leaves the pane clickable');
 });
