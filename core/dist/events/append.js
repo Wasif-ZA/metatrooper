@@ -21,17 +21,18 @@ export function openWriterDb(busyMs = 200)                      {
   return db;
 }
 
-export function appendEvent(kind        , sessionId               , payload        , db               , busyMs = 200)                      {
+/** `at` is when the event happened; a hook passes the time it started, before any wait for the database lock (D16). */
+export function appendEvent(kind        , sessionId               , payload        , db               , busyMs = 200, at = nowIso())                      {
   const spool = process.env.METATROOPER_SPOOL;
   if (spool && !db) {
-    fs.appendFileSync(path.join(spool, 'events.ndjson'), JSON.stringify({ kind, at: nowIso(), payload }) + '\n');
+    fs.appendFileSync(path.join(spool, 'events.ndjson'), JSON.stringify({ kind, at, payload }) + '\n');
     return null;
   }
   const conn = db ?? openWriterDb(busyMs);
   if (!conn) return null;
   conn
     .prepare('INSERT INTO event (at, source, session_id, kind, payload) VALUES (?, ?, ?, ?, ?)')
-    .run(nowIso(), sourceOf(kind), sessionId, kind, JSON.stringify(payload));
+    .run(at, sourceOf(kind), sessionId, kind, JSON.stringify(payload));
   return conn;
 }
 
