@@ -8,6 +8,8 @@ import { openCoreDb } from '../src/store/db.ts';
 import { call, enqueue } from '../src/pipe/client.ts';
 import { corePipe, dbFile } from '../src/paths.ts';
 import { createDecoder, encode } from '../src/pipe/framing.ts';
+import { logOnce } from '../src/log.ts';
+import { startPipeServer } from '../src/pipe/server.ts';
 import { isolation, withEnv } from './helpers.ts';
 
 function home(t): { home: string; env: Record<string, string> } {
@@ -50,4 +52,38 @@ test('h-rv-waitms a slow ui.hello does not eat into the wait for the reply', asy
   } finally {
     for (const k of Object.keys(env)) if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
   }
+});
+
+test('h-a-d2 logOnce writes each distinct timer error once', (t) => {
+  const lines: string[] = [];
+  t.mock.method(console, 'error', (s: string) => { lines.push(s); });
+  logOnce('core timer failed: fixture a');
+  logOnce('core timer failed: fixture a');
+  logOnce('core timer failed: fixture b');
+  assert.deepEqual(lines, ['core timer failed: fixture a', 'core timer failed: fixture b']);
+});
+
+test('h-a-d3 lines after a too-long line on the same socket never run', async (t) => {
+  // a TCP port, since a Windows named pipe has no half-close and hides the bug
+  const probe = net.createServer();
+  await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
+  const pipe = String((probe.address() as net.AddressInfo).port);
+  await new Promise<void>((r) => probe.close(() => r()));
+  const ran: string[] = [];
+  const runner = { call: async (req: { method: string }) => { ran.push(req.method); return {}; } };
+  const server = await startPipeServer(pipe, Promise.resolve({ runner: runner as never, uiKey: 'k' }));
+  t.after(() => server.close());
+  const socket = net.connect({ port: Number(pipe), host: '127.0.0.1', allowHalfOpen: true });
+  t.after(() => socket.destroy());
+  const replies: unknown[] = [];
+  socket.on('data', createDecoder((m) => replies.push(m)));
+  socket.on('error', () => {});
+  await new Promise((r) => socket.once('connect', r));
+  socket.write(JSON.stringify({ jsonrpc: '2.0', id: 'a', method: 'before.ok' }) + '\n');
+  socket.write(' '.repeat(1024 * 1024 + 10) + '\n');
+  await new Promise((r) => setTimeout(r, 100));
+  socket.write(JSON.stringify({ jsonrpc: '2.0', id: 'b', method: 'after.never' }) + '\n');
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepEqual(ran, ['before.ok']);
+  assert.ok(replies.some((m) => (m as { error?: { code: number } }).error?.code === -32600));
 });

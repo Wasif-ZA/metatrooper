@@ -1,4 +1,5 @@
 import './log-core.ts';
+import { logOnce } from './log.ts';
 import type { Server } from 'node:net';
 import { openCoreDb } from './store/db.ts';
 import { corePipe, termPipe } from './paths.ts';
@@ -108,12 +109,13 @@ async function main(): Promise<void> {
   ready({ runner: commands, uiKey });
   termServer = await startTermServer(termPipe(), uiKey);
 
+  const tickFailed = (e: unknown) => logOnce(`core timer failed: ${e instanceof Error ? e.message : String(e)}`);
   const every = (ms: number, fn: () => unknown) => {
     const t = setInterval(() => {
       try {
         const r = fn();
-        if (r instanceof Promise) r.catch(() => {});
-      } catch {}
+        if (r instanceof Promise) r.catch(tickFailed);
+      } catch (e) { tickFailed(e); }
     }, ms);
     timers.push(t);
   };
