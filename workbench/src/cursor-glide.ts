@@ -87,6 +87,11 @@ export function safeCaption(raw: string, secrets: Iterable<string>): string {
   return `${verb}${ok && rest ? ` ${verb === 'click' ? cut(rest) : rest}` : ''}${behind}`;
 }
 
+/** safeCaption with the saved secrets read now; a store that cannot be read leaves the verb only, so the glide and the input after it still go on. */
+export function scrubbedCaption(raw: string, secrets: () => Iterable<string>): string {
+  try { return safeCaption(raw, secrets()); } catch { return safeCaption(raw.split(' ', 1)[0], []); }
+}
+
 /** A physical-pixel `[x, y, w, h]` as a rectangle in the overlay window of the display it lands on. */
 export function place(rectPx: number[], toDip: (r: Rect) => Rect, matching: (r: Rect) => Display): { display: Display; rect: Rect } {
   const dip = toDip({ x: rectPx[0], y: rectPx[1], width: rectPx[2], height: rectPx[3] });

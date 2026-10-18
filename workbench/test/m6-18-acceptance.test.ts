@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { registerHooks } from 'node:module';
 import { DatabaseSync } from 'node:sqlite';
-import { glideMs } from '../src/cursor-glide.ts';
+import { glideMs, scrubbedCaption } from '../src/cursor-glide.ts';
 import { sessionColour } from '../src/colour.ts';
 
 const schema = readFileSync(resolve(import.meta.dirname, '../../contracts/schema.sql'), 'utf8');
@@ -687,4 +687,14 @@ test('M6-18o watch dot: the thumbnail dot sits at the cursor, not the centre of 
   } finally {
     mods.closeDesktopOverlay();
   }
+});
+
+test('M6-18i a secret store that cannot be read leaves the caption verb only and the glide goes on', () => {
+  // protects=D4+M6-18i a caption is never shown unscrubbed, and an unreadable store does not block the input
+  // fails_when=scrubbedCaption keeps the caller's text, or throws, when the secrets cannot be read
+  const broken = () => { throw new Error('store unreadable'); };
+  assert.equal(scrubbedCaption('click hunter2-Saved behind Bank', broken), 'click');
+  assert.equal(scrubbedCaption('type 9 characters', broken), 'type');
+  assert.equal(scrubbedCaption('nope', broken), '');
+  assert.equal(scrubbedCaption('click hunter2 behind Bank', () => ['hunter2']), 'click [secret] behind Bank');
 });

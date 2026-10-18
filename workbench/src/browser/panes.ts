@@ -15,7 +15,7 @@ const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
-import { awaitArrived, planGlide, safeCaption, type Mode } from '../cursor-glide.ts';
+import { awaitArrived, planGlide, scrubbedCaption, type Mode } from '../cursor-glide.ts';
 import { sessionColour } from '../colour.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -806,7 +806,7 @@ export class PaneManager {
     this.marks.set(pane.row.id, marks);
     const last = marks.get(session);
     const prev = last && Date.now() - last.at < look.idleFadeMs ? last : null;
-    caption = safeCaption(caption, knownSecretValues());
+    caption = scrubbedCaption(caption, scrubSecretValues);
     const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: targetRect, keep: /^(press|scroll)\b/.test(caption), host: pane.shownSize ?? PARKED_VIEWPORT });
     const wc = pane.overlay.webContents;
     const live = !wc.isDestroyed();
