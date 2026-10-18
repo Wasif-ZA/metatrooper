@@ -150,6 +150,29 @@ box fails with "not visible".
   that pane live, never the first pane's rows. A Timeline read still in flight when a later one is asked (the user
   switches panes and opens its Timeline) is dropped when it returns, so its rows never replace the later pane's.
 
+## Known limits
+
+Kept as limits by the 2026-10-18 decisions (D7, D8, D10); each is a gap, not a guarantee.
+
+- A checked call the MCP server stopped before sending is recorded on the pane's origin when `browser.outcome`
+  reports the stop, not the origin that was checked, so its Timeline row can name a later origin. Passing the
+  checked origin through would mean trusting the MCP server's word for it (D7).
+- The audit row is tried 3 times, 250 ms apart; a database busy past that drops the row and logs
+  `browser audit row dropped` on the workbench main process's error output (D8).
+- `evaluate` after Give back is refused per document, not per origin: after a navigation the origin's cookies are
+  readable again (D10).
+- A listener a page script left before a handoff stays on a single-page app that signs the user in without a
+  main-frame navigation (D10).
+- Give back pressed during a load also marks the next document as handed back, so the agent's first navigation
+  after a sign-in may leave `evaluate` off (D10).
+- The `did-navigate` wiring that clears the handed-back and scripted marks is tested against a mocked
+  `webContents` only; no real-Electron run checks it yet (D10).
+- An attempt that fails with -32035 writes no row because the MCP server retries it or reports it with
+  `browser.outcome`; that the row appears trusts the MCP server (D10).
+- The browser pipe takes a bound session's MCP server at its word for what it reports (`outcome` status, tool
+  names). A same-user process that calls the browser pipe directly, without the MCP server, is not checked
+  (Threat model; D10).
+
 ## How a tool runs
 
 When a browser pane is created, the workbench main process attaches the debugger to that pane's

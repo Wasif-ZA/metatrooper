@@ -932,6 +932,20 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - Grants and approvals do not stop a hostile process running as the user (Threat model).
 - Fatal patterns (M6-23) are checked only while a session is `working`; an engine that never reaches `working`
   never trips one.
+- Browser use (M6-12): the recorded gaps (D7, D8, D10) are in `contracts/browser-tools.md` Known limits.
+- A detached child an agent started (a dev server run with `start` or `nohup`) keeps running and holds its port
+  after a core stop or restart: `term.killAll()` closes each conpty only. M7-10's job object per session fixes it
+  (D82); nothing kills those processes before then, so a server the user wanted is never killed either (D17).
+- A wait records its kind (`wait_reason`), not the call it belongs to: Codex rollout growth during an approval
+  still counts as the answer, and an unrelated Claude tool event can release an input wait. Codex hooks stay off
+  until the trust spike shows what Codex writes while an approval is open (D18, D22).
+- A Claude `Notification` with no type that says "waiting for your input" is classed `idle`, so the tile does not
+  wait. It changes only once a live capture shows the text is stable (D21).
+- The Codex trust spike, a Gemini hook route that works on Windows (CLI 0.63 skips the system settings file), and
+  one live Claude `tool_use_id` check need Wasif's config or account and are deferred past the freeze. Codex and
+  Gemini tiles keep activity watching until then (D22).
+- A hook event spooled because `troop.db` was locked (D16) lands after any event stored directly in the meantime,
+  and an event from a session MetaTrooper did not start (no session id) has no spool and is still dropped.
 - Interrupt detection (M6-23) reads each CLI's terminal title glyphs, which are not a contract; a CLI update can turn
   it off silently, leaving the tile `working` as before.
 - An auto-mode agent can script the desktop through its own shell (D70). The input watcher catches injected input
