@@ -461,3 +461,74 @@ test('M6-18f glide time: clamp values', () => {
   for (let d = 0; d <= 3000; d += 37) assert.ok(glideMs(d + 37, 60) >= glideMs(d, 60), 'rises with D');
   for (let w = 1; w <= 900; w += 31) assert.ok(glideMs(400, w + 31) <= glideMs(400, w), 'falls with W');
 });
+
+/** A bound workbench pipe over a real browser server; `glide` is the desktop host dependency. */
+async function boundPipe(glide: (s: string, r: unknown, c: string) => Promise<any>) {
+  const d = new DatabaseSync(':memory:');
+  d.exec(schema);
+  const now = new Date().toISOString();
+  d.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p1', '/p1', 'p1', ?, ?)").run(now, now);
+  d.prepare("INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES ('claude', '{}', 1, 'local-cli')").run();
+  d.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, pid) VALUES ('session-a', 'p1', 'claude', 'pty', 'working', ?, ?, ?)").run(now, now, process.pid);
+  const pipe = process.platform === 'win32' ? `\\\\.\\pipe\\mt-m618f-${randomUUID()}` : `/tmp/mt-m618f-${randomUUID()}.sock`;
+  const server = await mods.startBrowserServer(pipe, { db: () => d, uiKey: () => null, panes: {} as any, refreshPanes: () => {}, openPane: async () => 'unused', glide });
+  const sock = net.connect(pipe);
+  await new Promise((r) => sock.once('connect', r));
+  let buf = '';
+  const replies = new Map<string, any>();
+  sock.setEncoding('utf8');
+  sock.on('data', (c: string) => { buf += c; let i; while ((i = buf.indexOf('\n')) >= 0) { const m = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1); replies.set(m.id, m); } });
+  let n = 0;
+  const call = async (method: string, params: object) => {
+    const id = String(n++);
+    sock.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    for (let i = 0; i < 400 && !replies.has(id); i++) await sleep(10);
+    return replies.get(id);
+  };
+  await call('browser.hello', { session_id: 'session-a', pid: process.pid });
+  return { call, close: () => { sock.destroy(); server.close(); d.close(); } };
+}
+
+test('M6-18i pipe: a caller caption reaches the desktop host only in an allowed form, with saved secrets scrubbed', async (t) => {
+  // protects=M6-18i a caller cannot put typed text or a saved secret on screen through cursor.glide's caption
+  // fails_when=server.ts forwards the caller's caption without safeCaption
+  // no_claim=a click name that is not a secret (spec: "click Sign in" is shown)
+  const home = (await import('node:fs')).mkdtempSync(resolve((await import('node:os')).tmpdir(), 'm6-18-cap-'));
+  const saved = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = saved; });
+  const { setSecret } = await import('../../core/src/secrets.ts');
+  const SECRET = 'hunter2-Saved-Secret-77';
+  setSecret(null as any, 'core-notify', 'm618', SECRET);
+  const seen: string[] = [];
+  const p = await boundPipe(async (_s, _r, c) => { seen.push(c); return { arrived: true, ms: 0, shown: true, late: false }; });
+  try {
+    const caps = [`type ${MARKER}`, `click ${SECRET}`, `click Save behind ${SECRET}`, `press ${MARKER}`, `${MARKER} click`, 'select now', 'type 24 characters behind Calculator', 'press Alt+F4', 'scroll', 'click Save'];
+    for (const caption of caps) await p.call('cursor.glide', { session: 'session-a', target_rect_px: [1, 2, 30, 40], caption });
+    assert.deepEqual(seen, ['type', 'click [secret]', 'click Save behind [secret]', 'press', '', 'select', 'type 24 characters behind Calculator', 'press Alt+F4', 'scroll', 'click Save']);
+    assert.ok(!JSON.stringify(seen).includes(MARKER.slice(0, 8)) && !JSON.stringify(seen).includes(SECRET));
+  } finally {
+    p.close();
+  }
+});
+
+test('M6-18f glideMs: a NaN distance or width still gives a clamped time', () => {
+  // protects=M6-18f a bad rect never makes ms NaN (setTimeout(NaN) fires at once, so input would skip the glide)
+  // fails_when=glideMs passes NaN through Math.max
+  assert.equal(glideMs(NaN, 80), 90);
+  assert.equal(glideMs(300, NaN), glideMs(300, 1));
+});
+
+test('M6-18h pipe: a desktop host that throws replies late and the input goes on', async () => {
+  // protects=D57 an overlay failure is a late reply, not a pipe error that aborts the input
+  // fails_when=server.ts lets a glide rejection become a JSON-RPC error
+  // no_claim=the core side (core/test/m6-18-acceptance)
+  const p = await boundPipe(async () => { throw new Error('overlay window could not be made'); });
+  try {
+    const r = await p.call('cursor.glide', { session: 'session-a', target_rect_px: [1, 2, 30, 40], caption: 'click' });
+    assert.equal(r.error, undefined);
+    assert.deepEqual(r.result, { arrived: true, ms: 0, shown: false, late: true });
+  } finally {
+    p.close();
+  }
+});

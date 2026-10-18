@@ -1,4 +1,5 @@
 /** The agent cursor's timing and placement, shared by the pane overlay and the desktop overlay (contracts/agent-cursor.md). No Electron imports. */
+import { scrub } from '../../core/src/redact.ts';
 
 export type Mode = 'off' | 'instant' | 'snappy' | 'human';
 export interface Point { x: number; y: number }
@@ -27,9 +28,9 @@ export function modeOf(v: unknown): Mode {
   return 'snappy';
 }
 
-/** clamp(70 + 55 * log2(D / W + 1), 90, 220) ms, rounded. */
+/** clamp(70 + 55 * log2(D / W + 1), 90, 220) ms, rounded; a NaN distance counts as 0 and a NaN width as 1 px. */
 export function glideMs(d: number, w: number): number {
-  const v = 70 + 55 * Math.log2(Math.max(0, d) / Math.max(1, w) + 1);
+  const v = 70 + 55 * Math.log2((d > 0 ? d : 0) / (w > 1 ? w : 1) + 1);
   return Math.round(Math.min(220, Math.max(90, v)));
 }
 
@@ -63,6 +64,27 @@ export function chipLabel(engine: string, task: string): string {
   const t = task.replace(/\s+/g, ' ').trim();
   const s = Array.from(t ? `${engine} · ${t}` : engine);
   return s.length <= LABEL_MAX ? s.join('') : `${s.slice(0, LABEL_MAX - 1).join('')}…`;
+}
+
+const VERBS = new Set(['click', 'type', 'select', 'press', 'scroll']);
+const KEY = /^(enter|return|tab|escape|esc|backspace|delete|space|arrow(up|down|left|right)|home|end|pageup|pagedown|insert|f([1-9]|1\d|2[0-4])|alt|control|ctrl|shift|meta|cmd|command|win)$/i;
+const TEXT_MAX = 40;
+
+/** A caller's caption as one of "click [name]", "type N characters", "select", "press <chord>", "scroll", with an optional " behind <title>"; anything else is cut to its verb (or ''), and saved secrets are scrubbed. */
+export function safeCaption(raw: string, secrets: Iterable<string>): string {
+  const cut = (s: string) => scrub(Array.from(s).slice(0, TEXT_MAX).join(''), secrets);
+  const at = raw.indexOf(' behind ');
+  const head = at < 0 ? raw : raw.slice(0, at);
+  const behind = at < 0 ? '' : ` behind ${cut(raw.slice(at + 8))}`;
+  const verb = head.split(' ', 1)[0];
+  if (!VERBS.has(verb)) return '';
+  const rest = head.slice(verb.length + 1);
+  const keys = rest.split('+').map((k) => k.trim());
+  const ok = verb === 'click' ? true
+    : verb === 'type' ? /^\d{1,9} characters$/.test(rest)
+    : verb === 'press' ? keys.length <= 4 && keys.every((k) => KEY.test(k) || /^[^\s\p{C}]$/u.test(k))
+    : rest === '';
+  return `${verb}${ok && rest ? ` ${verb === 'click' ? cut(rest) : rest}` : ''}${behind}`;
 }
 
 /** A physical-pixel `[x, y, w, h]` as a rectangle in the overlay window of the display it lands on. */
