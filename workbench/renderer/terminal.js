@@ -99,6 +99,7 @@ const termView = (() => {
       }
       if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
       const k = e.key.toLowerCase();
+      if (!e.shiftKey && (k === 'k' || k === 'g' || k === 'b')) return false;
       if (k === 'c' && (e.shiftKey || term.hasSelection())) { copy(); e.preventDefault(); return false; }
       if (k === 'v') { void paste(); e.preventDefault(); return false; }
       return true;
