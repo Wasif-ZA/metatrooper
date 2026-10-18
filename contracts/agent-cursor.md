@@ -68,7 +68,8 @@ placed. Ripple and caption play after `arrived`, off the critical path.
   on `display-metrics-changed`, `display-added` and `display-removed`. 1,500 ms after the last action:
   `setAlwaysOnTop(false)` and `hide()`.
 - **Covered target.** `desktop.describe` returns `covered_by`, the title of the top-level window at the target's centre
-  (`WindowFromPoint`) when it is not the granted window, one it owns, or a workbench window; `metatrooper-desktop`
+  (`WindowFromPoint`) when it is not the target's own window, one it owns, a window of the granted window's process, or
+  a workbench window (the overlay and frames are click-through, and are filtered by pid as well); `metatrooper-desktop`
   appends " behind <title>" (title cut to 40 characters) to the caption. `minimized` true makes it send a null
   `target_rect_px`.
 - **Screenshots** (D52). Agent captures cannot contain an overlay (`Page.captureScreenshot` of the pane's own

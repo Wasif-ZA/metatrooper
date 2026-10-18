@@ -178,7 +178,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |
 | `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only | -32002 |  | yes |
 | `desktop.windows` | `{session_id, pid}` | {windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued | -32030 |  |  |
-| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect, token}; `token` is opaque and names the element itself; -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
+| `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}; `token` is opaque and names the element itself; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program top-level window over the target centre, else empty (M6-18); -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
 | `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |
 | `desktop.screenshot` | `{session_id, pid, window}` | {data_base64, mime, width, height}: JPEG, no side over 1,568 px | -32030 |  |  |
 | `desktop.find` | `{session_id, pid, window, text}` | {found}: whether a node Name or value contains `text` | -32030 |  |  |
@@ -226,8 +226,9 @@ are in `browser-tools.md`.
 call the MCP server stopped before sending it, or whose control changed on every attempt).
 
 `cursor.glide` (`{session, target_rect_px, caption}`, from `metatrooper-desktop` before each desktop input, M6-15):
-`session` must be the connection's bound session, else -32030; result `{arrived: true}` once the session's cursor
-reached the target (M6-18 draws it; until then the reply is immediate). `metatrooper-desktop` binds with the same
+`session` must be the connection's bound session, else -32030; result `{arrived: true, ms, shown, late}` once
+the session's cursor reached the target, or at `ms + 16` with `late: true`; `shown` is false when `agent_cursor.mode` is
+`off` or the target is minimised, closed or empty (M6-18, `agent-cursor.md`). `metatrooper-desktop` binds with the same
 `browser.hello`.
 
 ## Terminal pipe

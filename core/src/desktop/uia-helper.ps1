@@ -39,6 +39,7 @@ namespace TroopUia {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr h, ref POINT p);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
@@ -324,8 +325,27 @@ namespace TroopUia {
     static object Describe(long hwnd, string reference) {
       bool hidden = false;
       AutomationElement e = reference.Length > 0 ? Find(hwnd, reference) : Focused(new IntPtr(hwnd), out hidden);
-      if (e == null) return new Dictionary<string, object> { { "control", null }, { "password", false }, { "hidden", hidden }, { "rect", RectOf(new IntPtr(hwnd)) }, { "rid", "" } };
-      return new Dictionary<string, object> { { "control", ControlOf(e) }, { "password", e.Current.IsPassword }, { "hidden", hidden }, { "rect", RectOfElement(e) }, { "rid", Rid(e) } };
+      var o = e == null
+        ? new Dictionary<string, object> { { "control", null }, { "password", false }, { "hidden", hidden }, { "rect", RectOf(new IntPtr(hwnd)) }, { "rid", "" } }
+        : new Dictionary<string, object> { { "control", ControlOf(e) }, { "password", e.Current.IsPassword }, { "hidden", hidden }, { "rect", RectOfElement(e) }, { "rid", Rid(e) } };
+      IntPtr root = Native.GetAncestor(new IntPtr(hwnd), GA_ROOT);
+      o["minimized"] = Native.IsIconic(root);
+      o["covered_by"] = ""; o["covered_pid"] = 0L;
+      var rc = o["rect"] as int[];
+      if (rc != null && rc[2] > 0 && rc[3] > 0 && !(bool)o["minimized"]) {
+        var p = new Native.POINT { X = rc[0] + rc[2] / 2, Y = rc[1] + rc[3] / 2 };
+        IntPtr at = Native.GetAncestor(Native.WindowFromPoint(p), GA_ROOT);
+        if (at != IntPtr.Zero && at != root && !OwnedBy(at, root)) {
+          uint pid; Native.GetWindowThreadProcessId(at, out pid);
+          o["covered_by"] = TitleOf(at); o["covered_pid"] = (long)pid;
+        }
+      }
+      return o;
+    }
+
+    static bool OwnedBy(IntPtr w, IntPtr root) {
+      for (int i = 0; i < 16 && w != IntPtr.Zero; i++) { w = Native.GetWindow(w, GW_OWNER); if (w == root) return true; }
+      return false;
     }
 
     static object Screenshot(IntPtr h) {

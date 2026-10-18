@@ -223,7 +223,7 @@ test('M6-15 hardening: describe exposes exactly the public fields', async t => {
   const { token, ...fields } = await f.call('desktop.describe') as any;
   assert.equal(typeof token, 'string');
   assert.ok(token.length > 0);
-  assert.deepEqual(fields, { grant_id: 'gr_fixture', control: { name: 'Editor', automation_id: 'editor', role: 'edit' }, password: false, hidden: false, file_dialog: false, rect: [10,10,50,20] });
+  assert.deepEqual(fields, { grant_id: 'gr_fixture', control: { name: 'Editor', automation_id: 'editor', role: 'edit' }, password: false, hidden: false, file_dialog: false, rect: [10,10,50,20], minimized: false, covered_by: '' });
   f.revoke();
   await assert.rejects(f.call('desktop.describe'), refused(-32030, /window not granted/));
 });

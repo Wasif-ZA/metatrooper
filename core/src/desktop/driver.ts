@@ -115,7 +115,7 @@ const hwndOf = (v: unknown): number => {
   return n;
 };
 
-interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden?: boolean; rect: number[] | null; rid?: string }
+interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden?: boolean; rect: number[] | null; rid?: string; minimized?: boolean; covered_by?: string; covered_pid?: number }
 
 /** Grants, the take-over flag and every desktop read and input, through one helper. */
 export class Desktop {
@@ -258,10 +258,12 @@ export class Desktop {
     return this.helper.request<T>(op, { hwnd, ...params, pid: info.pid }, undefined, this.still(sessionId, grant.id));
   }
 
-  async describe(sessionId: string, hwnd: number, ref?: string): Promise<Described & { grant_id: string; file_dialog: boolean; pid: number; rid: string }> {
+  async describe(sessionId: string, hwnd: number, ref?: string): Promise<Omit<Described, 'covered_pid'> & { grant_id: string; file_dialog: boolean; pid: number; rid: string; minimized: boolean; covered_by: string }> {
     const { grant, info } = await this.resolve(sessionId, hwnd);
     const d = await this.helper.request<Described>('describe', { hwnd, ref, pid: info.pid }, undefined, this.still(sessionId, grant.id));
-    return { grant_id: grant.id, control: d.control, password: d.password === true, hidden: d.hidden === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid, rid: String(d.rid ?? '') };
+    // a window of the granted app itself, or of the workbench (its overlay and frames), is not a cover
+    const cover = typeof d.covered_by === 'string' && d.covered_pid !== grant.pid && d.covered_pid !== this.uiPid ? d.covered_by : '';
+    return { grant_id: grant.id, control: d.control, password: d.password === true, hidden: d.hidden === true, file_dialog: info.file_dialog, rect: d.rect, pid: info.pid, rid: String(d.rid ?? ''), minimized: d.minimized === true, covered_by: cover };
   }
 
   async act(p: Record<string, unknown>, sessionId: string): Promise<Record<string, unknown>> {

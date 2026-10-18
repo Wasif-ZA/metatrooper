@@ -20,6 +20,12 @@ export const DEFAULTS = {
     takeover_key: 'Control+Alt+Q',
     watch_pause: true,
   },
+  agent_cursor: {
+    mode: 'snappy',
+    show_caption: true,
+    idle_fade_ms: 5000,
+    show_in_recordings: false,
+  },
   worktree: {
     npm_ci: true,
     stale_days: 7,
