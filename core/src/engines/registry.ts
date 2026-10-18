@@ -154,7 +154,7 @@ export function unsafePattern(src: string): string | null {
   return null;
 }
 
-const TITLE_MATCH_MS = 50;
+const TITLE_MATCH_MS = 250;
 const matchContext = vm.createContext({});
 const matchScript = new vm.Script('re.test(s)');
 
