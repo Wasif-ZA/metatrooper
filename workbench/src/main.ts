@@ -25,7 +25,7 @@ import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
-import { freshNeeds, watchDb } from './queries.ts';
+import { crashAction, freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
 process.on('uncaughtException', (e) => { try { dialog.showErrorBox('A JavaScript error occurred in the main process', String(e?.stack ?? e)); } catch {} });
@@ -559,9 +559,15 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => win?.show());
-  win.webContents.once('did-finish-load', push);
+  win.webContents.on('did-finish-load', push);
   win.webContents.on('did-finish-load', () => { loads++; });
-  win.webContents.on('render-process-gone', detachAll);
+  let reloadedAt = -Infinity;
+  win.webContents.on('render-process-gone', (_e, d) => {
+    detachAll();
+    const act = crashAction(d.reason, reloadedAt, Date.now());
+    if (act === 'reload') { reloadedAt = Date.now(); win?.webContents.reload(); }
+    else if (act === 'stop') dialog.showErrorBox('MetaTrooper', `The window crashed again (${d.reason}). Restart MetaTrooper; the logs folder has details.`);
+  });
   win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));
   win.on('responsive', () => console.error('window responsive again'));

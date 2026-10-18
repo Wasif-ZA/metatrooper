@@ -59,6 +59,12 @@ export function engineFix(e: { id: string; install?: string; login?: string; min
   return null;
 }
 
+/** The main window's renderer died: reload it, unless it already crashed within a minute of the last reload. */
+export function crashAction(reason: string, reloadedAt: number, now: number): 'reload' | 'stop' | 'none' {
+  if (reason === 'clean-exit') return 'none';
+  return now - reloadedAt < 60_000 ? 'stop' : 'reload';
+}
+
 function parse<T>(text: string | null, fallback: T): T {
   if (!text) return fallback;
   try {
