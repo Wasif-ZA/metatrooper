@@ -31,3 +31,29 @@ test('M2-06 diff lines carry the new-file line for added and context lines and t
     ['add', 41, '+fresh'],
   ]);
 });
+
+test('diff lines skip the next file headers in a multi-file diff', () => {
+  const diff = [
+    'diff --git a/a.js b/a.js',
+    '--- a/a.js',
+    '+++ b/a.js',
+    '@@ -1,2 +1,2 @@',
+    '-old',
+    '+new',
+    ' same',
+    'diff --git a/b.js b/b.js',
+    '--- a/b.js',
+    '+++ b/b.js',
+    '@@ -5 +5,2 @@',
+    ' five',
+    '+six',
+  ].join('\n');
+  const rows = JSON.parse(JSON.stringify(diffLines(diff))).filter((r: { kind: string }) => r.kind !== 'hunk').map((r: { kind: string; line: number; text: string }) => [r.kind, r.line, r.text]);
+  assert.deepEqual(rows, [
+    ['del', 1, '-old'],
+    ['add', 1, '+new'],
+    ['ctx', 2, ' same'],
+    ['ctx', 5, ' five'],
+    ['add', 6, '+six'],
+  ]);
+});

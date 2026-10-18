@@ -393,6 +393,25 @@ def test_find_glob_and_ignore_case(capsys):
     assert "log" not in result
 
 
+def test_find_takes_named_files_and_shows_their_lines(capsys):
+    Path("sub").mkdir()
+    Path("sub/a.py").write_text("needle one\nplain\nneedle two\n", encoding="utf-8")
+    Path("b.txt").write_text("needle three\n", encoding="utf-8")
+    Path("c.txt").write_text("needle skipped\n", encoding="utf-8")
+
+    exit_code, result = invoke(capsys, "run", "find", "needle", "sub/a.py", "b.txt")
+
+    assert exit_code == 0
+    assert result["out"] == {
+        "matches": 3,
+        "files": {"sub/a.py": ["1: needle one", "3: needle two"], "b.txt": ["1: needle three"]},
+    }
+
+    exit_code, result = invoke(capsys, "run", "find", "needle", "gone.txt")
+    assert exit_code == 1
+    assert "gone.txt" in result["out"]
+
+
 def test_find_no_matches_exits_one(capsys):
     Path("plain.txt").write_text("haystack\n", encoding="utf-8")
 
