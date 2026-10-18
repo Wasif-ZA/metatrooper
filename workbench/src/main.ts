@@ -456,7 +456,7 @@ function handlers(): void {
   });
   on('uiSettings', () => ({ terminal: settings().terminal, ui: { ...settings().ui, themes: undefined }, theme: activeTheme(), themes: Object.entries(settings().ui.themes).map(([id, t]) => ({ id, label: t.label || id })), firstRun: !fs.existsSync(settingsFile()) }));
   on('setTheme', async (name: unknown) => {
-    if (typeof name !== 'string' || !settings().ui.themes[name]) return { error: 'unknown theme' };
+    if (typeof name !== 'string' || !Object.hasOwn(settings().ui.themes, name)) return { error: 'unknown theme' };
     const error = await writeSetting('ui.theme', name);
     return error ? { error } : activeTheme({ ...settings(), ui: { ...settings().ui, theme: name } });
   });
