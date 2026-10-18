@@ -1,5 +1,5 @@
 import { call as coreCall } from '../pipe/client.ts';
-import { actionHash, APPROVAL_TIMEOUT_MS, type Control } from '../approvals.ts';
+import { actionHash, APPROVAL_TIMEOUT_MS, desktopKeysProblem, type Control } from '../approvals.ts';
 import { WorkbenchPipe, findSession, type Reply } from './workbench-pipe.ts';
 import { serveMcp, type ToolDef } from './mcp-stdio.ts';
 
@@ -38,6 +38,8 @@ function caption(name: string, args: Record<string, unknown>, control: Control |
 /** Describe, approval.check, cursor glide, then act with the checked control as `expect`; a changed control checks again. */
 async function input(name: string, args: Record<string, unknown>, session_id: string): Promise<Reply> {
   const me = { session_id, pid: process.pid };
+  const keysProblem = name === 'key' ? desktopKeysProblem(args.keys) : null;
+  if (keysProblem) return { error: { code: -32602, message: keysProblem } };
   for (let attempt = 0; attempt < 3; attempt++) {
     const d = await core('desktop.describe', { ...me, window: args.window, ref: args.ref });
     if (d.error) return d;

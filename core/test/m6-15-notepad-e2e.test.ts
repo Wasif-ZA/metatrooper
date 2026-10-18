@@ -61,6 +61,7 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
       const { control, password, hidden, file_dialog, grant_id, token } = d.result;
       const check = { session_id: 's1', surface: 'desktop', target: grant_id, action: params.action, args: { window, ...params }, control, password, hidden, file_dialog };
       const v = await call(agent, 'approval.check', check, 130_000);
+      if (v.error) return v;
       if (v.result.decision !== 'allow' && v.result.decision !== 'approved') return { error: { message: `not allowed: ${JSON.stringify(v.result)}` } };
       return call(agent, 'desktop.act', { ...me, window, ...params, expect: { ...(control ?? { name: '', automation_id: '', role: '' }), password, hidden, file_dialog, grant_id, token } }, 300_000);
     };
@@ -68,13 +69,10 @@ test('M6-15a / M6-15b on this laptop: Notepad typing with another app in front, 
     // M6-15a: another app has focus, the pointer does not move
     const before = await probe.request('probe');
     assert.notEqual(before.foreground, notepad.hwnd, 'another app holds the foreground');
-    // a background window may report no focused control, and a posted Control or Shift never reaches the app,
-    // so Control+Shift+S is refused even once approved, and nothing lands in the document
-    const chord = act(notepad.hwnd, { action: 'key', keys: 'Control+Shift+S' });
-    const asked = await until(async () => (db.prepare("SELECT * FROM approval WHERE status = 'waiting'").get() as any) ?? (await Promise.race([chord.then(() => 'done'), sleep(200).then(() => null)])), 10_000);
-    if (asked !== 'done') await call(ui, 'approval.resolve', { approval_id: asked.id, decision: 'approve' });
-    const refused = (await chord).error?.message;
-    assert.match(refused, /no keyboard focus|Control and Shift cannot be sent/);
+    // a posted Control or Shift never reaches the app, so Control+Shift+S is refused before any approval is asked
+    const refused = (await act(notepad.hwnd, { action: 'key', keys: 'Control+Shift+S' })).error?.message;
+    assert.match(refused, /Control and Shift cannot be sent/);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM approval').get() as any).n, 0);
     console.log(`Control+Shift+S refused: ${refused}`);
     await sleep(300);
     await probe.request('snapshot', { hwnd: notepad.hwnd, max_nodes: 400 });

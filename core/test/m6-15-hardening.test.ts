@@ -73,10 +73,19 @@ for (const keys of ['Space\u0085', 'Enter\t', '\u00a0Enter', 'Tab\n', 'Tab\u007f
     await assert.rejects(f.act({ keys }), refused(-32602, /keys must be printable/));
     assert.deepEqual(f.inputs(), []);
     assert.equal(f.requests().filter(r => r.op === 'key').length, 0);
-    assert.deepEqual(await f.act({ keys: 'Control+S' }), { status: 'confirmed' });
-    assert.equal(f.inputs()[0].keys, 'Control+S');
+    assert.deepEqual(await f.act({ keys: 'Alt+F' }), { status: 'confirmed' });
+    assert.equal(f.inputs()[0].keys, 'Alt+F');
   });
 }
+
+for (const keys of ['Control+S', 'ctrl+s', 'Shift+Tab', ' Control +Alt+S', 'Alt+Shift+F']) test('M6-15 hardening: ' + JSON.stringify(keys) + ' is refused with -32602 before any approval or input', async t => {
+  const f = fixture(t);
+  await assert.rejects(f.act({ keys }), refused(-32602, /Control and Shift cannot be sent/));
+  await assert.rejects(new Approvals(f.db, 5000, () => [], { granted: () => true }).check({ session_id: 's1', surface: 'desktop', target: 'gr_fixture', action: 'key', args: { window: 100, keys }, control: EXPECT, hidden: true }), refused(-32602, /Control and Shift cannot be sent/));
+  assert.equal((f.db.prepare('SELECT COUNT(*) AS n FROM approval').get() as any).n, 0);
+  assert.deepEqual(f.inputs(), []);
+  assert.equal(f.requests().filter(r => r.op === 'key').length, 0);
+});
 
 for (const change of ['revoke', 'pause', 'disable', 'live'] as const) {
   test('M6-15 hardening: acting helper queue gate ' + change, async t => {
@@ -233,7 +242,7 @@ function approvalFixture() {
 }
 
 for (const surface of ['desktop', 'browser']) {
-  for (const keys of ['Space+', 'Enter+', 'Shift+Space+', '+Shift++Space++']) {
+  for (const keys of ['Space+', 'Enter+', 'Alt+Space+', '+Alt++Space++']) {
     test('M6-15 hardening: ' + surface + ' ' + keys + ' asks on Delete', async () => {
       const { db, approvals, close } = approvalFixture();
       try {
@@ -470,7 +479,7 @@ for (const [surface, text, asks] of [
   } finally { close(); }
 });
 
-for (const keys of ['é', 'Shift+é', 'ü', 'Ctrl+ß', 'Shift+ é ']) test('M6-15 hardening: a printable non-ASCII key token acts ' + JSON.stringify(keys), async t => {
+for (const keys of ['é', 'Alt+é', 'ü', 'Alt+ß', 'Alt+ é ']) test('M6-15 hardening: a printable non-ASCII key token acts ' + JSON.stringify(keys), async t => {
   const f = fixture(t);
   assert.deepEqual(await f.act({ keys }), { status: 'confirmed' });
   assert.deepEqual(f.inputs().map(r => r.keys), [keys]);
@@ -481,8 +490,8 @@ for (const keys of ['aé', '\u200b', '\u00a0Enter', 'Space\u0085', 'e\u0301', '\
   await assert.rejects(f.act({ keys }), refused(-32602, /keys must be printable/));
   assert.deepEqual(f.inputs(), []);
   assert.equal(f.requests().filter(r => r.op === 'key').length, 0);
-  assert.deepEqual(await f.act({ keys: 'Shift+é' }), { status: 'confirmed' });
-  assert.deepEqual(f.inputs().map(r => r.keys), ['Shift+é']);
+  assert.deepEqual(await f.act({ keys: 'Alt+é' }), { status: 'confirmed' });
+  assert.deepEqual(f.inputs().map(r => r.keys), ['Alt+é']);
 });
 
 test('M6-15 hardening: a takeover report must explicitly confirm registration with null error', async t => {
@@ -533,6 +542,17 @@ async function hookTool(t: any, f: ReturnType<typeof fixture>) {
   return bridge;
 }
 let bridgeId = 0;
+
+test('M6-15 hardening: the MCP key tool refuses Control+S before describe or approval', { timeout: 30000 }, async t => {
+  const f = fixture(t);
+  const hook = await hookTool(t, f);
+  const result = await hook.tool('key', { window: 100, keys: 'Control+S' });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /Control and Shift cannot be sent/);
+  assert.equal(hook.approvals.length, 0);
+  assert.equal(f.requests().length, 0);
+  assert.deepEqual(f.inputs(), []);
+});
 
 for (const changed of [false, true]) test('M6-15 hardening: MCP approval ' + (changed ? 'asks again after an identical control gets a new runtime id' : 'acts on the unchanged approved element'), { timeout: 30000 }, async t => {
   const f = fixture(t);

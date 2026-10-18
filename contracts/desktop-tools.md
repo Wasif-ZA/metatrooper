@@ -53,7 +53,7 @@ expected, else `unverifiable`.
 | `unknown ref <ref>; take a new snapshot` | the ref is not in the latest snapshot of that window |
 | `this window has no keyboard focus (another window is in front), ...; nothing was sent` | `key` on a window whose thread reports no focused control |
 | `this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent` | `key` checked against a control (with a `ref`) that, with the window in the background, only reads back as its container |
-| `Control and Shift cannot be sent: ...; nothing was sent` | a `key` chord with Control or Shift |
+| `Control and Shift cannot be sent: ...; nothing was sent` | a `key` chord with Control or Shift; the MCP server, `approval.check` and `desktop.act` refuse it with -32602 before any approval is asked, and the helper refuses it again |
 
 ## Acting (D78)
 

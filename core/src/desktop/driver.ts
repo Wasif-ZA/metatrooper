@@ -7,6 +7,7 @@ import { coreDir } from '../paths.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
+import { desktopKeysProblem } from '../approvals.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { beginAction, endAction } from '../watch/watcher.ts';
 import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow, type WindowInfo } from '../grants.ts';
@@ -15,8 +16,6 @@ export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
 export const OFF = 'computer use is off: the desktop plugin is disabled';
 export const CHUNK = 8;
-/** Printable ASCII, or one printable non-ASCII UTF-16 unit as a whole token: JavaScript and .NET then trim and split it alike. */
-const keysOk = (keys: string) => keys.split('+').every((t) => /^[\x20-\x7e]*$/.test(t) || (/^ *[^\p{C}\p{Z}\p{M}\s] *$/u.test(t) && t.trim().length === 1));
 /** A pause acknowledgement waits this long after the last posted key or click. */
 export const POST_SETTLE_MS = 250;
 const CONTROL_CHANGED = -32035;
@@ -261,7 +260,8 @@ export class Desktop {
     if (!['click', 'type', 'key', 'scroll'].includes(action)) throw new RpcError(E.INVALID_PARAMS, 'action must be click, type, key or scroll');
     const ref = typeof p.ref === 'string' && p.ref ? p.ref : undefined;
     if ((action === 'click' || action === 'type') && !ref) throw new RpcError(E.INVALID_PARAMS, 'ref is required');
-    if (action === 'key' && (typeof p.keys !== 'string' || !keysOk(p.keys))) throw new RpcError(E.INVALID_PARAMS, 'keys must be printable, like Control+S or Ã©; a non-ASCII character must be a key on its own');
+    const keysProblem = action === 'key' ? desktopKeysProblem(p.keys) : null;
+    if (keysProblem) throw new RpcError(E.INVALID_PARAMS, keysProblem);
     return this.serial(async () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED);
       const now = await this.describe(sessionId, hwnd, ref);

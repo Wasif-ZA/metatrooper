@@ -71,6 +71,15 @@ const risky = (c         ) => `risky control: ${redactCredentials(c.name || c.au
 /** The chord as both executors read it: empty parts dropped. */
 const chord = (keys        ) => keys.split('+').map((k) => k.trim()).filter(Boolean);
 
+/** Why the desktop cannot post this chord, or null. A token is printable ASCII, or one printable non-ASCII UTF-16 unit on its own, so JavaScript and .NET trim and split it alike. */
+export function desktopKeysProblem(keys         )                {
+  const printable = (t        ) => /^[ -~]*$/.test(t) || (/^ *[^\p{C}\p{Z}\p{M}\s] *$/u.test(t) && t.trim().length === 1);
+  if (typeof keys !== 'string' || !keys.split('+').every(printable)) return 'keys must be printable, like Enter, Alt+F or é; a non-ASCII character must be a key on its own';
+  const parts = chord(keys);
+  if (parts.slice(0, -1).some((m) => /^(control|ctrl|shift)$/i.test(m))) return `Control and Shift cannot be sent: apps read them from the keyboard state, which a posted key does not change, so ${keys} would arrive as a bare ${parts.at(-1)}; nothing was sent`;
+  return null;
+}
+
 function isShortcut(keys        )          {
   const parts = chord(keys);
   return parts.length > 1 && parts.slice(0, -1).some((m) => /^(control|ctrl|alt|meta|cmd|command|win)$/i.test(m));
@@ -152,6 +161,8 @@ export class Approvals {
     const p = parseCheck(raw);
     const hash = actionHash(p);
     if (p.action_hash !== undefined && p.action_hash !== hash) throw new RpcError(E.INVALID_PARAMS, 'action_hash does not match the action');
+    const keysProblem = p.surface === 'desktop' && p.action === 'key' ? desktopKeysProblem(p.args.keys) : null;
+    if (keysProblem) throw new RpcError(E.INVALID_PARAMS, keysProblem);
     if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(p.session_id)) return { decision: 'deny', reason: 'unknown or ended session' };
     if (this.hooks.paused?.(p.session_id)) return { decision: 'deny', reason: 'paused by the user' };
     if (p.surface === 'desktop' && this.hooks.granted && !this.hooks.granted(p.session_id, p.target)) return { decision: 'deny', reason: 'window not granted; ask the user to give it to you' };
