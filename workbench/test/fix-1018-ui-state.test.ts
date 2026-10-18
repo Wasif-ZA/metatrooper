@@ -73,6 +73,7 @@ function boot(opts: { storage?: Record<string, string>; api?: Record<string, (..
     window: { troop: api, addEventListener() {} }, document: doc, location: { search: '' },
     localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; }, removeItem: (k: string) => { delete store[k]; } },
     URLSearchParams, URL, wall, termView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }), Date: FakeDate, console,
+    MutationObserver: class { observe() {} },
     setTimeout: (f: () => void, ms = 0) => { const id = ++seq; timers.push({ id, at: now + ms, f }); return id; },
     clearTimeout: (id: number) => { timers = timers.filter((t) => t.id !== id); },
     setInterval: () => 0,
