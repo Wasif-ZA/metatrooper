@@ -3,7 +3,7 @@ import { appendEvent } from '../events/append.ts';
 import { lastLine, setTermHooks } from './index.ts';
 import { settings } from '../settings.ts';
 import { devServersGone, scanOutput } from '../devservers.ts';
-import { getEngine, MAX_TITLE, titlePatterns, type TitleState } from '../engines/registry.ts';
+import { getEngine, MAX_TITLE, titlePatterns, type TitleMatcher, type TitleState } from '../engines/registry.ts';
 
 export interface LiveText { line?: string; title?: string }
 
@@ -38,7 +38,7 @@ export function wireTermEvents(db: DatabaseSync): void {
   const titleKeys = new Map<string, string>();
   const sessionRow = db.prepare('SELECT state, state_at, engine_id FROM session WHERE id = ?');
   const lastSeq = db.prepare("SELECT max(seq) AS seq FROM event WHERE session_id = ? AND kind NOT LIKE 'term.%'");
-  const engines = new Map<string, { process: boolean; titles: Partial<Record<TitleState, RegExp>> }>();
+  const engines = new Map<string, { process: boolean; titles: Partial<Record<TitleState, TitleMatcher>> }>();
   const engineOf = (id: string, engineId: string) => {
     if (!engines.has(id)) {
       const e = getEngine(db, engineId);
