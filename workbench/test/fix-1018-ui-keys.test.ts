@@ -122,7 +122,7 @@ test('UI-07: menu items and list rows take focus, arrows move between them, Ente
   const items = w.el('menu').innerHTML.match(/<div class="item"[^>]*>/g)!;
   assert.equal(items.length, 2);
   for (const i of items) assert.match(i, /role="menuitem" tabindex="-1"/);
-  assert.match(w.ctx.rowHtml({ id: 's1', engine_id: 'claude', state: 'done', state_at: new Date().toISOString(), title: 't' }, true), /class="li srow sel" role="option" tabindex="0" aria-selected="true"/);
+  assert.match(w.ctx.rowHtml({ id: 's1', engine_id: 'claude', state: 'done', state_at: new Date().toISOString(), title: 't' }, true), /class="li srow sel" role="listitem" tabindex="0" aria-current="true"/);
   assert.match(src('style.css'), /\.alist \.li:focus-within \.hide \{ visibility: visible; \}|\.alist \.li:focus-within \.hide[,\s]/);
 
   const box = makeEl('menu');
@@ -203,10 +203,25 @@ test('UI-07: the Worktrees, Older and Scratch fold headers in the project menu a
   for (const s of summaries) assert.match(s, /role="menuitem" tabindex="-1"/);
 });
 
+test('UI-07: no button sits inside a role that forbids interactive children (option, menuitem)', () => {
+  const w = boot();
+  w.ctx.ui.snap = { live: [], git: {}, engines: [{ id: 'claude', resumable: true }] };
+  const row: string = w.ctx.rowHtml({ id: 's1', engine_id: 'claude', native_id: 'n', state: 'exited', state_at: new Date().toISOString(), title: 't' }, false);
+  assert.match(row, /<button/);
+  const item: string = w.ctx.projectMenuItem({ id: 'p1', name: 'proj', path: 'C:/p' });
+  for (const html of [row, item]) {
+    const open = html.match(/<(\w+)[^>]*role="(option|menuitem)"[^>]*>/);
+    if (!open) continue;
+    const inner = html.slice(html.indexOf(open[0]) + open[0].length, html.indexOf(`</${open[1]}>`, html.indexOf(open[0])));
+    assert.doesNotMatch(inner, /<button/, `${open[2]} holds a button`);
+  }
+  assert.doesNotMatch(row, /role="option"/);
+});
+
 test('UI-08: the project remove and browser tab close are real buttons with labels, none nested in another button', () => {
   const w = boot();
   w.ctx.ui.snap = { live: [] };
-  assert.match(w.ctx.projectMenuItem({ id: 'p1', name: 'proj', path: 'C:/p' }), /<button class="dismiss" data-action="project-hide" data-id="p1" [^>]*aria-label="Remove proj from this menu">/);
+  assert.match(w.ctx.projectMenuItem({ id: 'p1', name: 'proj', path: 'C:/p' }), /<button class="dismiss" role="menuitem" tabindex="-1" data-action="project-hide" data-id="p1" [^>]*aria-label="Remove proj from this menu">/);
   const html: string = w.ctx.browserChrome.tabs([{ id: 'a', title: 'A', url: 'u', dot: 'ok' }, { id: 'b', title: 'B', url: 'u', dot: 'ok' }], 'a', 0);
   assert.match(html, /<button class="x" data-action="pane-close" data-id="a" title="Close pane" aria-label="Close pane">/);
   let depth = 0;
