@@ -1760,6 +1760,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (typing) return;
+  const role = active && active.getAttribute && active.getAttribute('role');
+  if ((e.key === 'Enter' || e.key === ' ') && ['button', 'menuitem', 'option'].includes(role)) { e.preventDefault(); active.click(); return; }
   if (ui.tab !== 'browser' || !ui.split) return;
   if (e.key === 'c' && ui.browserMode === 'live' && !ui.comment) void startComment();
   if (e.key === ' ' && ui.browserMode === 'compare' && !ui.swap) {
