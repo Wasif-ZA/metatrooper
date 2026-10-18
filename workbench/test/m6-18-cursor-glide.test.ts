@@ -31,6 +31,7 @@ test('M6-18g glide rules: first, near, far, reduced motion, modes, key keeps its
   assert.equal(planGlide({ ...base, prev: { x: 0, y: 0 }, target: box(1900, 1000) }).ms, 0, 'over half the diagonal snaps');
   assert.equal(planGlide({ ...base, reducedMotion: true, prev: { x: 500, y: 400 }, target: box(800, 400) }).ms, 0);
   assert.equal(planGlide({ ...base, mode: 'instant', prev: { x: 500, y: 400 }, target: box(800, 400) }).ms, 0);
+  assert.equal(planGlide({ ...base, mode: 'off', prev: { x: 500, y: 400 }, target: box(800, 400) }).ms, 0);
   const snappy = planGlide({ ...base, prev: { x: 500, y: 400 }, target: box(800, 400) }).ms;
   assert.equal(planGlide({ ...base, mode: 'human', prev: { x: 500, y: 400 }, target: box(800, 400) }).ms, Math.round(snappy * 2.5));
   const wide = { x: 0, y: 0, width: 1000, height: 800 };

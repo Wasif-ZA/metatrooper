@@ -24,7 +24,11 @@ click-through window per display for the desktop. The real pointer never moves. 
   caption starting "press" or "scroll" is a key or scroll: the cursor stays where it is when it is inside the target.
   `session` must be the connection's bound session, else -32030 and nothing is drawn.
 
-No message, reply or probe row carries the text of a `type` call: captions say "type N characters".
+No message, reply or probe row carries the text of a `type` call: captions say "type N characters". The workbench
+passes a caption only as "click [name]", "type N characters", "select", "press <chord of key names or one
+character>" or "scroll", with an optional " behind <title>" (name and title cut to 40 characters, saved secrets
+scrubbed); anything else is cut to its verb, or to nothing (`safeCaption`, both hosts). A failing overlay makes the
+pipe reply late, never an error; `metatrooper-desktop` stops the input only on -32030.
 
 ## Timing
 
@@ -66,7 +70,10 @@ placed. Ripple and caption play after `arrived`, off the critical path.
   `screen.getDisplayMatching`; the window is sized to that display's `bounds`. While a cursor shows:
   `setAlwaysOnTop(true, 'floating')` and `moveTop()` every 100 ms, and the target refit from `grant.live` every 250 ms and
   on `display-metrics-changed`, `display-added` and `display-removed`. 1,500 ms after the last action:
-  `setAlwaysOnTop(false)` and `hide()`.
+  `setAlwaysOnTop(false)` and `hide()`. A cursor following its window onto another display shows that display's
+  window inactive without moving the 1,500 ms. Probe row: `{kind: 'cursor', host: 'desktop', session, ms, late, shown,
+  requested_at, arrived_at}`; `metatrooper-desktop` writes `{kind: 'desktop-input', session, tool}` right before
+  `desktop.act`, both with the probe file's `at`.
 - **Covered target.** `desktop.describe` returns `covered_by`, the title of the top-level window at the target's centre
   (`WindowFromPoint`) when it is not the target's own window, one it owns, a window of the granted window's process, or
   a workbench window (the overlay and frames are click-through, and are filtered by pid as well); `metatrooper-desktop`
