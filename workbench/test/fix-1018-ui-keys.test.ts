@@ -193,6 +193,16 @@ test('UI-07: closing a menu by Esc or by picking an item hands focus back to wha
   assert.equal(doc.activeElement, opener, 'pick');
 });
 
+test('UI-07: the Worktrees, Older and Scratch fold headers in the project menu are menu items the arrows reach', async () => {
+  const w = boot();
+  w.ctx.ui.snap = { live: [], projects: [{ id: 'p1', name: 'a', path: 'C:/a' }, { id: 'p2', name: 'b', path: 'C:/b', older: true }, { id: 'p3', name: 'c', path: 'C:/x/.claude/worktrees/c' }, { id: 'p4', name: 'd', path: 'C:/Users/u/.cache/d' }] };
+  w.ctx.ui.projectId = null;
+  await w.ctx.onClick({ target: { closest: (s: string) => (s === '[data-action]' ? { dataset: { action: 'project-menu' }, closest: () => null, getBoundingClientRect: () => ({ left: 0, bottom: 20 }) } : null) }, stopPropagation() {} });
+  const summaries = w.el('menu').innerHTML.match(/<summary[^>]*>/g)!;
+  assert.equal(summaries.length, 3);
+  for (const s of summaries) assert.match(s, /role="menuitem" tabindex="-1"/);
+});
+
 test('UI-08: the project remove and browser tab close are real buttons with labels, none nested in another button', () => {
   const w = boot();
   w.ctx.ui.snap = { live: [] };

@@ -1223,7 +1223,7 @@ async function onClick(e) {
       const r = el.getBoundingClientRect();
       const g = projectGroups(ui.snap.projects.filter((p) => p.id !== ui.projectId));
       const sec = (title, list) => (list.length ? `<div><div class="mh">${title}</div>${list.map(projectMenuItem).join('')}</div>` : '');
-      const fold = (title, list) => (list.length ? `<details><summary class="mh">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
+      const fold = (title, list) => (list.length ? `<details><summary class="mh" role="menuitem" tabindex="-1">${title} (${list.length})</summary>${list.map(projectMenuItem).join('')}</details>` : '');
       const cur = ui.snap.projects.find((p) => p.id === ui.projectId);
       menu.innerHTML = '<div class="kmenu">' + (cur ? `<div class="mh">This window</div><div class="item on" role="menuitem" tabindex="-1" title="${esc(cur.path)}"><span class="grow">${esc(cur.name)}</span><span class="meta">&#10003;</span></div>` : '')
         + sec('Projects', g.projects)
