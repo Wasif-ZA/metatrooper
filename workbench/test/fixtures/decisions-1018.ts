@@ -59,6 +59,16 @@ const store = path.join(home, 'secrets', 'core-browser');
 const breakStore = () => { fs.renameSync(store, `${store}.away`); fs.writeFileSync(store, ''); };
 const mendStore = () => { fs.rmSync(store); fs.renameSync(`${store}.away`, store); };
 
+if (mode === 'ax-failure') {
+  internal.cmd = async (_pane: unknown, method: string) => method === 'Page.getFrameTree' ? { frameTree: { frame: { id: 'root' } } } : { nodes: [{ nodeId: '1', name: { value: marker }, value: { value: marker } }] };
+  breakStore();
+  try {
+    const frames = await internal.frames(pane);
+    r.ax = frames[0].nodes.map((n: any) => [n.name.value === UNSCRUBBED, n.value.value === UNSCRUBBED]);
+  } finally { mendStore(); }
+  console.log(JSON.stringify(r));
+  process.exit(0);
+}
 if (mode === 'evaluate') r.evaluate = await internal.run(pane, 'evaluate', { expression: 'document.body.innerText' });
 if (mode === 'read') r.read = await internal.run(pane, 'read', {});
 if (mode === 'capture') {
@@ -84,7 +94,7 @@ if (!mode) {
 }
 pane.scripted = false;
 
-await startBrowserServer(browserPipe(), { db: () => db, uiKey: () => null, panes: pm, refreshPanes() {}, openPane: async () => 'x' });
+await startBrowserServer(browserPipe(), { db: () => db, uiKey: () => null, panes: pm, refreshPanes() {}, openPane: async () => 'x', glide: async (_session, _rect, caption) => { r.caption = caption; return { arrived: true, ms: 0, shown: true, late: false }; } });
 
 // D3: the browser pipe sends nothing until the client speaks
 const sock = net.connect(browserPipe());
@@ -114,6 +124,7 @@ if (mode === 'panes') {
   db.prepare('UPDATE browser_pane SET url = ? WHERE id = ?').run(`https://bank.test/cb?code=${marker}`, 'bp_agent_1');
   r.panes = (await call('browser.panes')).result;
 }
+if (mode === 'glide') await call('cursor.glide', { session: 's1', target_rect_px: [0, 0, 10, 10], caption: 'click ' + 'x'.repeat(35) + marker });
 if (mode === 'unknown') r.unknown = (await call(`browser.${marker}`)).error;
 if (mode === 'capture') {
   const lines = (await call('browser.console', { pane_id: 'bp_agent_1' })).result as Array<{ text: string }>;

@@ -72,7 +72,7 @@ const TEXT_MAX = 40;
 
 /** A caller's caption as one of "click [name]", "type N characters", "select", "press <chord>", "scroll", with an optional " behind <title>"; anything else is cut to its verb (or ''), and saved secrets are scrubbed. */
 export function safeCaption(raw: string, secrets: Iterable<string>): string {
-  const cut = (s: string) => scrub(Array.from(s).slice(0, TEXT_MAX).join(''), secrets);
+  const cut = (s: string) => Array.from(scrub(s, secrets)).slice(0, TEXT_MAX).join('');
   const at = raw.indexOf(' behind ');
   const head = at < 0 ? raw : raw.slice(0, at);
   const behind = at < 0 ? '' : ` behind ${cut(raw.slice(at + 8))}`;
@@ -84,7 +84,7 @@ export function safeCaption(raw: string, secrets: Iterable<string>): string {
     : verb === 'type' ? /^\d{1,9} characters$/.test(rest)
     : verb === 'press' ? keys.length <= 4 && keys.every((k) => KEY.test(k) || /^[^\s\p{C}]$/u.test(k))
     : rest === '';
-  return `${verb}${ok && rest ? ` ${verb === 'click' ? cut(rest) : rest}` : ''}${behind}`;
+  return `${verb}${ok && rest ? ` ${verb === 'click' || verb === 'press' ? cut(rest) : rest}` : ''}${behind}`;
 }
 
 /** safeCaption with the saved secrets read now; a store that cannot be read leaves the verb only, so the glide and the input after it still go on. */

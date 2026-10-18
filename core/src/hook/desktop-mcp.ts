@@ -44,8 +44,7 @@ function caption(name: string, args: Record<string, unknown>, control: Control |
     : name === 'key' ? `press ${String(args.keys ?? '')}`
     : name === 'scroll' ? 'scroll'
     : `click ${control?.name || control?.automation_id || control?.role || ''}`.trim();
-  const title = Array.from(coveredBy);
-  return title.length ? `${what} behind ${title.length > 40 ? `${title.slice(0, 39).join('')}…` : coveredBy}` : what;
+  return coveredBy ? `${what} behind ${coveredBy}` : what;
 }
 
 /** Describe, approval.check, cursor glide, then act with the checked control as `expect`; a changed control checks again. */

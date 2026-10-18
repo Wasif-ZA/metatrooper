@@ -12,6 +12,8 @@ import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut,
 import { syncFrames } from './desktop-frames.ts';
 import { closeDesktopOverlay, cursorDots, cursorsShowing, desktopGlide, initDesktopOverlay, refitCursors, type DesktopLook } from './desktop-overlay.ts';
 import { chipLabel, modeOf } from './cursor-glide.ts';
+import { scrub } from '../../core/src/redact.ts';
+import { scrubSecretValues } from '../../core/src/secrets.ts';
 import { sessionColour } from './colour.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, corePipe, dbFile, homeDir, logsDir, uiKeyFile } from '../../core/src/paths.ts';
@@ -130,7 +132,15 @@ function cursorLook(sessionId: string): DesktopLook {
     try { row = db()?.prepare('SELECT engine_id, NULL AS title, cwd, step_id, started_at FROM session WHERE id = ?').get(sessionId) as typeof row; } catch {}
     if (row) row = { ...row, title: liveText[sessionId]?.title ?? null };
   }
-  return { mode: modeOf(c.mode), reducedMotion, colour: sessionColour(sessionId), label: row ? chipLabel(row.engine_id, taskOf(row)) : 'agent', showCaption: c.show_caption, idleFadeMs: c.idle_fade_ms, protect: !c.show_in_recordings };
+  let label = 'agent';
+  if (row) {
+    try {
+      const secrets = scrubSecretValues();
+      const clean = { ...row, engine_id: scrub(row.engine_id, secrets), title: scrub(row.title ?? '', secrets), cwd: scrub(row.cwd ?? '', secrets), step_id: scrub(row.step_id ?? '', secrets) };
+      label = chipLabel(clean.engine_id, taskOf(clean));
+    } catch {}
+  }
+  return { mode: modeOf(c.mode), reducedMotion, colour: sessionColour(sessionId), label, showCaption: c.show_caption, idleFadeMs: c.idle_fade_ms, protect: !c.show_in_recordings };
 }
 
 let toasted: Set<string> | null = null;
@@ -253,7 +263,10 @@ function appendLine(envName: string, value: unknown): void {
   const file = process.env[envName];
   if (!file) return;
   try {
-    fs.appendFileSync(file, JSON.stringify(value) + '\n');
+    const secrets = scrubSecretValues();
+    // Probe keys describe the snapshot schema (including sessions), not credential fields.
+    const json = JSON.stringify(value, (_key, item) => typeof item === 'string' ? scrub(item, secrets) : item);
+    fs.appendFileSync(file, json + '\n');
   } catch {}
 }
 

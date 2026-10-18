@@ -103,9 +103,9 @@ test('M6-18 describe: minimized passes through; covered_by drops the granted app
   }
 });
 
-test('M6-18 caption: " behind <title>" for a covered target, the title cut to 40 characters; a minimised window sends no rect', { timeout: 30000 }, async t => {
-  // protects=M6-18l the caption names the covering window, short; a minimised target draws no cursor
-  // fails_when=caption() drops the suffix, cuts the title at another length, or a minimised rect is still sent
+test('M6-18 caption: " behind <title>" for a covered target, the full title passed to the workbench for scrubbing; a minimised window sends no rect', { timeout: 30000 }, async t => {
+  // protects=M6-18l the caption names the covering window whole; a minimised target draws no cursor
+  // fails_when=caption() drops the suffix, cuts the title before scrubbing, or a minimised rect is still sent
   // no_claim=the workbench drawing the caption (overlay renderer)
   const f = fixture(t);
   const hook = await hookTool(t, f);
@@ -120,8 +120,7 @@ test('M6-18 caption: " behind <title>" for a covered target, the title cut to 40
   f.update({ minimized: true });
   await hook.tool('click', { window: 100, ref: 'e1' });
   const caps = hook.glides.map((g: any) => g.caption);
-  assert.equal(caps[0], `click Editor behind ${Array.from(long).slice(0, 39).join('')}…`);
-  assert.equal(Array.from(caps[0].split(' behind ')[1]).length, 40);
+  assert.equal(caps[0], `click Editor behind ${long}`);
   assert.equal(caps[1], `click Editor behind ${forty}`);
   assert.equal(caps[2], 'click Editor');
   assert.deepEqual(hook.glides.map((g: any) => g.target_rect_px), [[10, 10, 50, 20], [10, 10, 50, 20], [10, 10, 50, 20], null]);
@@ -213,4 +212,14 @@ test('M6-18e desktop hook: with METATROOPER_WORKBENCH_PROBE set, each input writ
   assert.deepEqual(got[0].state, { kind: 'desktop-input', session: 's1', tool: 'type' });
   assert.ok(got[0].at >= repliedAt);
   assert.ok(!readFileSync(file, 'utf8').includes(MARKER.slice(0, 8)));
+});
+
+
+test('D4 desktop hook preserves a covering secret across the old title cut for workbench scrubbing', { timeout: 30000 }, async t => {
+  const f = fixture(t);
+  const hook = await hookTool(t, f);
+  const title = 'x'.repeat(35) + 'orchidriver';
+  f.update({ covered_by: title, covered_pid: 4200 });
+  await hook.tool('click', { window: 100, ref: 'e1' });
+  assert.equal(hook.glides[0].caption, 'click Editor behind ' + title);
 });

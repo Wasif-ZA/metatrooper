@@ -275,3 +275,24 @@ test('D3 the core and terminal pipes never speak first: a connected client that 
     }
   } finally { await h.teardown(); }
 });
+
+
+test('D4 a missing enumerated secret fails closed and cache removals retain values for later scrubbing', () => withDb(async (db) => {
+  const store = await import('../src/secrets.ts?missing-review');
+  store.setBrowserSecret(db, 'MISSING_REVIEW', 'https://bank.test', 'orchidriver');
+  assert.ok(store.scrubSecretValues().includes('orchidriver'));
+  const file = store.secretPath('core-browser', 'MISSING_REVIEW');
+  const stat = fs.statSync;
+  fs.statSync = ((p: fs.PathLike, ...args: never[]) => String(p) === file ? undefined : (stat as (...a: unknown[]) => unknown)(p, ...args)) as typeof fs.statSync;
+  try {
+    assert.equal(store.getSecret('core-browser', 'MISSING_REVIEW'), null);
+    assert.ok(store.knownSecretValues().includes('orchidriver'));
+    assert.throws(() => store.scrubSecretValues(), /secret.*unavailable/i);
+  } finally { fs.statSync = stat; }
+  assert.ok(store.scrubSecretValues().includes('orchidriver'));
+  store.deleteSecret('core-browser', 'MISSING_REVIEW');
+  assert.ok(store.knownSecretValues().includes('orchidriver'));
+  store.setBrowserSecret(db, 'MISSING_REVIEW', 'https://bank.test', 'willowbrook');
+  store.deleteSecrets(db, 'core-browser');
+  assert.ok(store.knownSecretValues().includes('willowbrook'));
+}));

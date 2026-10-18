@@ -10,7 +10,7 @@ import { isolation } from '../../core/test/helpers.ts';
 function runFixture(mode = '') {
   const iso = isolation();
   // lower case only, so only the saved-secret redaction can catch it, not a credential pattern
-  const marker = `secretmarker${randomUUID().replaceAll('-', '')}`;
+  const marker = `secretmarker${randomUUID().replaceAll('-', '')}`.repeat(mode === 'glide' ? 8 : 1);
   try {
     const r = spawnSync(process.execPath, ['--experimental-test-module-mocks', '--no-warnings', fileURLToPath(new URL('./fixtures/decisions-1018.ts', import.meta.url))], {
       encoding: 'utf8', timeout: 90_000, env: { ...iso.env, M612_MARKER: marker, M612_MODE: mode },
@@ -84,4 +84,14 @@ test('D35 folded done tiles past the cap leave a "+N more" bar in the last slot,
   wall.decide([{ id: 'w', state: 'working' }, { id: 'a', state: 'done' }], 'w');
   wall.layout(false);
   assert.equal(more.hidden, true, 'no bar once every folded tile fits');
+});
+
+
+test('D4 AX names and values are withheld when the secret store cannot be loaded', () => {
+  assert.deepEqual(runFixture('ax-failure').out, { ax: [[true, true]] });
+});
+
+
+test('D4 cursor server passes complete captions to the scrubber even when a secret crosses 200 characters', () => {
+  assert.deepEqual(runFixture('glide').out, { hello: 'session', caption: 'click ' + 'x'.repeat(35) + '[secr' });
 });

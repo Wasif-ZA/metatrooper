@@ -122,7 +122,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
 
       if (method === 'cursor.glide') {
         if (bound?.kind !== 'session' || params.session !== bound.sessionId) return fail(id, -32030, 'this connection is not bound to that session');
-        const caption = scrubbedCaption(typeof params.caption === 'string' ? params.caption.slice(0, 200) : '', scrubSecretValues);
+        const caption = scrubbedCaption(typeof params.caption === 'string' ? params.caption : '', scrubSecretValues);
         // an overlay failure never blocks the input (D57)
         const result = deps.glide ? await deps.glide(bound.sessionId, params.target_rect_px, caption).catch(() => ({ arrived: true, ms: 0, shown: false, late: true })) : { arrived: true, ms: 0, shown: false, late: false };
         return send({ jsonrpc: '2.0', id, result });

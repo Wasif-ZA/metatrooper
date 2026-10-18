@@ -137,6 +137,7 @@ export function getSecret(pluginId: string, name: string): string | null {
   const hit = cache.get(key);
   if (hit !== undefined && stamp === stamps.get(key)) return hit;
   if (!stamp) {
+    if (hit !== undefined) retired.add(hit);
     cache.delete(key);
     return null;
   }
@@ -167,14 +168,20 @@ function keyringUsed(file: string): boolean {
 
 /** Deletes one stored secret from disk and memory. */
 export function deleteSecret(pluginId: string, name: string): void {
-  cache.delete(`${pluginId}/${name}`);
+  const key = `${pluginId}/${name}`;
+  const hit = cache.get(key);
+  if (hit !== undefined) retired.add(hit);
+  cache.delete(key);
   if (keyringUsed(secretPath(pluginId, name))) secretTool(['clear', ...keyringAttrs(pluginId, name)]);
   fs.rmSync(secretPath(pluginId, name), { force: true });
 }
 
 /** Deletes every stored secret of a plugin, on disk, in the table and in memory. */
 export function deleteSecrets(db: DatabaseSync, pluginId: string): void {
-  for (const key of [...cache.keys()]) if (key.startsWith(`${pluginId}/`)) cache.delete(key);
+  for (const [key, value] of cache) if (key.startsWith(`${pluginId}/`)) {
+    retired.add(value);
+    cache.delete(key);
+  }
   if (process.platform !== 'win32' && !fakeDpapi() && resolve('secret-tool')) spawnSync('secret-tool', ['clear', ...keyringAttrs(pluginId)]);
   fs.rmSync(path.join(homeDir(), 'secrets', pluginId), { recursive: true, force: true });
   db.prepare('DELETE FROM plugin_secret WHERE plugin_id = ?').run(pluginId);
@@ -229,6 +236,8 @@ export function scrubSecretValues(): string[] {
     const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.dpapi')).map((f) => f.slice(0, -'.dpapi'.length)) : [];
     savedNames = { stamp, names };
   }
-  for (const name of savedNames.names) getSecret(BROWSER_SECRETS, name);
+  for (const name of savedNames.names) {
+    if (getSecret(BROWSER_SECRETS, name) === null) throw new Error('saved secret unavailable for scrubbing');
+  }
   return knownSecretValues();
 }

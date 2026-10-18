@@ -872,7 +872,8 @@ export class PaneManager {
       const id = t.frame.id as string;
       const nodes = (await this.cmd(pane, 'Accessibility.getFullAXTree', { frameId: id }).then((r) => r.nodes as AXNode[], () => []));
       // the snapshot cuts names and values, so they are scrubbed whole first
-      const secrets = scrubSecretValues();
+      let secrets: string[] | undefined;
+      try { secrets = scrubSecretValues(); } catch {}
       for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string, secrets) };
       const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
       out.push({ id, nodes, parent, owner });
