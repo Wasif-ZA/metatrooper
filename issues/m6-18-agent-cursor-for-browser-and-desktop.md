@@ -88,6 +88,7 @@ Codex writes every test below through `/tests-brief` (D65), then a mutation run 
 | Pipe | j (`cursor.glide` binding), g (mode `off` reply) | +2 |
 | Electron | a, e (100 browser actions), h, k, n, o, p | +6 |
 | E2E on this laptop | a, b, e (100 Notepad actions through the extended `m6-15-notepad-e2e` harness with a live workbench in the loop, D53; two sessions at once, pointer read), c (desktop and browser screenshot pixel check at the cursor's position), l | +3 |
+| Already in the branch | `workbench/test/m6-18-cursor-glide.test.ts`: f, g, m and the h timeout at unit level; extend it rather than duplicate | 5 |
 | Manual, recorded | d on two real displays at 100% and 150%. The automated run skips with "needs 2 displays" when `screen.getAllDisplays().length < 2`; the report records the manual run (date, displays, measured error in px) | 1 run |
 
 ## Rules for the implementing agent
@@ -144,6 +145,7 @@ Revert the merge. No schema or core protocol change; `cursor.glide` keeps its pa
 | `workbench/renderer/overlay.js`, `overlay.css`, `overlay.html` | cursor map, arrow and chip, timed path, `cursor.arrived`, ripple, caption, fade |
 | `workbench/src/browser/overlay-preload.cjs` | `cursor.glide` in, `cursor.arrived` out |
 | `workbench/src/browser/panes.ts` | `pointAt` waits on `arrived`; `EASE_MS`, the sleep and the read-back go; overlay life; probe fields |
+| `workbench/src/cursor-glide.ts` | new: glide time, rules, chip label, placement and the `arrived` wait, shared by both hosts (no Electron imports) |
 | `workbench/src/desktop-overlay.ts` | new: per-display windows, placement, refit, z-order, content protection |
 | `workbench/src/browser/server.ts` | `cursor.glide` calls the desktop host |
 | `workbench/src/colour.ts` | new: `sessionColour`, moved from `desktop-frames.ts` |

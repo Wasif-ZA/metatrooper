@@ -95,6 +95,7 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
     m = undefined;
   }
   const now = Date.now();
+  for (const [other, om] of [...marks]) if (other !== session && now - om.at >= look.idleFadeMs) hide(other);
   const prev = m && now - m.at < look.idleFadeMs ? m : null;
   const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: rect, keep: /^(press|scroll)\b/.test(caption), host: display.bounds });
   const w = windowFor(display, look.protect);
