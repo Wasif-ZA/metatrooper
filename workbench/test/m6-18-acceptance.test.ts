@@ -640,3 +640,33 @@ test('M6-18 browser key and scroll show the cursor: a showing cursor stays put i
   await b.manager.run(b.pane, 'key', { _session: 'session-a', keys: `${MARKER}` }).catch(() => {});
   assert.equal(b.wc.glides().at(-1).caption, 'press', 'a key that is not a key name is not shown');
 });
+
+test('M6-18 desktop: a window moved onto another display takes its showing cursor there, shown inactive, hidden at the same 1,500 ms', async () => {
+  // protects=refit from grant.live across displays: the destination overlay shows, and the hide deadline does not move
+  // fails_when=the quiet refit glide never shows the destination window, or it resets the hide timer like an action
+  // no_claim=real multi-monitor DPI conversion
+  fake.wins.length = 0;
+  fake.displays.push({ id: 2, bounds: { x: 1920, y: 0, width: 1920, height: 1080 } });
+  try {
+    const grant = { id: 'gr_m', session_id: 'm-desk', hwnd: 1, title: 'M', rect: [0, 0, 800, 600], minimized: false };
+    mods.refitCursors([grant]);
+    const t0 = Date.now();
+    await mods.desktopGlide('m-desk', [100, 100, 80, 30], 'click', deskLook('m-desk'));
+    await sleep(300);
+    mods.refitCursors([{ ...grant, rect: [1920, 0, 800, 600] }]);
+    await sleep(30);
+    assert.equal(fake.wins.length, 2);
+    const [a, b] = fake.wins;
+    assert.deepEqual(a.webContents.hides(), [{ session: 'm-desk' }]);
+    assert.equal(b.webContents.glides().length, 1);
+    assert.equal(b.isVisible(), true, 'destination overlay shows');
+    assert.equal(b.isAlwaysOnTop(), true);
+    assert.ok(b.calls.some((c: any[]) => c[0] === 'showInactive') && !b.calls.some((c: any[]) => c[0] === 'show' || c[0] === 'focus'));
+    await sleep(t0 + 1500 + 150 - Date.now());
+    assert.equal(b.isVisible(), false, 'hidden at the first action\'s deadline');
+    assert.equal(a.isVisible(), false);
+  } finally {
+    fake.displays.length = 1;
+    mods.closeDesktopOverlay();
+  }
+});

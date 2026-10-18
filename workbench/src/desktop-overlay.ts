@@ -96,13 +96,11 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
     return { arrived: true, ms: 0, shown: false, late: false };
   }
   const { display, rect } = place(rectPx, toDip, (r) => screen.getDisplayMatching(r));
-  let m = marks.get(session);
-  if (m && m.display !== display.id) {
-    hide(session);
-    m = undefined;
-  }
+  const m = marks.get(session);
+  const moved = !!m && m.display !== display.id;
+  if (moved) hide(session);
   const now = Date.now();
-  const prev = m && now - m.at < look.idleFadeMs ? m : null;
+  const prev = m && !moved && now - m.at < look.idleFadeMs ? m : null;
   const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: rect, keep: /^(press|scroll)\b/.test(caption), host: display.bounds });
   const id = `desk:${++glides}`;
   const requested_at = Date.now();
@@ -115,6 +113,11 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
     void w.ready.then(() => {
       if (w.win.isDestroyed() || Date.now() >= due) return;
       if (!quiet) acted(w.win);
+      else if (moved && cursorsShowing()) {
+        // a cursor following its window onto another display shows there, without moving the 1,500 ms hide
+        if (!w.win.isVisible()) w.win.showInactive();
+        raise();
+      }
       w.win.webContents.send('cursor.glide', { id, session, colour: look.colour, label: look.label, from, to, targetRect: rect, ms, caption: look.showCaption ? caption : '', mode: look.mode, reducedMotion: look.reducedMotion });
     }).catch(() => {});
     got = await arrival;
