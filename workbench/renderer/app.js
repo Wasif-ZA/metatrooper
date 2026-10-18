@@ -1112,7 +1112,7 @@ function switchProject(id) {
   ui.hbLine = null;
   ui.gitFile = false;
   ui.comment = null;
-  if (ui.picking) { void api.panePickCancel(ui.picking.pane); ui.picking = null; reportPaneBounds(); }
+  if (ui.picking) { void api.panePickCancel(ui.picking.pane); ui.picking = null; }
   save('projectId', id);
   setView();
 }
