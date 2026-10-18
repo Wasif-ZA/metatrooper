@@ -56,7 +56,7 @@ const termView = (() => {
     const el = document.createElement('div');
     el.className = 'tile pane';
     el.dataset.id = sessionId;
-    el.setAttribute('role', 'group');
+    el.role = 'group';
     el.innerHTML = TILE_HTML;
     el.querySelector('.tile-head').addEventListener('click', (e) => { if (!e.target.closest('button')) onPick(sessionId, e); });
     // a UI Automation invoke clicks the tile itself, not a point inside it

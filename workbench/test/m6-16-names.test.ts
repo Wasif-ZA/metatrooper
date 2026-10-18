@@ -23,7 +23,7 @@ function fakeTile() {
 
 test('M6-16e tiles are named groups "<agent label>, <state>" and the Open preview chip is a button named by its text', () => {
   // protects=the names an agent finds the wall by (Change 4) fails_when=a tile loses role=group or its "<task>, <state>" name, or the chip stops being a button whose text is "Open preview" no_claim=what Chromium's UI Automation tree exposes (the opt-in E2E reads that)
-  assert.match(terminalSource, /el\.setAttribute\('role', 'group'\)/);
+  assert.match(terminalSource, /el\.role = 'group';/);
   const t = fakeTile();
   label(t, { id: 's1', state: 'working', words: 'working', engine_id: 'demo-fixture', task: 'preview', previews: [{ url: 'http://localhost:5173/', port: 5173 }] });
   assert.equal(t.el.ariaLabel, 'preview, working');
