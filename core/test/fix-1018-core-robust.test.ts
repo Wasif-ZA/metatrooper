@@ -17,7 +17,10 @@ import { logOnce } from '../src/log.ts';
 import { startPipeServer } from '../src/pipe/server.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
 import { markGone } from '../src/sessions/resume-all.ts';
-import { isolation, withEnv } from './helpers.ts';
+import * as term from '../src/terminal/index.ts';
+import { liveText, wireTermEvents } from '../src/terminal/events.ts';
+import { buildMethods } from '../src/methods.ts';
+import { isolation, until, withEnv } from './helpers.ts';
 
 function home(t): { home: string; env: Record<string, string> } {
   const isolated = isolation();
@@ -168,4 +171,30 @@ test('h-b-sandbox markGone marks open sandbox sessions process-gone like pty one
     markGone(db, []);
     assert.deepEqual(db.prepare("SELECT session_id FROM event WHERE kind = 'core.process-gone' ORDER BY session_id").all().map((r) => r.session_id), ['box1', 'pty1']);
   } finally { db.close(); }
+});
+
+test('h-b-maps an exited terminal drops its typed time and exit code map entry, and hiding the session drops its live text', async (t) => {
+  const { home: dir, env } = home(t);
+  const saved = { ...process.env };
+  Object.assign(process.env, env);
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(readFileSync(schemaFile, 'utf8'));
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s-maps', 'p', 'fake', 'pty', 'idle', 'x', 'x')").run();
+    wireTermEvents(db);
+    term.open('s-maps', [process.execPath, '-e', "const c = String.fromCharCode; process.stdout.write(c(27) + ']0;MAPS TITLE' + c(7) + 'hello'); setTimeout(() => process.exit(4), 400)"], dir, process.env, 80, 24);
+    term.noteTyped('s-maps', 'abc');
+    assert.ok(term.typedAt('s-maps') > 0);
+    await until(() => liveText()['s-maps']?.title === 'MAPS TITLE', 8000);
+    await until(() => term.savedScreen('s-maps') !== null, 8000);
+    assert.equal(term.typedAt('s-maps'), 0);
+    assert.equal(term.exitCodeOf('s-maps'), 4);
+    buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'k' }).get('session.hide')!.handler({ session_id: 's-maps' }, { ui: true, origin: 'test' });
+    assert.equal(liveText()['s-maps'], undefined);
+    await new Promise((r) => setTimeout(r, 200));
+  } finally {
+    db.close();
+    for (const k of Object.keys(env)) if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k];
+  }
 });

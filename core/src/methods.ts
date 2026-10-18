@@ -14,7 +14,7 @@ import { launchSession, writePrompt } from './sessions/launch.ts';
 import { beingRemoved } from './worktree.ts';
 import * as term from './terminal/index.ts';
 import { availableShells } from './terminal/shells.ts';
-import { liveText } from './terminal/events.ts';
+import { forgetLive, liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
 import { processEvents } from './events/processor.ts';
 import { installClaude, installCodex, installEngineSettings, lineDiff, uninstallClaude, uninstallCodex, uninstallEngineSettings } from './hooks/install.ts';
@@ -272,8 +272,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
 
   m.set('session.hide', {
     handler: (p) => {
-      const r = db.prepare('UPDATE session SET hidden = 1 WHERE id = ?').run(str(p, 'session_id'));
+      const id = str(p, 'session_id');
+      const r = db.prepare('UPDATE session SET hidden = 1 WHERE id = ?').run(id);
       if (Number(r.changes) === 0) throw new RpcError(E.NOT_FOUND, 'session not found');
+      forgetLive(id);
       return {};
     },
   });
@@ -290,7 +292,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('project.clear', {
     handler: (p) => {
       const id = str(p, 'project_id');
-      db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('starting', 'working', 'waiting_for_you')").run(id);
+      const hide = db.prepare("UPDATE session SET hidden = 1 WHERE project_id = ? AND state NOT IN ('starting', 'working', 'waiting_for_you') RETURNING id").all(id) as Array<{ id: string }>;
+      for (const s of hide) forgetLive(s.id);
       db.prepare("UPDATE run SET hidden = 1 WHERE project_id = ? AND status NOT IN ('running', 'paused')").run(id);
       return {};
     },
