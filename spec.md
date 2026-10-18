@@ -932,7 +932,10 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - Grants and approvals do not stop a hostile process running as the user (Threat model).
 - Fatal patterns (M6-23) are checked only while a session is `working`; an engine that never reaches `working`
   never trips one.
-- Browser use (M6-12): the recorded gaps (D7, D8, D10) are in `contracts/browser-tools.md` Known limits.
+- Browser use (M6-12): the recorded gaps (D5, D7, D8, D10) are in `contracts/browser-tools.md` Known limits.
+- An agent with shell access can edit `~/.metatrooper/settings.json` itself (it runs as the same user), so moving
+  `browser.allow_origins` there (D5) keeps it out of reach of the browser tools and the pipe only, not of the agent's
+  shell. That needs a filesystem sandbox, which unsandboxed sessions do not have.
 - A detached child an agent started (a dev server run with `start` or `nohup`) keeps running and holds its port
   after a core stop or restart: `term.killAll()` closes each conpty only. M7-10's job object per session fixes it
   (D82); nothing kills those processes before then, so a server the user wanted is never killed either (D17).

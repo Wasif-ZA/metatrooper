@@ -152,7 +152,12 @@ box fails with "not visible".
 
 ## Known limits
 
-Kept as limits by the 2026-10-18 decisions (D7, D8, D10); each is a gap, not a guarantee.
+Kept as limits by the 2026-10-18 decisions (D5, D7, D8, D10); each is a gap, not a guarantee.
+
+- `browser.allow_origins` lives in `~/.metatrooper/settings.json`, which the browser tools and the pipe cannot
+  change (`settings.set` needs a trusted UI connection; an agent connection gets -32012). An agent with shell access
+  runs as the same user and can edit that file directly, and an origin it adds then skips the new-origin ask. Only a
+  filesystem sandbox around the agent would stop that, and MetaTrooper has none for unsandboxed sessions (D5).
 
 - A checked call the MCP server stopped before sending is recorded on the pane's origin when `browser.outcome`
   reports the stop, not the origin that was checked, so its Timeline row can name a later origin. Passing the

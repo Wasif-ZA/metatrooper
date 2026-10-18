@@ -201,6 +201,18 @@ test('D19 the sweep and session exit delete only files MetaTrooper recorded as i
   } finally { fs.rmSync(outside, { force: true }); }
 }));
 
+test('D5 an agent connection (no ui.hello) cannot set browser.allow_origins over the core pipe', async () => {
+  const { harness, client } = await import('./helpers.ts');
+  const h = await harness();
+  try {
+    const agent = await client(h.prefix);
+    const reply = await agent.request('settings.set', { key: 'browser.allow_origins', value: ['https://agent.test'] });
+    agent.socket.destroy();
+    assert.equal(reply.error?.code, -32012);
+    assert.equal(fs.existsSync(`${h.home}/settings.json`), false);
+  } finally { await h.teardown(); }
+});
+
 test('D3 the core and terminal pipes never speak first: a connected client that sends nothing receives nothing, and a line then gets a reply', async () => {
   const { harness, pipePath } = await import('./helpers.ts');
   const net = await import('node:net');
