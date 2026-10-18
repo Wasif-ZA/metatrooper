@@ -97,6 +97,12 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         return send({ jsonrpc: '2.0', id, result: r });
       }
 
+      if (method === 'cursor.glide') {
+        if (bound?.kind !== 'session' || params.session !== bound.sessionId) return fail(id, -32030, 'this connection is not bound to that session');
+        // ponytail: replies at once; M6-18 draws the cursor glide before replying
+        return send({ jsonrpc: '2.0', id, result: { arrived: true } });
+      }
+
       const tool = method.startsWith('browser.') ? method.slice(8) : '';
       if (!TOOLS.has(tool)) return fail(id, -32601, `unknown method ${method}`);
       if (bound?.kind !== 'session') return fail(id, -32030, 'this connection is not bound to a session');

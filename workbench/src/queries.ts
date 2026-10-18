@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
+import { takeoverPaused } from '../../core/src/grants.ts';
 
 export const OFFLINE_AFTER_MS = 6000;
 
@@ -28,6 +29,10 @@ export interface Snapshot {
   sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
+  /** Live desktop grants (M6-15). */
+  grants?: Array<{ id: string; session_id: string; hwnd: number; title: string; exe: string }>;
+  /** Session ids the take-over flag holds (D62). */
+  paused?: string[];
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
@@ -157,6 +162,11 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   try {
     approvals = db.prepare("SELECT id, session_id, summary, reason, created_at FROM approval WHERE status = 'waiting' ORDER BY julianday(created_at), id").all() as Snapshot['approvals'];
   } catch {}
+  let grants: Snapshot['grants'] = [];
+  try {
+    grants = db.prepare('SELECT id, session_id, hwnd, title, exe FROM grant WHERE ended_at IS NULL ORDER BY julianday(created_at), id').all() as Snapshot['grants'];
+  } catch {}
+  const paused = sessions.filter((s) => s.state !== 'exited' && takeoverPaused(db, s.id)).map((s) => s.id);
 
   return {
     at: now,
@@ -169,6 +179,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     sessions,
     needs_you,
     approvals,
+    grants,
+    paused,
     live: db.prepare("SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC").all() as Snapshot['live'],
     panes,
     dev_servers,

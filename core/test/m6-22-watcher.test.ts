@@ -11,7 +11,7 @@ import { nowIso } from '../src/time.ts';
 
 const home = mkdtempSync(join(tmpdir(), 'troop-m6-22-'));
 process.env.METATROOPER_HOME = home;
-const { Watcher, beginAction, endAction, raise } = await import('../src/watch/watcher.ts');
+const { Watcher, beginAction, endAction, raise, FOLLOW_MS } = await import('../src/watch/watcher.ts');
 
 const schema = readFileSync(join(import.meta.dirname, '..', '..', 'contracts', 'schema.sql'), 'utf8');
 const windows = process.platform === 'win32';
@@ -80,6 +80,26 @@ test('M6-22c: a UI Automation event after 2 s with no input raises "the desktop 
   assert.equal(open.length, 1);
   assert.match(open[0].text, /^the desktop changed while you were away from it, in "Calculator" \(the watcher cannot name the program behind it\)$/);
   assert.ok(meta(db, 'takeover_paused_at'));
+});
+
+test('M6-22: only a window the acted-on window owns, opened up to 1500 ms after the action, is the action\'s own; a focus change or invoke there, an unowned window, another process, a later event or injected input still raises', () => {
+  const db = setup();
+  const t = Date.now() + 450_000;
+  const id = beginAction(t, 4100, 200);
+  endAction(id, t + 100);
+  const opened = (at: number, pid: number, hwnd = 300, owners = [200]) => ({ kind: 'opened' as const, t: at, idle_ms: 10_000, hwnd, title: 'Save as', pid, owners });
+  assert.equal(raise(db, opened(t + 100 + FOLLOW_MS, 4100)), false, 'dialog owned by the acted-on window inside the window');
+  assert.equal(raise(db, opened(t + 900, 4100, 300, [250, 200])), false, 'owned through another owned window');
+  assert.equal(raise(db, { ...opened(t + 900, 4100, 200, []), kind: 'focus' }), true, 'the user Alt-Tabbing into the acted-on window');
+  assert.equal(raise(db, { ...opened(t + 900, 4100, 305), kind: 'invoked' }), true, 'another program invoking a control there');
+  assert.equal(raise(db, opened(t + 900, 4100, 306, [])), true, 'an unowned window of the same process');
+  assert.equal(raise(db, opened(t + 900, 4100, 307, [999])), true, 'a window owned by an ungranted window of the same process');
+  assert.equal(raise(db, opened(t + 900, 4200, 301)), true, 'another process');
+  assert.equal(raise(db, opened(t + 101 + FOLLOW_MS, 4100, 302)), true, 'past the window');
+  assert.equal(raise(db, opened(t + 900, 0, 303)), true, 'unknown process');
+  assert.equal(raise(db, { ...key(t + 900, 304), pid: 4100 }), true, 'injected input is never the action\'s own');
+  assert.equal(items(db, 'away').length, 7);
+  assert.equal(items(db, 'input').length, 1);
 });
 
 test('M6-22: desktop.watch_pause off raises the item but leaves the take-over flag alone', () => {
@@ -332,4 +352,17 @@ $s = -join ([char[]]@(${Array.from({ length: title.length }, (_, i) => title.cha
 [Console]::Out.WriteLine('{"title":' + [MtInputWatch].GetMethod('Json', [Reflection.BindingFlags]'NonPublic,Static').Invoke($null, @($s)) + '}')
 `);
   assert.equal(out?.title, title);
+});
+
+test('M6-22: a UI Automation event whose sender has no window reports hwnd 0 and pid 0, not the foreground window\'s', { skip: !windows && 'Windows only', timeout: 60_000 }, async () => {
+  const helper = readFileSync(join(import.meta.dirname, '..', 'src', 'watch', 'input-hook.ps1'), 'utf8').replace(/^exit .*$/m, '');
+  const out = await runPs(`${helper}
+$flags = [Reflection.BindingFlags]'NonPublic,Static'
+[void][MtInputWatch].GetMethod('OnUia', $flags).Invoke($null, @(2, $null))
+$e = [MtInputWatch].GetField('queue', $flags).GetValue($null).Take()
+[Console]::Out.WriteLine('{"hwnd":' + $e[3] + ',"pid":' + $e[4] + ',"foreground":' + [MtInputWatch].GetMethod('GetForegroundWindow', $flags).Invoke($null, @()).ToInt64() + '}')
+`);
+  assert.notEqual(out?.foreground, 0, 'a window holds the foreground, so the old fallback would have named it');
+  assert.equal(out?.hwnd, 0);
+  assert.equal(out?.pid, 0);
 });

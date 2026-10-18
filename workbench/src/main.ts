@@ -7,7 +7,8 @@ import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
 import { resolveLaunch } from '../../core/src/hook/resolve.ts';
 import { termAck } from './terminals.ts';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { syncFrames } from './desktop-frames.ts';
 import { DatabaseSync } from 'node:sqlite';
 import { browserPipe, corePipe, dbFile, homeDir, logsDir, uiKeyFile } from '../../core/src/paths.ts';
 import { captureProcessLog } from '../../core/src/log.ts';
@@ -48,6 +49,7 @@ export const UI_METHODS = new Set([
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
+  'grant.candidates', 'grant.window', 'grant.revoke', 'takeover.resume',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -165,6 +167,17 @@ function schedulePush(): void {
   }, DEBOUNCE_MS);
 }
 
+let toldPid: number | null = null;
+/** The take-over key as registered, and why it failed; the error is undefined until registration has been tried. */
+let takeoverKey = '';
+let takeoverError: string | null | undefined;
+/** Tells each core that starts (a new `core.pid`) this process's pid, so it never lists or grants the workbench's windows (M6-15). */
+async function tellCoreOurPid(corePid: number | null): Promise<void> {
+  if (!corePid || corePid === toldPid || takeoverError === undefined) return;
+  const out = await call('desktop.ui-window', { pid: process.pid, takeover_key: takeoverKey, takeover_error: takeoverError }, { ui: true });
+  if (out.kind === 'reply' && !out.reply.error) toldPid = corePid;
+}
+
 /** Watches the data folder for troop.db* writes, and polls PRAGMA data_version and the heartbeat every second. */
 function watch(): void {
   const dir = homeDir();
@@ -186,6 +199,7 @@ function watch(): void {
       }
     }
     const s = read();
+    void tellCoreOurPid(s.core.pid);
     if (lastOnline === true && !s.core.online && ownCore && !closing) void restartOwnCore();
     if (lastOnline === false && s.core.online) void checkCoreVersion().then(schedulePush);
     if (changed || s.core.online !== lastOnline) schedulePush();
@@ -514,6 +528,18 @@ function handlers(): void {
     return true;
   });
 
+  on('desktopThumbs', async () => {
+    const grants = lastGood?.grants ?? [];
+    if (!grants.length) return {};
+    const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 480, height: 300 }, fetchWindowIcons: false });
+    const out: Record<string, string> = {};
+    for (const g of grants) {
+      const s = sources.find((x) => x.id.startsWith(`window:${g.hwnd}:`));
+      if (s && !s.thumbnail.isEmpty()) out[g.id] = s.thumbnail.toDataURL();
+    }
+    return out;
+  });
+
   on('longtasks', (entries: unknown) => appendLine('METATROOPER_LONGTASK_LOG', { at: Date.now(), entries }));
   on('probe', (state: unknown) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state, app_menu: Menu.getApplicationMenu() !== null, loads }));
 }
@@ -579,6 +605,7 @@ function createWindow(): void {
   });
   win.on('closed', () => {
     panes?.closeAll();
+    syncFrames([]);
     win = null;
   });
   panes = new PaneManager(win, {
@@ -771,6 +798,24 @@ if (!app.requestSingleInstanceLock()) {
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
     void gitTick();
+    const takeover = takeoverKey = settings().desktop.takeover_key;
+    try {
+      takeoverError = globalShortcut.register(takeover, () => { void call('takeover.pause', {}, { ui: true }).then(schedulePush); }) ? null : 'held by another program';
+    } catch (e) {
+      takeoverError = `not a valid accelerator: ${(e as Error).message}`;
+    }
+    if (takeoverError) console.error(`take-over key ${takeover} ${takeoverError}`);
+    app.on('will-quit', () => globalShortcut.unregisterAll());
+    const frameTick = async () => {
+      try {
+        if (win && (lastGood?.grants?.length || syncFrames.count())) {
+          const out = await call('grant.live', {}, { ui: true, waitMs: 1000 });
+          syncFrames(out.kind === 'reply' && out.reply.result ? (out.reply.result as { grants: Parameters<typeof syncFrames>[0] }).grants : []);
+        }
+      } catch {}
+      setTimeout(frameTick, 500);
+    };
+    void frameTick();
     void startBrowserServer(browserPipe(), {
       db,
       uiKey: () => {

@@ -67,6 +67,19 @@ const EXPECTED_METHODS = [
   'pane.capture',
   'approval.check',
   'approval.resolve',
+  'desktop.ui-window',
+  'grant.candidates',
+  'grant.window',
+  'grant.revoke',
+  'grant.live',
+  'takeover.pause',
+  'takeover.resume',
+  'desktop.windows',
+  'desktop.describe',
+  'desktop.snapshot',
+  'desktop.screenshot',
+  'desktop.find',
+  'desktop.act',
 ];
 
 // Literal list of methods moved to pipeline products.
@@ -108,6 +121,13 @@ const EXPECTED_NEEDS_UI = new Set([
   'pane.assign',
   'pane.capture',
   'approval.resolve',
+  'desktop.ui-window',
+  'grant.candidates',
+  'grant.window',
+  'grant.revoke',
+  'grant.live',
+  'takeover.pause',
+  'takeover.resume',
 ]);
 
 // Seed a test session into the isolated core database.

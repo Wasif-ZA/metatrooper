@@ -30,6 +30,8 @@ import { Watcher } from './watch/watcher.ts';
 import { pollDevServers, sweepDevServers } from './devservers.ts';
 import { sweepWorktrees } from './worktree.ts';
 import { coreResumer, liveAtStart, markGone } from './sessions/resume-all.ts';
+import { Desktop } from './desktop/driver.ts';
+import { endAllGrants, endOrphanGrants } from './grants.ts';
 
 process.removeAllListeners('warning');
 process.on('warning', () => {});
@@ -83,6 +85,7 @@ async function main(): Promise<void> {
     stopping = true;
     console.error(`core stopping: ${why}`);
     for (const t of timers) clearInterval(t);
+    desktop.helper.stop();
     server.close();
     termServer?.close();
     await Promise.race([term.saveAllScreens(), new Promise((r) => setTimeout(r, 2000))]);
@@ -95,7 +98,9 @@ async function main(): Promise<void> {
   };
 
   const uiKey = rotateUiKey();
-  const methods = buildMethods(db, { engines: () => activeEngines(db), stop, uiKey });
+  endAllGrants(db);
+  const desktop = new Desktop(db);
+  const methods = buildMethods(db, { engines: () => activeEngines(db), stop, uiKey, desktop });
   const commands = new CommandRunner(db, methods);
   const home = settings().projects.default;
   if (home) try { methods.get('project.open')!.handler({ path: home }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
@@ -127,6 +132,8 @@ async function main(): Promise<void> {
   every(500, () => deliverPrompts(db));
   every(1000, () => checkActivity(db));
   every(1000, () => pollDevServers(db));
+  every(500, () => desktop.tick());
+  every(5000, () => endOrphanGrants(db));
   every(5000, () => sweepDevServers(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
   every(2000, () => readMeters(db));

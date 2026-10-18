@@ -4,6 +4,7 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -ReferencedAssemblies UIAutomationClient, UIAutomationTypes, WindowsBase -TypeDefinition @'
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -20,6 +21,8 @@ public static class MtInputWatch {
   [DllImport("user32.dll")] static extern IntPtr DispatchMessage(ref MSG m);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LASTINPUTINFO i);
   [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
@@ -36,12 +39,12 @@ public static class MtInputWatch {
   }
 
   static IntPtr OnKey(int code, IntPtr w, IntPtr l) {
-    if (code >= 0 && (Marshal.ReadInt32(l, 8) & 0x10) != 0) queue.Add(new long[] { 0, Now(), -1, GetForegroundWindow().ToInt64() });
+    if (code >= 0 && (Marshal.ReadInt32(l, 8) & 0x10) != 0) queue.Add(new long[] { 0, Now(), -1, GetForegroundWindow().ToInt64(), 0 });
     return CallNextHookEx(IntPtr.Zero, code, w, l);
   }
 
   static IntPtr OnMouse(int code, IntPtr w, IntPtr l) {
-    if (code >= 0 && (Marshal.ReadInt32(l, 12) & 0x01) != 0) queue.Add(new long[] { 1, Now(), -1, GetForegroundWindow().ToInt64() });
+    if (code >= 0 && (Marshal.ReadInt32(l, 12) & 0x01) != 0) queue.Add(new long[] { 1, Now(), -1, GetForegroundWindow().ToInt64(), 0 });
     return CallNextHookEx(IntPtr.Zero, code, w, l);
   }
 
@@ -54,8 +57,16 @@ public static class MtInputWatch {
         if (hwnd == 0) el = TreeWalker.RawViewWalker.GetParent(el);
       }
     } catch { }
-    hwnd = hwnd == 0 ? GetForegroundWindow().ToInt64() : GetAncestor(new IntPtr(hwnd), 2).ToInt64();
-    queue.Add(new long[] { kind, t, idle, hwnd });
+    // a sender with no window stays unknown (hwnd 0, pid 0), never the foreground window's
+    uint pid = 0;
+    var row = new List<long>();
+    if (hwnd != 0) {
+      hwnd = GetAncestor(new IntPtr(hwnd), 2).ToInt64();
+      GetWindowThreadProcessId(new IntPtr(hwnd), out pid);
+      for (IntPtr o = GetWindow(new IntPtr(hwnd), 4); o != IntPtr.Zero && row.Count < 16; o = GetWindow(o, 4)) row.Add(o.ToInt64());
+    }
+    row.InsertRange(0, new long[] { kind, t, idle, hwnd, pid });
+    queue.Add(row.ToArray());
   }
 
   static string Json(string s) {
@@ -108,7 +119,9 @@ public static class MtInputWatch {
     foreach (var e in queue.GetConsumingEnumerable()) {
       title.Length = 0;
       GetWindowText(new IntPtr(e[3]), title, title.Capacity);
-      Console.Out.WriteLine("{\"kind\":\"" + kinds[e[0]] + "\",\"t\":" + e[1] + ",\"idle_ms\":" + e[2] + ",\"hwnd\":" + e[3] + ",\"title\":" + Json(title.ToString()) + "}");
+      var owners = new StringBuilder();
+      for (int i = 5; i < e.Length; i++) owners.Append(i > 5 ? "," : "").Append(e[i]);
+      Console.Out.WriteLine("{\"kind\":\"" + kinds[e[0]] + "\",\"t\":" + e[1] + ",\"idle_ms\":" + e[2] + ",\"hwnd\":" + e[3] + ",\"title\":" + Json(title.ToString()) + ",\"pid\":" + e[4] + ",\"owners\":[" + owners + "]}");
       Console.Out.Flush();
     }
     return 0;

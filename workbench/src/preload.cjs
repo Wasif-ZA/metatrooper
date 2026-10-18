@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('troop', {
     return () => ipcRenderer.removeListener('pane-event', listener);
   },
   paneMenu: (items, x, y) => ipcRenderer.invoke('paneMenu', items, x, y),
+  desktopThumbs: () => ipcRenderer.invoke('desktopThumbs'),
   panePick: (paneId) => ipcRenderer.invoke('panePick', paneId),
   panePickWalk: (paneId, dir) => ipcRenderer.invoke('panePickWalk', paneId, dir),
   panePickCancel: (paneId) => ipcRenderer.invoke('panePickCancel', paneId),

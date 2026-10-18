@@ -17,6 +17,7 @@ export const DEFAULTS = {
     metarouter: true,
   },
   desktop: {
+    takeover_key: 'Control+Alt+Q',
     watch_pause: true,
   },
   worktree: {

@@ -69,10 +69,28 @@ const riskyControl = (c: Control | null) => Boolean(c && (RISKY_NAME.test(words(
 const cap = (s: string) => (s.length > 200 ? `${s.slice(0, 200)}…${sha256(s).slice(0, 16)}` : s);
 const risky = (c: Control) =>`risky control: ${redactCredentials(c.name || c.automation_id).slice(0, 200)}`;
 
+/** The chord as both executors read it: empty parts dropped. */
+const chord = (keys: string) => keys.split('+').map((k) => k.trim()).filter(Boolean);
+
+/** Why the desktop cannot post this chord, or null. A token is printable ASCII, or one printable non-ASCII UTF-16 unit on its own, so JavaScript and .NET trim and split it alike. */
+export function desktopKeysProblem(keys: unknown): string | null {
+  const printable = (t: string) => /^[ -~]*$/.test(t) || (/^ *[^\p{C}\p{Z}\p{M}\s] *$/u.test(t) && t.trim().length === 1);
+  if (typeof keys !== 'string' || !keys.split('+').every(printable)) return 'keys must be printable, like Enter, Alt+F or é; a non-ASCII character must be a key on its own';
+  const parts = chord(keys);
+  if (parts.some((m) => /^(control|ctrl|shift)$/i.test(m))) return `Control and Shift cannot be sent: apps read them from the keyboard state, which a posted key does not change, so ${keys} would not arrive as pressed; nothing was sent`;
+  return null;
+}
+
 function isShortcut(keys: string): boolean {
-  const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
+  const parts = chord(keys);
   return parts.length > 1 && parts.slice(0, -1).some((m) => /^(control|ctrl|alt|meta|cmd|command|win)$/i.test(m));
 }
+
+/** The text, and for the desktop, which writes growing prefixes, the last 64 characters of each prefix (a credential cut short by a prefix ends there). */
+const typed = (p: CheckParams) => {
+  const chars = Array.from(String(p.args.text));
+  return [chars.join(''), ...(p.surface === 'desktop' ? chars.map((_, i) => chars.slice(Math.max(0, i - 63), i + 1).join('')) : [])];
+};
 
 /** The D61 rule that makes this action ask, or null. */
 export function riskReason(p: CheckParams): string | null {
@@ -81,12 +99,12 @@ export function riskReason(p: CheckParams): string | null {
   if (p.file_dialog) return 'file dialog';
   if (p.action === 'type') {
     if (p.password) return 'password field';
-    if (typeof p.args.text === 'string' && looksLikeCredential(p.args.text)) return 'credential text';
+    if (typeof p.args.text === 'string' && typed(p).some(looksLikeCredential)) return 'credential text';
     if (CREDENTIAL_LABEL.test(words(label))) return 'credential field';
   }
   if (p.action === 'key') {
     const keys = typeof p.args.keys === 'string' ? p.args.keys : '';
-    const last = keys.split('+').pop()?.trim() ?? '';
+    const last = chord(keys).pop() ?? '';
     if (!ACTIVATING_KEY.test(last) && !isShortcut(keys)) return null;
     if (p.hidden) return 'hidden control';
     if (riskyControl(c)) return risky(c!);
@@ -98,25 +116,35 @@ export function riskReason(p: CheckParams): string | null {
   return null;
 }
 
-export function summaryOf(p: CheckParams, secrets: string[] = []): string {
+/** "click Send in example.com"; a desktop action names its window (`windowTitle`) instead of the grant id. */
+export function summaryOf(p: CheckParams, secrets: string[] = [], windowTitle?: string): string {
   const what = p.control ? (p.control.name || p.control.automation_id || p.control.role) : '';
-  let where = p.target;
-  try { where = new URL(p.target).host || p.target; } catch {}
+  let where = windowTitle || p.target;
+  if (!windowTitle) try { where = new URL(p.target).host || p.target; } catch {}
   const verb = p.action === 'type' ? 'type into' : p.action === 'key' ? `press ${typeof p.args.keys === 'string' ? p.args.keys : ''} on` : p.action;
-  return scrub(`${verb} ${what || 'the page'} in ${where}`.replace(/\s+/g, ' ').trim(), secrets).slice(0, 300);
+  return scrub(`${verb} ${what || (p.surface === 'desktop' ? 'the window' : 'the page')} in ${where}`.replace(/\s+/g, ' ').trim(), secrets).slice(0, 300);
+}
+
+export interface ApprovalHooks {
+  /** The take-over flag for this session (D62). */
+  paused?: (sessionId: string) => boolean;
+  /** Whether a desktop target is a live grant of this session. */
+  granted?: (sessionId: string, target: string) => boolean;
 }
 
 export class Approvals {
   private db: DatabaseSync;
   private timeoutMs: number;
+  private hooks: ApprovalHooks;
   private waiters = new Map<string, (d: 'approved' | 'rejected' | 'expired') => void>();
 
   private secrets: () => string[];
 
-  constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS, secrets: () => string[] = () => []) {
+  constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS, secrets: () => string[] = () => [], hooks: ApprovalHooks = {}) {
     this.db = db;
     this.timeoutMs = timeoutMs;
     this.secrets = secrets;
+    this.hooks = hooks;
     for (const r of db.prepare("SELECT id FROM approval WHERE status = 'waiting'").all() as Array<{ id: string }>) this.finish(r.id, 'expired');
   }
 
@@ -134,7 +162,11 @@ export class Approvals {
     const p = parseCheck(raw);
     const hash = actionHash(p);
     if (p.action_hash !== undefined && p.action_hash !== hash) throw new RpcError(E.INVALID_PARAMS, 'action_hash does not match the action');
+    const keysProblem = p.surface === 'desktop' && p.action === 'key' ? desktopKeysProblem(p.args.keys) : null;
+    if (keysProblem) throw new RpcError(E.INVALID_PARAMS, keysProblem);
     if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(p.session_id)) return { decision: 'deny', reason: 'unknown or ended session' };
+    if (this.hooks.paused?.(p.session_id)) return { decision: 'deny', reason: 'paused by the user' };
+    if (p.surface === 'desktop' && this.hooks.granted && !this.hooks.granted(p.session_id, p.target)) return { decision: 'deny', reason: 'window not granted; ask the user to give it to you' };
     const text = p.surface === 'browser' && p.action === 'type' && typeof p.args.text === 'string' ? p.args.text : '';
     if (text.includes('{{secret:')) {
       const name = SECRET_PLACEHOLDER.exec(text)?.[1];
@@ -164,7 +196,9 @@ export class Approvals {
     }
     const id = `ap_${ulid()}`;
     const now = nowIso();
-    const summary = summaryOf(p, secrets);
+    let title: string | undefined;
+    if (p.surface === 'desktop') try { title = (this.db.prepare('SELECT title FROM grant WHERE id = ?').get(p.target) as { title: string } | undefined)?.title; } catch {}
+    const summary = summaryOf(p, secrets, title);
     this.db.prepare(
       "INSERT INTO approval (id, session_id, surface, target, control, action, action_hash, summary, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)",
     ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, clean(reason), now);

@@ -13,7 +13,7 @@ const LIVE = ['starting', 'working', 'waiting_for_you', 'unknown'];
 const SETTLED = ['done', 'idle', 'exited'];
 
 // the real label() from terminal.js, run against a tile whose elements are plain objects
-const label = new Function('selected', 'escapeAttr', `${fn('label', terminalSource, '  ')}; return label;`)(null, (v: string) => v);
+const label = new Function('selected', 'escapeAttr', 'deskHtml', `${fn('label', terminalSource, '  ')}; return label;`)(null, (v: string) => v, () => '');
 
 function fakeTile() {
   const els = new Map<string, any>();

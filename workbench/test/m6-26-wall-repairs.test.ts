@@ -456,6 +456,7 @@ const DRIVERS: Record<string, () => Promise<void>> = {
     await w.key('j', { altKey: true });
     assert.deepEqual(w.calls.filter((c) => c.method === 'session.focus').map((c) => c.params.session_id), ['old']);
   },
+  'Ctrl+Alt+W': async () => { const w = boot(); await w.snap(snapOf([])); const before = w.t.ui.watch; await w.key('w', { ctrlKey: true, altKey: true }); assert.equal(w.t.ui.watch !== before, true); },
   'Esc': async () => { const w = boot(); await w.snap(snapOf([])); w.t.ui.split = true; await w.key('Escape'); assert.equal(w.t.ui.split, false); },
   'Shift+Enter': async () => { const t = tileHarness(); t.show({ id: 'a', state: 'working', task: 'x', engine_id: 'claude' }); assert.equal(t.key({ key: 'Enter', shiftKey: true }), false); assert.deepEqual(t.sent, ['\x1b[200~\n\x1b[201~']); },
   'Ctrl+C with a selection': async () => { const t = tileHarness(); t.show({ id: 'a', state: 'done', task: 'x', engine_id: 'claude' }); t.select('abc'); t.key({ key: 'c', ctrlKey: true }); assert.deepEqual(t.copied, ['abc']); },

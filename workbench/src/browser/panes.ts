@@ -8,6 +8,10 @@ import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
+import { takeoverPaused } from '../../../core/src/grants.ts';
+
+/** Typed text goes in pieces of this many characters, with the pause checked before each, as on the desktop. */
+const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
@@ -603,6 +607,12 @@ export class PaneManager {
     pane.navs++;
   }
 
+  /** An agent's input event; the take-over flag is checked right before each one is sent. */
+  private async input(pane: Pane, a: Record<string, any>, method: string, params: Record<string, unknown>): Promise<any> {
+    this.notPaused(a);
+    return this.cmd(pane, method, params);
+  }
+
   private cmd(pane: Pane, method: string, params: Record<string, unknown> = {}): Promise<any> {
     // only agent tools send input; one that began before a handoff sends none after it
     if (pane.handoff && method.startsWith('Input.')) return Promise.reject(handedOff(pane));
@@ -679,10 +689,11 @@ export class PaneManager {
   }
 
   /** Loads `url` under the pane's policy; an agent load stops if the user took the pane while the URL was checked. */
-  private async load(pane: Pane, url: string, agent = false): Promise<void> {
+  private async load(pane: Pane, url: string, agent?: Record<string, any>): Promise<void> {
     const verdict = await checkUrl(url, this.paneCtx(pane));
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
     if (agent && pane.handoff) throw handedOff(pane);
+    if (agent) this.notPaused(agent);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
       if (!/ERR_ABORTED/.test(e.message)) throw new ToolError(-32099, `could not load ${url}: ${e.message}`);
     });
@@ -711,8 +722,9 @@ export class PaneManager {
   }
 
   /** The border box of a ref's element in the pane's viewport, after scrolling it into view. */
-  private async box(pane: Pane, t: Target, ref: unknown): Promise<{ objectId: string; x: number; y: number; left: number; top: number; right: number; bottom: number }> {
+  private async box(pane: Pane, t: Target, ref: unknown, a?: Record<string, any>): Promise<{ objectId: string; x: number; y: number; left: number; top: number; right: number; bottom: number }> {
     const objectId = await this.resolve(pane, t, ref);
+    if (a) this.notPaused(a);
     await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: t.backendNodeId }).catch(() => {});
     const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId: t.backendNodeId }).catch(() => {
       throw new ToolError(-32602, `ref ${String(ref)} is not visible (it has no layout box)`);
@@ -724,9 +736,9 @@ export class PaneManager {
   }
 
   /** The point to click for a ref, after checking the element is enabled and is what a click there hits; the hit test runs in the element's own frame. */
-  private async target(pane: Pane, ref: unknown): Promise<{ node: Target; x: number; y: number }> {
+  private async target(pane: Pane, ref: unknown, a?: Record<string, any>): Promise<{ node: Target; x: number; y: number }> {
     const node = this.node(pane, ref);
-    const p = await this.box(pane, node, ref);
+    const p = await this.box(pane, node, ref, a);
     const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId: p.objectId,
       returnByValue: true,
@@ -783,14 +795,14 @@ export class PaneManager {
   }
 
   /** `recheck` runs after the cursor glide, right before the mouse events. */
-  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>): Promise<void> {
+  private async clickAt(pane: Pane, x: number, y: number, recheck: () => Promise<void>, a: Record<string, any> = {}): Promise<void> {
     await this.pointAt(pane, x, y);
     await recheck();
     this.hooks.probe({ kind: 'click', pane: pane.row.id, x, y });
     pane.clickedAt = Date.now();
-    await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-    await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-    await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+    await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   }
 
   private async isolated(pane: Pane, frameId?: string): Promise<number> {
@@ -851,6 +863,7 @@ export class PaneManager {
     const from = Date.now();
     // the user may have taken the pane while the first snapshot was read; navigate and back send no Input.* to stop them
     if (pane.handoff) throw handedOff(pane);
+    this.notPaused({ _session: session });
     const r = await work();
     await this.settle(pane);
     const wc = pane.view.webContents;
@@ -871,9 +884,10 @@ export class PaneManager {
   }
 
   /** With `doc` (the `navs` the call started on), a call whose page navigates first runs nothing, and one it navigates under returns nothing. */
-  private async evalIsolated(pane: Pane, expression: string, doc?: number): Promise<unknown> {
+  private async evalIsolated(pane: Pane, expression: string, doc?: number, a?: Record<string, any>): Promise<unknown> {
     const contextId = await this.isolated(pane);
     if (pane.handoff) throw handedOff(pane);
+    if (a) this.notPaused(a);
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
     if (doc !== undefined && (pane.handedBack || pane.secretOnPage)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
@@ -906,6 +920,7 @@ export class PaneManager {
     }
     if (pane.crashed && !(name === 'navigate' && pane.crashed.startsWith('the page crashed'))) throw new ToolError(-32034, pane.crashed);
     if (name === 'dialog') {
+      this.notPaused(a);
       if (!pane.dialog) throw new ToolError(-32002, 'no dialog is open');
       const d = pane.dialog;
       await this.cmd(pane, 'Page.handleJavaScriptDialog', { accept: a.accept === true, ...(typeof a.prompt_text === 'string' ? { promptText: a.prompt_text } : {}) });
@@ -1008,13 +1023,24 @@ ame, after checking the ref's field is a password field on the origin saved with
     return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
   }
 
+  /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
+  private notPaused(a: Record<string, any>): void {
+    const db = this.hooks.db();
+    if (!a._session || !db) return;
+    let paused = false;
+    try { paused = takeoverPaused(db, String(a._session)); } catch {}
+    if (paused) throw new ToolError(-32030, 'paused by the user');
+  }
+
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
     // the user may have taken the pane while this call glided the cursor
     if (pane.handoff) throw handedOff(pane);
+    this.notPaused(a);
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describeControl(pane, { ...a, tool });
     if (pane.handoff) throw handedOff(pane);
+    this.notPaused(a);
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
     if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
@@ -1022,7 +1048,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     }
   }
 
-  private async pressKeys(pane: Pane, keys: string): Promise<void> {
+  private async pressKeys(pane: Pane, keys: string, a: Record<string, any> = {}): Promise<void> {
     const parts = keys.split('+').map((k) => k.trim()).filter(Boolean);
     const key = parts.pop() ?? '';
     const MODS: Record<string, number> = { alt: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
@@ -1057,8 +1083,8 @@ ame, after checking the ref's field is a password field on the origin saved with
     if (!def) throw new ToolError(-32602, `unknown key ${key}`);
     const [k, code, vk, text] = def;
     const typed = text !== undefined && !(modifiers & 7) ? { text } : {};
-    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: typed.text !== undefined ? 'keyDown' : 'rawKeyDown', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...typed });
-    await this.cmd(pane, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await this.input(pane, a, 'Input.dispatchKeyEvent', { type: typed.text !== undefined ? 'keyDown' : 'rawKeyDown', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...typed });
+    await this.input(pane, a, 'Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, modifiers, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
   }
 
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
@@ -1071,12 +1097,13 @@ ame, after checking the ref's field is a password field on the origin saved with
       return this.page(pane, name, rest, budget);
     }
     if (name === 'describe') return this.describeControl(pane, a);
+    if (['navigate', 'back', 'scroll', 'evaluate'].includes(name)) this.notPaused(a);
     const recheck = () => this.recheck(pane, name, a);
     switch (name) {
       case 'key': {
         if (typeof a.keys !== 'string' || !a.keys) throw new ToolError(-32602, 'keys is required');
         await recheck();
-        await this.pressKeys(pane, a.keys);
+        await this.pressKeys(pane, a.keys, a);
         return { ok: true };
       }
       case 'navigate': {
@@ -1089,7 +1116,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         const [prev, navs] = [pane.errorFor, pane.navs];
         pane.errorFor = null;
         const out = await this.answer(pane, session, async () => {
-          await this.load(pane, a.url, true);
+          await this.load(pane, a.url, a);
           return { status: pane.status };
         }).catch((e) => {
           // nothing loaded (a blocked URL): the error page is still on screen
@@ -1129,8 +1156,8 @@ ame, after checking the ref's field is a password field on the origin saved with
       }
       case 'click':
         return this.answer(pane, session, async () => {
-          const p = await this.target(pane, a.ref);
-          await this.clickAt(pane, p.x, p.y, recheck);
+          const p = await this.target(pane, a.ref, a);
+          await this.clickAt(pane, p.x, p.y, recheck, a);
           return { ok: true };
         });
       case 'type': {
@@ -1139,12 +1166,13 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (!secret && a.text.includes('{{secret:')) throw new ToolError(-32602, 'a {{secret:NAME}} placeholder must be the whole text');
         if (secret) await this.secretValue(pane, secret, a.ref);
         return this.answer(pane, session, async () => {
-          const { node, x, y } = await this.target(pane, a.ref);
-          await this.clickAt(pane, x, y, recheck);
+          const { node, x, y } = await this.target(pane, a.ref, a);
+          await this.clickAt(pane, x, y, recheck, a);
           let text = a.text;
+          this.notPaused(a);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
-            await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
+            await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
           }
           if (secret) {
             // the page's handlers for the focus and select-all may have made it a plain field or moved it to another origin
@@ -1154,14 +1182,29 @@ ame, after checking the ref's field is a password field on the origin saved with
             if (pane.scripted) throw new ToolError(-32037, 'evaluate has run on this page; navigate first, nothing was typed');
             pane.secretOnPage = true;
           }
-          if (text) await this.cmd(pane, 'Input.insertText', { text });
-          else {
-            for (const type of ['keyDown', 'keyUp']) await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+          if (text) {
+            const chars = Array.from(text);
+            const originOf = () => { try { return new URL(this.pageUrl(pane)).origin; } catch { return ''; } };
+            const [navs, origin] = [pane.navs, originOf()];
+            for (let i = 0; i < chars.length; i += TYPE_CHUNK) {
+              // a page handler can move focus, swap the field or navigate between pieces; the next piece would follow it
+              try {
+                if (pane.navs !== navs || originOf() !== origin) throw new ToolError(-32037, 'the page navigated; nothing was typed');
+                await this.focusOn(pane, node, a.ref);
+                if (secret && (await this.secretValue(pane, secret, a.ref)) !== text) throw new ToolError(-32037, `secret ${secret} was saved again while it was being typed; nothing was typed`);
+              } catch (e) {
+                if (i > 0 && e instanceof ToolError) e.message = e.message.replace(/nothing was typed$/, secret ? 'the rest of the secret was not typed' : `${i} of ${chars.length} characters were typed, the rest were not`);
+                throw e;
+              }
+              await this.input(pane, a, 'Input.insertText', { text: chars.slice(i, i + TYPE_CHUNK).join('') });
+            }
+          } else {
+            for (const type of ['keyDown', 'keyUp']) await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }
           if (a.submit) {
             pane.clickedAt = Date.now();
             for (const type of ['keyDown', 'keyUp']) {
-              await this.cmd(pane, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
+              await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, ...(type === 'keyDown' ? { text: '\r' } : {}) });
             }
           }
           return { ok: true };
@@ -1170,9 +1213,10 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'select':
         return this.answer(pane, session, async () => {
           const node = this.node(pane, a.ref);
-          const p = await this.box(pane, node, a.ref);
+          const p = await this.box(pane, node, a.ref, a);
           await this.pointAt(pane, p.x, p.y);
           await recheck();
+          this.notPaused(a);
           await this.cmd(pane, 'Runtime.callFunctionOn', {
             objectId: p.objectId,
             functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',
@@ -1184,7 +1228,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (a.ref) await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: this.node(pane, a.ref).backendNodeId });
         else {
           const { width: w, height: h } = pane.parked ? this.parkedMetrics(pane) : pane.view.getBounds();
-          await this.cmd(pane, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
+          await this.input(pane, a, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: w / 2, y: h / 2, deltaX: 0, deltaY: Number(a.dy) || 0 });
           await sleep(150);
         }
         return { scroll_y: await this.evalIsolated(pane, 'Math.round(window.scrollY)') };
@@ -1206,7 +1250,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         let png: Buffer;
         let truncated = false;
         if (a.ref) {
-          const b = await this.box(pane, this.node(pane, a.ref), a.ref);
+          const b = await this.box(pane, this.node(pane, a.ref), a.ref, a);
           const m = await this.cmd(pane, 'Page.getLayoutMetrics');
           const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
           const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };
@@ -1239,7 +1283,7 @@ ame, after checking the ref's field is a password field on the origin saved with
         if (pane.secretOnPage) throw new ToolError(-32038, 'evaluate is off on a page a secret was typed into; navigate first');
         pane.scripted = true;
         // a navigation while it waits clears the flag, and the script may then run in, or leave a listener on, the new page
-        const raw = await this.evalIsolated(pane, a.expression, pane.navs).finally(() => { pane.scripted = true; });
+        const raw = await this.evalIsolated(pane, a.expression, pane.navs, a).finally(() => { pane.scripted = true; });
         // the user may have signed in while it ran
         if (pane.handoff !== null || pane.handedBack) throw new ToolError(-32038, 'the user took the pane while evaluate ran; its result is dropped');
         const value = scrubDeep(raw, knownSecretValues());

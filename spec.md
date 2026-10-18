@@ -105,7 +105,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D75 | metarouter | Wasif, 2026-10-10, cut left to Claude: metarouter moves into this repo as `router/`, merged with its history, and stays Python. Porting 4,600 lines and 391 tests to TypeScript before the freeze buys nothing a user sees. One resolver, `router/bin/metarouter.js`, finds Python 3.11+ (`TROOP_PYTHON`, then `py -3`, `python`, `python3`) and runs the bundled copy, else an installed `metarouter`, else exits 127 saying what is missing. `troop route`, the gate's A-05 metric and the plugin action all go through it, so they always run the version beside the core. The `metarouter` command and the PyPI package keep their names; PyPI releases take `router-v*` tags so they never trigger the desk's `v*` release. `router/` is MIT like the other glue folders; metarouter had no licence before |
 | D76 | metarouter on by default | Wasif, 2026-10-11: metarouter is called by default from MetaTrooper. With `sessions.metarouter` (default true), every pty session gets `router/bin` first on `PATH`, where `metarouter` and `metarouter.cmd` run the bundled copy through the D75 resolver, and an engine with `instructions_arg` (Claude: `--append-system-prompt`) gets the same instruction block `metarouter init` writes. Codex and agy get the PATH only, until a flag for extra instructions is confirmed on each. Sandbox sessions are unchanged, because `router/` is not mounted there |
 | D77 | Milestone 7 | Claude, 2026-10-11, under the M7 brief Wasif asked to run; not yet confirmed by Wasif: the ideas D73 moved after the release become Milestone 7 (about 29 CC days from 2027-01-20). Every mined idea has a recorded fate in `ide-layer-research/idea-coverage.md`. Eight that change a security, data, dependency or native-binary line (lend a login, Google sign-in identity, pty host, bundled ConPTY, retention pruning, limits by probe, cua-driver, a Linux desktop sandbox) are not specced; the compose box is cut. Defaults chosen so nothing changes until a user opts in: no browser preset means every tool, `worktree.preserve` is empty, new agents still take the big slot, auto layout and shell integration are off, unset wall fractions keep today's formulas |
-| D78 | Desktop actions and focus | Wasif, 2026-10-11, after the M6-14 spike (`issues/m6-14-computer-use-spike.md`): UI Automation pattern actions move keyboard focus to the target window on WinUI and Win32 apps; the pointer never moves. So the driver uses window messages first (`WM_SETTEXT`, `PostMessage`), which the spike showed keep focus on controls with their own window handle, and patterns only for controls without one. After a pattern action that moved the foreground, the helper tries to give it back to the window that had it and reports whether that worked. The promise is narrowed to "your pointer stays yours" (Known limits) |
+| D78 | Desktop actions and focus | Wasif, 2026-10-11, after the M6-14 spike (`issues/m6-14-computer-use-spike.md`): UI Automation pattern actions move keyboard focus to the target window on WinUI and Win32 apps; the pointer never moves. So the driver uses window messages first (`WM_SETTEXT`, `PostMessage`), which the spike showed keep focus on controls with their own window handle, and patterns only for controls without one. After a pattern action that moved the foreground, the helper tries to give it back to the window that had it and reports whether that worked. The promise is narrowed to "your pointer stays yours" (Known limits). Wasif, 2026-10-14: keys and clicks stay posted, since a sent key skips the app's accelerators and a sent click that opens a modal dialog does not return until it closes; the take-over acknowledgement waits 250 ms after the last posted key or click. That narrows the gap but is not a guarantee: a posted input the target has not yet read can land after the acknowledgement |
 | D79 | Files panel | Wasif, 2026-10-12, in a /spec session: MetaTrooper gets a light file viewer, not an IDE (M7-9). It docks in the second big slot beside the focused tile, as Warp and Claude Code desktop do, and shows only that session's `cwd`. Tabs open read-only; `Edit` unlocks one tab, and a save refuses when the file changed on disk or another live session owns it (`ownersAsync`) until the user confirms. Real editing goes to VS Code through the existing `openLink`. No language servers. After the release, so Milestone 6 is unchanged |
 | D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
 | D81 | Wall repairs before the freeze | Wasif, 2026-10-12, in a /spec session from the UI research (`~/.cache/claude-scratch/metatrooper-ui-research-2026-10-12/report.html`): repairs to existing UI go in Milestone 6; the new History and Settings panels go to M7. Undo for hide is a 7 s delay in the renderer, with no `session.unhide` in the core. The tile x never shows on a live agent (M6-27, Critical, never slips). The other repairs are one child, M6-26, High, first on the slip list because the 81-day plan has no slack |
@@ -502,7 +502,7 @@ What MetaTrooper adds around the driver:
   GW_OWNER)` chains back to the granted window, same pid and process start). A standard file dialog (`#32770` with a
   file list) is covered but every input in it asks (D61). A grant ends when its window is destroyed, its process
   ends, the user revokes it on the tile, or the core restarts. Grants are made only from the workbench (`grant.window
-  {session_id, hwnd}`, `ui.hello`): pick a window from a list, or drag the tile's "give window" handle onto it. The
+  {session_id, hwnd, pid, process_start}`, `ui.hello`): the user picks a window from the tile's "Give window" list. The
   workbench window, its children, elevated windows and the secure desktop can never be granted.
 - **The MCP server.** `metatrooper-desktop` is a stdio MCP server MetaTrooper attaches like `metatrooper-browser`.
   It finds its session by process ancestry. For every input it: (1) calls `approval.check` on the core pipe (grant,
@@ -534,7 +534,10 @@ What MetaTrooper adds around the driver:
   if Smart App Control or PowerShell policy blocks it, the wall shows "input watcher off" in orange on every
   granted tile. The same helper subscribes to UI Automation's desktop-wide events (`FocusChangedEvent`,
   `Window_WindowOpenedEvent`, `Invoke_InvokedEvent`) on its own thread. It reports an event only when
-  `GetLastInputInfo` shows no physical input for 2 s and the core has no `metatrooper-desktop` action in flight;
+  `GetLastInputInfo` shows no physical input for 2 s and the core has no `metatrooper-desktop` action in flight,
+  and the event is not a new window owned by the window an action targeted, opened within 1.5 s of that action (a
+  dialog the agent's own click or key opened; the helper reports each event's pid and owner chain, and hwnd 0 and
+  pid 0 when the sender has no window). A focus change or invoke is never the action's own past the 200 ms slack;
   the core then raises "the desktop changed while you were away from it" naming the window, and pauses when
   `desktop.watch_pause` is on. Apps that change on their own (a toast, a timer, a download finishing) also trip it,
   so it only runs while a grant is live and each window can be muted for the session from the needs-you item.
@@ -933,6 +936,24 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
   UI Automation script is caught only by the away-from-desktop listener: it fires on focus, new windows and
   invoked controls, but not on a value set silently in a window that keeps focus (`ValuePattern.SetValue`), and it
   stays quiet while the user is actively using the machine.
+- Computer use (M6-15; the full list is in `contracts/desktop-tools.md` Known limits):
+  - A process that calls `desktop.act` on the core pipe directly, with an `expect` that matches the control and
+    without `approval.check`, is not stopped; the grant and the pause flag still apply.
+  - A key or click is posted (D78). The take-over acknowledgement waits 250 ms after the last one, which narrows
+    the gap but is not a guarantee: a target that has not read its queue by then gets the input after it.
+  - A key chord with Control or Shift cannot be sent: a posted key does not change the keyboard state apps read, so
+    it is refused before any approval is asked.
+  - A window closed and a new one opened at the same handle by the same process within 500 ms is not told apart
+    (D37).
+  - Browser input already sent to the page when the take-over key is pressed may finish after the acknowledgement;
+    typing goes in pieces of 8 characters with the pause checked before each (D39 C), so at most one piece lands.
+  - F9 (D43): an app that detaches an owned dialog from the granted window while a request is in flight, keeping
+    its handle and process, still gets that request.
+  - F11 (D43): an approval card approved after the session was paused or its grant revoked returns `approved` to
+    the waiting check; dispatch still refuses the input.
+  - The input watcher treats a new window owned by the window an action targeted, opened up to 1.5 s after it, as
+    the action's own result; another program opening an owned window of that same window inside those 1.5 s is not
+    reported. Focus moving into the agent's own dialog is reported (and pauses with `desktop.watch_pause`).
 
 ## Hand-back (only Wasif)
 

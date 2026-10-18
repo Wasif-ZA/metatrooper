@@ -63,7 +63,7 @@ tests and tools, in addition to those in `pipe-protocol.md`:
 | `core/src/plugins/actions.ts` | `runAction(req): Promise<{ok, outputs} \| {ok, error}>`, `BASE_ENV` | the action process contract in `plugins.md`; never rejects |
 | `core/src/plugins/bridge.ts` | `paneCsp(id)`, `resolvePaneFile(dir, urlPath)`, `checkPaneMessage(plugin, framePluginId, msg)` | the pane bridge in `plugins.md` |
 | `core/src/plugins/importers.ts` | `importClaude(dir)`, `importCodex(file, project?)`, `importAgy(file?, project?)`, `parseToml(text)` | the importer table in `plugins.md`; literal values stay in memory |
-| `core/src/plugins/mcp.ts` | `mcpAttachArgs(db, engine, sessionId, browser = false): string[]` | engine arguments pointing plugin MCP servers at the shim, plus `metatrooper-browser` only when `browser` is true |
+| `core/src/plugins/mcp.ts` | `mcpAttachArgs(db, engine, sessionId, browser = false): string[]` | engine arguments pointing plugin MCP servers at the shim, plus `metatrooper-browser` only when `browser` is true, and `metatrooper-desktop` on Windows while the `desktop` plugin is enabled, except contained, isolated and pipeline sessions |
 | `core/src/engines/registry.ts` | `bindRole(db, role, pinned?)` | lowest `cost_rank` engine listing the role, installed and not red |
 
 ## Port module tests may import (child #15)
