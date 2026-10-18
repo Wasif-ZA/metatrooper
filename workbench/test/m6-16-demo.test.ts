@@ -73,9 +73,17 @@ test('M6-16b isolation: a --demo start overrides an inherited home and prefix, s
   assert.ok(existsSync(got.home));
 
   const seed = await import('../../tests/demo/seed.mjs');
-  const { project, engines } = seed.seedDemo(got.home);
+  // an inherited override pointing at a real registry must not reach the demo
+  const inherited = join(sentinel, 'engines.json');
+  writeFileSync(inherited, JSON.stringify([{ id: marker, command: 'node', args: [] }]));
+  const savedEngines = process.env.METATROOPER_ENGINES;
+  process.env.METATROOPER_ENGINES = inherited;
+  let seeded;
+  try { seeded = seed.seedDemo(got.home); } finally { if (savedEngines === undefined) delete process.env.METATROOPER_ENGINES; else process.env.METATROOPER_ENGINES = savedEngines; }
+  const { project, engines } = seeded;
   const registry = JSON.parse(readFileSync(engines, 'utf8')).map((e: { id: string }) => e.id);
-  assert.ok(registry.includes('demo-fixture') && registry.includes('claude'), `engines.json keeps the real engines: ${registry}`);
+  assert.ok(registry.includes('demo-fixture') && registry.includes('claude'), `engines.json keeps the shipped engines: ${registry}`);
+  assert.ok(!registry.includes(marker), 'the inherited METATROOPER_ENGINES registry is never read');
   const iso: any = { home: got.home, prefix: got.prefix, started: Date.now(), args: ['--demo'], env: { ...process.env, METATROOPER_HOME: got.home, METATROOPER_PIPE_PREFIX: got.prefix, METATROOPER_DEMO: '1', METATROOPER_ENGINES: engines } };
   const core = await startCore(iso);
   const pipe = await client(got.prefix);

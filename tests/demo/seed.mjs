@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadEngines } from '../../core/src/engines/registry.ts';
+import { shippedEngines } from '../../core/src/engines/registry.ts';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const DEMO_ENGINE = 'demo-fixture';
@@ -35,7 +35,7 @@ export function seedDemo(home) {
     id: DEMO_ENGINE, command: 'node', args: [path.join(repo, 'tests', 'fixtures', 'demo-session.mjs')], prompt_arg: 'positional',
     version_cmd: ['node', '--version'], state_source: 'process', roles: [], cost_rank: 9,
   };
-  fs.writeFileSync(engines, JSON.stringify([...loadEngines().filter((e) => e.id !== DEMO_ENGINE), demoEngine], null, 2));
+  fs.writeFileSync(engines, JSON.stringify([...shippedEngines().filter((e) => e.id !== DEMO_ENGINE), demoEngine], null, 2));
 
   // Nothing the demo stores may point outside the demo folder.
   const homeAbs = slash(home) + '/';
