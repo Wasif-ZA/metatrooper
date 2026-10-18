@@ -950,7 +950,7 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
   - F11 (D43): an approval card approved after the session was paused or its grant revoked returns `approved` to
     the waiting check; dispatch still refuses the input.
   - The workbench is known to be running by its pid, so a process that reuses that pid after the workbench exits
-    keeps input allowed until the next core start.
+    keeps input allowed until the next `desktop.ui-window` report or core start.
   - The input watcher treats a change in the process an action targeted, up to 1.5 s after it, as the action's own
     result; a change someone else makes in that process inside that window is not reported.
 

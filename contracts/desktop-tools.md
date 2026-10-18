@@ -165,7 +165,7 @@ among its ancestors.
 - F11 (D43, recorded): an approval card that is approved after the session was paused or its grant revoked returns
   `approved` to the waiting `approval.check`; the input is still refused at dispatch, by the pause or grant check.
 - The workbench is known to be running by its pid (`process.kill(pid, 0)`), so a new process that reuses that pid
-  after the workbench exits keeps input allowed until the next core start.
+  after the workbench exits keeps input allowed until the next `desktop.ui-window` report or core start.
 - The input watcher (M6-22) treats a focus change, new window or invoke in the process an action targeted, up to
   1.5 s after that action, as the action's own result (the dialog it opened). A change someone else makes in that
   same process inside that window is not reported; changes in any other process still are.
