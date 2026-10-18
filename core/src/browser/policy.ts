@@ -2,7 +2,7 @@ import dns from 'node:dns';
 import net from 'node:net';
 
 const blocked4 = new net.BlockList();
-for (const [addr, bits] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['127.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['169.254.0.0', 16], ['100.64.0.0', 10]] as const) {
+for (const [addr, bits] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['127.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['169.254.0.0', 16], ['100.64.0.0', 10], ['224.0.0.0', 4], ['255.255.255.255', 32]] as const) {
   blocked4.addSubnet(addr, bits, 'ipv4');
 }
 const blocked6 = new net.BlockList();
@@ -10,6 +10,8 @@ blocked6.addAddress('::', 'ipv6');
 blocked6.addAddress('::1', 'ipv6');
 blocked6.addSubnet('fc00::', 7, 'ipv6');
 blocked6.addSubnet('fe80::', 10, 'ipv6');
+blocked6.addSubnet('fec0::', 10, 'ipv6');
+blocked6.addSubnet('ff00::', 8, 'ipv6');
 
 export interface PolicyContext {
   /** Ports this pane's project owns (`browser_pane.dev_port`). */
@@ -24,25 +26,35 @@ export type Verdict = { allow: true } | { allow: false; reason: string };
 
 const PASS_SCHEMES = new Set(['data:', 'blob:', 'about:']);
 
-function mappedV4(addr: string): string | null {
-  const dotted = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(addr);
-  if (dotted) return dotted[1];
-  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(addr);
-  if (!hex) return null;
-  const hi = parseInt(hex[1], 16);
-  const lo = parseInt(hex[2], 16);
-  return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+/** The IPv4 address inside an IPv6 one: IPv4-compatible `::/96`, mapped `::ffff:0:0/96`, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`. */
+function embeddedV4(addr: string): string | null {
+  if (!net.isIPv6(addr)) return null;
+  let s = addr.toLowerCase().split('%')[0];
+  const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(s);
+  if (dotted) {
+    const [a, b, c, d] = dotted.slice(1).map(Number);
+    s = s.slice(0, dotted.index) + ((a << 8) | b).toString(16) + ':' + ((c << 8) | d).toString(16);
+  }
+  const [head, tail] = s.includes('::') ? s.split('::') : [s, null];
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const g = (tail === null ? h : [...h, ...Array(8 - h.length - t.length).fill('0'), ...t]).map((x) => parseInt(x, 16));
+  const v4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  if (g.slice(0, 5).every((x) => x === 0) && (g[5] === 0 || g[5] === 0xffff)) return v4(g[6], g[7]);
+  if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) return v4(g[6], g[7]);
+  if (g[0] === 0x2002) return v4(g[1], g[2]);
+  return null;
 }
 
 function isLoopback(addr: string): boolean {
-  const v4 = net.isIPv4(addr) ? addr : mappedV4(addr);
-  if (v4) return v4.startsWith('127.');
-  return addr === '::1';
+  if (addr === '::1') return true;
+  const v4 = net.isIPv4(addr) ? addr : embeddedV4(addr);
+  return v4 !== null && v4.startsWith('127.');
 }
 
 /** True when the address is in one of the blocked ranges of browser-tools.md, safety rule 2. */
 export function blockedAddress(addr: string): boolean {
-  const v4 = net.isIPv4(addr) ? addr : mappedV4(addr);
+  const v4 = net.isIPv4(addr) ? addr : embeddedV4(addr);
   if (v4) return blocked4.check(v4, 'ipv4');
   if (net.isIPv6(addr)) return blocked6.check(addr, 'ipv6');
   return true;
