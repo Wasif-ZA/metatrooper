@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { blockedAddress, checkUrl } from '../src/browser/policy.ts';
+import { titlePatterns, unsafePattern } from '../src/engines/registry.ts';
 
 function ctx(ownedPorts: number[] = [], lookup?: (host: string) => Promise<string[]>) {
   return { ownedPorts: new Set(ownedPorts), allowHosts: new Set<string>(), lookup };
@@ -21,4 +22,17 @@ test('c-sec-d2 URL policy refuses wrapped-private IPv6, site-local, multicast an
     assert.equal(blockedAddress(a), false, a);
   }
   assert.equal((await checkUrl('http://[::1]:3000/', ctx([3000]))).allow, true);
+});
+
+test('m6-23-d1 state_titles rejects nested quantifiers, backreferences and long patterns at load', () => {
+  for (const src of ['^(a+)+$', '(?:x*)*', '((ab+))+', '(a{2,})+y', '(\\d+)*', '(a)\\1', '(?<n>a)\\k<n>', 'a'.repeat(201)]) {
+    assert.ok(unsafePattern(src), src);
+  }
+  for (const src of ['^\\u2733 ', '(working|busy)', '^(a+)?b', '[(+)]+', '\\(a+\\)+', 'x{2}', 'Claude.*working']) {
+    assert.equal(unsafePattern(src), null, src);
+  }
+  const spec = { id: 'fix-1018-fixture', command: 'x', version_cmd: ['x'], roles: [], cost_rank: 1, state_titles: { working: '^(a+)+$', idle: '^idle' } };
+  const re = titlePatterns(spec as never);
+  assert.equal(re.working, undefined);
+  assert.ok(re.idle?.test('idle now'));
 });

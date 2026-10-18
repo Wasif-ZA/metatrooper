@@ -126,6 +126,32 @@ export function dataEngines(dir: string): EngineSpec[] {
 export type TitleState = 'working' | 'waiting' | 'idle';
 
 const compiled = new Map<string, RegExp | null>();
+const MAX_PATTERN = 200;
+export const MAX_TITLE = 256;
+
+/** Why a state_titles pattern could backtrack without bound (a backreference, or a quantified group that holds a quantifier), or null. */
+export function unsafePattern(src: string): string | null {
+  if (src.length > MAX_PATTERN) return `is longer than ${MAX_PATTERN} characters`;
+  if (/\\[1-9]|\\k</.test(src)) return 'has a backreference';
+  const groups: boolean[] = [];
+  let quantifiedGroup = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    const closed = quantifiedGroup;
+    quantifiedGroup = false;
+    if (c === '\\') i++;
+    else if (c === '[') { for (i++; i < src.length && src[i] !== ']'; i++) if (src[i] === '\\') i++; }
+    else if (c === '(') groups.push(false);
+    else if (c === ')') {
+      quantifiedGroup = groups.pop() ?? false;
+      if (quantifiedGroup && groups.length) groups[groups.length - 1] = true;
+    } else if (c === '*' || c === '+' || (c === '{' && /\d/.test(src[i + 1] ?? ''))) {
+      if (closed) return 'nests a quantifier inside a quantified group';
+      if (groups.length) groups[groups.length - 1] = true;
+    }
+  }
+  return null;
+}
 
 /** The engine's state_titles as case-insensitive regexes, each compiled once; a pattern that does not compile is logged once and left out. */
 export function titlePatterns(e: EngineSpec): Partial<Record<TitleState, RegExp>> {
@@ -133,7 +159,9 @@ export function titlePatterns(e: EngineSpec): Partial<Record<TitleState, RegExp>
   for (const [state, src] of Object.entries(e.state_titles ?? {}) as Array<[TitleState, string]>) {
     const key = `${e.id}\0${state}\0${src}`;
     if (!compiled.has(key)) {
-      try { compiled.set(key, new RegExp(src, 'i')); } catch { console.warn(`engine ${e.id}: state_titles.${state} does not compile, ignored`); compiled.set(key, null); }
+      const unsafe = unsafePattern(src);
+      if (unsafe) { console.warn(`engine ${e.id}: state_titles.${state} ${unsafe}, ignored`); compiled.set(key, null); }
+      else try { compiled.set(key, new RegExp(src, 'i')); } catch { console.warn(`engine ${e.id}: state_titles.${state} does not compile, ignored`); compiled.set(key, null); }
     }
     const re = compiled.get(key);
     if (re) out[state] = re;
