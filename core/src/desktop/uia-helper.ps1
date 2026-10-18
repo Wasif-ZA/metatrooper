@@ -124,9 +124,10 @@ namespace TroopUia {
         case "click": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
         case "key": {
           Chord(Str(r, "keys"));
-          if (FocusHwnd(new IntPtr(hwnd)) == IntPtr.Zero) throw new Exception("this window has no keyboard focus (another window is in front), so there is no checked control to post a key to; nothing was sent");
           bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
-          if (Num(r, "check") != 0 && hidden && Num(r, "hidden") == 0 && Rid(f) == Str(r, "rid")) throw new Exception("this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent");
+          if (target == IntPtr.Zero) throw new Exception("this window has no keyboard focus (another window is in front), so there is no checked control to post a key to; nothing was sent");
+          if (f == null) throw new Exception("the control holding this window's focus cannot be read, so it cannot be checked; nothing was sent");
+          if (Num(r, "check") != 0 && hidden && Num(r, "hidden") == 0) throw new Exception("this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent");
           Expect(hwnd, f, hidden, r);
           return Key(target, Str(r, "keys"));
         }
@@ -286,14 +287,12 @@ namespace TroopUia {
       return Native.GetAncestor(gti.hwndFocus, GA_ROOT) == Native.GetAncestor(hwnd, GA_ROOT) ? gti.hwndFocus : IntPtr.Zero;
     }
 
-    // target: the HWND a key for this window is posted to
+    // target: the HWND a key for this window is posted to, zero when the window has no focus HWND
     static AutomationElement Focused(IntPtr hwnd, out bool hidden, out IntPtr target) {
       hidden = true;
-      target = hwnd;
-      IntPtr focus = FocusHwnd(hwnd);
+      IntPtr focus = target = FocusHwnd(hwnd);
       if (focus == IntPtr.Zero) return null;
       hidden = false;
-      target = focus;
       try {
         var f = AutomationElement.FocusedElement;
         var e = f;

@@ -52,7 +52,8 @@ expected, else `unverifiable`.
 | `not sent: the MetaTrooper core is offline, so this action cannot be checked` | the core pipe does not answer |
 | `unknown ref <ref>; take a new snapshot` | the ref is not in the latest snapshot of that window |
 | `this window has no keyboard focus (another window is in front), ...; nothing was sent` | `key` on a window whose thread reports no focused control |
-| `this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent` | `key` checked against a control (with a `ref`) that, with the window in the background, only reads back as its container |
+| `this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent` | `key` approved on a control that was read as itself, while the focused control now reads back only as its container (the window went to the background) |
+| `the control holding this window's focus cannot be read, so it cannot be checked; nothing was sent` | `key` on a window whose focus HWND UI Automation cannot read; the helper reads focus once per key and never falls back to the top-level window |
 | `not sent: the workbench is not running, so the agent could not be paused` | an input while the workbench that reported the take-over key has exited; the same `not sent: ..., so the agent could not be paused` names a key that never registered or was never reported (D43, F10) |
 | `Control and Shift cannot be sent: ...; nothing was sent` | a `key` chord with Control, Ctrl or Shift in any position (`Alt+Shift` and a bare `Shift` too); the MCP server, `approval.check` and `desktop.act` refuse it with -32602 before any approval is asked, and the helper refuses it again |
 
