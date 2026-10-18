@@ -55,3 +55,28 @@ test('UI-02: the native browser pane hides while a toast, sheet, palette, Inbox,
   report();
   assert.deepEqual(shown, ['bp_1'], 'the pick hint toast leaves the pane clickable');
 });
+
+test('UI-02-sheet-anim: the approval sheet keeps its up class until the close slide ends, so the pane stays hidden under it', async () => {
+  const vm = await import('node:vm');
+  const node = (): any => ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, setAttribute() {}, after() {}, appendChild() {}, remove() {}, querySelector: () => node(), getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0 }) });
+  const cls = new Set<string>();
+  const sheet = { ...node(), classList: { add: (c: string) => cls.add(c), remove: (c: string) => cls.delete(c), toggle: (c: string, on: boolean) => (on ? cls.add(c) : cls.delete(c)), contains: (c: string) => cls.has(c) } };
+  const done: Array<() => void> = [];
+  const tw = (target: unknown, vars: { onComplete?: () => void }) => { if (target === sheet && vars?.onComplete) done.push(vars.onComplete); return { kill() {} }; };
+  const ctx = vm.createContext({
+    gsap: { to: tw, set: tw, fromTo: tw, delayedCall: tw }, termView: { tile: () => node() }, matchMedia: () => ({ matches: false }),
+    document: { body: node(), querySelector: (s: string) => (s === '#sheet' ? sheet : node()), createElement: () => ({ content: { firstChild: node() } }) },
+    addEventListener() {}, setInterval() {}, setTimeout() {}, clearTimeout() {}, innerWidth: 1400, innerHeight: 900, reportPaneBounds() {},
+  });
+  vm.runInContext(`${readFileSync(new URL('../renderer/wall.js', import.meta.url), 'utf8')}\nthis.wall = wall;`, ctx);
+  ctx.wall.setSheet(true);
+  assert.ok(cls.has('up'));
+  ctx.wall.setSheet(false);
+  assert.ok(cls.has('up'), 'still up while sliding down');
+  done.at(-1)!();
+  assert.ok(!cls.has('up'));
+  ctx.wall.setSheet(false);
+  ctx.wall.setSheet(true);
+  done.at(-2)!();
+  assert.ok(cls.has('up'), 'a reopen mid-slide keeps it up');
+});
