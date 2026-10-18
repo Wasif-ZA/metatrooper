@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { blockedAddress, checkUrl } from '../src/browser/policy.ts';
 import { titlePatterns, unsafePattern } from '../src/engines/registry.ts';
 import { shimToken } from '../src/plugins/mcp.ts';
-import { client, isolation, startCore, teardownCore, uiHello, withEnv } from './helpers.ts';
+import { client, isolation, startCore, stopCore, teardownCore, uiHello, withEnv } from './helpers.ts';
 
 function ctx(ownedPorts: number[] = [], lookup?: (host: string) => Promise<string[]>) {
   return { ownedPorts: new Set(ownedPorts), allowHosts: new Set<string>(), lookup };
@@ -56,8 +56,9 @@ test('m6-23-d1-redos-bypass a state_titles pattern that backtracks past the load
 
 test('c-sec-d1 mcp.resolve and mcp.missing answer only with the token the core put in that plugin shim command', async () => {
   const isolated = isolation();
-  const core = await startCore(isolated);
+  let core = await startCore(isolated);
   try {
+    let tokenA = '';
     const pipe = await client(isolated.prefix);
     try {
       await uiHello(pipe, isolated.home);
@@ -69,7 +70,7 @@ test('c-sec-d1 mcp.resolve and mcp.missing answer only with the token the core p
         const installed = await pipe.request('plugin.install', { source: dir, approved_permissions: [], manifest_hash: preview.result.manifest_hash });
         assert.equal(installed.error, undefined, JSON.stringify(installed));
       }
-      const tokenA = withEnv({ METATROOPER_HOME: isolated.home }, () => shimToken('tok-a'));
+      tokenA = withEnv({ METATROOPER_HOME: isolated.home }, () => shimToken('tok-a'));
       assert.deepEqual((await pipe.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token: tokenA })).result.args, ['tok-a']);
       for (const token of [undefined, '', tokenA.replace(/^./, (c: string) => (c === '0' ? '1' : '0'))]) {
         assert.ok((await pipe.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token })).error);
@@ -77,8 +78,23 @@ test('c-sec-d1 mcp.resolve and mcp.missing answer only with the token the core p
       assert.match((await pipe.request('mcp.resolve', { plugin_id: 'tok-b', server_id: 's', token: tokenA })).error.message, /token/);
       assert.match((await pipe.request('mcp.missing', { plugin_id: 'tok-b', names: ['X'], token: tokenA })).error.message, /token/);
       assert.deepEqual((await pipe.request('mcp.missing', { plugin_id: 'tok-a', names: [], token: tokenA })).result, {});
-      writeFileSync(join(isolated.home, 'ui.key'), 'f'.repeat(64));
-      assert.deepEqual((await pipe.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token: tokenA })).result?.args, ['tok-a'], 'a new ui key from a core restart keeps live shim tokens valid');
     } finally { pipe.close(); }
+    const uiKey = readFileSync(join(isolated.home, 'ui.key'), 'utf8');
+    await stopCore(core, isolated);
+    core = await startCore(isolated);
+    assert.notEqual(readFileSync(join(isolated.home, 'ui.key'), 'utf8'), uiKey, 'the restart wrote a new ui key');
+    const again = await client(isolated.prefix);
+    try {
+      assert.deepEqual((await again.request('mcp.resolve', { plugin_id: 'tok-a', server_id: 's', token: tokenA })).result?.args, ['tok-a'], 'a core restart keeps live shim tokens valid');
+    } finally { again.close(); }
   } finally { await teardownCore(core, isolated); }
+});
+
+test('shimToken creates a missing home so shim.key, not a per-process key, signs the token', () => {
+  const parent = isolation().home;
+  const home = join(parent, 'not-yet');
+  try {
+    withEnv({ METATROOPER_HOME: home }, () => shimToken('p'));
+    assert.ok(existsSync(join(home, 'shim.key')));
+  } finally { rmSync(parent, { recursive: true, force: true }); }
 });

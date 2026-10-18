@@ -67,6 +67,7 @@ const fallbackKey = crypto.randomBytes(32).toString('hex');
 export function shimToken(pluginId: string): string {
   const file = path.join(homeDir(), 'shim.key');
   let key = fallbackKey;
+  fs.mkdirSync(homeDir(), { recursive: true });
   try { fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 }); } catch {}
   try { key = fs.readFileSync(file, 'utf8') || key; } catch {}
   return crypto.createHmac('sha256', key).update(pluginId).digest('hex');
