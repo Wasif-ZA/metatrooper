@@ -263,3 +263,14 @@ test('UI-16 the title-bar Restart core runs only on a second click within 3 s', 
   await late.click({ action: 'restart-core' });
   assert.equal(late.calls.filter((c) => c.method === 'api.restartCore').length, 0);
 });
+
+test('UI-19 the side panel open state survives a restart, and Esc closing it is saved too', async () => {
+  const open = boot({ storage: { 'troop.split': '1', 'troop.tab': 'git' } });
+  assert.equal(open.t.ui.split, true);
+  await open.snap(snapOf([]));
+  await open.key('Escape');
+  assert.equal(open.t.ui.split, false);
+  assert.equal(open.store['troop.split'], '0');
+  assert.equal(boot({ storage: { 'troop.split': '0' } }).t.ui.split, false);
+  assert.equal(boot().t.ui.split, false);
+});

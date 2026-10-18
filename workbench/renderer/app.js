@@ -12,7 +12,7 @@ const ui = {
   tab: ['diff', 'git', 'handback', 'browser'].includes(load('tab')) ? load('tab') : 'diff',
   paneCache: {},
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
-  split: false,
+  split: load('split') === '1',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
   localSel: null,
   shells: [],
@@ -1768,7 +1768,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (wall.sheetOpen()) wall.setSheet(false);
     else if (wall.listOpen()) wall.setList(false);
-    else if (ui.split) { ui.split = false; render(); }
+    else if (ui.split) { ui.split = false; save('split', '0'); render(); }
     return;
   }
   if (ui.tab !== 'browser' || !ui.split) return;
