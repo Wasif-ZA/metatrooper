@@ -338,7 +338,7 @@ test('M6-18n browser: the view stays attached through the last cursor fade (300 
   assert.ok(b.children.includes(b.pane.overlay), 'session-b is still fading (its 300 ms ends 50 ms from now)');
 });
 
-test('M6-18n desktop: an idle cursor gets cursor.hide after idle_fade_ms', { todo: 'defect: desktop-overlay.ts sends cursor.hide for an idle cursor only inside another session\'s next glide (line 98); a lone idle cursor never gets it' }, async () => {
+test('M6-18n desktop: an idle cursor gets cursor.hide after idle_fade_ms', async () => {
   // protects=M6-18n the contract's "main sends cursor.hide after idle_fade_ms" on the desktop host
   // fails_when=the desktop host has no idle timer per cursor
   // no_claim=the window-level hide at 1,500 ms (M6-18k)

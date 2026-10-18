@@ -19,6 +19,8 @@ export interface GlideReply { arrived: true; ms: number; shown: boolean; late: b
 const wins = new Map<number, { win: BrowserWindow; ready: Promise<void> }>();
 /** Each session's cursor: the display it is on, its point in that window, the physical rect it went to, and when. */
 const marks = new Map<string, { display: number; x: number; y: number; rect: number[]; at: number }>();
+/** Each session's idle timer: `cursor.hide` once its cursor has been still for `idle_fade_ms`. */
+const fades = new Map<string, NodeJS.Timeout>();
 let grants: LiveGrant[] = [];
 let lastAction = 0;
 let topTimer: NodeJS.Timeout | null = null;
@@ -100,7 +102,6 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
     m = undefined;
   }
   const now = Date.now();
-  for (const [other, om] of [...marks]) if (other !== session && now - om.at >= look.idleFadeMs) hide(other);
   const prev = m && now - m.at < look.idleFadeMs ? m : null;
   const { from, to, ms } = planGlide({ mode: look.mode, reducedMotion: look.reducedMotion, prev, target: rect, keep: /^(press|scroll)\b/.test(caption), host: display.bounds });
   const id = `desk:${++glides}`;
@@ -120,7 +121,13 @@ export async function desktopGlide(session: string, rectPx: unknown, caption: st
   } catch {
     await new Promise((r) => setTimeout(r, Math.max(0, due - Date.now())));
   }
-  marks.set(session, { display: display.id, x: to.x, y: to.y, rect: rectPx, at: quiet && m ? m.at : Date.now() });
+  const at = quiet && m ? m.at : Date.now();
+  marks.set(session, { display: display.id, x: to.x, y: to.y, rect: rectPx, at });
+  clearTimeout(fades.get(session));
+  fades.set(session, setTimeout(() => {
+    fades.delete(session);
+    if (marks.get(session)?.at === at) hide(session);
+  }, Math.max(0, at + look.idleFadeMs - Date.now())).unref());
   if (!quiet) probe({ kind: 'cursor', host: 'desktop', session, ms, late: !got, shown: true, requested_at, arrived_at: got ? got.at : null });
   return { arrived: true, ms, shown: true, late: !got };
 }
@@ -191,4 +198,6 @@ export function closeDesktopOverlay(): void {
   for (const { win } of wins.values()) if (!win.isDestroyed()) win.destroy();
   wins.clear();
   marks.clear();
+  for (const t of fades.values()) clearTimeout(t);
+  fades.clear();
 }
