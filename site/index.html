@@ -4,104 +4,217 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MetaTrooper</title>
-<meta name="description" content="A PR reviewed by two engines, with proof. Windows and Linux, local, no account, no telemetry.">
+<meta name="description" content="Run Claude Code, Codex and Gemini side by side on one wall. Agents can drive a browser and your Windows apps, and anything risky stops for you first. Free, open source, local, no account.">
 <style>
-:root {
-  --canvas: #161617; --canvas-soft: #1b1b1c; --canvas-deep: #0b0b0c; --pane: #0e0e0f;
-  --hairline: #2a2a2b; --hairline-strong: #4a4a4a;
-  --ink: #f2f2f2; --body: #b8b8b8; --mute: #8f8f8f; --faint: #6e6e6e; --wait: #ff7a1a;
-  --mono: 'Geist Mono', ui-monospace, Consolas, monospace;
-  --sans: 'Space Mono', ui-monospace, Consolas, monospace;
-  --dots: radial-gradient(circle, #363637 0 .9px, transparent 1.2px) 0 0/3px 3px;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--canvas-deep); color: var(--body); font-family: var(--sans); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
-a { color: var(--ink); }
-main { max-width: 980px; margin: 0 auto; padding: 0 16px 64px; }
-header { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px dotted var(--hairline-strong); }
-.brand { color: var(--ink); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 14px; }
-.brand::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; background: radial-gradient(circle, var(--ink) 0 1px, transparent 1.3px) 0 0/4px 4px; }
-header .sp { flex: 1; }
-header a { font-size: 13px; color: var(--mute); text-decoration: none; }
-.hero { padding: 56px 0 40px; }
-.hero h1 { color: var(--ink); font-size: clamp(26px, 6vw, 44px); line-height: 1.15; font-weight: 700; letter-spacing: -.01em; }
-.facts { list-style: none; margin-top: 22px; font-family: var(--mono); font-size: 14px; color: var(--body); }
-.facts li::before { content: '\25CF'; color: var(--wait); margin-right: 10px; font-size: 10px; vertical-align: 2px; }
-.cta { display: inline-block; margin-top: 28px; padding: 10px 18px; border-radius: 5px; background: var(--ink); color: var(--canvas-deep); font-weight: 700; text-decoration: none; }
-section { padding: 40px 0; border-top: 1px dotted var(--hairline-strong); }
-h2 { color: var(--ink); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 18px; }
-h3 { color: var(--ink); font-size: 16px; margin-bottom: 6px; }
-p + p { margin-top: 10px; }
-.gifs { display: grid; gap: 28px; }
-figure { border: 1px solid var(--hairline); border-radius: 8px; background: var(--pane); overflow: hidden; }
-.frame { position: relative; aspect-ratio: 16 / 10; background: var(--dots), var(--canvas); display: grid; place-items: center; }
-.frame span { font-family: var(--mono); font-size: 13px; color: var(--faint); }
-.frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-figcaption { padding: 14px 16px; border-top: 1px solid var(--hairline); }
-.cols { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.card { padding: 18px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas); }
-.soon { display: inline-block; margin-left: 8px; padding: 0 8px; border: 1px solid var(--wait); border-radius: 3px; color: var(--wait); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; vertical-align: 2px; }
-.engines { font-family: var(--mono); color: var(--ink); }
-footer { padding-top: 24px; border-top: 1px dotted var(--hairline-strong); font-size: 13px; color: var(--mute); }
-@media (max-width: 600px) { body { font-size: 14px; } .hero { padding: 36px 0 28px; } }
+:root{--bg:#f6f6f4;--fg:#151516;--mut:#5e5e62;--line:#dcdcd8;--card:#fff;--code:#ececea;--btn:#151516;--btn-ink:#f6f6f4;--dot:#c8c8c4;--wait:#c45200;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111112;--fg:#f1f1ef;--mut:#a4a4a8;--line:#3a3a3d;--card:#18181a;--code:#1e1e20;--btn:#f1f1ef;--btn-ink:#111112;--dot:#424245;--wait:#ff7a1a}}
+:root[data-theme="dark"]{--bg:#111112;--fg:#f1f1ef;--mut:#a4a4a8;--line:#3a3a3d;--card:#18181a;--code:#1e1e20;--btn:#f1f1ef;--btn-ink:#111112;--dot:#424245;--wait:#ff7a1a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.6 system-ui,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+a{color:inherit}
+.w{max-width:1080px;margin:0 auto;padding:0 16px}
+header.top{display:flex;justify-content:space-between;align-items:center;padding:14px 0;gap:10px;flex-wrap:wrap;border-bottom:1px dotted var(--line)}
+.brand{font:700 15px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;text-decoration:none}
+header.top nav{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:.9rem}
+header.top nav a{color:var(--mut);text-decoration:none}
+header.top nav a:hover{color:var(--fg)}
+button.t{background:none;border:1px solid var(--line);color:var(--fg);padding:3px 9px;font:inherit;font-size:.85rem;cursor:pointer}
+.hero{padding:56px 0 28px}
+.hero h1{font-size:clamp(2.3rem,6vw,4.2rem);line-height:1.04;letter-spacing:-.04em;font-weight:600;margin:0 0 16px}
+.hero h1 span{color:var(--mut)}
+.hero p{color:var(--mut);font-size:1.12rem;margin:0 0 18px;max-width:56ch}
+.facts{list-style:none;padding:0;margin:0 0 22px;font:.92rem var(--mono);color:var(--mut)}
+.facts li:before{content:'\25CF';color:var(--wait);margin-right:10px;font-size:.6rem;vertical-align:2px}
+.install{display:flex;align-items:center;gap:8px;background:var(--code);border:1px solid var(--line);padding:10px 12px;font:.86rem var(--mono);max-width:620px}
+.install span{overflow-x:auto;white-space:nowrap;min-width:0}
+.install button{margin-left:auto;flex:none}
+.btn{display:inline-block;background:var(--btn);color:var(--btn-ink);text-decoration:none;font-weight:600;font-size:.95rem;padding:10px 18px;margin:16px 10px 0 0;border:1px solid var(--btn)}
+.btn.ghost{background:none;color:var(--fg);border-color:var(--line)}
+figure{margin:0;border:1px solid var(--line);background:var(--card);padding:8px}
+figure img{display:block;width:100%;height:auto}
+figcaption{padding:10px 4px 2px;font:.78rem var(--mono);color:var(--mut)}
+.hero figure{margin-top:34px}
+section{padding:46px 0;border-top:1px dotted var(--line)}
+h2{font-size:clamp(1.5rem,3vw,2.1rem);letter-spacing:-.03em;font-weight:600;margin:0 0 6px}
+.sub{color:var(--mut);margin:0 0 24px;max-width:62ch}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:var(--card);border:1px solid var(--line);padding:18px}
+.card b{display:block;font:.72rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+.card h3{margin:0 0 6px;font-size:1.08rem;font-weight:600}
+.card p{margin:0;color:var(--mut);font-size:.95rem}
+.feat{display:flex;flex-wrap:wrap;gap:26px;align-items:center}
+.feat>div{flex:1 1 300px;min-width:0}
+.feat>figure{flex:1.5 1 420px;min-width:0}
+.feat ul{margin:12px 0 0;padding-left:18px;color:var(--mut)}
+.feat li{margin:6px 0}
+.feat li b{color:var(--fg);font-weight:600}
+.needs{display:inline-flex;align-items:center;gap:8px;color:var(--wait);font:.75rem var(--mono);margin-bottom:12px}
+.needs:before{content:'?';background:var(--wait);color:#111;padding:0 6px;font-weight:700}
+.list{display:grid;grid-template-columns:repeat(2,1fr);gap:0 26px;padding:0;margin:0;list-style:none}
+.list li{padding:12px 0;border-bottom:1px dotted var(--line)}
+.list b{display:block;font-weight:600}
+.list span{color:var(--mut);font-size:.93rem}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips span{border:1px solid var(--line);background:var(--card);padding:6px 13px;font-size:.92rem}
+code{font-family:var(--mono);font-size:.86em;background:var(--code);padding:1px 5px}
+pre{background:var(--code);border:1px solid var(--line);padding:14px;overflow-x:auto;font:.86rem/1.55 var(--mono);margin:0;max-width:720px}
+pre code{background:none;padding:0;font-size:inherit}
+.note{color:var(--mut);font-size:.93rem;max-width:66ch}
+.limits{padding-left:18px}
+.limits li{margin:8px 0;max-width:72ch}
+details{border-bottom:1px dotted var(--line);padding:12px 0}
+summary{cursor:pointer;font-weight:600}
+details p{color:var(--mut);margin:8px 0 0;max-width:70ch}
+.release{background:radial-gradient(circle,var(--dot) 0 .7px,transparent 1px) 0 0/3px 3px;border:1px dotted var(--line);padding:48px 40px}
+.release div{background:var(--bg);padding:24px;max-width:640px}
+.release p{color:var(--mut);margin:10px 0 0}
+footer{padding:28px 0 46px;color:var(--mut);font-size:.88rem;border-top:1px dotted var(--line);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+footer p{margin:0;max-width:60ch}
+@media (max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.hero{padding-top:32px}.grid4,.list{grid-template-columns:1fr}.feat>figure{flex-basis:100%}.release{padding:20px 12px}.release div{padding:18px 14px}}
 </style>
 </head>
 <body>
-<main>
-<header><span class="brand">MetaTrooper</span><span class="sp"></span><a href="https://github.com/Wasif-ZA/metatrooper">Source</a></header>
+<div class="w">
+<header class="top">
+ <a class="brand" href="#">MetaTrooper</a>
+ <nav><a href="#parts">Four parts</a><a href="#start">Get started</a><a href="#limits">Limits</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub</a><button class="t" id="theme" type="button">Light / dark</button></nav>
+</header>
 
 <div class="hero">
-  <h1>A PR reviewed by two engines, with proof.</h1>
-  <ul class="facts">
-    <li>Windows and Linux</li>
-    <li>Local, on your machine</li>
-    <li>No account, no telemetry</li>
-  </ul>
-  <a class="cta" href="#waitlist">Get the first build</a>
+ <h1>Your agents.<br><span>One wall.</span></h1>
+ <p>Run Claude Code, Codex and Gemini side by side, each in a terminal that keeps going. The one that needs you comes to you. Agents can drive a browser and your Windows apps, and anything risky stops for you first.</p>
+ <ul class="facts"><li>Windows first, Linux beta</li><li>Local, on your machine</li><li>No account, no telemetry</li></ul>
+ <div class="install"><span id="cmd">git clone https://github.com/Wasif-ZA/metatrooper</span><button class="t" id="copy" type="button">Copy</button></div>
+ <a class="btn" href="#start">Get started</a><a class="btn ghost" href="https://github.com/Wasif-ZA/metatrooper">Source on GitHub</a>
+ <figure><img src="wall.gif" width="1600" height="1000" alt="Recording: four agents on the wall; one asks a question, turns orange and moves to the big slot" onerror="this.closest('figure').remove()"><figcaption>The wall, on demo data.</figcaption></figure>
 </div>
 
-<section>
-  <h2>What it does</h2>
-  <p>MetaTrooper is a desktop workbench for the coding agents you already use. It runs them in the same window, lets two of them review the same change, and only calls a fix done when the fix carries proof: a test that fails without it and passes with it.</p>
-  <p>You stay in charge. A run stops at a gate whenever it needs your call, and nothing leaves your machine until you approve it.</p>
+<section id="parts">
+ <h2>Four parts</h2>
+ <p class="sub">Free and open source. It runs the official CLIs you install and sign in to yourself, and never reads their logins.</p>
+ <div class="grid4">
+  <div class="card"><b>1</b><h3>The wall</h3><p>Every agent is a live terminal tile. The one waiting for you comes to the big slot.</p></div>
+  <div class="card"><b>2</b><h3>Browser use</h3><p>Agents drive browser panes in the app. New sites, passwords and send buttons wait for you.</p></div>
+  <div class="card"><b>3</b><h3>Computer use</h3><p>On Windows, agents act on the app windows you give them. One key takes over.</p></div>
+  <div class="card"><b>4</b><h3>Core services</h3><p>A background service owns the terminals. Sessions come back after a restart.</p></div>
+ </div>
 </section>
 
 <section>
-  <h2>See it run</h2>
-  <div class="gifs">
-    <figure>
-      <div class="frame"><span>pr-review-fix.gif</span><img src="gifs/pr-review-fix.gif" alt="Two engines review a pull request, a third fixes what both found, and each fix is checked with proof" loading="lazy" onerror="this.remove()"></div>
-      <figcaption><h3>Review and fix with proof</h3><p>Two engines review the same branch. The findings both agree on are fixed, and every fix is checked before it is handed back.</p></figcaption>
-    </figure>
-    <figure>
-      <div class="frame"><span>gate-waiting.gif</span><img src="gifs/gate-waiting.gif" alt="A run paused at a gate, waiting for the user to pick which findings to fix" loading="lazy" onerror="this.remove()"></div>
-      <figcaption><h3>A gate waits for you</h3><p>The run pauses and shows what it wants to do next. Approve, edit or reject; it carries on from there.</p></figcaption>
-    </figure>
-    <figure>
-      <div class="frame"><span>spec-to-pr.gif</span><img src="gifs/spec-to-pr.gif" alt="A one-line idea becomes a spec, then a build, then a pull request" loading="lazy" onerror="this.remove()"></div>
-      <figcaption><h3>Spec in, PR out</h3><p>A one-line idea becomes a spec you approve, a build that passes its tests, and a pull request you approve before it opens.</p></figcaption>
-    </figure>
+ <div class="feat">
+  <div>
+   <span class="needs">Needs you</span>
+   <h2>The one that needs you comes to you.</h2>
+   <ul>
+    <li><b>True status.</b> Working, waiting for you, done or exited, read from each agent's own hooks. A waiting tile says why.</li>
+    <li><b>No stolen keys.</b> A waiting tile holds back for 3 s while you type in the big one.</li>
+    <li><b>Alt keys.</b> Alt+J jumps to the longest wait. Your terminal keeps every Ctrl key.</li>
+    <li><b>Ctrl+K.</b> One search over sessions, commands and the text in every terminal.</li>
+    <li><b>Per tile.</b> Cost, context fill, changed files, and a preview chip for its dev server.</li>
+   </ul>
   </div>
+ </div>
 </section>
 
 <section>
-  <h2>How it is built</h2>
-  <div class="cols">
-    <div class="card"><h3>Your engines, your logins</h3><p>Works with the official command line tools you install and sign in to yourself: <span class="engines">Claude Code, Codex, Antigravity CLI</span>. MetaTrooper never reads or stores your login.</p></div>
-    <div class="card"><h3>Everything stays local</h3><p>Runs, reviews and history live in one folder on your machine. No server, no account, nothing sent home.</p></div>
-    <div class="card"><h3>Sandbox <span class="soon">Coming later</span></h3><p>Agents keep running on your machine as normal. The builds, tests and dev servers they start will run in one Docker container per project, with an Open sandbox button for a terminal into it and its files.</p></div>
+ <div class="feat">
+  <div>
+   <h2>A browser your agents drive, with you in charge.</h2>
+   <ul>
+    <li><b>Approvals.</b> Password fields, credential-like text and Send, Pay or Delete buttons stop at a card. Approve once, for the session, or reject.</li>
+    <li><b>Origins.</b> The first input on a new site asks first. List trusted sites in the project config.</li>
+    <li><b>Secrets.</b> An agent types <code>{{secret:NAME}}</code> into a password field on the saved site. It never sees the value.</li>
+    <li><b>Handoff.</b> An agent can hand you the pane to sign in, then you give it back.</li>
+    <li><b>Its own cursor.</b> Each agent's cursor glides to what it clicks, in its tile's colour. Your pointer never moves.</li>
+   </ul>
   </div>
+  <figure><img src="browser-cursor.gif" width="1600" height="1000" alt="Recording: an agent's coloured cursor glides to a Send button in a browser pane and an approval card appears" onerror="this.closest('figure').remove()"><figcaption>Browser use with the agent cursor.</figcaption></figure>
+ </div>
 </section>
 
-<section id="waitlist">
-  <h2>Get the first build</h2>
-  <p>On GitHub, choose Watch, then Custom, then Releases. You hear once, when the first build is ready to download.</p>
-  <a class="cta" href="https://github.com/Wasif-ZA/metatrooper">Watch on GitHub</a>
+<section>
+ <div class="feat">
+  <div>
+   <h2>Your Windows apps, only the ones you give.</h2>
+   <ul>
+    <li><b>Grants.</b> Pick Give window on a tile. The agent acts on that window and its own dialogs, nothing else.</li>
+    <li><b>Built in.</b> It uses Windows UI Automation. Nothing extra is installed.</li>
+    <li><b>Take-over.</b> Ctrl+Alt+Q pauses every agent's input, desktop and browser.</li>
+    <li><b>Watcher.</b> Input from another program, or a change while you are away, pauses the agents and tells you.</li>
+    <li><b>Refused.</b> The MetaTrooper window, admin windows and the secure desktop can never be given.</li>
+   </ul>
+  </div>
+  <figure><img src="computer-use-takeover.gif" width="1600" height="1000" alt="Recording: an agent types into Notepad with its cursor showing; Ctrl+Alt+Q pauses it and the tile says paused by you" onerror="this.closest('figure').remove()"><figcaption>Computer use, then the take-over key.</figcaption></figure>
+ </div>
+</section>
+
+<section>
+ <h2>Core services</h2>
+ <p class="sub">The parts you notice only when they are missing.</p>
+ <ul class="list">
+  <li><b>Terminals that survive</b><span>Close or crash the window and every agent keeps working.</span></li>
+  <li><b>Sessions come back</b><span>After a restart, live sessions resume in the same layout, at most 3 at a time.</span></li>
+  <li><b>Ports and previews</b><span>A dev server an agent starts gets an Open preview chip. Agent panes reach only their own ports.</span></li>
+  <li><b>Quiet notifications</b><span>No toast for the tile you are looking at. Optional ntfy, Slack, Discord, Teams or webhook.</span></li>
+  <li><b>Limits that carry on</b><span>A Claude session that hit its limit continues when the limit resets.</span></li>
+  <li><b>Public API</b><span>A named pipe with JSON-RPC and stable, versioned methods. No TCP port.</span></li>
+ </ul>
+</section>
+
+<section>
+ <h2>Works with</h2>
+ <p class="sub">Any interactive CLI agent an engine file describes. Built in, among others.</p>
+ <div class="chips"><span>Claude Code</span><span>Codex CLI</span><span>Gemini CLI</span><span>Antigravity CLI (agy)</span><span>opencode</span><span>MCP servers and plugins</span></div>
+</section>
+
+<section id="start">
+ <h2>Get started</h2>
+ <p class="sub">There is no installer yet. You run it from a clone. You need Node 24.16 or newer and at least one agent CLI signed in.</p>
+<pre><code>git clone https://github.com/Wasif-ZA/metatrooper
+cd metatrooper/core &amp;&amp; npm ci
+cd ../workbench &amp;&amp; npm ci
+npm run dev</code></pre>
+ <p class="note">The window starts the core service for you. Linux steps and every command are in the <a href="https://github.com/Wasif-ZA/metatrooper#quickstart">README</a>.</p>
+</section>
+
+<section id="limits">
+ <h2>Limits, stated plainly</h2>
+ <ul class="limits">
+  <li><b>Windows first.</b> Linux is a beta from source, without computer use. macOS is not supported.</li>
+  <li><b>No installer or auto-update yet.</b> You update with <code>git pull</code>.</li>
+  <li><b>Not a guard against hostile programs.</b> Grants and approvals cover MetaTrooper's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.</li>
+  <li><b>Take-over is close to instant.</b> A key already posted to an app may land just after the pause.</li>
+  <li><b>No sandbox for agents' code yet.</b> Agents use your machine with your permissions.</li>
+ </ul>
+</section>
+
+<section>
+ <h2>Questions</h2>
+ <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside MetaTrooper. Pages you open in a browser pane load as in any browser.</p></details>
+ <details><summary>Do I need an account or API keys?</summary><p>No. Install and sign in to the official CLIs yourself. MetaTrooper runs them and never reads their login tokens.</p></details>
+ <details><summary>What does it change on my machine?</summary><p>State lives in <code>~/.metatrooper/</code>. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte.</p></details>
+ <details><summary>Can an agent approve its own actions?</summary><p>No. Only the window can approve, through a key agents are not given.</p></details>
+ <details><summary>What is the licence?</summary><p>The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT.</p></details>
+</section>
+
+<section id="release">
+ <div class="release"><div><h2>Hear about the first release.</h2><p>On GitHub, choose Watch, then Custom, then Releases. You hear once, when the first release is tagged.</p><a class="btn" href="https://github.com/Wasif-ZA/metatrooper">Watch releases on GitHub</a></div></div>
 </section>
 
 <footer>
-  <p>MetaTrooper is not affiliated with or endorsed by Anthropic, OpenAI or Google. Claude Code, Codex and Antigravity CLI are named only to say what it works with.</p>
+ <a class="brand" href="#">MetaTrooper</a>
+ <p>Built in Sydney by Wasif Zaman. Not affiliated with or endorsed by Anthropic, OpenAI or Google.</p>
+ <a href="https://github.com/Wasif-ZA/metatrooper">Source</a>
 </footer>
-</main>
+</div>
+<script>
+(function(){
+var r=document.documentElement,K='mt-site-theme';
+try{var t=localStorage.getItem(K);if(t)r.dataset.theme=t}catch(e){}
+document.getElementById('theme').onclick=function(){var d=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=d?'light':'dark';try{localStorage.setItem(K,r.dataset.theme)}catch(e){}};
+document.getElementById('copy').onclick=function(){var b=this,txt=document.getElementById('cmd').textContent;var ok=function(){b.textContent='Copied'};if(navigator.clipboard)navigator.clipboard.writeText(txt).then(ok,function(){b.textContent='Select and copy'});else b.textContent='Select and copy'};
+})();
+</script>
 </body>
 </html>
