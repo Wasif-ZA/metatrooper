@@ -240,6 +240,25 @@ test('M6-15 the workbench tells every new core its pid, once per core pid', asyn
   assert.deepEqual(sent, [4242, 4242, 4242], 'a restarted core (new pid) is told again, retried until it answers');
 });
 
+for (const pauseAt of [2, 0]) test('M6-15 browser type inserts 8 characters at a time and a pause stops it within one piece ' + pauseAt, async () => {
+  const { PaneManager } = await load();
+  const d = db();
+  try {
+    const manager: any = new PaneManager({} as any, { db: () => d, probe: () => {} } as any);
+    const typed: string[] = [];
+    manager.answer = async (_pane: any, _session: string, action: () => Promise<unknown>) => action();
+    manager.target = async () => ({ node: { backendNodeId: 1 }, x: 10, y: 20 });
+    manager.pointAt = async () => {};
+    manager.cmd = async (_pane: any, method: string, params: any) => {
+      if (method === 'Input.insertText' && typed.push(params.text) === pauseAt) pause(d, new Date().toISOString());
+      return {};
+    };
+    const run = manager.run({ row: { id: 'pane-1' } }, 'type', { _session: 'session-a', ref: 'e1', text: 'abcdefghijklmnopqrst\u{1f600}u' });
+    if (pauseAt) { await assert.rejects(run, /paused by the user/); assert.deepEqual(typed, ['abcdefgh', 'ijklmnop']); }
+    else { assert.deepEqual(await run, { ok: true }); assert.deepEqual(typed, ['abcdefgh', 'ijklmnop', 'qrst\u{1f600}u']); }
+  } finally { d.close(); }
+});
+
 for (const after of ['click', 'insertText'] as const) {
   test('M6-15 browser type stops ' + (after === 'click' ? 'insertText when paused after the click recheck' : 'submit Enter when paused after insertText'), async () => {
     const { PaneManager } = await load();

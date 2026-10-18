@@ -102,7 +102,7 @@ reply is the acknowledgement. From then on every `desktop.act` chunk and every `
 session (browser and desktop) returns "paused by the user"; queued calls are dropped the same way. The flag is
 `meta.takeover_paused_at`; each session's resume is in `meta.takeover_resumed` (JSON `{session_id: iso}`). A
 session is paused unless its own resume time is later than `takeover_paused_at`. The workbench checks the same
-flag right before every browser input it dispatches (after the cursor glide), and before `navigate`, `back`,
+flag right before every browser input it dispatches (after the cursor glide; typing goes in pieces of 8 characters, each checked), and before `navigate`, `back`,
 `scroll`, `dialog` and `evaluate`. `takeover.resume {session_id}`
 (from the tile) clears it for that session only. Both reset on core start.
 
@@ -157,7 +157,7 @@ among its ancestors.
 - A pattern action on a WinUI or UWP control moves keyboard focus to that window for a moment (D78); Windows may
   refuse the hand-back (`focus_returned: false`).
 - A key or click is posted (D78). The take-over acknowledgement waits 250 ms after the last one, which narrows the gap but is not a guarantee: a target that has not read its queue by then gets the input after the acknowledgement (Wasif, 2026-10-14).
-- Browser input already sent to the page when the user presses the take-over key, such as a long `insertText`, may finish after the acknowledgement: the core does not wait on the workbench.
+- Browser input already sent to the page when the user presses the take-over key may finish after the acknowledgement: the core does not wait on the workbench. Browser typing goes in `Input.insertText` pieces of 8 characters with the pause checked before each (D39 C), so at most one piece lands after it.
 - A window closed and a new one opened at the same handle by the same process within 500 ms is not told apart.
 - F9 (D43, recorded): an app that detaches an owned dialog from the granted window while a request is in flight,
   keeping its handle and process, still gets that request; the owner chain is checked in the request before the

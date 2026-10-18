@@ -9,6 +9,9 @@ import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/sr
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
+
+/** Typed text goes in pieces of this many characters, with the pause checked before each, as on the desktop. */
+const TYPE_CHUNK = 8;
 import { redactSecretValues, scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { getSecret, knownSecretValues, scrubSecretValues } from '../../../core/src/secrets.ts';
 import { BROWSER_SECRETS, browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from '../../../core/src/browser/secret-origin.ts';
@@ -1154,8 +1157,10 @@ ame, after checking the ref's field is a password field on the origin saved with
             if (pane.scripted) throw new ToolError(-32037, 'evaluate has run on this page; navigate first, nothing was typed');
             pane.secretOnPage = true;
           }
-          if (text) await this.input(pane, a, 'Input.insertText', { text });
-          else {
+          if (text) {
+            const chars = Array.from(text);
+            for (let i = 0; i < chars.length; i += TYPE_CHUNK) await this.input(pane, a, 'Input.insertText', { text: chars.slice(i, i + TYPE_CHUNK).join('') });
+          } else {
             for (const type of ['keyDown', 'keyUp']) await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
           }
           if (a.submit) {

@@ -943,6 +943,8 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
     it is refused before any approval is asked.
   - A window closed and a new one opened at the same handle by the same process within 500 ms is not told apart
     (D37).
+  - Browser input already sent to the page when the take-over key is pressed may finish after the acknowledgement;
+    typing goes in pieces of 8 characters with the pause checked before each (D39 C), so at most one piece lands.
   - F9 (D43): an app that detaches an owned dialog from the granted window while a request is in flight, keeping
     its handle and process, still gets that request.
   - F11 (D43): an approval card approved after the session was paused or its grant revoked returns `approved` to
