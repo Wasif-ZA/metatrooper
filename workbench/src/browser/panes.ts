@@ -819,7 +819,8 @@ export class PaneManager {
       const id = t.frame.id as string;
       const nodes = (await this.cmd(pane, 'Accessibility.getFullAXTree', { frameId: id }).then((r) => r.nodes as AXNode[], () => []));
       // the snapshot cuts names and values, so they are scrubbed whole first
-      for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string) };
+      const secrets = outputSecrets();
+      for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string, secrets) };
       const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
       out.push({ id, nodes, parent, owner });
       for (const c of t.childFrames ?? []) await visit(c, id);
@@ -1468,10 +1469,12 @@ export function errorPage(kind: string, url: string, detail: string): string {
 }
 
 /** Page text scrubbed of every saved secret before it is cut: a cut through a secret leaves a prefix that the scrub of the result no longer matches. A store that cannot be read falls back to the values decrypted here, so a CDP listener never throws; the tool result is scrubbed of every saved secret again before it leaves. */
-function whole(text: string): string {
-  let secrets: string[];
-  try { secrets = scrubSecretValues(); } catch { secrets = knownSecretValues(); }
+function whole(text: string, secrets = outputSecrets()): string {
   return scrub(text, secrets);
+}
+
+function outputSecrets(): string[] {
+  try { return scrubSecretValues(); } catch { return knownSecretValues(); }
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
