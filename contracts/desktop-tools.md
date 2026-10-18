@@ -103,7 +103,7 @@ reply is the acknowledgement. From then on every `desktop.act` chunk and every `
 session (browser and desktop) returns "paused by the user"; queued calls are dropped the same way. The flag is
 `meta.takeover_paused_at`; each session's resume is in `meta.takeover_resumed` (JSON `{session_id: iso}`). A
 session is paused unless its own resume time is later than `takeover_paused_at`. The workbench checks the same
-flag right before every browser input it dispatches (after the cursor glide; typing goes in pieces of 8 characters, and before each the pause, the page (no navigation, same origin), focus still on the approved field and, for a secret, the secret-field checks are rechecked; a change stops typing and says how much landed), and before `navigate`, `back`,
+flag right before every browser input it dispatches (after the cursor glide; typing goes in pieces of 8 characters (a secret in one piece, since a piece of it would get past the scrub), and before each the pause, the page (no navigation, same origin), focus still on the approved field and, for a secret, the secret-field checks are rechecked; a change stops typing and says how much landed), and before `navigate`, `back`,
 `scroll`, `dialog` and `evaluate`. `takeover.resume {session_id}`
 (from the tile) clears it for that session only. Both reset on core start.
 
