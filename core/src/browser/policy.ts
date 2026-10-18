@@ -11,6 +11,7 @@ blocked6.addAddress('::1', 'ipv6');
 blocked6.addSubnet('fc00::', 7, 'ipv6');
 blocked6.addSubnet('fe80::', 10, 'ipv6');
 blocked6.addSubnet('fec0::', 10, 'ipv6');
+blocked6.addSubnet('64:ff9b:1::', 48, 'ipv6');
 blocked6.addSubnet('ff00::', 8, 'ipv6');
 
 export interface PolicyContext {
@@ -26,7 +27,7 @@ export type Verdict = { allow: true } | { allow: false; reason: string };
 
 const PASS_SCHEMES = new Set(['data:', 'blob:', 'about:']);
 
-/** The IPv4 address inside an IPv6 one: IPv4-compatible `::/96`, mapped `::ffff:0:0/96`, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`. */
+/** The IPv4 address inside an IPv6 one: IPv4-compatible `::/96`, mapped `::ffff:0:0/96`, SIIT `::ffff:0:0:0/96`, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`. */
 function embeddedV4(addr: string): string | null {
   if (!net.isIPv6(addr)) return null;
   let s = addr.toLowerCase().split('%')[0];
@@ -41,6 +42,7 @@ function embeddedV4(addr: string): string | null {
   const g = (tail === null ? h : [...h, ...Array(8 - h.length - t.length).fill('0'), ...t]).map((x) => parseInt(x, 16));
   const v4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
   if (g.slice(0, 5).every((x) => x === 0) && (g[5] === 0 || g[5] === 0xffff)) return v4(g[6], g[7]);
+  if (g.slice(0, 4).every((x) => x === 0) && g[4] === 0xffff && g[5] === 0) return v4(g[6], g[7]);
   if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) return v4(g[6], g[7]);
   if (g[0] === 0x2002) return v4(g[1], g[2]);
   return null;

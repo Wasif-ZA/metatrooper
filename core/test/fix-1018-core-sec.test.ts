@@ -19,10 +19,10 @@ test('c-sec-d2 URL policy refuses wrapped-private IPv6, site-local, multicast an
   ]) {
     assert.equal((await checkUrl(url, ctx([3000]))).allow, false, url);
   }
-  for (const a of ['::7f00:1', '64:ff9b::a00:1', '2002:a00:1::', 'fec0::1', 'ff05::2', '224.0.0.251', '255.255.255.255']) {
+  for (const a of ['::7f00:1', '64:ff9b::a00:1', '2002:a00:1::', 'fec0::1', 'ff05::2', '224.0.0.251', '255.255.255.255', '64:ff9b:1::7f00:1', '64:ff9b:1::808:808', '::ffff:0:7f00:1', '::ffff:0:a00:1']) {
     assert.equal(blockedAddress(a), true, a);
   }
-  for (const a of ['64:ff9b::808:808', '2002:808:808::1', '2606:4700::1111', '8.8.8.8']) {
+  for (const a of ['::ffff:0:808:808', '64:ff9b::808:808', '2002:808:808::1', '2606:4700::1111', '8.8.8.8']) {
     assert.equal(blockedAddress(a), false, a);
   }
   assert.equal((await checkUrl('http://[::1]:3000/', ctx([3000]))).allow, true);
