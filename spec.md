@@ -947,8 +947,10 @@ No new runtime dependency. Computer use runs on Windows' built-in UI Automation 
 - The Codex trust spike, a Gemini hook route that works on Windows (CLI 0.63 skips the system settings file), and
   one live Claude `tool_use_id` check need Wasif's config or account and are deferred past the freeze. Codex and
   Gemini tiles keep activity watching until then (D22).
-- A hook event spooled because `troop.db` was locked (D16) lands after any event stored directly in the meantime,
-  and an event from a session MetaTrooper did not start (no session id) has no spool and is still dropped.
+- A hook event spooled because `troop.db` was locked (D16) lands after any event stored directly in the meantime.
+  It moves no state when a newer hook event of the session was already applied, but the processor's other lookups
+  (last tool asked for, last ask) still go by arrival order, so it can set `last_tool` from an older call. An event
+  from a session MetaTrooper did not start (no session id) has no spool and is still dropped.
 - Interrupt detection (M6-23) reads each CLI's terminal title glyphs, which are not a contract; a CLI update can turn
   it off silently, leaving the tile `working` as before.
 - An auto-mode agent can script the desktop through its own shell (D70). The input watcher catches injected input

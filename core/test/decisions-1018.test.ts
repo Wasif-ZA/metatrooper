@@ -172,6 +172,31 @@ test('D16 a hook event that meets a held database lock is spooled, not dropped, 
   assert.deepEqual(rows.map((x) => ({ ...x })), [{ session_id: id, native: 'native-1' }]);
 }));
 
+test('D16 an older Stop spooled behind a held lock does not undo a newer UserPromptSubmit stored directly: the session stays working', () => withDb(async (db, home) => {
+  const { runNode } = await import('./helpers.ts');
+  const { ingestSpools } = await import('../src/sandbox/spool.ts');
+  const { processEvents } = await import('../src/events/processor.ts');
+  const { ulid } = await import('../src/time.ts');
+  const { DatabaseSync } = await import('node:sqlite');
+  const id = ulid();
+  const at = new Date().toISOString();
+  db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run('p1', home, 'p', at, at);
+  db.prepare('INSERT INTO engine (id, spec_json, cost_rank, provider) VALUES (?, ?, 1, ?)').run('e1', '{}', 'local-cli');
+  db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p1', 'e1', 'pty', 'working', ?, ?)").run(id, at, at);
+  const hook = (kind: string) => runNode(['core/src/hook/event.ts', `claude.${kind}`, '--session', id], { ...process.env, METATROOPER_HOME: home }, JSON.stringify({ session_id: 'native-1', hook_event_name: kind, prompt: 'next' })) as Promise<{ code: number; stderr: string }>;
+  const locker = new DatabaseSync(`${home}/troop.db`);
+  locker.exec('BEGIN IMMEDIATE');
+  try { assert.equal((await hook('Stop')).code, 0); } finally { locker.exec('COMMIT'); locker.close(); }
+  assert.equal((await hook('UserPromptSubmit')).code, 0);
+  // the core applies the direct event first, as when it lands between two spool passes
+  processEvents(db);
+  ingestSpools(db);
+  processEvents(db);
+  const rows = db.prepare("SELECT kind FROM event WHERE session_id = ? AND kind LIKE 'claude.%' ORDER BY julianday(at)").all(id).map((r) => r.kind);
+  assert.deepEqual(rows, ['claude.Stop', 'claude.UserPromptSubmit'], 'the spooled Stop keeps the time it happened');
+  assert.equal((db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string }).state, 'working');
+}));
+
 test('D16 an oversized spool of an exited session is still deleted, after the too-large notice', () => withDb(async (db, home) => {
   const { ingestSpools } = await import('../src/sandbox/spool.ts');
   const { ulid } = await import('../src/time.ts');

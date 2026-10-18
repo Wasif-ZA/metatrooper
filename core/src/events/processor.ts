@@ -10,6 +10,7 @@ import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 import { limitHit } from '../sessions/limit-resume.ts';
+import { spoolKind, spoolKinds } from '../redact.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -65,6 +66,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   // A hook ask (approval, permission or input prompt), plugin wait or title wait written at or after the current wait began (state_at): terminal output is not an answer to it.
   const askInWait = db.prepare("SELECT 1 FROM event WHERE session_id = ?1 AND seq < ?2 AND julianday(at) >= julianday(?4) AND (kind IN ('codex.PermissionRequest', 'gemini.Notification', 'claude.PermissionRequest') OR (kind = 'claude.Notification' AND json_extract(payload, '$.class') IN ('permission', 'input')) OR (kind IN ('opencode.state', 'core.title-state') AND json_extract(payload, '$.state') = 'waiting')) AND coalesce(json_extract(payload, '$.session_id') = ?3, 1) LIMIT 1");
   const setStateAt = db.prepare('UPDATE session SET state_at = ? WHERE id = ?');
+  const hookKinds = spoolKinds();
+  const newerHook = db.prepare(`SELECT 1 FROM event WHERE session_id = ? AND seq < ? AND julianday(at) > julianday(?) AND kind IN (${hookKinds.map(() => '?').join(', ')}) LIMIT 1`);
   const setEnded = db.prepare('UPDATE session SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
   const done = db.prepare('UPDATE event SET processed = 1 WHERE seq = ?');
   const inbox = db.prepare('INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = ? AND resolved_at IS NULL AND read_at IS NULL)');
@@ -138,9 +141,11 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const stale = s.state === 'waiting_for_you' && (ev.kind === 'core.activity' ? typeof payload.changed_at === 'number' && payload.changed_at <= Date.parse(s.state_at) : ev.kind === 'term.output' && Boolean(askInWait.get(ev.session_id, ev.seq, own, s.state_at)));
         // Title states move only process engines, and an opencode session stops reading them once its state plugin has reported.
         const ignored = ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || staleSeq);
-        const next = ev.kind === 'launch' || foreign || stale || ignored ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
+        // A hook event that happened before one already applied (it waited on the lock, or came through the spool) moves no state: state follows event time, not arrival (D16).
+        const late = spoolKind(ev.kind) && Boolean(newerHook.get(ev.session_id, ev.seq, ev.at, ...hookKinds));
+        const next = ev.kind === 'launch' || foreign || stale || ignored || late ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         // A Stop held by background work ends the turn only when the session really reaches done.
-        if (!foreign && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
+        if (!foreign && !late && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
         // A wait starts when its event was written, not when it is processed; a hook ask during a wait moves its start to the ask.
         const writtenAt = Date.parse(ev.at) <= Date.now() ? ev.at : nowIso();
         const hookAsk = /^(codex\.PermissionRequest|gemini\.Notification|claude\.PermissionRequest)$/.test(ev.kind) || (ev.kind === 'claude.Notification' && (payload.class === 'permission' || payload.class === 'input')) || (/^(opencode\.state|core\.title-state)$/.test(ev.kind) && payload.state === 'waiting');

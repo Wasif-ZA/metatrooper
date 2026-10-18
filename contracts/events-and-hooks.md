@@ -19,8 +19,11 @@ One invocation form: `node event.js <kind> [--session <id>] [--pid <n>] [--engin
    kind the spool accepts and a session id from `--session` or `TROOP_SESSION_ID`: append the event to that session's
    spool, `~/.metatrooper/spool/<session id>/events.ndjson`, in the sandbox line shape, which the core moves into
    `event` (Spool ingest below; D16). So a held lock delays a `claude.Stop` instead of leaving the session `working`.
-   A spooled event lands after any event stored directly in the meantime. An event from outside MetaTrooper (no
-   session id) has no spool and is still dropped.
+   The event's `at`, direct or spooled, is the time the hook started, before the lock wait, and the ingest keeps it
+   (a missing, malformed or future `at` becomes the ingest time). A spooled event lands after any event stored
+   directly in the meantime, so the processor gives event time the last word on state: a hook event whose `at` is
+   older than a hook event of the same session already applied moves no state and ends no turn. An event from
+   outside MetaTrooper (no session id) has no spool and is still dropped.
 4. On any other error (no database, bad JSON, a kind the spool does not accept): write one line to
    `~/.metatrooper/logs/event-errors.log` if that is possible, then exit 0.
 5. Never write to stdout, except for `UserPromptSubmit` (below).

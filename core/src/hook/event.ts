@@ -108,11 +108,11 @@ async function main(): Promise<void> {
   }
   const { buildPayload } = await import('../redact.ts');
   const { appendEvent } = await import('../events/append.ts');
+  const { nowIso } = await import('../time.ts');
   const payload = buildPayload(kind, raw);
-  if (kind === 'launch') {
-    const { nowIso } = await import('../time.ts');
-    payload.started_at = nowIso();
-  }
+  // the event's time is when the hook started, before any wait for the database lock (D16)
+  const at = nowIso(new Date(started));
+  if (kind === 'launch') payload.started_at = nowIso();
   let db: DatabaseSync | null;
   if (outside) {
     if (typeof payload.session_id !== 'string' || typeof payload.cwd !== 'string' || process.env.METATROOPER_SPOOL) return;
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
       const { projectFor } = await import('../sessions/owners.ts');
       if (!projectFor(db.prepare('SELECT id, path FROM project').all() as Array<{ id: string; path: string }>, payload.cwd)) { db.close(); return; }
     }
-    appendEvent(kind, null, payload, db);
+    appendEvent(kind, null, payload, db, undefined, at);
     stored = true;
     sessionId = known?.id ?? '';
   } else {
@@ -133,15 +133,14 @@ async function main(): Promise<void> {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const { homeDir } = await import('../paths.ts');
-    const { nowIso } = await import('../time.ts');
     try {
-      db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind));
+      db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind), at);
     } catch (e) {
       // a busy database: the session's spool, which the core moves into `event` (D16)
       if (!/locked|busy/i.test(String((e as Error)?.message)) || !spoolKind(kind) || !/^[0-9A-Za-z_-]+$/.test(sessionId)) throw e;
       const dir = path.join(homeDir(), 'spool', sessionId);
       fs.mkdirSync(dir, { recursive: true });
-      fs.appendFileSync(path.join(dir, 'events.ndjson'), JSON.stringify({ kind, at: nowIso(), payload }) + '\n');
+      fs.appendFileSync(path.join(dir, 'events.ndjson'), JSON.stringify({ kind, at, payload }) + '\n');
       stored = true;
       return;
     }

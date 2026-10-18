@@ -9,6 +9,7 @@ import { removeContainer } from './launch.ts';
 
 const MAX_LINE = 64 * 1024;
 const MAX_SPOOL = 10 * 1024 * 1024;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/;
 
 export function spoolDir(sessionId: string): string {
   return path.join(homeDir(), 'spool', sessionId);
@@ -41,10 +42,12 @@ function ingestOne(db: DatabaseSync, id: string, exited: boolean, sandbox: boole
           const line = buf.subarray(start, nl);
           start = nl + 1;
           if (line.length > MAX_LINE) continue;
-          let o: { kind?: unknown; payload?: unknown };
+          let o: { kind?: unknown; at?: unknown; payload?: unknown };
           try { o = JSON.parse(line.toString('utf8')); } catch { continue; }
           if (typeof o?.kind !== 'string' || !spoolKind(o.kind)) continue;
-          insert.run(nowIso(), sourceOf(o.kind), id, o.kind, JSON.stringify(rebuildPayload(o.kind, (o.payload ?? {}) as object)));
+          // the time the event happened, so the processor can tell it from later ones already applied (D16); never in the future
+          const at = typeof o.at === 'string' && ISO.test(o.at) && Date.parse(o.at) <= Date.now() ? o.at : nowIso();
+          insert.run(at, sourceOf(o.kind), id, o.kind, JSON.stringify(rebuildPayload(o.kind, (o.payload ?? {}) as object)));
         }
         db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(key, String(offset + end + 1));
         db.exec('COMMIT');
