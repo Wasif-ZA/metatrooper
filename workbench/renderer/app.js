@@ -179,7 +179,7 @@ function renderBrowser() {
     return (ui.paneState[p.id] || {}).loading ? 'working' : 'idle';
   };
   const tabs = browserChrome.tabs(s.panes.map((p) => ({
-    id: p.id, url: (ui.paneState[p.id] || {}).url || p.url || '', title: paneTitle(p), full: ((ui.paneState[p.id] || {}).title || '').trim(), dot: dotOf(p),
+    id: p.id, url: ((ui.paneState[p.id] || {}).url || p.url || '').replace(/^about:blank$/, ''), title: paneTitle(p), full: ((ui.paneState[p.id] || {}).title || '').trim().replace(/^about:blank$/, ''), dot: dotOf(p),
     tag: p.session_id ? ownerOf(p.session_id) : '',
   })), ui.paneId);
   const pane = s.panes.find((p) => p.id === ui.paneId);
@@ -1807,7 +1807,8 @@ setView();
 function paneTitle(p) {
   const st = ui.paneState[p.id] || {};
   const title = (st.title || '').trim();
-  const base = title && title !== st.url && title !== 'about:blank' ? title.slice(0, 40) : hostOf(st.url || p.url);
+  const url = st.url || p.url;
+  const base = title && title !== st.url && title !== 'about:blank' ? title.slice(0, 40) : !url || url === 'about:blank' ? 'New tab' : hostOf(url);
   return `${st.loading ? '\u25CC ' : ''}${base}`;
 }
 

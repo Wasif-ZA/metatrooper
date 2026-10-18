@@ -229,3 +229,16 @@ test('UI-10 cut-off text carries its full text in a title: Inbox rows, palette l
   assert.ok(w.el('view').innerHTML.includes(`data-action="git-file" data-file="${path}" title="${path}"`), 'git path');
   assert.match(src('app.js'), /data-action="diff-open" data-id="\$\{esc\(f\.who\.id\)\}" data-file="\$\{esc\(f\.path\)\}" title="\$\{esc\(f\.path\)\}"/);
 });
+
+test('UI-13 a blank browser pane shows a New tab title and an empty address bar so its placeholder shows', async () => {
+  const w = boot();
+  w.t.ui.tab = 'browser';
+  w.t.ui.split = true;
+  await w.snap(snapOf([], { panes: [{ id: 'bp1', url: 'about:blank' }] }));
+  w.t.ui.paneState.bp1 = { kind: 'state', url: 'about:blank', title: 'about:blank' };
+  w.t.render();
+  const html = w.el('view').innerHTML;
+  assert.ok(!html.includes('about:blank'), 'about:blank is never shown');
+  assert.match(html, /<span class="nm">New tab<\/span>/);
+  assert.match(html, /<input data-key="url" id="pane-url" value="" placeholder="Search, or type a URL/);
+});
