@@ -50,6 +50,8 @@ export function openCoreDb()               {
     addColumn('gate', 'override_reason', 'TEXT');
     addColumn('needs_you', 'notified_at', 'TEXT');
     addColumn('session', 'limit_resume', 'INTEGER NOT NULL DEFAULT 1');
+    addColumn('session', 'browser', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('session', 'browser_token_hash', 'TEXT');
     addColumn('project', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
     addColumn('project', 'older', 'INTEGER NOT NULL DEFAULT 0');
     for (const table of ['notify_sink', 'notify_delivery', 'limit_history', 'approval']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));

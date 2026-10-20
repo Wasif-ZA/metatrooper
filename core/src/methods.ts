@@ -58,10 +58,10 @@ export const METHODS: MethodDecl[] = [
   { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not working or waiting, and its runs that are not running or paused" },
-  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
+  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}', result: '{session_id, prompt_delivered}: every pty session whose engine can carry it gets the `metatrooper-browser` MCP server unless `browser: false` is passed, or `browser` is left out and `sessions.browser` is false (M7-11, D83); a non-boolean `browser` is -32602. Whether it was attached is stored as `session.browser`. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
-  { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
+  { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine, folder and `session.browser`, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
@@ -207,6 +207,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         const refusal = sandboxRefusal(engine, project.path);
         if (refusal) throw new RpcError(E.VALIDATION, refusal);
       }
+      if (p.browser !== undefined && typeof p.browser !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'browser must be a boolean');
       return launchSession(db, {
         host,
         approval,
@@ -215,7 +216,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         projectName: project.name,
         engine,
         prompt: str(p, 'prompt', false) || undefined,
-        browser: p.browser === true,
+        browser: typeof p.browser === 'boolean' ? p.browser : settings().sessions.browser !== false,
         parentId: parent,
       });
     },
@@ -345,15 +346,15 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const prior = resumedAs.get(oldId);
       const live = prior && db.prepare("SELECT 1 FROM session WHERE id = ? AND state != 'exited'").get(prior);
       if (live) return { session_id: prior, resumed: false, existing: true, notice: 'Already started again; showing that session.' };
-      const old = db.prepare('SELECT s.engine_id, s.native_id, s.cwd, s.state, p.id AS project_id, p.path, p.name FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?')
-        .get(oldId) as { engine_id: string; native_id: string | null; cwd: string | null; state: string; project_id: string; path: string; name: string } | undefined;
+      const old = db.prepare('SELECT s.engine_id, s.native_id, s.cwd, s.state, s.browser, s.browser_token_hash, p.id AS project_id, p.path, p.name FROM session s JOIN project p ON p.id = s.project_id WHERE s.id = ?')
+        .get(oldId) as { engine_id: string; native_id: string | null; cwd: string | null; state: string; browser: number; browser_token_hash: string | null; project_id: string; path: string; name: string } | undefined;
       if (!old) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (old.state !== 'exited') throw new RpcError(E.INVALID_PARAMS, 'the session is still running');
       const engine = getEngine(db, old.engine_id);
       if (!engine) throw new RpcError(E.NOT_FOUND, 'engine not found');
       const resumed = Boolean(engine.resume_args && old.native_id);
       const extraArgs = resumed ? engine.resume_args!.map((a) => a.split('{native_id}').join(old.native_id!)) : [];
-      const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs });
+      const r = launchSession(db, { projectId: old.project_id, projectPath: old.path, projectName: old.name, engine, cwd: old.cwd ?? old.path, extraArgs, browser: old.browser === 1 || old.browser_token_hash !== null });
       if (resumed && engine.id === 'codex') db.prepare('UPDATE session SET native_id = ? WHERE id = ? AND native_id IS NULL').run(old.native_id, r.session_id);
       appendEvent('core.resumed', r.session_id, { from: oldId }, db);
       resumedAs.set(oldId, r.session_id);

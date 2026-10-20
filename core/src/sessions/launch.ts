@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { coreDir, repoDir } from '../paths.ts';
 import { nowIso, ulid } from '../time.ts';
 import type { EngineSpec } from '../engines/registry.ts';
-import { mcpAttachArgs, mcpAttachEnv, sweepSessionFiles } from '../plugins/mcp.ts';
+import { attachesBrowser, mcpAttachArgs, mcpAttachEnv, sweepSessionFiles } from '../plugins/mcp.ts';
 import { appendEvent } from '../events/append.ts';
 import * as term from '../terminal/index.ts';
 import { settings } from '../settings.ts';
@@ -14,6 +14,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/launch.ts';
 import { spoolDir } from '../sandbox/spool.ts';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 export interface LaunchPlan {
   argv: string[];
@@ -54,6 +55,18 @@ export function metarouterLaunch(engine: EngineSpec, on = settings().sessions.me
   };
 }
 
+export const BROWSER_BLOCK = `## Browser
+You can drive a MetaTrooper browser pane at any time with \`troop browser <tool> [json]\` (\`troop browser tools\` lists them).
+- \`troop browser navigate '{"url":"https://example.com"}'\` opens a pane of your own when you have none.
+- \`troop browser snapshot '{"interactive":true}'\` gives refs; \`troop browser click '{"ref":"e12"}'\` acts on one.
+- \`troop browser screenshot --out shot.jpg\` writes the image and prints its path.`;
+
+/** The engine's instructions arg with BROWSER_BLOCK added to the metarouter block, or on its own when metarouter is off. */
+export function browserInstructions(engine: EngineSpec, routerArgs: string[]): string[] {
+  if (!engine.instructions_arg) return routerArgs;
+  return routerArgs.length === 2 ? [routerArgs[0], `${routerArgs[1]}\n\n${BROWSER_BLOCK}`] : [...routerArgs, engine.instructions_arg, BROWSER_BLOCK];
+}
+
 const pendingPrompts = new Map<string, { prompt: string; at: number }>();
 
 /** The engine's extra args for reading AGENTS.md, when `dir` has one and none of the engine's own instruction files. */
@@ -75,6 +88,8 @@ export function launchSession(
   let argv: string[];
   let promptDelivered: boolean;
   let env: Record<string, string> = {};
+  const browser = host === 'pty' && opts.browser === true && attachesBrowser(opts.engine);
+  const token = host === 'pty' && opts.browser === true ? crypto.randomBytes(32).toString('hex') : null;
   if (host === 'sandbox') {
     const layout = gitLayout(opts.cwd ?? opts.projectPath);
     if ('refusal' in layout) throw new RpcError(E.VALIDATION, layout.refusal);
@@ -88,21 +103,23 @@ export function launchSession(
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
     const router = metarouterLaunch(opts.engine);
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
+    const instructions = token ? browserInstructions(opts.engine, router.args) : router.args;
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...instructions, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id)), ...mcpAttachArgs(db, opts.engine, id, browser, { pipeline: Boolean(opts.runId), approval })]);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
-    env = { ...router.env, ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }) };
+    env = { ...router.env, ...mcpAttachEnv(db, opts.engine, id, browser, { pipeline: Boolean(opts.runId), approval }) };
   }
+  if (token) env.TROOP_BROWSER_TOKEN = token;
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(
-    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, state, state_at, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, nowIso(), nowIso());
+    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, browser, browser_token_hash, state, state_at, started_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, browser ? 1 : 0, token ? crypto.createHash('sha256').update(token).digest('hex') : null, nowIso(), nowIso());
   const cwd = opts.cwd ?? opts.projectPath;
   try {
-    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, ...env });
+    term.open(id, [process.execPath, '--no-warnings', launcher, '--session', id, '--engine', opts.engine.id, '--args-b64', b64], cwd, { ...process.env, TROOP_BROWSER_TOKEN: undefined, ...env });
   } catch {
     try { appendEvent('core.process-gone', id, { pid: null }, db); } catch {}
   }

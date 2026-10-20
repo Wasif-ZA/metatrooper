@@ -1,11 +1,11 @@
 # metatrooper-browser MCP tools
 
-Version 2. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
+Version 2. A stdio MCP server started through the engine's `mcp_attach` for every pty session unless it was launched with `browser: false` or `sessions.browser` is false (M7-11). Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
 "browser not available: the MetaTrooper workbench is closed". It never hangs.
 
 Its session is found by process ancestry and bound with `browser.hello` (see `pipe-protocol.md`), so it
-needs no per-session configuration. Every tool takes `pane_id` (string). Call `panes` first. When the session owns exactly one pane, `pane_id` may
+needs no per-session configuration. The same tools run from a shell as `troop browser <tool> [json]` (M7-11): any session can use them at any time, MCP attached or not. The CLI binds by ancestry, or by the `TROOP_BROWSER_TOKEN` each pty session gets in its environment at launch (only its sha256 is stored, as `session.browser_token_hash`), so it also works through `sh` layers that break the Windows parent chain under Git Bash. `screenshot` writes a file (`--out <path>`, default `~/.metatrooper/shots/`) and prints its path. Every tool takes `pane_id` (string). Call `panes` first. When the session owns exactly one pane, `pane_id` may
 be omitted and that pane is used. When the session owns no pane, `navigate` opens one for it (`pane.open` with
 `agent: true`). That pane has an in-memory partition of its own, so it starts logged out and shares no cookies
 with the user's panes; its storage is cleared when it closes.

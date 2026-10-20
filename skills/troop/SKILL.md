@@ -72,6 +72,17 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 ```
 <!-- methods:end -->
 
+## Browser
+
+Every session can drive a MetaTrooper browser pane, MCP tools or not:
+
+1. `troop browser tools` lists the tools (`navigate`, `snapshot`, `read`, `click`, `type`, `key`, `screenshot`, ...).
+2. `troop browser navigate '{"url":"https://example.com"}'` opens a pane of your own when you have none.
+3. `troop browser snapshot '{"interactive":true}'` gives refs; `troop browser click '{"ref":"e12"}'` acts on one.
+4. `troop browser screenshot --out shot.jpg` writes the image and prints its path.
+
+`click`, `type`, `select` and `key` can wait for the user's approval in the workbench.
+
 ## Waiting for you
 
 A session in `waiting_for_you` needs the human. Report it to the user and stop. Do not answer
@@ -89,3 +100,4 @@ bundled copy.
 
 - Never commit, push or open PRs. Print the command for the user to run.
 - If `troop ping` fails, the core is not running. Start it with `troop start` (detached). Never `troop serve` from an agent: the core would die when the agent session ends.
+- `troop stop` and `troop restart` end every agent, including you. They work only from the user's own terminal; from an agent they fail with -32012. Ask the user to run them.

@@ -110,6 +110,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
 | D81 | Wall repairs before the freeze | Wasif, 2026-10-12, in a /spec session from the UI research (`~/.cache/claude-scratch/metatrooper-ui-research-2026-10-12/report.html`): repairs to existing UI go in Milestone 6; the new History and Settings panels go to M7. Undo for hide is a 7 s delay in the renderer, with no `session.unhide` in the core. The tile x never shows on a live agent (M6-27, Critical, never slips). The other repairs are one child, M6-26, High, first on the slip list because the 81-day plan has no slack |
 | D82 | Session launcher in Rust | Wasif, 2026-10-12, after a memory check (19.6 GB in use, about 8.3 GB of it Codex processes left by closed sessions): `launch.js` becomes a Rust binary on Windows that puts each session in a job object ending every descendant on close (M7-10). It is the only Rust in the product; D10 stands for the core and the workbench. A Rust core was weighed and dropped: 8,987 lines at about 250 lines per CC day is 25 to 40 CC days for about 137 MB. The new binary joins the M5-2 signing step. If the M7-10 spike shows a detached broker survives the job, the folder sweep in `issues/m7-10-session-launcher.md` replaces it. |
+| D83 | Every agent gets a browser | Wasif, 2026-10-13, after a session he assigned a pane to could not drive it: "an agent can open its own browser and have full access". `session.launch` attaches `metatrooper-browser` to every pty session whose engine can carry it, unless `browser: false` or `sessions.browser` (default true) is off. `session.browser` records it so resume keeps it, and Driven by greys out sessions without it (M7-11). The safety rules in `browser-tools.md` are unchanged |
 
 ## Current state, verified 2026-10-10
 
@@ -964,6 +965,7 @@ before the public release on 2027-01-19, and nothing here changes Milestone 6.
 | M7-8 | Terminal: paste, shell marks, batching, OSC text, resize, copy output, graphemes, find, screen reader, anchor | Medium | 3.5 | M6-7, M6-8, M6-19 |
 | M7-9 | Files panel: read the agent's worktree beside its tile, guarded save, VS Code handoff (D79, D80) | Medium | 2.75 | M6-21 |
 | M7-10 | Session launcher in Rust: a closed session ends every process it started (D82) | High | 2.0 | none |
+| M7-11 | Every agent gets a browser: attach `metatrooper-browser` by default, CLI flags, resume, Driven by | High | 1.0 | M6-11 |
 
 Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
 
@@ -1004,7 +1006,7 @@ M7-4 are built as already written.
 
 ### M7-1: Browser tools version 3
 
-Files: `core/src/hook/browser-mcp.ts` (`TOOLS` at 12-27, `tools/list` at 158-159, `toolCall` at 112-145),
+Files: `core/src/browser/agent-client.ts` (`TOOLS`, `runTool`, `toolCall`; shared by the MCP server `core/src/hook/browser-mcp.ts` and `troop browser` since M7-11),
 `workbench/src/browser/panes.ts`, `workbench/src/browser/server.ts`, new `core/src/browser/grants.ts`,
 `workbench/src/main.ts`, `contracts/browser-tools.md`.
 

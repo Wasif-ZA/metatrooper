@@ -69,6 +69,8 @@ CREATE TABLE session (
   parent_id     TEXT REFERENCES session(id),   -- the session whose shell ran `troop launch` for this one
   hidden        INTEGER NOT NULL DEFAULT 0,
   limit_resume  INTEGER NOT NULL DEFAULT 1,    -- 1: paste "Continue where you left off." when a hit usage limit resets (tile toggle, M6-24)
+  browser       INTEGER NOT NULL DEFAULT 0,    -- 1: launched with the metatrooper-browser MCP server attached (M7-11)
+  browser_token_hash TEXT,                     -- sha256 hex of the session's TROOP_BROWSER_TOKEN; the token itself is never stored (M7-11)
   started_at    TEXT NOT NULL,
   ended_at      TEXT
 );

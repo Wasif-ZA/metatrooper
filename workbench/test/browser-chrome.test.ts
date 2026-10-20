@@ -61,3 +61,21 @@ test('the Driven by submenu marks the current owner', () => {
   assert.deepEqual(sub.map((i: any) => [i.id, i.checked]), [['own:', false], ['own:s1', false], ['own:s2', true]]);
   assert.equal(items.find((i: any) => i.id === 'mode').enabled, false);
 });
+
+test('Driven by disables sessions without browser tools except the current owner', () => {
+  const sessions = [
+    { id: 'off', label: 'Off', browser: false },
+    { id: 'on', label: 'On', browser: true },
+    { id: 'legacy', label: 'Legacy' },
+  ];
+  const submenu = (owner: string | null) => bc.menuItems({ session_id: owner }, sessions, 'live', false)
+    .find((item: any) => item.label === 'Driven by').submenu;
+  assert.deepEqual(submenu(null).slice(1).map((item: any) => [item.label, item.checked, item.enabled]), [
+    ['Off (no browser tools)', false, false],
+    ['On', false, true],
+    ['Legacy', false, true],
+  ]);
+  assert.deepEqual(submenu('off')[1], {
+    id: 'own:off', label: 'Off (no browser tools)', checked: true, enabled: true,
+  });
+});

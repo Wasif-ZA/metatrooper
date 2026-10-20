@@ -61,7 +61,10 @@ const browserChrome = (() => {
       { id: 'mode', label: mode === 'compare' ? 'Live' : 'Compare', enabled: mode === 'compare' || canCompare },
       { id: 'find', label: 'Find in page' },
       { type: 'separator' },
-      { label: 'Driven by', submenu: [{ id: 'own:', label: 'You only', checked: !pane.session_id }, ...sessions.map((s) => ({ id: 'own:' + s.id, label: s.label, checked: s.id === pane.session_id }))] },
+      { label: 'Driven by', submenu: [{ id: 'own:', label: 'You only', checked: !pane.session_id }, ...sessions.map((s) => {
+        const checked = s.id === pane.session_id;
+        return { id: 'own:' + s.id, label: s.browser === false ? `${s.label} (no browser tools)` : s.label, checked, enabled: s.browser !== false || checked };
+      })] },
       { type: 'separator' },
       { id: 'close', label: 'Close pane' },
     ];

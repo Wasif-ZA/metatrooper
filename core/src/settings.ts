@@ -15,6 +15,7 @@ export const DEFAULTS = {
     approval: 'ask',
     ask_paths: [] as string[],
     metarouter: true,
+    browser: true,
   },
   desktop: {
     watch_pause: true,

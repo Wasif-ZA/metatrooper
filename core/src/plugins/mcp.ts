@@ -103,6 +103,23 @@ function entriesFor(db: DatabaseSync, engineId: string, ctx: AttachContext): Shi
 
 interface AttachServer { name: string; args: string[]; http?: { url: string; headers: boolean } }
 
+/** True when the engine's `mcp_attach` can carry the stdio `metatrooper-browser` server. */
+export function attachesBrowser(engine: EngineSpec): boolean {
+  const attach = engine.mcp_attach;
+  switch (attach?.kind) {
+    case 'claude-mcp-config-flag':
+    case 'codex-config':
+      return true;
+    case 'args-template':
+      return Boolean(attach.template?.length) && !attach.template!.some((t) => t.includes('{url}'));
+    case 'env-json':
+    case 'config-dir':
+      return Boolean(attach.env);
+    default:
+      return false;
+  }
+}
+
 function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, ctx: AttachContext): { node: string; servers: AttachServer[] } {
   const node = process.execPath.split(String.fromCharCode(92)).join('/');
   const shim = shimPath().split(String.fromCharCode(92)).join('/');

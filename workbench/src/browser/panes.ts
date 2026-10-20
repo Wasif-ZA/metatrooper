@@ -341,7 +341,7 @@ export class PaneManager {
       pane.errorFor = null;
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
-    wc.on('did-navigate-in-page', (_e, url) => this.hooks.urlChanged(pane.row.id, url));
+    wc.on('did-navigate-in-page', (_e, url, isMainFrame) => { if (isMainFrame) this.hooks.urlChanged(pane.row.id, url); });
     const state = () => this.emitState(pane);
     for (const ev of ['did-start-loading', 'did-stop-loading', 'page-title-updated', 'did-navigate', 'did-navigate-in-page'] as const) wc.on(ev as 'did-start-loading', state);
     wc.on('did-fail-load', (_e, code, desc, url, isMain) => {

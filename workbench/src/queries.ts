@@ -25,7 +25,7 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; browser: number; tokens: number | null; usd: number | null; resumed_from: string | null; ctx_pct?: number | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
@@ -119,9 +119,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const cols = new Set((db.prepare('PRAGMA table_info(session)').all() as Array<{ name: string }>).map((c) => c.name));
   const driven = cols.has('driven_engine') ? 's.driven_engine' : 'NULL AS driven_engine';
   const resume = cols.has('limit_resume') ? 's.limit_resume' : '1 AS limit_resume';
+  const browser = cols.has('browser_token_hash') ? '(s.browser = 1 OR s.browser_token_hash IS NOT NULL) AS browser' : cols.has('browser') ? 's.browser' : '0 AS browser';
   const sessions = projectId
     ? (db.prepare(
-        `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${resume},
+        `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${resume}, ${browser},
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from

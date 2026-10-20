@@ -216,8 +216,14 @@ function renderCompare(pane) {
     </div>`).join('')}`;
 }
 
+const POPUPS = ['palette', 'inbox', 'sinks'];
+
+function popupOpen() {
+  return POPUPS.some((id) => { const el = document.getElementById(id); return el && el.hidden === false; });
+}
+
 function reportPaneBounds() {
-  const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' ? document.getElementById('pane-host') : null;
+  const host = ui.tab === 'browser' && ui.split && !ui.comment && !popupOpen() && ui.browserMode === 'live' ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
   const key = r ? `${ui.paneId}:${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}` : 'none';
   if (key === ui.lastBounds) return;
@@ -1362,7 +1368,7 @@ async function onClick(e) {
       if (!pane) return;
       const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
       const r = el.getBoundingClientRect();
-      const items = browserChrome.menuItems(pane, ui.snap.sessions.map((x) => ({ id: x.id, label: sessionLabel(x) })), ui.browserMode,
+      const items = browserChrome.menuItems(pane, ui.snap.sessions.map((x) => ({ id: x.id, label: sessionLabel(x), browser: x.browser === 1 })), ui.browserMode,
         shots.some((x) => x.label === 'before') && shots.some((x) => x.label === 'after'));
       const pick = await api.paneMenu(items, Math.max(0, r.right - 200), r.bottom + 4);
       if (pick === 'before' || pick === 'after') {
@@ -1617,6 +1623,10 @@ document.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT') o
 observeLongTasks();
 setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
+if (typeof MutationObserver === 'function') {
+  const popupWatch = new MutationObserver(() => reportPaneBounds());
+  for (const id of POPUPS) { const el = document.getElementById(id); if (el) popupWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] }); }
+}
 if (DEMO) document.body.classList.add('demo');
 function setHdr(k) { for (const c of [...document.body.classList]) if (c.startsWith('hdr-')) document.body.classList.remove(c); document.body.classList.add(`hdr-${k}`); }
 setHdr(load('hdr') || 'line');

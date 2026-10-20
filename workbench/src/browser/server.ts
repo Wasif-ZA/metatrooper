@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
@@ -59,11 +60,18 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
           bound = { kind: 'core' };
           return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'core' } });
         }
+        const hasHash = (db.prepare('PRAGMA table_info(session)').all() as Array<{ name: string }>).some((c) => c.name === 'browser_token_hash');
         const s = typeof params.session_id === 'string'
-          ? (db.prepare('SELECT id, pid FROM session WHERE id = ? AND ended_at IS NULL').get(params.session_id) as { id: string; pid: number | null } | undefined)
+          ? (db.prepare(`SELECT id, pid, ${hasHash ? 'browser_token_hash' : 'NULL AS browser_token_hash'} FROM session WHERE id = ? AND ended_at IS NULL`).get(params.session_id) as { id: string; pid: number | null; browser_token_hash: string | null } | undefined)
           : undefined;
-        if (!s || !s.pid || !Number.isInteger(params.pid)) return fail(id, -32030, 'unknown session');
-        if (!ancestors(Number(params.pid), await parentTableAsync()).includes(s.pid)) return fail(id, -32030, 'that session is not an ancestor of the caller');
+        if (!s) return fail(id, -32030, 'unknown session');
+        if (typeof params.token === 'string' && s.browser_token_hash) {
+          const got = crypto.createHash('sha256').update(params.token).digest();
+          if (!crypto.timingSafeEqual(got, Buffer.from(s.browser_token_hash, 'hex'))) return fail(id, -32030, 'browser token does not match the session');
+        } else {
+          if (!s.pid || !Number.isInteger(params.pid)) return fail(id, -32030, 'unknown session');
+          if (!ancestors(Number(params.pid), await parentTableAsync()).includes(s.pid)) return fail(id, -32030, 'that session is not an ancestor of the caller');
+        }
         bound = { kind: 'session', sessionId: s.id };
         return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'session' } });
       }

@@ -24,14 +24,19 @@ process.on('warning', () => {});
 const USAGE = `usage: troop <command> [--json]
 
   start                         start the core in the background, detached from this terminal
+  stop                          stop the core and every agent it runs (interactive terminal only)
+  restart                       stop the core, then start it again with the current code
+  browser <tool> [json]         drive this session's browser pane (no MCP needed); "browser tools" lists them;
+                                screenshot writes a file (--out <path>)
   serve                         run the core service in this terminal (Ctrl+C stops it)
   ping                          check the core is up
   open [path]                   register a project folder (default: current folder)
   launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]
                                 open claude, codex or agy in a new Windows Terminal window,
                                 optionally in a new (or existing) worktree of the project;
-                                --approval ask|edits|contained (default: contained on a worktree, else ask)
-  launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt"}, ...]
+                                --approval ask|edits|contained (default: contained on a worktree, else ask);
+                                --browser / --no-browser (default: settings sessions.browser, on)
+  launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt","browser"}, ...]
   sessions [--all]              list sessions (hidden ones with --all)
   owners [path]                 uncommitted files of the current project and the session that owns each
   focus|seen|hide <session>     act on a session by id or id prefix
@@ -65,7 +70,7 @@ interface Args {
   inputs: string[];
 }
 
-const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout']);
+const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout', '--out']);
 
 function parse(argv: string[]): Args {
   const a: Args = { pos: [], flags: new Set(), opts: new Map(), inputs: [] };
@@ -320,6 +325,7 @@ interface Job {
   worktree?: string;
   prompt?: string;
   approval?: string;
+  browser?: boolean;
 }
 
 async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string; root?: string }> {
@@ -356,6 +362,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   const params: Record<string, unknown> = { project_id: target, engine_id: job.engine };
   if (job.prompt) params.prompt = job.prompt;
   if (job.approval) params.approval = job.approval;
+  if (typeof job.browser === 'boolean') params.browser = job.browser;
   if (process.env.TROOP_SESSION_ID) params.parent_id = process.env.TROOP_SESSION_ID;
   const r = await rpc('session.launch', params, json);
   if (r.result) emit(r.result, `launched ${job.engine}${job.worktree ? ` on ${job.worktree}` : ''} (approval ${r.result.approval}): session ${r.result.session_id}`);
@@ -406,9 +413,21 @@ async function main(): Promise<number> {
       await import('./src/main.ts');
       return -1;
 
+    case 'stop':
+    case 'restart':
     case 'start': {
       const up = async () => { const o = await call('core.ping', {}); return o.kind === 'reply' && !o.reply.error ? (o.reply.result as { pid: number }) : null; };
       let r = await up();
+      if (cmd !== 'start') {
+        if (r) {
+          const old = r.pid;
+          const s = await rpc('core.stop', {}, json);
+          if (s.code) return s.code;
+          for (let i = 0; i < 40 && (r = await up()); i++) await new Promise((res) => setTimeout(res, 250));
+          if (r) { console.error(`core pid ${old} did not stop in 10 s`); return 1; }
+          if (cmd === 'stop') { emit({ stopped: old }, `core stopped, pid ${old}`); return 0; }
+        } else if (cmd === 'stop') { emit({ stopped: null }, 'core was not running'); return 0; }
+      }
       if (r) { emit(r, `core already up, pid ${r.pid}`); return 0; }
       const env: Record<string, string> = {};
       for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_SESSION_ENV.has(k.toUpperCase()) && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v;
@@ -417,6 +436,44 @@ async function main(): Promise<number> {
       for (let i = 0; i < 40 && !(r = await up()); i++) await new Promise((res) => setTimeout(res, 250));
       if (!r) { console.error('core did not come up in 10 s; see logs/core.log'); return 1; }
       emit(r, `core started, pid ${r.pid}`);
+      return 0;
+    }
+
+    case 'browser': {
+      const { TOOLS, runTool } = await import('./src/browser/agent-client.ts');
+      const tool = a.pos[0];
+      if (!tool || tool === 'tools') {
+        if (json) console.log(JSON.stringify(TOOLS.map((t) => ({ name: t.name, description: t.description, input: t.inputSchema }))));
+        else for (const t of TOOLS) console.log(`${t.name.padEnd(11)} ${t.description}`);
+        return tool ? 0 : 2;
+      }
+      let args: Record<string, unknown> = {};
+      if (a.pos[1] !== undefined) {
+        try {
+          args = JSON.parse(a.pos[1]);
+          if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('not an object');
+        } catch (e) {
+          console.error(`arguments must be a JSON object: ${(e as Error).message}`);
+          return 2;
+        }
+      }
+      const r = await runTool(tool, args);
+      if (r.error) {
+        if (json) console.log(JSON.stringify({ error: r.error }));
+        else console.error(r.error.message);
+        return 1;
+      }
+      const result = (r.result ?? {}) as { data_base64?: string; mime?: string; text?: string; truncated?: boolean };
+      if (tool === 'screenshot' && result.data_base64) {
+        const ext = result.mime === 'image/png' ? 'png' : 'jpg';
+        const out = resolve(a.opts.get('--out') ?? join(homedir(), '.metatrooper', 'shots', `${Date.now()}.${ext}`));
+        fs.mkdirSync(join(out, '..'), { recursive: true });
+        fs.writeFileSync(out, Buffer.from(result.data_base64, 'base64'));
+        emit({ path: out, truncated: Boolean(result.truncated) }, out + (result.truncated ? ' (truncated: the page is taller than 16,384 px)' : ''));
+        return 0;
+      }
+      if (!json && (tool === 'snapshot' || tool === 'read') && typeof result.text === 'string') console.log(result.text);
+      else console.log(JSON.stringify(result));
       return 0;
     }
 
@@ -463,17 +520,23 @@ async function main(): Promise<number> {
     case 'launch': {
       const jobsFile = a.opts.get('--jobs');
       const project = a.opts.get('--project') ?? process.cwd();
+      if (a.flags.has('--browser') && a.flags.has('--no-browser')) {
+        console.error('use --browser or --no-browser, not both');
+        return 2;
+      }
+      const browser = a.flags.has('--browser') ? true : a.flags.has('--no-browser') ? false : undefined;
       if (jobsFile) {
         let jobs: Job[];
         try {
           jobs = JSON.parse(fs.readFileSync(jobsFile, 'utf8'));
           if (!Array.isArray(jobs) || jobs.some((j) => typeof j?.engine !== 'string')) throw new Error('each job needs an engine');
+          if (jobs.some((j) => j.browser !== undefined && typeof j.browser !== 'boolean')) throw new Error('browser must be true or false');
         } catch (e) {
           console.error(`bad jobs file ${jobsFile}: ${(e as Error).message}`);
           return 2;
         }
         let worst = 0;
-        for (const job of jobs) worst = Math.max(worst, await launchOne({ project, approval: a.opts.get('--approval'), ...job }, json, emit));
+        for (const job of jobs) worst = Math.max(worst, await launchOne({ project, approval: a.opts.get('--approval'), browser, ...job }, json, emit));
         return worst;
       }
       const engine = a.pos[0];
@@ -481,7 +544,7 @@ async function main(): Promise<number> {
         console.error('usage: troop launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]\n       troop launch --jobs <jobs.json> [--project <path>]');
         return 2;
       }
-      return launchOne({ engine, project, worktree: a.opts.get('--worktree'), prompt: a.opts.get('--prompt'), approval: a.opts.get('--approval') }, json, emit);
+      return launchOne({ engine, project, worktree: a.opts.get('--worktree'), prompt: a.opts.get('--prompt'), approval: a.opts.get('--approval'), browser }, json, emit);
     }
 
     case 'sessions': {
@@ -560,12 +623,6 @@ async function main(): Promise<number> {
 
     case 'route':
       return spawnSync(process.execPath, [routerShim, ...rest], { stdio: 'inherit', windowsHide: true }).status ?? 1;
-
-    case 'stop': {
-      const r = await rpc('core.stop', {}, json);
-      if (r.result) emit(r.result, 'core stopping');
-      return r.code;
-    }
 
     case '--help':
     case 'help':
