@@ -66,6 +66,32 @@ failure count. Let a recipe declare which exit codes mean "findings", and add a 
   Keep `seed` and `catalog` recipes.
 - Clear the 56 hints in `metarouter learn --review` (with Wasif; he approves recipes).
 
+### 7. Make every use cheaper than not using it (A/B, 2026-10-26)
+
+`metarouter ab`, Claude, all runs passed in both arms:
+
+| Task | Runs per arm | Cost per pass, A minus B |
+|---|---|---|
+| Find a line in a 5,000-line log | 3 | +$0.0094 (+4.8%) |
+| Fix a planted bug, 2 of 458 router tests failing | 5 | +$0.0156 (+6.9%), one extra median turn |
+
+Metarouter cost more on both. The kept-out bytes are real, but the 61% figure leaves out the fixed costs: the
+instruction block on every turn, the JSON envelope, and extra turns (`search` first, `--no-trunc` reruns). Of the call
+log's exec calls, 13,964 of 19,782 had under 2 KB of output, where shrinking saves nothing. 209 calls of 20 KB or more
+supplied about 40% of all bytes kept out (12.3 MB of 31.9 MB).
+
+- Below a size threshold, `exec` prints the raw output exactly as the shell would: no envelope, no log path, no note.
+- Above it, print plain text, not JSON with escaped `\n`, and show the errors and tail without inviting a rerun.
+- Cut the instruction block and the CLAUDE.md routing line to the minimum. The hook does the wrapping without the agent
+  knowing; the block mainly buys `search` turns. A/B it with and without the block.
+- Rerun `metarouter ab` on both tasks above, plus one with output of 20 KB or more. Bar: A costs no more than B on
+  small tasks, and less on the large one.
+
+Harness fix found on the way, still uncommitted in `router/`: `ab.py` `agent_env` sets `METAROUTER_HOOK=off` in arm B
+(before it, the global hook wrapped both arms, so every earlier `ab` result compared metarouter with itself), plus one
+assertion in `tests/test_ab.py`. Commit it first. Two planted bugs in `shrink.py` (`clip` off-by-one, `errors` cap)
+passed all 458 tests; add tests for both. Reports: `~/.metarouter/ab/20261026T115430.json`, `20261026T123930.json`.
+
 ## Acceptance
 
 - [ ] An inline-python json read through the hook prints a hint naming `metarouter run json`.
