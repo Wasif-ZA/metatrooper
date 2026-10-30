@@ -1510,8 +1510,8 @@ into the step that builds them. Effort is not sized until M8-0 picks the host. N
 | M8-19 | Terminal, appearance and review keys | IDE | High | M8-17 | - |
 | M8-20 | Adapt to your old IDE: settings, keymap, layout, instructions, run configs | IDE | High | M8-17, M8-7 | - |
 | M8-21 | Gate policy: true gates, decisions and log lines | IDE | Critical | none | - |
-| M8-22 | Needs-you inbox, shared gate and checkpoint rewind | IDE | High | M8-21, M8-17 | f-rewind |
-| M8-23 | Self-healing, resume and run health on screen | IDE | High | M8-13 | f-runs |
+| M8-22 | Needs-you inbox, shared gate and checkpoint rewind | IDE | High | M8-21, M8-17 | - |
+| M8-23 | Self-healing, resume and run health on screen | IDE | High | M8-13 | - |
 | M8-24 | Usage page and token savers | IDE | Medium | M8-17 | - |
 | M8-25 | Parallel agents: worktree per agent and collision warnings | IDE | High | M8-17 | - |
 | M8-26 | Agent workflow additions from the top-12 research | IDE | Medium | M8-17, M8-3 | - |
