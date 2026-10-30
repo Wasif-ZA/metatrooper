@@ -1023,6 +1023,19 @@ before the public release on 2027-01-19, and nothing here changes Milestone 6.
 | M7-8 | Terminal: paste, shell marks, batching, OSC text, resize, copy output, graphemes, find, screen reader, anchor | Medium | 3.5 | M6-7, M6-8, M6-19 |
 | M7-9 | Files panel: read the agent's worktree beside its tile, guarded save, VS Code handoff (D79, D80) | Medium | 2.75 | M6-21 |
 | M7-10 | Session launcher in Rust: a closed session ends every process it started (D82) | High | 2.0 | none |
+| M7-12 | History panel and Settings panel, with a keybindings page (D81; added 2026-10-31) | Medium | not sized | M6-26 |
+| M7-13 | Branch or worktree name at launch; branch and port on list rows (added 2026-10-31, his call) | Medium | not sized | M6-3 |
+| M7-14 | Queue a follow-up; subagents shown under their parent tile (added 2026-10-31, his call) | Medium | not sized | M6-23 |
+| M7-15 | The five material looks as extra themes (added 2026-10-31) | Low | not sized | none |
+| M7-16 | Tile header variants as a setting (added 2026-10-31, his call) | Low | not sized | M6-27 |
+| M7-17 | Pane-by-pane redesign rounds 2 to 12 (added 2026-10-31, his call) | Low | not sized | none |
+| M7-18 | troop on PATH after install (GitHub #75, was titled M7-11; box offload keeps M7-11) | High | not sized | M8-37 name call |
+| M7-19 | Sandbox: image drift check, two-engine review, live checks automated (added 2026-10-31) | Medium | not sized | M7-5 |
+| M7-20 | One checklist for every hand run still owed (added 2026-10-31) | High | not sized | none |
+| M7-21 | Demo and isolated instances read nothing from the owner's home (added 2026-10-31) | High | not sized | none |
+| M7-22 | Pipeline products carry-over backlog (added 2026-10-31) | Low | not sized | Hand-back item 1 |
+| M7-23 | Honest prices behind the cost chip (added 2026-10-31) | Medium | not sized | M6-20 |
+| M7-24 | Place the vault scripts that earned a home (added 2026-10-31) | Low | not sized | M7-22, M8-14 |
 
 Effort, worked (each idea sized S 0.25, M 0.75, L 1.5 from the idea mine):
 
@@ -1462,6 +1475,138 @@ Checks:
   task line and the last 10 turns, and launches codex with it as the prompt.
 - M7-04b. The handoff file also lists the session's changed files and its last failing command; when the last 10 turns
   hold 1 KB each, the oldest are dropped first until the file fits 6 KB. A limit stop never switches engine without the click.
+
+## Milestone 8: Ouros (from 2026-11-09)
+
+Specced 2026-10-31 from the scratch design rounds of 2026-10-30. Ouros is MetaTrooper's second release: an IDE that
+looks like VS Code, adapts to the user's old IDE, and morphs on request from a fixed catalogue of 124 parts. The
+binding spec is `ouros-spec.md`; each child below is one build step (G0 to G15 in its section 9) plus M8-16, added
+because no G step owned the workflow screens for rows 2, 7 and 8. Feature screens (`kit/specs/f-*.json`) are folded
+into the step that builds them. Effort is not sized until M8-0 picks the host. Nothing here starts before 2026-11-09.
+
+### Children
+
+| # | Title | Step | Priority | Depends on | Feature screens |
+|---|---|---|---|---|---|
+| M8-0 | Pick the host: VSCodium webview or Ouros's own renderer | G0 | Critical | none | - |
+| M8-1 | Move the kit into the repo with an o- class prefix | G1 | High | M8-0 | - |
+| M8-2 | ouros_ui MCP tool and the tab zone | G2 | High | M8-1 | - |
+| M8-3 | Events back to the agent, and form state | G3 | High | M8-2 | - |
+| M8-4 | Panel, tile, inbox, status and phone zones | G4 | High | M8-3 | - |
+| M8-5 | Source tagging tied to the real gate system | G5 | Critical | M8-2, M8-21 | f-intent |
+| M8-6 | Templates mined from his transcripts | G6 | Medium | M8-2 | - |
+| M8-7 | Learned profile and the "What Ouros learned" page | G7 | Medium | M8-6 | - |
+| M8-8 | Streaming and data updates (A2UI style) | G8 | Medium | M8-4 | - |
+| M8-9 | Screen maker role and asset store | G9 | Medium | M8-4 | - |
+| M8-10 | Catalogue proposals | G10 | Low | M8-9 | - |
+| M8-11 | ouros_workspace tool: the agent reshapes the IDE | G11 | High | M8-4 | - |
+| M8-12 | Plugin runner and the ouros_engine tool | G12 | Medium | M8-14 | - |
+| M8-13 | Run budget, loop 1, hash watcher and checkpoints | G13 | Critical | M8-3 | f-done, f-rewind, f-ladder, f-loop, f-rules, f-runs |
+| M8-14 | Plugins: manifest, OS sandbox, Explore screen, index | G14 | High | M8-13 | f-plugin, f-toolaccess |
+| M8-15 | Model watcher, then lessons through the proposal flow | G15 | Low | M8-13, M8-7 | f-lessons |
+| M8-16 | Built-in workflows: find, live data, outline | added | Medium | M8-4 | f-find, f-data, f-outline |
+| M8-17 | Core IDE shell: Void layout, IDE \| WALL switch, status bar | IDE | Critical | M8-0 | - |
+| M8-18 | Editor and navigation that know about agents | IDE | High | M8-17 | - |
+| M8-19 | Terminal, appearance and review keys | IDE | High | M8-17 | - |
+| M8-20 | Adapt to your old IDE: settings, keymap, layout, instructions, run configs | IDE | High | M8-17, M8-7 | - |
+| M8-21 | Gate policy: true gates, decisions and log lines | IDE | Critical | none | - |
+| M8-22 | Needs-you inbox, shared gate and checkpoint rewind | IDE | High | M8-21, M8-17 | f-rewind |
+| M8-23 | Self-healing, resume and run health on screen | IDE | High | M8-13 | f-runs |
+| M8-24 | Usage page and token savers | IDE | Medium | M8-17 | - |
+| M8-25 | Parallel agents: worktree per agent and collision warnings | IDE | High | M8-17 | - |
+| M8-26 | Agent workflow additions from the top-12 research | IDE | Medium | M8-17, M8-3 | - |
+| M8-27 | Phone app (after desktop Ouros) | phone | Low | M8-4, M8-22 | - |
+| M8-28 | Built-in workflow screens: fix, build, git and hand-back, refactor, tests and docs | kit | High | M8-2, M8-4 | p-*.json |
+| M8-29 | Smaller and later features (feature list section B) | later | Low | M8-15 | f-lessons, f-designdiff |
+| M8-30 | Della: one local index, find by meaning | Della | Medium | M8-1 | - |
+| M8-31 | Della: tidy with link fixing, one journal, honest undo | Della | Medium | M8-30 | - |
+| M8-32 | Della standalone window: browse, find, start panel, rendered preview | Della | Low | M8-30 | - |
+| M8-33 | Explorer pane in Ouros with "changed by agents" | Della | Medium | M8-17, M8-30 | - |
+| M8-34 | Text contrast tokens for the whole kit | kit | High | M8-1 | - |
+| M8-35 | Adaptive layout rules: stable frame, boundary-only changes, confidence floor | kit | Medium | M8-7, M8-11 | - |
+| M8-36 | Screen truth and copy polish from the Gemini review | kit | Medium | M8-1, M8-5 | - |
+| M8-37 | Rename MetaTrooper to Ouros | rename | High | none | - |
+
+MetaTrooper becomes Ouros (Wasif, 2026-10-31), so M8-17 to M8-36 spec every other design in scratch: the core IDE,
+the gate policy, the phone app, Della and the polish findings.
+
+Order of work: M8-0, then M8-17 and M8-21 (the shell and the gate policy), then M8-1 to M8-5 (the drawing path), then
+M8-13 (the product core) with M8-22 and M8-23, then M8-18 to M8-20, M8-11 and M8-14, then the rest. The phone app
+(M8-27) comes after desktop Ouros. Held for later, not a child: f-designdiff (design revision compare, a plugin capability).
+
+### Features (one issue each, built inside the step they ride on)
+
+| # | Feature | Rides on | Screen |
+|---|---|---|---|
+| M8-F1 | Done means proven | M8-13 | `f-done` |
+| M8-F2 | Rewind preview and redo | M8-13 | `f-rewind` |
+| M8-F3 | Repair ladder with a protected judge | M8-13 | `f-ladder` |
+| M8-F4 | Progress-aware loop alarm | M8-13 | `f-loop` |
+| M8-F5 | Clarify inside the plan gate | M8-5 | `f-intent` |
+| M8-F6 | Your rules as checks | M8-13 | `f-rules` |
+| M8-F7 | Find project information and revisions | M8-16 | `f-find` |
+| M8-F8 | Long runs that survive | M8-13 | `f-runs` |
+| M8-F9 | Live variables and DataFrames | M8-16 | `f-data` |
+| M8-F10 | Plugin grants, updates and revocation | M8-14 | `f-plugin` |
+| M8-F11 | Remembered, scoped tool access | M8-14 | `f-toolaccess` |
+| M8-F12 | Outline for notebooks and reports | M8-16 | `f-outline` |
+
+### Open calls that block children (Wasif's, on the scratch boards)
+
+- MORPH.html verdict (assets and personas): M8-11.
+- STARTPOINT.html calls 1 to 4 (persona layouts, row 7 for non-software engineers, plugin confinement, model
+  watcher): M8-11, M8-16, M8-14, M8-15.
+- ENGINES.html 5 calls (linked libs failing the gate, bundle vs user-install, FreeCAD vs build123d, cross-origin
+  isolation, social posting): M8-12.
+- NEWFEATURES.html keep/change/drop on the 12 drawn features: M8-5, M8-13, M8-14, M8-16.
+- Deep-dive calls (provider fallback, honest abort, fresh reviewer, pinned defaults): M8-13.
+- PHONE.html round 2 verdict and its 3 calls: the phone zone in M8-4, and M8-27.
+- STATE.html gate-demotion call (may an always-allowed gate become a log line?): M8-21, M8-22, M8-5.
+- Della calls C1 to C6 and F1-F14 / N1-N4 yes/no (ouros-explorer BOARD.html): M8-30 to M8-34.
+- Extensions and Remote/WSL in v1: M8-17 and M8-0.
+- Rename scope (product name only, or CLI, home folder and repo too) and the compatibility window: M8-37.
+
+Awaiting picks, not specced: Della idea mine (78 ideas, della-idea-mine-2026-10-30/board.html).
+
+## Audit, 2026-10-31: fixes before Ouros builds on this code
+
+Read-only audit of core, workbench, router, plugins, sandbox and release tooling by three agents. Findings were
+deduplicated against Known limits, every issues/ file and GitHub #1 to #75; the top ones were re-checked against the
+code. Test state: core 715 of 726 pass (11 skipped), workbench 244 of 282 pass (34 skipped, 4 todo), router 450 pass
+(1 skipped). One fix branch, `fix/audit-2026-10-31`, one commit per FIX. Files: `issues/fix-*.md`.
+
+| # | Finding | Severity |
+|---|---|---|
+| FIX-R1 | metarouter check runs binaries named by untrusted repo recipes | High |
+| FIX-W1 | Closing the window silently stops agents in other projects | High |
+| FIX-C1 | Isolated sandbox can bind-mount the MetaTrooper home read-write | Medium |
+| FIX-C2 | Any pipe client can launch a session with a looser approval profile | Medium |
+| FIX-C3 | The browser private-address block can be lifted from the project's own config | Medium |
+| FIX-C4 | Blocking git and PowerShell calls inside pipe handlers stall the whole core | Medium |
+| FIX-W2 | A page can open a browser pane to any loopback port | Medium |
+| FIX-W3 | Typed notes and the chosen session are lost on re-render | Medium |
+| FIX-R2 | repo plugin diff: git option injection through base | Medium |
+| FIX-R3 | A timed-out MCP tools/call is replayed on a fresh server | Medium |
+| FIX-R4 | Read hook sets permissionDecision allow on every rewrite | Medium |
+| FIX-R5 | Hook reads stdin as cp1252, corrupting non-ASCII commands | Medium |
+| FIX-R6 | Sandbox proxy misses hex-mapped IPv4 and other private ranges | Medium |
+| FIX-R7 | release.ps1 -AllowSkip with two names allows neither | Medium |
+| FIX-R8 | MCP daemon takes unauthenticated requests on loopback | Medium |
+| FIX-C5 | worktree.create can return the wrong branch as existing | Low |
+| FIX-C6 | Plugin upgrade replaces files before the database write, with no rollback | Low |
+| FIX-C7 | engines.check can crash the core through an unhandled rejection | Low |
+| FIX-C8 | Unlinked Codex and agy sessions rescan the disk every second | Low |
+| FIX-C9 | Docker --mount values are not CSV-quoted | Low |
+| FIX-C10 | session.launch contract omits approval and the sandbox host | Low |
+| FIX-W4 | Unstage and the Diff tab fail in a repo with no commits | Low |
+| FIX-W5 | Parked browser views drift into the window after a resize | Low |
+| FIX-W6 | Running sessions older than the newest 50 vanish from the wall | Low |
+| FIX-W7 | Each closed agent browser pane leaks an Electron session | Low |
+| FIX-W8 | Watch-layout thumbnail poll can pile up calls | Low |
+| FIX-R9 | replace with an empty literal old rewrites the whole file | Low |
+| FIX-R10 | json-set rewrites LF files as CRLF on Windows | Low |
+| FIX-R11 | version-check.mjs ignores the router's pyproject version | Low |
+| FIX-R12 | Pack recipes ps and node-eval are labelled read | Low |
 
 ## Related
 
