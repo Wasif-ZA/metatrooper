@@ -1526,6 +1526,12 @@ into the step that builds them. Effort is not sized until M8-0 picks the host. N
 | M8-35 | Adaptive layout rules: stable frame, boundary-only changes, confidence floor | kit | Medium | M8-7, M8-11 | - |
 | M8-36 | Screen truth and copy polish from the Gemini review | kit | Medium | M8-1, M8-5 | - |
 | M8-37 | Rename MetaTrooper to Ouros | rename | High | none | - |
+| M8-38 | Desktop driver upgrades: read Electron apps, faster snapshots, honest refusals | computer use | High | none | - |
+| M8-39 | Spike agent-desktop and cua-driver as plugin desktop engines | computer use | Medium | M8-38, M8-14 | - |
+| M8-40 | Computer use action safety: no blind repeats, better answers to the agent | computer use | High | none | - |
+| M8-41 | Browser tools: find, hidden click targets, hostile page text, test export | browser use | High | M7-1 | - |
+| M8-42 | Browser engines: one default per job, and a headless tier | browser use | Medium | M8-14, M8-41 | - |
+| M8-43 | Model defaults for computer use and browser use | models | Low | M8-38 | - |
 
 MetaTrooper becomes Ouros (Wasif, 2026-10-31), so M8-17 to M8-36 spec every other design in scratch: the core IDE,
 the gate policy, the phone app, Della and the polish findings.

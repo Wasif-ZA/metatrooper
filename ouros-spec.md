@@ -581,6 +581,22 @@ the per-version scan; off until you enable it; where it runs (WebAssembly, OS sa
 licence, last update and categories. Download counts are shown but never treated as trust (246.8 million downloads
 sit beside a 2.12 rating).
 
+### Computer use and browser use (2026-11-02)
+
+Both stay built in and keep their tool lists. Outside drivers and engines join as plugins behind those tools, so
+grants, approvals and the take-over key still apply. Children: M8-38 to M8-43.
+
+- **Computer use.** The built-in UI Automation driver stays the Windows default (D71, D78). M8-38 improves it with
+  mechanisms read in other drivers, and M8-40 stops blind repeats of an unverified action. M8-39 spikes
+  vercel-labs/agent-desktop and trycua/cua's cua-driver for macOS and Linux, where Ouros has no driver.
+- **agent-desktop fits as a plugin only.** Linking it fails the dependency gate (5,985 stars, Apache-2.0). It has no
+  per-window grant, so agents never reach it directly. On Windows its `type` and `right-click` need real input, which
+  D78 forbids.
+- **Browser use.** The in-process Electron pane stays. No outside driver can drive it, and M8-41 takes their best
+  mechanisms instead. M8-42 adds `chrome-headless-shell` for background agents. Ouros ships no stealth feature.
+- **Models.** M8-43 sets defaults per job. Sonnet 5.5 is the default for tree and browser work; Fable 5.1 costs 3.4
+  times as much per browser task for no gain (Browser Use Bench v2.1).
+
 ## 7. Safety
 
 | Rule | How it is enforced | Proof |
