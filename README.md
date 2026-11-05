@@ -28,6 +28,14 @@
   <img src="https://img.shields.io/badge/status-pre--release-c47f00" alt="Pre-release">
 </p>
 
+<div align="center">
+
+| 4 | 0 | 0 | 727 | 1,200+ |
+|:--:|:--:|:--:|:--:|:--:|
+| CLI agents supported | accounts to create | telemetry | core tests | commits |
+
+</div>
+
 ## What it is
 
 You run three agents in three terminals. You lose track of which one is waiting on you. You paste screenshots back
