@@ -14,6 +14,8 @@ Installed means off. cli and mcp plugins run in an OS sandbox from their declare
 
 Feature screens folded in (kit/specs): `f-plugin.json`, `f-toolaccess.json`.
 
+2026-11-05: new list and detail screen `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n08-plugins.json`. This also owns the board rows "Skills and MCP connections" and, with M8-12, "Website builder, video cutter, spreadsheet, part designer and others".
+
 ## Blocked on
 
 - STARTPOINT.html call 3 (plugin confinement) and keep/change/drop on f-plugin, f-toolaccess.

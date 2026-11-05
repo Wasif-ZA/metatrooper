@@ -16,9 +16,14 @@ Each file listed as reverted, skipped (shell-made, not tracked) or unknown; stop
 
 Codex /undo 541 reactions, /rewind 231; Claude Code undo 178; /rewind silently fails on Bash-edited files 44; Zed restore "irreversibly destructive" 17
 
+Rewind with files is matched by rivals: opencode, Gemini CLI, Cline, Conductor and Replit have it (RIVALS.md row 3). It is expected, not a difference.
+
+New screen, 2026-11-05: `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n23-rewind.json`, shot `proto/shots/r-rewind.png`. It follows Google Docs version history, and Restore and Show changes follow Google Slides history. It replaces `f-rewind.json` as the layout. Also in the wip repo at `ouros/direction`.
+
 ## Blocked on
 
 - Wasif's keep / change / drop on NEWFEATURES.html feature 2.
+- CORE.html proposes a snapshot per run first and per turn later. Section 6e says every turn. His call.
 
 ## Acceptance criteria
 

@@ -16,9 +16,12 @@ A run ends as Done, Checks passed or Needs your review. Done is bound to the rev
 
 inaccurate self-reporting is 22.58% of 16,118 validated pushback episodes; no checked tool shows evidence beside a done claim
 
+Corrected 2026-11-05: that last claim is too strong. Claude Code `/goal` and Stop hooks, Codex goals, Cursor `stop` hooks, Kiro, Aider `--auto-test` and tamperproof all do parts of this (RIVALS.md row 2). What survives is narrow: "needs your review" as the default end state when no check exists. It is cheap to copy.
+
 ## Blocked on
 
 - Wasif's keep / change / drop on NEWFEATURES.html feature 1.
+- The result's wording. CORE.html proposes "Agreed checks passed" plus a list of what was not checked, in place of "Done means proven". His call.
 
 ## Acceptance criteria
 

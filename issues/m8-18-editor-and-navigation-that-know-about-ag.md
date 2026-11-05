@@ -17,6 +17,7 @@ Status in scratch: decided (two-engine/reconcile.md final column).
 - Breadcrumb dropdown gets dots and +/- only. A pending hunk is a dashed orange gutter bar with Keep / Reject, no tint.
 - Blame reads "claude · run 3 · 2 min ago". The Review tab stacks files with Keep all / Reject all; no Viewed boxes, no line comments.
 - Cut or deferred: N3 filter row, N11 breadcrumb chip, N9 tab auto-archive, N6 `@` index (waits for meaning search).
+- 2026-11-05: "no line comments" above is reversed by the approved screen `n05-diff-comment.json`: see M8-F18. New Review layout: `n22-review.json`, shot `r-review.png`, in `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/`.
 
 ## Blocked on
 

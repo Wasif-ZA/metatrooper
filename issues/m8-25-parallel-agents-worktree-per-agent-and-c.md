@@ -13,6 +13,7 @@ Status in scratch: decided (FEATURES.md #1, top ranked); collisions partial (PAI
 
 - New-agent dialog offers its own worktree; the tile shows a branch chip such as `ouros/rate-limit`; a tile menu hands work between Local and Worktree.
 - A conflict preview shows when two agents touch one repo. Two agents on one repo is the wall's headline use, and collision handling is the third-biggest gap in PAINS.md.
+- 2026-11-05: the new-agent dialog is now the start box with chips: M8-F14.
 
 ## Blocked on
 

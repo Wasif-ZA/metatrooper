@@ -1484,6 +1484,25 @@ binding spec is `ouros-spec.md`; each child below is one build step (G0 to G15 i
 because no G step owned the workflow screens for rows 2, 7 and 8. Feature screens (`kit/specs/f-*.json`) are folded
 into the step that builds them. Effort is not sized until M8-0 picks the host. Nothing here starts before 2026-11-09.
 
+### Direction, 2026-11-05 (Wasif, approving the screens)
+
+His words:
+
+- Job screens "will come after post launch".
+- "have all means having nothing".
+- "mostly for devloper and people non devs too who needs to code work".
+- "spend more time on core services and how can differnt to exist markert".
+- "my point is not fully money its way to how to making apps and the markerting aspect for me will comne after once i feel like i learnt development side".
+- "not to say there shouldnt be deadlines and launch dates just main focus for now is not money as i am just one person".
+
+What that means here:
+
+- Developers first. Non-developers doing code work next. Job screens are add-ons after launch.
+- He tests demand by posting online himself. A post shows interest, not use.
+- Build starts on or after 2026-11-09 with M8-0.
+
+Screens he approved: scratch `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/` and `proto/shots/`, also in the wip repo at `ouros/direction`. They are still images with demo data. Honest difference: `ouros-spec.md` "Answer first".
+
 ### Children
 
 | # | Title | Step | Priority | Depends on | Feature screens |
@@ -1532,6 +1551,11 @@ into the step that builds them. Effort is not sized until M8-0 picks the host. N
 | M8-41 | Browser tools: find, hidden click targets, hostile page text, test export | browser use | High | M7-1 | - |
 | M8-42 | Browser engines: one default per job, and a headless tier | browser use | Medium | M8-14, M8-41 | - |
 | M8-43 | Model defaults for computer use and browser use | models | Low | M8-38 | - |
+| M8-44 | One-step Windows installer for Ouros (points at M5-1) | core | High | M8-0, M8-37, M5-1 | - |
+| M8-45 | Agent scorecard | core | Medium | M8-13, M8-F1, M8-24 | - |
+| M8-46 | Design system: ds.css tokens, and the library choice | kit | High | M8-0, M8-1 | - |
+| M8-47 | CLI agents can drive | core | Medium | M8-37, M6-17 | - |
+| M8-48 | Parked board rows: on the list, not built | later | Low | none | - |
 
 MetaTrooper becomes Ouros (Wasif, 2026-10-31), so M8-17 to M8-36 spec every other design in scratch: the core IDE,
 the gate policy, the phone app, Della and the polish findings.
@@ -1539,6 +1563,12 @@ the gate policy, the phone app, Della and the polish findings.
 Order of work: M8-0, then M8-17 and M8-21 (the shell and the gate policy), then M8-1 to M8-5 (the drawing path), then
 M8-13 (the product core) with M8-22 and M8-23, then M8-18 to M8-20, M8-11 and M8-14, then the rest. The phone app
 (M8-27) comes after desktop Ouros. Held for later, not a child: f-designdiff (design revision compare, a plugin capability).
+
+Order note, 2026-11-05: core services first, as he said. The order above stands, and this only says which work wins a tie.
+
+- Core services: run any agent (built), safe browser and desktop (built, Windows), one-step install (M8-44), agreed checks (M8-13, M8-F1, M8-F3), cost per task (M8-13, M8-24).
+- Then the IDE and what builds on it: the IDE (M8-0, M8-17), undo a run (M8-22, M8-F2), plain view (M8-F15), optional second model (M8-F17), scorecard (M8-45).
+- After launch: M8-J1 to M8-J8, M8-48.
 
 ### Features (one issue each, built inside the step they ride on)
 
@@ -1556,6 +1586,34 @@ M8-13 (the product core) with M8-22 and M8-23, then M8-18 to M8-20, M8-11 and M8
 | M8-F10 | Plugin grants, updates and revocation | M8-14 | `f-plugin` |
 | M8-F11 | Remembered, scoped tool access | M8-14 | `f-toolaccess` |
 | M8-F12 | Outline for notebooks and reports | M8-16 | `f-outline` |
+| M8-F13 | Home mode, starter tasks, and the Home, IDE, Wall switch | M8-17 | `n01-home-anyone` |
+| M8-F14 | Start box with choice chips | M8-17, M8-25 | `n02-start-dev` |
+| M8-F15 | A job as plain steps, with Show the code | M8-13, M8-F1 | `n06-job-anyone` |
+| M8-F16 | Needs-you list across projects | M8-22 | `n03-needs-wall` |
+| M8-F17 | Reviewer nested in the thread, second model optional, cost shown | M8-26 | `n04-turn-reviewer` |
+| M8-F18 | Comment on a changed line, and one button to commit, push and open a PR | M8-18, M8-28 | `n05-diff-comment` |
+| M8-F19 | Browser screen: point at an element, dev-server tab, before and after | M6-3, M6-11, M6-12, M6-13 | `n09-browser` |
+| M8-F20 | Issue list with a Start button | M8-25 | `n11-issues` |
+| M8-F21 | Readable audit trail | M8-21 | `n12-team` |
+| M8-F22 | Scheduled agents with a check-first script | M8-26 | `n13-automations` |
+| M8-F23 | Push notifications when someone is needed | M6-10, M7-6, M5-15 | `n14-machines` |
+| M8-F24 | Other machines and SSH | M7-11 | `n14-machines` |
+| M8-F25 | Notch: agent status at the top of the screen | M6-5, M8-21 | `ouros-notch-2026-10-31/` |
+
+### After launch: job screens as add-ons
+
+His words, 2026-11-05: job screens "will come after post launch". Each is a drawing today, and each needs a real engine or plugin behind it. Effort is not sized until M8-0.
+
+| # | Add-on | Primary product | Workspace file | Depends on |
+|---|---|---|---|---|
+| M8-J1 | Sales pipeline | Salesforce Lightning | `persona-t-crm.json` | M8-11, M8-12, M8-14 |
+| M8-J2 | Graphic design | Canva | `persona-t-design.json` | M8-11, M8-12, M8-14 |
+| M8-J3 | Spreadsheet | Google Sheets | `persona-t-sheets.json` | M8-11, M8-12, M8-14 |
+| M8-J4 | Slide deck | Google Slides | `persona-t-slides.json` | M8-11, M8-12, M8-14 |
+| M8-J5 | Meeting notes | Granola | `persona-t-notes.json` | M8-11, M8-12, M8-14 |
+| M8-J6 | UI design and design to code | Figma | `persona-t-uidesign.json` | M8-11, M8-12, M8-14 |
+| M8-J7 | Support desk | Zendesk | `persona-t-support.json` | M8-11, M8-12, M8-14 |
+| M8-J8 | Upgrade the 8 existing job layouts to the new layouts | One each, in its file | `persona-t-*.json`, 8 files | M8-11, M8-12, M8-14 |
 
 ### Open calls that block children (Wasif's, on the scratch boards)
 
@@ -1570,9 +1628,57 @@ M8-13 (the product core) with M8-22 and M8-23, then M8-18 to M8-20, M8-11 and M8
 - STATE.html gate-demotion call (may an always-allowed gate become a log line?): M8-21, M8-22, M8-5.
 - Della calls C1 to C6 and F1-F14 / N1-N4 yes/no (ouros-explorer BOARD.html): M8-30 to M8-34.
 - Extensions and Remote/WSL in v1: M8-17 and M8-0.
-- Rename scope (product name only, or CLI, home folder and repo too) and the compatibility window: M8-37.
+- Rename scope and compatibility window: M8-37 (four-pass how-to and proposed defaults in its issue file, 2026-10-31).
+
+Added 2026-11-05. These are his calls, not new work. The first four come from RIVALS.md's table stakes.
+
+- Tab completion. VS Code, Devin Desktop and Cursor have it. Neither spec mentions it.
+- A sandbox for agents' code. Claude Code, Codex and Antigravity have one. Ouros sandboxes plugins only.
+- macOS. Conductor, Orca, T3, Paradev, Nimbalyst, Claude and Codex run there. Ouros does not.
+- ACP support. Zed, Air and Devin Desktop have it. RIVALS.md found no mention, but M8-26 already lists "add any ACP agent". He decides if that stays.
+- Wording: "Agreed checks passed" plus a list of what was not checked, in place of "Done" or "proven" (CORE.html, Codex's point): M8-F1.
+- Reshape by asking: CORE.html lists it after launch, and M8-11 is High in the order above. The order stands until he says: M8-11.
+- Undo: a snapshot per run first (CORE.html), or every turn (6e): M8-F2, M8-13.
+- Installer against D72 and D50, which hold it for real users and forbid an unsigned public one: M8-44.
+- Publish and deploy, built in or a plugin. 6e leaves deploy out: M8-F15, M8-F18.
+- `ds.css` tokens and 12 px cards against M8-34's values and its "no 8px rounded cards": M8-46.
+- Library exceptions for Radix, cmdk and react-resizable-panels, and ISC on Lucide: M8-46.
+- A launch date for Ouros. He wants dates kept, and none is set in this milestone.
 
 Awaiting picks, not specced: Della idea mine (78 ideas, della-idea-mine-2026-10-30/board.html).
+
+Board items no child owned (board-by-board check, 2026-10-31), each assigned here:
+
+- M8-37: the name Ouros is taken (parcadei/ouros, npm "ouros"); check before renaming packages or the CLI.
+- M8-17: a Today home screen ("Morning, 3 agents ran overnight", `kit/specs/home.json`, SCREENS 18).
+- M8-17: product dates read "30 Oct" (short dates in the UI; ISO stays for files and logs).
+- M8-34: no 8px rounded cards (Gemini suggestion rejected in MORPH.html).
+- M8-1: merge the kit's headline part into text and its meter into bar, at build time (KIT.html).
+- M8-11: the video morph uses one monitor with a 9:16 tab; the player breaks in two narrow panes (MORPH.html).
+- M8-32: swap the garden photo (CC BY 2.0, shows a Home Depot logo) before any public build.
+- Unsure, his look: "phone handoff" (NEWFEATURES), KIT "next parts" 15 vs section 5's 7, Report verify screen
+  (SCREENS 26), Della F2 Material icons and F11 index settings, and restyling the 22 existing pages.
+
+Feature-to-owner map, 2026-11-05. `board.py` list F has 66 rows, and 45 have no `M8-` note. Each of the 45 now has an owner:
+
+- M8-F13: Home screen; starter tasks; Home, IDE and Wall switch.
+- M8-F14: message box with choice chips.
+- M8-F15: a job as plain steps with Show the code.
+- M8-F16: who is working, done or waiting; Wall. Both are built in the wall (M6-5, M6-9), and this draws the new screen.
+- M8-F17: agent asks another agent.
+- M8-F18: comment on a changed line; one button to commit, push and open a PR.
+- M8-F19: browser with Stop and Take over (M6-11, M6-12); point at an element (M6-13, M7-2); dev server tab (M6-3); before and after screenshots.
+- M8-F20: start an agent from a GitHub issue; issue list with Start.
+- M8-F21: readable audit trail.
+- M8-F22: scheduled and triggered agents.
+- M8-F23: push notification. M8-F24: other machines and SSH. M8-F25: notch.
+- M8-47: CLI that agents can drive.
+- M8-48: community looks, ticket board, team chart, money caps, cloud hosting, company controls, import browser logins, design mode.
+- M8-J1 to M8-J7: the seven job rows. M8-J8: starting screens by job.
+- Existing owners, no new issue: bring your own subscription (built; D28, M8-17); search every agent (M6-19); drag a file onto an agent (built in the wall; M8-17 keeps it); grows with you (M8-7, M8-15, section 6d); skills and MCP (M8-14); website builder and others (M8-12, M8-14); built-in jobs (M8-16, M8-28).
+
+One row with an `M8-` note also had a new part: the cross-project list under M8-22 is now M8-F16.
+Two core services had no row in list F: installer (M8-44) and scorecard (M8-45). The design system is M8-46.
 
 ## Audit, 2026-10-31: fixes before Ouros builds on this code
 

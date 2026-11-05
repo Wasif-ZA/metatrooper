@@ -17,6 +17,7 @@ Status in scratch: decided as "already designed"; some not drawn.
 - Add any ACP agent from the new-tab menu. Run configs become agent verbs.
 - Preview pane with the agent's browser run recorded and a film strip in Review.
 - Scheduled and looped runs as dimmed tiles with results to the inbox. Next candidate: a side question that does not derail the run.
+- 2026-11-05: the second engine is now optional, off by default, with cost shown: M8-F17. The schedule screen and check-first script: M8-F22. ACP above is an open call in `spec.md`, 2026-11-05.
 
 ## Blocked on
 

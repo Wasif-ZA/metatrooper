@@ -16,6 +16,8 @@ Same call 3 times with no new output: nudge (Pause, Rewind, Try another way, Not
 
 loops are 5.21% of 42.8k production trajectories (Meta); a stuck-loop report has 38 reactions; no checked tool shows a repeat counter
 
+Corrected 2026-11-05: loop alarms are table stakes. Cline, Gemini CLI and OpenHands detect loops in code, and opencode has `doom_loop` as a permission (RIVALS.md row 8). The left-over is progress-aware polling and a recovery message over any CLI: real engineering, a small difference. The repeat counter on screen was not checked again.
+
 ## Blocked on
 
 - Wasif's keep / change / drop on NEWFEATURES.html feature 4.

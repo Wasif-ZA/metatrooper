@@ -16,6 +16,7 @@ Status in scratch: approved (F1-F3, G1-G3).
 - A new rule shows a one-line reason plus Undo.
 - Checkpoint rewind (F3) with Ctrl Z and a pointer to the checkpoint in the log; M8-F2 draws the preview.
 - The inbox lists agent, request and age; the status bar shows the first waiting request.
+- 2026-11-05: the list across projects is M8-F16. New rewind screen: see M8-F2.
 
 ## Blocked on
 

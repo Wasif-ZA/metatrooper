@@ -8,15 +8,36 @@ Parts list: [CATALOGUE.md](CATALOGUE.md) (generated from kit.js). Evidence: RESE
 
 ## Answer first
 
+**Direction, 2026-11-05 (Wasif). This narrows the list below where they differ.**
+
+- Developers first. Non-developers doing code work next. His words: "mostly for devloper and people non devs too who needs to code work".
+- Job screens are add-ons after launch. His words: they "will come after post launch". Children: M8-J1 to M8-J8.
+- Core services first. His words: "spend more time on core services and how can differnt to exist markert". And: "have all means having nothing".
+- The main aim is learning how apps are made, not money. Marketing comes later. He tests demand by posting online. Dates still matter.
+- Item 6 is narrowed: "for anyone" now means developers, then non-developers doing code work. A baker's or a traveller's own job screen is an add-on.
+- Item 8 is narrowed: the built-in workflows stay, and the first audience is developers.
+- Items 0, 1 and 7 stay as the long-term idea. They are not the first release.
+
+**The honest difference (`~/.cache/claude-scratch/ouros-direction-2026-11-05/core/CORE.html`, research-ide/F/RIVALS.md, read 2026-11-05).**
+
+- Nothing is unique as written.
+- Real today: the same gates on browser and computer use for any vendor's agent, with several agents at once and your pointer left alone on Windows. Computer use is Windows only.
+- Real, may tie: no account and no telemetry in a multi-agent desk. Herdr may match it. "Works with no vendor cloud" is not true yet.
+- Unproven and not built: the frozen judge. It runs tests from a host-held copy, so an edit on disk changes nothing. A good hook author could copy it.
+- Unproven: reshaping by asking with no agent code, and lessons replayed before use.
+- A board note "Not seen in the six" means only those six products. RIVALS.md overrides it.
+
+The list below is kept as history:
+
 0. The core idea (Wasif, 2026-10-30): the IDE is the intelligent UI. It morphs to what the user needs. "I want to build a website" turns the IDE into a website builder; "cut this footage into a 2-minute video" turns it into a cutting room; "design a mounting bracket" turns it into a part-design bench. Each new request changes it again. The whole workspace can change; gates, the needs-you inbox and Undo cannot (section 6c).
 1. Generating every screen with a model is too expensive, so Ouros keeps ready-made assets (section 5b): 66 components ported from MetaTrooper's old approved screens and the persona work, on top of 58 base parts. Agents do not write screens. They send a short JSON description that names parts and assets from one fixed catalogue (124 in all). Ouros draws it. The drawing is built and tested in scratch; the IDE wiring is the build plan (section 9).
 2. This is ChatGPT-style generated UI for an IDE, with one difference that matters: no agent HTML, no iframe, no script. The catalogue is the only way to draw.
 3. Screens land in IDE places: an editor tab, the agent panel, a wall tile, the inbox, the status bar, the phone. The same JSON draws in all of them.
 4. "Custom to you" comes from three things Ouros keeps per user: templates (screens learned from your own workflows), a profile (density, theme, parts you never open), and your existing IDE settings.
 5. Only Ouros itself can draw orange or a real gate. An agent that tries gets a grey "asks you" card with its name on it.
-6. It is for anyone, not only developers. For any request (a trip, a shop's week, exam revision, a pull request) a screen maker researches how good apps show that kind of task, then builds the screen from the catalogue (section 6b).
+6. (Narrowed 2026-11-05, see above.) It is for anyone, not only developers. For any request (a trip, a shop's week, exam revision, a pull request) a screen maker researches how good apps show that kind of task, then builds the screen from the catalogue (section 6b).
 7. The main product is that Ouros grows with you (Wasif, 2026-10-30): it ships starting blocks, not finished apps, and gives you the ability to shape them to your own workflow. It changes slowly, in small steps you can undo (section 6d). The engines behind the blocks (section 5c) are plumbing.
-8. Scope cut (Wasif, 2026-10-30): building every engine and pipeline "may not be worth it". Built in: the most common workflows of engineers in general, and three loops by which agents fix their own mistakes. Everything else is an open-source plugin the user explores (section 6e).
+8. (Narrowed 2026-11-05, see above.) Scope cut (Wasif, 2026-10-30): building every engine and pipeline "may not be worth it". Built in: the most common workflows of engineers in general, and three loops by which agents fix their own mistakes. Everything else is an open-source plugin the user explores (section 6e).
 
 ## 1. The idea, and what Ouros copies
 
@@ -405,9 +426,20 @@ electrical, civil or chemical engineer's week by task. Row 7 is a hypothesis to 
 Checking runs through all eight: IC design engineers spend 49% of their time on verification (2024) and 89% of US
 engineers check every AI result by hand (402, 2026). That is the case for the loops below.
 
-Not built in: deploy and monitoring (76% of Stack Overflow 2025 respondents do not plan to use AI there), project
-and issue management (69% do not for project planning; implementation planning stays inside row 3), and every
-domain tool (CAD, circuits, simulation, video, shop). Those are plugins.
+Not built in: deploy and monitoring, project and issue management (implementation planning stays inside row 3), and
+every domain tool (CAD, circuits, simulation, video, shop). Those are plugins.
+
+Corrected 2026-11-05, from research-ide/F/PAINS.md, section "Old findings, now updated". This section first cited
+Stack Overflow 2025: 76% do not plan to use AI for deploy and monitoring, and 69% for project planning. The 2026
+survey reads:
+
+- Deploy and monitoring: 19.9% use AI, 36.0% do not use or plan to, 22.0% say it is not part of their work (n=12,547).
+- Tickets and plans: 27.8% use AI, 30.5% do not plan to.
+- The answer options changed, so the two years do not compare directly.
+
+So "most do not plan to" no longer holds. PAINS.md B6 also says non-developers break at deploy, and Anthropic has
+operating software at 21% of Claude Code sessions. Whether deploy stays out is his call (`spec.md`, open calls). The
+screens add one issue list (M8-F20) and a Publish step (M8-F15), both also his call.
 
 ### How agents fix their own mistakes
 
@@ -436,6 +468,9 @@ Model provider failures sit under all three loops:
   check configs and logging taken at the start of the run, so an edit to them on disk changes nothing. The agent
   cannot write to those paths; a proposed change to a test or check is shown to you separately and is never part
   of a fix (a self-improving agent once "passed" by deleting the logging that caught it).
+  Corrected 2026-11-05 (RIVALS.md row 1): blocking test writes is table stakes as a setting in Claude Code, Cursor
+  and opencode. Only the frozen copy survives, and it is spec only. On native Windows no vendor was found doing the
+  write block at OS level, and Ouros has no sandbox, so lean on the copy, not the write block.
 - Your existing tests are the judge. Tests the agent wrote in the same run are only a hint: self-written tests
   misled Reflexion (MBPP 0.80 to 0.77), and Self-Refine's maths feedback said "everything looks good" on 94% of
   instances.
@@ -463,6 +498,8 @@ Model provider failures sit under all three loops:
   the same model shares the actor's blind spots. Its verdict is a hint, not the judge, and it costs about one more
   run. It also checks the reasons maintainers rejected agent PRs most: missing tests, docs and style (METR: 0 of 15
   agent PRs mergeable as-is, 42 minutes average to fix).
+  Narrowed 2026-11-05 (CORE.html, M8-F17): the second model is optional and off by default, with its cost shown
+  first, because the cost is untested. Today only the manual `skills/second-opinion` exists; the runner left in M6-1.
 
 **2. A watcher on the run (minutes).**
 - Deterministic first, in Ouros itself: each tool call is hashed, a nudge at 3 identical calls and a stop at 5
@@ -471,7 +508,10 @@ Model provider failures sit under all three loops:
   no tool call. A call that waits on something changing (polling a build, a server coming up) counts as progress
   while its output changes, so it does not trip the alarm.
 - Detection alone only stops the run. Each trip sends a recovery message first (restate the task, name the
-  repeated step), and stops only if the next turn repeats it (OpenCode doom_loop does this).
+  repeated step), and stops only if the next turn repeats it.
+  Corrected 2026-11-05 (RIVALS.md row 8): this line once said OpenCode's `doom_loop` does this. Its docs
+  (opencode.ai/docs/permissions) show a permission that asks you, at 3 identical calls. The loop code was not read,
+  so check it before citing. The recovery message is Ouros's own proposal.
 - Then a small second model, only for what a hash cannot see: drift from the task (restate the task and plan),
   doing more than asked, and wrong tool arguments. These were the commonest nudges among runs Meta's Wink
   recovered (loops 39%, task reminder 26%, scope creep 17%, tool arguments 17%; 90.9% recovery among runs that

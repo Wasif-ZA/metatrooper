@@ -12,6 +12,8 @@ Part of Ouros, Milestone 8. Build step G11. Priority: High. Effort: not sized (s
 
 Ask an agent to reshape the IDE and the whole workspace may change. Pinned and never removable: title bar with IDE | WALL, status bar with the inbox entry and Ctrl Alt 0 reset, gates, Undo.
 
+2026-11-05: new screen `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n07-reshape.json`. The pinned switch gains Home (M8-F13). The new layouts for the 8 personas are M8-J8, after launch. CORE.html lists reshaping beyond a few fixed layouts as after launch: an open call in `spec.md`.
+
 ## Blocked on
 
 - STARTPOINT.html call 1 (persona layouts after the scope cut) and the MORPH.html verdict.

@@ -17,6 +17,9 @@ Status in scratch: approved (round 1 D1, round 2 all components).
 - Wall tiles: footer shows age or idle only, never context % or cost; done tiles collapse after 10 minutes.
 - Agent panel: the NEEDS YOU stamp sits on the waiting tab only, other tabs get dots; tool blocks fold at 5 or more commands, failing ones stay open; the agent picker offers a worktree and no pinning.
 - BASELINE.md's 56 editor rows are the acceptance checklist for the shell; 36 are not shown in the renders (multi-cursor, find and replace, folding, split editors, format on save, snippets, auto save, markdown preview, language intelligence, project search, debugger, git panel). M8-0's host decides how many come free.
+- New screens, 2026-11-05: the IDE is `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n20-ide.json`, shot `proto/shots/r-dev.png`; Today is `n21-today.json`, shot `r-home.png`, after Paperclip's dashboard. Also in the wip repo at `ouros/direction`. The look moves to M8-46.
+- The switch gains Home: see M8-F13. Today stays here, and Home is a separate screen.
+- Keep the wall's file drop: a drop on a tile types the paths, and a drop on a session row sends them (`workbench/renderer/app.js`). This owns the board row "Drag a file onto an agent".
 
 ## Blocked on
 

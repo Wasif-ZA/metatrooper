@@ -16,6 +16,7 @@ Status in scratch: round 2 verdict pending; round 1 superseded.
 - A stop-list gate is a sheet with the exact command and hold-to-confirm; Face ID for stop-list gates.
 - Question card with options plus free text; follow and steer with steps, a log tail with Jump to latest, and a queued bubble; finished run as one card with checkpoint rows; review with a floating Keep and Undo beside it.
 - Usage page, start-a-task sheet (project, branch, agent, mode chips), lock-screen push with live agents, first-launch pairing. Code and keys stay on the PC; the phone is a remote.
+- 2026-11-05: alerts come first without this app: M8-F23. The screen is `n14-machines.json`. Its pairing row still belongs here.
 
 ## Blocked on
 
