@@ -1,7 +1,7 @@
 <p align="center"><strong>Windows first, Linux beta. Install from source. Local only: no account, no telemetry.</strong></p>
 
 <p align="center">
-  <img src="assets/hero.png" width="640" alt="MetaTrooper: dithered dots on near-black gathering into four terminal clusters">
+  <img src="assets/archive/metatrooper/hero.png" width="640" alt="MetaTrooper: dithered dots on near-black gathering into four terminal clusters">
 </p>
 
 <p align="center">
@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
+  <a href="#whats-next-ouros"><strong>What's next</strong></a> &middot;
   <a href="#the-wall"><strong>The wall</strong></a> &middot;
   <a href="#browser-use"><strong>Browser use</strong></a> &middot;
   <a href="#computer-use-windows"><strong>Computer use</strong></a> &middot;
@@ -44,6 +45,50 @@ It has four parts:
 
 MetaTrooper runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads
 their login tokens. It is not affiliated with or endorsed by Anthropic, OpenAI or Google.
+
+## What's next: Ouros
+
+MetaTrooper is becoming Ouros, an IDE built around your agents. It is for developers first, then for people who are
+not developers but need code work done.
+
+**None of this is built yet.** These are design previews with demo data. Everything in the sections below this one
+is what runs today.
+
+<p align="center">
+  <img src="assets/ouros/ide.png" width="860" alt="Design preview of the Ouros IDE: file tree, an editor showing an agent's change with Keep and Undo, a terminal, and a chat with the agent">
+</p>
+
+| Screen | What it is for |
+|---|---|
+| **IDE** | A familiar editor frame. An agent's changes appear in place, with Keep and Undo on each one. |
+| **Today** | What ran overnight, who needs you, and what is ready to review. |
+| **Wall** | Every agent on one screen. The wall that runs today, inside the IDE. |
+| **Review** | The diff, the check results and what reviewers found. A comment on a line goes back to the agent. |
+| **Rewind** | Go back to any point in a run, with the changes shown before you restore. |
+
+<table>
+  <tr>
+    <td><img src="assets/ouros/today.png" alt="Design preview: Today screen"></td>
+    <td><img src="assets/ouros/wall.png" alt="Design preview: Wall screen"></td>
+  </tr>
+  <tr>
+    <td><img src="assets/ouros/review.png" alt="Design preview: Review screen"></td>
+    <td><img src="assets/ouros/rewind.png" alt="Design preview: Rewind screen"></td>
+  </tr>
+</table>
+
+**The idea being tested:** an agent should not mark its own work. You agree what done means, and Ouros runs the check
+from a copy the agent cannot change. You then see what passed and what was not checked. This is still a design, and
+it has not been shown to help yet.
+
+**After launch:** add-ons that reshape the workspace for other jobs, such as spreadsheets, sales pipelines, graphic
+design and UI design. These are drawings only for now, and no engine sits behind them.
+
+<p align="center">
+  <img src="assets/ouros/jobs.png" width="860" alt="Design previews of later add-ons: a spreadsheet, a sales pipeline, a graphic design tool and a UI design tool">
+</p>
+
+The plan is in [`spec.md`](spec.md) (Milestone 8) and [`ouros-spec.md`](ouros-spec.md).
 
 ## Quickstart
 
