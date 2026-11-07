@@ -714,11 +714,11 @@ def check(args):
     rows = calls.read()
     lines, failed, broke = [], 0, set()
     changed = "--changed" in args
-    tool = {n: versions.binary(r) for n, r in recipes.items()}
+    tool = {n: versions.binary(r) for n, r in recipes.items() if n not in untrusted}
     old = versions.recorded()
     now = {b: versions.current(b) for b in set(tool.values()) if b}
     if changed:
-        recipes = {n: r for n, r in recipes.items() if now.get(tool[n]) and now[tool[n]] != old.get(tool[n])}
+        recipes = {n: r for n, r in recipes.items() if now.get(tool.get(n)) and now[tool.get(n)] != old.get(tool.get(n))}
     real_home, real_cwd = os.environ.get("METAROUTER_HOME"), os.getcwd()
     with tempfile.TemporaryDirectory() as tmp:
         os.environ["METAROUTER_HOME"] = str(Path(tmp) / "home")

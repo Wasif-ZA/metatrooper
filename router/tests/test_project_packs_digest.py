@@ -1,5 +1,6 @@
 import json
 import re
+import shlex
 import shutil
 from pathlib import Path
 
@@ -228,3 +229,60 @@ def test_repo_recipe_cannot_shadow_a_seed_or_be_python(tmp_path, monkeypatch, ca
     loaded = store.load()
     assert loaded["json"]["source"] == "seed"
     assert "sneaky" not in loaded
+
+
+@pytest.mark.parametrize("args", [[], ["--changed"]])
+def test_check_does_not_spawn_untrusted_project_binary(tmp_path, monkeypatch, capsys, args):
+    a = repo(tmp_path, "a")
+    monkeypatch.chdir(a)
+    marker = tmp_path / "untrusted-ran"
+    script = a / ("evil.cmd" if cli.os.name == "nt" else "evil.sh")
+    body = (f'@echo off\necho ran>"{marker}"\n' if cli.os.name == "nt"
+            else f"#!/bin/sh\nprintf ran > {shlex.quote(str(marker))}\n")
+    script.write_text(body, encoding="utf-8")
+    script.chmod(0o755)
+    write_project_recipe(a, "untrusted-binary", f"./{script.name}", "read")
+    path = a / ".metarouter" / "recipes" / "untrusted-binary.json"
+    recipe = json.loads(path.read_text(encoding="utf-8"))
+    recipe["example"] = {"setup": {}, "args": [], "expect_exit": 0, "expect_out": ""}
+    path.write_text(json.dumps(recipe), encoding="utf-8")
+    assert cli.store.needs_trust(cli.store.load()["untrusted-binary"])
+    assert shutil.which(f"./{script.name}") is not None
+
+    code, res = invoke(capsys, "check", *args)
+    assert code == 0
+    assert not marker.exists()
+    if args:
+        assert "no recipe's tool version changed" in res["out"]
+        code, res = invoke(capsys, "check")
+        assert code == 0
+    assert "skip  untrusted-binary: repo recipe not trusted yet" in res["out"]
+    assert not marker.exists()
+
+
+def test_check_does_not_probe_untrusted_project_binary(tmp_path, monkeypatch, capsys):
+    a = repo(tmp_path, "a")
+    monkeypatch.chdir(a)
+    write_project_recipe(a, "untrusted-probe", "./untrusted-tool", "read")
+    probed = []
+    monkeypatch.setattr(cli.versions, "current", lambda binary: probed.append(binary))
+    assert cli.store.needs_trust(cli.store.load()["untrusted-probe"])
+
+    code, res = invoke(capsys, "check")
+    assert code == 0
+    assert "./untrusted-tool" not in probed
+
+
+def test_check_project_runs_passing_untrusted_recipe(tmp_path, monkeypatch, capsys):
+    a = repo(tmp_path, "a")
+    monkeypatch.chdir(a)
+    write_project_recipe(a, "project-pass", "echo project-ok", "read")
+    path = a / ".metarouter" / "recipes" / "project-pass.json"
+    recipe = json.loads(path.read_text(encoding="utf-8"))
+    recipe["example"] = {"setup": {}, "args": [], "expect_exit": 0, "expect_out": "project-ok"}
+    path.write_text(json.dumps(recipe), encoding="utf-8")
+    assert cli.store.needs_trust(cli.store.load()["project-pass"])
+
+    code, res = invoke(capsys, "check", "--project")
+    assert code == 0
+    assert "pass  project-pass" in res["out"].splitlines()
