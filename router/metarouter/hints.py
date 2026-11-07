@@ -65,7 +65,10 @@ def load():
 
 
 def match(cmd, output=None, failed=False):
-    """Return the first matching hint text: a before-hint on the command, else a fail-hint on the output."""
+    """Return the first matching hint text: a recipe for inline python, a before-hint on the command, else a fail-hint on the output."""
+    tip = recipe_for(cmd)
+    if tip:
+        return tip
     for h in load():
         try:
             if h.get("when") == "before" and re.search(h["match"], cmd or ""):
@@ -79,6 +82,16 @@ def match(cmd, output=None, failed=False):
         except re.error:
             continue
     return None
+
+
+def recipe_for(cmd):
+    """Name the recipe that does the job of an inline python script, or None."""
+    from metarouter import learn, recipes as store
+    if not learn.INLINE_PY.search(cmd or ""):
+        return None
+    name = dict((g, rec) for g, _, rec in learn.PY_GROUPS).get(learn.py_group(cmd))
+    r = store.load().get(name) if name else None
+    return f"A recipe does this: metarouter run {store.signature(r)}" if r else None
 
 
 def by_source():
@@ -105,7 +118,7 @@ def breaker_key(record):
 def stuck(rows, shape, project, now):
     """Return a refusal when this exact command shape failed BREAKER_RUN times in a row here within the hour."""
     mine = [r for r in rows if r.get("shape") == shape and r.get("project") == project][-BREAKER_RUN:]
-    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 for r in mine):
+    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 or r.get("findings") for r in mine):
         return None
     try:
         first = datetime.datetime.fromisoformat(mine[0]["time"])
@@ -121,7 +134,7 @@ def breaker(rows, record):
     """Return a warning when this call's tool has failed BREAKER_RUN times in a row within the hour."""
     key = breaker_key(record)
     mine = [r for r in rows if breaker_key(r) == key][-BREAKER_RUN:]
-    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 for r in mine):
+    if len(mine) < BREAKER_RUN or any(r.get("exit") == 0 or r.get("findings") for r in mine):
         return None
     try:
         first = datetime.datetime.fromisoformat(mine[0]["time"])

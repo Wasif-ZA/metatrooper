@@ -14,7 +14,7 @@ def build(rows, days, now=None):
     cutoff = (now - datetime.timedelta(days=days)).isoformat()
     rows = [r for r in rows if r.get("time", "") >= cutoff and not private(str(r.get("project") or ""))
             and not private(r.get("recipe") or "") and not private(r.get("shape") or "")]
-    failed = [r for r in rows if r.get("exit") != 0]
+    failed = [r for r in rows if r.get("exit") != 0 and not r.get("findings")]
     top = Counter(r.get("recipe") or r.get("shape") or "?" for r in failed).most_common(TOP)
     last = {}
     for r in rows:
@@ -30,6 +30,7 @@ def build(rows, days, now=None):
         "days": days,
         "calls": len(rows),
         "failed": len(failed),
+        "findings": sum(bool(r.get("findings")) for r in rows),
         "top_failures": [f"{n}  ({c} times)" for n, c in top],
         "waiting_review": {f"{t}s": n for t, n in sorted(waiting.items())} or "none",
         "recipes_broke": broke or "none: no recipe went from working to failing",
