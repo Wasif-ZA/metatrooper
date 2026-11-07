@@ -1,0 +1,27 @@
+import { ACTIONABLE } from './snapshot.ts';
+
+export type Step =
+  | { tool: 'navigate'; url: string }
+  | { tool: 'back' }
+  | { tool: 'click' | 'type' | 'select'; role: string; name: string; submit?: boolean; value?: string }
+  | { tool: 'key'; keys: string };
+
+const NAMED = /^(Enter|Tab|Escape|Backspace|Delete|Space|Arrow(Up|Down|Left|Right)|Home|End|PageUp|PageDown)$/;
+const J = JSON.stringify;
+
+/** Builds the Playwright test file text for the recorded steps. */
+export function exportTest(steps: Step[]): string {
+  let fills = 0;
+  const lines = steps.flatMap((s): string[] => {
+    if (s.tool === 'navigate') return [`await page.goto(${J(s.url)});`];
+    if (s.tool === 'back') return ['await page.goBack();'];
+    if (s.tool === 'key') return NAMED.test(s.keys.split('+').pop()!) ? [`await page.keyboard.press(${J(s.keys)});`] : ['// a key press was not recorded'];
+    if (!s.name) return [`// a ${s.tool} on an element with no name was not recorded`];
+    const at = ACTIONABLE.has(s.role) ? `page.getByRole(${J(s.role)}, { name: ${J(s.name)}, exact: true })` : `page.getByText(${J(s.name)}, { exact: true })`;
+    if (s.tool === 'click') return [`await ${at}.click();`];
+    if (s.tool === 'select') return [`await ${at}.selectOption(${J(s.value)});`];
+    return [`await ${at}.fill(process.env.MT_FILL_${++fills} ?? '');`, ...(s.submit ? [`await ${at}.press('Enter');`] : [])];
+  });
+  const body = (lines.length ? lines : ['// nothing recorded yet']).map((l) => `  ${l}`).join('\n');
+  return `import { test } from '@playwright/test';\n\ntest('recorded by MetaTrooper', async ({ page }) => {\n${body}\n});\n`;
+}

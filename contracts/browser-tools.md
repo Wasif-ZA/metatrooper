@@ -34,6 +34,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
 | `handoff` | `{pane_id, reason}` | `{ok}`; gives the pane to the user until they press Give back (M6-12, below) |
 | `dialog` | `{pane_id, accept: bool, prompt_text?}` | `{ok, handled: {type, message}}`; answers the open alert, confirm or beforeunload dialog; Electron does not implement `prompt()`, which returns null without a dialog |
+| `export_test` | `{}` | `{text}`; a Playwright test file replaying the actions run so far (M8-41, below) |
 
 While a dialog is open, every tool except `dialog`, `console` and `network` fails with -32032 naming it. A tool
 that opens a dialog while it runs returns `{ok: true, dialog: {type, message}}` straight away.
@@ -45,7 +46,7 @@ box fails with "not visible".
 
 A session may hold a browser grant, a preset that limits its tools. Each preset holds the one before it:
 
-- `look`: panes, navigate, snapshot, screenshot, scroll, read, find, handoff.
+- `look`: panes, navigate, snapshot, screenshot, scroll, read, find, handoff, export_test.
 - `act`: look plus back, click, type, key, select, wait_for, dialog, batch.
 - `debug`: act plus console, network, evaluate.
 
@@ -151,6 +152,34 @@ A `snapshot` also gives a ref to an element a person can click that has no actio
 Its line reads `clickable "<name>" [ref=e5]`: the accessibility name, or when that is empty the names of its StaticText descendants joined by one space (whitespace collapsed, cut to 120 characters); `clickable [ref=e5]` when both are empty. The line appears even when the accessibility tree marks the node ignored or `generic`/`none`. Its children are rendered under it as usual. The ref works with `click`, `scroll`, `screenshot` and `wait_for` like any other.
 
 The page is not changed: no attribute is written and no node is added. The elements come back as handles from one `Runtime.evaluate` in the isolated world, and `Runtime.getProperties` plus `DOM.describeNode` turn them into backend node ids; the handles are released afterwards. So `document.documentElement.outerHTML` is the same before and after a snapshot.
+
+### Test export
+
+`export_test {}` returns `{text}`: a Playwright test file replaying the actions this MCP server (this session) has run successfully so far, in order, across its panes. It is answered by the MCP shim from memory; nothing goes to the workbench, so it writes no `browser.tool` row. It is in the `look` preset and read-only. The record lives as long as the MCP server process.
+
+Recorded, only when the call (or the batch step) succeeded:
+
+- `navigate {url}` -> `await page.goto(<url>);` with the URL scrubbed by `scrub` from `core/src/redact.ts`;
+- `back` -> `await page.goBack();`;
+- `click {ref}` -> `await <locator>.click();`;
+- `type {ref, text, submit?}` -> `await <locator>.fill(process.env.MT_FILL_<n> ?? '');` where n counts fills from 1; the typed text is never recorded, not even its length; with `submit: true` also `await <locator>.press('Enter');`;
+- `select {ref, value}` -> `await <locator>.selectOption(<value>);`;
+- `key {keys}` -> `await page.keyboard.press(<keys>);` only when the key (the part after the last `+`) is a named key (Enter, Tab, Escape, Backspace, Delete, Space, an arrow, Home, End, PageUp, PageDown); a one-character key is not recorded and leaves the line `// a key press was not recorded`.
+
+`<locator>` comes from the control the call was checked against (`browser.describe`, the role and name it returned): `page.getByRole(<role>, { name: <name>, exact: true })`; when the name is empty, or the role is not a role the snapshot gives refs to (e.g. a `clickable` target), `page.getByText(<name>, { exact: true })` when the name is not empty, else the step becomes the line `// a <tool> on an element with no name was not recorded`. Every string is written with `JSON.stringify`.
+
+The file:
+
+```
+import { test } from '@playwright/test';
+
+test('recorded by MetaTrooper', async ({ page }) => {
+  await page.goto("http://localhost:4123/");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+});
+```
+
+With nothing recorded, the test body holds only the line `// nothing recorded yet`.
 
 ## Version 2 (M6-11)
 

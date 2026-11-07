@@ -6,6 +6,8 @@ import { PRESETS } from '../browser/grants.js';
 import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.js';
 import { serveMcp } from './mcp-stdio.js';
 import { fence } from '../browser/snapshot.js';
+import { exportTest,           } from '../browser/export-test.js';
+import { scrub } from '../redact.js';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
@@ -14,7 +16,7 @@ const budget = {
   max_tokens: { type: 'integer', default: 4000 },
   continue: { type: 'string', description: 'The cursor named at the end of a cut answer; returns the next part.' },
 };
-const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for']);
+const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for', 'export_test']);
 const TOOLS                                                                                                                            = [
   { name: 'panes', description: 'List the browser panes this session may drive.', inputSchema: { type: 'object', properties: {} } },
   { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
@@ -34,6 +36,7 @@ const TOOLS                                                                     
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'batch', description: `Run up to ${BATCH_MAX} steps in order in one call, each {tool, args} with tool one of ${BATCH_TOOLS.join(', ')}; pane_id applies to every step unless the step gives its own. Refs come from a snapshot you took before; a batch takes no snapshot. Each step is approved and audited as a single call. stop_on_error (default true): after a failed step the rest read skipped. Returns {steps: [{step, tool, status ok|error|skipped, text}], page}, page being the url, title and changes of the last step that ran.`, inputSchema: { type: 'object', properties: { ...pane, steps: { type: 'array', minItems: 1, maxItems: BATCH_MAX, items: { type: 'object', properties: { tool: { type: 'string', enum: BATCH_TOOLS }, args: { type: 'object' } }, required: ['tool'] } }, stop_on_error: { type: 'boolean', default: true } }, required: ['steps'] } },
+  { name: 'export_test', description: 'A Playwright test file replaying the actions this session has run successfully so far. Typed text is never included.', inputSchema: { type: 'object', properties: { ...pane } } },
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
@@ -42,8 +45,10 @@ const browser = new WorkbenchPipe(UNAVAILABLE);
 const CHECKED = new Set(['click', 'type', 'select', 'key']);
 const CONTROL_CHANGED = -32035;
 
+const recorded         = [];
+
 /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
-async function checkedCall(name        , args                         )                 {
+async function checkedCall(name        , args                         )                                                {
   const stopped = async (error                                   )                 => {
     await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
     return { error };
@@ -63,7 +68,7 @@ async function checkedCall(name        , args                         )         
     if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
     const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
     // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
-    if (r.error?.code !== CONTROL_CHANGED) return r;
+    if (r.error?.code !== CONTROL_CHANGED) return { ...r, control };
   }
   return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
 }
@@ -71,8 +76,16 @@ async function checkedCall(name        , args                         )         
 async function singleCall(name        , args                         )               {
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
   const { expect: _drop, ...clean } = args ?? {};
+  if (name === 'export_test') return { content: [{ type: 'text', text: exportTest(recorded) }] };
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
+  if (name === 'navigate') recorded.push({ tool: name, url: scrub(String(clean.url), []) });
+  else if (name === 'back') recorded.push({ tool: name });
+  else if (name === 'key') recorded.push({ tool: name, keys: String(clean.keys) });
+  else if (name === 'click' || name === 'select' || name === 'type') {
+    const c = (r                                ).control;
+    recorded.push({ tool: name, role: c?.role ?? '', name: c?.name ?? '', ...(name === 'type' ? { submit: clean.submit === true } : {}), ...(name === 'select' ? { value: String(clean.value) } : {}) });
+  }
   const result = r.result                                                                                                              ;
   if (name === 'screenshot' && result?.data_base64) {
     const content           = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
