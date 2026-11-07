@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>M8-38 electron fixture</title></head>
+<body>
+<label for="fixtureInput">Fixture label</label>
+<input id="fixtureInput" aria-label="Fixture input" value="initial">
+<button id="fixtureSubmit">Fixture submit</button>
+<input type="checkbox" id="fixtureToggle" aria-label="Fixture toggle">
+<div id="items"></div>
+<script>
+window.clicks = 0;
+document.getElementById('fixtureSubmit').addEventListener('click', () => { window.clicks++; });
+const size = Number(new URLSearchParams(location.search).get('size')) || 0;
+for (let i = 0; i < size; i++) { const b = document.createElement('button'); b.textContent = 'Item ' + i; document.getElementById('items').appendChild(b); }
+</script>
+</body></html>
