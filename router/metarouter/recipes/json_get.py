@@ -53,7 +53,7 @@ def walk(data, steps, into_strings=False):
 def load(file):
     if file == "-":
         return json.load(sys.stdin)
-    with open(file, encoding="utf-8") as f:
+    with open(file, encoding="utf-8-sig") as f:
         return json.load(f)
 
 
