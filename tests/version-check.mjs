@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// M5-9: every package.json and troop-plugin.json carries the root package.json version.
+// M5-9: every package.json and troop-plugin.json, plus router/pyproject.toml, carries the root package.json version.
 // Usage: node tests/version-check.mjs
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -21,5 +21,7 @@ for (const file of manifests(root)) {
   const got = JSON.parse(readFileSync(file, 'utf8')).version;
   if (got !== want) { bad++; console.log(`${relative(root, file)}: ${got} (want ${want})`); }
 }
+const pyGot = readFileSync(join(root, 'router', 'pyproject.toml'), 'utf8').match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+if (pyGot !== want) { bad++; console.log(`router/pyproject.toml: ${pyGot} (want ${want})`); }
 console.log(bad ? `version check FAIL: ${bad} file(s) differ from ${want}` : `version check PASS: ${want}`);
 process.exit(bad ? 1 : 0);
