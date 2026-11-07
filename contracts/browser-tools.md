@@ -19,7 +19,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `panes` | `{}` | `[{pane_id, url, dev_port}]` for panes this session may drive |
 | `navigate` | `{pane_id, url}` | `{url, title, status}` plus the page state (below); opens an agent pane when the session has none |
 | `back` | `{pane_id}` | the page state (below) |
-| `snapshot` | `{pane_id, max_tokens?: int = 4000, scope_ref?, interactive?: bool, since_last?: bool, continue?}` | `{text, continue?}`: accessibility tree as text, each actionable node tagged `[ref=e12]` (main frame) or `[ref=f2e12]` (child frame `f2`); same-origin child frames are nested under their `Iframe` line and open shadow roots are included; `scope_ref` keeps the subtree under that ref; `interactive` keeps only nodes with a ref and their ancestors; `since_last` returns `+ line` for each line added and `- line` for each line removed since this session's previous snapshot of the pane with the same `interactive` and `scope_ref` (cleared on navigate) |
+| `snapshot` | `{pane_id, max_tokens?: int = 4000, scope_ref?, interactive?: bool, since_last?: bool, continue?}` | `{text, continue?}`: accessibility tree as text, each actionable node tagged `[ref=e12]` (main frame) or `[ref=f2e12]` (child frame `f2`); same-origin child frames are nested under their `Iframe` line and open shadow roots are included; elements with no role that take clicks get `clickable` lines, see Click targets with no role; `scope_ref` keeps the subtree under that ref; `interactive` keeps only nodes with a ref and their ancestors; `since_last` returns `+ line` for each line added and `- line` for each line removed since this session's previous snapshot of the pane with the same `interactive` and `scope_ref` (cleared on navigate) |
 | `read` | `{pane_id, search?, max_tokens?: int = 4000, continue?}` | `{text, continue?}`: the `innerText` of `main`, `[role=main]`, `article` or `body`, one trimmed non-empty line per block; `search` keeps lines containing it, case-insensitive |
 | `find` | `{pane_id, query: string, max_tokens?: int = 4000, continue?}` | `{text, continue?}`: the `snapshot` lines that contain `query`, case-insensitive, as hit blocks (see Find) |
 | `click` | `{pane_id, ref}` | `{ok}` plus the page state; fails with -32033 and clicks nothing when the element is disabled, outside the viewport, or covered by another element |
@@ -137,6 +137,20 @@ The MCP shim (`core/src/hook/browser-mcp.ts`) wraps the text of `snapshot`, `rea
 ```
 
 The nonce is 16 lowercase hex characters from `crypto.randomBytes(8)`, fresh for every wrap, so a page cannot write the closing line in advance. `fence(text)` in `core/src/browser/snapshot.ts` makes it. Other results (`evaluate`, `console`, `network`, dialog messages, errors) are not wrapped.
+
+### Click targets with no role
+
+A `snapshot` also gives a ref to an element a person can click that has no actionable accessibility role (its role is not one of the roles that get refs, e.g. a `div` or `span`). It counts as clickable when any of these holds:
+
+- its computed `cursor` is `pointer` and its parent element's is not (cursor inherits, so only the outermost element of a pointer area counts);
+- it has an `onclick` attribute, or its `onclick` property is not null;
+- it has a `tabindex` attribute whose value is 0 or more.
+
+`html`, `body`, hidden elements (see Hidden page text) and elements whose `getBoundingClientRect()` has zero width or height are never clickable. Found in the same page walk as hidden elements, in every frame the snapshot reads, open shadow roots included, at most 400 per frame in document order.
+
+Its line reads `clickable "<name>" [ref=e5]`: the accessibility name, or when that is empty the names of its StaticText descendants joined by one space (whitespace collapsed, cut to 120 characters); `clickable [ref=e5]` when both are empty. The line appears even when the accessibility tree marks the node ignored or `generic`/`none`. Its children are rendered under it as usual. The ref works with `click`, `scroll`, `screenshot` and `wait_for` like any other.
+
+The page is not changed: no attribute is written and no node is added. The elements come back as handles from one `Runtime.evaluate` in the isolated world, and `Runtime.getProperties` plus `DOM.describeNode` turn them into backend node ids; the handles are released afterwards. So `document.documentElement.outerHTML` is the same before and after a snapshot.
 
 ## Version 2 (M6-11)
 

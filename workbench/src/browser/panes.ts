@@ -45,7 +45,7 @@ const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
 
-// Page script: mode 'hidden' returns the topmost hidden elements (at most 2001); mode 'read' returns the visible text lines and the count of hidden elements withheld.
+// Page script: mode 'hidden' returns { h: the topmost hidden elements (at most 2001), c: visible click targets (at most 400) }; mode 'read' returns the visible text lines and the count of hidden elements withheld.
 const PAGE_WALK = String.raw`function mtWalk(root, mode) {
   const hiddenReason = ${hiddenReason.toString()};
   if (!root) return { lines: [], withheld: 0 };
@@ -53,7 +53,7 @@ const PAGE_WALK = String.raw`function mtWalk(root, mode) {
   const sx = scrollX, sy = scrollY, docW = de.scrollWidth, docH = de.scrollHeight;
   const INLINE = ['inline', 'inline-block', 'inline-flex', 'inline-grid'];
   const SKIP = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'];
-  const found = [], lines = [];
+  const found = [], clicks = [], lines = [];
   let cur = '', withheld = 0;
   const brk = () => { lines.push(cur); cur = ''; };
   const step = (cs, st) => {
@@ -67,14 +67,18 @@ const PAGE_WALK = String.raw`function mtWalk(root, mode) {
     for (const c of el.childNodes) if (c.nodeType === 3 && c.data.trim()) { own = true; break; }
     return hiddenReason({ opacity: st.op, fontSize: parseFloat(cs.fontSize), ownText: own, color: cs.color, bg: st.bg, bgImage: st.img, left: r.left + sx, top: r.top + sy, right: r.right + sx, bottom: r.bottom + sy, docW, docH, clip: cs.clip, clipPath: cs.clipPath, overflow: cs.overflow, width: r.width, height: r.height });
   };
-  const hid = (el, st) => {
+  const hid = (el, st, pc) => {
     if (found.length > 2000 || SKIP.includes(el.tagName)) return;
     const cs = getComputedStyle(el);
     if (cs.display === 'none') return;
     const s = step(cs, st);
     if (cs.display !== 'contents' && why(el, cs, s)) { found.push(el); return; }
-    for (const c of el.children) hid(c, s);
-    if (el.shadowRoot) for (const c of el.shadowRoot.children) hid(c, s);
+    if (clicks.length < 400 && el !== de && el !== document.body) {
+      const r = el.getBoundingClientRect(), ti = el.getAttribute('tabindex');
+      if (r.width > 0 && r.height > 0 && ((cs.cursor === 'pointer' && pc !== 'pointer') || el.hasAttribute('onclick') || el.onclick != null || (ti !== null && /^\s*\+?\d+\s*$/.test(ti)))) clicks.push(el);
+    }
+    for (const c of el.children) hid(c, s, cs.cursor);
+    if (el.shadowRoot) for (const c of el.shadowRoot.children) hid(c, s, cs.cursor);
   };
   const rd = (el, st) => {
     if (SKIP.includes(el.tagName)) return;
@@ -95,7 +99,7 @@ const PAGE_WALK = String.raw`function mtWalk(root, mode) {
   const up = [];
   for (let p = root.parentElement; p; p = p.parentElement) up.unshift(p);
   for (const p of up) st = step(getComputedStyle(p), st);
-  if (mode === 'hidden') { hid(root, st); return found; }
+  if (mode === 'hidden') { hid(root, st, ''); return { h: found, c: clicks }; }
   rd(root, st);
   brk();
   return { lines, withheld };
@@ -997,11 +1001,17 @@ export class PaneManager {
     try {
       const r = await this.cmd(pane, 'Runtime.evaluate', { expression: `(${PAGE_WALK})(document.documentElement, 'hidden')`, contextId: await this.isolated(pane, frame.id), returnByValue: false, objectGroup: 'mt-hidden', timeout: 10_000 });
       if (r.exceptionDetails || !r.result?.objectId) throw new Error('hidden walk failed');
-      const props = await this.cmd(pane, 'Runtime.getProperties', { objectId: r.result.objectId, ownProperties: true });
-      const els = (props.result as any[]).filter((p) => /^\d+$/.test(p.name) && p.value?.objectId);
-      const ids = await Promise.all(els.slice(0, 2000).map((p) => this.cmd(pane, 'DOM.describeNode', { objectId: p.value.objectId }).then((d) => d.node.backendNodeId as number, () => 0)));
-      frame.hidden = new Set(ids.filter(Boolean));
-      frame.hiddenOver = els.length > 2000;
+      const list = async (objectId: string, max: number) => {
+        const props = await this.cmd(pane, 'Runtime.getProperties', { objectId, ownProperties: true });
+        const els = (props.result as any[]).filter((p) => /^\d+$/.test(p.name) && p.value?.objectId);
+        const ids = await Promise.all(els.slice(0, max).map((p) => this.cmd(pane, 'DOM.describeNode', { objectId: p.value.objectId }).then((d) => d.node.backendNodeId as number, () => 0)));
+        return { ids: new Set(ids.filter(Boolean)), over: els.length > max };
+      };
+      const walk = (await this.cmd(pane, 'Runtime.getProperties', { objectId: r.result.objectId, ownProperties: true })).result as any[];
+      const hid = await list(walk.find((p) => p.name === 'h').value.objectId, 2000);
+      frame.hidden = hid.ids;
+      frame.hiddenOver = hid.over;
+      frame.clickable = (await list(walk.find((p) => p.name === 'c').value.objectId, 400)).ids;
     } catch {
       frame.hidden = new Set();
       frame.hiddenOver = true;

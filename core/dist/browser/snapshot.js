@@ -23,6 +23,7 @@ export const ACTIONABLE = new Set(['button', 'link', 'textbox', 'searchbox', 'co
                  
                        
                        
+                          
  
 
                          
@@ -151,13 +152,21 @@ export function render(frames         , refs      , scope         )             
       const hid = inHid || (!!n.backendDOMNodeId && !!hiddenIds?.has(n.backendDOMNodeId));
       const role = String(n.role?.value ?? '');
       const isRef = ACTIONABLE.has(role) && !!n.backendDOMNodeId;
+      const clk = !isRef && !hid && !!n.backendDOMNodeId && !!frame.clickable?.has(n.backendDOMNodeId);
       let full = String(n.name?.value ?? '').replace(/\s+/g, ' ').trim();
       if (!hid) for (const t of cut.get(n.nodeId) ?? []) full = full.split(t).join(' ').replace(/\s+/g, ' ').trim();
+      if (clk && !full) {
+        const texts           = [];
+        const gather = (m        ) => { for (const c of m.childIds ?? []) { const k = byId.get(c); if (!k || isHid(k)) continue; if (k.role?.value === 'StaticText') texts.push(String(k.name?.value ?? '')); gather(k); } };
+        gather(n);
+        full = texts.join(' ').replace(/\s+/g, ' ').trim();
+      }
       const name = SUSPICIOUS.some((r) => r.test(full)) ? WITHHELD : full.slice(0, 120);
-      const skip = n.ignored || role === 'none' || role === 'generic' || (role === 'StaticText' && !name) || role === 'InlineTextBox' || (hid && !isRef);
+      const skip = !clk && (n.ignored || role === 'none' || role === 'generic' || (role === 'StaticText' && !name) || role === 'InlineTextBox' || (hid && !isRef));
       let next = d;
       if (!skip) {
-        let line = `${'  '.repeat(d)}${role}${name && !hid ? ` "${name}"` : ''}`;
+        let line = `${'  '.repeat(d)}${clk ? 'clickable' : role}${name && !hid ? ` "${name}"` : ''}`;
+        if (clk) line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId , frame.id === main)}]`;
         if (isRef) {
           line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId , frame.id === main)}]`;
           const value = n.value?.value;
