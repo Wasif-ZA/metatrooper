@@ -162,6 +162,8 @@ def is_finding(recipe, code):
 def runs_body(cmd, body):
     """True when cmd runs the same program as body, with body's other words first, in order."""
     # ponytail: plain word split, misses quoted or reordered arguments
+    if re.search(r"[;|\n]|&&", cmd):
+        return False
     want, have = body.split(), cmd.split()
     same = [hints.first_word(w).removesuffix(".exe") for w in (body, cmd)]
     return bool(want) and len(have) >= len(want) and same[0] == same[1] and \
