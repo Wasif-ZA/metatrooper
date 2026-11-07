@@ -7,7 +7,10 @@ import { nowIso, ulid } from './time.ts';
 import { settings } from './settings.ts';
 import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-outcomes.ts';
 
-export const APPROVAL_TIMEOUT_MS = 120_000;
+/** A gate waits for the user; 0 means no timer. */
+export const APPROVAL_TIMEOUT_MS = 0;
+/** How long a caller waits for a gate: the longest setTimeout allows. */
+export const GATE_WAIT_MS = 2_147_483_647;
 export const SURFACES = ['browser', 'desktop'] as const;
 export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate'] as const;
 
@@ -215,7 +218,7 @@ export class Approvals {
     ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, clean(reason), now);
     this.db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'approval', ?, ?)").run(ulid(), now, id, summary);
     const status = await new Promise<'approved' | 'rejected' | 'expired'>((resolve) => {
-      const timer = setTimeout(() => this.finish(id, 'expired'), this.timeoutMs);
+      const timer = this.timeoutMs > 0 ? setTimeout(() => this.finish(id, 'expired'), this.timeoutMs) : undefined;
       this.waiters.set(id, (s) => { clearTimeout(timer); resolve(s); });
     });
     return { decision: status, approval_id: id };

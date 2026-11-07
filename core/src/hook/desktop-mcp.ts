@@ -1,7 +1,7 @@
 import { appendFileSync } from 'node:fs';
 import { screenResult } from './screen-data.ts';
 import { call as coreCall } from '../pipe/client.ts';
-import { actionHash, APPROVAL_TIMEOUT_MS, desktopKeysProblem, type Control } from '../approvals.ts';
+import { actionHash, GATE_WAIT_MS, desktopKeysProblem, type Control } from '../approvals.ts';
 import { WorkbenchPipe, findSession, type Reply } from './workbench-pipe.ts';
 import { serveMcp, type ToolDef } from './mcp-stdio.ts';
 
@@ -60,7 +60,7 @@ async function input(name: string, args: Record<string, unknown>, session_id: st
     if (d.error) return d;
     const { grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by } = d.result as { grant_id: string; control: Control | null; password: boolean; hidden: boolean; file_dialog: boolean; rect: number[] | null; token: string; minimized?: boolean; covered_by?: string };
     const check = { session_id, surface: 'desktop', target: grant_id, action: name, args, control };
-    const v = await core('approval.check', { ...check, password, hidden, file_dialog, action_hash: actionHash(check) }, APPROVAL_TIMEOUT_MS + 10_000);
+    const v = await core('approval.check', { ...check, password, hidden, file_dialog, action_hash: actionHash(check) }, GATE_WAIT_MS);
     if (v.error) return v;
     const out = v.result as { decision: string; reason?: string };
     if (out.decision === 'deny') return { error: { code: -32030, message: out.reason === 'paused by the user' || out.reason?.startsWith('window not granted') ? out.reason : `not sent: ${out.reason}` } };
