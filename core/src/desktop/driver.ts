@@ -333,7 +333,11 @@ export class Desktop {
         if (!taken && typeof out.foreground_taken_by === 'string') taken = out.foreground_taken_by;
         done = n;
       } while (done < chars.length);
-      return { ...out, ...(focusLost ? { focus_returned: false } : {}), pointer_drift: drift, foreground_taken_by: taken };
+      const folded: Record<string, unknown> = { ...out };
+      if (focusLost) folded.focus_returned = false;
+      if ('pointer_drift' in out) folded.pointer_drift = drift;
+      if ('foreground_taken_by' in out) folded.foreground_taken_by = taken;
+      return folded;
     });
   }
 
