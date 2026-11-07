@@ -13,7 +13,7 @@ export const USER_REJECT = 'The user rejected this action and stopped the rest o
 
 export function screenResult(result        )         {
   const { userNote, ...out } = result                                                                                                   ;
-  if (!Array.isArray(out.content)) return out;
+  if (!Array.isArray(out.content)) return 'userNote' in result ? out : result;
   return { ...out, content: [
     ...out.content.map((block) => block.type === 'text' && typeof block.text === 'string'
       ? { ...block, text: cleanScreenText(block.text) } : block),
