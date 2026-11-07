@@ -63,7 +63,7 @@ namespace TroopUia {
     const uint GA_ROOT = 2, GW_OWNER = 4, PW_RENDERFULLCONTENT = 2;
     const uint WM_SETTEXT = 0x000C, WM_GETTEXT = 0x000D, WM_GETTEXTLENGTH = 0x000E, WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_CHAR = 0x0102;
     const uint WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, BM_CLICK = 0x00F5;
-    const int MAX_SIDE = 1568, MAX_BASE64 = 900000;
+    const int MAX_SIDE = 1568, MAX_BASE64 = 900000, TREE_SETTLE_MS = 150;
     static readonly JavaScriptSerializer J = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
     static readonly Dictionary<long, Dictionary<string, AutomationElement>> Refs = new Dictionary<long, Dictionary<string, AutomationElement>>();
 
@@ -138,23 +138,26 @@ namespace TroopUia {
         case "screenshot": return Screenshot(new IntPtr(hwnd));
         case "set_text": {
           Action again = () => Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r);
+          var tb = TreeBefore(hwnd, r);
           again();
-          return SetText(hwnd, Str(r, "ref"), Str(r, "value"), again);
+          return TreeAfter(hwnd, r, tb, false, SetText(hwnd, Str(r, "ref"), Str(r, "value"), again));
         }
-        case "click": Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return Click(hwnd, Str(r, "ref"));
+        case "click": { var tb = TreeBefore(hwnd, r); Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r); return TreeAfter(hwnd, r, tb, true, Click(hwnd, Str(r, "ref"))); }
         case "key": {
           Chord(Str(r, "keys"));
+          var tb = TreeBefore(hwnd, r);
           bool hidden; IntPtr target; var f = Focused(new IntPtr(hwnd), out hidden, out target);
           if (target == IntPtr.Zero) throw new Exception("this window has no keyboard focus (another window is in front), so there is no checked control to post a key to; nothing was sent");
           if (f == null) throw new Exception("the control holding this window's focus cannot be read, so it cannot be checked; nothing was sent");
           if (Num(r, "check") != 0 && hidden && Num(r, "hidden") == 0) throw new Exception("this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent");
           Expect(hwnd, f, hidden, r);
-          return Key(target, Str(r, "keys"));
+          return TreeAfter(hwnd, r, tb, true, Key(target, Str(r, "keys")));
         }
         case "scroll": {
           Action again = Str(r, "ref").Length > 0 ? (Action)(() => Expect(hwnd, Find(hwnd, Str(r, "ref")), false, r)) : () => ExpectWindow(hwnd, r);
+          var tb = TreeBefore(hwnd, r);
           again();
-          return Scroll(hwnd, Str(r, "ref"), Num(r, "dy"), again);
+          return TreeAfter(hwnd, r, tb, false, Scroll(hwnd, Str(r, "ref"), Num(r, "dy"), again));
         }
         case "find_text": return FindText(new IntPtr(hwnd), Str(r, "text"));
         case "value": return new Dictionary<string, object> { { "value", ValueOf(Find(hwnd, Str(r, "ref"))) } };
@@ -164,6 +167,22 @@ namespace TroopUia {
         }
         default: throw new Exception("unknown op " + op);
       }
+    }
+
+    // the window's nodes before an input, null when not asked for or unreadable
+    static List<object> TreeBefore(long hwnd, Dictionary<string, object> r) {
+      if (Num(r, "tree_before") == 0) return null;
+      try { return Tree(hwnd); } catch { return null; }
+    }
+
+    // adds the before and after node lists to an input's result; a failed read leaves its key out
+    static object TreeAfter(long hwnd, Dictionary<string, object> r, List<object> before, bool settle, object result) {
+      var o = (Dictionary<string, object>)result;
+      if (before != null) o["tree_before"] = before;
+      if (Num(r, "tree_after") != 0) {
+        try { if (settle) Thread.Sleep(TREE_SETTLE_MS); o["tree_after"] = Tree(hwnd); } catch { }
+      }
+      return o;
     }
 
     static string ClassOf(IntPtr h) { var s = new StringBuilder(256); Native.GetClassName(h, s, 256); return s.ToString(); }
@@ -292,6 +311,30 @@ namespace TroopUia {
       return " actions=[" + string.Join(",", actions) + "]";
     }
 
+    // a node's snapshot text without indentation or ref
+    static string NodeLine(AutomationElement e) {
+      string name = e.Current.Name ?? "", aid = e.Current.AutomationId ?? "";
+      bool pw = e.Current.IsPassword;
+      string val = ValueOf(e);
+      var sb = new StringBuilder(Role(e));
+      if (name.Length > 0) sb.Append(" \"").Append(name.Length > 200 ? name.Substring(0, 200) : name).Append('"');
+      if (aid.Length > 0) sb.Append(" #").Append(aid);
+      if (pw) sb.Append(" password");
+      if (!string.IsNullOrEmpty(val)) sb.Append(" value=\"").Append((val.Length > 200 ? val.Substring(0, 200) + "..." : val).Replace("\r", " ").Replace("\n", " ")).Append('"');
+      return sb.ToString();
+    }
+
+    // the window's nodes as { runtime id, line } without touching the snapshot refs
+    static List<object> Tree(long hwnd) {
+      var nodes = new List<object>();
+      bool chromium = ClassOf(Native.GetAncestor(new IntPtr(hwnd), GA_ROOT)) == "Chrome_WidgetWin_1";
+      bool cut;
+      foreach (var kv in Walk(AutomationElement.FromHandle(new IntPtr(hwnd)), 400, chromium, out cut)) {
+        try { nodes.Add(new object[] { Rid(kv.Value), NodeLine(kv.Value) }); } catch { }
+      }
+      return nodes;
+    }
+
     static object Snapshot(long hwnd, int max) {
       var top = AutomationElement.FromHandle(new IntPtr(hwnd));
       bool truncated;
@@ -305,14 +348,10 @@ namespace TroopUia {
         var e = kv.Value;
         string id = "e" + (++n);
         map[id] = e;
-        string name, aid, actions, val = null; bool pw;
-        try { name = e.Current.Name ?? ""; aid = e.Current.AutomationId ?? ""; pw = e.Current.IsPassword; val = ValueOf(e); actions = ActionsOf(e); } catch { continue; }
-        sb.Append(new string(' ', kv.Key * 2)).Append(Role(e));
-        if (name.Length > 0) sb.Append(" \"").Append(name.Length > 200 ? name.Substring(0, 200) : name).Append('"');
-        if (aid.Length > 0) sb.Append(" #").Append(aid);
-        if (pw) sb.Append(" password");
-        if (!string.IsNullOrEmpty(val)) sb.Append(" value=\"").Append((val.Length > 200 ? val.Substring(0, 200) + "..." : val).Replace("\r", " ").Replace("\n", " ")).Append('"');
-        sb.Append(actions).Append(" [ref=").Append(id).Append("]\n");
+        string line, actions;
+        try { line = NodeLine(e); actions = ActionsOf(e); } catch { continue; }
+        sb.Append(new string(' ', kv.Key * 2)).Append(line).Append(actions);
+        sb.Append(" [ref=").Append(id).Append("]\n");
       }
       if (truncated) sb.Append("[truncated: max_nodes=").Append(max).Append("; more nodes remain]\n");
       Refs[hwnd] = map;

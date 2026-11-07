@@ -82,6 +82,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   desktop.describe        {session_id, pid, window, ref?}
   desktop.snapshot        {session_id, pid, window, max_nodes?}
   desktop.screenshot      {session_id, pid, window}
+  desktop.check           {session_id, pid, window, checks}
   desktop.find            {session_id, pid, window, text}
   desktop.action.verify   {session_id, pid, action_hash}
   desktop.action.held     {session_id}

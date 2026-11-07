@@ -41,6 +41,12 @@ function handle(req) {
   const changePid = (key) => {
     if (current[key] !== undefined && w) { w.pid = current[key]; delete current[key]; fs.writeFileSync(process.env.FAKE_UIA_STATE, JSON.stringify(current)); }
   };
+  // Adds tree snapshots when requested and present in state.
+  const withTrees = (res) => {
+    if (req.tree_before && w && w.tree_before !== undefined) res.tree_before = w.tree_before;
+    if (req.tree_after && w && w.tree_after !== undefined) res.tree_after = w.tree_after;
+    return res;
+  };
   switch (req.op) {
     case 'process_id': return { pid: process.pid };
     case 'process': return { process_start: startOf(current, req.process) };
@@ -57,8 +63,9 @@ function handle(req) {
     case 'snapshot': return { text: (w?.controls ?? []).map((c, i) => `${c.role} "${c.name}" [ref=e${i + 1}]`).join('\n'), nodes: (w?.controls ?? []).length };
     case 'screenshot': return { data_base64: '/9j/', mime: 'image/jpeg', width: 1, height: 1 };
     case 'find_text': return { found: (w?.controls ?? []).some((c) => String(c.name).includes(req.text)) };
-    case 'set_text': control(w, req.ref); log({ ...req }); return { status: 'confirmed' };
-    case 'click': case 'key': case 'scroll': log({ ...req }); return { status: current.input_status ?? 'confirmed' };
+    case 'value': { const c = control(w, req.ref); return { value: (c.password || c.value === undefined) ? null : c.value }; }
+    case 'set_text': control(w, req.ref); log({ ...req }); return withTrees({ status: 'confirmed' });
+    case 'click': case 'key': case 'scroll': log({ ...req }); return withTrees({ status: current.input_status ?? 'confirmed' });
     default: throw new Error(`unknown op ${req.op}`);
   }
 }

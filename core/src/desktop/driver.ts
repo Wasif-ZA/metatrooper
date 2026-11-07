@@ -9,6 +9,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
 import { actionHash, desktopKeysProblem, riskReason } from '../approvals.ts';
+import { treeChanges, type TreeNodes } from './changes.ts';
 import { actionHeld, ACTION_HELD, beginRiskyAction, ensureActionOutcomes, finishRiskyAction, releaseRiskyAction } from './action-outcomes.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { beginAction, endAction } from '../watch/watcher.ts';
@@ -341,11 +342,21 @@ export class Desktop {
         if (started) finishRiskyAction(this.db, hash, out.status);
         return risky ? { ...out, action_hash: hash } : out;
       };
+      const nodes = (t: unknown) => Array.isArray(t) && t.every(n => Array.isArray(n) && n.length === 2 && typeof n[0] === 'string' && typeof n[1] === 'string') ? t as TreeNodes : null;
+      // drops the raw tree reads from the result and adds their diff as changes
+      const finish = (first: Record<string, unknown>, last: Record<string, unknown>) => {
+        const { tree_after, ...rest } = last;
+        delete rest.tree_before;
+        const before = nodes(first.tree_before);
+        const after = nodes(tree_after);
+        return complete(before && after ? { ...rest, changes: treeChanges(before, after) } : rest);
+      };
       try {
         const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, file_dialog: now.file_dialog ? 1 : 0, rid: now.rid, pid: now.pid };
-        if (action !== 'type') return complete(await send(action, { hwnd, ref, keys: p.keys, dy: p.dy, ...seen }));
+        if (action !== 'type') { const r = await send(action, { hwnd, ref, keys: p.keys, dy: p.dy, tree_before: 1, tree_after: 1, ...seen }); return finish(r, r); }
         const chars = Array.from(typeof p.text === 'string' ? p.text : '');
         let out: Record<string, unknown> = { status: 'unverifiable' };
+        let first: Record<string, unknown> = {};
         let focusLost = false;
         let drift = false;
         let taken = '';
@@ -355,7 +366,8 @@ export class Desktop {
           const note = `; ${done} of ${chars.length} characters were typed`;
           if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
           if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
-          out = await send('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), ...seen }, note);
+          out = await send('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), tree_before: done === 0 ? 1 : 0, tree_after: n >= chars.length ? 1 : 0, ...seen }, note);
+          if (done === 0) first = out;
           if (out.focus_returned === false) focusLost = true;
           if (out.pointer_drift === true) drift = true;
           if (!taken && typeof out.foreground_taken_by === 'string') taken = out.foreground_taken_by;
@@ -365,7 +377,7 @@ export class Desktop {
         if (focusLost) folded.focus_returned = false;
         if ('pointer_drift' in out) folded.pointer_drift = drift;
         if ('foreground_taken_by' in out) folded.foreground_taken_by = taken;
-        return complete(folded);
+        return finish(first, folded);
       } catch (e) {
         if (started) finishRiskyAction(this.db, hash, 'unverifiable');
         throw e;
@@ -508,6 +520,27 @@ export class Desktop {
     m.set('desktop.find', { handler: async (p) => {
       const sessionId = await this.bind(p);
       return this.read(sessionId, hwndOf(p.window), 'find_text', { text: str(p, 'text') });
+    } });
+    m.set('desktop.check', { handler: async (p) => {
+      const sessionId = await this.bind(p);
+      const hwnd = hwndOf(p.window);
+      const checks = p.checks as Array<{ kind: string; ref?: string; op: string; expected: string }>;
+      if (!Array.isArray(checks) || checks.length < 1 || checks.length > 8) throw new RpcError(E.INVALID_PARAMS, 'checks must be 1 to 8 items');
+      for (const c of checks) {
+        if (!c || typeof c !== 'object' || (c.kind !== 'title' && c.kind !== 'value')) throw new RpcError(E.INVALID_PARAMS, 'check kind must be title or value');
+        if (c.op !== 'equals' && c.op !== 'contains' && c.op !== 'not_contains') throw new RpcError(E.INVALID_PARAMS, 'check op must be equals, contains or not_contains');
+        if (typeof c.expected !== 'string' || c.expected.length > 2000) throw new RpcError(E.INVALID_PARAMS, 'check expected must be a string of at most 2000 characters');
+        if (c.kind === 'value' && (typeof c.ref !== 'string' || !c.ref)) throw new RpcError(E.INVALID_PARAMS, 'value check needs a ref');
+      }
+      const title = checks.some((c) => c.kind === 'title') ? (await this.resolve(sessionId, hwnd)).info.title : null;
+      const results: Array<{ passed: boolean; actual: string | null }> = [];
+      for (const c of checks) {
+        const read = c.kind === 'title' ? title : (await this.read<{ value?: unknown }>(sessionId, hwnd, 'value', { ref: c.ref })).value;
+        const actual = typeof read === 'string' ? read : null;
+        const passed = actual !== null && (c.op === 'equals' ? actual === c.expected : c.op === 'contains' ? actual.includes(c.expected) : !actual.includes(c.expected));
+        results.push({ passed, actual: actual === null ? null : actual.slice(0, 200) });
+      }
+      return { passed: results.every((r) => r.passed), results };
     } });
     m.set('desktop.action.verify', { handler: async (p) => {
       const sessionId = await this.bind(p);

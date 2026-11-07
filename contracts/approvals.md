@@ -111,7 +111,8 @@ hash    c404f4dab0098ef9509fe95259dedae2df269451201bd44cadeea770ac326d0c
 Before applying session approval coverage, a desktop check refuses an action hash
 held in `desktop_action_outcome`. Only a trusted UI connection can release a
 completed unverifiable outcome through `desktop.action.release`. See
-`desktop-tools.md` for the outcome lifecycle and limits.
+`desktop-tools.md` for the outcome lifecycle and limits. The read-only
+`desktop.check` asks no approval and never clears or releases a hold.
 
 Desktop hashes normalize args to the executed `window` (numeric), nonempty
 `ref`, and the action's `text`, `keys` or `dy`. Missing type text normalizes
