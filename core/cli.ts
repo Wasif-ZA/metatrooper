@@ -342,6 +342,11 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
 }
 
 async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: string) => void): Promise<number> {
+  const spec = job.model ? loadEngines().find((e) => e.id === job.engine) : undefined;
+  if (spec && !spec.model_arg) {
+    console.error(`${job.engine} does not take a model argument`);
+    return 2;
+  }
   const repo = await openProject(job.project ?? process.cwd(), json);
   if (repo.code) return repo.code;
   let target = repo.id!;
