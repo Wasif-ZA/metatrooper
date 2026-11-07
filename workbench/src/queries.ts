@@ -33,6 +33,8 @@ export interface Snapshot {
   grants?: Array<{ id: string; session_id: string; hwnd: number; title: string; exe: string }>;
   /** Session ids the take-over flag holds (D62). */
   paused?: string[];
+  /** Sessions whose agent asked for a take-over (D62). */
+  takeover_requests?: Record<string, { at: string; reason: string }>;
   live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
@@ -166,6 +168,8 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   try {
     grants = db.prepare('SELECT id, session_id, hwnd, title, exe FROM grant WHERE ended_at IS NULL ORDER BY julianday(created_at), id').all() as Snapshot['grants'];
   } catch {}
+  let takeover_requests: Snapshot['takeover_requests'] = {};
+  try { takeover_requests = parse((db.prepare("SELECT value FROM meta WHERE key = 'takeover_requests'").get() as { value: string } | undefined)?.value ?? null, {}); } catch {}
   const paused = sessions.filter((s) => s.state !== 'exited' && takeoverPaused(db, s.id)).map((s) => s.id);
 
   return {
@@ -181,6 +185,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     approvals,
     grants,
     paused,
+    takeover_requests,
     live: db.prepare("SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC").all() as Snapshot['live'],
     panes,
     dev_servers,
