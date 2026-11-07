@@ -410,7 +410,8 @@ def run_lane(args):
     if kind == "python":
         code, text, raw, secs, whole = run_python(r, rest)
         full = shrink.clean(raw.decode("utf-8", errors="replace"))
-        keep = no_trunc and isinstance(text, str) and full != text  # --no-trunc: return the full output and keep the log
+        flat = text if isinstance(text, str) else json.dumps(text, ensure_ascii=False)
+        keep = no_trunc and full.strip() != shrink.clean(flat).strip()  # --no-trunc: return the full output and keep the log
         res = finish("run", label, raw, code, secs, recipe=name, compact=full if keep else text, log_label=name,
                      whole=whole or no_trunc, findings=is_finding(r, code))
         res.whole = res.whole and not keep
