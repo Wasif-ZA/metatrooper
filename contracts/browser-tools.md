@@ -155,7 +155,7 @@ The page is not changed: no attribute is written and no node is added. The eleme
 
 ### Test export
 
-`export_test {}` returns `{text}`: a Playwright test file replaying the actions this MCP server (this session) has run successfully so far, in order, across its panes. It is answered by the MCP shim from memory; nothing goes to the workbench, so it writes no `browser.tool` row. It is in the `look` preset and read-only. The record lives as long as the MCP server process.
+`export_test {}` returns `{text}`: a Playwright test file replaying the actions this session has run successfully so far, in order, across its panes (batch steps included). The workbench keeps the record in memory per session, at most 500 steps, from the `browser.*` calls that returned a result; it is lost when the workbench closes. The URL is scrubbed with the saved secrets too. `browser.export_test` needs no pane and writes no `browser.tool` row; the MCP shim returns its text unfenced. It is in the `look` preset and read-only.
 
 Recorded, only when the call (or the batch step) succeeded:
 
@@ -166,7 +166,7 @@ Recorded, only when the call (or the batch step) succeeded:
 - `select {ref, value}` -> `await <locator>.selectOption(<value>);`;
 - `key {keys}` -> `await page.keyboard.press(<keys>);` only when the key (the part after the last `+`) is a named key (Enter, Tab, Escape, Backspace, Delete, Space, an arrow, Home, End, PageUp, PageDown); a one-character key is not recorded and leaves the line `// a key press was not recorded`.
 
-`<locator>` comes from the control the call was checked against (`browser.describe`, the role and name it returned): `page.getByRole(<role>, { name: <name>, exact: true })`; when the name is empty, or the role is not a role the snapshot gives refs to (e.g. a `clickable` target), `page.getByText(<name>, { exact: true })` when the name is not empty, else the step becomes the line `// a <tool> on an element with no name was not recorded`. Every string is written with `JSON.stringify`.
+`<locator>` comes from the control the call was checked against (the role and name in the call's `expect`, which `browser.describe` returned): `page.getByRole(<role>, { name: <name>, exact: true })`; when the name is empty, or the role is not a role the snapshot gives refs to (e.g. a `clickable` target), `page.getByText(<name>, { exact: true })` when the name is not empty, else the step becomes the line `// a <tool> on an element with no name was not recorded`. Every string is written with `JSON.stringify`.
 
 The file:
 

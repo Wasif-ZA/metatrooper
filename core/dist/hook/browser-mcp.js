@@ -6,8 +6,6 @@ import { PRESETS } from '../browser/grants.js';
 import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.js';
 import { serveMcp } from './mcp-stdio.js';
 import { fence } from '../browser/snapshot.js';
-import { exportTest,           } from '../browser/export-test.js';
-import { scrub } from '../redact.js';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
@@ -45,10 +43,8 @@ const browser = new WorkbenchPipe(UNAVAILABLE);
 const CHECKED = new Set(['click', 'type', 'select', 'key']);
 const CONTROL_CHANGED = -32035;
 
-const recorded         = [];
-
 /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
-async function checkedCall(name        , args                         )                                                {
+async function checkedCall(name        , args                         )                 {
   const stopped = async (error                                   )                 => {
     await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
     return { error };
@@ -68,7 +64,7 @@ async function checkedCall(name        , args                         )         
     if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
     const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
     // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
-    if (r.error?.code !== CONTROL_CHANGED) return { ...r, control };
+    if (r.error?.code !== CONTROL_CHANGED) return r;
   }
   return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
 }
@@ -76,16 +72,8 @@ async function checkedCall(name        , args                         )         
 async function singleCall(name        , args                         )               {
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
   const { expect: _drop, ...clean } = args ?? {};
-  if (name === 'export_test') return { content: [{ type: 'text', text: exportTest(recorded) }] };
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
-  if (name === 'navigate') recorded.push({ tool: name, url: scrub(String(clean.url), []) });
-  else if (name === 'back') recorded.push({ tool: name });
-  else if (name === 'key') recorded.push({ tool: name, keys: String(clean.keys) });
-  else if (name === 'click' || name === 'select' || name === 'type') {
-    const c = (r                                ).control;
-    recorded.push({ tool: name, role: c?.role ?? '', name: c?.name ?? '', ...(name === 'type' ? { submit: clean.submit === true } : {}), ...(name === 'select' ? { value: String(clean.value) } : {}) });
-  }
   const result = r.result                                                                                                              ;
   if (name === 'screenshot' && result?.data_base64) {
     const content           = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
@@ -93,6 +81,7 @@ async function singleCall(name        , args                         )          
     if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
     return { content };
   }
+  if (name === 'export_test' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
   if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: fence(result.text) }] };
   if (typeof (result                                     )?.changes === 'string') return { content: [{ type: 'text', text: JSON.stringify({ ...result, changes: fence((result                       ).changes) }) }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };

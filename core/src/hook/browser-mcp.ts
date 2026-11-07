@@ -5,8 +5,6 @@ import { PRESETS } from '../browser/grants.ts';
 import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.ts';
 import { serveMcp } from './mcp-stdio.ts';
 import { fence } from '../browser/snapshot.ts';
-import { exportTest, type Step } from '../browser/export-test.ts';
-import { scrub } from '../redact.ts';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
@@ -44,10 +42,8 @@ const browser = new WorkbenchPipe(UNAVAILABLE);
 const CHECKED = new Set(['click', 'type', 'select', 'key']);
 const CONTROL_CHANGED = -32035;
 
-const recorded: Step[] = [];
-
 /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
-async function checkedCall(name: string, args: Record<string, unknown>): Promise<Reply & { control?: Control | null }> {
+async function checkedCall(name: string, args: Record<string, unknown>): Promise<Reply> {
   const stopped = async (error: { code: number; message: string }): Promise<Reply> => {
     await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
     return { error };
@@ -67,7 +63,7 @@ async function checkedCall(name: string, args: Record<string, unknown>): Promise
     if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
     const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
     // the workbench writes no row for a CONTROL_CHANGED attempt, so a retried call is one row
-    if (r.error?.code !== CONTROL_CHANGED) return { ...r, control };
+    if (r.error?.code !== CONTROL_CHANGED) return r;
   }
   return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
 }
@@ -75,16 +71,8 @@ async function checkedCall(name: string, args: Record<string, unknown>): Promise
 async function singleCall(name: string, args: Record<string, unknown>): Promise<any> {
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
   const { expect: _drop, ...clean } = args ?? {};
-  if (name === 'export_test') return { content: [{ type: 'text', text: exportTest(recorded) }] };
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
-  if (name === 'navigate') recorded.push({ tool: name, url: scrub(String(clean.url), []) });
-  else if (name === 'back') recorded.push({ tool: name });
-  else if (name === 'key') recorded.push({ tool: name, keys: String(clean.keys) });
-  else if (name === 'click' || name === 'select' || name === 'type') {
-    const c = (r as { control?: Control | null }).control;
-    recorded.push({ tool: name, role: c?.role ?? '', name: c?.name ?? '', ...(name === 'type' ? { submit: clean.submit === true } : {}), ...(name === 'select' ? { value: String(clean.value) } : {}) });
-  }
   const result = r.result as { data_base64?: string; mime?: string; text?: string; truncated?: boolean; legend?: string[] } | undefined;
   if (name === 'screenshot' && result?.data_base64) {
     const content: object[] = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
@@ -92,6 +80,7 @@ async function singleCall(name: string, args: Record<string, unknown>): Promise<
     if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
     return { content };
   }
+  if (name === 'export_test' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
   if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: fence(result.text) }] };
   if (typeof (result as { changes?: unknown } | undefined)?.changes === 'string') return { content: [{ type: 'text', text: JSON.stringify({ ...result, changes: fence((result as { changes: string }).changes) }) }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
