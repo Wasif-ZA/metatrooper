@@ -347,6 +347,8 @@ export class Desktop {
         const chars = Array.from(typeof p.text === 'string' ? p.text : '');
         let out: Record<string, unknown> = { status: 'unverifiable' };
         let focusLost = false;
+        let drift = false;
+        let taken = '';
         let done = 0;
         do {
           const n = Math.min(done + CHUNK, chars.length);
@@ -355,9 +357,15 @@ export class Desktop {
           if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
           out = await send('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), ...seen }, note);
           if (out.focus_returned === false) focusLost = true;
+          if (out.pointer_drift === true) drift = true;
+          if (!taken && typeof out.foreground_taken_by === 'string') taken = out.foreground_taken_by;
           done = n;
         } while (done < chars.length);
-        return complete(focusLost ? { ...out, focus_returned: false } : out);
+        const folded: Record<string, unknown> = { ...out };
+        if (focusLost) folded.focus_returned = false;
+        if ('pointer_drift' in out) folded.pointer_drift = drift;
+        if ('foreground_taken_by' in out) folded.foreground_taken_by = taken;
+        return complete(folded);
       } catch (e) {
         if (started) finishRiskyAction(this.db, hash, 'unverifiable');
         throw e;

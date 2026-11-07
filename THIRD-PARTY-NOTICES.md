@@ -254,3 +254,7 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+## Mechanisms read, not copied
+
+The Chromium wrapper skip in core/src/desktop/uia-helper.ps1 rebuilds an idea described in vercel-labs/agent-desktop at 9eb9b29 (crates/windows/src/tree/chromium.rs, CONCEPTS.md "Web Wrapper"), Apache-2.0; no code was copied.
