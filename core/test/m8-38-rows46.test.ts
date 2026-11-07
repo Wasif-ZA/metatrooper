@@ -129,7 +129,7 @@ describe('M8-38 rows 4 and 6', { skip: process.platform !== 'win32' ? 'needs Win
     // Read-only snapshot: no input op is ever sent to this window.
     const { text, nodes } = await snapWin(chromium.hwnd, 400);
     const all = lines(text).filter((l) => !l.startsWith('[truncated'));
-    assert.ok(!all.some((l) => /^\s*pane( #\d+)? actions=\[\] \[ref=/.test(l)), 'an unnamed wrapper pane was kept');
+    assert.ok(!all.some((l) => BARE_PANE.test(l)), 'an unnamed wrapper pane was kept');
     const d = all.findIndex((l) => l.includes('document'));
     if (d >= 0) assert.ok(d < 15, `first document line is line ${d + 1}`);
     const refLines = all.filter((l) => /\[ref=e\d+\]/.test(l));
