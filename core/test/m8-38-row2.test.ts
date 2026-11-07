@@ -43,7 +43,7 @@ async function pollState(path: string, matches: (state: State) => boolean, timeo
   assert.fail('state file did not reach the expected state: ' + JSON.stringify(last));
 }
 
-async function freshFixture(t: TestContext, size: number) {
+async function freshFixture(t: TestContext, size: number, extraArgs: string[] = []) {
   const dir = mkdtempSync(join(tmpdir(), 'm8-38-row2-'));
   const statePath = join(dir, 'state.json');
   let helper: ChildProcess | undefined;
@@ -140,7 +140,7 @@ async function freshFixture(t: TestContext, size: number) {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   fixture = spawn(ELECTRON, [FIXTURE, '--user-data-dir=' + join(dir, 'profile'),
-    '--size', String(size), '--state', statePath],
+    '--size', String(size), '--state', statePath, ...extraArgs],
     { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true, env });
   let fixtureFailure: Error | undefined;
   let fixtureStderr = '';
@@ -196,4 +196,11 @@ test('M8-38b: controls from the first snapshot can set the input and submit once
 test('M8-38b: the first snapshot of a fresh size-64 Electron fixture contains Item 63', OPTIONS, async (t) => {
   const { snapshot } = await freshFixture(t, 64);
   control(snapshot, 'button', 'Item 63', 'Invoke');
+});
+
+test('M8-38b: the first snapshot includes the page when 20 menu items put the frame above the small-tree retry threshold', OPTIONS, async (t) => {
+  const { snapshot } = await freshFixture(t, 8, ['--menu', '20']);
+  assert.match(snapshot.text, /^[^\r\n]*"Menu 19"[^\r\n]*$/m);
+  assert.match(snapshot.text, /^\s*document\b/m);
+  control(snapshot, 'button', 'Fixture submit', 'Invoke');
 });
