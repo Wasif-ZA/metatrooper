@@ -283,8 +283,8 @@ def exec_lane(args, argv=None):
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
                       note=f"could not start {argv[0]} ({e})" if argv else
                       f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash or PowerShell path")
-    found = code != 0 and any(isinstance(x.get("body"), str) and is_finding(x, code) and runs_body(cmd, x["body"])
-                              for x in store.load().values())
+    found = code != 0 and any(isinstance(x.get("body"), str) and is_finding(x, code) and not store.needs_trust(x)
+                              and runs_body(cmd, x["body"]) for x in store.load().values())
     if whole:
         r = finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
                    whole=True, findings=found)
