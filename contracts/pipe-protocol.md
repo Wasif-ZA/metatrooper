@@ -50,6 +50,8 @@ Response (exactly one per request, same `id`):
 ```
 
 - `id` is a ULID made by the client. It is also the `command.id` used for the queue fallback.
+- `id` must be a non-empty string. Any other value is refused with -32600, message `id must be a non-empty string`,
+  and a null `id`, because the reply has to echo it.
 - **Run once, whichever path delivers it.** Before executing any state-changing method, the core inserts or
   claims the `command` row in one transaction: `INSERT ... ON CONFLICT(id) DO UPDATE SET status = 'accepted'
   WHERE status = 'queued'`. If the row already exists with any status other than `queued`, the core does not
@@ -123,6 +125,10 @@ Every other interaction is a database read. This table is generated from `METHOD
 (`node core/gen-methods.ts`); edit the list there, never here. Methods marked stable keep their exact shape for
 protocol 1; `core.ping` reports the protocol version. Calls on one connection run concurrently, so a long
 `session.wait` does not hold up other requests.
+
+A session in `done` has ended a turn, or its session file went quiet for 20 s; it has not necessarily finished its
+work, and it can go back to `working`. An orchestrator that needs a lane's result waits for the lane's own output
+file; `session.wait` with `settle_ms` only cuts down the early returns.
 
 <!-- methods:start -->
 | Method | Params | Result | Errors | Stable | Needs `ui.hello` |
