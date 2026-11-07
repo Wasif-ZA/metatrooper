@@ -245,7 +245,7 @@ namespace TroopUia {
       return ((ValuePattern)p).Current.Value;
     }
 
-    static List<KeyValuePair<int, AutomationElement>> Walk(AutomationElement top, int max) {
+    static List<KeyValuePair<int, AutomationElement>> Walk(AutomationElement top, int max, out bool truncated) {
       var outList = new List<KeyValuePair<int, AutomationElement>>();
       var walker = TreeWalker.ControlViewWalker;
       var stack = new Stack<KeyValuePair<int, AutomationElement>>();
@@ -257,13 +257,25 @@ namespace TroopUia {
         try { for (var c = walker.GetFirstChild(cur.Value); c != null; c = walker.GetNextSibling(c)) kids.Add(c); } catch { }
         for (int i = kids.Count - 1; i >= 0; i--) stack.Push(new KeyValuePair<int, AutomationElement>(cur.Key + 1, kids[i]));
       }
+      truncated = stack.Count > 0;
       return outList;
+    }
+
+    static string ActionsOf(AutomationElement e) {
+      var actions = new List<string>();
+      object p;
+      if (e.TryGetCurrentPattern(InvokePattern.Pattern, out p)) actions.Add("Invoke");
+      if (e.TryGetCurrentPattern(TogglePattern.Pattern, out p)) actions.Add("Toggle");
+      if (e.TryGetCurrentPattern(SelectionItemPattern.Pattern, out p)) actions.Add("Select");
+      if (e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly) actions.Add("SetValue");
+      return " actions=[" + string.Join(",", actions) + "]";
     }
 
     static object Snapshot(long hwnd, int max) {
       var top = AutomationElement.FromHandle(new IntPtr(hwnd));
-      var nodes = Walk(top, max);
-      if (nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max); }
+      bool truncated;
+      var nodes = Walk(top, max, out truncated);
+      if (nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max, out truncated); }
       var map = new Dictionary<string, AutomationElement>();
       var sb = new StringBuilder();
       int n = 0;
@@ -271,17 +283,18 @@ namespace TroopUia {
         var e = kv.Value;
         string id = "e" + (++n);
         map[id] = e;
-        string name, aid, val = null; bool pw;
-        try { name = e.Current.Name ?? ""; aid = e.Current.AutomationId ?? ""; pw = e.Current.IsPassword; val = ValueOf(e); } catch { continue; }
+        string name, aid, actions, val = null; bool pw;
+        try { name = e.Current.Name ?? ""; aid = e.Current.AutomationId ?? ""; pw = e.Current.IsPassword; val = ValueOf(e); actions = ActionsOf(e); } catch { continue; }
         sb.Append(new string(' ', kv.Key * 2)).Append(Role(e));
         if (name.Length > 0) sb.Append(" \"").Append(name.Length > 200 ? name.Substring(0, 200) : name).Append('"');
         if (aid.Length > 0) sb.Append(" #").Append(aid);
         if (pw) sb.Append(" password");
         if (!string.IsNullOrEmpty(val)) sb.Append(" value=\"").Append((val.Length > 200 ? val.Substring(0, 200) + "..." : val).Replace("\r", " ").Replace("\n", " ")).Append('"');
-        sb.Append(" [ref=").Append(id).Append("]\n");
+        sb.Append(actions).Append(" [ref=").Append(id).Append("]\n");
       }
+      if (truncated) sb.Append("[truncated: max_nodes=").Append(max).Append("; more nodes remain]\n");
       Refs[hwnd] = map;
-      return new Dictionary<string, object> { { "text", sb.ToString() }, { "nodes", n } };
+      return new Dictionary<string, object> { { "text", sb.ToString() }, { "nodes", n }, { "truncated", truncated } };
     }
 
     static AutomationElement Find(long hwnd, string reference) {

@@ -30,7 +30,7 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 | Tool | Params | Result |
 |---|---|---|
 | `windows` | `{}` | `{windows: [{window, title, exe, grant_id, owner}]}`: each granted window, then each open window it owns (`owner` = the handle it hangs from, 0 for the granted window) |
-| `snapshot` | `{window, max_nodes?: 400}` | UI Automation tree as text, one node per line, `[ref=e12]` on each node; refs live until the next snapshot of that window. A read with fewer than 20 nodes is read again after 2 s (Chromium and Electron apps build their tree on first ask) |
+| `snapshot` | `{window, max_nodes?: 400}` | UI Automation tree as text, one node per line, `actions=[Invoke,Toggle,Select,SetValue]` (supported subset, or `actions=[]`) and `[ref=e12]` on each node; refs live until the next snapshot of that window. A capped tree ends with `[truncated: max_nodes=N; more nodes remain]`. A read with fewer than 20 nodes is read again after 2 s (Chromium and Electron apps build their tree on first ask) |
 | `screenshot` | `{window}` | JPEG of that window through `PrintWindow(PW_RENDERFULLCONTENT)`, so a covered window still captures; no side over 1,568 px, and quality then size lowered until the base64 is at most 900,000 characters, since replies travel a pipe whose lines stop at 1 MiB |
 | `click` | `{window, ref}` | `{status, focus_returned?}` |
 | `type` | `{window, ref, text}` | `{status, focus_returned?}`; replaces the control's text |
@@ -40,6 +40,14 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 
 `status` is `confirmed` when the helper's re-read after the action shows the value, toggle state or tree changed as
 expected, else `unverifiable`.
+
+Snapshot actions describe UI Automation patterns: `InvokePattern` gives `Invoke`, `TogglePattern` gives `Toggle`,
+`SelectionItemPattern` gives `Select`, and a writable `ValuePattern` gives `SetValue`, in that order. They do not
+grant permission or guarantee an enabled control. Password values remain omitted. A snapshot's helper and core
+result is `{text, nodes, truncated}`; `truncated` is true only when traversal has nodes left after `max_nodes`,
+including when the root's children exceed the cap. Exactly reaching the cap with no nodes left is not truncated.
+The MCP tool returns the text, including the truncation marker. `max_nodes` defaults to 400 and is capped at 2000
+by the core.
 
 ## Errors (tool results with `isError: true`)
 
