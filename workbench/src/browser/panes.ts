@@ -1016,18 +1016,25 @@ export class PaneManager {
     const out = new Map<string, string>();
     const ctx = await this.isolated(pane);
     const pts = (await Promise.all(refs.filter((r) => pane.refs.byRef.get(r)?.frameId === main).slice(0, TAGGED_REFS).map(async (ref) => {
-      const id = pane.refs.byRef.get(ref)!.backendNodeId;
-      const [b, n] = await Promise.all([this.quad(pane, id), this.cmd(pane, 'DOM.resolveNode', { backendNodeId: id, executionContextId: ctx, objectGroup: 'mt-tags' }).catch(() => undefined)]);
-      return b && n && b.right > b.left && b.bottom > b.top ? { ref, objectId: n.object.objectId as string, x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 } : undefined;
+      const n = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: pane.refs.byRef.get(ref)!.backendNodeId, executionContextId: ctx, objectGroup: 'mt-tags' }).catch(() => undefined);
+      return n?.object?.objectId ? { ref, objectId: n.object.objectId as string } : undefined;
     }))).filter((p): p is NonNullable<typeof p> => !!p);
-    // releases the resolved nodes after the hit test
+    // hit-tests each node's box centre from getBoundingClientRect, which never scrolls; a boxless node stays untagged; then releases the nodes
     const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
       executionContextId: ctx,
       returnByValue: true,
-      functionDeclaration: `function (xy, ...els) {${HIT_TEST_JS}
-        return els.map((el, i) => { const h = at(el, xy[i][0], xy[i][1]); return hits(el, h) ? '' : h ? ' [covered]' : ' [offscreen]'; });
+      functionDeclaration: `function (...nodes) {
+        return nodes.map((n) => {
+          const el = n.nodeType === 1 ? n : n.parentElement;
+          if (!el) return '';
+          ${HIT_TEST_JS}
+          const b = el.getBoundingClientRect();
+          if (!b.width || !b.height) return '';
+          const h = at(el, b.left + b.width / 2, b.top + b.height / 2);
+          return hits(el, h) ? '' : h ? ' [covered]' : ' [offscreen]';
+        });
       }`,
-      arguments: [{ value: pts.map((p) => [p.x, p.y]) }, ...pts.map((p) => ({ objectId: p.objectId }))],
+      arguments: pts.map((p) => ({ objectId: p.objectId })),
     }).finally(() => this.cmd(pane, 'Runtime.releaseObjectGroup', { objectGroup: 'mt-tags' }).catch(() => {}));
     (r.result?.value as string[] | undefined)?.forEach((t, i) => { if (t) out.set(pts[i].ref, t); });
     return out;
