@@ -82,7 +82,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'shell.list', params: '{}', result: '{shells: [{kind, label, argv}]}' },
   { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND, E.VALIDATION], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
   { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
-  { name: 'worktree.create', stable: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?}' },
+  { name: 'worktree.create', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS)' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
   { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
   { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
@@ -455,7 +455,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       const branch = str(p, 'branch', false) || `troop/${ulid().toLowerCase()}`;
-      const base = str(p, 'base', false) || 'HEAD';
+      const baseParam = str(p, 'base', false);
+      const base = baseParam || 'HEAD';
       const root = path.join(homeDir(), 'worktrees', project.id);
       const dir = path.join(root, branch.replace(/[\\/]/g, '-'));
       if (path.dirname(dir) !== root || dir === root) throw new RpcError(E.INVALID_PARAMS, `branch ${branch} does not name a folder under the worktrees folder`);
@@ -464,13 +465,22 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
         return { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted, existing: true };
       }
+      let existingBranch = true;
       try {
-        execFileSync('git', ['-C', project.path, 'worktree', 'add', dir, '-b', branch, base], { stdio: 'pipe', timeout: 60_000 });
+        execFileSync('git', ['-C', project.path, 'rev-parse', '--verify', '-q', `refs/heads/${branch}`], { stdio: 'pipe', timeout: 60_000 });
+      } catch {
+        existingBranch = false;
+      }
+      if (existingBranch && baseParam) throw new RpcError(E.INVALID_PARAMS, 'base only applies to a new branch');
+      const addArgs = existingBranch ? [dir, branch] : [dir, '-b', branch, base];
+      try {
+        execFileSync('git', ['-C', project.path, 'worktree', 'add', ...addArgs], { stdio: 'pipe', timeout: 60_000 });
       } catch (e) {
         throw new RpcError(E.VALIDATION, `git worktree add failed: ${String((e as { stderr?: Buffer }).stderr ?? e).trim()}`);
       }
       const trusted = trustFolder(fs.realpathSync.native(dir), ctl.engines());
-      return { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted };
+      const result = { path: dir.split(String.fromCharCode(92)).join('/'), branch, trusted };
+      return existingBranch ? { ...result, existing_branch: true } : result;
     },
   });
 
