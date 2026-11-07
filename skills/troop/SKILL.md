@@ -9,9 +9,9 @@ Use the `troop` CLI to work with MetaTrooper's core. Always pass `--json` and re
 
 ## Start and follow agents
 
-1. `troop launch <engine> --project <path> --prompt <text> --json` starts an agent and returns its `session_id`.
+1. `troop launch <engine> [--model <name>] --project <path> --prompt <text> --json` starts an agent and returns its `session_id`.
    Example: `troop launch codex --project . --worktree fix-login --prompt "fix the login test" --json`.
-2. `troop launch --jobs <jobs.json> --json` starts several at once from `[{"engine","worktree","prompt"}, ...]`.
+2. `troop launch --jobs <jobs.json> --json` starts several at once from `[{"engine","worktree","prompt","model"}, ...]`.
 3. `troop sessions --json` lists sessions and their state (`working`, `waiting_for_you`, `done`, `idle`, `exited`).
 4. `troop owners --json` lists the project's uncommitted files and the session that owns each.
 
@@ -28,7 +28,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   project.open           {path}  (stable)
   project.clear          {project_id}
   project.hide           {project_id}
-  session.launch         {project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}  (stable)
+  session.launch         {project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, parent_id?}  (stable)
   session.list           {project_id?, all?: bool}  (stable)
   session.wait           {session_id, states: [state, ...], timeout_ms}  (stable)
   session.resume         {session_id}  (stable)
