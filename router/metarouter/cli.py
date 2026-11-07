@@ -409,8 +409,12 @@ def run_lane(args):
         return run_flow(r, rest)
     if kind == "python":
         code, text, raw, secs, whole = run_python(r, rest)
-        return finish("run", label, raw, code, secs, recipe=name, compact=text, log_label=name,
-                      whole=whole or no_trunc, findings=is_finding(r, code))
+        full = shrink.clean(raw.decode("utf-8", errors="replace"))
+        keep = no_trunc and isinstance(text, str) and full != text  # --no-trunc: return the full output and keep the log
+        res = finish("run", label, raw, code, secs, recipe=name, compact=full if keep else text, log_label=name,
+                     whole=whole or no_trunc, findings=is_finding(r, code))
+        res.whole = res.whole and not keep
+        return res
     if kind == "shell":
         if r.get("shell") == "bash" and is_powershell(shell()):
             return Result(ok=False, lane="run", exit=2, recipe=name, note=bash_only(name))
