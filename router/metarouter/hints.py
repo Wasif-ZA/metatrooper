@@ -65,10 +65,8 @@ def load():
 
 
 def match(cmd, output=None, failed=False):
-    """Return the first matching hint text: a recipe for inline python, a before-hint on the command, else a fail-hint on the output."""
-    tip = recipe_for(cmd)
-    if tip:
-        return tip
+    """Return the first matching hint text: a before-hint on the command, a fail-hint on the output, else a recipe
+    for inline python."""
     for h in load():
         try:
             if h.get("when") == "before" and re.search(h["match"], cmd or ""):
@@ -81,7 +79,7 @@ def match(cmd, output=None, failed=False):
                 return h["hint"]
         except re.error:
             continue
-    return None
+    return recipe_for(cmd)
 
 
 def recipe_for(cmd):

@@ -158,6 +158,15 @@ def is_finding(recipe, code):
     return code != 0 and code in (recipe.get("findings") or [])
 
 
+def runs_body(cmd, body):
+    """True when cmd runs the same program as body, with body's other words first, in order."""
+    # ponytail: plain word split, misses quoted or reordered arguments
+    want, have = body.split(), cmd.split()
+    same = [hints.first_word(w).removesuffix(".exe") for w in (body, cmd)]
+    return bool(want) and len(have) >= len(want) and same[0] == same[1] and \
+        [Path(w).as_posix() for w in have[1:len(want)]] == [Path(w).as_posix() for w in want[1:]]
+
+
 def finish(*args, **kw):
     return shield.guard(build(*args, **kw))
 
@@ -271,8 +280,8 @@ def exec_lane(args, argv=None):
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
                       note=f"could not start {argv[0]} ({e})" if argv else
                       f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash or PowerShell path")
-    found = code != 0 and any(isinstance(x.get("body"), str) and cmd.strip().startswith(x["body"].strip())
-                              and is_finding(x, code) for x in store.load().values())
+    found = code != 0 and any(isinstance(x.get("body"), str) and is_finding(x, code) and runs_body(cmd, x["body"])
+                              for x in store.load().values())
     if whole:
         r = finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
                    whole=True, findings=found)
