@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
@@ -6,6 +6,9 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 const size = Number(arg('--size')) || 0;
 const state = arg('--state');
 app.whenReady().then(() => {
+  // Replaces the app menu with --menu N top-level items when given
+  const menu = Number(arg('--menu')) || 0;
+  if (menu) Menu.setApplicationMenu(Menu.buildFromTemplate(Array.from({ length: menu }, (_, i) => ({ label: 'Menu ' + i, submenu: [{ label: 'Item' }] }))));
   const win = new BrowserWindow({ width: 600, height: 500, show: false, title: 'M8-38 electron fixture' });
   win.on('page-title-updated', (e) => e.preventDefault());
   win.once('ready-to-show', () => { win.showInactive(); poll(); });
