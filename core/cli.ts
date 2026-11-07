@@ -29,7 +29,7 @@ const USAGE = `usage: troop <command> [--json]
   open [path]                   register a project folder (default: current folder)
   launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>] [--model <name>]
                                 open claude, codex or agy in a new Windows Terminal window,
-                                optionally in a new (or existing) worktree of the project;
+                                optionally in a worktree of the project (new or existing branch);
                                 --approval ask|edits|contained (default: contained on a worktree, else ask)
   launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt","model"}, ...]
   sessions [--all]              list sessions (hidden ones with --all)
