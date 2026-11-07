@@ -524,6 +524,7 @@ export class Desktop {
     m.set('takeover.request', { handler: async (p) => {
       const sessionId = await this.bind(p);
       const reason = Array.from((typeof p.reason === 'string' ? p.reason : '').replace(/\p{Default_Ignorable_Code_Point}|\p{Cc}/gu, '').trim()).slice(0, 200).join('');
+      this.summaries.delete(sessionId);
       const requests = this.requests();
       requests[sessionId] = { at: nowIso(), reason };
       this.db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('takeover_requests', ?)").run(JSON.stringify(requests));
