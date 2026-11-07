@@ -122,3 +122,25 @@ def test_checker_findings_are_successful_and_excluded_from_digest_failures(tmp_p
     assert report["failed"] == 0
     assert report["findings"] == 1
     assert report["top_failures"] == []
+
+
+def test_clip_preserves_exact_limit_and_clips_one_character_over():
+    from metarouter.shrink import clip
+
+    at_limit = "x" * 300
+
+    assert clip(at_limit) == at_limit
+    assert clip(at_limit + "y") == at_limit + "..."
+
+
+def test_errors_caps_distinct_entries_at_max_errors():
+    from metarouter.shrink import MAX_ERRORS, errors
+
+    assert MAX_ERRORS == 40
+    lines = [f"error: {'x' * size}" for size in range(1, MAX_ERRORS + 6)]
+
+    entries, more = errors(lines)
+
+    assert len(entries) == 40
+    assert entries == lines[:40]
+    assert more == 5
