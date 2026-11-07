@@ -131,6 +131,24 @@ test('O5a2: done must stay in the target states for the settlement period', asyn
   }
 });
 
+test('O5a3: a leave and return between polls restarts the settle window', async () => {
+  const { db, sessionId, methods, ctx } = waitFixture();
+  try {
+    const start = performance.now();
+    const wait = methods.get('session.wait')!.handler({ session_id: sessionId, states: ['done'], settle_ms: 500, timeout_ms: 3000 }, ctx);
+    changeState(db, sessionId, 'done');
+    await sleep(300);
+    changeState(db, sessionId, 'working');
+    changeState(db, sessionId, 'done');
+    assert.deepEqual(await wait, { state: 'done', timed_out: false });
+    const elapsed = performance.now() - start;
+    assert.ok(elapsed >= 750, 'elapsed was ' + elapsed + ' ms, expected at least 750 ms');
+  } finally {
+    await turnJobsIdle();
+    db.close();
+  }
+});
+
 test('O5b: omitting settle_ms returns done promptly over the real pipe', async () => {
   const h = await harness();
   try {
