@@ -521,6 +521,7 @@ namespace TroopUia {
     static readonly string[][] Lost = {
       new[] { "WindowsForms10.*", "click", "background_unavailable: a click posted to this WinForms control (WindowsForms10.*) is lost while another window covers it; uncover the window or ask the user to bring it to the front, then try again; nothing was sent" },
       new[] { "Chrome_WidgetWin_1", "alt", "background_unavailable: a Chromium window (Chrome_WidgetWin_1) reads Alt from the keyboard state, so a posted <keys> would arrive without Alt; click the control the shortcut reaches instead; nothing was sent" },
+      new[] { "Chrome_RenderWidgetHostHWND", "alt", "background_unavailable: a Chromium page (Chrome_RenderWidgetHostHWND) reads Alt from the keyboard state, so a posted <keys> would arrive without Alt; click the control the shortcut reaches instead; nothing was sent" },
       new[] { "Windows.UI.Core.CoreWindow", "key", "background_unavailable: a UWP window (Windows.UI.Core.CoreWindow) ignores posted <keys>; only single characters arrive; click the button or type into the field instead; nothing was sent" },
     };
 

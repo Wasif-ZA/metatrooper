@@ -105,7 +105,7 @@ Backspace, and `BM_CLICK` to a Button or CheckBox all arrive.
 | Target window class | Event | What happens | Remedy |
 |---|---|---|---|
 | starts with `WindowsForms10.` | posted click (`WM_LBUTTONDOWN`/`UP`) while the window at the click point is not the control's own HWND | Label and PictureBox: covered 0/3 arrive, uncovered 3/3 | uncover the window or ask the user to bring it to the front |
-| `Chrome_WidgetWin_1` | `key` whose chord includes Alt | Edge and Chrome: `Alt+g` arrives as a bare `g`; no accesskey fires | click the control the shortcut reaches |
+| `Chrome_WidgetWin_1` or `Chrome_RenderWidgetHostHWND` (the focus HWND once a page element has focus) | `key` whose chord includes Alt | Edge and Chrome: `Alt+g` arrives as a bare `g` or not at all; no accesskey fires | click the control the shortcut reaches |
 | `Windows.UI.Core.CoreWindow` | `key` that is not a single unmodified printable character | Calculator: Escape, Delete, Backspace, Enter, Down 0/3; a digit arrives | click the button or type into the field |
 
 The WinForms check uses the window at the click point itself, not `covered_by` (which the core filters by process): a cover from the same process also loses the click.
