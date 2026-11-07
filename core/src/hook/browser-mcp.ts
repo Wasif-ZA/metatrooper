@@ -1,3 +1,4 @@
+import { screenResult } from './screen-data.ts';
 import { call as coreCall } from '../pipe/client.ts';
 import { actionHash, APPROVAL_TIMEOUT_MS, type Control } from '../approvals.ts';
 import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
@@ -77,4 +78,4 @@ async function toolCall(name: string, args: Record<string, unknown>): Promise<ob
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 
-serveMcp('metatrooper-browser', TOOLS, toolCall);
+serveMcp('metatrooper-browser', TOOLS, async (name, args) => screenResult(await toolCall(name, args)));
