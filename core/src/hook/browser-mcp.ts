@@ -4,6 +4,7 @@ import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
 import { PRESETS } from '../browser/grants.ts';
 import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.ts';
 import { serveMcp } from './mcp-stdio.ts';
+import { fence } from '../browser/snapshot.ts';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
@@ -78,7 +79,8 @@ async function singleCall(name: string, args: Record<string, unknown>): Promise<
     if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
     return { content };
   }
-  if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+  if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: fence(result.text) }] };
+  if (typeof (result as { changes?: unknown } | undefined)?.changes === 'string') return { content: [{ type: 'text', text: JSON.stringify({ ...result, changes: fence((result as { changes: string }).changes) }) }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 
