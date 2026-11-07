@@ -1,0 +1,249 @@
+{
+  "tab": "Run r-0412 · result",
+  "spec": {
+    "type": "page",
+    "children": [
+      {
+        "type": "header",
+        "title": "Done, and proven",
+        "sub": "linkkit · run r-0412"
+      },
+      {
+        "type": "grid",
+        "cols": 3,
+        "children": [
+          {
+            "type": "stat",
+            "label": "Tests passed",
+            "value": "41",
+            "sub": "npm test -- limit"
+          },
+          {
+            "type": "stat",
+            "label": "Failed",
+            "value": "0"
+          },
+          {
+            "type": "stat",
+            "label": "Acceptance",
+            "value": "met",
+            "sub": "the test you asked for"
+          }
+        ]
+      },
+      {
+        "type": "columns",
+        "children": [
+          [
+            {
+              "type": "section",
+              "label": "Done",
+              "children": [
+                {
+                  "type": "tool",
+                  "name": "npm test -- limit",
+                  "state": "ok",
+                  "output": "41 passed, 0 failed"
+                },
+                {
+                  "type": "check",
+                  "label": "Acceptance: test 'limits 61st request' now passes",
+                  "state": "done"
+                }
+              ]
+            },
+            {
+              "type": "kv",
+              "rows": [
+                [
+                  "Checked revision",
+                  "a71e0c3, after the last edit"
+                ],
+                [
+                  "Command",
+                  "npm test -- limit"
+                ],
+                [
+                  "Environment",
+                  "node 22, sandbox"
+                ]
+              ]
+            },
+            {
+              "type": "section",
+              "label": "Edits and checks, in order",
+              "aside": "the last check comes after the last edit",
+              "children": [
+                {
+                  "type": "log",
+                  "lines": [
+                    {
+                      "text": "wrote src/limit.ts",
+                      "detail": "+14 -1"
+                    },
+                    {
+                      "text": "npm test",
+                      "detail": "38 passed, 1 failed"
+                    },
+                    {
+                      "text": "wrote src/routes/shorten.ts",
+                      "detail": "+2"
+                    },
+                    {
+                      "text": "npm test -- limit",
+                      "detail": "41 passed, 0 failed",
+                      "kind": "run"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "buttons",
+              "actions": [
+                {
+                  "label": "Open PR #41",
+                  "primary": true
+                },
+                {
+                  "label": "Show the test run"
+                }
+              ]
+            }
+          ],
+          [
+            {
+              "type": "section",
+              "label": "How a run can end",
+              "aside": "any later edit clears Done",
+              "children": [
+                {
+                  "type": "table",
+                  "cols": [
+                    "Result",
+                    "Means"
+                  ],
+                  "rows": [
+                    [
+                      {
+                        "type": "pill",
+                        "text": "Done",
+                        "tone": "ok"
+                      },
+                      "a check ran after the last edit and shows the request is met"
+                    ],
+                    [
+                      {
+                        "type": "pill",
+                        "text": "Checks passed, not proven",
+                        "tone": "info"
+                      },
+                      "no check shows the request is met"
+                    ],
+                    [
+                      {
+                        "type": "pill",
+                        "text": "Needs your review",
+                        "tone": "info"
+                      },
+                      "nothing can check it"
+                    ],
+                    [
+                      {
+                        "type": "pill",
+                        "text": "Unverified",
+                        "tone": "error"
+                      },
+                      "a claim like 'all tests pass' with no matching run"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "section",
+              "label": "Definition of done",
+              "children": [
+                {
+                  "type": "check",
+                  "label": "Per-key limit, 60 a minute",
+                  "state": "done",
+                  "value": "src/limit.ts line 9"
+                },
+                {
+                  "type": "check",
+                  "label": "Route refuses the 61st request",
+                  "state": "done",
+                  "value": "test/limit.test.ts line 31"
+                },
+                {
+                  "type": "check",
+                  "label": "Last check after last edit",
+                  "state": "done",
+                  "value": "a71e0c3, 10:52"
+                }
+              ],
+              "aside": "3 of 3 met"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "source": "system",
+  "agent": "claude",
+  "chrome": {
+    "place": "linkkit : rate limit",
+    "status": "0 need you",
+    "files": [
+      "linkkit/",
+      "  src/",
+      "    routes/",
+      "      go.ts",
+      "      shorten.ts",
+      "    *limit.ts",
+      "  test/",
+      "    limit.test.ts",
+      "  AGENTS.md",
+      "  package.json",
+      "  wrangler.toml"
+    ],
+    "terminal": [
+      {
+        "you": "Add a per-key rate limit to /shorten, 60 a minute."
+      },
+      [
+        "read src/routes/shorten.ts",
+        "84 lines"
+      ],
+      [
+        "read wrangler.toml",
+        "rate-limit binding, commented out"
+      ],
+      {
+        "you": "Use the in-memory bucket."
+      },
+      [
+        "wrote src/limit.ts",
+        "+14 -1"
+      ],
+      [
+        "npm test",
+        "38 passed, 1 failed"
+      ],
+      [
+        "wrote src/routes/shorten.ts",
+        "+2"
+      ],
+      [
+        "npm test -- limit",
+        "41 passed, 0 failed"
+      ],
+      "Done: the last check ran after the last edit."
+    ],
+    "branch": "ouros/rate-limit",
+    "lang": "TypeScript",
+    "strip": "auto · done 3m 40s · 2 files +16 -1 · 1 ask",
+    "termHeight": 340
+  }
+}
