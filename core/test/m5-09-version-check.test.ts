@@ -18,6 +18,8 @@ function fixture() {
   writeFileSync(join(dir, 'core', 'package.json'), JSON.stringify({ version: '7.8.9' }));
   mkdirSync(join(dir, 'plugins', 'sample'), { recursive: true });
   writeFileSync(join(dir, 'plugins', 'sample', 'troop-plugin.json'), JSON.stringify({ version: '7.8.9' }));
+  mkdirSync(join(dir, 'router'));
+  writeFileSync(join(dir, 'router', 'pyproject.toml'), '[project]\nname = "router"\nversion = "7.8.9"\n');
   return dir;
 }
 
