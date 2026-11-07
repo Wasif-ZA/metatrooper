@@ -275,7 +275,7 @@ namespace TroopUia {
       var top = AutomationElement.FromHandle(new IntPtr(hwnd));
       bool truncated;
       var nodes = Walk(top, max, out truncated);
-      if (nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max, out truncated); }
+      if (nodes.Count < 20 && !truncated) { Thread.Sleep(2000); nodes = Walk(top, max, out truncated); }
       var map = new Dictionary<string, AutomationElement>();
       var sb = new StringBuilder();
       int n = 0;

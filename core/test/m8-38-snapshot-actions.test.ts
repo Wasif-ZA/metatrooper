@@ -144,3 +144,12 @@ test('row 8: a cap with nodes remaining is truncated and ends with the marker na
     assert.equal(all.length, cap + 1);
   }
 });
+
+test('row 8: a truncated read under 20 nodes returns without the 2 s re-read', T, async (t) => {
+  if (skipReason) return t.skip(skipReason);
+  await snap(5);
+  const start = Date.now();
+  const r = await snap(5);
+  assert.equal(r.truncated, true);
+  assert.ok(Date.now() - start < 1500, `took ${Date.now() - start} ms`);
+});
