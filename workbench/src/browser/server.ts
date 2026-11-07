@@ -98,12 +98,12 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
           return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'core' } });
         }
         const s = typeof params.session_id === 'string'
-          ? (db.prepare('SELECT id, pid, browser_grant FROM session WHERE id = ? AND ended_at IS NULL').get(params.session_id) as { id: string; pid: number | null; browser_grant: string | null } | undefined)
+          ? (db.prepare('SELECT * FROM session WHERE id = ? AND ended_at IS NULL').get(params.session_id) as { id: string; pid: number | null; browser_grant?: string | null } | undefined)
           : undefined;
         if (!s || !s.pid || !Number.isInteger(params.pid)) return fail(id, -32030, 'unknown session');
         if (!ancestors(Number(params.pid), await parentTableAsync()).includes(s.pid)) return fail(id, -32030, 'that session is not an ancestor of the caller');
-        bound = { kind: 'session', sessionId: s.id, grant: s.browser_grant };
-        return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'session', grant: s.browser_grant } });
+        bound = { kind: 'session', sessionId: s.id, grant: s.browser_grant ?? null };
+        return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'session', grant: s.browser_grant ?? null } });
       }
 
       if (method === 'browser.panes') {
