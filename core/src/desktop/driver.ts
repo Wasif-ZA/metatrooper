@@ -9,7 +9,7 @@ import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
 import { actionHash, desktopKeysProblem, riskReason } from '../approvals.ts';
-import { actionHeld, ACTION_HELD, beginRiskyAction, finishRiskyAction, releaseRiskyAction } from './action-outcomes.ts';
+import { actionHeld, ACTION_HELD, beginRiskyAction, ensureActionOutcomes, finishRiskyAction, releaseRiskyAction } from './action-outcomes.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { beginAction, endAction } from '../watch/watcher.ts';
 import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow, type WindowInfo } from '../grants.ts';
@@ -156,6 +156,7 @@ export class Desktop {
   private workbench = workbenchExes();
 
   constructor(db: DatabaseSync, opts: { demo?: boolean } = {}) {
+    ensureActionOutcomes(db);
     this.db = db;
     this.demo = Boolean(opts.demo);
     db.prepare("UPDATE desktop_action_outcome SET status = 'unverifiable' WHERE status = 'pending'").run();
@@ -512,7 +513,7 @@ export class Desktop {
         return { confirmed };
       });
     } });
-    m.set('desktop.action.held', { needsUi: true, handler: (p) => ({ actions: this.db.prepare("SELECT action_hash, target, status, updated_at FROM desktop_action_outcome WHERE session_id = ? AND status IN ('pending', 'unverifiable') ORDER BY updated_at DESC LIMIT 100").all(str(p, 'session_id')) }) });
+    m.set('desktop.action.held', { needsUi: true, handler: (p) => ({ actions: this.db.prepare("SELECT action_hash, target, status, updated_at FROM desktop_action_outcome WHERE session_id = ? AND status IN ('pending', 'unverifiable') ORDER BY julianday(updated_at) DESC LIMIT 100").all(str(p, 'session_id')) }) });
     m.set('desktop.action.release', { needsUi: true, handler: (p) => releaseRiskyAction(this.db, str(p, 'session_id'), str(p, 'action_hash')) });
     m.set('desktop.act', { handler: async (p) => this.act(p, await this.bind(p)) });
   }

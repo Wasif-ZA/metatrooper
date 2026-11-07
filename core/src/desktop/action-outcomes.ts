@@ -1,8 +1,15 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { coreDir } from '../paths.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import { nowIso } from '../time.ts';
 
 export const ACTION_HELD = 'this risky action has an unresolved outcome; it is held until its result is verified or the user releases it';
+
+export function ensureActionOutcomes(db: DatabaseSync): void {
+  db.exec(readFileSync(join(coreDir, 'src', 'store', 'migrations', '004-desktop-action-outcome.sql'), 'utf8'));
+}
 
 export function actionHeld(db: DatabaseSync, hash: string): boolean {
   return Boolean(db.prepare("SELECT 1 FROM desktop_action_outcome WHERE action_hash = ? AND status IN ('pending', 'unverifiable')").get(hash));

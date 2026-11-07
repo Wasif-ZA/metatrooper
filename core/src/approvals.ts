@@ -5,7 +5,7 @@ import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } fro
 import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.ts';
 import { nowIso, ulid } from './time.ts';
 import { settings } from './settings.ts';
-import { actionHeld, ACTION_HELD } from './desktop/action-outcomes.ts';
+import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-outcomes.ts';
 
 export const APPROVAL_TIMEOUT_MS = 120_000;
 export const SURFACES = ['browser', 'desktop'] as const;
@@ -150,6 +150,7 @@ export class Approvals {
   private secrets: () => string[];
 
   constructor(db: DatabaseSync, timeoutMs = APPROVAL_TIMEOUT_MS, secrets: () => string[] = () => [], hooks: ApprovalHooks = {}) {
+    ensureActionOutcomes(db);
     this.db = db;
     this.timeoutMs = timeoutMs;
     this.secrets = secrets;

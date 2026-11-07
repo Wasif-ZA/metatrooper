@@ -6,7 +6,7 @@ import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } fro
 import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.js';
 import { nowIso, ulid } from './time.js';
 import { settings } from './settings.js';
-import { actionHeld, ACTION_HELD } from './desktop/action-outcomes.js';
+import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-outcomes.js';
 
 export const APPROVAL_TIMEOUT_MS = 120_000;
 export const SURFACES = ['browser', 'desktop']         ;
@@ -151,6 +151,7 @@ export class Approvals {
           secrets                ;
 
   constructor(db              , timeoutMs = APPROVAL_TIMEOUT_MS, secrets                 = () => [], hooks                = {}) {
+    ensureActionOutcomes(db);
     this.db = db;
     this.timeoutMs = timeoutMs;
     this.secrets = secrets;
