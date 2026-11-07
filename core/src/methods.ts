@@ -65,7 +65,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
   { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, host?: "pty", browser?: boolean, parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
-  { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
+  { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
@@ -263,6 +263,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (typeof timeout !== 'number' || !Number.isInteger(timeout) || timeout < 1 || timeout > 600_000) {
         throw new RpcError(E.INVALID_PARAMS, 'timeout_ms must be a whole number from 1 to 600000');
       }
+      const settle = p.settle_ms ?? 0;
+      if (typeof settle !== 'number' || !Number.isInteger(settle) || settle < 0 || settle > 60_000) {
+        throw new RpcError(E.INVALID_PARAMS, 'settle_ms must be a whole number from 0 to 60000');
+      }
       const read = () => (db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined)?.state;
       const end = Date.now() + timeout;
       let state = read();
@@ -270,8 +274,24 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       // A state the core writes wakes the wait at once, so done -> idle between polls is not missed; the 200 ms poll catches other writers.
       let hit: string | undefined;
       let wake = () => {};
-      const off = onStateChange((sid, s) => { if (sid === id && !hit && states.includes(s)) { hit = s; wake(); } });
+      let since = 0;
+      const off = onStateChange((sid, s) => {
+        if (sid !== id) return;
+        if (settle > 0) { state = s; if (!states.includes(s)) since = 0; wake(); } else if (!hit && states.includes(s)) { hit = s; wake(); }
+      });
       try {
+        if (settle > 0) {
+          for (;;) {
+            const now = Date.now();
+            if (!states.includes(state)) since = 0;
+            else if (!since) since = now;
+            if (since && now - since >= settle) return { state, timed_out: false };
+            const left = end - now;
+            if (left <= 0) return { state, timed_out: true };
+            await new Promise<void>((r) => { wake = r; setTimeout(r, Math.min(200, left, since ? since + settle - now : 200)); });
+            state = read() ?? state;
+          }
+        }
         while (!hit && !states.includes(state)) {
           const left = end - Date.now();
           if (left <= 0) return { state, timed_out: true };
