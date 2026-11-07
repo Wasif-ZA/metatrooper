@@ -264,10 +264,10 @@ namespace TroopUia {
     static string ActionsOf(AutomationElement e) {
       var actions = new List<string>();
       object p;
-      if (e.TryGetCurrentPattern(InvokePattern.Pattern, out p)) actions.Add("Invoke");
-      if (e.TryGetCurrentPattern(TogglePattern.Pattern, out p)) actions.Add("Toggle");
-      if (e.TryGetCurrentPattern(SelectionItemPattern.Pattern, out p)) actions.Add("Select");
-      if (e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly) actions.Add("SetValue");
+      try { if (e.TryGetCurrentPattern(InvokePattern.Pattern, out p)) actions.Add("Invoke"); } catch { }
+      try { if (e.TryGetCurrentPattern(TogglePattern.Pattern, out p)) actions.Add("Toggle"); } catch { }
+      try { if (e.TryGetCurrentPattern(SelectionItemPattern.Pattern, out p)) actions.Add("Select"); } catch { }
+      try { if (e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly) actions.Add("SetValue"); } catch { }
       return " actions=[" + string.Join(",", actions) + "]";
     }
 
