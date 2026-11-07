@@ -2,7 +2,7 @@
 import { appendFileSync } from 'node:fs';
 import { screenResult } from './screen-data.js';
 import { call as coreCall } from '../pipe/client.js';
-import { actionHash, APPROVAL_TIMEOUT_MS, desktopKeysProblem,              } from '../approvals.js';
+import { actionHash, GATE_WAIT_MS, desktopKeysProblem,              } from '../approvals.js';
 import { WorkbenchPipe, findSession,            } from './workbench-pipe.js';
 import { serveMcp,              } from './mcp-stdio.js';
 
@@ -61,7 +61,7 @@ async function input(name        , args                         , session_id    
     if (d.error) return d;
     const { grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by } = d.result                                                                                                                                                                                           ;
     const check = { session_id, surface: 'desktop', target: grant_id, action: name, args, control };
-    const v = await core('approval.check', { ...check, password, hidden, file_dialog, action_hash: actionHash(check) }, APPROVAL_TIMEOUT_MS + 10_000);
+    const v = await core('approval.check', { ...check, password, hidden, file_dialog, action_hash: actionHash(check) }, GATE_WAIT_MS);
     if (v.error) return v;
     const out = v.result                                         ;
     if (out.decision === 'deny') return { error: { code: -32030, message: out.reason === 'paused by the user' || out.reason?.startsWith('window not granted') ? out.reason : `not sent: ${out.reason}` } };
