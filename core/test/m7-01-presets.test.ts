@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PRESETS, isPreset, smallestPreset } from '../src/browser/grants.ts';
 
 // The tool sets come from the M7-01 spec (Change 1) and contracts/browser-tools.md (version 3), not from the code.
-const LOOK = ['panes', 'navigate', 'snapshot', 'screenshot', 'scroll', 'read', 'find', 'handoff'];
+const LOOK = ['panes', 'navigate', 'snapshot', 'screenshot', 'scroll', 'read', 'find', 'handoff', 'export_test'];
 const ACT_ADDED = ['back', 'click', 'type', 'key', 'select', 'wait_for', 'dialog', 'batch'];
 const DEBUG_ADDED = ['console', 'network', 'evaluate'];
 const ACT = [...LOOK, ...ACT_ADDED];
@@ -19,11 +19,11 @@ function toolsOf(name: string): string[] {
 
 const sorted = (list: string[]) => [...list].sort();
 
-// protects=look exposes exactly the eight read, navigate and find tools of the spec
+// protects=look exposes exactly the nine read, navigate, find and export_test tools of the spec
 // fails_when=a tool is added to or dropped from look (for example evaluate or click leaking in)
 // no_claim=how the MCP server lists tools (tools/list) or the pipe refuses calls
-test('M7-01a look holds exactly the 8 tools the spec names', () => {
-  assert.equal(LOOK.length, 8);
+test('M7-01a look holds exactly the 9 tools the spec names', () => {
+  assert.equal(LOOK.length, 9);
   assert.deepEqual(toolsOf('look'), sorted(LOOK));
 });
 
@@ -40,7 +40,7 @@ test('M7-01a act holds look plus back, click, type, key, select, wait_for, dialo
 // no_claim=that debug equals every tool the MCP server advertises (the server list is not read here)
 test('M7-01a debug holds act plus console, network and evaluate', () => {
   assert.deepEqual(toolsOf('debug'), sorted(DEBUG));
-  assert.equal(DEBUG.length, 19);
+  assert.equal(DEBUG.length, 20);
 });
 
 // protects=each preset holds the one before it, so a grant only ever adds tools
