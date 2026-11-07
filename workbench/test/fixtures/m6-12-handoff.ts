@@ -380,7 +380,7 @@ r.evaluateCutScrubbed = !JSON.stringify((await call('browser.evaluate', { pane_i
 pane.scripted = false;
 let readText = '';
 internal.cmd = async (p: unknown, method: string, params: Record<string, any>) => {
-  if (method === 'Runtime.evaluate' && String(params.expression).includes('innerText')) return { result: { value: readText } };
+  if (method === 'Runtime.evaluate' && String(params.expression).includes("'read')")) return { result: { value: { lines: readText.split(String.fromCharCode(10)), withheld: 0 } } };
   if (method === 'Accessibility.getFullAXTree') return { nodes: params.frameId === 'F' ? [{ nodeId: '1', role: { value: 'heading' }, name: { value: `${'a'.repeat(110)}${marker}` } }] : [] };
   return plainCmd(p, method, params);
 };

@@ -398,7 +398,7 @@ test('M8-41d a recorded login exports a Playwright test that never holds the typ
       t.diagnostic('MT_PLAYWRIGHT_DIR is not set, so the Playwright run is skipped');
     } else {
       writeFileSync(join(dir, 'exported.spec.mjs'), exported);
-      // runs Playwright without blocking this process, which also serves the fixture page
+      // runs Playwright with an async spawn so this process keeps serving the fixture page
       const run = await new Promise<{ status: number | null; stdout: string; stderr: string }>((done) => {
         const p = spawn(process.execPath, [join(dir, 'node_modules', 'playwright', 'cli.js'), 'test', '-c', 'pw.config.mjs', 'exported.spec.mjs'], { cwd: dir, timeout: 120_000 });
         let stdout = '', stderr = '';
