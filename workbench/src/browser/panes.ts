@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
-import { diffLines, dropFrame, fit, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
@@ -44,6 +44,73 @@ const SNAPSHOT_TOKENS = 4000;
 const ACTION_TOKENS = 1000;
 const SETTLE_MS = 1000;
 const CURSORS_KEPT = 8;
+
+// Page script: mode 'hidden' returns { h: the topmost hidden elements (at most 2001), c: visible click targets (at most 400) }; mode 'read' returns the visible text lines and the count of hidden elements withheld.
+const PAGE_WALK = String.raw`function mtWalk(root, mode) {
+  const hiddenReason = ${hiddenReason.toString()};
+  if (!root) return { lines: [], withheld: 0 };
+  const de = document.documentElement;
+  const sx = scrollX, sy = scrollY, docW = de.scrollWidth, docH = de.scrollHeight;
+  const INLINE = ['inline', 'inline-block', 'inline-flex', 'inline-grid'];
+  const SKIP = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'];
+  const found = [], clicks = [], lines = [];
+  let cur = '', withheld = 0;
+  const brk = () => { lines.push(cur); cur = ''; };
+  const step = (cs, st) => {
+    const opaque = /^rgb\(/.test(cs.backgroundColor) ? !cs.backgroundColor.includes('/') : /,\s*1\)$/.test(cs.backgroundColor);
+    const img = cs.backgroundImage !== 'none';
+    return { op: st.op * parseFloat(cs.opacity), bg: opaque ? cs.backgroundColor : st.bg, img: opaque ? img : st.img || img };
+  };
+  const why = (el, cs, st) => {
+    const r = el.getBoundingClientRect();
+    let own = false;
+    for (const c of el.childNodes) if (c.nodeType === 3 && c.data.trim()) { own = true; break; }
+    return hiddenReason({ opacity: st.op, fontSize: parseFloat(cs.fontSize), ownText: own, color: cs.color, bg: st.bg, bgImage: st.img, left: r.left + sx, top: r.top + sy, right: r.right + sx, bottom: r.bottom + sy, docW, docH, clip: cs.clip, clipPath: cs.clipPath, overflow: cs.overflow, width: r.width, height: r.height });
+  };
+  const hid = (el, st, pc) => {
+    if (found.length > 2000 || SKIP.includes(el.tagName)) return;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') return;
+    const s = step(cs, st);
+    if (cs.display !== 'contents' && why(el, cs, s)) {
+      // adds the element and its non-blank text nodes
+      found.push(el);
+      const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let t = tw.nextNode(); t && found.length <= 2000; t = tw.nextNode()) if (t.data.trim()) found.push(t);
+      return;
+    }
+    if (clicks.length < 400 && el !== de && el !== document.body) {
+      const r = el.getBoundingClientRect(), ti = el.getAttribute('tabindex');
+      if (r.width > 0 && r.height > 0 && ((cs.cursor === 'pointer' && pc !== 'pointer') || el.hasAttribute('onclick') || el.onclick != null || (ti !== null && /^\s*\+?\d+\s*$/.test(ti)))) clicks.push(el);
+    }
+    for (const c of el.children) hid(c, s, cs.cursor);
+    if (el.shadowRoot) for (const c of el.shadowRoot.children) hid(c, s, cs.cursor);
+  };
+  const rd = (el, st) => {
+    if (SKIP.includes(el.tagName)) return;
+    const cs = getComputedStyle(el);
+    const contents = cs.display === 'contents';
+    if (!contents && !el.checkVisibility()) return;
+    const s = step(cs, st);
+    if (!contents && why(el, cs, s)) { withheld++; return; }
+    const block = !contents && !INLINE.includes(cs.display);
+    if (block) brk();
+    for (const c of el.childNodes) {
+      if (c.nodeType === 3) cur += c.data.replace(/\s+/g, ' ');
+      else if (c.nodeType === 1) { if (c.tagName === 'BR') brk(); else rd(c, s); }
+    }
+    if (block) brk();
+  };
+  let st = { op: 1, bg: '', img: false };
+  const up = [];
+  for (let p = root.parentElement; p; p = p.parentElement) up.unshift(p);
+  for (const p of up) st = step(getComputedStyle(p), st);
+  if (mode === 'hidden') { hid(root, st, ''); return { h: found, c: clicks }; }
+  rd(root, st);
+  brk();
+  return { lines, withheld };
+}`;
+
 /** The focused element through open shadow roots and same-origin frames; the frame element itself when focus is in a frame this world cannot read. */
 const FOCUSED = `(() => {
   let e = document.activeElement;
@@ -926,11 +993,37 @@ export class PaneManager {
       try { secrets = scrubSecretValues(); } catch {}
       for (const n of nodes) for (const k of ['name', 'value'] as const) if (typeof n[k]?.value === 'string') n[k] = { ...n[k], value: whole(n[k].value as string, secrets) };
       const owner = parent ? await this.cmd(pane, 'DOM.getFrameOwner', { frameId: id }).then((r) => r.backendNodeId as number, () => undefined) : undefined;
-      out.push({ id, nodes, parent, owner });
+      const frame: Frame = { id, nodes, parent, owner };
+      if (nodes.length) await this.markHidden(pane, frame);
+      out.push(frame);
       for (const c of t.childFrames ?? []) await visit(c, id);
     };
     await visit(frameTree);
     return out;
+  }
+
+  /** Sets `frame.hidden` to the backend ids of its topmost hidden elements (open shadow roots included); on any failure it keeps none and flags the frame over. */
+  private async markHidden(pane: Pane, frame: Frame): Promise<void> {
+    try {
+      const r = await this.cmd(pane, 'Runtime.evaluate', { expression: `(${PAGE_WALK})(document.documentElement, 'hidden')`, contextId: await this.isolated(pane, frame.id), returnByValue: false, objectGroup: 'mt-hidden', timeout: 10_000 });
+      if (r.exceptionDetails || !r.result?.objectId) throw new Error('hidden walk failed');
+      const list = async (objectId: string, max: number) => {
+        const props = await this.cmd(pane, 'Runtime.getProperties', { objectId, ownProperties: true });
+        const els = (props.result as any[]).filter((p) => /^\d+$/.test(p.name) && p.value?.objectId);
+        const ids = await Promise.all(els.slice(0, max).map((p) => this.cmd(pane, 'DOM.describeNode', { objectId: p.value.objectId }).then((d) => d.node.backendNodeId as number, () => 0)));
+        return { ids: new Set(ids.filter(Boolean)), over: els.length > max };
+      };
+      const walk = (await this.cmd(pane, 'Runtime.getProperties', { objectId: r.result.objectId, ownProperties: true })).result as any[];
+      const hid = await list(walk.find((p) => p.name === 'h').value.objectId, 2000);
+      frame.hidden = hid.ids;
+      frame.hiddenOver = hid.over;
+      frame.clickable = (await list(walk.find((p) => p.name === 'c').value.objectId, 400)).ids;
+    } catch {
+      frame.hidden = new Set();
+      frame.hiddenOver = true;
+    } finally {
+      await this.cmd(pane, 'Runtime.releaseObjectGroup', { objectGroup: 'mt-hidden' }).catch(() => {});
+    }
   }
 
   /** Snapshot lines of the whole pane or of the subtree under `scopeRef`. */
@@ -1269,7 +1362,7 @@ ame, after checking the ref's field is a password field on the origin saved with
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
     const session = String(a._session ?? '');
     const budget = Math.max(200, Math.min(Number(a.max_tokens) || SNAPSHOT_TOKENS, 100_000));
-    if ((name === 'snapshot' || name === 'read') && typeof a.continue === 'string') {
+    if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof a.continue === 'string') {
       const rest = pane.cursors.get(a.continue);
       if (!rest) throw new ToolError(-32602, `unknown continue cursor ${a.continue}; call ${name} again`);
       pane.cursors.delete(a.continue);
@@ -1325,13 +1418,18 @@ ame, after checking the ref's field is a password field on the origin saved with
         pane.lastSnapshot.set(key, cur);
         return this.page(pane, 'snapshot', a.since_last === true && prev ? diffLines(prev, cur) : cur, budget);
       }
+      case 'find': {
+        if (typeof a.query !== 'string' || !a.query) throw new ToolError(-32602, 'query is required');
+        return this.page(pane, 'find', findLines(await this.lines(pane, undefined, false), a.query), budget);
+      }
       case 'read': {
-        const text = whole(String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? ''));
-        let lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+        const got = (await this.evalIsolated(pane, `(${PAGE_WALK})(document.querySelector('main, [role=main], article') || document.body, 'read')`)) as { lines?: string[]; withheld?: number } | undefined;
+        let lines = whole((got?.lines ?? []).join('\n')).split('\n').map((l) => l.trim()).filter(Boolean);
         if (typeof a.search === 'string' && a.search) {
           const q = a.search.toLowerCase();
           lines = lines.filter((l) => l.toLowerCase().includes(q));
         }
+        if (got?.withheld) lines.push(`(${got.withheld} hidden elements withheld)`);
         return this.page(pane, 'read', lines, budget);
       }
       case 'click':

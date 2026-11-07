@@ -10,8 +10,9 @@ import { scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
 import { scrubbedCaption } from '../cursor-glide.ts';
+import { exportTest, type Step } from '../../../core/src/browser/export-test.ts';
 
-const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
+const TOOLS = new Set(['export_test', 'handoff', 'navigate', 'back', 'snapshot', 'read', 'find', 'click', 'type', 'key', 'select', 'scroll', 'describe', 'wait_for', 'screenshot', 'evaluate', 'console', 'network', 'dialog', 'outcome']);
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
 const CHECKED = new Set(['click', 'type', 'select', 'key']);
 
@@ -33,6 +34,23 @@ export function ownedPanes(db: DatabaseSync, sessionId: string): PaneRow[] {
   return db.prepare(
     'SELECT * FROM browser_pane bp WHERE bp.open = 1 AND bp.session_id = ? ORDER BY bp.id',
   ).all(sessionId) as unknown as PaneRow[];
+}
+
+/** Each session's successful actions for export_test, at most 500. */
+const recorded = new Map<string, Step[]>();
+
+/** Records a successful action with the role and name it was checked against; typed text is never kept. */
+function record(sessionId: string, tool: string, p: Record<string, any>): void {
+  const c = p.expect && typeof p.expect === 'object' ? p.expect : {};
+  const step: Step | null = tool === 'navigate' ? { tool, url: scrub(String(p.url), scrubSecretValues()) }
+    : tool === 'back' ? { tool }
+    : tool === 'key' ? { tool, keys: String(p.keys) }
+    : tool === 'click' || tool === 'type' || tool === 'select' ? { tool, role: String(c.role ?? ''), name: String(c.name ?? ''), ...(tool === 'type' ? { submit: p.submit === true } : {}), ...(tool === 'select' ? { value: String(p.value) } : {}) } as Step
+    : null;
+  if (!step) return;
+  const list = recorded.get(sessionId) ?? [];
+  if (list.length < 500) list.push(step);
+  recorded.set(sessionId, list);
 }
 
 /** Result keys passed through unscrubbed in a screenshot's result only: its image bytes. An evaluate can return anything under the same key. */
@@ -136,6 +154,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       // the stored grant decides, never the caller; describe is the pre-step of the tool named in params.tool
       const gated = tool === 'describe' ? String(params.tool) : tool;
       if (bound.grant && tool !== 'outcome' && !PRESETS[bound.grant]?.includes(gated)) return fail(id, E.GRANT_NEEDED, `needs grant ${smallestPreset(gated) ?? 'debug'}`);
+      if (tool === 'export_test') return send({ jsonrpc: '2.0', id, result: { text: exportTest(recorded.get(bound.sessionId) ?? []) } });
       const owned = ownedPanes(db, bound.sessionId);
       let paneId = typeof params.pane_id === 'string' ? params.pane_id : null;
       if (!paneId && owned.length === 1) paneId = owned[0].id;
@@ -162,6 +181,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       const origin = deps.panes.origin(paneId);
       try {
         const result = await deps.panes.tool(paneId, tool, { ...params, _session: sessionId });
+        record(sessionId, tool, params);
         return send({ jsonrpc: '2.0', id, result: tool === 'describe' ? { ...(result as object), session_id: sessionId, pane_id: paneId } : scrubDeep(result, scrubSecretValues(), tool === 'screenshot' ? KEEP : undefined) });
       } catch (e) {
         status = `error ${e instanceof ToolError ? e.code : -32099}`;

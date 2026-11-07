@@ -5,6 +5,7 @@ import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
 import { PRESETS } from '../browser/grants.ts';
 import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.ts';
 import { serveMcp } from './mcp-stdio.ts';
+import { fence } from '../browser/snapshot.ts';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
 
@@ -13,13 +14,14 @@ const budget = {
   max_tokens: { type: 'integer', default: 4000 },
   continue: { type: 'string', description: 'The cursor named at the end of a cut answer; returns the next part.' },
 };
-const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'console', 'network', 'wait_for']);
+const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for', 'export_test']);
 const TOOLS: Array<{ name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, boolean> }> = [
   { name: 'panes', description: 'List the browser panes this session may drive.', inputSchema: { type: 'object', properties: {} } },
   { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
   { name: 'back', description: 'Go back one page. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane } } },
   { name: 'snapshot', description: 'Accessibility tree as text, child frames and shadow roots included; actionable nodes carry [ref=e12], or [ref=f1e12] inside a frame. interactive: only nodes with a ref and their ancestors. since_last: lines added (+) and removed (-) since your previous snapshot of this pane. scope_ref: only the subtree under that ref.', inputSchema: { type: 'object', properties: { ...pane, ...budget, scope_ref: { type: 'string' }, interactive: { type: 'boolean', default: false }, since_last: { type: 'boolean', default: false } } } },
   { name: 'read', description: 'The main text of the page, one line per block; search keeps only lines containing it.', inputSchema: { type: 'object', properties: { ...pane, ...budget, search: { type: 'string' } } } },
+  { name: 'find', description: 'Snapshot lines containing the query, each with its ref, path and neighbouring lines; cheaper than snapshot.', inputSchema: { type: 'object', properties: { ...pane, ...budget, query: { type: 'string' } }, required: ['query'] } },
   { name: 'click', description: 'Click the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
   { name: 'handoff', description: 'Give the pane to the user (a login, a captcha, a choice only they can make); the tile shows the reason and a Give back button. Every other browser tool fails with "the user has the pane" until they give it back.', inputSchema: { type: 'object', properties: { ...pane, reason: { type: 'string' } }, required: ['reason'] } },
   { name: 'type', description: 'Replace the text of the node with this ref. Returns the page state and the interactive snapshot diff. text "{{secret:NAME}}" fills a secret the user saved, only into a password field on the origin saved with it; you never see the value.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
@@ -32,6 +34,7 @@ const TOOLS: Array<{ name: string; description: string; inputSchema: Record<stri
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'batch', description: `Run up to ${BATCH_MAX} steps in order in one call, each {tool, args} with tool one of ${BATCH_TOOLS.join(', ')}; pane_id applies to every step unless the step gives its own. Refs come from a snapshot you took before; a batch takes no snapshot. Each step is approved and audited as a single call. stop_on_error (default true): after a failed step the rest read skipped. Returns {steps: [{step, tool, status ok|error|skipped, text}], page}, page being the url, title and changes of the last step that ran.`, inputSchema: { type: 'object', properties: { ...pane, steps: { type: 'array', minItems: 1, maxItems: BATCH_MAX, items: { type: 'object', properties: { tool: { type: 'string', enum: BATCH_TOOLS }, args: { type: 'object' } }, required: ['tool'] } }, stop_on_error: { type: 'boolean', default: true } }, required: ['steps'] } },
+  { name: 'export_test', description: 'A Playwright test file replaying the actions this session has run successfully so far. Typed text is never included.', inputSchema: { type: 'object', properties: { ...pane } } },
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
@@ -78,7 +81,9 @@ async function singleCall(name: string, args: Record<string, unknown>): Promise<
     if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
     return { content };
   }
-  if ((name === 'snapshot' || name === 'read') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+  if (name === 'export_test' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+  if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: fence(result.text) }] };
+  if (typeof (result as { changes?: unknown } | undefined)?.changes === 'string') return { content: [{ type: 'text', text: JSON.stringify({ ...result, changes: fence((result as { changes: string }).changes) }) }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 

@@ -48,7 +48,7 @@ const pane = {
 };
 internal.panes.set('bp_agent_1', pane);
 // the page's text carries the secret; the old wait_for asked the page itself whether its text included the guess
-internal.evalIsolated = async (_p: unknown, expression: string) => (expression.includes('.includes(') ? expression.includes(marker) : `Welcome ${marker} home`);
+internal.evalIsolated = async (_p: unknown, expression: string) => (expression.includes("'read')") ? { lines: [`Welcome ${marker} home`], withheld: 0 } : expression.includes('.includes(') ? expression.includes(marker) : `Welcome ${marker} home`);
 
 const r: Record<string, unknown> = {};
 // D4: each output boundary runs first in its own process (M612_MODE), before anything here decrypts the saved secret

@@ -252,6 +252,9 @@ test('tokenCount measures ASCII and multi-byte UTF-8 token budgets', () => {
   assert.equal(tokenCount('😀'), 2);
 });
 
+// protects=export_test is read-only (readOnlyHint true), like find and read, so the annotations match the spec
+// fails_when=export_test is annotated destructiveHint, or any tool outside the read-only set changes annotation
+// no_claim=the export text itself (covered by the M8-41d tests)
 test('browser-mcp tools/list exposes read tool and correct readOnly/destructive annotations', async () => {
   const script = resolve(import.meta.dirname, '..', 'metatrooper-browser.js');
   const child = spawn(process.execPath, [script], { stdio: ['pipe', 'pipe', 'inherit'] });
@@ -299,7 +302,7 @@ test('browser-mcp tools/list exposes read tool and correct readOnly/destructive 
   assert.ok(tools.some((t) => t.name === 'read'), 'read tool exists');
 
   // Verify annotations for each tool.
-  const readOnlySet = new Set(['panes', 'snapshot', 'screenshot', 'read', 'console', 'network', 'wait_for']);
+  const readOnlySet = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for', 'export_test']);
   for (const tool of tools) {
     if (readOnlySet.has(tool.name)) {
       assert.deepEqual(tool.annotations, { readOnlyHint: true }, `tool ${tool.name} readOnlyHint`);
