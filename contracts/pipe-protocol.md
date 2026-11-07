@@ -188,6 +188,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}; `token` is opaque and names the element itself; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program top-level window over the target centre, else empty (M6-18); -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
 | `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |
 | `desktop.screenshot` | `{session_id, pid, window}` | {data_base64, mime, width, height}: JPEG, no side over 1,568 px | -32030 |  |  |
+| `desktop.check` | `{session_id, pid, window, checks}` | {passed, results: [{passed, actual}]}; up to 8 title or control value checks, run with no model | -32030, -32602 |  |  |
 | `desktop.find` | `{session_id, pid, window, text}` | {found}: whether a node Name or value contains `text` | -32030 |  |  |
 | `desktop.action.verify` | `{session_id, pid, action_hash}` | {confirmed}; reads a held action predeclared exact title postcondition | -32002, -32030 |  |  |
 | `desktop.action.held` | `{session_id}` | {actions: [{action_hash, target, status, updated_at}]}; up to 100 unresolved desktop outcomes |  |  | yes |

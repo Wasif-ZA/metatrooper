@@ -32,14 +32,34 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 | `windows` | `{}` | `{windows: [{window, title, exe, grant_id, owner}]}`: each granted window, then each open window it owns (`owner` = the handle it hangs from, 0 for the granted window) |
 | `snapshot` | `{window, max_nodes?: 400}` | UI Automation tree as text, one node per line, `[ref=e12]` on each node; refs live until the next snapshot of that window. A read with fewer than 20 nodes is read again after 2 s (Chromium and Electron apps build their tree on first ask) |
 | `screenshot` | `{window}` | JPEG of that window through `PrintWindow(PW_RENDERFULLCONTENT)`, so a covered window still captures; no side over 1,568 px, and quality then size lowered until the base64 is at most 900,000 characters, since replies travel a pipe whose lines stop at 1 MiB |
-| `click` | `{window, ref}` | `{status, focus_returned?}` |
-| `type` | `{window, ref, text}` | `{status, focus_returned?}`; replaces the control's text |
-| `key` | `{window, keys}` | `{status}`; keys like `Enter`, `Tab`, `Escape`; a chord with Control or Shift is refused (see Acting) |
-| `scroll` | `{window, ref?, dy}` | `{status}`; `dy` positive scrolls down |
+| `click` | `{window, ref}` | `{status, focus_returned?, changes?}` |
+| `type` | `{window, ref, text}` | `{status, focus_returned?, changes?}`; replaces the control's text |
+| `key` | `{window, keys}` | `{status, changes?}`; keys like `Enter`, `Tab`, `Escape`; a chord with Control or Shift is refused (see Acting) |
+| `scroll` | `{window, ref?, dy}` | `{status, changes?}`; `dy` positive scrolls down |
 | `wait_for` | `{window, text, timeout_ms?: 10000}` | `{found}`; polls the tree every 250 ms for a node whose Name or value contains `text` |
+| `check` | `{window, checks}` | `{passed, results: [{passed, actual}]}` (see Checks) |
 
 `status` is `confirmed` when the helper's re-read after the action shows the value, toggle state or tree changed as
 expected, else `unverifiable`.
+
+### Changes (M8-40 row 4)
+
+Inside the same helper op as the input, the helper walks the window's tree (at most 400 nodes, the snapshot walk,
+without replacing the window's refs) right before the approved-control check and again after the action; a `click`
+or `key` waits 150 ms first, since posted input lands later. A `type` walks before its first chunk and after its
+last. The core compares the two by UI Automation runtime id (a node without one by its line) and returns
+`changes: {added, removed, changed: [{from, to}], truncated?}`: each node as its snapshot line without indent or ref,
+each list at most 20 entries, `truncated: true` when one was cut. A walk that fails leaves `changes` out and never
+fails the input. The walks are not returned.
+
+### Checks (M8-40 row 3)
+
+`checks` is 1 to 8 of `{kind: "title" | "value", ref?, op: "equals" | "contains" | "not_contains", expected}`;
+`ref` (from the latest snapshot) is required for `value`; `expected` is a string of at most 2,000 characters. The
+core reads the window title once and each value through the helper's `value` op, compares the full raw text, and
+returns each check's `passed` and `actual` (cut to 200 characters) in order, with `passed` true only when all pass.
+A password field or a control with no value reads `actual: null`, which fails every op. No model is called. A check
+never creates, clears or releases an outcome hold (below).
 
 ## Errors (tool results with `isError: true`)
 
@@ -125,11 +145,12 @@ every live grant ends; a workbench that starts again reports its key and pid ane
 
 `list`, `info {hwnd}`, `snapshot {hwnd, max_nodes}`, `describe {hwnd, ref?}`, `screenshot {hwnd}`,
 `set_text {hwnd, ref, value}`, `click {hwnd, ref}`, `key {hwnd, keys}`, `scroll {hwnd, ref?, dy}`,
-`find_text {hwnd, text}`, `process {process}` (`{process_start}`, '' when that pid is not running). `set_text`,
-`click`, `key` and `scroll` also take `ui_pid` and `ui_start` (above). A window from `list` or `info` carries `exe`
-(the image file name) and `exe_path` (the full image path, '' when it cannot be read). Two read-only ops serve the laptop test only and are never reachable through the core:
-`value {hwnd, ref}` (a control's whole value, null for a password field) and `probe` (`{cursor: [x, y],
-foreground}`).
+`find_text {hwnd, text}`, `process {process}` (`{process_start}`, '' when that pid is not running), `value {hwnd, ref}`
+(a control's whole value, null for a password field; the core reaches it only through `desktop.check`). `set_text`,
+`click`, `key` and `scroll` also take `ui_pid` and `ui_start` (above), and `tree_before` and `tree_after` (1 to add
+`[[runtime_id, line], ...]` walks to the reply, see Changes). A window from `list` or `info` carries `exe`
+(the image file name) and `exe_path` (the full image path, '' when it cannot be read). One read-only op serves the
+laptop test only and is never reachable through the core: `probe` (`{cursor: [x, y], foreground}`).
 
 ## Core methods
 
@@ -145,7 +166,8 @@ foreground}`).
 | `desktop.windows` | `{session_id, pid}` | as the `windows` tool |
 | `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}`; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program's top-level window over the target's centre, else empty (M6-18); `token` is opaque and names the element itself (its UI Automation runtime id and process), so an `expect` carrying it matches only that element |
 | `desktop.snapshot` / `desktop.screenshot` | `{session_id, pid, window, ...}` | as the tools |
-| `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | `{status, focus_returned?}`; -32035 when the control no longer matches `expect`; -32030 "paused by the user" |
+| `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | `{status, focus_returned?, changes?}`; -32035 when the control no longer matches `expect`; -32030 "paused by the user" |
+| `desktop.check` | `{session_id, pid, window, checks}` | as the `check` tool; -32602 for a malformed check list |
 
 `pid` is the caller's own process id; the core accepts a `desktop.*` call only when the session's launcher pid is
 among its ancestors.
@@ -183,6 +205,9 @@ among its ancestors.
   such a window inside those 1.5 s is not reported. Focus changes and invokes, unowned windows, other processes and
   events whose sender has no window (hwnd 0, pid 0) are reported as before.
 - Apps with no UI Automation tree get screenshots only.
+- `changes` covers what the tree showed 150 ms after a posted input; an app that updates later shows it in the next
+  snapshot instead. The two walks add their time to every input. A `type` reports one change list for all its chunks.
+- A `check` reads the state when it runs; it does not prove which action caused that state.
 
 ## Desktop outcome holds (M8-40, rows 1 and 5)
 
@@ -207,8 +232,8 @@ can call the read-only `verify {action_hash}` tool, routed to
 window and live grant, reads the title, and clears the hold only if the stored
 postcondition matches. It returns `{confirmed}`; it calls no model. The
 postcondition cannot be added or changed after dispatch. It is excluded from the
-action hash, so changing it cannot evade a hold. This narrow outcome check does
-not implement the separate general assertion API.
+action hash, so changing it cannot evade a hold. The general `check` tool (row 3)
+is separate and never clears a hold.
 
 Desktop and browser MCP tool responses label screen content as untrusted data.
 Text blocks remove Unicode default-ignorable code points, including tag,
