@@ -201,7 +201,7 @@ With nothing recorded, the test body holds only the line `// nothing recorded ye
   stop loading, then return `url`, `title`, `dialog` when one is open, `errors` (console errors since the action
   started, last 20) and `changes`: the `since_last` diff of the interactive snapshot against this session's previous
   interactive snapshot (or the whole interactive snapshot after a navigation), cut at 1,000 tokens with `continue`.
-- **Tool hints.** `tools/list` gives `panes`, `snapshot`, `screenshot`, `read`, `console`, `network` and `wait_for`
+- **Tool hints.** `tools/list` gives `panes`, `snapshot`, `screenshot`, `read`, `find`, `export_test`, `console`, `network` and `wait_for`
   `annotations: {readOnlyHint: true}`, and every other tool `{readOnlyHint: false, destructiveHint: true}`.
 - **Crashes.** After `render-process-gone` every tool fails at once with -32034 "the page crashed; call navigate to
   load it again"; `navigate` reloads the renderer, re-attaches the debugger with interception on, then loads. After
