@@ -155,7 +155,8 @@ def fill(body, args):
 
 
 def is_finding(recipe, code):
-    return code != 0 and code in (recipe.get("findings") or [])
+    found = recipe.get("findings")
+    return code != 0 and isinstance(found, list) and code in found
 
 
 def runs_body(cmd, body):
@@ -359,10 +360,11 @@ def fall_through(name, rest):
 def run_lane(args):
     if not args:
         return Result(ok=False, lane="run", exit=2, note="which recipe? Try: metarouter search <words>")
-    name, rest = args[0], args[1:]
-    no_trunc = "--no-trunc" in rest
+    no_trunc = "--no-trunc" in args
     args = [a for a in args if a != "--no-trunc"]
-    rest = [a for a in rest if a != "--no-trunc"]
+    if not args:
+        return Result(ok=False, lane="run", exit=2, note="which recipe? Try: metarouter search <words>")
+    name, rest = args[0], args[1:]
     yes = "--yes" in rest
     background = "--background" in rest
     rest = [a for a in rest if a not in ("--yes", "--background")]
