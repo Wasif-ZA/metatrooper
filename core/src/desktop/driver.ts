@@ -268,6 +268,7 @@ export class Desktop {
     const p = this.helper.request<Record<string, unknown>>(op, { ...params, ui_pid: this.uiPid, ui_start: this.uiStart }, undefined, gate)
       .then((r) => { if (posted) this.postedAt = Date.now(); return r; }, (e: Error) => {
         if (/^control changed$/.test(e.message)) throw new RpcError(CONTROL_CHANGED, `the control changed since it was checked; nothing was sent${note}`);
+        if (e.message.startsWith('background_unavailable')) throw new RpcError(E.VALIDATION, e.message + note);
         if (e.message === NOT_RUNNING) throw new RpcError(E.PANE_NOT_OWNED, `not sent: ${NOT_RUNNING}, so the agent could not be paused${note}`);
         if (posted && watchId !== null) this.postedAt = Date.now();
         throw e;

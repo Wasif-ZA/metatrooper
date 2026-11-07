@@ -73,6 +73,7 @@ by the core.
 | `this window is not in front, so the control holding its focus cannot be confirmed; nothing was sent` | `key` approved on a control that was read as itself, while the focused control now reads back only as its container (the window went to the background) |
 | `the control holding this window's focus cannot be read, so it cannot be checked; nothing was sent` | `key` on a window whose focus HWND UI Automation cannot read; the helper reads focus once per key and never falls back to the top-level window |
 | `not sent: the workbench is not running, so the agent could not be paused` | an input while the workbench that reported the take-over key has exited; the same `not sent: ..., so the agent could not be paused` names a key that never registered or was never reported (D43, F10) |
+| `background_unavailable: ...; nothing was sent` | a posted click or key that the table in "Posted input that is lost" marks as lost for the target window's class; refused with -32003 before anything is posted |
 | `Control and Shift cannot be sent: ...; nothing was sent` | a `key` chord with Control, Ctrl or Shift in any position (`Alt+Shift` and a bare `Shift` too); the MCP server, `approval.check` and `desktop.act` refuse it with -32602 before any approval is asked, and the helper refuses it again |
 
 ## Acting (D78)
@@ -94,6 +95,20 @@ The helper never calls `SendInput`, `mouse_event` or `SetCursorPos`, so the poin
   `Control+Shift+S` would arrive as a bare `s` (measured on Windows 11 Notepad, foreground and background).
 - `type` is sent in chunks of at most 8 characters: chunk n sets the control's text to the first 8n characters.
   The core checks the pause flag before each chunk and waits for each chunk's reply before the next.
+
+### Posted input that is lost
+
+The helper refuses these before posting anything (`background_unavailable: ...; nothing was sent`, -32003). Measured on
+Windows 11, 3 of 3 trials each. Nothing else is refused: WinForms Alt chords and keys, Chromium plain keys and
+Backspace, and `BM_CLICK` to a Button or CheckBox all arrive.
+
+| Target window class | Event | What happens | Remedy |
+|---|---|---|---|
+| starts with `WindowsForms10.` | posted click (`WM_LBUTTONDOWN`/`UP`) while the window at the click point is not the control's own HWND | Label and PictureBox: covered 0/3 arrive, uncovered 3/3 | uncover the window or ask the user to bring it to the front |
+| `Chrome_WidgetWin_1` | `key` whose chord includes Alt | Edge and Chrome: `Alt+g` arrives as a bare `g`; no accesskey fires | click the control the shortcut reaches |
+| `Windows.UI.Core.CoreWindow` | `key` that is not a single unmodified printable character | Calculator: Escape, Delete, Backspace, Enter, Down 0/3; a digit arrives | click the button or type into the field |
+
+The WinForms check uses the window at the click point itself, not `covered_by` (which the core filters by process): a cover from the same process also loses the click.
 
 ## Grants
 

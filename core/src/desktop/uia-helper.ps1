@@ -467,6 +467,7 @@ namespace TroopUia {
         } else {
           var rc = RectOf(own);
           var pt = new Native.POINT { X = rc[0] + rc[2] / 2, Y = rc[1] + rc[3] / 2 };
+          if (Native.WindowFromPoint(pt) != own) RefuseLost(own, "click", "");
           Native.ScreenToClient(own, ref pt);
           IntPtr lp = new IntPtr((pt.Y << 16) | (pt.X & 0xFFFF));
           Native.PostMessage(own, WM_LBUTTONDOWN, new IntPtr(1), lp);
@@ -516,11 +517,26 @@ namespace TroopUia {
       return parts;
     }
 
+    // posted input a window class is measured to lose: { class (trailing * = prefix), event kind, refusal }
+    static readonly string[][] Lost = {
+      new[] { "WindowsForms10.*", "click", "background_unavailable: a click posted to this WinForms control (WindowsForms10.*) is lost while another window covers it; uncover the window or ask the user to bring it to the front, then try again; nothing was sent" },
+      new[] { "Chrome_WidgetWin_1", "alt", "background_unavailable: a Chromium window (Chrome_WidgetWin_1) reads Alt from the keyboard state, so a posted <keys> would arrive without Alt; click the control the shortcut reaches instead; nothing was sent" },
+      new[] { "Windows.UI.Core.CoreWindow", "key", "background_unavailable: a UWP window (Windows.UI.Core.CoreWindow) ignores posted <keys>; only single characters arrive; click the button or type into the field instead; nothing was sent" },
+    };
+
+    // throws the table's refusal when this class loses this kind of posted input
+    static void RefuseLost(IntPtr target, string kind, string keys) {
+      string cls = ClassOf(target);
+      foreach (var row in Lost) if (row[1] == kind && (row[0].EndsWith("*") ? cls.StartsWith(row[0].TrimEnd('*'), StringComparison.Ordinal) : cls == row[0])) throw new Exception(row[2].Replace("<keys>", keys));
+    }
+
     static object Key(IntPtr target, string keys) {
       var parts = Chord(keys);
       var mods = parts.Take(parts.Count - 1).Select(m => Keys[m]).ToList();
       bool alt = mods.Contains(0x12);
       string last = parts[parts.Count - 1];
+      if (alt) RefuseLost(target, "alt", keys);
+      if (mods.Count > 0 || last.Length != 1 || Keys.ContainsKey(last)) RefuseLost(target, "key", keys);
       int vk; char ch = '\0';
       if (Keys.TryGetValue(last, out vk)) { if (vk == 0x0D) ch = '\r'; else if (vk == 0x09) ch = '\t'; else if (vk == 0x08) ch = '\b'; else if (vk == 0x20) ch = ' '; else if (vk == 0x1B) ch = (char)0x1B; }
       else if (last.Length > 1 && (last[0] == 'F' || last[0] == 'f') && int.TryParse(last.Substring(1), out vk) && vk >= 1 && vk <= 24) vk = 0x6F + vk;
