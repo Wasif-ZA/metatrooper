@@ -101,6 +101,10 @@ interface Pane {
   status: number | null;
   picking: ((node: number | null) => void) | null;
   parked: boolean;
+  /** Set after a re-attach; the next state event carries it once. */
+  reconnected: boolean;
+  /** When the debugger last detached. */
+  detachedAt: number;
   shownSize?: { width: number; height: number };
   /** Loopback ports the user typed into this pane. */
   typed: Set<number>;
@@ -315,7 +319,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -333,6 +337,7 @@ export class PaneManager {
     // A view with no navigation has no renderer yet; CDP commands would hang forever (seen under Linux/xvfb).
     await view.webContents.loadURL('about:blank').catch(() => {});
     pane.dbg.on('message', (_e, method, params) => { this.onDebuggerEvent(pane, method, params).catch(() => {}); });
+    pane.dbg.on('detach', (_e, reason) => this.onDetach(pane, reason));
     await this.attach(pane);
     this.layout();
     if (row.url) await this.load(pane, row.url).catch(() => {});
@@ -349,6 +354,27 @@ export class PaneManager {
     await this.cmd(pane, 'Runtime.enable', {});
     await this.cmd(pane, 'Page.enable', {});
     await this.cmd(pane, 'DOM.enable', {});
+  }
+
+  /** Re-attaches a detached debugger with the same enables and interception; a second detach within 5 s marks the pane crashed. */
+  private onDetach(pane: Pane, reason: string): void {
+    if (this.panes.get(pane.row.id) !== pane || pane.view.webContents.isDestroyed() || pane.crashed?.startsWith('the page crashed')) return;
+    this.log(pane, 'error', `the debugger detached: ${reason}`);
+    const now = Date.now();
+    if (now - pane.detachedAt < 5000) {
+      pane.crashed = "the page's debugger keeps detaching";
+      return;
+    }
+    pane.detachedAt = now;
+    pane.worlds.clear();
+    pane.ready = (async () => {
+      await this.attach(pane);
+      const parked = pane.parked;
+      pane.parked = false;
+      await this.applyViewport(pane, parked);
+      pane.reconnected = true;
+      this.emitState(pane);
+    })().catch((e: Error) => { pane.crashed ??= `the debugger could not re-attach: ${e.message}`; });
   }
 
   private wireContents(pane: Pane): void {
@@ -486,8 +512,10 @@ export class PaneManager {
   private emitState(pane: Pane): void {
     const wc = pane.view.webContents;
     if (wc.isDestroyed()) return;
+    const reconnected = pane.reconnected;
+    pane.reconnected = false;
     this.hooks.paneEvent({
-      kind: 'state', pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
+      kind: 'state', ...(reconnected ? { reconnected: true } : {}), pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
       can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(), handoff: pane.handoff,
     });
   }
@@ -518,7 +546,9 @@ export class PaneManager {
       case 'zoom-in': zoom(1); break;
       case 'zoom-out': zoom(-1); break;
       case 'zoom-reset': wc.setZoomFactor(1); break;
-      case 'devtools': if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'detach' }); break;
+      case 'devtools': if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'bottom' }); break;
+      // detaches the debugger on request, only in an e2e test run
+      case 'test-detach': if (process.env.METATROOPER_BROWSER_E2E === '1') pane.dbg.detach(); break;
       case 'find': {
         const f = arg as { text?: unknown; forward?: unknown; next?: unknown } | undefined;
         if (typeof f?.text === 'string' && f.text) wc.findInPage(f.text, { forward: f.forward !== false, findNext: f.next === true });

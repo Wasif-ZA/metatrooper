@@ -70,6 +70,10 @@ The answer is one text block of JSON `{steps, page?}`. `steps` has one entry per
 
 A `snapshot` line for a ref gains ` [covered]` at its end when the element at the centre of the ref's box is neither the element nor inside it (nor the label of a control that is), and ` [offscreen]` when nothing is there because the centre is outside the viewport. Nothing is dropped. The test is the same hit test `click` uses, run in one batched call from `DOM.getBoxModel` centres, so the page does not scroll (`window.scrollY` is unchanged). Only the first 400 main-frame refs in document order are tested; later refs, refs without a layout box, and refs inside child frames carry no tag. The tags also appear in the `changes` an action returns.
 
+### Re-attach after a detach
+
+When the pane's debugger detaches, the workbench logs the reason, re-attaches it, turns Fetch interception and the Network, Runtime, Page and DOM domains back on, re-applies the parked viewport and drops the isolated-world cache. Tool calls wait for the re-attach, so a request the policy blocks stays blocked. The next `state` pane event carries `reconnected: true`, once. A second detach within 5 s stops the retries and leaves the pane crashed with "the page's debugger keeps detaching": tools fail -32034 with that text, as for any crashed pane. DevTools opens docked (`mode: 'bottom'`).
+
 ## Version 2 (M6-11)
 
 - **Refs.** A ref is kept for the life of its element: keyed by frame id plus `backendDOMNodeId`, so two snapshots
