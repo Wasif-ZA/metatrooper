@@ -181,7 +181,8 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `grant.candidates` | `{}` | {windows: [{hwnd, title, exe, pid, process_start}]}: visible top-level windows that may be granted |  |  | yes |
 | `grant.window` | `{session_id, hwnd, pid, process_start}` | {grant_id}; -32003 for a window whose pid or process start differ from the picked candidate, the workbench, an elevated window, a gone window or a non top-level window | -32002, -32003 |  | yes |
 | `grant.revoke` | `{grant_id}` | {}; ends the grant | -32002 |  | yes |
-| `grant.live` | `{}` | {grants: [{id, session_id, hwnd, title, rect, minimized}]}; `rect` is `[x, y, w, h]` in physical pixels from the last 500 ms check |  |  | yes |
+| `grant.pin` | `{grant_id, title_pattern}` | {title_pattern}; binds the grant to a title pattern (`*` any run, the rest literal, whole title, case-sensitive) or null to unpin; a title that stops matching pauses the session | -32002, -32003, -32602 |  | yes |
+| `grant.live` | `{}` | {grants: [{id, session_id, hwnd, title, title_pattern, rect, minimized}]}; `rect` is `[x, y, w, h]` in physical pixels from the last 500 ms check |  |  | yes |
 | `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |
 | `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only; for a session that requested take-over, first reads its granted windows again and keeps the change summary for `takeover.status` | -32002 |  | yes |
 | `takeover.request` | `{session_id, pid, reason?}` | {requested, paused}; records an agent request for take-over; the user accepts it from the workbench tile, which calls `takeover.pause`; never pauses by itself; never queued | -32030 |  |  |

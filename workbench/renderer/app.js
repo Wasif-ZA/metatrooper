@@ -1289,7 +1289,9 @@ async function onClick(e) {
       const g = (ui.snap.grants || []).find((x) => x.id === el.dataset.grant);
       if (!g) return;
       const box = el.getBoundingClientRect();
-      if ((await api.paneMenu([{ id: 'revoke', label: `Stop driving ${g.title.slice(0, 60)}` }], box.left, box.bottom + 4)) === 'revoke') await rpc('grant.revoke', { grant_id: g.id });
+      const choice = await api.paneMenu([{ id: 'revoke', label: `Stop driving ${g.title.slice(0, 60)}` }, { id: 'pin', label: 'Pin to its current title' }, { id: 'unpin', label: 'Unpin' }], box.left, box.bottom + 4);
+      if (choice === 'revoke') await rpc('grant.revoke', { grant_id: g.id });
+      else if (choice === 'pin' || choice === 'unpin') await rpc('grant.pin', { grant_id: g.id, title_pattern: choice === 'pin' ? g.title : null });
       return;
     }
     case 'takeover-accept':

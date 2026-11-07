@@ -32,14 +32,53 @@ export interface GrantRow {
   ended_at: string | null;
 }
 
-/** The take-over flag (D62): paused unless the session's own resume time is later than `meta.takeover_paused_at`. */
+function metaGet(db: DatabaseSync, key: string): string | null {
+  return (db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? null;
+}
+
+function metaMap(db: DatabaseSync, key: string): Record<string, string> {
+  try { return JSON.parse(metaGet(db, key) ?? '{}') ?? {}; } catch { return {}; }
+}
+
+function metaSetMap(db: DatabaseSync, key: string, map: Record<string, string>): void {
+  db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(key, JSON.stringify(map));
+}
+
+/** The take-over flag (D62) or a pin drift: paused unless the session's own resume time is later than the pause time. */
 export function takeoverPaused(db: DatabaseSync, sessionId: string): boolean {
-  const get = (key: string) => (db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined)?.value ?? null;
-  const at = get('takeover_paused_at');
-  if (!at) return false;
-  let resumed: Record<string, string> = {};
-  try { resumed = JSON.parse(get('takeover_resumed') ?? '{}'); } catch {}
-  return !resumed[sessionId] || resumed[sessionId] <= at;
+  const resumed = metaMap(db, 'takeover_resumed');
+  const at = metaGet(db, 'takeover_paused_at');
+  if (at && (!resumed[sessionId] || resumed[sessionId] <= at)) return true;
+  const drift = metaMap(db, 'drift_paused')[sessionId];
+  return Boolean(drift) && (!resumed[sessionId] || resumed[sessionId] <= drift);
+}
+
+/** Whole-string, case-sensitive match where `*` is any run of characters and the rest is literal. */
+export function titleMatches(pattern: string, title: string): boolean {
+  return new RegExp(`^${pattern.split('*').map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\S]*')}$`).test(title);
+}
+
+export function grantPin(db: DatabaseSync, grantId: string): string | null {
+  return metaMap(db, 'grant_pins')[grantId] ?? null;
+}
+
+export function setGrantPin(db: DatabaseSync, grantId: string, pattern: string | null): void {
+  const pins = metaMap(db, 'grant_pins');
+  if (pattern === null) delete pins[grantId]; else pins[grantId] = pattern;
+  metaSetMap(db, 'grant_pins', pins);
+}
+
+/** Whether the grant is pinned and the window title no longer matches. */
+export function pinDrifted(db: DatabaseSync, g: GrantRow, title: string): boolean {
+  const pin = grantPin(db, g.id);
+  return pin !== null && !titleMatches(pin, title);
+}
+
+/** Pauses the session until the user resumes it. */
+export function pauseForDrift(db: DatabaseSync, sessionId: string): void {
+  const d = metaMap(db, 'drift_paused');
+  d[sessionId] = nowIso();
+  metaSetMap(db, 'drift_paused', d);
 }
 
 /** The grant's own window, alive, with the pid and process start the grant was made with. */
@@ -60,6 +99,7 @@ export function liveGrants(db: DatabaseSync, sessionId?: string): GrantRow[] {
 }
 
 export function endGrant(db: DatabaseSync, id: string): boolean {
+  if (grantPin(db, id) !== null) setGrantPin(db, id, null);
   return Number(db.prepare('UPDATE grant SET ended_at = ? WHERE id = ? AND ended_at IS NULL').run(nowIso(), id).changes) > 0;
 }
 

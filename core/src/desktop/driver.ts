@@ -13,10 +13,11 @@ import { treeChanges, type TreeNodes } from './changes.ts';
 import { actionHeld, ACTION_HELD, beginRiskyAction, ensureActionOutcomes, finishRiskyAction, releaseRiskyAction } from './action-outcomes.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { beginAction, endAction } from '../watch/watcher.ts';
-import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow, type WindowInfo } from '../grants.ts';
+import { covers, endGrant, grantPin, liveGrants, pauseForDrift, pinDrifted, sameWindow, setGrantPin, takeoverPaused, titleMatches, type GrantRow, type WindowInfo } from '../grants.ts';
 
 export const NOT_GRANTED = 'window not granted; ask the user to give it to you';
 export const PAUSED = 'paused by the user';
+export const PAUSED_DRIFT = 'paused: the granted window no longer shows the pinned record';
 export const OFF = 'computer use is off: the desktop plugin is disabled';
 export const CHUNK = 8;
 const NOT_RUNNING = 'the workbench is not running';
@@ -192,7 +193,7 @@ export class Desktop {
     this.db = db;
     this.demo = Boolean(opts.demo);
     db.prepare("UPDATE desktop_action_outcome SET status = 'unverifiable' WHERE status = 'pending'").run();
-    try { db.prepare("DELETE FROM meta WHERE key IN ('takeover_paused_at', 'takeover_resumed', 'takeover_requests')").run(); } catch {}
+    try { db.prepare("DELETE FROM meta WHERE key IN ('takeover_paused_at', 'takeover_resumed', 'takeover_requests', 'grant_pins', 'drift_paused')").run(); } catch {}
   }
 
   private meta(key: string): string | null {
@@ -288,7 +289,9 @@ export class Desktop {
     for (const g of grants) {
       if (w.root === g.hwnd && !sameWindow(g, w)) { endGrant(this.db, g.id); continue; }
       if (!covers(g, w)) continue;
-      if (w.root !== g.hwnd && !sameWindow(g, await this.info(g.hwnd))) { endGrant(this.db, g.id); continue; }
+      const root = w.root === g.hwnd ? w : await this.info(g.hwnd);
+      if (w.root !== g.hwnd && !sameWindow(g, root)) { endGrant(this.db, g.id); continue; }
+      if (pinDrifted(this.db, g, root.title)) { pauseForDrift(this.db, sessionId); throw new RpcError(E.PANE_NOT_OWNED, PAUSED_DRIFT); }
       return { grant: g, info: w };
     }
     throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED);
@@ -465,7 +468,10 @@ export class Desktop {
         let w: WindowInfo;
         try { w = await this.info(g.hwnd); } catch { continue; }
         if (!sameWindow(g, w)) { endGrant(this.db, g.id); this.rects.delete(g.id); }
-        else this.rects.set(g.id, { rect: w.rect, minimized: w.minimized });
+        else {
+          this.rects.set(g.id, { rect: w.rect, minimized: w.minimized });
+          if (pinDrifted(this.db, g, w.title) && !this.paused(g.session_id)) pauseForDrift(this.db, g.session_id);
+        }
       }
     } finally {
       this.ticking = false;
@@ -536,8 +542,22 @@ export class Desktop {
       endGrant(this.db, id);
       return {};
     } });
+    m.set('grant.pin', { needsUi: true, handler: async (p) => {
+      const id = str(p, 'grant_id');
+      const pat = p.title_pattern;
+      if (pat !== null && (typeof pat !== 'string' || pat.length < 1 || pat.length > 2000)) throw new RpcError(E.INVALID_PARAMS, 'title_pattern is a string of 1 to 2000 characters, or null');
+      const g = liveGrants(this.db).find((x) => x.id === id);
+      if (!g) throw new RpcError(E.NOT_FOUND, 'grant not found');
+      if (pat !== null) {
+        const w = await this.info(g.hwnd);
+        if (!sameWindow(g, w)) throw new RpcError(E.VALIDATION, 'that window is gone');
+        if (!titleMatches(pat, w.title)) throw new RpcError(E.VALIDATION, 'the pattern does not match the window title now');
+      }
+      setGrantPin(this.db, id, pat);
+      return { title_pattern: pat };
+    } });
     m.set('grant.live', { needsUi: true, handler: () => ({
-      grants: liveGrants(this.db).map((g) => ({ id: g.id, session_id: g.session_id, hwnd: g.hwnd, title: g.title, rect: this.rects.get(g.id)?.rect ?? null, minimized: this.rects.get(g.id)?.minimized ?? false })),
+      grants: liveGrants(this.db).map((g) => ({ id: g.id, session_id: g.session_id, hwnd: g.hwnd, title: g.title, title_pattern: grantPin(this.db, g.id), rect: this.rects.get(g.id)?.rect ?? null, minimized: this.rects.get(g.id)?.minimized ?? false })),
     }) });
     m.set('takeover.pause', { needsUi: true, handler: () => this.pause() });
     m.set('takeover.resume', { needsUi: true, handler: async (p) => { await this.resume(str(p, 'session_id')); return {}; } });
