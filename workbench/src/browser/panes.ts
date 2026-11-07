@@ -1427,13 +1427,15 @@ ame, after checking the ref's field is a password field on the origin saved with
             if (typeof a.text_gone === 'string' && !body.includes(a.text_gone)) return { found: true, ...clamped };
           }
           if (typeof a.url_includes === 'string' && pane.view.webContents.getURL().includes(a.url_includes)) return { found: true, ...clamped };
-          if (idle > 0 && idleFor(pane.network.values(), Date.now()) >= idle) return { found: true, ...clamped };
+          const quiet = idle > 0 ? idleFor(pane.network.values(), Date.now()) : 0;
+          if (idle > 0 && quiet >= idle) return { found: true, ...clamped };
           const t = typeof a.ref === 'string' ? resolveRef(pane.refs, a.ref) : 'unknown';
           if (typeof t === 'object') {
             const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: t.backendNodeId }).then(() => true, () => false);
             if (ok) return { found: true, ...clamped };
           }
-          await sleep(200);
+          // sleeps until the idle window would close when that is sooner than the next poll
+          await sleep(quiet > 0 ? Math.max(10, Math.min(200, idle - quiet)) : 200);
         }
         return { found: false, ...clamped };
       }
