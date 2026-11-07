@@ -1200,7 +1200,8 @@ function render(focus = false) {
   renderSheet();
   renderTabs();
   let html;
-  if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
+  if (ui.tab === 'kit') html = kitTab(); // spike m8-0
+  else if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
   else if (ui.tab === 'browser') html = renderBrowser();
   else if (ui.tab === 'handback') html = renderHandback();
   else if (ui.tab === 'git') html = renderGit();
