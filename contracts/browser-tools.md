@@ -1,6 +1,6 @@
 # metatrooper-browser MCP tools
 
-Version 2. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
+Version 3. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
 "browser not available: the MetaTrooper workbench is closed". It never hangs.
 
@@ -27,7 +27,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
 | `key` | `{pane_id, keys}` | `{ok}`; presses a key or chord on the focused element (`Enter`, `Tab`, `Escape`, `Space`, arrows, one character, with `Control+`, `Alt+`, `Shift+`, `Meta+`; `Shift+` types a character's US-layout shifted form, so `Shift+a` types `A` and `Shift+1` types `!`) |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
-| `screenshot` | `{pane_id, full_page?: bool = false, ref?, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
+| `screenshot` | `{pane_id, full_page?: bool = false, ref?, annotate?: bool = false, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
@@ -39,6 +39,40 @@ that opens a dialog while it runs returns `{ok: true, dialog: {type, message}}` 
 
 A ref whose element has left the page fails with "no longer on the page; call snapshot again"; one with no layout
 box fails with "not visible".
+
+## Version 3 (M7-1): tool presets
+
+A session may hold a browser grant, a preset that limits its tools. Each preset holds the one before it:
+
+- `look`: panes, navigate, snapshot, screenshot, scroll, read, handoff.
+- `act`: look plus back, click, type, key, select, wait_for, dialog, batch.
+- `debug`: act plus console, network, evaluate.
+
+The grant is `browser_grant` on the session row. `session.launch` takes it as `browser_grant`; else the project's `.troop/config.json` `browser.grant`; else none, which allows every tool. An unknown name fails the launch with -32602 "unknown browser grant <name>; one of look, act, debug".
+
+`browser.hello` returns `{ok: true, bound: 'session', grant}`, `grant` null when none. `tools/list` shows only the grant's tools. The workbench checks every `browser.*` call against the stored grant (`browser.describe` by its `tool` param; `outcome` is not checked): a tool outside it fails -32039 "needs grant <smallest preset>" and writes no `browser.tool` row.
+
+### Batch
+
+`batch {pane_id, steps: [{tool, args}], stop_on_error: true}` runs 1 to 20 steps in order. A step's `tool` is one of navigate, back, click, type, key, select, scroll, wait_for; `pane_id` goes to every step unless the step's `args` give their own. Before step 1 the MCP shim checks the steps (a bad count, tool or `args` fails the whole call with an MCP error whose text starts `-32602`) and the grant: if `batch` or any step tool is outside the session grant, the call fails with text `-32039 needs grant <smallest preset>` and nothing runs, so no `browser.tool` row is written. Each step then goes through the same path as a single call, so approvals, the workbench grant check and the `browser.tool` audit row apply per step, and a step on a risky control waits for its approval. A batch takes no snapshot; refs come from one taken before it.
+
+The answer is one text block of JSON `{steps, page?}`. `steps` has one entry per step, `{step, tool, status, text}`: `status` is `ok`, `error` (the step's error text in `text`) or `skipped` (no `text`). `text` of an `ok` step is its answer without the page fields. With `stop_on_error` true (the default) the steps after a failed or rejected step are `skipped`; false continues. `page` is the page footer of the last step that ran, once: that answer's `url`, `title`, `dialog`, `errors`, `error`, `changes` and `continue` that it has (absent when that step failed or has none, e.g. `wait_for`).
+
+### Waits
+
+`wait_for` takes any of `text`, `text_gone` (the text is no longer in the page's `innerText`), `ref`, `url_includes` (the page URL contains it) and `idle_ms` (no request started and none open for that long, judged from the network log); the first to hold returns `{found: true}`. With none of them it fails -32602. It polls every 200 ms. `timeout_ms` clamps to 30000; a larger value adds `clamped_to_ms: 30000` to the result. Each `network` entry gains `done_at`, set when the request finishes or fails, on the same clock as `at`. The isolated world is cached per frame and dropped when its context is destroyed, so a wait makes one `Page.createIsolatedWorld` call.
+
+### Numbered screenshots
+
+`screenshot` takes `annotate?: bool = false`. With it, the result gains `legend: string[]`, one line per number, `n -> ref, x,y,w,h`: `x,y,w,h` are CSS pixels from the captured picture's top-left, before any downscale; numbers start at 1. `browser-mcp.ts` adds the legend as one text item (lines joined by newlines) after the image. Every ref the pane holds is read with `DOM.getBoxModel` alone, so the page does not scroll (a `ref` screenshot scrolls as before, first). Boxes are kept, clamped, when they overlap the captured area: the viewport for a normal screenshot, the content (up to 16,384 px) for `full_page`, the element's box for `ref`. A ref with no layout box is skipped; getBoxModel's main-frame viewport coordinates are used as is for refs in child frames, so an out-of-process frame that cannot report a box is skipped. With no snapshot taken (the pane holds no refs) it fails -32602 "take a snapshot first". The overlay is one `pointer-events: none` container, `id="mt-annotate-overlay"`, added to `document.documentElement` in the isolated world and removed in a `finally`; `document.getElementById('mt-annotate-overlay')` is null once the call returns.
+
+### Covered and off-screen tags
+
+A `snapshot` line for a ref gains ` [covered]` at its end when the element at the centre of the ref's box is neither the element nor inside it (nor the label of a control that is), and ` [offscreen]` when nothing is there because the centre is outside the viewport. Nothing is dropped. The test is the same hit test `click` uses, run in one batched call at the centre of each element's `getBoundingClientRect()`, so the page does not scroll (`window.scrollY` is unchanged). Only the first 400 main-frame refs in document order are tested; later refs, refs without a layout box, and refs inside child frames carry no tag. The tags also appear in the `changes` an action returns.
+
+### Re-attach after a detach
+
+When the pane's debugger detaches, the workbench logs the reason, re-attaches it, turns Fetch interception and the Network, Runtime, Page and DOM domains back on, re-applies the parked viewport and drops the isolated-world cache. Tool calls wait for the re-attach, so a request the policy blocks stays blocked. The next `state` pane event carries `reconnected: true`, once. A second detach within 5 s stops the retries and leaves the pane crashed with "the page's debugger keeps detaching": tools fail -32034 with that text, as for any crashed pane. DevTools opens docked (`mode: 'bottom'`).
 
 ## Version 2 (M6-11)
 

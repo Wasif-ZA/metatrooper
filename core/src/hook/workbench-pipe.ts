@@ -33,6 +33,8 @@ export class WorkbenchPipe {
   private next = 0;
   private unavailable: string;
   sessionId: string | null | undefined;
+  /** The browser grant from the last hello; null when none. */
+  grant: string | null = null;
 
   constructor(unavailable: string) {
     this.unavailable = unavailable;
@@ -70,6 +72,7 @@ export class WorkbenchPipe {
         if (this.sessionId) {
           const r = await this.raw('browser.hello', { session_id: this.sessionId, pid: process.pid });
           if (r.error) this.sessionId = null;
+          else this.grant = (r.result as { grant?: string | null } | undefined)?.grant ?? null;
         }
         resolve(s);
       });
@@ -96,6 +99,11 @@ export class WorkbenchPipe {
     } catch {
       return false;
     }
+  }
+
+  /** The session's browser grant, or null when none or the workbench is closed. */
+  async sessionGrant(): Promise<string | null> {
+    return (await this.available()) ? this.grant : null;
   }
 
   async call(method: string, params: Record<string, unknown>): Promise<Reply> {

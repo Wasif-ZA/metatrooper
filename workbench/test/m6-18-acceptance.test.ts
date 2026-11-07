@@ -89,7 +89,7 @@ function browser(look: (session: string) => Record<string, unknown> = () => ({})
   const win = { isDestroyed: () => false, contentView: { children, addChildView: (v: any) => children.push(v), removeChildView: (v: any) => { const i = children.indexOf(v); if (i >= 0) children.splice(i, 1); removed.push(v); } } };
   const manager: any = new mods.PaneManager(win as any, { db: () => null, probe: (r: any) => probes.push(structuredClone(r)), cursor: look } as any);
   const wc = contents();
-  const pane: any = { row: { id: 'pane-1', session_id: 'session-a' }, overlay: { webContents: wc }, view: { webContents: { getZoomFactor: () => 1, getURL: () => 'http://fixture.test/' } }, shownSize: { width: 1920, height: 1080 }, handoff: null, navs: 0, errorFor: null, cursors: new Map() };
+  const pane: any = { row: { id: 'pane-1', session_id: 'session-a' }, overlay: { webContents: wc }, view: { webContents: { getZoomFactor: () => 1, getURL: () => 'http://fixture.test/' } }, shownSize: { width: 1920, height: 1080 }, handoff: null, navs: 0, errorFor: null, cursors: new Map(), worlds: new Map(), reconnected: false, detachedAt: 0 };
   manager.panes.set('pane-1', pane);
   manager.answer = async (_p: any, _s: string, work: () => Promise<unknown>) => work();
   // a ref is "x,y": the element's centre, 80 x 30 CSS pixels

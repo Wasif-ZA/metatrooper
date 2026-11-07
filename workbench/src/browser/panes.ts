@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
-import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { diffLines, dropFrame, fit, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
@@ -22,6 +22,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
 const FADE_MS = 300;
 const MAX_CAPTURE_PX = 16_384;
+/** The id of the annotate overlay container while a numbered screenshot is taken. */
+const ANNOTATE_ID = 'mt-annotate-overlay';
+/** Refs hit-tested for [covered] and [offscreen] tags, first in document order. */
+const TAGGED_REFS = 400;
+/** JS source of the hit test shared by target() and the snapshot tags: the element at a point in el's own document or shadow root, and whether that element is el or a click on it. */
+export const HIT_TEST_JS = `
+        const at = (el, x, y) => { const root = el.getRootNode(); return root.elementFromPoint ? root.elementFromPoint(x, y) : document.elementFromPoint(x, y); };
+        const hits = (el, h) => !!h && (h === el || el.contains(h) || h.closest('label')?.control === el);`;
 const EVAL_CAP = 20 * 1024;
 const URL_KEEP = 2000;
 const IMAGE_BUDGET = MAX_LINE - 64 * 1024;
@@ -87,10 +95,16 @@ interface Pane {
   navs: number;
   crashed: string | null;
   console: Array<{ at: number; level: string; text: string }>;
-  network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
+  network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; done_at?: number; error?: string }>;
+  /** Isolated-world context id per frame id. */
+  worlds: Map<string, number>;
   status: number | null;
   picking: ((node: number | null) => void) | null;
   parked: boolean;
+  /** Set after a re-attach; the next state event carries it once. */
+  reconnected: boolean;
+  /** When the debugger last detached. */
+  detachedAt: number;
   shownSize?: { width: number; height: number };
   /** Loopback ports the user typed into this pane. */
   typed: Set<number>;
@@ -305,7 +319,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -323,6 +337,7 @@ export class PaneManager {
     // A view with no navigation has no renderer yet; CDP commands would hang forever (seen under Linux/xvfb).
     await view.webContents.loadURL('about:blank').catch(() => {});
     pane.dbg.on('message', (_e, method, params) => { this.onDebuggerEvent(pane, method, params).catch(() => {}); });
+    pane.dbg.on('detach', (_e, reason) => this.onDetach(pane, reason));
     await this.attach(pane);
     this.layout();
     if (row.url) await this.load(pane, row.url).catch(() => {});
@@ -339,6 +354,27 @@ export class PaneManager {
     await this.cmd(pane, 'Runtime.enable', {});
     await this.cmd(pane, 'Page.enable', {});
     await this.cmd(pane, 'DOM.enable', {});
+  }
+
+  /** Re-attaches a detached debugger with the same enables and interception; a second detach within 5 s marks the pane crashed. */
+  private onDetach(pane: Pane, reason: string): void {
+    if (this.panes.get(pane.row.id) !== pane || pane.view.webContents.isDestroyed() || pane.crashed?.startsWith('the page crashed')) return;
+    this.log(pane, 'error', `the debugger detached: ${reason}`);
+    const now = Date.now();
+    if (now - pane.detachedAt < 5000) {
+      pane.crashed = "the page's debugger keeps detaching";
+      return;
+    }
+    pane.detachedAt = now;
+    pane.worlds.clear();
+    pane.ready = (async () => {
+      await this.attach(pane);
+      const parked = pane.parked;
+      pane.parked = false;
+      await this.applyViewport(pane, parked);
+      pane.reconnected = true;
+      this.emitState(pane);
+    })().catch((e: Error) => { pane.crashed ??= `the debugger could not re-attach: ${e.message}`; });
   }
 
   private wireContents(pane: Pane): void {
@@ -476,8 +512,10 @@ export class PaneManager {
   private emitState(pane: Pane): void {
     const wc = pane.view.webContents;
     if (wc.isDestroyed()) return;
+    const reconnected = pane.reconnected;
+    pane.reconnected = false;
     this.hooks.paneEvent({
-      kind: 'state', pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
+      kind: 'state', ...(reconnected ? { reconnected: true } : {}), pane_id: pane.row.id, url: this.pageUrl(pane), title: wc.getTitle(), loading: wc.isLoading(),
       can_back: wc.navigationHistory.canGoBack(), can_forward: wc.navigationHistory.canGoForward(), zoom: wc.getZoomFactor(), handoff: pane.handoff,
     });
   }
@@ -508,7 +546,9 @@ export class PaneManager {
       case 'zoom-in': zoom(1); break;
       case 'zoom-out': zoom(-1); break;
       case 'zoom-reset': wc.setZoomFactor(1); break;
-      case 'devtools': if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'detach' }); break;
+      case 'devtools': if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'bottom' }); break;
+      // detaches the debugger on request, only in an e2e test run
+      case 'test-detach': if (process.env.METATROOPER_BROWSER_E2E === '1') pane.dbg.detach(); break;
       case 'find': {
         const f = arg as { text?: unknown; forward?: unknown; next?: unknown } | undefined;
         if (typeof f?.text === 'string' && f.text) wc.findInPage(f.text, { forward: f.forward !== false, findNext: f.next === true });
@@ -561,8 +601,17 @@ export class PaneManager {
       this.log(pane, 'error', String(d.exception?.description ?? d.text ?? 'uncaught exception'));
       return;
     }
+    if (method === 'Runtime.executionContextsCleared') {
+      pane.worlds.clear();
+      return;
+    }
+    if (method === 'Runtime.executionContextDestroyed') {
+      for (const [f, c] of pane.worlds) if (c === params.executionContextId) pane.worlds.delete(f);
+      return;
+    }
     if (method === 'Network.loadingFailed') {
       const r = pane.network.get(params.requestId);
+      if (r) r.done_at = Date.now();
       if (r) r.error = params.blockedReason ? `${params.errorText} (${params.blockedReason})` : params.errorText;
       return;
     }
@@ -593,7 +642,7 @@ export class PaneManager {
     }
     if (method === 'Network.loadingFinished') {
       const r = pane.network.get(params.requestId);
-      if (r) r.bytes = params.encodedDataLength ?? 0;
+      if (r) { r.bytes = params.encodedDataLength ?? 0; r.done_at = Date.now(); }
       return;
     }
     if (method === 'Overlay.inspectNodeRequested' && pane.picking) {
@@ -757,17 +806,15 @@ export class PaneManager {
         const el = this.nodeType === 1 ? this : this.parentElement;
         if (!el) return null;
         if (el.disabled || el.closest('[aria-disabled="true"], fieldset:disabled')) return 'is disabled';
-        const root = el.getRootNode();
-        const at = (x, y) => (root.elementFromPoint ? root.elementFromPoint(x, y) : document.elementFromPoint(x, y));
-        const hits = (h) => !!h && (h === el || el.contains(h) || h.closest('label')?.control === el);
+        ${HIT_TEST_JS}
         const r = el.getBoundingClientRect();
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const hit = at(cx, cy);
-        if (hits(hit)) return null;
+        const hit = at(el, cx, cy);
+        if (hits(el, hit)) return null;
         for (const label of el.labels || []) {
           const b = label.getBoundingClientRect();
           const lx = b.left + b.width / 2, ly = b.top + b.height / 2;
-          if (b.width && b.height && hits(at(lx, ly))) return { dx: lx - cx, dy: ly - cy };
+          if (b.width && b.height && hits(el, at(el, lx, ly))) return { dx: lx - cx, dy: ly - cy };
         }
         if (!hit) return 'is outside the viewport';
         return 'is covered by <' + hit.tagName.toLowerCase() + (hit.id ? '#' + hit.id : '') + '>';
@@ -860,7 +907,10 @@ export class PaneManager {
 
   private async isolated(pane: Pane, frameId?: string): Promise<number> {
     const id = frameId ?? (await this.cmd(pane, 'Page.getFrameTree')).frameTree.frame.id;
+    const cached = pane.worlds.get(id);
+    if (cached !== undefined) return cached;
     const world = await this.cmd(pane, 'Page.createIsolatedWorld', { frameId: id, worldName: 'metatrooper', grantUniveralAccess: false });
+    pane.worlds.set(id, world.executionContextId);
     return world.executionContextId;
   }
 
@@ -886,8 +936,12 @@ export class PaneManager {
   /** Snapshot lines of the whole pane or of the subtree under `scopeRef`. */
   private async lines(pane: Pane, scopeRef: unknown, interactive: boolean): Promise<string[]> {
     const scope = scopeRef === undefined || scopeRef === null || scopeRef === '' ? undefined : this.node(pane, scopeRef);
-    const lines = render(await this.frames(pane), pane.refs, scope);
-    if (!lines) throw new ToolError(-32602, `ref ${String(scopeRef)} is no longer on the page; call snapshot again`);
+    const frames = await this.frames(pane);
+    const rendered = render(frames, pane.refs, scope);
+    if (!rendered) throw new ToolError(-32602, `ref ${String(scopeRef)} is no longer on the page; call snapshot again`);
+    const refOf = (l: string) => /\[ref=([^\]]+)\]/.exec(l)?.[1];
+    const tags = await this.tags(pane, rendered.map(refOf).filter((r): r is string => !!r), frames[0]?.id).catch(() => new Map<string, string>());
+    const lines = rendered.map((l) => l + (tags.get(refOf(l) ?? '') ?? ''));
     return interactive ? interactiveOnly(lines) : lines;
   }
 
@@ -949,6 +1003,76 @@ export class PaneManager {
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated while evaluate ran; its result is dropped');
     if (r.exceptionDetails) throw new ToolError(-32099, `evaluate threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
     return r.result?.value;
+  }
+
+  /** A node's border box in main-frame viewport pixels from `DOM.getBoxModel` alone (no scrolling), or undefined when it has none. */
+  private async quad(pane: Pane, backendNodeId: number): Promise<{ left: number; top: number; right: number; bottom: number } | undefined> {
+    const q: number[] | undefined = (await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId }).catch(() => undefined))?.model?.border;
+    return q && { left: Math.min(q[0], q[2], q[4], q[6]), top: Math.min(q[1], q[3], q[5], q[7]), right: Math.max(q[0], q[2], q[4], q[6]), bottom: Math.max(q[1], q[3], q[5], q[7]) };
+  }
+
+  /** ` [covered]` or ` [offscreen]` for each of the first 400 main-frame refs whose box centre is not hit by the element itself; one batched call, no scrolling; child-frame refs stay untagged. */
+  private async tags(pane: Pane, refs: string[], main: string | undefined): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ctx = await this.isolated(pane);
+    const pts = (await Promise.all(refs.filter((r) => pane.refs.byRef.get(r)?.frameId === main).slice(0, TAGGED_REFS).map(async (ref) => {
+      const n = await this.cmd(pane, 'DOM.resolveNode', { backendNodeId: pane.refs.byRef.get(ref)!.backendNodeId, executionContextId: ctx, objectGroup: 'mt-tags' }).catch(() => undefined);
+      return n?.object?.objectId ? { ref, objectId: n.object.objectId as string } : undefined;
+    }))).filter((p): p is NonNullable<typeof p> => !!p);
+    // hit-tests each node's box centre from getBoundingClientRect, which never scrolls; a boxless node stays untagged; then releases the nodes
+    const r = await this.cmd(pane, 'Runtime.callFunctionOn', {
+      executionContextId: ctx,
+      returnByValue: true,
+      functionDeclaration: `function (...nodes) {
+        return nodes.map((n) => {
+          const el = n.nodeType === 1 ? n : n.parentElement;
+          if (!el) return '';
+          ${HIT_TEST_JS}
+          const b = el.getBoundingClientRect();
+          if (!b.width || !b.height) return '';
+          const h = at(el, b.left + b.width / 2, b.top + b.height / 2);
+          return hits(el, h) ? '' : h ? ' [covered]' : ' [offscreen]';
+        });
+      }`,
+      arguments: pts.map((p) => ({ objectId: p.objectId })),
+    }).finally(() => this.cmd(pane, 'Runtime.releaseObjectGroup', { objectGroup: 'mt-tags' }).catch(() => {}));
+    (r.result?.value as string[] | undefined)?.forEach((t, i) => { if (t) out.set(pts[i].ref, t); });
+    return out;
+  }
+
+  /** Draws a red box and number over every ref with a layout box inside the captured area (the viewport, the page, or `area`) without scrolling; returns the legend. */
+  private async mark(pane: Pane, full: boolean, area?: { left: number; top: number; right: number; bottom: number }): Promise<string[]> {
+    if (!pane.refs.byRef.size) throw new ToolError(-32602, 'take a snapshot first');
+    const m = await this.cmd(pane, 'Page.getLayoutMetrics');
+    const vp = m.cssLayoutViewport ?? m.layoutViewport;
+    const content = m.cssContentSize ?? m.contentSize;
+    area ??= full
+      ? { left: -vp.pageX, top: -vp.pageY, right: content.width - vp.pageX, bottom: Math.min(content.height, MAX_CAPTURE_PX) - vp.pageY }
+      : { left: 0, top: 0, right: vp.clientWidth, bottom: vp.clientHeight };
+    // getBoxModel quads are main-frame viewport pixels, child frames included; a ref with no box is skipped
+    const boxes = (await Promise.all([...pane.refs.byRef].map(async ([ref, t]) => {
+      const b = await this.quad(pane, t.backendNodeId);
+      return b && { ref, ...b };
+    }))).filter((b): b is NonNullable<typeof b> => !!b);
+    const { kept, legend } = numberBoxes(boxes, area);
+    const items = kept.map((b) => ({ l: b.left + vp.pageX, t: b.top + vp.pageY, w: b.right - b.left, h: b.bottom - b.top }));
+    await this.evalIsolated(pane, `((items, id) => {
+      document.getElementById(id)?.remove();
+      const c = document.createElement('div');
+      c.id = id;
+      c.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2147483647';
+      items.forEach((b, i) => {
+        const d = document.createElement('div');
+        d.style.cssText = 'position:absolute;box-sizing:border-box;border:2px solid red;pointer-events:none;left:' + b.l + 'px;top:' + b.t + 'px;width:' + b.w + 'px;height:' + b.h + 'px';
+        const n = document.createElement('span');
+        n.textContent = String(i + 1);
+        n.style.cssText = 'position:absolute;left:0;top:0;background:red;color:#fff;font:bold 12px/1 sans-serif;padding:1px 3px';
+        d.appendChild(n);
+        c.appendChild(d);
+      });
+      document.documentElement.appendChild(c);
+    })(${JSON.stringify(items)}, ${JSON.stringify(ANNOTATE_ID)})`);
+    return legend;
   }
 
   private async fullPage(pane: Pane): Promise<{ png: Buffer; truncated: boolean; height: number }> {
@@ -1297,46 +1421,69 @@ ame, after checking the ref's field is a password field on the origin saved with
         return { scroll_y: await this.evalIsolated(pane, 'Math.round(window.scrollY)') };
       }
       case 'wait_for': {
-        const end = Date.now() + Math.min(Number(a.timeout_ms) || 10_000, 30_000);
+        const want = Number(a.timeout_ms) || 10_000;
+        const end = Date.now() + Math.min(want, 30_000);
+        const clamped = want > 30_000 ? { clamped_to_ms: 30_000 } : {};
+        const idle = Number(a.idle_ms);
+        if (typeof a.text !== 'string' && typeof a.text_gone !== 'string' && typeof a.url_includes !== 'string' && typeof a.ref !== 'string' && !(idle > 0)) throw new ToolError(-32602, 'wait_for needs one of text, text_gone, url_includes, idle_ms or ref');
         while (Date.now() < end) {
-          // matched against the scrubbed text, so waiting on a guess cannot confirm a secret on the page
-          if (typeof a.text === 'string' && scrub(String(await this.evalIsolated(pane, 'document.body ? document.body.innerText : ""') ?? ''), scrubSecretValues()).includes(a.text)) return { found: true };
+          if (typeof a.text === 'string' || typeof a.text_gone === 'string') {
+            // matched against the scrubbed text, so waiting on a guess cannot confirm a secret on the page
+            const body = scrub(String(await this.evalIsolated(pane, 'document.body ? document.body.innerText : ""') ?? ''), scrubSecretValues());
+            if (typeof a.text === 'string' && body.includes(a.text)) return { found: true, ...clamped };
+            if (typeof a.text_gone === 'string' && !body.includes(a.text_gone)) return { found: true, ...clamped };
+          }
+          if (typeof a.url_includes === 'string' && pane.view.webContents.getURL().includes(a.url_includes)) return { found: true, ...clamped };
+          const quiet = idle > 0 ? idleFor(pane.network.values(), Date.now()) : 0;
+          if (idle > 0 && quiet >= idle) return { found: true, ...clamped };
           const t = typeof a.ref === 'string' ? resolveRef(pane.refs, a.ref) : 'unknown';
           if (typeof t === 'object') {
             const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: t.backendNodeId }).then(() => true, () => false);
-            if (ok) return { found: true };
+            if (ok) return { found: true, ...clamped };
           }
-          await sleep(200);
+          // sleeps until the idle window would close when that is sooner than the next poll
+          await sleep(quiet > 0 ? Math.max(10, Math.min(200, idle - quiet)) : 200);
         }
-        return { found: false };
+        return { found: false, ...clamped };
       }
       case 'screenshot': {
         let png: Buffer;
         let truncated = false;
-        if (a.ref) {
-          const b = await this.box(pane, this.node(pane, a.ref), a.ref, a);
-          const m = await this.cmd(pane, 'Page.getLayoutMetrics');
-          const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
-          const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };
-          png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip })).data, 'base64');
-        } else if (a.full_page) {
-          const r = await this.fullPage(pane);
-          png = r.png;
-          truncated = r.truncated;
-        } else png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png' })).data, 'base64');
+        let legend: string[] | undefined;
+        try {
+          if (a.ref) {
+            const b = await this.box(pane, this.node(pane, a.ref), a.ref, a);
+            if (a.annotate) legend = await this.mark(pane, false, b);
+            const m = await this.cmd(pane, 'Page.getLayoutMetrics');
+            const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
+            const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };
+            png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip })).data, 'base64');
+          } else if (a.full_page) {
+            if (a.annotate) legend = await this.mark(pane, true);
+            const r = await this.fullPage(pane);
+            png = r.png;
+            truncated = r.truncated;
+          } else {
+            if (a.annotate) legend = await this.mark(pane, false);
+            png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png' })).data, 'base64');
+          }
+        } finally {
+          // removes the overlay container even when the capture threw
+          if (a.annotate) await this.evalIsolated(pane, `document.getElementById(${JSON.stringify(ANNOTATE_ID)})?.remove()`).catch(() => {});
+        }
         let img = nativeImage.createFromBuffer(png);
         const size = img.getSize();
         const k = MAX_IMAGE_SIDE / Math.max(size.width, size.height, 1);
         if (k < 1) img = img.resize({ width: Math.max(1, Math.floor(size.width * k)), height: Math.max(1, Math.floor(size.height * k)), quality: 'best' });
         const jpeg = a.format !== 'png';
         const first = (jpeg ? img.toJPEG(80) : img.toPNG()).toString('base64');
-        if (first.length <= IMAGE_BUDGET) return { data_base64: first, mime: jpeg ? 'image/jpeg' : 'image/png', width: img.getSize().width, height: img.getSize().height, truncated };
+        if (first.length <= IMAGE_BUDGET) return { data_base64: first, mime: jpeg ? 'image/jpeg' : 'image/png', width: img.getSize().width, height: img.getSize().height, truncated, ...(legend && { legend }) };
         const full = img.getSize();
         for (const scale of [1, 0.75, 0.5, 0.35]) {
           const small = scale === 1 ? img : img.resize({ width: Math.max(1, Math.floor(full.width * scale)), height: Math.max(1, Math.floor(full.height * scale)), quality: 'best' });
           for (const q of [70, 50, 30]) {
             const data = small.toJPEG(q).toString('base64');
-            if (data.length <= IMAGE_BUDGET) return { data_base64: data, mime: 'image/jpeg', width: small.getSize().width, height: small.getSize().height, truncated, reencoded: `JPEG q${q} at ${Math.round(scale * 100)}% to fit the 1 MiB limit` };
+            if (data.length <= IMAGE_BUDGET) return { data_base64: data, mime: 'image/jpeg', width: small.getSize().width, height: small.getSize().height, truncated, ...(legend && { legend }), reencoded: `JPEG q${q} at ${Math.round(scale * 100)}% to fit the 1 MiB limit` };
           }
         }
         throw new ToolError(-32099, 'the screenshot does not fit in 1 MiB even as a small JPEG; screenshot one ref instead');
@@ -1537,6 +1684,16 @@ export const UNSCRUBBED = '[withheld: the saved secrets could not be read to scr
 function whole(text: string, secrets?: string[]): string {
   if (secrets) return scrub(text, secrets);
   try { return scrub(text, scrubSecretValues()); } catch { return UNSCRUBBED; }
+}
+
+/** Milliseconds since the last request started or finished; 0 while one is open. */
+export function idleFor(ring: Iterable<{ at: number; done_at?: number }>, now: number): number {
+  let last = 0;
+  for (const r of ring) {
+    if (r.done_at === undefined) return 0;
+    last = Math.max(last, r.at, r.done_at);
+  }
+  return last ? now - last : Infinity;
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */

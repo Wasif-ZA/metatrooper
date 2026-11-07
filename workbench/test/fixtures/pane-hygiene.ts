@@ -56,7 +56,7 @@ const fakePane = (id: string) => {
   });
   const pane = {
     row: { id, project_id: 'proj' }, view: { webContents: wc }, overlay: { webContents: { isDestroyed: () => true, send() {}, executeJavaScript: async () => null } },
-    dbg: { sendCommand, detach() {} }, refs: { byRef: new Map(), byKey: new Map() }, lastSnapshot: new Map(), cursors: new Map(), navs: 0, crashed: null as string | null, console: [] as Array<{ text: string }>,
+    dbg: { sendCommand, detach() {} }, refs: { byRef: new Map(), byKey: new Map() }, lastSnapshot: new Map(), cursors: new Map(), worlds: new Map(), reconnected: false, detachedAt: 0, navs: 0, crashed: null as string | null, console: [] as Array<{ text: string }>,
     picking: null, dialog: null, errorFor: null as string | null, clickedAt: 0, popups: new Set(), pickStack: [] as number[], ready: Promise.resolve(),
   };
   internal.panes.set(id, pane);

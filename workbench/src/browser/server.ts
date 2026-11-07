@@ -4,6 +4,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
 import { appendEvent, openWriterDb } from '../../../core/src/events/append.ts';
+import { E } from '../../../core/src/pipe/errors.ts';
+import { PRESETS, smallestPreset } from '../../../core/src/browser/grants.ts';
 import { scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { scrubSecretValues } from '../../../core/src/secrets.ts';
 import { ToolError, type PaneManager, type PaneRow } from './panes.ts';
@@ -13,7 +15,7 @@ const TOOLS = new Set(['handoff', 'navigate', 'back', 'snapshot', 'read', 'click
 /** The tools the MCP server checks with the core before sending; one it stops before dispatch reports its outcome here. */
 const CHECKED = new Set(['click', 'type', 'select', 'key']);
 
-type Bound = { kind: 'session'; sessionId: string } | { kind: 'core' } | null;
+type Bound = { kind: 'session'; sessionId: string; grant: string | null } | { kind: 'core' } | null;
 
 export interface ServerDeps {
   db: () => DatabaseSync | null;
@@ -96,12 +98,12 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
           return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'core' } });
         }
         const s = typeof params.session_id === 'string'
-          ? (db.prepare('SELECT id, pid FROM session WHERE id = ? AND ended_at IS NULL').get(params.session_id) as { id: string; pid: number | null } | undefined)
+          ? (db.prepare('SELECT * FROM session WHERE id = ? AND ended_at IS NULL').get(params.session_id) as { id: string; pid: number | null; browser_grant?: string | null } | undefined)
           : undefined;
         if (!s || !s.pid || !Number.isInteger(params.pid)) return fail(id, -32030, 'unknown session');
         if (!ancestors(Number(params.pid), await parentTableAsync()).includes(s.pid)) return fail(id, -32030, 'that session is not an ancestor of the caller');
-        bound = { kind: 'session', sessionId: s.id };
-        return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'session' } });
+        bound = { kind: 'session', sessionId: s.id, grant: s.browser_grant ?? null };
+        return send({ jsonrpc: '2.0', id, result: { ok: true, bound: 'session', grant: s.browser_grant ?? null } });
       }
 
       if (method === 'browser.panes') {
@@ -131,6 +133,9 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       const tool = method.startsWith('browser.') ? method.slice(8) : '';
       if (!TOOLS.has(tool)) return fail(id, -32601, 'unknown method');
       if (bound?.kind !== 'session') return fail(id, -32030, 'this connection is not bound to a session');
+      // the stored grant decides, never the caller; describe is the pre-step of the tool named in params.tool
+      const gated = tool === 'describe' ? String(params.tool) : tool;
+      if (bound.grant && tool !== 'outcome' && !PRESETS[bound.grant]?.includes(gated)) return fail(id, E.GRANT_NEEDED, `needs grant ${smallestPreset(gated) ?? 'debug'}`);
       const owned = ownedPanes(db, bound.sessionId);
       let paneId = typeof params.pane_id === 'string' ? params.pane_id : null;
       if (!paneId && owned.length === 1) paneId = owned[0].id;
