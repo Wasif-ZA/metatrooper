@@ -1,4 +1,5 @@
 import { appendFileSync } from 'node:fs';
+import { screenResult } from './screen-data.ts';
 import { call as coreCall } from '../pipe/client.ts';
 import { actionHash, APPROVAL_TIMEOUT_MS, desktopKeysProblem, type Control } from '../approvals.ts';
 import { WorkbenchPipe, findSession, type Reply } from './workbench-pipe.ts';
@@ -9,14 +10,16 @@ const CORE_OFFLINE = 'not sent: the MetaTrooper core is offline, so this action 
 const CONTROL_CHANGED = -32035;
 
 const win = { window: { type: 'integer', description: 'A window handle from windows.' } };
-const READ_ONLY = new Set(['windows', 'snapshot', 'screenshot', 'wait_for']);
+const READ_ONLY = new Set(['windows', 'snapshot', 'screenshot', 'wait_for', 'verify']);
+const verifyTitle = { verify_title: { type: 'string', description: 'Optional exact window title expected after this action. Must differ before dispatch; verify can later clear an unresolved outcome when this title is read.' } };
 const TOOLS: ToolDef[] = [
+  { name: 'verify', description: 'Read the predeclared title postcondition of a held action and clear it only if it passes.', inputSchema: { type: 'object', properties: { action_hash: { type: 'string' } }, required: ['action_hash'] } },
   { name: 'windows', description: 'List the desktop windows the user gave this session, and the windows they own (dialogs, menus).', inputSchema: { type: 'object', properties: {} } },
   { name: 'snapshot', description: 'UI Automation tree of a window as text; each node carries [ref=e12]. Refs last until the next snapshot of that window.', inputSchema: { type: 'object', properties: { ...win, max_nodes: { type: 'integer', default: 400 } }, required: ['window'] } },
   { name: 'screenshot', description: 'JPEG of one window, even when covered; no side over 1,568 px.', inputSchema: { type: 'object', properties: { ...win }, required: ['window'] } },
-  { name: 'click', description: 'Click the control with this ref. Returns confirmed or unverifiable.', inputSchema: { type: 'object', properties: { ...win, ref: { type: 'string' } }, required: ['window', 'ref'] } },
-  { name: 'type', description: 'Replace the text of the control with this ref. Returns confirmed or unverifiable.', inputSchema: { type: 'object', properties: { ...win, ref: { type: 'string' }, text: { type: 'string' } }, required: ['window', 'ref', 'text'] } },
-  { name: 'key', description: 'Press a key in the window, e.g. "Enter", "Tab", "Escape". Control and Shift chords are refused: a posted modifier never reaches the app.', inputSchema: { type: 'object', properties: { ...win, keys: { type: 'string' } }, required: ['window', 'keys'] } },
+  { name: 'click', description: 'Click the control with this ref. Returns confirmed or unverifiable.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, ref: { type: 'string' } }, required: ['window', 'ref'] } },
+  { name: 'type', description: 'Replace the text of the control with this ref. Returns confirmed or unverifiable.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, ref: { type: 'string' }, text: { type: 'string' } }, required: ['window', 'ref', 'text'] } },
+  { name: 'key', description: 'Press a key in the window, e.g. "Enter", "Tab", "Escape". Control and Shift chords are refused: a posted modifier never reaches the app.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, keys: { type: 'string' } }, required: ['window', 'keys'] } },
   { name: 'scroll', description: 'Scroll a control (or the first scrollable one) by dy pixels; positive scrolls down.', inputSchema: { type: 'object', properties: { ...win, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['window', 'dy'] } },
   { name: 'wait_for', description: 'Wait until a control whose name or value contains text appears in the window.', inputSchema: { type: 'object', properties: { ...win, text: { type: 'string' }, timeout_ms: { type: 'integer', default: 10000 } }, required: ['window', 'text'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
@@ -93,6 +96,7 @@ async function toolCall(name: string, raw: Record<string, unknown>): Promise<obj
   const r = name === 'windows' ? await core('desktop.windows', me)
     : name === 'snapshot' ? await core('desktop.snapshot', { ...me, window: args.window, max_nodes: args.max_nodes })
     : name === 'screenshot' ? await core('desktop.screenshot', { ...me, window: args.window })
+    : name === 'verify' ? await core('desktop.action.verify', { ...me, action_hash: args.action_hash })
     : name === 'wait_for' ? await waitFor(args, session_id)
     : await input(name, args, session_id);
   if (r.error) return fail(r.error.message);
@@ -102,4 +106,4 @@ async function toolCall(name: string, raw: Record<string, unknown>): Promise<obj
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 
-serveMcp('metatrooper-desktop', TOOLS, toolCall);
+serveMcp('metatrooper-desktop', TOOLS, async (name, args) => screenResult(await toolCall(name, args)));

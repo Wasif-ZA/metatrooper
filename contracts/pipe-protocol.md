@@ -195,6 +195,9 @@ file; `session.wait` with `settle_ms` only cuts down the early returns.
 | `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |
 | `desktop.screenshot` | `{session_id, pid, window}` | {data_base64, mime, width, height}: JPEG, no side over 1,568 px | -32030 |  |  |
 | `desktop.find` | `{session_id, pid, window, text}` | {found}: whether a node Name or value contains `text` | -32030 |  |  |
+| `desktop.action.verify` | `{session_id, pid, action_hash}` | {confirmed}; reads a held action predeclared exact title postcondition | -32002, -32030 |  |  |
+| `desktop.action.held` | `{session_id}` | {actions: [{action_hash, target, status, updated_at}]}; up to 100 unresolved desktop outcomes |  |  | yes |
+| `desktop.action.release` | `{session_id, action_hash}` | {status: "released"}; clears a completed held desktop outcome | -32010, -32602 |  | yes |
 | `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | {status, focus_returned?}; `type` goes in chunks of at most 8 characters with the take-over flag checked before each; -32030 "paused by the user"; -32035 when the control no longer matches `expect`; never queued | -32030, -32602 |  |  |
 | `run.start`, `run.cancel`, `run.clear`, `run.resume`, `run.item-set`, `gate.resolve`, `schedule.set`, `pipeline.validate`, `template.list`, `variant.pick`, `variant.discard`, `variant.combine`, `board.pin`, `board.remove` | any | -32601 "moved to the pipeline products" (M6-1) | -32601 | | |
 <!-- methods:end -->

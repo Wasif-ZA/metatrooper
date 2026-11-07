@@ -79,6 +79,9 @@ const EXPECTED_METHODS = [
   'desktop.snapshot',
   'desktop.screenshot',
   'desktop.find',
+  'desktop.action.verify',
+  'desktop.action.held',
+  'desktop.action.release',
   'desktop.act',
 ];
 
@@ -128,6 +131,8 @@ const EXPECTED_NEEDS_UI = new Set([
   'grant.live',
   'takeover.pause',
   'takeover.resume',
+  'desktop.action.held',
+  'desktop.action.release',
 ]);
 
 // Seed a test session into the isolated core database.

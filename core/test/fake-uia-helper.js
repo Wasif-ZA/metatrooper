@@ -58,7 +58,7 @@ function handle(req) {
     case 'screenshot': return { data_base64: '/9j/', mime: 'image/jpeg', width: 1, height: 1 };
     case 'find_text': return { found: (w?.controls ?? []).some((c) => String(c.name).includes(req.text)) };
     case 'set_text': control(w, req.ref); log({ ...req }); return { status: 'confirmed' };
-    case 'click': case 'key': case 'scroll': log({ ...req }); return { status: 'confirmed' };
+    case 'click': case 'key': case 'scroll': log({ ...req }); return { status: current.input_status ?? 'confirmed' };
     default: throw new Error(`unknown op ${req.op}`);
   }
 }

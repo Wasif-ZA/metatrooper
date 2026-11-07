@@ -6,6 +6,7 @@ import { looksLikeCredential, redactCredentials, redactSecretValues, scrub } fro
 import { browserSecretOrigin, normalOrigin, SECRET_PLACEHOLDER } from './browser/secret-origin.js';
 import { nowIso, ulid } from './time.js';
 import { settings } from './settings.js';
+import { actionHeld, ACTION_HELD, ensureActionOutcomes } from './desktop/action-outcomes.js';
 
 export const APPROVAL_TIMEOUT_MS = 120_000;
 export const SURFACES = ['browser', 'desktop']         ;
@@ -52,9 +53,18 @@ export function normalControl(c         )                 {
 
 /** sha256 hex of the canonical JSON of the action; typed text is replaced by its own sha256 first. */
 export function actionHash(p                                                                                                                                 )         {
-  const args = { ...p.args };
+  const args = p.surface === 'desktop' ? desktopActionArgs(p.action, p.args) : { ...p.args };
   if (typeof args.text === 'string') args.text = sha256(args.text);
   return sha256(canonicalJson({ action: p.action, args, control: normalControl(p.control), session_id: p.session_id, surface: p.surface, target: p.target }));
+}
+
+export function desktopActionArgs(action        , p                         )                          {
+  const args                          = { window: Number(p.window) };
+  if (typeof p.ref === 'string' && p.ref) args.ref = p.ref;
+  if (action === 'type') args.text = typeof p.text === 'string' ? p.text : '';
+  if (action === 'key') args.keys = p.keys;
+  if (action === 'scroll') args.dy = p.dy;
+  return args;
 }
 
 const RISKY_NAME = /\b(send|submit|pay|buy|purchase|order|checkout|delete|remove|erase|publish|post|transfer|authori[sz]e|confirm)\b/i;
@@ -141,6 +151,7 @@ export class Approvals {
           secrets                ;
 
   constructor(db              , timeoutMs = APPROVAL_TIMEOUT_MS, secrets                 = () => [], hooks                = {}) {
+    ensureActionOutcomes(db);
     this.db = db;
     this.timeoutMs = timeoutMs;
     this.secrets = secrets;
@@ -167,6 +178,7 @@ export class Approvals {
     if (!this.db.prepare('SELECT 1 FROM session WHERE id = ? AND ended_at IS NULL').get(p.session_id)) return { decision: 'deny', reason: 'unknown or ended session' };
     if (this.hooks.paused?.(p.session_id)) return { decision: 'deny', reason: 'paused by the user' };
     if (p.surface === 'desktop' && this.hooks.granted && !this.hooks.granted(p.session_id, p.target)) return { decision: 'deny', reason: 'window not granted; ask the user to give it to you' };
+    if (p.surface === 'desktop' && actionHeld(this.db, hash)) return { decision: 'deny', reason: ACTION_HELD };
     const text = p.surface === 'browser' && p.action === 'type' && typeof p.args.text === 'string' ? p.args.text : '';
     if (text.includes('{{secret:')) {
       const name = SECRET_PLACEHOLDER.exec(text)?.[1];

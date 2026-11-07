@@ -118,6 +118,9 @@ export const METHODS: MethodDecl[] = [
   { name: 'desktop.snapshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, max_nodes?}', result: '{text, nodes}: the UI Automation tree with refs' },
   { name: 'desktop.screenshot', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window}', result: '{data_base64, mime, width, height}: JPEG, no side over 1,568 px' },
   { name: 'desktop.find', errors: [E.PANE_NOT_OWNED], params: '{session_id, pid, window, text}', result: '{found}: whether a node Name or value contains `text`' },
+  { name: 'desktop.action.verify', errors: [E.NOT_FOUND, E.PANE_NOT_OWNED], params: '{session_id, pid, action_hash}', result: '{confirmed}; reads a held action predeclared exact title postcondition' },
+  { name: 'desktop.action.held', needsUi: true, params: '{session_id}', result: '{actions: [{action_hash, target, status, updated_at}]}; up to 100 unresolved desktop outcomes' },
+  { name: 'desktop.action.release', needsUi: true, errors: [E.GATE_STALE, E.INVALID_PARAMS], params: '{session_id, action_hash}', result: '{status: "released"}; clears a completed held desktop outcome' },
   { name: 'desktop.act', errors: [E.PANE_NOT_OWNED, E.INVALID_PARAMS], params: '{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}', result: '{status, focus_returned?}; `type` goes in chunks of at most 8 characters with the take-over flag checked before each; -32030 "paused by the user"; -32035 when the control no longer matches `expect`; never queued' },
 ];
 

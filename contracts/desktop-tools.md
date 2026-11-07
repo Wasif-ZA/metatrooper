@@ -191,3 +191,35 @@ among its ancestors.
   such a window inside those 1.5 s is not reported. Focus changes and invokes, unowned windows, other processes and
   events whose sender has no window (hwnd 0, pid 0) are reported as before.
 - Apps with no UI Automation tree get screenshots only.
+
+## Desktop outcome holds (M8-40, rows 1 and 5)
+
+Risky desktop inputs reserve their canonical action hash in the SQLite
+`desktop_action_outcome` table immediately before the first helper write.
+A confirmed result permits another identical action. An unverifiable result,
+helper failure after reservation, or interrupted pending action holds the hash.
+Both `approval.check` and serialized `desktop.act` refuse a held hash, including
+calls already approved before the first action finished. Typed text and control
+names are never stored in this table. Risky results include `action_hash`.
+
+The trusted UI can call `desktop.action.held {session_id}` to list up to 100
+unresolved hashes and `desktop.action.release {session_id, action_hash}` to
+release an unverifiable outcome. Pending inputs cannot be released. Release does
+not approve the next input or bypass its grant and pause checks. No release tool
+is exposed to the agent. Snapshots and `wait_for` do not clear holds on their own.
+
+An input can predeclare `verify_title`, an exact expected window title that must
+differ from the title read before dispatch. Only its SHA-256 is stored. The agent
+can call the read-only `verify {action_hash}` tool, routed to
+`desktop.action.verify {session_id, pid, action_hash}`. It rechecks the original
+window and live grant, reads the title, and clears the hold only if the stored
+postcondition matches. It returns `{confirmed}`; it calls no model. The
+postcondition cannot be added or changed after dispatch. It is excluded from the
+action hash, so changing it cannot evade a hold. This narrow outcome check does
+not implement the separate general assertion API.
+
+Desktop and browser MCP tool responses label screen content as untrusted data.
+Text blocks remove Unicode default-ignorable code points, including tag,
+zero-width and bidi controls. Each removal is logged on MCP stderr as
+`{kind: "screen-text-cleaned", removed: N}`, without the screen text. The raw
+control identity remains unchanged inside approval and dispatch checks.

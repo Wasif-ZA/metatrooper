@@ -21,69 +21,72 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 
 <!-- methods:start -->
 ```text
-  core.ping              {}  (stable)
-  settings.set           {key, value}
-  core.stop              {}
-  account.state          {}
-  project.open           {path}  (stable)
-  project.clear          {project_id}
-  project.hide           {project_id}
-  session.launch         {project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, parent_id?}  (stable)
-  session.list           {project_id?, all?: bool}  (stable)
-  session.wait           {session_id, states: [state, ...], timeout_ms, settle_ms?}  (stable)
-  session.resume         {session_id}  (stable)
-  session.focus          {session_id}  (stable)
-  session.live-text      {}  (stable)
-  session.search         {query, session_ids?}
-  session.seen           {session_id}
-  session.hide           {session_id}
-  session.limit-resume   {session_id, on: bool}
-  session.clear-status   {session_id}
-  session.owners         {project_id}
-  session.paste-prompt   {session_id}
-  needs_you.mark-read    {id}
-  needs_you.mark-unread  {id}
-  needs.dismiss          {id}
-  shell.list             {}
-  shell.open             {kind, project_id}
-  shell.close            {shell_id}
-  worktree.create        {project_id, branch?, base?: "HEAD"}  (stable)
-  ui.hello               {ui_key}
-  engines.check          {}
-  hooks.install          {codex?: bool}
-  hooks.uninstall        {codex?: bool}
-  plugin.preview         {source}
-  plugin.install         {source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}
-  plugin.remove          {plugin_id}
-  plugin.secret.set      {plugin_id, name, value}
-  browser.secret.set     {name, origin, value}
-  mcp.resolve            {plugin_id, server_id, token}
-  mcp.missing            {plugin_id, names, token}
-  notify.sink.set        {kind, dest, name?, id?, kinds?, enabled?}  (stable)
-  notify.sink.list       {}  (stable)
-  notify.sink.test       {id}  (stable)
-  notify.sink.remove     {id}  (stable)
-  comment.deliver        {comment_id}
-  pane.open              {project_id, url?, session_id?, agent?: bool}  (stable)
-  pane.close             {pane_id}
-  pane.url               {pane_id, url}
-  pane.assign            {pane_id, session_id?}
-  pane.capture           {pane_id, label}
-  approval.check         {session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}
-  approval.resolve       {approval_id, decision, scope?}
-  desktop.ui-window      {pid, takeover_key, takeover_error}
-  grant.candidates       {}
-  grant.window           {session_id, hwnd, pid, process_start}
-  grant.revoke           {grant_id}
-  grant.live             {}
-  takeover.pause         {}
-  takeover.resume        {session_id}
-  desktop.windows        {session_id, pid}
-  desktop.describe       {session_id, pid, window, ref?}
-  desktop.snapshot       {session_id, pid, window, max_nodes?}
-  desktop.screenshot     {session_id, pid, window}
-  desktop.find           {session_id, pid, window, text}
-  desktop.act            {session_id, pid, window, action, ref?, text?, keys?, dy?, expect}
+  core.ping               {}  (stable)
+  settings.set            {key, value}
+  core.stop               {}
+  account.state           {}
+  project.open            {path}  (stable)
+  project.clear           {project_id}
+  project.hide            {project_id}
+  session.launch          {project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, parent_id?}  (stable)
+  session.list            {project_id?, all?: bool}  (stable)
+  session.wait            {session_id, states: [state, ...], timeout_ms, settle_ms?}  (stable)
+  session.resume          {session_id}  (stable)
+  session.focus           {session_id}  (stable)
+  session.live-text       {}  (stable)
+  session.search          {query, session_ids?}
+  session.seen            {session_id}
+  session.hide            {session_id}
+  session.limit-resume    {session_id, on: bool}
+  session.clear-status    {session_id}
+  session.owners          {project_id}
+  session.paste-prompt    {session_id}
+  needs_you.mark-read     {id}
+  needs_you.mark-unread   {id}
+  needs.dismiss           {id}
+  shell.list              {}
+  shell.open              {kind, project_id}
+  shell.close             {shell_id}
+  worktree.create         {project_id, branch?, base?: "HEAD"}  (stable)
+  ui.hello                {ui_key}
+  engines.check           {}
+  hooks.install           {codex?: bool}
+  hooks.uninstall         {codex?: bool}
+  plugin.preview          {source}
+  plugin.install          {source, approved_permissions, manifest_hash?, secrets?: {NAME: value}}
+  plugin.remove           {plugin_id}
+  plugin.secret.set       {plugin_id, name, value}
+  browser.secret.set      {name, origin, value}
+  mcp.resolve             {plugin_id, server_id, token}
+  mcp.missing             {plugin_id, names, token}
+  notify.sink.set         {kind, dest, name?, id?, kinds?, enabled?}  (stable)
+  notify.sink.list        {}  (stable)
+  notify.sink.test        {id}  (stable)
+  notify.sink.remove      {id}  (stable)
+  comment.deliver         {comment_id}
+  pane.open               {project_id, url?, session_id?, agent?: bool}  (stable)
+  pane.close              {pane_id}
+  pane.url                {pane_id, url}
+  pane.assign             {pane_id, session_id?}
+  pane.capture            {pane_id, label}
+  approval.check          {session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}
+  approval.resolve        {approval_id, decision, scope?}
+  desktop.ui-window       {pid, takeover_key, takeover_error}
+  grant.candidates        {}
+  grant.window            {session_id, hwnd, pid, process_start}
+  grant.revoke            {grant_id}
+  grant.live              {}
+  takeover.pause          {}
+  takeover.resume         {session_id}
+  desktop.windows         {session_id, pid}
+  desktop.describe        {session_id, pid, window, ref?}
+  desktop.snapshot        {session_id, pid, window, max_nodes?}
+  desktop.screenshot      {session_id, pid, window}
+  desktop.find            {session_id, pid, window, text}
+  desktop.action.verify   {session_id, pid, action_hash}
+  desktop.action.held     {session_id}
+  desktop.action.release  {session_id, action_hash}
+  desktop.act             {session_id, pid, window, action, ref?, text?, keys?, dy?, expect}
 ```
 <!-- methods:end -->
 

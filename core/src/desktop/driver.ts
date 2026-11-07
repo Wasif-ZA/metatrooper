@@ -8,7 +8,8 @@ import { coreDir, repoDir } from '../paths.ts';
 import { E, RpcError } from '../pipe/errors.ts';
 import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
-import { desktopKeysProblem } from '../approvals.ts';
+import { actionHash, desktopKeysProblem, riskReason } from '../approvals.ts';
+import { actionHeld, ACTION_HELD, beginRiskyAction, ensureActionOutcomes, finishRiskyAction, releaseRiskyAction } from './action-outcomes.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { beginAction, endAction } from '../watch/watcher.ts';
 import { covers, endGrant, liveGrants, sameWindow, takeoverPaused, type GrantRow, type WindowInfo } from '../grants.ts';
@@ -25,6 +26,7 @@ const SALT = crypto.randomBytes(16);
 /** An opaque stand-in for the element's runtime id, so an approval stays bound to the control it was checked on. */
 const tokenOf = (rid: string, pid: number) => crypto.createHmac('sha256', SALT).update(`${pid}:${rid}`).digest('hex').slice(0, 32);
 const HELPER_TIMEOUT_MS = 30_000;
+const titleHash = (title: string) => crypto.createHash('sha256').update(title).digest('hex');
 
 export function helperScript(): string {
   return process.env.METATROOPER_UIA_HELPER || path.join(coreDir, 'src', 'desktop', 'uia-helper.ps1');
@@ -154,8 +156,10 @@ export class Desktop {
   private workbench = workbenchExes();
 
   constructor(db: DatabaseSync, opts: { demo?: boolean } = {}) {
+    ensureActionOutcomes(db);
     this.db = db;
     this.demo = Boolean(opts.demo);
+    db.prepare("UPDATE desktop_action_outcome SET status = 'unverifiable' WHERE status = 'pending'").run();
     try { db.prepare("DELETE FROM meta WHERE key IN ('takeover_paused_at', 'takeover_resumed')").run(); } catch {}
   }
 
@@ -254,13 +258,14 @@ export class Desktop {
   }
 
   /** Sends one input; the pause and the grant are rechecked as the request leaves the helper queue, right before it is written. */
-  private async dispatch(sessionId: string, grantId: string, op: string, params: Record<string, unknown>, note = ''): Promise<Record<string, unknown>> {
+  private async dispatch(sessionId: string, grantId: string, op: string, params: Record<string, unknown>, note = '', beforeSend?: () => void): Promise<Record<string, unknown>> {
     let watchId: string | null = null;
     const gate = () => {
       if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
       if (!this.enabled() || !this.granted(sessionId, grantId)) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
       const unpausable = this.noTakeover ?? (this.uiStart && alive(this.uiPid!) ? null : NOT_RUNNING);
       if (unpausable) throw new RpcError(E.PANE_NOT_OWNED, `not sent: ${unpausable}, so the agent could not be paused${note}`);
+      beforeSend?.();
       watchId = beginAction(Date.now(), Number(params.pid) || 0, Number(params.hwnd) || 0);
     };
     const posted = op === 'key' || op === 'click';
@@ -314,22 +319,49 @@ export class Desktop {
         || Boolean(expect.password) !== now.password || Boolean(expect.hidden) !== now.hidden || Boolean(expect.file_dialog) !== now.file_dialog) {
         throw new RpcError(CONTROL_CHANGED, 'the control changed since it was checked; nothing was sent');
       }
-      const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, file_dialog: now.file_dialog ? 1 : 0, rid: now.rid, pid: now.pid };
-      if (action !== 'type') return this.dispatch(sessionId, now.grant_id, action, { hwnd, ref, keys: p.keys, dy: p.dy, ...seen });
-      const chars = Array.from(typeof p.text === 'string' ? p.text : '');
-      let out: Record<string, unknown> = { status: 'unverifiable' };
-      let focusLost = false;
-      let done = 0;
-      do {
-        const n = Math.min(done + CHUNK, chars.length);
-        const note = `; ${done} of ${chars.length} characters were typed`;
-        if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
-        if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
-        out = await this.dispatch(sessionId, now.grant_id, 'set_text', { hwnd, ref, value: chars.slice(0, n).join(''), ...seen }, note);
-        if (out.focus_returned === false) focusLost = true;
-        done = n;
-      } while (done < chars.length);
-      return focusLost ? { ...out, focus_returned: false } : out;
+      const check = { session_id: sessionId, surface: 'desktop', target: now.grant_id, action, args: p, control: now.control, password: now.password, hidden: now.hidden, file_dialog: now.file_dialog };
+      const hash = actionHash(check);
+      if (actionHeld(this.db, hash)) throw new RpcError(E.PANE_NOT_OWNED, ACTION_HELD);
+      const risky = riskReason(check) !== null;
+      let verifyTitleHash: string | null = null;
+      if (p.verify_title !== undefined) {
+        if (typeof p.verify_title !== 'string' || !p.verify_title || p.verify_title.length > 2000) throw new RpcError(E.INVALID_PARAMS, 'verify_title must be 1 to 2000 characters');
+        const before = await this.resolve(sessionId, hwnd);
+        if (before.info.title === p.verify_title) throw new RpcError(E.INVALID_PARAMS, 'verify_title already matches before the action');
+        verifyTitleHash = titleHash(p.verify_title);
+      }
+      let started = false;
+      const send = async (op: string, params: Record<string, unknown>, note = '') => {
+        const out = await this.dispatch(sessionId, now.grant_id, op, params, note, () => {
+          if (risky && !started) { beginRiskyAction(this.db, hash, sessionId, now.grant_id, hwnd, verifyTitleHash); started = true; }
+        });
+        return out;
+      };
+      const complete = (out: Record<string, unknown>) => {
+        if (started) finishRiskyAction(this.db, hash, out.status);
+        return risky ? { ...out, action_hash: hash } : out;
+      };
+      try {
+        const seen = { check: 1, name: c.name, automation_id: c.automation_id, role: c.role, password: now.password ? 1 : 0, hidden: now.hidden ? 1 : 0, file_dialog: now.file_dialog ? 1 : 0, rid: now.rid, pid: now.pid };
+        if (action !== 'type') return complete(await send(action, { hwnd, ref, keys: p.keys, dy: p.dy, ...seen }));
+        const chars = Array.from(typeof p.text === 'string' ? p.text : '');
+        let out: Record<string, unknown> = { status: 'unverifiable' };
+        let focusLost = false;
+        let done = 0;
+        do {
+          const n = Math.min(done + CHUNK, chars.length);
+          const note = `; ${done} of ${chars.length} characters were typed`;
+          if (this.paused(sessionId)) throw new RpcError(E.PANE_NOT_OWNED, PAUSED + note);
+          if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
+          out = await send('set_text', { hwnd, ref, value: chars.slice(0, n).join(''), ...seen }, note);
+          if (out.focus_returned === false) focusLost = true;
+          done = n;
+        } while (done < chars.length);
+        return complete(focusLost ? { ...out, focus_returned: false } : out);
+      } catch (e) {
+        if (started) finishRiskyAction(this.db, hash, 'unverifiable');
+        throw e;
+      }
     });
   }
 
@@ -469,6 +501,20 @@ export class Desktop {
       const sessionId = await this.bind(p);
       return this.read(sessionId, hwndOf(p.window), 'find_text', { text: str(p, 'text') });
     } });
+    m.set('desktop.action.verify', { handler: async (p) => {
+      const sessionId = await this.bind(p);
+      const hash = str(p, 'action_hash');
+      return this.serial(async () => {
+        const row = this.db.prepare("SELECT target, window, verify_title_hash FROM desktop_action_outcome WHERE action_hash = ? AND session_id = ? AND status = 'unverifiable'").get(hash, sessionId) as { target: string; window: number; verify_title_hash: string | null } | undefined;
+        if (!row) throw new RpcError(E.NOT_FOUND, 'held action not found');
+        const { grant, info } = await this.resolve(sessionId, row.window);
+        const confirmed = grant.id === row.target && row.verify_title_hash !== null && titleHash(info.title) === row.verify_title_hash;
+        if (confirmed) this.db.prepare("UPDATE desktop_action_outcome SET status = 'confirmed', updated_at = ? WHERE action_hash = ? AND status = 'unverifiable'").run(nowIso(), hash);
+        return { confirmed };
+      });
+    } });
+    m.set('desktop.action.held', { needsUi: true, handler: (p) => ({ actions: this.db.prepare("SELECT action_hash, target, status, updated_at FROM desktop_action_outcome WHERE session_id = ? AND status IN ('pending', 'unverifiable') ORDER BY julianday(updated_at) DESC LIMIT 100").all(str(p, 'session_id')) }) });
+    m.set('desktop.action.release', { needsUi: true, handler: (p) => releaseRiskyAction(this.db, str(p, 'session_id'), str(p, 'action_hash')) });
     m.set('desktop.act', { handler: async (p) => this.act(p, await this.bind(p)) });
   }
 }
