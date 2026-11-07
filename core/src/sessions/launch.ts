@@ -21,9 +21,11 @@ export interface LaunchPlan {
   promptDelivered: boolean;
 }
 
-export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', extra: string[] = [], host = 'pty'): LaunchPlan {
+export function planArgs(engine: EngineSpec, prompt?: string, approval = 'ask', extra: string[] = [], host = 'pty', model?: string): LaunchPlan {
   if (approval === 'isolated' && host !== 'sandbox') throw new RpcError(E.VALIDATION, 'isolated runs only on the sandbox host');
-  const argv = [engine.command, ...(engine.args ?? []), ...(engine.approval_profiles?.[approval] ?? []), ...extra];
+  if (model && !engine.model_arg) throw new RpcError(E.VALIDATION, `${engine.id} does not take a model argument`);
+  const modelArgs = model && engine.model_arg ? [engine.model_arg, model] : [];
+  const argv = [engine.command, ...(engine.args ?? []), ...(engine.approval_profiles?.[approval] ?? []), ...modelArgs, ...extra];
   if (!prompt) return { argv, promptDelivered: true };
   if (engine.prompt_arg === 'positional') return { argv: [...argv, prompt], promptDelivered: true };
   if (engine.prompt_arg && engine.prompt_arg.startsWith('-')) return { argv: [...argv, engine.prompt_arg, prompt], promptDelivered: true };
@@ -71,7 +73,7 @@ export function agentsMdArgs(engine: EngineSpec, dir: string): string[] {
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string; model?: string },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   if (beingRemoved(dir)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
@@ -88,14 +90,14 @@ export function launchSession(
     const proxy = ensureProxy();
     if (proxy) throw new RpcError(E.VALIDATION, proxy);
     fs.mkdirSync(spoolDir(id), { recursive: true });
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sandboxHookArgs(opts.engine, id)], 'sandbox');
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sandboxHookArgs(opts.engine, id)], 'sandbox', opts.model);
     argv = dockerArgv(id, opts.engine, opts.cwd ?? opts.projectPath, layout, plan.argv);
     promptDelivered = plan.promptDelivered;
   } else {
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
     const router = metarouterLaunch(opts.engine);
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id), db), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })]);
+    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id), db), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })], 'pty', opts.model);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
     env = { ...router.env, ...sessionHookEnv(opts.engine, id, db), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }), ...statePluginEnv(opts.engine) };

@@ -11,6 +11,7 @@ export interface EngineSpec {
   command: string;
   args?: string[];
   prompt_arg?: string;
+  model_arg?: string;
   resume_args?: string[];
   /** Regex, matched case-insensitively against a resumed session's last screen, that means the engine needs signing in. */
   auth_error?: string;
@@ -65,7 +66,7 @@ const HOME = os.homedir().split(String.fromCharCode(92)).join('/');
 
 export const BUILT_IN: EngineSpec[] = [
   {
-    id: 'claude', command: 'claude', prompt_arg: 'positional', resume_args: ['--resume', '{native_id}'], auth_error: 'invalid api key|please run /login|oauth token (has expired|revoked)|authentication_error', version_cmd: ['claude', '--version'],
+    id: 'claude', command: 'claude', prompt_arg: 'positional', model_arg: '--model', resume_args: ['--resume', '{native_id}'], auth_error: 'invalid api key|please run /login|oauth token (has expired|revoked)|authentication_error', version_cmd: ['claude', '--version'],
     install: 'npm install -g @anthropic-ai/claude-code', login: 'claude, then /login',
     approval_profiles: { edits: ['--permission-mode', 'acceptEdits'], contained: ['--permission-mode', 'auto'], isolated: ['--dangerously-skip-permissions'] },
     sandbox: { install: ['npm install -g @anthropic-ai/claude-code'], logins: [{ file: '~/.claude/.credentials.json', mode: 'ro' }], egress: ['api.anthropic.com', 'statsig.anthropic.com'] },
@@ -78,7 +79,7 @@ export const BUILT_IN: EngineSpec[] = [
     fatal_patterns: ['Credit balance is too low', 'Invalid API key'],
   },
   {
-    id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
+    id: 'codex', command: 'codex', ask_near_paths: true, prompt_arg: 'positional', model_arg: '-m', resume_args: ['resume', '{native_id}'], auth_error: 'not logged in|please (re-?)?log ?in|401 unauthorized|refresh token (has )?(expired|was revoked)', version_cmd: ['codex', '--version'],
     install: 'npm install -g @openai/codex', login: 'codex login',
     approval_profiles: { edits: ['--sandbox', 'workspace-write'], contained: ['--approve-for-me'], isolated: ['--dangerously-bypass-approvals-and-sandbox'] },
     sandbox: { install: ['npm install -g @openai/codex'], logins: [{ file: '~/.codex/auth.json', mode: 'ro' }], egress: ['chatgpt.com', 'api.openai.com', 'auth.openai.com'] },
@@ -88,7 +89,7 @@ export const BUILT_IN: EngineSpec[] = [
     trust: { kind: 'toml-table', file: '~/.codex/config.toml', at: ['projects'], set: { trust_level: 'trusted' }, path_style: 'windows-lower' },
   },
   {
-    id: 'agy', command: 'agy', ask_near_paths: true, prompt_arg: '--prompt-interactive', version_cmd: ['agy', '--version'],
+    id: 'agy', command: 'agy', ask_near_paths: true, prompt_arg: '--prompt-interactive', model_arg: '--model', version_cmd: ['agy', '--version'],
     install: 'Antigravity from antigravity.google, with agy on PATH', login: 'agy, then sign in',
     approval_profiles: { edits: ['--mode', 'accept-edits'], contained: ['--mode', 'accept-edits', '--sandbox'] },
     state_source: 'file-activity', activity_glob: `${HOME}/.gemini/antigravity-cli/brain/*/.system_generated/logs/**`,

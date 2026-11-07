@@ -27,11 +27,11 @@ const USAGE = `usage: troop <command> [--json]
   serve                         run the core service in this terminal (Ctrl+C stops it)
   ping                          check the core is up
   open [path]                   register a project folder (default: current folder)
-  launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]
+  launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>] [--model <name>]
                                 open claude, codex or agy in a new Windows Terminal window,
                                 optionally in a new (or existing) worktree of the project;
                                 --approval ask|edits|contained (default: contained on a worktree, else ask)
-  launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt"}, ...]
+  launch --jobs <jobs.json>     launch several: [{"engine","worktree","prompt","model"}, ...]
   sessions [--all]              list sessions (hidden ones with --all)
   owners [path]                 uncommitted files of the current project and the session that owns each
   focus|seen|hide <session>     act on a session by id or id prefix
@@ -67,7 +67,7 @@ interface Args {
   inputs: string[];
 }
 
-const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout']);
+const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout', '--model']);
 
 function parse(argv: string[]): Args {
   const a: Args = { pos: [], flags: new Set(), opts: new Map(), inputs: [] };
@@ -322,6 +322,7 @@ interface Job {
   worktree?: string;
   prompt?: string;
   approval?: string;
+  model?: string;
 }
 
 async function openProject(dir: string, json: boolean): Promise<{ code: number; id?: string; root?: string }> {
@@ -341,6 +342,11 @@ async function openProject(dir: string, json: boolean): Promise<{ code: number; 
 }
 
 async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: string) => void): Promise<number> {
+  const spec = job.model ? loadEngines().find((e) => e.id === job.engine) : undefined;
+  if (spec && !spec.model_arg) {
+    console.error(`${job.engine} does not take a model argument`);
+    return 2;
+  }
   const repo = await openProject(job.project ?? process.cwd(), json);
   if (repo.code) return repo.code;
   let target = repo.id!;
@@ -358,6 +364,7 @@ async function launchOne(job: Job, json: boolean, emit: (result: unknown, text: 
   const params: Record<string, unknown> = { project_id: target, engine_id: job.engine };
   if (job.prompt) params.prompt = job.prompt;
   if (job.approval) params.approval = job.approval;
+  if (job.model) params.model = job.model;
   if (process.env.TROOP_SESSION_ID) params.parent_id = process.env.TROOP_SESSION_ID;
   const r = await rpc('session.launch', params, json);
   if (r.result) emit(r.result, `launched ${job.engine}${job.worktree ? ` on ${job.worktree}` : ''} (approval ${r.result.approval}): session ${r.result.session_id}`);
@@ -481,6 +488,7 @@ async function main(): Promise<number> {
     case 'launch': {
       const jobsFile = a.opts.get('--jobs');
       const project = a.opts.get('--project') ?? process.cwd();
+      const model = a.opts.get('--model');
       if (jobsFile) {
         let jobs: Job[];
         try {
@@ -491,15 +499,15 @@ async function main(): Promise<number> {
           return 2;
         }
         let worst = 0;
-        for (const job of jobs) worst = Math.max(worst, await launchOne({ project, approval: a.opts.get('--approval'), ...job }, json, emit));
+        for (const job of jobs) worst = Math.max(worst, await launchOne({ project, approval: a.opts.get('--approval'), model, ...job }, json, emit));
         return worst;
       }
       const engine = a.pos[0];
       if (!engine) {
-        console.error('usage: troop launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>]\n       troop launch --jobs <jobs.json> [--project <path>]');
+        console.error('usage: troop launch <engine> [--project <path>] [--worktree <branch>] [--prompt <text>] [--model <name>]\n       troop launch --jobs <jobs.json> [--project <path>]');
         return 2;
       }
-      return launchOne({ engine, project, worktree: a.opts.get('--worktree'), prompt: a.opts.get('--prompt'), approval: a.opts.get('--approval') }, json, emit);
+      return launchOne({ engine, project, worktree: a.opts.get('--worktree'), prompt: a.opts.get('--prompt'), approval: a.opts.get('--approval'), model }, json, emit);
     }
 
     case 'sessions': {
