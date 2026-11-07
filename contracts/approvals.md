@@ -7,11 +7,11 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
 1. Before every input call (browser: `click`, `type`, `select`, `key`), the MCP server describes the target: the
    pane's origin and the control the call acts on (the ref's node, or the focused element for `key`, found through
    open shadow roots and same-origin frames).
-2. It sends `approval.check` to the core and waits (up to 120 s plus a margin) for the answer.
+2. It sends `approval.check` to the core and waits for the answer; a gate has no timer.
 3. `allow` or `approved`: it sends the call with `expect: {name, automation_id, origin, hidden, password}`, the control and
    origin it checked. The workbench re-reads them after the cursor glide, right before dispatch; a different origin, `hidden`,
    `password`, Name or AutomationId fails with -32035 and nothing is sent. The MCP server then checks again (at most 3 rounds).
-4. `rejected` returns "not approved: the user rejected this action"; `expired` returns "not approved in time";
+4. `rejected` returns "not approved: the user rejected this action"; `expired` (only a core restart) returns "not approved in time";
    `deny` returns "not sent: <reason>". The agent is never told how to approve.
 5. Core offline: the call is not sent ("the MetaTrooper core is offline, so this action cannot be checked").
 
@@ -60,7 +60,7 @@ The workbench checks the origin and the password field again right before it fil
   different `control` and asks again. A `new origin` session row covers only the origin: `key Tab` approved on a Send
   button does not cover `key Enter` on it, which asks as `risky control`.
 - Rows whose reason never takes session scope are stored with `scope: once` whatever was asked.
-- A row waiting 120 s becomes `expired` and its call returns "not approved in time". Rows still `waiting` when the
+- A waiting row never expires on a timer (M8-21). Rows still `waiting` when the
   core starts become `expired`.
 - Each waiting row has a `needs_you` row of kind `approval` with `ref` = the approval id and `text` = the summary; it
   is resolved when the approval is decided or expires.

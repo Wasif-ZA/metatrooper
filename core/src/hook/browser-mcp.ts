@@ -1,5 +1,5 @@
 import { call as coreCall } from '../pipe/client.ts';
-import { actionHash, APPROVAL_TIMEOUT_MS, type Control } from '../approvals.ts';
+import { actionHash, GATE_WAIT_MS, type Control } from '../approvals.ts';
 import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
 import { serveMcp } from './mcp-stdio.ts';
 
@@ -47,7 +47,7 @@ async function checkedCall(name: string, args: Record<string, unknown>): Promise
     if (d.error) return stopped(d.error);
     const { session_id, origin, control, password, hidden } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean; hidden: boolean };
     const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
-    const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: APPROVAL_TIMEOUT_MS + 10_000 });
+    const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: GATE_WAIT_MS });
     if (out.kind !== 'reply') return stopped({ code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' });
     if (out.reply.error) return stopped(out.reply.error);
     const v = out.reply.result as { decision: string; reason?: string };
