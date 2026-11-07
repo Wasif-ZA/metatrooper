@@ -2,6 +2,7 @@
 import { call as coreCall } from '../pipe/client.js';
 import { actionHash, APPROVAL_TIMEOUT_MS,              } from '../approvals.js';
 import { WorkbenchPipe,            } from './workbench-pipe.js';
+import { PRESETS } from '../browser/grants.js';
 import { serveMcp } from './mcp-stdio.js';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
@@ -78,4 +79,8 @@ async function toolCall(name        , args                         )            
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 
-serveMcp('metatrooper-browser', TOOLS, toolCall);
+// tools/list shows only the grant's tools; the workbench enforces it on calls
+serveMcp('metatrooper-browser', async () => {
+  const grant = await browser.sessionGrant();
+  return grant && PRESETS[grant] ? TOOLS.filter((t) => PRESETS[grant].includes(t.name)) : TOOLS;
+}, toolCall);

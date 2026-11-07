@@ -71,7 +71,7 @@ export function agentsMdArgs(engine: EngineSpec, dir: string): string[] {
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; host?: 'pty' | 'sandbox'; parentId?: string },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; browserGrant?: string; host?: 'pty' | 'sandbox'; parentId?: string },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   if (beingRemoved(dir)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
@@ -104,9 +104,9 @@ export function launchSession(
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   db.prepare(
-    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, state, state_at, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, nowIso(), nowIso());
+    `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, browser_grant, state, state_at, started_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
+  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, nowIso(), nowIso());
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {

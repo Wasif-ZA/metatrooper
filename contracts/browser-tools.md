@@ -1,6 +1,6 @@
 # metatrooper-browser MCP tools
 
-Version 2. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
+Version 3. A stdio MCP server started through the engine's `mcp_attach` only for sessions that need it: sessions launched from the browser pane. Each tool call becomes one request on `\\.\pipe\metatrooper-browser` (see
 `pipe-protocol.md`), 30 s timeout. If the pipe is missing, the tool returns an MCP error result
 "browser not available: the MetaTrooper workbench is closed". It never hangs.
 
@@ -39,6 +39,18 @@ that opens a dialog while it runs returns `{ok: true, dialog: {type, message}}` 
 
 A ref whose element has left the page fails with "no longer on the page; call snapshot again"; one with no layout
 box fails with "not visible".
+
+## Version 3 (M7-1): tool presets
+
+A session may hold a browser grant, a preset that limits its tools. Each preset holds the one before it:
+
+- `look`: panes, navigate, snapshot, screenshot, scroll, read, handoff.
+- `act`: look plus back, click, type, key, select, wait_for, dialog, batch.
+- `debug`: act plus console, network, evaluate.
+
+The grant is `browser_grant` on the session row. `session.launch` takes it as `browser_grant`; else the project's `.troop/config.json` `browser.grant`; else none, which allows every tool. An unknown name fails the launch with -32602 "unknown browser grant <name>; one of look, act, debug".
+
+`browser.hello` returns `{ok: true, bound: 'session', grant}`, `grant` null when none. `tools/list` shows only the grant's tools. The workbench checks every `browser.*` call against the stored grant (`browser.describe` by its `tool` param; `outcome` is not checked): a tool outside it fails -32039 "needs grant <smallest preset>" and writes no `browser.tool` row.
 
 ## Version 2 (M6-11)
 

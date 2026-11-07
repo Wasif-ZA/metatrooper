@@ -1,6 +1,7 @@
 import { call as coreCall } from '../pipe/client.ts';
 import { actionHash, APPROVAL_TIMEOUT_MS, type Control } from '../approvals.ts';
 import { WorkbenchPipe, type Reply } from './workbench-pipe.ts';
+import { PRESETS } from '../browser/grants.ts';
 import { serveMcp } from './mcp-stdio.ts';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
@@ -77,4 +78,8 @@ async function toolCall(name: string, args: Record<string, unknown>): Promise<ob
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 
-serveMcp('metatrooper-browser', TOOLS, toolCall);
+// tools/list shows only the grant's tools; the workbench enforces it on calls
+serveMcp('metatrooper-browser', async () => {
+  const grant = await browser.sessionGrant();
+  return grant && PRESETS[grant] ? TOOLS.filter((t) => PRESETS[grant].includes(t.name)) : TOOLS;
+}, toolCall);

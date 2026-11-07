@@ -6,7 +6,7 @@ function send(msg        )       {
 }
 
 /** A stdio MCP server: one JSON-RPC message per line, answering initialize, ping, tools/list and tools/call. */
-export function serveMcp(name        , tools           , toolCall                                                                  )       {
+export function serveMcp(name        , tools                                        , toolCall                                                                  )       {
   const handle = async (msg                                                                     )                => {
     const reply = (result         ) => { if (msg.id !== undefined) send({ jsonrpc: '2.0', id: msg.id, result }); };
     switch (msg.method) {
@@ -19,7 +19,7 @@ export function serveMcp(name        , tools           , toolCall               
       case 'ping':
         return reply({});
       case 'tools/list':
-        return reply({ tools });
+        return reply({ tools: typeof tools === 'function' ? await tools() : tools });
       case 'tools/call':
         return reply(await toolCall(String(msg.params?.name ?? ''), (msg.params?.arguments ?? {})                           ));
       default:
