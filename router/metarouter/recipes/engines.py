@@ -86,12 +86,15 @@ def argv(recipe, args, shell):
     """Return the argument list that runs this engine. Raises ValueError on a bad call."""
     engine = recipe["engine"]
     files, args = take(args, "--prompt-file")
+    if engine == "codex":
+        if files and not Path(files[-1]).is_file():
+            raise FileNotFoundError(f"{files[-1]} not found")
+        if not files and not has_prompt(args):
+            raise ValueError('codex needs a prompt: metarouter run codex "<task>"')
+        extra = ["--prompt-file", str(Path(files[-1]).resolve())] if files else []
+        return ["node", codex_companion(), "task", *args, *extra]
     if files:
         args = [*args, Path(files[-1]).read_text(encoding="utf-8")]
-    if engine == "codex":
-        if not has_prompt(args):
-            raise ValueError('codex needs a prompt: metarouter run codex "<task>"')
-        return ["node", codex_companion(), "task", *args]
     if engine == "codex-review":
         return ["node", codex_companion(), "review", "--wait", *args]
     if engine == "gemini":
