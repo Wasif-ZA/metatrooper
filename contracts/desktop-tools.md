@@ -47,6 +47,7 @@ expected, else `unverifiable`.
 |---|---|
 | `window not granted; ask the user to give it to you` | the window is not a live grant of this session nor owned by one; also for the workbench's own windows, elevated windows, and a handle whose process or process start time differ from the grant's |
 | `paused by the user` | the take-over flag is set for this session; a `type` stopped part way says how many characters landed |
+| `paused: the granted window no longer shows the pinned record` | the grant is pinned and its window's title no longer matches the pattern; the session stays paused until Resume |
 | `not approved: the user rejected this action`, `not approved in time`, `not sent: <reason>` | as `approvals.md` |
 | `desktop not available: the MetaTrooper workbench is closed` | the workbench pipe does not answer |
 | `not sent: the MetaTrooper core is offline, so this action cannot be checked` | the core pipe does not answer |
@@ -100,6 +101,12 @@ Save As, Open or Save) is covered, but every input in it carries `file_dialog: t
   ends, the user revokes it (`grant.revoke`), or the core restarts. The core checks live grants every 500 ms and at
   every call.
 - `windows` lists only this session's grants.
+- Pinned (M8-40e): the user can bind a grant to a title pattern (`*` matches any run of characters, the rest is
+  literal, the whole title, case-sensitive) with `grant.pin`, from the workbench only. The core checks the granted
+  window's own title (never an owned dialog's) on every desktop call and every 500 ms tick; a title that stops
+  matching pauses that session (`meta.drift_paused`, JSON `{session_id: iso}`), and every `desktop.*` call through
+  resolve and `approval.check` then refuse. Resume clears it, but a title still not matching pauses again on the
+  next check. Pins (`meta.grant_pins`, JSON `{grant_id: pattern}`) end with the grant and on core restart.
 
 ## Take-over (D62)
 
@@ -139,7 +146,8 @@ foreground}`).
 | `grant.candidates` | `{}` (ui.hello) | `{windows: [{hwnd, title, exe, pid, process_start}]}`: visible top-level windows that may be granted |
 | `grant.window` | `{session_id, hwnd, pid, process_start}` (ui.hello) | `{grant_id}`; -32003 for a window that cannot be granted or whose pid or process start differ from the picked candidate |
 | `grant.revoke` | `{grant_id}` (ui.hello) | `{}` |
-| `grant.live` | `{}` (ui.hello) | `{grants: [{id, session_id, hwnd, title, rect, minimized}]}`, `rect` = `[x, y, w, h]` in physical pixels |
+| `grant.pin` | `{grant_id, title_pattern}` (ui.hello) | `{title_pattern}`; `title_pattern` is 1 to 2000 characters, or null to unpin; -32003 when the window is gone or its title does not match the pattern now |
+| `grant.live` | `{}` (ui.hello) | `{grants: [{id, session_id, hwnd, title, title_pattern, rect, minimized}]}`, `rect` = `[x, y, w, h]` in physical pixels |
 | `takeover.pause` | `{}` (ui.hello) | `{paused_at}` once no chunk is in flight |
 | `takeover.resume` | `{session_id}` (ui.hello) | `{}` |
 | `desktop.windows` | `{session_id, pid}` | as the `windows` tool |

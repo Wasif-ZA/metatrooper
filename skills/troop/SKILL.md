@@ -75,6 +75,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   grant.candidates        {}
   grant.window            {session_id, hwnd, pid, process_start}
   grant.revoke            {grant_id}
+  grant.pin               {grant_id, title_pattern}
   grant.live              {}
   takeover.pause          {}
   takeover.resume         {session_id}
