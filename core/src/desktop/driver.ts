@@ -393,7 +393,7 @@ export class Desktop {
         if (!sameWindow(g, w)) { endGrant(this.db, g.id); this.rects.delete(g.id); }
         else {
           this.rects.set(g.id, { rect: w.rect, minimized: w.minimized });
-          if (pinDrifted(this.db, g, w.title)) pauseForDrift(this.db, g.session_id);
+          if (pinDrifted(this.db, g, w.title) && !this.paused(g.session_id)) pauseForDrift(this.db, g.session_id);
         }
       }
     } finally {
