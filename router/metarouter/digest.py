@@ -19,7 +19,7 @@ def build(rows, days, now=None):
     last = {}
     for r in rows:
         if r.get("recipe"):
-            last.setdefault(r["recipe"], []).append(r.get("exit") == 0)
+            last.setdefault(r["recipe"], []).append(r.get("exit") == 0 or bool(r.get("findings")))
     broke = sorted(n for n, oks in last.items() if not oks[-1] and any(oks[:-1]))
     try:
         cands = json.loads((home() / "candidates" / "candidates.json").read_text(encoding="utf-8"))
