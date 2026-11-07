@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { after } from 'node:test';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -7,10 +8,35 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { killTreeAsync } from '../../tests/helpers/kill-tree.ts';
+import { killTree, killTreeAsync } from '../../tests/helpers/kill-tree.ts';
 
 export const root = resolve(import.meta.dirname, '../..');
 export const bs = String.fromCharCode(92);
+
+/** Pids descended from `pid`, each started no earlier than its parent, from one Win32_Process query. */
+export function descendants(pid: number): number[] {
+  // ponytail: returns no pids off Windows; a ps query would cover other platforms
+  if (process.platform !== 'win32') return [];
+  const script = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $(if ($_.CreationDate) { ([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds() } else { 0 })" }';
+  const out = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 15_000 }).stdout ?? '';
+  const rows = out.split(/\r?\n/).map(line => line.trim().split(' ').map(Number)).filter(row => row[0]);
+  const born = new Map(rows.map(([p, , ms]) => [p, ms]));
+  const found: number[] = [];
+  for (const queue = [pid]; queue.length;) {
+    const parent = queue.shift()!;
+    for (const [p, pp, ms] of rows) if (pp === parent && p !== parent && !found.includes(p) && ms >= (born.get(parent) ?? 0)) { found.push(p); queue.push(p); }
+  }
+  return found;
+}
+
+/** Kills every process tree this test process started that is still running. */
+function sweep() {
+  if (process.getActiveResourcesInfo().includes('ProcessWrap')) for (const pid of descendants(process.pid)) killTree(pid);
+}
+
+// Sweeps 30 s after the file's last test, without keeping the process alive, and again on exit.
+after(() => { setTimeout(sweep, 30_000).unref(); });
+process.on('exit', sweep);
 
 const FAKE_GH_CS = [
   'public static class P { public static void Main(string[] a) {',
@@ -162,7 +188,7 @@ export async function startCore(isolated) {
         return response.result?.ok === true && response.result?.schema_version === 2;
       } finally { connection.close(); }
     }, 5000);
-  } catch (error) { child.kill(); throw error; }
+  } catch (error) { await killTreeAsync(child.pid); throw error; }
   return child;
 }
 
@@ -174,10 +200,11 @@ export async function stopCore(child, isolated) {
     finally { connection.close(); }
   } catch { child.kill('SIGINT'); }
   await Promise.race([new Promise(resolve => child.once('exit', resolve)), sleep(1500)]);
-  if (child.exitCode === null) child.kill();
+  if (child.exitCode === null) await killTreeAsync(child.pid);
 }
 
 export async function teardownCore(child, isolated) {
+  const spawned = child?.exitCode === null ? descendants(child.pid) : [];
   await stopCore(child, isolated);
   const listenerDir = join(isolated.home, 'listener-pids');
   const listeners = existsSync(listenerDir) ? readdirSync(listenerDir).map(Number) : [];
@@ -187,7 +214,7 @@ export async function teardownCore(child, isolated) {
   await until(() => listeners.every(pid => {
     try { process.kill(pid, 0); return false; } catch (error) { if (error.code === 'ESRCH') return true; throw error; }
   }), 5000);
-  const pids = new Set();
+  const pids = new Set(spawned);
   let sessionIds = [];
   let db;
   try {

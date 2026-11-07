@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './helpers.ts';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type Frame } from '../src/browser/snapshot.ts';
