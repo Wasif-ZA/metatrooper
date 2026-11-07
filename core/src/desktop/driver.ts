@@ -145,12 +145,13 @@ const capped = (lines: string[]) => ({ kept: lines.slice(0, CAP_LINES).map((l) =
 /** The capped added and removed lines per granted window between a read before and a read after the take-over. */
 export function changeSummary(before: Map<string, WindowRead>, after: Map<string, WindowRead | null>): { resumed_at: string; windows: Array<Record<string, unknown>> } {
   const windows: Array<Record<string, unknown>> = [];
-  for (const [id, now] of after) {
+  for (const id of new Set([...after.keys(), ...before.keys()])) {
     if (windows.length >= CAP_WINDOWS) break;
     const was = before.get(id);
+    const now = after.get(id);
     if (!now) { windows.push({ window: was?.hwnd, gone: true }); continue; }
     const lines = cleanLines(now.text);
-    if (!was) { windows.push({ window: now.hwnd, title: now.title, added: [], removed: [], more: 0, no_before: true, now: capped(lines).kept }); continue; }
+    if (!was) { const all = capped(lines); windows.push({ window: now.hwnd, title: now.title, added: [], removed: [], more: all.more, no_before: true, now: all.kept }); continue; }
     const old = cleanLines(was.text);
     const oldSet = new Set(old);
     const newSet = new Set(lines);
@@ -253,10 +254,10 @@ export class Desktop {
 
   async resume(sessionId: string): Promise<void> {
     if (!this.db.prepare('SELECT 1 FROM session WHERE id = ?').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
-    const requests = this.requests();
-    if (requests[sessionId] || this.before.has(sessionId)) {
+    if (this.requests()[sessionId] || this.before.has(sessionId)) {
       const before = await (this.before.get(sessionId) ?? Promise.resolve(new Map<string, WindowRead>()));
       this.summaries.set(sessionId, changeSummary(before, await this.readWindows(sessionId)));
+      const requests = this.requests();
       delete requests[sessionId];
       this.before.delete(sessionId);
       this.db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('takeover_requests', ?)").run(JSON.stringify(requests));
@@ -522,7 +523,7 @@ export class Desktop {
     m.set('takeover.resume', { needsUi: true, handler: async (p) => { await this.resume(str(p, 'session_id')); return {}; } });
     m.set('takeover.request', { handler: async (p) => {
       const sessionId = await this.bind(p);
-      const reason = (typeof p.reason === 'string' ? p.reason : '').trim().slice(0, 200).replace(/\p{Default_Ignorable_Code_Point}|\p{Cc}/gu, '');
+      const reason = Array.from((typeof p.reason === 'string' ? p.reason : '').replace(/\p{Default_Ignorable_Code_Point}|\p{Cc}/gu, '').trim()).slice(0, 200).join('');
       const requests = this.requests();
       requests[sessionId] = { at: nowIso(), reason };
       this.db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('takeover_requests', ?)").run(JSON.stringify(requests));

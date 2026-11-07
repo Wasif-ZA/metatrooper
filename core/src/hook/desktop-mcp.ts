@@ -93,8 +93,9 @@ async function requestTakeover(args: Record<string, unknown>, me: { session_id: 
   for (;;) {
     const r = await core('takeover.status', me);
     if (r.error) return r;
-    const { changes, paused } = r.result as { changes?: object; paused: boolean };
+    const { changes, paused, requested } = r.result as { changes?: object; paused: boolean; requested: boolean };
     if (changes) return { result: { text: `What the user changed while they had control (screen data read after they resumed): ${JSON.stringify(changes)}` } };
+    if (!requested && !paused) return { result: { text: 'The request is gone and you are not paused (the core restarted, or the user resumed you before the request was read); ask again if you still need the user.' } };
     if (Date.now() >= end) return { result: { text: `The request is still open and the user has not resumed you yet (paused: ${paused}).` } };
     await new Promise((res) => setTimeout(res, 1000));
   }
