@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
-import { diffLines, dropFrame, fit, interactiveOnly, newRefs, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { diffLines, dropFrame, fit, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
@@ -22,6 +22,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const OVERLAY = path.join(here, '..', '..', 'renderer', 'overlay.html');
 const FADE_MS = 300;
 const MAX_CAPTURE_PX = 16_384;
+/** The id of the annotate overlay container while a numbered screenshot is taken. */
+const ANNOTATE_ID = 'mt-annotate-overlay';
 const EVAL_CAP = 20 * 1024;
 const URL_KEEP = 2000;
 const IMAGE_BUDGET = MAX_LINE - 64 * 1024;
@@ -965,6 +967,43 @@ export class PaneManager {
     return r.result?.value;
   }
 
+  /** Draws a red box and number over every ref with a layout box inside the captured area (the viewport, the page, or `area`) without scrolling; returns the legend. */
+  private async mark(pane: Pane, full: boolean, area?: { left: number; top: number; right: number; bottom: number }): Promise<string[]> {
+    if (!pane.refs.byRef.size) throw new ToolError(-32602, 'take a snapshot first');
+    const m = await this.cmd(pane, 'Page.getLayoutMetrics');
+    const vp = m.cssLayoutViewport ?? m.layoutViewport;
+    const content = m.cssContentSize ?? m.contentSize;
+    area ??= full
+      ? { left: -vp.pageX, top: -vp.pageY, right: content.width - vp.pageX, bottom: Math.min(content.height, MAX_CAPTURE_PX) - vp.pageY }
+      : { left: 0, top: 0, right: vp.clientWidth, bottom: vp.clientHeight };
+    // getBoxModel quads are main-frame viewport pixels, child frames included; a ref with no box is skipped
+    const boxes = (await Promise.all([...pane.refs.byRef].map(async ([ref, t]) => {
+      const r = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId: t.backendNodeId }).catch(() => undefined);
+      const q: number[] | undefined = r?.model?.border;
+      if (!q) return undefined;
+      return { ref, left: Math.min(q[0], q[2], q[4], q[6]), top: Math.min(q[1], q[3], q[5], q[7]), right: Math.max(q[0], q[2], q[4], q[6]), bottom: Math.max(q[1], q[3], q[5], q[7]) };
+    }))).filter((b): b is NonNullable<typeof b> => !!b);
+    const { kept, legend } = numberBoxes(boxes, area);
+    const items = kept.map((b) => ({ l: b.left + vp.pageX, t: b.top + vp.pageY, w: b.right - b.left, h: b.bottom - b.top }));
+    await this.evalIsolated(pane, `((items, id) => {
+      document.getElementById(id)?.remove();
+      const c = document.createElement('div');
+      c.id = id;
+      c.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2147483647';
+      items.forEach((b, i) => {
+        const d = document.createElement('div');
+        d.style.cssText = 'position:absolute;box-sizing:border-box;border:2px solid red;pointer-events:none;left:' + b.l + 'px;top:' + b.t + 'px;width:' + b.w + 'px;height:' + b.h + 'px';
+        const n = document.createElement('span');
+        n.textContent = String(i + 1);
+        n.style.cssText = 'position:absolute;left:0;top:0;background:red;color:#fff;font:bold 12px/1 sans-serif;padding:1px 3px';
+        d.appendChild(n);
+        c.appendChild(d);
+      });
+      document.documentElement.appendChild(c);
+    })(${JSON.stringify(items)}, ${JSON.stringify(ANNOTATE_ID)})`);
+    return legend;
+  }
+
   private async fullPage(pane: Pane): Promise<{ png: Buffer; truncated: boolean; height: number }> {
     const m = await this.cmd(pane, 'Page.getLayoutMetrics');
     const size = m.cssContentSize ?? m.contentSize;
@@ -1337,30 +1376,41 @@ ame, after checking the ref's field is a password field on the origin saved with
       case 'screenshot': {
         let png: Buffer;
         let truncated = false;
-        if (a.ref) {
-          const b = await this.box(pane, this.node(pane, a.ref), a.ref, a);
-          const m = await this.cmd(pane, 'Page.getLayoutMetrics');
-          const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
-          const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };
-          png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip })).data, 'base64');
-        } else if (a.full_page) {
-          const r = await this.fullPage(pane);
-          png = r.png;
-          truncated = r.truncated;
-        } else png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png' })).data, 'base64');
+        let legend: string[] | undefined;
+        try {
+          if (a.ref) {
+            const b = await this.box(pane, this.node(pane, a.ref), a.ref, a);
+            if (a.annotate) legend = await this.mark(pane, false, b);
+            const m = await this.cmd(pane, 'Page.getLayoutMetrics');
+            const vp = m.cssLayoutViewport ?? m.layoutViewport ?? { pageX: 0, pageY: 0 };
+            const clip = { x: b.left + vp.pageX, y: b.top + vp.pageY, width: Math.max(1, b.right - b.left), height: Math.max(1, b.bottom - b.top), scale: 1 };
+            png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png', clip })).data, 'base64');
+          } else if (a.full_page) {
+            if (a.annotate) legend = await this.mark(pane, true);
+            const r = await this.fullPage(pane);
+            png = r.png;
+            truncated = r.truncated;
+          } else {
+            if (a.annotate) legend = await this.mark(pane, false);
+            png = Buffer.from((await this.cmd(pane, 'Page.captureScreenshot', { format: 'png' })).data, 'base64');
+          }
+        } finally {
+          // removes the overlay container even when the capture threw
+          if (a.annotate) await this.evalIsolated(pane, `document.getElementById(${JSON.stringify(ANNOTATE_ID)})?.remove()`).catch(() => {});
+        }
         let img = nativeImage.createFromBuffer(png);
         const size = img.getSize();
         const k = MAX_IMAGE_SIDE / Math.max(size.width, size.height, 1);
         if (k < 1) img = img.resize({ width: Math.max(1, Math.floor(size.width * k)), height: Math.max(1, Math.floor(size.height * k)), quality: 'best' });
         const jpeg = a.format !== 'png';
         const first = (jpeg ? img.toJPEG(80) : img.toPNG()).toString('base64');
-        if (first.length <= IMAGE_BUDGET) return { data_base64: first, mime: jpeg ? 'image/jpeg' : 'image/png', width: img.getSize().width, height: img.getSize().height, truncated };
+        if (first.length <= IMAGE_BUDGET) return { data_base64: first, mime: jpeg ? 'image/jpeg' : 'image/png', width: img.getSize().width, height: img.getSize().height, truncated, ...(legend && { legend }) };
         const full = img.getSize();
         for (const scale of [1, 0.75, 0.5, 0.35]) {
           const small = scale === 1 ? img : img.resize({ width: Math.max(1, Math.floor(full.width * scale)), height: Math.max(1, Math.floor(full.height * scale)), quality: 'best' });
           for (const q of [70, 50, 30]) {
             const data = small.toJPEG(q).toString('base64');
-            if (data.length <= IMAGE_BUDGET) return { data_base64: data, mime: 'image/jpeg', width: small.getSize().width, height: small.getSize().height, truncated, reencoded: `JPEG q${q} at ${Math.round(scale * 100)}% to fit the 1 MiB limit` };
+            if (data.length <= IMAGE_BUDGET) return { data_base64: data, mime: 'image/jpeg', width: small.getSize().width, height: small.getSize().height, truncated, ...(legend && { legend }), reencoded: `JPEG q${q} at ${Math.round(scale * 100)}% to fit the 1 MiB limit` };
           }
         }
         throw new ToolError(-32099, 'the screenshot does not fit in 1 MiB even as a small JPEG; screenshot one ref instead');

@@ -26,7 +26,7 @@ const TOOLS                                                                     
   { name: 'select', description: 'Choose an option in a select element. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, value: { type: 'string' } }, required: ['ref', 'value'] } },
   { name: 'scroll', description: 'Scroll the page, or a node into view.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['dy'] } },
   { name: 'wait_for', description: 'Wait until any one condition holds: text appears, text_gone (text no longer on the page), a ref exists, url_includes (page URL contains it), or idle_ms (no request started or open for that long). At least one is required. timeout_ms is capped at 30000; a larger value returns clamped_to_ms.', inputSchema: { type: 'object', properties: { ...pane, text: { type: 'string' }, text_gone: { type: 'string' }, ref: { type: 'string' }, url_includes: { type: 'string' }, idle_ms: { type: 'integer' }, timeout_ms: { type: 'integer', default: 10000 } } } },
-  { name: 'screenshot', description: 'JPEG of the viewport, the full page, or one element (ref); no side over 1,568 px.', inputSchema: { type: 'object', properties: { ...pane, full_page: { type: 'boolean', default: false }, ref: { type: 'string' }, format: { type: 'string', enum: ['jpeg', 'png'], default: 'jpeg' } } } },
+  { name: 'screenshot', description: 'JPEG of the viewport, the full page, or one element (ref); no side over 1,568 px. annotate: true draws a red numbered box over every ref of your last snapshot that is in the picture and adds a text legend, one line per number: "n -> ref, x,y,w,h".', inputSchema: { type: 'object', properties: { ...pane, full_page: { type: 'boolean', default: false }, ref: { type: 'string' }, annotate: { type: 'boolean', default: false }, format: { type: 'string', enum: ['jpeg', 'png'], default: 'jpeg' } } } },
   { name: 'evaluate', description: 'Run a JavaScript expression in an isolated world; result capped at 20 KB.', inputSchema: { type: 'object', properties: { ...pane, expression: { type: 'string' } }, required: ['expression'] } },
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
@@ -69,10 +69,11 @@ async function toolCall(name        , args                         )            
   const { expect: _drop, ...clean } = args ?? {};
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
   if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
-  const result = r.result                                                                                           ;
+  const result = r.result                                                                                                              ;
   if (name === 'screenshot' && result?.data_base64) {
     const content           = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];
     if (result.truncated) content.push({ type: 'text', text: 'truncated: the page is taller than 16,384 px' });
+    if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
     return { content };
   }
   if ((name === 'snapshot' || name === 'read') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };

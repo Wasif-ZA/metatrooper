@@ -165,3 +165,14 @@ export function fit(lines: string[], maxTokens: number, trailer: string): { head
   if (i === 0) return { head: [lines[0].slice(0, Math.max(0, (maxTokens - used - 1) * 3))], rest: lines.slice(1) };
   return { head: lines.slice(0, i), rest: lines.slice(i) };
 }
+
+export interface Rect { left: number; top: number; right: number; bottom: number }
+
+/** Clamps each box to the captured area, drops those outside it, and numbers the rest from 1 with a legend line `n -> ref, x,y,w,h` (x,y from the area's top-left). */
+export function numberBoxes(boxes: Array<Rect & { ref: string }>, area: Rect): { kept: Array<Rect & { ref: string }>; legend: string[] } {
+  const kept = boxes
+    .map((b) => ({ ref: b.ref, left: Math.max(b.left, area.left), top: Math.max(b.top, area.top), right: Math.min(b.right, area.right), bottom: Math.min(b.bottom, area.bottom) }))
+    .filter((b) => b.right > b.left && b.bottom > b.top);
+  const legend = kept.map((b, i) => `${i + 1} -> ${b.ref}, ${Math.round(b.left - area.left)},${Math.round(b.top - area.top)},${Math.round(b.right - b.left)},${Math.round(b.bottom - b.top)}`);
+  return { kept, legend };
+}

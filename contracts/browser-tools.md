@@ -27,7 +27,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `scroll` | `{pane_id, ref?, dy: int}` | `{scroll_y}` |
 | `key` | `{pane_id, keys}` | `{ok}`; presses a key or chord on the focused element (`Enter`, `Tab`, `Escape`, `Space`, arrows, one character, with `Control+`, `Alt+`, `Shift+`, `Meta+`; `Shift+` types a character's US-layout shifted form, so `Shift+a` types `A` and `Shift+1` types `!`) |
 | `wait_for` | `{pane_id, text? , ref?, timeout_ms?: int = 10000}` | `{found: bool}` |
-| `screenshot` | `{pane_id, full_page?: bool = false, ref?, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
+| `screenshot` | `{pane_id, full_page?: bool = false, ref?, annotate?: bool = false, format?: 'jpeg' \| 'png' = 'jpeg'}` | image content, JPEG quality 80 by default; `ref` crops to that element's border box; the image is scaled down so no side is over 1,568 px |
 | `evaluate` | `{pane_id, expression}` | `{value}` (JSON-serialisable result, 20 KB cap) |
 | `console` | `{pane_id, since_ms?: int}` | last 200 console messages, uncaught page errors (`error`), dialogs and blocked requests |
 | `network` | `{pane_id, since_ms?: int}` | last 200 requests: method, url, status, bytes, and `error` for a failed request |
@@ -55,6 +55,10 @@ The grant is `browser_grant` on the session row. `session.launch` takes it as `b
 ### Waits
 
 `wait_for` takes any of `text`, `text_gone` (the text is no longer in the page's `innerText`), `ref`, `url_includes` (the page URL contains it) and `idle_ms` (no request started and none open for that long, judged from the network log); the first to hold returns `{found: true}`. With none of them it fails -32602. It polls every 200 ms. `timeout_ms` clamps to 30000; a larger value adds `clamped_to_ms: 30000` to the result. Each `network` entry gains `done_at`, set when the request finishes or fails, on the same clock as `at`. The isolated world is cached per frame and dropped when its context is destroyed, so a wait makes one `Page.createIsolatedWorld` call.
+
+### Numbered screenshots
+
+`screenshot` takes `annotate?: bool = false`. With it, the result gains `legend: string[]`, one line per number, `n -> ref, x,y,w,h`: `x,y,w,h` are CSS pixels from the captured picture's top-left, before any downscale; numbers start at 1. `browser-mcp.ts` adds the legend as one text item (lines joined by newlines) after the image. Every ref the pane holds is read with `DOM.getBoxModel` alone, so the page does not scroll (a `ref` screenshot scrolls as before, first). Boxes are kept, clamped, when they overlap the captured area: the viewport for a normal screenshot, the content (up to 16,384 px) for `full_page`, the element's box for `ref`. A ref with no layout box is skipped; getBoxModel's main-frame viewport coordinates are used as is for refs in child frames, so an out-of-process frame that cannot report a box is skipped. With no snapshot taken (the pane holds no refs) it fails -32602 "take a snapshot first". The overlay is one `pointer-events: none` container, `id="mt-annotate-overlay"`, added to `document.documentElement` in the isolated world and removed in a `finally`; `document.getElementById('mt-annotate-overlay')` is null once the call returns.
 
 ## Version 2 (M6-11)
 
