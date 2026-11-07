@@ -52,6 +52,10 @@ The grant is `browser_grant` on the session row. `session.launch` takes it as `b
 
 `browser.hello` returns `{ok: true, bound: 'session', grant}`, `grant` null when none. `tools/list` shows only the grant's tools. The workbench checks every `browser.*` call against the stored grant (`browser.describe` by its `tool` param; `outcome` is not checked): a tool outside it fails -32039 "needs grant <smallest preset>" and writes no `browser.tool` row.
 
+### Waits
+
+`wait_for` takes any of `text`, `text_gone` (the text is no longer in the page's `innerText`), `ref`, `url_includes` (the page URL contains it) and `idle_ms` (no request started and none open for that long, judged from the network log); the first to hold returns `{found: true}`. With none of them it fails -32602. It polls every 200 ms. `timeout_ms` clamps to 30000; a larger value adds `clamped_to_ms: 30000` to the result. Each `network` entry gains `done_at`, set when the request finishes or fails, on the same clock as `at`. The isolated world is cached per frame and dropped when its context is destroyed, so a wait makes one `Page.createIsolatedWorld` call.
+
 ## Version 2 (M6-11)
 
 - **Refs.** A ref is kept for the life of its element: keyed by frame id plus `backendDOMNodeId`, so two snapshots

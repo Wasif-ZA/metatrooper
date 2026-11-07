@@ -87,7 +87,9 @@ interface Pane {
   navs: number;
   crashed: string | null;
   console: Array<{ at: number; level: string; text: string }>;
-  network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; error?: string }>;
+  network: Map<string, { at: number; method: string; url: string; status: number | null; bytes: number; done_at?: number; error?: string }>;
+  /** Isolated-world context id per frame id. */
+  worlds: Map<string, number>;
   status: number | null;
   picking: ((node: number | null) => void) | null;
   parked: boolean;
@@ -305,7 +307,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), status: null, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -561,8 +563,17 @@ export class PaneManager {
       this.log(pane, 'error', String(d.exception?.description ?? d.text ?? 'uncaught exception'));
       return;
     }
+    if (method === 'Runtime.executionContextsCleared') {
+      pane.worlds.clear();
+      return;
+    }
+    if (method === 'Runtime.executionContextDestroyed') {
+      for (const [f, c] of pane.worlds) if (c === params.executionContextId) pane.worlds.delete(f);
+      return;
+    }
     if (method === 'Network.loadingFailed') {
       const r = pane.network.get(params.requestId);
+      if (r) r.done_at = Date.now();
       if (r) r.error = params.blockedReason ? `${params.errorText} (${params.blockedReason})` : params.errorText;
       return;
     }
@@ -593,7 +604,7 @@ export class PaneManager {
     }
     if (method === 'Network.loadingFinished') {
       const r = pane.network.get(params.requestId);
-      if (r) r.bytes = params.encodedDataLength ?? 0;
+      if (r) { r.bytes = params.encodedDataLength ?? 0; r.done_at = Date.now(); }
       return;
     }
     if (method === 'Overlay.inspectNodeRequested' && pane.picking) {
@@ -860,7 +871,10 @@ export class PaneManager {
 
   private async isolated(pane: Pane, frameId?: string): Promise<number> {
     const id = frameId ?? (await this.cmd(pane, 'Page.getFrameTree')).frameTree.frame.id;
+    const cached = pane.worlds.get(id);
+    if (cached !== undefined) return cached;
     const world = await this.cmd(pane, 'Page.createIsolatedWorld', { frameId: id, worldName: 'metatrooper', grantUniveralAccess: false });
+    pane.worlds.set(id, world.executionContextId);
     return world.executionContextId;
   }
 
@@ -1297,18 +1311,28 @@ ame, after checking the ref's field is a password field on the origin saved with
         return { scroll_y: await this.evalIsolated(pane, 'Math.round(window.scrollY)') };
       }
       case 'wait_for': {
-        const end = Date.now() + Math.min(Number(a.timeout_ms) || 10_000, 30_000);
+        const want = Number(a.timeout_ms) || 10_000;
+        const end = Date.now() + Math.min(want, 30_000);
+        const clamped = want > 30_000 ? { clamped_to_ms: 30_000 } : {};
+        const idle = Number(a.idle_ms);
+        if (typeof a.text !== 'string' && typeof a.text_gone !== 'string' && typeof a.url_includes !== 'string' && typeof a.ref !== 'string' && !(idle > 0)) throw new ToolError(-32602, 'wait_for needs one of text, text_gone, url_includes, idle_ms or ref');
         while (Date.now() < end) {
-          // matched against the scrubbed text, so waiting on a guess cannot confirm a secret on the page
-          if (typeof a.text === 'string' && scrub(String(await this.evalIsolated(pane, 'document.body ? document.body.innerText : ""') ?? ''), scrubSecretValues()).includes(a.text)) return { found: true };
+          if (typeof a.text === 'string' || typeof a.text_gone === 'string') {
+            // matched against the scrubbed text, so waiting on a guess cannot confirm a secret on the page
+            const body = scrub(String(await this.evalIsolated(pane, 'document.body ? document.body.innerText : ""') ?? ''), scrubSecretValues());
+            if (typeof a.text === 'string' && body.includes(a.text)) return { found: true, ...clamped };
+            if (typeof a.text_gone === 'string' && !body.includes(a.text_gone)) return { found: true, ...clamped };
+          }
+          if (typeof a.url_includes === 'string' && pane.view.webContents.getURL().includes(a.url_includes)) return { found: true, ...clamped };
+          if (idle > 0 && idleFor(pane.network.values(), Date.now()) >= idle) return { found: true, ...clamped };
           const t = typeof a.ref === 'string' ? resolveRef(pane.refs, a.ref) : 'unknown';
           if (typeof t === 'object') {
             const ok = await this.cmd(pane, 'DOM.describeNode', { backendNodeId: t.backendNodeId }).then(() => true, () => false);
-            if (ok) return { found: true };
+            if (ok) return { found: true, ...clamped };
           }
           await sleep(200);
         }
-        return { found: false };
+        return { found: false, ...clamped };
       }
       case 'screenshot': {
         let png: Buffer;
@@ -1537,6 +1561,16 @@ export const UNSCRUBBED = '[withheld: the saved secrets could not be read to scr
 function whole(text: string, secrets?: string[]): string {
   if (secrets) return scrub(text, secrets);
   try { return scrub(text, scrubSecretValues()); } catch { return UNSCRUBBED; }
+}
+
+/** Milliseconds since the last request started or finished; 0 while one is open. */
+export function idleFor(ring: Iterable<{ at: number; done_at?: number }>, now: number): number {
+  let last = 0;
+  for (const r of ring) {
+    if (r.done_at === undefined) return 0;
+    last = Math.max(last, r.at, r.done_at);
+  }
+  return last ? now - last : Infinity;
 }
 
 /** A request URL as the network log keeps it: data: URLs as their type and length, others cut at URL_KEEP chars. */
