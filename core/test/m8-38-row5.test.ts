@@ -26,12 +26,12 @@ $f.Add_Shown({ say ('HWND ' + $f.Handle.ToInt64()) })
 `;
 
 // Fixture: a named Button and a named Label, each printing its own event line on Click.
-const FIXTURE = form('row5 fixture', 60, 60, 500, 300, `
+const FIXTURE = form('row5 fixture', 1500, 700, 500, 300, `
 $b = New-Object System.Windows.Forms.Button; $b.Text = 'Btn'; $b.AccessibleName = 'Btn'; $b.Location = New-Object System.Drawing.Point(10, 10); $b.Add_Click({ say 'EV button' }); $f.Controls.Add($b)
 $l = New-Object System.Windows.Forms.Label; $l.Text = 'Lbl'; $l.AccessibleName = 'Lbl'; $l.Location = New-Object System.Drawing.Point(10, 90); $l.Add_Click({ say 'EV label' }); $f.Controls.Add($l)
 `);
-// Cover: a plain form placed over the fixture (the fixture spans 60..560 x 60..360 on screen).
-const COVER = form('row5 cover', 40, 40, 560, 360, '');
+// Cover: a plain form placed over the fixture (the fixture spans 1500..2000 x 700..1000 on screen).
+const COVER = form('row5 cover', 1480, 680, 560, 360, '');
 // Edge page: an autofocused input whose oninput sets the document title.
 const PAGE = `<!doctype html><meta charset="utf-8"><title>row5 page</title><body style="margin:0">
 <input aria-label="PageInput" autofocus style="position:fixed;top:0;left:0;width:300px" oninput="document.title='input '+this.value">
@@ -138,6 +138,24 @@ async function findNewWindow(prefix: string, known: Set<number>) {
   return null;
 }
 
+// Polls the window list until hwnd is listed, then waits for its first paint.
+async function waitListed(hwnd: number) {
+  for (let i = 0; i < 50; i++) {
+    if ((await listWindows()).some((x) => x.hwnd === hwnd)) { await sleep(800); return; }
+    await sleep(200);
+  }
+  assert.fail(`cover window ${hwnd} never appeared in list`);
+}
+
+// Polls the window list until hwnd is gone, so a killed cover cannot still shadow the next test.
+async function waitGone(hwnd: number) {
+  for (let i = 0; i < 50; i++) {
+    if (!(await listWindows()).some((x) => x.hwnd === hwnd)) return;
+    await sleep(200);
+  }
+  assert.fail(`cover window ${hwnd} is still listed after 10 s`);
+}
+
 async function titleOf(hwnd: number): Promise<string> {
   const r = await ask({ op: 'info', hwnd });
   noError(r);
@@ -148,8 +166,7 @@ describe('M8-38 row 5: refuse posted input that is lost', { skip: process.platfo
   test('row 1: a Label covered by another window is refused and nothing is sent', T, async () => {
     const cover = launchForm('cover1.ps1', COVER);
     try {
-      await cover.hwnd;
-      await sleep(800);
+      await waitListed(await cover.hwnd);
       const ref = await refFor(fxHwnd, 'Lbl');
       fx!.events.length = 0;
       const r = await ask({ op: 'click', hwnd: fxHwnd, ref, ...ui });
@@ -161,7 +178,7 @@ describe('M8-38 row 5: refuse posted input that is lost', { skip: process.platfo
       assert.ok(!fx!.events.includes('EV label'), 'EV label arrived after a refused click');
     } finally {
       cover.p.kill();
-      await sleep(500);
+      await waitGone(await cover.hwnd);
     }
   });
 
@@ -176,8 +193,7 @@ describe('M8-38 row 5: refuse posted input that is lost', { skip: process.platfo
   test('row 3: a Button covered by another window still gets its click (BM_CLICK is not refused)', T, async () => {
     const cover = launchForm('cover3.ps1', COVER);
     try {
-      await cover.hwnd;
-      await sleep(800);
+      await waitListed(await cover.hwnd);
       const ref = await refFor(fxHwnd, 'Btn');
       fx!.events.length = 0;
       const r = await ask({ op: 'click', hwnd: fxHwnd, ref, ...ui });
@@ -185,7 +201,7 @@ describe('M8-38 row 5: refuse posted input that is lost', { skip: process.platfo
       assert.ok(await seen(fx!, 'EV button', 2000), 'EV button did not arrive');
     } finally {
       cover.p.kill();
-      await sleep(500);
+      await waitGone(await cover.hwnd);
     }
   });
 
@@ -196,7 +212,7 @@ describe('M8-38 row 5: refuse posted input that is lost', { skip: process.platfo
     writeFileSync(page, PAGE);
     const profile = mkdtempSync(join(tmpdir(), 'm8-38-row5-profile-'));
     profiles.push(profile);
-    const edge = spawn(EDGE, [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--window-position=100,100', '--window-size=700,500', `--app=file:///${page.replace(/\\/g, '/')}`], { stdio: 'ignore' });
+    const edge = spawn(EDGE, [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--window-position=1800,100', '--window-size=700,500', `--app=file:///${page.replace(/\\/g, '/')}`], { stdio: 'ignore' });
     kids.push(edge);
     const w = await findNewWindow('row5 page', known);
     assert.ok(w, 'Edge window did not appear');
