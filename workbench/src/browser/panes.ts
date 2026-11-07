@@ -72,7 +72,13 @@ const PAGE_WALK = String.raw`function mtWalk(root, mode) {
     const cs = getComputedStyle(el);
     if (cs.display === 'none') return;
     const s = step(cs, st);
-    if (cs.display !== 'contents' && why(el, cs, s)) { found.push(el); return; }
+    if (cs.display !== 'contents' && why(el, cs, s)) {
+      // adds the element and its non-blank text nodes
+      found.push(el);
+      const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let t = tw.nextNode(); t && found.length <= 2000; t = tw.nextNode()) if (t.data.trim()) found.push(t);
+      return;
+    }
     if (clicks.length < 400 && el !== de && el !== document.body) {
       const r = el.getBoundingClientRect(), ti = el.getAttribute('tabindex');
       if (r.width > 0 && r.height > 0 && ((cs.cursor === 'pointer' && pc !== 'pointer') || el.hasAttribute('onclick') || el.onclick != null || (ti !== null && /^\s*\+?\d+\s*$/.test(ti)))) clicks.push(el);
