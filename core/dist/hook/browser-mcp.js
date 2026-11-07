@@ -3,6 +3,7 @@ import { call as coreCall } from '../pipe/client.js';
 import { actionHash, APPROVAL_TIMEOUT_MS,              } from '../approvals.js';
 import { WorkbenchPipe,            } from './workbench-pipe.js';
 import { PRESETS } from '../browser/grants.js';
+import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.js';
 import { serveMcp } from './mcp-stdio.js';
 
 const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
@@ -30,6 +31,7 @@ const TOOLS                                                                     
   { name: 'evaluate', description: 'Run a JavaScript expression in an isolated world; result capped at 20 KB.', inputSchema: { type: 'object', properties: { ...pane, expression: { type: 'string' } }, required: ['expression'] } },
   { name: 'console', description: 'Last 200 console messages.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
   { name: 'network', description: 'Last 200 requests.', inputSchema: { type: 'object', properties: { ...pane, since_ms: { type: 'integer' } } } },
+  { name: 'batch', description: `Run up to ${BATCH_MAX} steps in order in one call, each {tool, args} with tool one of ${BATCH_TOOLS.join(', ')}; pane_id applies to every step unless the step gives its own. Refs come from a snapshot you took before; a batch takes no snapshot. Each step is approved and audited as a single call. stop_on_error (default true): after a failed step the rest read skipped. Returns {steps: [{step, tool, status ok|error|skipped, text}], page}, page being the url, title and changes of the last step that ran.`, inputSchema: { type: 'object', properties: { ...pane, steps: { type: 'array', minItems: 1, maxItems: BATCH_MAX, items: { type: 'object', properties: { tool: { type: 'string', enum: BATCH_TOOLS }, args: { type: 'object' } }, required: ['tool'] } }, stop_on_error: { type: 'boolean', default: true } }, required: ['steps'] } },
   { name: 'dialog', description: 'Accept or dismiss the open alert, confirm or beforeunload dialog.', inputSchema: { type: 'object', properties: { ...pane, accept: { type: 'boolean' }, prompt_text: { type: 'string' } }, required: ['accept'] } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
@@ -64,7 +66,7 @@ async function checkedCall(name        , args                         )         
   return stopped({ code: CONTROL_CHANGED, message: 'the control kept changing; nothing was sent' });
 }
 
-async function toolCall(name        , args                         )                  {
+async function singleCall(name        , args                         )               {
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
   const { expect: _drop, ...clean } = args ?? {};
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
@@ -79,6 +81,32 @@ async function toolCall(name        , args                         )            
   if ((name === 'snapshot' || name === 'read') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
+
+const FOOTER = ['url', 'title', 'dialog', 'errors', 'error', 'changes', 'continue'];
+
+async function batchCall(args                         )                  {
+  const bad = checkBatch(args.steps, await browser.sessionGrant());
+  if (bad) return { content: [{ type: 'text', text: `${bad.code} ${bad.message}` }], isError: true };
+  const steps = args.steps                                                           ;
+  const out           = [];
+  let page                                     ;
+  let failed = false;
+  for (const [i, s] of steps.entries()) {
+    const entry = { step: i + 1, tool: s.tool };
+    if (failed) { out.push({ ...entry, status: 'skipped' }); continue; }
+    const r = await singleCall(s.tool, { ...(args.pane_id === undefined ? {} : { pane_id: args.pane_id }), ...s.args });
+    const text         = r.content[0].text;
+    page = undefined;
+    if (r.isError) { out.push({ ...entry, status: 'error', text }); failed = args.stop_on_error !== false; continue; }
+    // the footer is the page-state fields of the answer; only the last step that ran keeps it
+    let rest      = text;
+    try { const o = JSON.parse(text); const r2 = { ...o }; page = Object.fromEntries(FOOTER.filter((k) => k in o).map((k) => [k, o[k]])); for (const k of FOOTER) delete r2[k]; rest = JSON.stringify(r2); } catch {}
+    out.push({ ...entry, status: 'ok', text: rest });
+  }
+  return { content: [{ type: 'text', text: JSON.stringify({ steps: out, ...(page && Object.keys(page).length ? { page } : {}) }) }] };
+}
+
+const toolCall = (name        , args                         )                  => (name === 'batch' ? batchCall(args ?? {}) : singleCall(name, args));
 
 // tools/list shows only the grant's tools; the workbench enforces it on calls
 serveMcp('metatrooper-browser', async () => {
