@@ -298,7 +298,7 @@ test('browser-mcp tools/list exposes read tool and correct readOnly/destructive 
   assert.ok(tools.some((t) => t.name === 'read'), 'read tool exists');
 
   // Verify annotations for each tool.
-  const readOnlySet = new Set(['panes', 'snapshot', 'screenshot', 'read', 'console', 'network', 'wait_for']);
+  const readOnlySet = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for']);
   for (const tool of tools) {
     if (readOnlySet.has(tool.name)) {
       assert.deepEqual(tool.annotations, { readOnlyHint: true }, `tool ${tool.name} readOnlyHint`);
