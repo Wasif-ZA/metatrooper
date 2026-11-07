@@ -30,20 +30,30 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 | Tool | Params | Result |
 |---|---|---|
 | `windows` | `{}` | `{windows: [{window, title, exe, grant_id, owner}]}`: each granted window, then each open window it owns (`owner` = the handle it hangs from, 0 for the granted window) |
-| `snapshot` | `{window, max_nodes?: 400}` | UI Automation tree as text, one node per line, `actions=[Invoke,Toggle,Select,SetValue]` (supported subset, or `actions=[]`) and `[ref=e12]` on each node; refs live until the next snapshot of that window. A capped tree ends with `[truncated: max_nodes=N; more nodes remain]`. A read with fewer than 20 nodes is read again after 2 s (Chromium and Electron apps build their tree on first ask) |
+| `snapshot` | `{window, max_nodes?: 400}` | UI Automation tree as text, one node per line, `actions=[Invoke,Toggle,Select,SetValue]` (supported subset, or `actions=[]`) and `[ref=e12]` on each node; refs live until the next snapshot of that window. A capped tree ends with `[truncated: max_nodes=N; more nodes remain]`. A read with fewer than 20 emitted nodes is read again after 2 s (Chromium and Electron apps build their tree on first ask) |
 | `screenshot` | `{window}` | JPEG of that window through `PrintWindow(PW_RENDERFULLCONTENT)`, so a covered window still captures; no side over 1,568 px, and quality then size lowered until the base64 is at most 900,000 characters, since replies travel a pipe whose lines stop at 1 MiB |
-| `click` | `{window, ref}` | `{status, focus_returned?}` |
-| `type` | `{window, ref, text}` | `{status, focus_returned?}`; replaces the control's text |
-| `key` | `{window, keys}` | `{status}`; keys like `Enter`, `Tab`, `Escape`; a chord with Control or Shift is refused (see Acting) |
-| `scroll` | `{window, ref?, dy}` | `{status}`; `dy` positive scrolls down |
+| `click` | `{window, ref}` | `{status, focus_returned?, pointer_drift, foreground_taken_by}` |
+| `type` | `{window, ref, text}` | `{status, focus_returned?, pointer_drift, foreground_taken_by}`; replaces the control's text |
+| `key` | `{window, keys}` | `{status, pointer_drift, foreground_taken_by}`; keys like `Enter`, `Tab`, `Escape`; a chord with Control or Shift is refused (see Acting) |
+| `scroll` | `{window, ref?, dy}` | `{status, pointer_drift, foreground_taken_by}`; `dy` positive scrolls down |
 | `wait_for` | `{window, text, timeout_ms?: 10000}` | `{found}`; polls the tree every 250 ms for a node whose Name or value contains `text` |
 
 `status` is `confirmed` when the helper's re-read after the action shows the value, toggle state or tree changed as
-expected, else `unverifiable`.
+expected, else `unverifiable`. `pointer_drift` is true when the pointer position read when the op started differs from
+the one read when its result is built; it is a flag only (the helper never moves the pointer), so it can be the user
+moving the mouse. `foreground_taken_by` is `""` when the foreground window after the op (and after any hand-back) is
+the one from before it, else the title of the window now in front (`(untitled)` when empty). `type` folds the fields
+across its chunks: `pointer_drift` is true if any chunk reported true, `foreground_taken_by` is the first non-empty
+value any chunk reported (else `""`).
 
 Snapshot actions describe UI Automation patterns: `InvokePattern` gives `Invoke`, `TogglePattern` gives `Toggle`,
 `SelectionItemPattern` gives `Select`, and a writable `ValuePattern` gives `SetValue`, in that order. They do not
-grant permission or guarantee an enabled control. Password values remain omitted. A snapshot's helper and core
+grant permission or guarantee an enabled control. Password values remain omitted. When the snapshot window's root class is exactly `Chrome_WidgetWin_1`, a wrapper
+node is skipped: any node other than the snapshot root whose role is `pane` with empty Name and empty AutomationId.
+A wrapper has no line and no ref, does not count toward `max_nodes`, and its children are placed at the wrapper's own
+depth in their original order. Groups, every other role and named panes are kept, and a node whose properties cannot
+be read is not a wrapper. Every other window is walked unchanged. A wrapper still pending when traversal stops at
+`max_nodes` counts as a node left for `truncated`. A snapshot's helper and core
 result is `{text, nodes, truncated}`; `truncated` is true only when traversal has nodes left after `max_nodes`,
 including when the root's children exceed the cap. Exactly reaching the cap with no nodes left is not truncated.
 The MCP tool returns the text, including the truncation marker. `max_nodes` defaults to 400 and is capped at 2000
@@ -75,7 +85,8 @@ The helper never calls `SendInput`, `mouse_event` or `SetCursorPos`, so the poin
 - A control without one gets its pattern: `InvokePattern`, `TogglePattern`, `SelectionItemPattern`,
   `ExpandCollapsePattern` for a click, `ValuePattern.SetValue` for `type`, `ScrollPattern` for `scroll`. When the
   foreground moved, the helper calls `SetForegroundWindow` on the window that had it and returns
-  `focus_returned: true|false`.
+  `focus_returned: true|false`. Only a pattern call gets that hand-back; every input op then reports
+  `foreground_taken_by` (the window in front afterwards, `""` when unchanged) and `pointer_drift`.
 - `key` posts `WM_KEYDOWN`/`WM_KEYUP` (and `WM_CHAR` for a printable key) to the window's focused control
   (`GetGUIThreadInfo`). A window whose thread reports no focused control, as a background window often does, is
   refused ("this window has no keyboard focus"), since there is no checked control to post to. A chord with
@@ -153,7 +164,7 @@ foreground}`).
 | `desktop.windows` | `{session_id, pid}` | as the `windows` tool |
 | `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}`; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program's top-level window over the target's centre, else empty (M6-18); `token` is opaque and names the element itself (its UI Automation runtime id and process), so an `expect` carrying it matches only that element |
 | `desktop.snapshot` / `desktop.screenshot` | `{session_id, pid, window, ...}` | as the tools |
-| `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | `{status, focus_returned?}`; -32035 when the control no longer matches `expect`; -32030 "paused by the user" |
+| `desktop.act` | `{session_id, pid, window, action, ref?, text?, keys?, dy?, expect}` | `{status, focus_returned?, pointer_drift, foreground_taken_by}`; -32035 when the control no longer matches `expect`; -32030 "paused by the user" |
 
 `pid` is the caller's own process id; the core accepts a `desktop.*` call only when the session's launcher pid is
 among its ancestors.

@@ -109,6 +109,22 @@ namespace TroopUia {
     static long Num(Dictionary<string, object> r, string k) { return r.ContainsKey(k) && r[k] != null ? Convert.ToInt64(r[k]) : 0; }
 
     static object Dispatch(string op, Dictionary<string, object> r) {
+      bool input = op == "set_text" || op == "click" || op == "key" || op == "scroll";
+      Native.POINT p0 = new Native.POINT(); IntPtr fg0 = IntPtr.Zero;
+      if (input) { Native.GetCursorPos(out p0); fg0 = Native.GetForegroundWindow(); }
+      object res = Op(op, r);
+      if (input) {
+        Native.POINT p1; Native.GetCursorPos(out p1);
+        IntPtr fg1 = Native.GetForegroundWindow();
+        var o = (Dictionary<string, object>)res;
+        o["pointer_drift"] = p0.X != p1.X || p0.Y != p1.Y;
+        string t = fg1 == fg0 ? "" : TitleOf(Native.GetAncestor(fg1, GA_ROOT));
+        o["foreground_taken_by"] = fg1 == fg0 ? "" : (t.Length > 0 ? t : "(untitled)");
+      }
+      return res;
+    }
+
+    static object Op(string op, Dictionary<string, object> r) {
       long hwnd = Num(r, "hwnd");
       if (Num(r, "pid") != 0) { uint owner; Native.GetWindowThreadProcessId(new IntPtr(hwnd), out owner); if (owner != Num(r, "pid")) throw new Exception("window not granted"); }
       // an input goes only while the workbench that can pause it is the process the core registered
@@ -245,17 +261,22 @@ namespace TroopUia {
       return ((ValuePattern)p).Current.Value;
     }
 
-    static List<KeyValuePair<int, AutomationElement>> Walk(AutomationElement top, int max, out bool truncated) {
+    static bool IsWrapper(AutomationElement e) {
+      try { return e.Current.ControlType == ControlType.Pane && (e.Current.Name ?? "").Length == 0 && (e.Current.AutomationId ?? "").Length == 0; } catch { return false; }
+    }
+
+    static List<KeyValuePair<int, AutomationElement>> Walk(AutomationElement top, int max, bool skipWrappers, out bool truncated) {
       var outList = new List<KeyValuePair<int, AutomationElement>>();
       var walker = TreeWalker.ControlViewWalker;
       var stack = new Stack<KeyValuePair<int, AutomationElement>>();
       stack.Push(new KeyValuePair<int, AutomationElement>(0, top));
       while (stack.Count > 0 && outList.Count < max) {
         var cur = stack.Pop();
-        outList.Add(cur);
+        bool wrapper = skipWrappers && cur.Key > 0 && IsWrapper(cur.Value);
+        if (!wrapper) outList.Add(cur);
         var kids = new List<AutomationElement>();
         try { for (var c = walker.GetFirstChild(cur.Value); c != null; c = walker.GetNextSibling(c)) kids.Add(c); } catch { }
-        for (int i = kids.Count - 1; i >= 0; i--) stack.Push(new KeyValuePair<int, AutomationElement>(cur.Key + 1, kids[i]));
+        for (int i = kids.Count - 1; i >= 0; i--) stack.Push(new KeyValuePair<int, AutomationElement>(wrapper ? cur.Key : cur.Key + 1, kids[i]));
       }
       truncated = stack.Count > 0;
       return outList;
@@ -274,8 +295,9 @@ namespace TroopUia {
     static object Snapshot(long hwnd, int max) {
       var top = AutomationElement.FromHandle(new IntPtr(hwnd));
       bool truncated;
-      var nodes = Walk(top, max, out truncated);
-      if (nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max, out truncated); }
+      bool chromium = ClassOf(Native.GetAncestor(new IntPtr(hwnd), GA_ROOT)) == "Chrome_WidgetWin_1";
+      var nodes = Walk(top, max, chromium, out truncated);
+      if (nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max, chromium, out truncated); }
       var map = new Dictionary<string, AutomationElement>();
       var sb = new StringBuilder();
       int n = 0;

@@ -319,6 +319,8 @@ export class Desktop {
       const chars = Array.from(typeof p.text === 'string' ? p.text : '');
       let out: Record<string, unknown> = { status: 'unverifiable' };
       let focusLost = false;
+      let drift = false;
+      let taken = '';
       let done = 0;
       do {
         const n = Math.min(done + CHUNK, chars.length);
@@ -327,9 +329,11 @@ export class Desktop {
         if (done > 0 && (await this.resolve(sessionId, hwnd).catch(() => null))?.grant.id !== now.grant_id) throw new RpcError(E.PANE_NOT_OWNED, NOT_GRANTED + note);
         out = await this.dispatch(sessionId, now.grant_id, 'set_text', { hwnd, ref, value: chars.slice(0, n).join(''), ...seen }, note);
         if (out.focus_returned === false) focusLost = true;
+        if (out.pointer_drift === true) drift = true;
+        if (!taken && typeof out.foreground_taken_by === 'string') taken = out.foreground_taken_by;
         done = n;
       } while (done < chars.length);
-      return focusLost ? { ...out, focus_returned: false } : out;
+      return { ...out, ...(focusLost ? { focus_returned: false } : {}), pointer_drift: drift, foreground_taken_by: taken };
     });
   }
 
