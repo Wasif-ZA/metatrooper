@@ -281,7 +281,8 @@ test('M7-01c batch on a login page: type, type, click, wait_for returns 4 ok ste
     const batch = await pending;
     const reply = batch.steps.batch.reply.result;
     assert.notEqual(reply.isError, true, JSON.stringify(reply));
-    assert.equal(reply.content.length, 1, 'the batch answer is one text item');
+    assert.equal(reply.content.length, 2, 'the batch answer is one text item plus the screen data label');
+    assert.match(reply.content[1].text, /untrusted screen data/);
     const answer = JSON.parse(reply.content[0].text);
     assert.deepEqual(answer.steps.map((x: any) => [x.step, x.tool, x.status]), [[1, 'type', 'ok'], [2, 'type', 'ok'], [3, 'click', 'ok'], [4, 'wait_for', 'ok']], JSON.stringify(answer));
     assert.equal(JSON.parse(answer.steps[3].text).found, true, 'wait_for url_includes /done did not find the url');
