@@ -292,12 +292,33 @@ namespace TroopUia {
       return " actions=[" + string.Join(",", actions) + "]";
     }
 
+    // Touches each Chromium page host through UIA and waits up to 2 s until every visible one has children
+    static bool WaitForPages(IntPtr root) {
+      var hosts = new List<IntPtr>();
+      Native.EnumChildWindows(root, (h, l) => { if (ClassOf(h) == "Chrome_RenderWidgetHostHWND") hosts.Add(h); return true; }, IntPtr.Zero);
+      foreach (var h in hosts) { try { AutomationElement.FromHandle(h); } catch { } }
+      var walker = TreeWalker.ControlViewWalker;
+      int start = Environment.TickCount;
+      while (true) {
+        bool ready = true;
+        foreach (var h in hosts) {
+          if (!Native.IsWindowVisible(h)) continue;
+          try { if (walker.GetFirstChild(AutomationElement.FromHandle(h)) == null) ready = false; } catch { ready = false; }
+        }
+        if (ready || Environment.TickCount - start >= 2000) break;
+        Thread.Sleep(50);
+      }
+      return hosts.Count > 0;
+    }
+
     static object Snapshot(long hwnd, int max) {
       var top = AutomationElement.FromHandle(new IntPtr(hwnd));
       bool truncated;
       bool chromium = ClassOf(Native.GetAncestor(new IntPtr(hwnd), GA_ROOT)) == "Chrome_WidgetWin_1";
+      bool hosts = chromium && WaitForPages(new IntPtr(hwnd));
+      if (hosts) top = AutomationElement.FromHandle(new IntPtr(hwnd));
       var nodes = Walk(top, max, chromium, out truncated);
-      if (nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max, chromium, out truncated); }
+      if (!hosts && nodes.Count < 20) { Thread.Sleep(2000); nodes = Walk(top, max, chromium, out truncated); }
       var map = new Dictionary<string, AutomationElement>();
       var sb = new StringBuilder();
       int n = 0;

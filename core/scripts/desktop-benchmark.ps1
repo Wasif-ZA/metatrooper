@@ -3,7 +3,8 @@ param(
   [int]$Trials = 3,
   [switch]$Fixture,
   [int]$Size = 8,
-  [string]$State
+  [string]$State,
+  [string]$Electron = (Join-Path $PSScriptRoot '../../workbench/node_modules/electron/dist/electron.exe')
 )
 $ErrorActionPreference = 'Stop'
 if ($Fixture) {
@@ -88,14 +89,24 @@ function Read-State($path) {
   throw 'Fixture state unavailable'
 }
 $results = @()
+foreach ($platform in @('winforms', 'electron')) {
+if ($platform -eq 'electron' -and -not (Test-Path -LiteralPath $Electron)) {
+  $results += [pscustomobject]@{ platform = 'electron'; skipped = "electron.exe not found at $Electron" }
+  continue
+}
 foreach ($count in @(8, 64, 256)) {
   for ($trial = 1; $trial -le $Trials; $trial++) {
     $statePath = Join-Path (Split-Path -Parent $Output) ('fixture-' + [guid]::NewGuid() + '.json')
     $target = $null
-    $row = [ordered]@{ size = $count; trial = $trial; success = $false; snapshot_ms = $null; error = $null }
+    $row = [ordered]@{ platform = $platform; size = $count; trial = $trial; success = $false; snapshot_ms = $null; error = $null }
     try {
-      $args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Fixture -Size ' + $count + ' -State "' + $statePath + '"'
-      $target = Start-Process powershell.exe -ArgumentList $args -WindowStyle Hidden -PassThru
+      if ($platform -eq 'electron') {
+        $args = '"' + (Join-Path $PSScriptRoot 'electron-fixture') + '" --size ' + $count + ' --state "' + $statePath + '"'
+        $target = Start-Process (Resolve-Path -LiteralPath $Electron).Path -ArgumentList $args -PassThru
+      } else {
+        $args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Fixture -Size ' + $count + ' -State "' + $statePath + '"'
+        $target = Start-Process powershell.exe -ArgumentList $args -WindowStyle Hidden -PassThru
+      }
       $deadline = [DateTime]::UtcNow.AddSeconds(20)
       while (-not (Test-Path -LiteralPath $statePath)) {
         if ($target.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Fixture did not start' }
@@ -130,7 +141,8 @@ foreach ($count in @(8, 64, 256)) {
         $row.focus_changes = [BenchSentinel]::FocusChanges
         $row.sentinel_read_failures = [BenchSentinel]::ReadFailures
       }
-      if ($target -and -not $target.HasExited) { Stop-Process -Id $target.Id }
+      if ($target -and $platform -eq 'electron') { taskkill /T /F /PID $target.Id 2>&1 | Out-Null }
+      elseif ($target -and -not $target.HasExited) { Stop-Process -Id $target.Id }
       Remove-Item -LiteralPath $statePath -ErrorAction SilentlyContinue
       Remove-Item -LiteralPath ($statePath + '.tmp') -ErrorAction SilentlyContinue
     }
@@ -138,4 +150,5 @@ foreach ($count in @(8, 64, 256)) {
     $results | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Output -Encoding UTF8
   }
 }
-$results | Select-Object size, trial, snapshot_ms, success, pointer_changes, focus_changes, error | Format-Table
+}
+$results | Select-Object platform, size, trial, snapshot_ms, success, pointer_changes, focus_changes, error | Format-Table
