@@ -60,6 +60,10 @@ The grant is `browser_grant` on the session row. `session.launch` takes it as `b
 
 `screenshot` takes `annotate?: bool = false`. With it, the result gains `legend: string[]`, one line per number, `n -> ref, x,y,w,h`: `x,y,w,h` are CSS pixels from the captured picture's top-left, before any downscale; numbers start at 1. `browser-mcp.ts` adds the legend as one text item (lines joined by newlines) after the image. Every ref the pane holds is read with `DOM.getBoxModel` alone, so the page does not scroll (a `ref` screenshot scrolls as before, first). Boxes are kept, clamped, when they overlap the captured area: the viewport for a normal screenshot, the content (up to 16,384 px) for `full_page`, the element's box for `ref`. A ref with no layout box is skipped; getBoxModel's main-frame viewport coordinates are used as is for refs in child frames, so an out-of-process frame that cannot report a box is skipped. With no snapshot taken (the pane holds no refs) it fails -32602 "take a snapshot first". The overlay is one `pointer-events: none` container, `id="mt-annotate-overlay"`, added to `document.documentElement` in the isolated world and removed in a `finally`; `document.getElementById('mt-annotate-overlay')` is null once the call returns.
 
+### Covered and off-screen tags
+
+A `snapshot` line for a ref gains ` [covered]` at its end when the element at the centre of the ref's box is neither the element nor inside it (nor the label of a control that is), and ` [offscreen]` when nothing is there because the centre is outside the viewport. Nothing is dropped. The test is the same hit test `click` uses, run in one batched call from `DOM.getBoxModel` centres, so the page does not scroll (`window.scrollY` is unchanged). Only the first 400 main-frame refs in document order are tested; later refs, refs without a layout box, and refs inside child frames carry no tag. The tags also appear in the `changes` an action returns.
+
 ## Version 2 (M6-11)
 
 - **Refs.** A ref is kept for the life of its element: keyed by frame id plus `backendDOMNodeId`, so two snapshots
