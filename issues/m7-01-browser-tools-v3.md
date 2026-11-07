@@ -121,6 +121,13 @@ Codex writes the tests for this child (D65) through `/tests-brief`, from this fi
 | Spike and laptop checks, by hand, recorded in this file | DevTools docking; WebMCP | 2 |
 | Integration, only if the spike passed | g | +1 |
 
+## Build step results (2026-11-08, this laptop, Windows 11)
+
+Script: a `WebContentsView` (sandbox, contextIsolation, 800x600) in a `BrowserWindow`, run with the workbench's own `electron.exe`.
+
+- **Step 1, DevTools docking: pass.** Electron 44.4.5 (Chromium 152.0.7977.130). With the view's debugger attached (`1.3`), `openDevTools({mode: 'bottom'})` opened DevTools docked inside the view's own 800x600 bounds (window capture checked by eye), `dbg.isAttached()` stayed true, no `detach` event fired, `Runtime.evaluate` still worked, and `view.getBounds()` did not change. The page's own viewport inside the tile does shrink by the DevTools height while it is open. So `case 'devtools'` uses `'bottom'`.
+- **Step 2, WebMCP: fail.** Electron 44.4.5 (Chromium 152.0.7977.130). `'modelContext' in navigator` is `false` with no switch, and still `false` with `--enable-features=WebMCP`. So page tools stay out of M7: no `page_call`, and `act` does not hold it. M7-01g ends at this note.
+
 ## Rules for the implementing agent
 
 1. Acceptance criteria are the `protects / fails_when / no_claim` profile of each test: never "make the tests pass".
