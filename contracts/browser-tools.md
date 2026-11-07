@@ -21,6 +21,7 @@ action". A control or page origin that changed between the check and the dispatc
 | `back` | `{pane_id}` | the page state (below) |
 | `snapshot` | `{pane_id, max_tokens?: int = 4000, scope_ref?, interactive?: bool, since_last?: bool, continue?}` | `{text, continue?}`: accessibility tree as text, each actionable node tagged `[ref=e12]` (main frame) or `[ref=f2e12]` (child frame `f2`); same-origin child frames are nested under their `Iframe` line and open shadow roots are included; `scope_ref` keeps the subtree under that ref; `interactive` keeps only nodes with a ref and their ancestors; `since_last` returns `+ line` for each line added and `- line` for each line removed since this session's previous snapshot of the pane with the same `interactive` and `scope_ref` (cleared on navigate) |
 | `read` | `{pane_id, search?, max_tokens?: int = 4000, continue?}` | `{text, continue?}`: the `innerText` of `main`, `[role=main]`, `article` or `body`, one trimmed non-empty line per block; `search` keeps lines containing it, case-insensitive |
+| `find` | `{pane_id, query: string, max_tokens?: int = 4000, continue?}` | `{text, continue?}`: the `snapshot` lines that contain `query`, case-insensitive, as hit blocks (see Find) |
 | `click` | `{pane_id, ref}` | `{ok}` plus the page state; fails with -32033 and clicks nothing when the element is disabled, outside the viewport, or covered by another element |
 | `type` | `{pane_id, ref, text, submit?: bool}` | `{ok}` plus the page state; replaces the field's text (select all, then insert); same checks as `click` |
 | `select` | `{pane_id, ref, value}` | `{ok}` plus the page state; runs through `DOM.resolveNode` and `Runtime.callFunctionOn` (set `value`, dispatch `input` and `change`), since `Input.*` cannot choose an option |
@@ -44,7 +45,7 @@ box fails with "not visible".
 
 A session may hold a browser grant, a preset that limits its tools. Each preset holds the one before it:
 
-- `look`: panes, navigate, snapshot, screenshot, scroll, read, handoff.
+- `look`: panes, navigate, snapshot, screenshot, scroll, read, find, handoff.
 - `act`: look plus back, click, type, key, select, wait_for, dialog, batch.
 - `debug`: act plus console, network, evaluate.
 
@@ -73,6 +74,27 @@ A `snapshot` line for a ref gains ` [covered]` at its end when the element at th
 ### Re-attach after a detach
 
 When the pane's debugger detaches, the workbench logs the reason, re-attaches it, turns Fetch interception and the Network, Runtime, Page and DOM domains back on, re-applies the parked viewport and drops the isolated-world cache. Tool calls wait for the re-attach, so a request the policy blocks stays blocked. The next `state` pane event carries `reconnected: true`, once. A second detach within 5 s stops the retries and leaves the pane crashed with "the page's debugger keeps detaching": tools fail -32034 with that text, as for any crashed pane. DevTools opens docked (`mode: 'bottom'`).
+
+## Version 3.1 (M8-41)
+
+### Find
+
+`find {pane_id, query: string, max_tokens?: int = 4000, continue?}` returns `{text, continue?}`. It renders the pane's snapshot lines exactly as `snapshot` with no options would (all frames, `[covered]`/`[offscreen]` tags included; it assigns refs the same way but does not change `since_last` state), and keeps each line whose text contains `query`, case-insensitive. Each hit is a block of lines:
+
+```
+ref=e12 path: main > navigation "Site" > list
+  listitem "Home"
+> link "Pricing" [ref=e12]
+  link "Docs" [ref=e13]
+```
+
+- First line: `ref=<ref>` where ref is the hit line's own `[ref=...]`, else the nearest ancestor line's ref (ancestor = an earlier line with smaller indentation, by the 2-space indent stack), else `ref=none`; then ` path: ` and the ancestor lines from the root down, each with its indentation, any ` [ref=...]` and any trailing ` [covered]`/` [offscreen]` removed, joined by ` > ` (`path: (root)` when the hit has no ancestors).
+- Then three context lines: the line before the hit (prefix two spaces), the hit (prefix `> `), the line after (prefix two spaces), each with its indentation removed. The before/after line is omitted when there is none.
+- Blocks are separated by one empty line. At most 50 hits; when there were more, a last line `(50 of N matches shown; narrow the query)`.
+- No hit: text is `no match for "<query>"`.
+- A missing or empty `query` fails -32602 `query is required`.
+- The output lines go through the same token budget and `continue` cursor as `snapshot` and `read`, so `continue="cN"` works for `find` too.
+- `find` is in the `look` preset (so in act and debug) and is read-only (`readOnlyHint: true`).
 
 ## Version 2 (M6-11)
 

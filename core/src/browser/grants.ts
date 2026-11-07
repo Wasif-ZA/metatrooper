@@ -1,4 +1,4 @@
-const look = ['panes', 'navigate', 'snapshot', 'screenshot', 'scroll', 'read', 'handoff'];
+const look = ['panes', 'navigate', 'snapshot', 'screenshot', 'scroll', 'read', 'find', 'handoff'];
 const act = [...look, 'back', 'click', 'type', 'key', 'select', 'wait_for', 'dialog', 'batch'];
 /** Browser tool presets, each holding the one before it. */
 export const PRESETS: Record<string, string[]> = { look, act, debug: [...act, 'console', 'network', 'evaluate'] };

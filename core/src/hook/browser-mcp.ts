@@ -12,13 +12,14 @@ const budget = {
   max_tokens: { type: 'integer', default: 4000 },
   continue: { type: 'string', description: 'The cursor named at the end of a cut answer; returns the next part.' },
 };
-const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'console', 'network', 'wait_for']);
+const READ_ONLY = new Set(['panes', 'snapshot', 'screenshot', 'read', 'find', 'console', 'network', 'wait_for']);
 const TOOLS: Array<{ name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, boolean> }> = [
   { name: 'panes', description: 'List the browser panes this session may drive.', inputSchema: { type: 'object', properties: {} } },
   { name: 'navigate', description: 'Load a URL in a pane; opens a pane for this session when it has none. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane, url: { type: 'string' } }, required: ['url'] } },
   { name: 'back', description: 'Go back one page. Returns the page state.', inputSchema: { type: 'object', properties: { ...pane } } },
   { name: 'snapshot', description: 'Accessibility tree as text, child frames and shadow roots included; actionable nodes carry [ref=e12], or [ref=f1e12] inside a frame. interactive: only nodes with a ref and their ancestors. since_last: lines added (+) and removed (-) since your previous snapshot of this pane. scope_ref: only the subtree under that ref.', inputSchema: { type: 'object', properties: { ...pane, ...budget, scope_ref: { type: 'string' }, interactive: { type: 'boolean', default: false }, since_last: { type: 'boolean', default: false } } } },
   { name: 'read', description: 'The main text of the page, one line per block; search keeps only lines containing it.', inputSchema: { type: 'object', properties: { ...pane, ...budget, search: { type: 'string' } } } },
+  { name: 'find', description: 'Snapshot lines containing the query, each with its ref, path and neighbouring lines; cheaper than snapshot.', inputSchema: { type: 'object', properties: { ...pane, ...budget, query: { type: 'string' } }, required: ['query'] } },
   { name: 'click', description: 'Click the node with this ref. Returns the page state and the interactive snapshot diff.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' } }, required: ['ref'] } },
   { name: 'handoff', description: 'Give the pane to the user (a login, a captcha, a choice only they can make); the tile shows the reason and a Give back button. Every other browser tool fails with "the user has the pane" until they give it back.', inputSchema: { type: 'object', properties: { ...pane, reason: { type: 'string' } }, required: ['reason'] } },
   { name: 'type', description: 'Replace the text of the node with this ref. Returns the page state and the interactive snapshot diff. text "{{secret:NAME}}" fills a secret the user saved, only into a password field on the origin saved with it; you never see the value.', inputSchema: { type: 'object', properties: { ...pane, ref: { type: 'string' }, text: { type: 'string' }, submit: { type: 'boolean' } }, required: ['ref', 'text'] } },
@@ -77,7 +78,7 @@ async function singleCall(name: string, args: Record<string, unknown>): Promise<
     if (result.legend) content.push({ type: 'text', text: result.legend.join('\n') });
     return { content };
   }
-  if ((name === 'snapshot' || name === 'read') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+  if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 

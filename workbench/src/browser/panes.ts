@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
-import { diffLines, dropFrame, fit, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { diffLines, dropFrame, findLines, fit, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
@@ -1269,7 +1269,7 @@ ame, after checking the ref's field is a password field on the origin saved with
   private async run(pane: Pane, name: string, a: Record<string, any>): Promise<unknown> {
     const session = String(a._session ?? '');
     const budget = Math.max(200, Math.min(Number(a.max_tokens) || SNAPSHOT_TOKENS, 100_000));
-    if ((name === 'snapshot' || name === 'read') && typeof a.continue === 'string') {
+    if ((name === 'snapshot' || name === 'read' || name === 'find') && typeof a.continue === 'string') {
       const rest = pane.cursors.get(a.continue);
       if (!rest) throw new ToolError(-32602, `unknown continue cursor ${a.continue}; call ${name} again`);
       pane.cursors.delete(a.continue);
@@ -1324,6 +1324,10 @@ ame, after checking the ref's field is a password field on the origin saved with
         const prev = pane.lastSnapshot.get(key);
         pane.lastSnapshot.set(key, cur);
         return this.page(pane, 'snapshot', a.since_last === true && prev ? diffLines(prev, cur) : cur, budget);
+      }
+      case 'find': {
+        if (typeof a.query !== 'string' || !a.query) throw new ToolError(-32602, 'query is required');
+        return this.page(pane, 'find', findLines(await this.lines(pane, undefined, false), a.query), budget);
       }
       case 'read': {
         const text = whole(String(await this.evalIsolated(pane, `(() => { const m = document.querySelector('main, [role=main], article') || document.body; return m ? m.innerText : ''; })()`) ?? ''));

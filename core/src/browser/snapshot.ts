@@ -134,6 +134,34 @@ export function interactiveOnly(lines: string[]): string[] {
   return out;
 }
 
+/** Hit blocks (ref, path, context) for the lines containing `query`, at most 50. */
+export function findLines(lines: string[], query: string): string[] {
+  const q = query.toLowerCase();
+  const bare = (l: string) => l.trim().replace(/ \[ref=[^\]]*\]/, '').replace(/ \[(covered|offscreen)\]/g, '');
+  const blocks: string[][] = [];
+  let total = 0;
+  const stack: Array<{ depth: number; line: string }> = [];
+  lines.forEach((line, i) => {
+    const depth = (line.length - line.trimStart().length) / 2;
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+    if (line.toLowerCase().includes(q) && ++total <= 50) {
+      const own = /\[ref=([^\]]*)\]/.exec(line);
+      const near = [...stack].reverse().map((s) => /\[ref=([^\]]*)\]/.exec(s.line)).find(Boolean);
+      const path = stack.length ? stack.map((s) => bare(s.line)).join(' > ') : '(root)';
+      const block = [`ref=${(own ?? near)?.[1] ?? 'none'} path: ${path}`];
+      if (i > 0) block.push(`  ${lines[i - 1].trim()}`);
+      block.push(`> ${line.trim()}`);
+      if (i + 1 < lines.length) block.push(`  ${lines[i + 1].trim()}`);
+      blocks.push(block);
+    }
+    stack.push({ depth, line });
+  });
+  if (!total) return [`no match for "${query}"`];
+  const out = blocks.flatMap((b, i) => (i ? ['', ...b] : b));
+  if (total > 50) out.push(`(50 of ${total} matches shown; narrow the query)`);
+  return out;
+}
+
 /** Lines added since `prev` as `+ line`, then lines gone since `prev` as `- line`. */
 export function diffLines(prev: string[], cur: string[]): string[] {
   const left = new Map<string, number>();
