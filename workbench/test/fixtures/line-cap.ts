@@ -11,7 +11,7 @@ const { PaneManager } = await import('../../src/browser/panes.ts');
 const { encode } = await import('../../../core/src/pipe/framing.ts');
 
 const pm = new PaneManager({ isDestroyed: () => false } as never, {} as never) as any;
-const pane = { row: { id: 'p', project_id: 'proj' }, network: new Map(), console: [], cursors: new Map(), parked: true, dbg: { sendCommand: async () => ({ data: 'AAAA' }) } };
+const pane = { row: { id: 'p', project_id: 'proj' }, network: new Map(), console: [], cursors: new Map(), worlds: new Map(), reconnected: false, detachedAt: 0, parked: true, dbg: { sendCommand: async () => ({ data: 'AAAA' }) } };
 const fits = (result: unknown) => { try { encode({ jsonrpc: '2.0', id: 'x', result }); return true; } catch { return false; } };
 
 await pm.onDebuggerEvent(pane, 'Network.requestWillBeSent', { requestId: 'r1', request: { method: 'GET', url: `data:image/png;base64,${'A'.repeat(2_000_000)}` } });

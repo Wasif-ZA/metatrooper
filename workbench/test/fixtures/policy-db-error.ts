@@ -10,7 +10,7 @@ const loaded: string[] = [];
 const wc = { isDestroyed: () => false, getURL: () => 'https://rebind.test/', loadURL: async (u: string) => { loaded.push(u); } };
 const pm = new PaneManager({ isDestroyed: () => false } as never, { db: () => busy, probe() {}, paneEvent() {} } as never);
 const row = { id: 'bp_user_1', project_id: 'proj', session_id: null, url: null };
-const pane = { row, typed: new Set(), network: new Map(), console: [], view: { webContents: wc } };
+const pane = { row, typed: new Set(), network: new Map(), console: [], worlds: new Map(), reconnected: false, detachedAt: 0, view: { webContents: wc } };
 const inner = pm as unknown as { panes: Map<string, unknown>; guardPartition(row: unknown): unknown; onDebuggerEvent(pane: unknown, method: string, params: unknown): Promise<void> };
 inner.panes.set(row.id, pane);
 inner.guardPartition(row);

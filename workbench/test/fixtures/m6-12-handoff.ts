@@ -50,7 +50,7 @@ const wc = Object.assign(new EventEmitter(), {
 });
 const pane = {
   row: { id: 'bp_agent_1', project_id: 'p1', session_id: 's1' }, view: { webContents: wc }, refs: { byRef: new Map(), byKey: new Map() },
-  lastSnapshot: new Map(), cursors: new Map(), navs: 0, crashed: null, console: [] as Array<{ at: number; level: string; text: string }>, network: new Map(),
+  lastSnapshot: new Map(), cursors: new Map(), worlds: new Map(), reconnected: false, detachedAt: 0, navs: 0, crashed: null, console: [] as Array<{ at: number; level: string; text: string }>, network: new Map(),
   dialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], ready: Promise.resolve(), handoff: null, secretOnPage: false, scripted: false,
 };
 internal.panes.set('bp_agent_1', pane);

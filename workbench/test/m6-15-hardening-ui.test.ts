@@ -44,7 +44,7 @@ async function fixture() {
   const sent: Array<{ method: string; params: any }> = [];
   const pane: any = {
     row: { id: 'pane-1', project_id: 'p1', session_id: 'session-a' }, handoff: null,
-    handedBack: false, secretOnPage: false, navs: 0, errorFor: null, status: 200,
+    handedBack: false, secretOnPage: false, navs: 0, errorFor: null, status: 200, worlds: new Map(), reconnected: false, detachedAt: 0,
     view: { webContents: { loadURL: async (url: string) => { sent.push({ method: 'loadURL', params: { url } }); } } },
   };
   manager.answer = async (_pane: any, _session: string, action: () => Promise<unknown>) => action();

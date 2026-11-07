@@ -74,7 +74,7 @@ test('M6-03c a user pane loads any loopback port the user typed, and only those'
   try {
     const manager = new PaneManager({} as any, { db: () => db } as any);
     const loaded: string[] = [];
-    const pane = (row: Record<string, unknown>) => ({ row, typed: new Set<number>(), view: { webContents: { loadURL: async (u: string) => { loaded.push(u); } } } });
+    const pane = (row: Record<string, unknown>) => ({ row, typed: new Set<number>(), worlds: new Map<string, number>(), reconnected: false, detachedAt: 0, view: { webContents: { loadURL: async (u: string) => { loaded.push(u); } } } });
     (manager as any).panes.set('bp_user', pane({ id: 'bp_user', project_id: 'project-test', session_id: null }));
     (manager as any).panes.set('bp_agent_a', pane({ id: 'bp_agent_a', project_id: 'project-test', session_id: 'session-a' }));
     await manager.userNavigate('bp_user', 'http://localhost:4999/');
