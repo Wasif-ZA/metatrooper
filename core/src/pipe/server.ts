@@ -49,9 +49,9 @@ export async function startPipeServer(pipePath: string, ready: Promise<PipeReady
     };
     const decode = createDecoder(async (raw) => {
       const msg = raw as { jsonrpc?: string; id?: unknown; method?: unknown; params?: unknown; meta?: { origin?: string } };
-      const id = typeof msg?.id === 'string' ? msg.id : null;
+      const id = typeof msg?.id === 'string' && msg.id ? msg.id : null;
       if (!msg || msg.jsonrpc !== '2.0' || !id || typeof msg.method !== 'string') {
-        send({ jsonrpc: '2.0', id, error: new RpcError(E.INVALID_REQUEST, 'invalid request').toJSON() });
+        send({ jsonrpc: '2.0', id, error: new RpcError(E.INVALID_REQUEST, id ? 'invalid request' : 'id must be a non-empty string').toJSON() });
         return;
       }
       const params = (msg.params && typeof msg.params === 'object' ? msg.params : {}) as Record<string, unknown>;

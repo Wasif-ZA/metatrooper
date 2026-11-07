@@ -50,6 +50,8 @@ Response (exactly one per request, same `id`):
 ```
 
 - `id` is a ULID made by the client. It is also the `command.id` used for the queue fallback.
+- `id` must be a non-empty string. Any other value is refused with -32600, message `id must be a non-empty string`,
+  and a null `id`, because the reply has to echo it.
 - **Run once, whichever path delivers it.** Before executing any state-changing method, the core inserts or
   claims the `command` row in one transaction: `INSERT ... ON CONFLICT(id) DO UPDATE SET status = 'accepted'
   WHERE status = 'queued'`. If the row already exists with any status other than `queued`, the core does not
@@ -124,6 +126,10 @@ Every other interaction is a database read. This table is generated from `METHOD
 protocol 1; `core.ping` reports the protocol version. Calls on one connection run concurrently, so a long
 `session.wait` does not hold up other requests.
 
+A session in `done` has ended a turn, or its session file went quiet for 20 s; it has not necessarily finished its
+work, and it can go back to `working`. An orchestrator that needs a lane's result waits for the lane's own output
+file; `session.wait` with `settle_ms` only cuts down the early returns.
+
 <!-- methods:start -->
 | Method | Params | Result | Errors | Stable | Needs `ui.hello` |
 |---|---|---|---|---|---|
@@ -136,7 +142,7 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `project.hide` | `{project_id}` | {}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back | -32002, -32003 |  |  |
 | `session.launch` | `{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, parent_id?}` | {session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path | -32002, -32003, -32020, -32040 | yes |  |
 | `session.list` | `{project_id?, all?: bool}` | {sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true` |  | yes |  |
-| `session.wait` | `{session_id, states: [state, ...], timeout_ms}` | {state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms` | -32602, -32002 | yes |  |
+| `session.wait` | `{session_id, states: [state, ...], timeout_ms, settle_ms?}` | {state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms` | -32602, -32002 | yes |  |
 | `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id | -32002, -32602, -32003 | yes |  |
 | `session.focus` | `{session_id}` | {focused: bool} | -32002 | yes |  |
 | `session.live-text` | `{}` | {<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |  | yes |  |
