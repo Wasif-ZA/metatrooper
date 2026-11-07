@@ -97,9 +97,8 @@ async function warnOwner(db              , sessionId        , payload           
 async function main()                {
   const { kind, flags } = parseArgs(process.argv.slice(2));
   if (!kind) return;
-  let sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
-  const outside = !sessionId && kind.startsWith('claude.');
-  if (!sessionId && !outside) return;
+  const sessionId = flags.session || process.env.TROOP_SESSION_ID || '';
+  if (!sessionId) return;
   let raw                          = {};
   if (kind === 'launch') {
     raw = { session_id: sessionId, pid: Number(flags.pid) || null, cwd: flags.cwd || process.cwd(), engine: flags.engine || '' };
@@ -115,42 +114,27 @@ async function main()                {
   const at = nowIso(new Date(started));
   if (kind === 'launch') payload.started_at = nowIso();
   let db                     ;
-  if (outside) {
-    if (typeof payload.session_id !== 'string' || typeof payload.cwd !== 'string' || process.env.METATROOPER_SPOOL) return;
-    const { openWriterDb } = await import('../events/append.js');
-    db = openWriterDb(lockWaitMs(kind));
-    if (!db) return;
-    const known = db.prepare("SELECT id FROM session WHERE native_id = ? AND NOT (host = 'external' AND state = 'exited') ORDER BY julianday(started_at) DESC LIMIT 1").get(payload.session_id)                              ;
-    if (!known) {
-      const { projectFor } = await import('../sessions/owners.js');
-      if (!projectFor(db.prepare('SELECT id, path FROM project').all()                                       , payload.cwd)) { db.close(); return; }
-    }
-    appendEvent(kind, null, payload, db, undefined, at);
+  // loaded before the lock wait: after it the exit timer is due, and it would fire at the first await
+  const { spoolKind } = await import('../redact.js');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { homeDir } = await import('../paths.js');
+  try {
+    db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind), at);
+  } catch (e) {
+    // a busy database: the session's spool, which the core moves into `event` (D16)
+    if (!/locked|busy/i.test(String((e         )?.message)) || !spoolKind(kind) || !/^[0-9A-Za-z_-]+$/.test(sessionId)) throw e;
+    const dir = path.join(homeDir(), 'spool', sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'events.ndjson'), JSON.stringify({ kind, at, payload }) + '\n');
     stored = true;
-    sessionId = known?.id ?? '';
-  } else {
-    // loaded before the lock wait: after it the exit timer is due, and it would fire at the first await
-    const { spoolKind } = await import('../redact.js');
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const { homeDir } = await import('../paths.js');
-    try {
-      db = appendEvent(kind, sessionId, payload, undefined, lockWaitMs(kind), at);
-    } catch (e) {
-      // a busy database: the session's spool, which the core moves into `event` (D16)
-      if (!/locked|busy/i.test(String((e         )?.message)) || !spoolKind(kind) || !/^[0-9A-Za-z_-]+$/.test(sessionId)) throw e;
-      const dir = path.join(homeDir(), 'spool', sessionId);
-      fs.mkdirSync(dir, { recursive: true });
-      fs.appendFileSync(path.join(dir, 'events.ndjson'), JSON.stringify({ kind, at, payload }) + '\n');
-      stored = true;
-      return;
-    }
-    stored = db !== null;
+    return;
   }
+  stored = db !== null;
   if (!db) return;
   try {
-    if (sessionId && kind === 'claude.UserPromptSubmit') await deliverComments(db, sessionId);
-    if (sessionId && kind === 'claude.PreToolUse') await warnOwner(db, sessionId, payload);
+    if (kind === 'claude.UserPromptSubmit') await deliverComments(db, sessionId);
+    if (kind === 'claude.PreToolUse') await warnOwner(db, sessionId, payload);
   } finally {
     db.close();
   }

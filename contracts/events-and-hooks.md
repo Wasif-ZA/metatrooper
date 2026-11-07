@@ -208,12 +208,9 @@ array only if it becomes empty and was absent before install (recorded in
 `~/.metatrooper/hooks-install.json`). With no install record (hooks written by an older first launch),
 `hooks uninstall` still removes exactly the matching entries and leaves every user hook.
 
-Without `TROOP_SESSION_ID`, `event.js` exits 0 at once for every kind but `claude.*`. A `claude.*` event with a
-`session_id` and a `cwd` is appended with `session_id` NULL only when its `session_id` is already a session's
-`native_id`, or `cwd` lies inside a registered project; otherwise the hook writes nothing. The core adopts the
-first such event of a conversation as a session with `host = 'external'`, `engine_id = 'claude'`, the project
-that holds `cwd`, and that `native_id`, and links later events to it. An external session is never typed into
-or closed by MetaTrooper, and ends on its `claude.SessionEnd` (M4-11).
+Without `TROOP_SESSION_ID`, `event.js` exits 0 at once and writes nothing: MetaTrooper tracks only the
+sessions it launched. Claude sessions opened elsewhere are no longer adopted (2026-11-08); old
+`host = 'external'` rows stay readable and end on their `claude.SessionEnd`.
 
 ## The one hook with output: UserPromptSubmit
 

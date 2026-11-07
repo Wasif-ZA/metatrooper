@@ -7,12 +7,10 @@ import { holdsStop, nextState, stateChanged } from './state.ts';
 import { getEngine } from '../engines/registry.ts';
 import { noteTranscript } from '../meter.ts';
 import { removeSessionFiles } from '../plugins/mcp.ts';
-import { claimTurn, gitAsync, labelOf, notice, ownersAsync, projectFor, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
+import { claimTurn, gitAsync, labelOf, notice, ownersAsync, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 import { limitHit } from '../sessions/limit-resume.ts';
 import { spoolKind, spoolKinds } from '../redact.ts';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface EventRow {
   seq: number;
@@ -39,11 +37,6 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     .all(limit) as unknown as EventRow[];
   if (rows.length === 0) return 0;
   const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id, state_at FROM session WHERE id = ?');
-  const byNative = db.prepare("SELECT id FROM session WHERE native_id = ? AND NOT (host = 'external' AND state = 'exited') ORDER BY julianday(started_at) DESC LIMIT 1");
-  const setEventSession = db.prepare('UPDATE event SET session_id = ? WHERE seq = ?');
-  const projects = db.prepare('SELECT id, path FROM project');
-  const hasClaude = Boolean(db.prepare("SELECT 1 FROM engine WHERE id = 'claude'").get());
-  const adopt = db.prepare("INSERT INTO session (id, project_id, engine_id, host, native_id, cwd, state, state_at, started_at) VALUES (?, ?, 'claude', 'external', ?, ?, 'idle', ?, ?)");
   const setState = db.prepare('UPDATE session SET state = ?, state_at = ?, wait_reason = ? WHERE id = ?');
   const setReason = db.prepare('UPDATE session SET wait_reason = ? WHERE id = ?');
   const lastOpencodeSeq = db.prepare("SELECT count(*) AS c, max(json_extract(payload, '$.seq')) AS n FROM event WHERE session_id = ? AND kind = 'opencode.state' AND seq < ? AND json_extract(payload, '$.state') IN ('working', 'waiting', 'done')");
@@ -96,16 +89,6 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     for (const ev of rows) {
       let payload: Record<string, unknown> = {};
       try { payload = JSON.parse(ev.payload); } catch {}
-      if (!ev.session_id && ev.kind.startsWith('claude.') && typeof payload.session_id === 'string') {
-        const known = byNative.get(payload.session_id) as { id: string } | undefined;
-        const project = !known && hasClaude && ev.kind !== 'claude.SessionEnd' && UUID.test(payload.session_id) && typeof payload.cwd === 'string' ? projectFor(projects.all() as Array<{ id: string; path: string }>, payload.cwd) : null;
-        if (project) {
-          const id = ulid();
-          adopt.run(id, project.id, payload.session_id, payload.cwd as string, ev.at, ev.at);
-          ev.session_id = id;
-        } else if (known) ev.session_id = known.id;
-        if (ev.session_id) setEventSession.run(ev.session_id, ev.seq);
-      }
       const s = ev.session_id ? (getSession.get(ev.session_id) as SessionRow | undefined) : undefined;
       if (s && ev.session_id && s.state !== 'exited') {
         const conv = ev.kind === 'codex.turn' ? payload['thread-id'] : /^(claude\.|codex\.|gemini\.|core\.activity$)/.test(ev.kind) || (ev.kind === 'opencode.state' && specOf(s.engine_id).plugin) ? payload.session_id : undefined;
