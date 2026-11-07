@@ -50,8 +50,6 @@ Response (exactly one per request, same `id`):
 ```
 
 - `id` is a ULID made by the client. It is also the `command.id` used for the queue fallback.
-- `id` must be a non-empty string. Any other value is refused with -32600, message `id must be a non-empty string`,
-  and a null `id`, because the reply has to echo it.
 - **Run once, whichever path delivers it.** Before executing any state-changing method, the core inserts or
   claims the `command` row in one transaction: `INSERT ... ON CONFLICT(id) DO UPDATE SET status = 'accepted'
   WHERE status = 'queued'`. If the row already exists with any status other than `queued`, the core does not
@@ -126,10 +124,6 @@ Every other interaction is a database read. This table is generated from `METHOD
 protocol 1; `core.ping` reports the protocol version. Calls on one connection run concurrently, so a long
 `session.wait` does not hold up other requests.
 
-A session in `done` has ended a turn, or its session file went quiet for 20 s; it has not necessarily finished its
-work, and it can go back to `working`. An orchestrator that needs a lane's result waits for the lane's own output
-file; `session.wait` with `settle_ms` only cuts down the early returns.
-
 <!-- methods:start -->
 | Method | Params | Result | Errors | Stable | Needs `ui.hello` |
 |---|---|---|---|---|---|
@@ -181,8 +175,8 @@ file; `session.wait` with `settle_ms` only cuts down the early returns.
 | `pane.url` | `{pane_id, url}` | {}; the workbench reports each navigation |  |  | yes |
 | `pane.assign` | `{pane_id, session_id?}` | {}; sets or clears the one session allowed to drive the pane | -32002 |  | yes |
 | `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |
-| `approval.check` | `{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?}; never queued; waits until a person decides; no timer (`contracts/approvals.md`) |  |  |  |
-| `approval.resolve` | `{approval_id, decision, scope?}` | {status, scope}; -32010 when the row is not `waiting` | -32010 |  | yes |
+| `approval.check` | `{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?, instruction?}; a `rejected` carries the instruction text of the user when they gave one; never queued; waits until a person decides; no timer (`contracts/approvals.md`) |  |  |  |
+| `approval.resolve` | `{approval_id, decision, scope?, instruction?}` | {status, scope}; `instruction` (up to 500 characters, only with `reject`) is sent to the agent as words from the user and also rejects the other waiting approvals of that session; -32602 when over the cap or not with reject; -32010 when the row is not `waiting` | -32010 |  | yes |
 | `desktop.ui-window` | `{pid, takeover_key, takeover_error}` | {}; the workbench's process id, whose windows are never listed or granted, and the take-over key it registered (`takeover_error` null) or why it failed; until a registered key is reported no window can be granted, and a failure ends live grants (`contracts/desktop-tools.md`) |  |  | yes |
 | `grant.candidates` | `{}` | {windows: [{hwnd, title, exe, pid, process_start}]}: visible top-level windows that may be granted |  |  | yes |
 | `grant.window` | `{session_id, hwnd, pid, process_start}` | {grant_id}; -32003 for a window whose pid or process start differ from the picked candidate, the workbench, an elevated window, a gone window or a non top-level window | -32002, -32003 |  | yes |

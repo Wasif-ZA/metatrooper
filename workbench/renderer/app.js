@@ -531,6 +531,7 @@ function approvalCard(a, i) {
     <div class="gs">${esc(a.summary)}</div>
     <div class="gd">${esc(a.reason)}</div>
     <div class="ga"><button class="btn acc" data-action="approval" data-id="${esc(a.id)}" data-decision="approve" data-scope="once">Approve once</button><button class="btn" data-action="approval" data-id="${esc(a.id)}" data-decision="approve" data-scope="session">Approve for this session</button><button class="btn" data-action="approval" data-id="${esc(a.id)}" data-decision="reject">Reject</button></div>
+    <input class="ga-note" data-key="approval-note:${esc(a.id)}" maxlength="500" placeholder="Tell the agent what to do instead (optional)" aria-label="Instruction for the agent when you reject">
   </div>`;
 }
 
@@ -1712,7 +1713,11 @@ async function onClick(e) {
       return;
     case 'approval': {
       const decision = el.dataset.decision;
-      if ((await rpc('approval.resolve', { approval_id: id, decision, ...(el.dataset.scope ? { scope: el.dataset.scope } : {}) })).result) wall.verdict(el.closest('.gate'), decision === 'approve');
+      const note = decision === 'reject' ? (el.closest('.gate').querySelector('.ga-note')?.value || '').trim() : '';
+      if ((await rpc('approval.resolve', { approval_id: id, decision, ...(el.dataset.scope ? { scope: el.dataset.scope } : {}), ...(note ? { instruction: note } : {}) })).result) {
+        delete ui.drafts[`approval-note:${id}`];
+        wall.verdict(el.closest('.gate'), decision === 'approve');
+      }
       return;
     }
   }
@@ -1817,6 +1822,7 @@ api.onSnapshot(async (s) => {
 
 document.addEventListener('input', (e) => {
   if (e.target.id === 'git-msg') ui.gitMsg = e.target.value;
+  if (e.target.dataset.key?.startsWith('approval-note:')) ui.drafts[e.target.dataset.key] = e.target.value;
 });
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#usage')) document.getElementById('usage').classList.remove('open');

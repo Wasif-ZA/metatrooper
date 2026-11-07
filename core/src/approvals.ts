@@ -12,6 +12,7 @@ export const APPROVAL_TIMEOUT_MS = 0;
 /** How long a caller waits for a gate: the longest setTimeout allows. */
 export const GATE_WAIT_MS = 2_147_483_647;
 export const SURFACES = ['browser', 'desktop'] as const;
+export const INSTRUCTION_MAX = 500;
 export const ACTIONS = ['click', 'type', 'key', 'select', 'scroll', 'navigate'] as const;
 
 export interface Control { automation_id: string; name: string; role: string }
@@ -32,7 +33,8 @@ export interface CheckParams {
 export type Decision =
   | { decision: 'allow' }
   | { decision: 'deny'; reason: string }
-  | { decision: 'approved' | 'rejected' | 'expired'; approval_id: string };
+  | { decision: 'approved' | 'expired'; approval_id: string }
+  | { decision: 'rejected'; approval_id: string; instruction?: string };
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -148,7 +150,7 @@ export class Approvals {
   private db: DatabaseSync;
   private timeoutMs: number;
   private hooks: ApprovalHooks;
-  private waiters = new Map<string, (d: 'approved' | 'rejected' | 'expired') => void>();
+  private waiters = new Map<string, (d: 'approved' | 'rejected' | 'expired', instruction?: string) => void>();
 
   private secrets: () => string[];
 
@@ -161,12 +163,12 @@ export class Approvals {
     for (const r of db.prepare("SELECT id FROM approval WHERE status = 'waiting'").all() as Array<{ id: string }>) this.finish(r.id, 'expired');
   }
 
-  private finish(id: string, status: 'approved' | 'rejected' | 'expired', scope?: 'once' | 'session'): boolean {
+  private finish(id: string, status: 'approved' | 'rejected' | 'expired', scope?: 'once' | 'session', instruction?: string): boolean {
     const now = nowIso();
     const r = this.db.prepare("UPDATE approval SET status = ?, scope = ?, decided_at = ? WHERE id = ? AND status = 'waiting'").run(status, scope ?? null, now, id);
     if (Number(r.changes) === 0) return false;
     this.db.prepare("UPDATE needs_you SET resolved_at = ? WHERE kind = 'approval' AND ref = ? AND resolved_at IS NULL").run(now, id);
-    this.waiters.get(id)?.(status);
+    this.waiters.get(id)?.(status, instruction);
     this.waiters.delete(id);
     return true;
   }
@@ -217,11 +219,11 @@ export class Approvals {
       "INSERT INTO approval (id, session_id, surface, target, control, action, action_hash, summary, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)",
     ).run(id, p.session_id, p.surface, p.target, control, p.action, hash, summary, clean(reason), now);
     this.db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'approval', ?, ?)").run(ulid(), now, id, summary);
-    const status = await new Promise<'approved' | 'rejected' | 'expired'>((resolve) => {
+    const done = await new Promise<{ status: 'approved' | 'rejected' | 'expired'; instruction?: string }>((resolve) => {
       const timer = this.timeoutMs > 0 ? setTimeout(() => this.finish(id, 'expired'), this.timeoutMs) : undefined;
-      this.waiters.set(id, (s) => { clearTimeout(timer); resolve(s); });
+      this.waiters.set(id, (status, instruction) => { clearTimeout(timer); resolve({ status, instruction }); });
     });
-    return { decision: status, approval_id: id };
+    return done.status === 'rejected' ? { decision: 'rejected', approval_id: id, ...(done.instruction ? { instruction: done.instruction } : {}) } : { decision: done.status, approval_id: id };
   }
 
   /** A browser input on an http(s) origin that this session has no session-scope `new origin` approval for and the `browser.allow_origins` setting does not list. */
@@ -240,11 +242,17 @@ export class Approvals {
     if (decision !== 'approve' && decision !== 'reject') throw new RpcError(E.INVALID_PARAMS, 'decision must be approve or reject');
     const asked = raw.scope ?? 'once';
     if (asked !== 'once' && asked !== 'session') throw new RpcError(E.INVALID_PARAMS, 'scope must be once or session');
-    const row = this.db.prepare('SELECT status, reason FROM approval WHERE id = ?').get(id) as { status: string; reason: string } | undefined;
+    if (raw.instruction !== undefined && typeof raw.instruction !== 'string') throw new RpcError(E.INVALID_PARAMS, 'instruction must be a string');
+    const instruction = typeof raw.instruction === 'string' ? raw.instruction.trim() : '';
+    if (instruction && decision !== 'reject') throw new RpcError(E.INVALID_PARAMS, 'instruction goes only with reject');
+    if (Array.from(instruction).length > INSTRUCTION_MAX) throw new RpcError(E.INVALID_PARAMS, `instruction is over ${INSTRUCTION_MAX} characters`);
+    const row = this.db.prepare('SELECT status, reason, session_id FROM approval WHERE id = ?').get(id) as { status: string; reason: string; session_id: string } | undefined;
     if (!row) throw new RpcError(E.NOT_FOUND, 'approval not found');
     if (row.status !== 'waiting') throw new RpcError(E.GATE_STALE, `approval is ${row.status}, not waiting`);
     const scope = ALWAYS.has(row.reason.split(':')[0]) ? 'once' : asked;
-    if (!this.finish(id, decision === 'approve' ? 'approved' : 'rejected', scope)) throw new RpcError(E.GATE_STALE, 'approval is no longer waiting');
+    if (!this.finish(id, decision === 'approve' ? 'approved' : 'rejected', scope, instruction || undefined)) throw new RpcError(E.GATE_STALE, 'approval is no longer waiting');
+    // a reject with an instruction ends the rest of this session's waiting batch
+    if (instruction) for (const o of this.db.prepare("SELECT id FROM approval WHERE session_id = ? AND status = 'waiting'").all(row.session_id) as Array<{ id: string }>) this.finish(o.id, 'rejected', undefined, instruction);
     return { status: decision === 'approve' ? 'approved' : 'rejected', scope };
   }
 }

@@ -6,7 +6,7 @@ import { ancestors, parentTable } from '../browser/ancestry.ts';
 
 const CALL_TIMEOUT_MS = 30_000;
 
-export type Reply = { result?: unknown; error?: { code: number; message: string } };
+export type Reply = { result?: unknown; error?: { code: number; message: string; instruction?: string } };
 
 /** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
 export function findSession(): string | null {
