@@ -145,7 +145,7 @@ test('M6-15 metatrooper-desktop: workbench closed, then describe, approval, glid
   let wb: Awaited<ReturnType<typeof fakeWorkbench>> | null = null;
   try {
     const listed = (await mcp.rpc('tools/list')).result.tools.map((t: any) => t.name);
-    assert.deepEqual(listed, ['verify', 'windows', 'snapshot', 'screenshot', 'click', 'type', 'key', 'scroll', 'wait_for']);
+    assert.deepEqual(listed, ['verify', 'check', 'windows', 'snapshot', 'screenshot', 'click', 'type', 'key', 'scroll', 'wait_for']);
     // Workbench closed: every tool fails the same way, reads included
     for (const [name, args] of [['windows', {}], ['snapshot', { window: 100 }], ['type', { window: 100, ref: 'e1', text: 'x' }]] as const) {
       const r = await mcp.tool(name, args);
