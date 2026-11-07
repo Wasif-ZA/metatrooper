@@ -9,12 +9,15 @@ export function cleanScreenText(text        )         {
   return clean;
 }
 
+export const USER_REJECT = 'The user rejected this action and stopped the rest of this batch. Their instruction, from the user: ';
+
 export function screenResult(result        )         {
-  const out = result                                                                                ;
-  if (!Array.isArray(out.content)) return result;
+  const { userNote, ...out } = result                                                                                                   ;
+  if (!Array.isArray(out.content)) return out;
   return { ...out, content: [
     ...out.content.map((block) => block.type === 'text' && typeof block.text === 'string'
       ? { ...block, text: cleanScreenText(block.text) } : block),
     { type: 'text', text: LABEL },
+    ...(typeof userNote === 'string' && userNote ? [{ type: 'text', text: USER_REJECT + cleanScreenText(userNote) }] : []),
   ] };
 }

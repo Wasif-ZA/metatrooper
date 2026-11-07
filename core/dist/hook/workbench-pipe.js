@@ -7,7 +7,7 @@ import { ancestors, parentTable } from '../browser/ancestry.js';
 
 const CALL_TIMEOUT_MS = 30_000;
 
-                                                                                    
+                                                                                                          
 
 /** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
 export function findSession()                {

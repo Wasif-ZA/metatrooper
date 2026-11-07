@@ -62,9 +62,9 @@ async function input(name: string, args: Record<string, unknown>, session_id: st
     const check = { session_id, surface: 'desktop', target: grant_id, action: name, args, control };
     const v = await core('approval.check', { ...check, password, hidden, file_dialog, action_hash: actionHash(check) }, APPROVAL_TIMEOUT_MS + 10_000);
     if (v.error) return v;
-    const out = v.result as { decision: string; reason?: string };
+    const out = v.result as { decision: string; reason?: string; instruction?: string };
     if (out.decision === 'deny') return { error: { code: -32030, message: out.reason === 'paused by the user' || out.reason?.startsWith('window not granted') ? out.reason : `not sent: ${out.reason}` } };
-    if (out.decision === 'rejected') return { error: { code: -32030, message: 'not approved: the user rejected this action' } };
+    if (out.decision === 'rejected') return { error: { code: -32030, message: 'not approved: the user rejected this action', instruction: out.instruction } };
     if (out.decision === 'expired') return { error: { code: -32030, message: 'not approved in time' } };
     const glide = await workbench.call('cursor.glide', { session: session_id, target_rect_px: minimized ? null : rect, caption: caption(name, args, control, String(covered_by ?? '')) });
     // only a refused session stops the input; a cursor that failed to draw never blocks it (D57)
@@ -99,7 +99,7 @@ async function toolCall(name: string, raw: Record<string, unknown>): Promise<obj
     : name === 'verify' ? await core('desktop.action.verify', { ...me, action_hash: args.action_hash })
     : name === 'wait_for' ? await waitFor(args, session_id)
     : await input(name, args, session_id);
-  if (r.error) return fail(r.error.message);
+  if (r.error) return { ...fail(r.error.message), userNote: r.error.instruction };
   const result = r.result as { data_base64?: string; mime?: string; text?: string } | undefined;
   if (name === 'screenshot' && result?.data_base64) return { content: [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }] };
   if (name === 'snapshot' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };

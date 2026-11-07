@@ -39,7 +39,7 @@ const CONTROL_CHANGED = -32035;
 
 /** Describes the target, asks the core's approval.check, then sends the call with the checked control as `expect`; a changed control checks again. A call stopped before it is sent reports its outcome, so the workbench audits it as it audits a sent one. */
 async function checkedCall(name: string, args: Record<string, unknown>): Promise<Reply> {
-  const stopped = async (error: { code: number; message: string }): Promise<Reply> => {
+  const stopped = async (error: { code: number; message: string; instruction?: string }): Promise<Reply> => {
     await browser.call('browser.outcome', { pane_id: args.pane_id, tool: name, status: `error ${error.code}` });
     return { error };
   };
@@ -51,9 +51,9 @@ async function checkedCall(name: string, args: Record<string, unknown>): Promise
     const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: APPROVAL_TIMEOUT_MS + 10_000 });
     if (out.kind !== 'reply') return stopped({ code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' });
     if (out.reply.error) return stopped(out.reply.error);
-    const v = out.reply.result as { decision: string; reason?: string };
+    const v = out.reply.result as { decision: string; reason?: string; instruction?: string };
     if (v.decision === 'deny') return stopped({ code: -32030, message: `not sent: ${v.reason}` });
-    if (v.decision === 'rejected') return stopped({ code: -32030, message: 'not approved: the user rejected this action' });
+    if (v.decision === 'rejected') return stopped({ code: -32030, message: 'not approved: the user rejected this action', instruction: v.instruction });
     if (v.decision === 'expired') return stopped({ code: -32030, message: 'not approved in time' });
     if (v.decision !== 'allow' && v.decision !== 'approved') return stopped({ code: -32030, message: `not sent: unknown decision ${String(v.decision)}` });
     const r = await browser.call(`browser.${name}`, { ...args, expect: { ...(control ?? { name: '', automation_id: '' }), origin, hidden, password } });
@@ -67,7 +67,7 @@ async function toolCall(name: string, args: Record<string, unknown>): Promise<ob
   if (!TOOLS.some((t) => t.name === name)) return { content: [{ type: 'text', text: `unknown tool ${name}` }], isError: true };
   const { expect: _drop, ...clean } = args ?? {};
   const r = CHECKED.has(name) ? await checkedCall(name, clean) : await browser.call(`browser.${name}`, clean);
-  if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true };
+  if (r.error) return { content: [{ type: 'text', text: r.error.message }], isError: true, userNote: r.error.instruction };
   const result = r.result as { data_base64?: string; mime?: string; text?: string; truncated?: boolean } | undefined;
   if (name === 'screenshot' && result?.data_base64) {
     const content: object[] = [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }];

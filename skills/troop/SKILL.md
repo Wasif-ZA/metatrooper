@@ -70,7 +70,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   pane.assign             {pane_id, session_id?}
   pane.capture            {pane_id, label}
   approval.check          {session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}
-  approval.resolve        {approval_id, decision, scope?}
+  approval.resolve        {approval_id, decision, scope?, instruction?}
   desktop.ui-window       {pid, takeover_key, takeover_error}
   grant.candidates        {}
   grant.window            {session_id, hwnd, pid, process_start}

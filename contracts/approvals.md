@@ -11,7 +11,10 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
 3. `allow` or `approved`: it sends the call with `expect: {name, automation_id, origin, hidden, password}`, the control and
    origin it checked. The workbench re-reads them after the cursor glide, right before dispatch; a different origin, `hidden`,
    `password`, Name or AutomationId fails with -32035 and nothing is sent. The MCP server then checks again (at most 3 rounds).
-4. `rejected` returns "not approved: the user rejected this action"; `expired` returns "not approved in time";
+4. `rejected` returns "not approved: the user rejected this action"; when the user also typed an instruction, the core's reply
+   carries it and the MCP server adds a text block after the untrusted-screen-data label: "The user rejected this action and
+   stopped the rest of this batch. Their instruction, from the user: <text>" (invisible characters removed). Only the
+   core's reply can produce that block, never a tool argument. `expired` returns "not approved in time";
    `deny` returns "not sent: <reason>". The agent is never told how to approve.
 5. Core offline: the call is not sent ("the MetaTrooper core is offline, so this action cannot be checked").
 
@@ -19,8 +22,8 @@ Version 1 (M6-2, D55, D61). The core decides; MCP servers ask. Code: `core/src/a
 
 | Method | Params | Result |
 |---|---|---|
-| `approval.check` | `{session_id, surface: "browser"\|"desktop", target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | `{decision: "allow"}`, `{decision: "deny", reason}`, or `{decision: "approved"\|"rejected"\|"expired", approval_id}` once the row is decided. Never queued. -32602 when `action_hash` is given and differs from the core's own hash |
-| `approval.resolve` | `{approval_id, decision: "approve"\|"reject", scope?: "once"\|"session"}` | `{status, scope}`; needs `ui.hello` (-32012); -32002 unknown id; -32010 when the row is not `waiting` |
+| `approval.check` | `{session_id, surface: "browser"\|"desktop", target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | `{decision: "allow"}`, `{decision: "deny", reason}`, or `{decision: "approved"\|"rejected"\|"expired", approval_id}` once the row is decided; a `rejected` may carry `instruction`. Never queued. -32602 when `action_hash` is given and differs from the core's own hash |
+| `approval.resolve` | `{approval_id, decision: "approve"\|"reject", scope?: "once"\|"session", instruction?}` | `{status, scope}`; `instruction` is trimmed, goes only with `reject` and is at most 500 characters (-32602 otherwise, never cut); it is not stored, and it rejects the session's other `waiting` rows with the same text, so the rest of the batch ends; it never changes what was approved; needs `ui.hello` (-32012); -32002 unknown id; -32010 when the row is not `waiting` |
 
 `target` is the origin for the browser and the grant id for the desktop. `control` is
 `{automation_id, name, role}` with empty strings for missing parts, or `null`. In the browser, `automation_id` is the
