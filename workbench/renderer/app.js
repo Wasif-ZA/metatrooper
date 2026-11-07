@@ -1115,7 +1115,8 @@ function changedFiles(id) {
 /** A tile's desktop state (M6-15): whether the take-over key holds it and the windows it drives; none for shells, outside and exited sessions. */
 function deskChips(x) {
   if (x.shell || x.host === 'external' || x.state === 'exited') return null;
-  return { paused: (ui.snap.paused || []).includes(x.id), grants: (ui.snap.grants || []).filter((g) => g.session_id === x.id).map((g) => ({ id: g.id, title: g.title })) };
+  const req = (ui.snap.takeover_requests || {})[x.id];
+  return { paused: (ui.snap.paused || []).includes(x.id), ...(req ? { request: req.reason } : {}), grants: (ui.snap.grants || []).filter((g) => g.session_id === x.id).map((g) => ({ id: g.id, title: g.title })) };
 }
 
 /** Lists the windows that may be given and grants the one picked, with the pid and process start the list showed. */
@@ -1291,6 +1292,9 @@ async function onClick(e) {
       if ((await api.paneMenu([{ id: 'revoke', label: `Stop driving ${g.title.slice(0, 60)}` }], box.left, box.bottom + 4)) === 'revoke') await rpc('grant.revoke', { grant_id: g.id });
       return;
     }
+    case 'takeover-accept':
+      await rpc('takeover.pause', {});
+      return;
     case 'takeover-resume':
       await rpc('takeover.resume', { session_id: id });
       return;

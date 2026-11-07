@@ -136,6 +136,33 @@ const hwndOf = (v: unknown): number => {
 
 interface Described { control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden?: boolean; rect: number[] | null; rid?: string; minimized?: boolean; covered_by?: string; covered_pid?: number }
 
+type WindowRead = { hwnd: number; title: string; text: string };
+const CAP_LINE = 200;
+const CAP_LINES = 20;
+const CAP_WINDOWS = 8;
+const cleanLines = (text: string) => text.split('\n').map((l) => l.replace(/\s*\[ref=[^\]]*\]/g, '').trimEnd()).filter(Boolean);
+const capped = (lines: string[]) => ({ kept: lines.slice(0, CAP_LINES).map((l) => l.slice(0, CAP_LINE)), more: Math.max(0, lines.length - CAP_LINES) });
+
+/** The capped added and removed lines per granted window between a read before and a read after the take-over. */
+export function changeSummary(before: Map<string, WindowRead>, after: Map<string, WindowRead | null>): { resumed_at: string; windows: Array<Record<string, unknown>> } {
+  const windows: Array<Record<string, unknown>> = [];
+  for (const id of new Set([...after.keys(), ...before.keys()])) {
+    if (windows.length >= CAP_WINDOWS) break;
+    const was = before.get(id);
+    const now = after.get(id);
+    if (!now) { windows.push({ window: was?.hwnd, gone: true }); continue; }
+    const lines = cleanLines(now.text);
+    if (!was) { const all = capped(lines); windows.push({ window: now.hwnd, title: now.title, added: [], removed: [], more: all.more, no_before: true, now: all.kept }); continue; }
+    const old = cleanLines(was.text);
+    const oldSet = new Set(old);
+    const newSet = new Set(lines);
+    const added = capped(lines.filter((l) => !oldSet.has(l)));
+    const removed = capped(old.filter((l) => !newSet.has(l)));
+    windows.push({ window: now.hwnd, ...(was.title !== now.title ? { title_before: was.title } : {}), title: now.title, added: added.kept, removed: removed.kept, more: added.more + removed.more });
+  }
+  return { resumed_at: nowIso(), windows };
+}
+
 /** Grants, the take-over flag and every desktop read and input, through one helper. */
 export class Desktop {
   readonly helper = new Helper();
@@ -155,13 +182,17 @@ export class Desktop {
   /** A core started with --demo may grant the windows of the workbench that reported itself to it (M6-16). */
   private demo: boolean;
   private workbench = workbenchExes();
+  /** Per requesting session, the read of its granted windows taken right after a pause; held in memory only. */
+  private before = new Map<string, Promise<Map<string, WindowRead>>>();
+  /** Per session, the change summary waiting for takeover.status to hand it over once. */
+  private summaries = new Map<string, object>();
 
   constructor(db: DatabaseSync, opts: { demo?: boolean } = {}) {
     ensureActionOutcomes(db);
     this.db = db;
     this.demo = Boolean(opts.demo);
     db.prepare("UPDATE desktop_action_outcome SET status = 'unverifiable' WHERE status = 'pending'").run();
-    try { db.prepare("DELETE FROM meta WHERE key IN ('takeover_paused_at', 'takeover_resumed')").run(); } catch {}
+    try { db.prepare("DELETE FROM meta WHERE key IN ('takeover_paused_at', 'takeover_resumed', 'takeover_requests')").run(); } catch {}
   }
 
   private meta(key: string): string | null {
@@ -201,11 +232,37 @@ export class Desktop {
     while (this.inFlight) await this.inFlight.catch(() => {});
     const wait = this.postedAt + POST_SETTLE_MS - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    for (const sessionId of Object.keys(this.requests())) if (!this.before.has(sessionId)) this.before.set(sessionId, this.readWindows(sessionId).then((m) => new Map([...m].flatMap(([id, r]) => (r ? [[id, r] as const] : [])))));
     return { paused_at: at };
   }
 
-  resume(sessionId: string): void {
+  private requests(): Record<string, { at: string; reason: string }> {
+    try { return JSON.parse(this.meta('takeover_requests') ?? '{}'); } catch { return {}; }
+  }
+
+  /** Each live grant's title and snapshot text through the grant-checked read; null for a window that cannot be read. */
+  private async readWindows(sessionId: string): Promise<Map<string, WindowRead | null>> {
+    const out = new Map<string, WindowRead | null>();
+    for (const g of liveGrants(this.db, sessionId)) {
+      try {
+        const title = (await this.info(g.hwnd)).title;
+        const snap = await this.read<{ text?: string }>(sessionId, g.hwnd, 'snapshot', { max_nodes: 400 });
+        out.set(g.id, { hwnd: g.hwnd, title, text: String(snap.text ?? '') });
+      } catch { out.set(g.id, null); }
+    }
+    return out;
+  }
+
+  async resume(sessionId: string): Promise<void> {
     if (!this.db.prepare('SELECT 1 FROM session WHERE id = ?').get(sessionId)) throw new RpcError(E.NOT_FOUND, 'session not found');
+    if (this.requests()[sessionId] || this.before.has(sessionId)) {
+      const before = await (this.before.get(sessionId) ?? Promise.resolve(new Map<string, WindowRead>()));
+      this.summaries.set(sessionId, changeSummary(before, await this.readWindows(sessionId)));
+      const requests = this.requests();
+      delete requests[sessionId];
+      this.before.delete(sessionId);
+      this.db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('takeover_requests', ?)").run(JSON.stringify(requests));
+    }
     let resumed: Record<string, string> = {};
     try { resumed = JSON.parse(this.meta('takeover_resumed') ?? '{}'); } catch {}
     resumed[sessionId] = nowIso();
@@ -483,7 +540,22 @@ export class Desktop {
       grants: liveGrants(this.db).map((g) => ({ id: g.id, session_id: g.session_id, hwnd: g.hwnd, title: g.title, rect: this.rects.get(g.id)?.rect ?? null, minimized: this.rects.get(g.id)?.minimized ?? false })),
     }) });
     m.set('takeover.pause', { needsUi: true, handler: () => this.pause() });
-    m.set('takeover.resume', { needsUi: true, handler: (p) => { this.resume(str(p, 'session_id')); return {}; } });
+    m.set('takeover.resume', { needsUi: true, handler: async (p) => { await this.resume(str(p, 'session_id')); return {}; } });
+    m.set('takeover.request', { handler: async (p) => {
+      const sessionId = await this.bind(p);
+      const reason = Array.from((typeof p.reason === 'string' ? p.reason : '').replace(/\p{Default_Ignorable_Code_Point}|\p{Cc}/gu, '').trim()).slice(0, 200).join('');
+      this.summaries.delete(sessionId);
+      const requests = this.requests();
+      requests[sessionId] = { at: nowIso(), reason };
+      this.db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('takeover_requests', ?)").run(JSON.stringify(requests));
+      return { requested: true, paused: this.paused(sessionId) };
+    } });
+    m.set('takeover.status', { handler: async (p) => {
+      const sessionId = await this.bind(p);
+      const changes = this.summaries.get(sessionId);
+      this.summaries.delete(sessionId);
+      return { requested: Boolean(this.requests()[sessionId]), paused: this.paused(sessionId), ...(changes ? { changes } : {}) };
+    } });
 
     m.set('desktop.windows', { handler: async (p) => {
       const sessionId = await this.bind(p);

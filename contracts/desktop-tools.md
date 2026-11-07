@@ -36,6 +36,7 @@ With the workbench closed, every tool fails with "desktop not available: the Met
 | `type` | `{window, ref, text}` | `{status, focus_returned?, pointer_drift, foreground_taken_by, changes?}`; replaces the control's text |
 | `key` | `{window, keys}` | `{status, pointer_drift, foreground_taken_by, changes?}`; keys like `Enter`, `Tab`, `Escape`; a chord with Control or Shift is refused (see Acting) |
 | `scroll` | `{window, ref?, dy}` | `{status, pointer_drift, foreground_taken_by, changes?}`; `dy` positive scrolls down |
+| `request_takeover` | `{reason?}` | Asks the user to take over (a login, a captcha, a choice only they can make) and waits, polling every second, until they resume the session; then the capped list of lines added and removed in the granted windows, read fresh after the resume. Returns early after 10 minutes with the request still open (call again to keep waiting) |
 | `wait_for` | `{window, text, timeout_ms?: 10000}` | `{found}`; polls the tree every 250 ms for a node whose Name or value contains `text` |
 | `check` | `{window, checks}` | `{passed, results: [{passed, actual}]}` (see Checks) |
 
@@ -152,6 +153,13 @@ flag right before every browser input it dispatches (after the cursor glide; typ
 `scroll`, `dialog` and `evaluate`. `takeover.resume {session_id}`
 (from the tile) clears it for that session only. Both reset on core start.
 
+The agent can ask with `request_takeover`; the request only asks. Only the user's Accept on the tile (`takeover.pause`)
+pauses. On Resume the core reads the requesting session's granted windows again (snapshot and title), compares them with
+the read taken right after the pause, and hands the capped list of added and removed lines (20 each per window, 200
+characters a line, 8 windows) to the waiting tool once. The text is cleaned and labelled untrusted screen data like every
+tool result. Snapshot text is held in memory only, never in SQLite. A take-over started by the key with no request yields
+no summary. A second pause keeps the first read. Requests reset on core start.
+
 Input is sent only while the take-over key can pause it (D43, F10). On `desktop.ui-window {pid}` the core reads that
 process's start time through the helper. Right before each helper write the core checks that the workbench reported
 a registered key and that its pid is alive, and every input op carries `ui_pid` and `ui_start`: the helper refuses
@@ -181,7 +189,9 @@ laptop test only and is never reachable through the core: `probe` (`{cursor: [x,
 | `grant.revoke` | `{grant_id}` (ui.hello) | `{}` |
 | `grant.live` | `{}` (ui.hello) | `{grants: [{id, session_id, hwnd, title, rect, minimized}]}`, `rect` = `[x, y, w, h]` in physical pixels |
 | `takeover.pause` | `{}` (ui.hello) | `{paused_at}` once no chunk is in flight |
-| `takeover.resume` | `{session_id}` (ui.hello) | `{}` |
+| `takeover.resume` | `{session_id}` (ui.hello) | `{}`; for a session that requested take-over, first reads its granted windows again and keeps the change summary for `takeover.status` |
+| `takeover.request` | `{session_id, pid, reason?}` | `{requested, paused}`; records the request in `meta.takeover_requests` (`reason` trimmed, 200 characters, invisible and control characters removed); never pauses |
+| `takeover.status` | `{session_id, pid}` | `{requested, paused, changes?}`; `changes` once, then gone |
 | `desktop.windows` | `{session_id, pid}` | as the `windows` tool |
 | `desktop.describe` | `{session_id, pid, window, ref?}` | `{grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}`; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program's top-level window over the target's centre, else empty (M6-18); `token` is opaque and names the element itself (its UI Automation runtime id and process), so an `expect` carrying it matches only that element |
 | `desktop.snapshot` / `desktop.screenshot` | `{session_id, pid, window, ...}` | as the tools |

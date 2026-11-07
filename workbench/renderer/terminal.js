@@ -189,8 +189,9 @@ const termView = (() => {
   function deskHtml(d) {
     if (!d) return '';
     const paused = d.paused ? '<button class="btn warn" data-action="takeover-resume" title="The take-over key paused this agent. Let it act again.">paused by you · Resume</button>' : '';
+    const ask = d.request !== null && d.request !== undefined && !d.paused ? `<button class="btn warn" data-action="takeover-accept" title="${escapeAttr(String(d.request).slice(0, 200))}">wants you to take over Â· Accept</button>` : '';
     const grants = d.grants.map((g) => `<button class="btn drive" data-action="grant-menu" data-grant="${escapeAttr(g.id)}" title="Stop driving this window">driving: ${escapeAttr(g.title.length > 40 ? `${g.title.slice(0, 39)}…` : g.title)}</button>`).join('');
-    return paused + (grants || '<button class="btn" data-action="grant-give" title="Give this agent one of your windows">Give window</button>');
+    return ask + paused + (grants || '<button class="btn" data-action="grant-give" title="Give this agent one of your windows">Give window</button>');
   }
 
   function label(t, x) {

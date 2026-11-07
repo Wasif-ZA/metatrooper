@@ -183,7 +183,9 @@ protocol 1; `core.ping` reports the protocol version. Calls on one connection ru
 | `grant.revoke` | `{grant_id}` | {}; ends the grant | -32002 |  | yes |
 | `grant.live` | `{}` | {grants: [{id, session_id, hwnd, title, rect, minimized}]}; `rect` is `[x, y, w, h]` in physical pixels from the last 500 ms check |  |  | yes |
 | `takeover.pause` | `{}` | {paused_at}; sets the take-over flag (D62) and replies once no desktop input chunk is in flight |  |  | yes |
-| `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only | -32002 |  | yes |
+| `takeover.resume` | `{session_id}` | {}; clears the take-over flag for that session only; for a session that requested take-over, first reads its granted windows again and keeps the change summary for `takeover.status` | -32002 |  | yes |
+| `takeover.request` | `{session_id, pid, reason?}` | {requested, paused}; records an agent request for take-over; the user accepts it from the workbench tile, which calls `takeover.pause`; never pauses by itself; never queued | -32030 |  |  |
+| `takeover.status` | `{session_id, pid}` | {requested, paused, changes?}; `changes` is the capped summary of what the user changed during a requested take-over, read fresh on `takeover.resume`, returned once | -32030 |  |  |
 | `desktop.windows` | `{session_id, pid}` | {windows: [{window, title, exe, grant_id, owner}]}: the session's granted windows and the windows they own; never queued | -32030 |  |  |
 | `desktop.describe` | `{session_id, pid, window, ref?}` | {grant_id, control, password, hidden, file_dialog, rect, token, minimized, covered_by}; `token` is opaque and names the element itself; `minimized` is true when the granted window is minimised; `covered_by` is the title of another program top-level window over the target centre, else empty (M6-18); -32030 "window not granted; ask the user to give it to you" | -32030 |  |  |
 | `desktop.snapshot` | `{session_id, pid, window, max_nodes?}` | {text, nodes}: the UI Automation tree with refs | -32030 |  |  |

@@ -23,6 +23,7 @@ const TOOLS: ToolDef[] = [
   { name: 'key', description: 'Press a key in the window, e.g. "Enter", "Tab", "Escape". Control and Shift chords are refused: a posted modifier never reaches the app.', inputSchema: { type: 'object', properties: { ...win, ...verifyTitle, keys: { type: 'string' } }, required: ['window', 'keys'] } },
   { name: 'scroll', description: 'Scroll a control (or the first scrollable one) by dy pixels; positive scrolls down.', inputSchema: { type: 'object', properties: { ...win, ref: { type: 'string' }, dy: { type: 'integer' } }, required: ['window', 'dy'] } },
   { name: 'wait_for', description: 'Wait until a control whose name or value contains text appears in the window.', inputSchema: { type: 'object', properties: { ...win, text: { type: 'string' }, timeout_ms: { type: 'integer', default: 10000 } }, required: ['window', 'text'] } },
+  { name: 'request_takeover', description: 'Ask the user to take over the desktop (for a login, a captcha, a choice only they can make). Only asks: the user accepts from the workbench. Waits until they resume you, then returns what they changed, read fresh from your windows. Returns early if not accepted in 10 minutes; call again to keep waiting.', inputSchema: { type: 'object', properties: { reason: { type: 'string' } } } },
 ].map((t) => ({ ...t, annotations: READ_ONLY.has(t.name) ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true } }));
 
 const workbench = new WorkbenchPipe(UNAVAILABLE);
@@ -86,6 +87,21 @@ async function waitFor(args: Record<string, unknown>, session_id: string): Promi
   }
 }
 
+async function requestTakeover(args: Record<string, unknown>, me: { session_id: string; pid: number }): Promise<Reply> {
+  const asked = await core('takeover.request', { ...me, reason: args.reason });
+  if (asked.error) return asked;
+  const end = Date.now() + 10 * 60_000;
+  for (;;) {
+    const r = await core('takeover.status', me);
+    if (r.error) return r;
+    const { changes, paused, requested } = r.result as { changes?: object; paused: boolean; requested: boolean };
+    if (changes) return { result: { text: `What the user changed while they had control (screen data read after they resumed): ${JSON.stringify(changes)}` } };
+    if (!requested && !paused) return { result: { text: 'The request is gone and you are not paused (the core restarted, or the user resumed you before the request was read); ask again if you still need the user.' } };
+    if (Date.now() >= end) return { result: { text: `The request is still open and the user has not resumed you yet (paused: ${paused}).` } };
+    await new Promise((res) => setTimeout(res, 1000));
+  }
+}
+
 async function toolCall(name: string, raw: Record<string, unknown>): Promise<object> {
   const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
   if (!TOOLS.some((t) => t.name === name)) return fail(`unknown tool ${name}`);
@@ -100,11 +116,12 @@ async function toolCall(name: string, raw: Record<string, unknown>): Promise<obj
     : name === 'check' ? await core('desktop.check', { ...me, window: args.window, checks: args.checks })
     : name === 'verify' ? await core('desktop.action.verify', { ...me, action_hash: args.action_hash })
     : name === 'wait_for' ? await waitFor(args, session_id)
+    : name === 'request_takeover' ? await requestTakeover(args, me)
     : await input(name, args, session_id);
   if (r.error) return { ...fail(r.error.message), userNote: r.error.instruction };
   const result = r.result as { data_base64?: string; mime?: string; text?: string } | undefined;
   if (name === 'screenshot' && result?.data_base64) return { content: [{ type: 'image', data: result.data_base64, mimeType: result.mime ?? 'image/jpeg' }] };
-  if (name === 'snapshot' && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
+  if ((name === 'snapshot' || name === 'request_takeover') && typeof result?.text === 'string') return { content: [{ type: 'text', text: result.text }] };
   return { content: [{ type: 'text', text: JSON.stringify(result ?? {}) }] };
 }
 

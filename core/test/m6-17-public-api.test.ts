@@ -74,6 +74,8 @@ const EXPECTED_METHODS = [
   'grant.live',
   'takeover.pause',
   'takeover.resume',
+  'takeover.request',
+  'takeover.status',
   'desktop.windows',
   'desktop.describe',
   'desktop.snapshot',

@@ -78,6 +78,8 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   grant.live              {}
   takeover.pause          {}
   takeover.resume         {session_id}
+  takeover.request        {session_id, pid, reason?}
+  takeover.status         {session_id, pid}
   desktop.windows         {session_id, pid}
   desktop.describe        {session_id, pid, window, ref?}
   desktop.snapshot        {session_id, pid, window, max_nodes?}
