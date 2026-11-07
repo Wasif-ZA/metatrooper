@@ -68,7 +68,7 @@ The answer is one text block of JSON `{steps, page?}`. `steps` has one entry per
 
 ### Covered and off-screen tags
 
-A `snapshot` line for a ref gains ` [covered]` at its end when the element at the centre of the ref's box is neither the element nor inside it (nor the label of a control that is), and ` [offscreen]` when nothing is there because the centre is outside the viewport. Nothing is dropped. The test is the same hit test `click` uses, run in one batched call from `DOM.getBoxModel` centres, so the page does not scroll (`window.scrollY` is unchanged). Only the first 400 main-frame refs in document order are tested; later refs, refs without a layout box, and refs inside child frames carry no tag. The tags also appear in the `changes` an action returns.
+A `snapshot` line for a ref gains ` [covered]` at its end when the element at the centre of the ref's box is neither the element nor inside it (nor the label of a control that is), and ` [offscreen]` when nothing is there because the centre is outside the viewport. Nothing is dropped. The test is the same hit test `click` uses, run in one batched call at the centre of each element's `getBoundingClientRect()`, so the page does not scroll (`window.scrollY` is unchanged). Only the first 400 main-frame refs in document order are tested; later refs, refs without a layout box, and refs inside child frames carry no tag. The tags also appear in the `changes` an action returns.
 
 ### Re-attach after a detach
 
