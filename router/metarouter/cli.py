@@ -154,18 +154,32 @@ def fill(body, args):
     return re.sub(r"\{(\d)\}", lambda m: shlex.quote(args[int(m.group(1)) - 1]), body)
 
 
+def is_finding(recipe, code):
+    found = recipe.get("findings")
+    return code != 0 and isinstance(found, list) and code in found
+
+
+def runs_body(cmd, body):
+    """True when cmd runs the same program as body, with body's other words first, in order."""
+    # ponytail: plain word split, misses quoted or reordered arguments
+    want, have = body.split(), cmd.split()
+    same = [hints.first_word(w).removesuffix(".exe") for w in (body, cmd)]
+    return bool(want) and len(have) >= len(want) and same[0] == same[1] and \
+        [Path(w).as_posix() for w in have[1:len(want)]] == [Path(w).as_posix() for w in want[1:]]
+
+
 def finish(*args, **kw):
     return shield.guard(build(*args, **kw))
 
 
 def build(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_label=None, whole=False, want=None,
-          is_shell=False):
+          is_shell=False, findings=False):
     text = shrink.clean(raw.decode("utf-8", errors="replace"))
     shown = shrink.clip(label)
     try:
         path = log.write(log_label or calls.shape(label), raw)
     except OSError as e:
-        r = Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, cmd=shown, recipe=recipe,
+        r = Result(ok=exit_code == 0 or findings, lane=lane, exit=exit_code, secs=secs, cmd=shown, recipe=recipe,
                    lines=len(text.splitlines()), bytes=len(raw), note=f"log not written ({e}); rerun with exec --no-trunc for all of it")
         if compact is not None:
             flat = compact if isinstance(compact, str) else json.dumps(compact, ensure_ascii=False)
@@ -177,7 +191,7 @@ def build(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_labe
         except Exception:
             r.out = shrink.budget(text)
         return r
-    r = Result(ok=exit_code == 0, lane=lane, exit=exit_code, secs=secs, lines=len(text.splitlines()),
+    r = Result(ok=exit_code == 0 or findings, lane=lane, exit=exit_code, secs=secs, lines=len(text.splitlines()),
                bytes=len(raw), log=path.as_posix(), cmd=shown, recipe=recipe)
     filter_match = filters.match(label) if exit_code == 0 and (lane == "exec" or is_shell) else None
     if len(text) <= shrink.SHORT:
@@ -224,11 +238,13 @@ def build(lane, label, raw, exit_code, secs, recipe=None, compact=None, log_labe
     r.rec = calls.record(lane, label, r.exit, secs, r.bytes, path, recipe=recipe)
     try:
         r.hint = hints.match(label, text, failed=exit_code != 0)
-        if exit_code != 0:
+        if exit_code != 0 and not findings:
             r.breaker = hints.breaker(calls.read() + [r.rec], r.rec)
     except Exception:
         pass
     r.rec["hinted"] = bool(r.hint)
+    if findings:
+        r.rec["findings"] = True
     if r.breaker:
         r.rec["breaker"] = True
     return r
@@ -265,11 +281,13 @@ def exec_lane(args, argv=None):
         return Result(ok=False, lane="exec", exit=127, cmd=shrink.clip(cmd),
                       note=f"could not start {argv[0]} ({e})" if argv else
                       f"could not start a shell ({e}). Set METAROUTER_SHELL to a bash or PowerShell path")
+    found = code != 0 and any(isinstance(x.get("body"), str) and is_finding(x, code) and runs_body(cmd, x["body"])
+                              for x in store.load().values())
     if whole:
         r = finish("exec", cmd, raw, code, secs, compact=shrink.clean(raw.decode("utf-8", errors="replace")),
-                   whole=True)
+                   whole=True, findings=found)
     else:
-        r = finish("exec", cmd, raw, code, secs, want=want)
+        r = finish("exec", cmd, raw, code, secs, want=want, findings=found)
         if not r.whole and not r.note:
             r.note = "shrunk; --no-trunc for all"
     return add_note(r, *warns)
@@ -342,6 +360,10 @@ def fall_through(name, rest):
 def run_lane(args):
     if not args:
         return Result(ok=False, lane="run", exit=2, note="which recipe? Try: metarouter search <words>")
+    no_trunc = "--no-trunc" in args
+    args = [a for a in args if a != "--no-trunc"]
+    if not args:
+        return Result(ok=False, lane="run", exit=2, note="which recipe? Try: metarouter search <words>")
     name, rest = args[0], args[1:]
     yes = "--yes" in rest
     background = "--background" in rest
@@ -362,7 +384,7 @@ def run_lane(args):
             from metarouter import jobs
             jid = jobs.start(["run", name, *rest], label=name)
             return Result(ok=True, lane="jobs", out={"job": jid, "collect": f"metarouter jobs {jid} --wait"})
-        return exec_lane(["--", plain], argv=argv)
+        return exec_lane([*(["--no-trunc"] if no_trunc else []), "--", plain], argv=argv)
     if store.needs_trust(r):
         if not yes:
             return Result(ok=False, lane="run", exit=2, recipe=name,
@@ -385,7 +407,8 @@ def run_lane(args):
         return run_flow(r, rest)
     if kind == "python":
         code, text, raw, secs, whole = run_python(r, rest)
-        return finish("run", label, raw, code, secs, recipe=name, compact=text, log_label=name, whole=whole)
+        return finish("run", label, raw, code, secs, recipe=name, compact=text, log_label=name,
+                      whole=whole or no_trunc, findings=is_finding(r, code))
     if kind == "shell":
         if r.get("shell") == "bash" and is_powershell(shell()):
             return Result(ok=False, lane="run", exit=2, recipe=name, note=bash_only(name))
@@ -407,10 +430,10 @@ def run_lane(args):
             return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e))
         except OSError as e:
             return Result(ok=False, lane="run", exit=2, recipe=name, note=str(e))
-        whole = bool(r.get("whole")) and code == 0
+        whole = (bool(r.get("whole")) and code == 0) or no_trunc
         res = finish("run", cmd, raw, code, secs, recipe=name, log_label=name, whole=whole,
                      compact=shrink.clean(raw.decode("utf-8", errors="replace")) if whole else None,
-                     is_shell=True)
+                     is_shell=True, findings=is_finding(r, code))
         if not res.ok:
             choices = r.get("choices") if isinstance(r.get("choices"), dict) else {}
             if "1" in choices:
@@ -1046,8 +1069,8 @@ def stats_lane(args):
     per = {}
     for r in rows:
         if r.get("recipe"):
-            n, bad = per.get(r["recipe"], (0, 0))
-            per[r["recipe"]] = (n + 1, bad + (r.get("exit") != 0))
+            n, bad, f = per.get(r["recipe"], (0, 0, 0))
+            per[r["recipe"]] = (n + 1, bad + (r.get("exit") != 0 and not r.get("findings")), f + bool(r.get("findings")))
     hinted = recovered = 0
     tracked = sum("hinted" in r for r in rows)
     for i, r in enumerate(rows):
@@ -1062,8 +1085,10 @@ def stats_lane(args):
     kept = sum(max(0, r.get("bytes", 0) - r["shown_bytes"]) for r in shown) // 4
     out = {
         "calls": len(rows),
-        "failed": sum(r.get("exit") != 0 for r in rows),
-        "recipes": [f"{n}: {c} runs, {b} failed" for n, (c, b) in sorted(per.items(), key=lambda x: -x[1][0])[:LIST_ROWS]],
+        "failed": sum(r.get("exit") != 0 and not r.get("findings") for r in rows),
+        "findings": sum(bool(r.get("findings")) for r in rows),
+        "recipes": [f"{n}: {c} runs, {b} failed" + (f", {f} findings" if f else "")
+                    for n, (c, b, f) in sorted(per.items(), key=lambda x: -x[1][0])[:LIST_ROWS]],
         "hints": f"{hinted} shown in {tracked} calls that record hints, {recovered} followed by a success of the "
                  f"same tool within {RECOVER_WITHIN} calls",
         "hint_sources": hints.by_source(),
