@@ -289,8 +289,8 @@ export class Desktop {
     for (const g of grants) {
       if (w.root === g.hwnd && !sameWindow(g, w)) { endGrant(this.db, g.id); continue; }
       if (!covers(g, w)) continue;
-      const root = w.root === g.hwnd ? w : await this.info(g.hwnd);
-      if (w.root !== g.hwnd && !sameWindow(g, root)) { endGrant(this.db, g.id); continue; }
+      const root = w.hwnd === g.hwnd ? w : await this.info(g.hwnd);
+      if (w.hwnd !== g.hwnd && !sameWindow(g, root)) { endGrant(this.db, g.id); continue; }
       if (pinDrifted(this.db, g, root.title)) { pauseForDrift(this.db, sessionId); throw new RpcError(E.PANE_NOT_OWNED, PAUSED_DRIFT); }
       return { grant: g, info: w };
     }
