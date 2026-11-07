@@ -1115,7 +1115,7 @@ function changedFiles(id) {
 function deskChips(x) {
   if (x.shell || x.host === 'external' || x.state === 'exited') return null;
   const req = (ui.snap.takeover_requests || {})[x.id];
-  return { paused: (ui.snap.paused || []).includes(x.id), request: req ? req.reason : null, grants: (ui.snap.grants || []).filter((g) => g.session_id === x.id).map((g) => ({ id: g.id, title: g.title })) };
+  return { paused: (ui.snap.paused || []).includes(x.id), ...(req ? { request: req.reason } : {}), grants: (ui.snap.grants || []).filter((g) => g.session_id === x.id).map((g) => ({ id: g.id, title: g.title })) };
 }
 
 /** Lists the windows that may be given and grants the one picked, with the pid and process start the list showed. */
