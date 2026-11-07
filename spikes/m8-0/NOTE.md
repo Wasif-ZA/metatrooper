@@ -11,7 +11,7 @@ Both spikes open the kit screen `specs/f-done.json` as a tab (M8-00d). Built 202
 | Title-bar IDE \| WALL switch | Extensions cannot put widgets in VS Code's title bar. Nearest: a status bar item (`createStatusBarItem`), an `editor/title` action icon, a command, or a custom editor. The switch would not sit where the kit draws it. | The app draws its own `<header class="title">` (`renderer/index.html:14`), so the switch can sit there as plain HTML. The window uses the native OS frame; the kit's drawn window buttons would need `frame:false`. |
 | Lines written | 22 (`package.json` 1, `extension.js` 21) + 6 for the CDP screenshot script. | 15 (`kit-tab.js`) + 3 in workbench (`app.js` 1 added, 1 changed; `index.html` 1). |
 | Kit files copied | 6518 lines (7 CSS, `kit.js`, `assets.js`, `f-done.json`), verbatim. | 3942 lines (7 CSS with `:root` rewritten to `:host`, `kit.js` wrapped in an IIFE, `f-done.json` as `f-done.js`). |
-| Screenshot | `C:/Users/User/.cache/claude-scratch/ouros-overnight-2026-11-08/m8-0-spikes/judge/spike-a-vscode.png` | `C:/Users/User/.cache/claude-scratch/ouros-overnight-2026-11-08/m8-0-spikes/judge/spike-b-own.png` |
+| Screenshot | `C:/Users/User/.cache/claude-scratch/ouros-overnight-2026-11-08/m8-0-spikes/judge/spike-a-vscode.png` | `C:/Users/User/.cache/claude-scratch/ouros-overnight-2026-11-08/m8-0-spikes/judge/spike-b-own.png`. It was taken mid-build. Afterwards, `kit-tab.js` gained wrapper attributes (`data-d`, `data-u`, `--t3`) from a duplicate session. The committed file was not re-shot: a quick re-shoot with a rebuilt harness did not open the tab. |
 
 ## What broke
 
