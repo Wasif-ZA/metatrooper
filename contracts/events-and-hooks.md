@@ -326,3 +326,17 @@ accepted from a spool.
 The workbench sets sinks up from the command palette ("Notification sinks"). The destination is asked for on every
 save and is never shown again. The workbench registers `metatrooper://`; opening `metatrooper://needs-you/<id>`
 focuses the window and opens that item, or the inbox when the item is already resolved.
+
+## Audit trail (M8-F21)
+
+`audit.list` (`core/src/audit.ts`) reads one project's `approval` and `event` rows and returns them newest first as
+`{id, at, session_id, agent, action, detail, source}`. `agent` is the session's engine. `id` is a stable unique
+string per row (approval request `a<rowid>q`, decision `a<rowid>d`, event `e<seq>`, zero padded). Rows sort by
+`(at, id)` descending; for the next page pass the last row's `at` and `id` as `before` and `before_id` (`before_id`
+alone is INVALID_PARAMS), so rows sharing a timestamp are not skipped. Each approval gives a request row
+(`asked to <action> on <surface> <target>`, detail is the summary built from the agent's own call) and, once decided,
+a `gate <status>` row with the reason. Events give one row per kind, detail is the payload cut to 300 characters;
+`term.output`, `term.bell`, `core.activity`, `core.title-state` and `core.seen` are left out. `source` is `agent` for
+the agent's own call or words (approval requests, `claude-hook` and `codex-notify` events) and `system` otherwise
+(gate decisions, `launch` and `core` events). Text is scrubbed of secret values and capped at 300 characters. No
+method writes or deletes these rows for the audit view. `browser.tool` events are pruned after 30 days.
