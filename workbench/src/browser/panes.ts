@@ -1292,7 +1292,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
     const secrets = scrubSecretValues();
     const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets);
-    const text = name || a.ref === undefined ? '' : redactSecretValues(pane.refs.names?.get(String(a.ref)) ?? '', secrets).slice(0, 120);
+    const text = name || a.ref === undefined ? '' : redactSecretValues(pane.refs?.names?.get(String(a.ref)) ?? '', secrets).slice(0, 120);
     return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? ''), text }, password: el.result?.value?.password === true, hidden: !n };
   }
 
