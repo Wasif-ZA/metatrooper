@@ -84,6 +84,7 @@ export function open(id: string, argv: string[], cwd: string, env: Record<string
     });
     for (const v of t.viewers) v.output(data);
     hooks.onOutput?.(id, data);
+    appendOutput(id, data);
   });
   proc.onExit(({ exitCode }) => {
     t.exitCode = exitCode;
@@ -317,12 +318,56 @@ export async function saveAllScreens(): Promise<void> {
   await Promise.all([...terms].map(([id, t]) => new Promise<void>((resolve) => t.head.write('', () => { saveScreen(id, t); resolve(); }))));
 }
 
-/** Deletes saved screens older than `days`. */
+/** Deletes saved screens and output logs older than `days`. */
 export function pruneScreens(days = 30, now = Date.now()): void {
+  for (const dir of [screensDir(), outputDir()]) {
+    try {
+      for (const name of fs.readdirSync(dir)) {
+        const file = path.join(dir, name);
+        if (now - fs.statSync(file).mtimeMs > days * 86_400_000) fs.rmSync(file, { force: true });
+      }
+    } catch {}
+  }
+}
+
+export const OUTPUT_LOG_MAX = 8 * 1024 * 1024;
+
+const outputSizes = new Map<string, number>();
+
+export const validOutputId = (id: string) => /^[\w-]+$/.test(id);
+
+export function outputDir(): string {
+  return path.join(homeDir(), 'output');
+}
+
+const outputFile = (id: string) => path.join(outputDir(), `${id.replace(/[^\w-]/g, '_')}.log`);
+
+/** Appends raw pty output to output/<id>.log, rotating it to .log.1 once it passes OUTPUT_LOG_MAX. */
+function appendOutput(id: string, data: string): void {
   try {
-    for (const name of fs.readdirSync(screensDir())) {
-      const file = path.join(screensDir(), name);
-      if (now - fs.statSync(file).mtimeMs > days * 86_400_000) fs.rmSync(file, { force: true });
+    const file = outputFile(id);
+    fs.mkdirSync(outputDir(), { recursive: true });
+    let size = outputSizes.get(id);
+    if (size === undefined) { try { size = fs.statSync(file).size; } catch { size = 0; } }
+    if (size > OUTPUT_LOG_MAX) {
+      if (fs.existsSync(`${file}.1`)) fs.writeFileSync(`${file}.lost`, ''); // marks that older output was dropped
+      fs.renameSync(file, `${file}.1`);
+      size = 0;
     }
+    fs.appendFileSync(file, data);
+    outputSizes.set(id, size + Buffer.byteLength(data));
   } catch {}
+}
+
+/** The last `tail` bytes of the session's kept output (.log.1 then .log), the bytes kept, and whether older output exists. */
+export function readOutput(id: string, tail: number): { text: string; bytes: number; truncated: boolean } {
+  const file = outputFile(id);
+  const parts: Buffer[] = [];
+  let bytes = 0;
+  for (const f of [`${file}.1`, file]) {
+    try { const b = fs.readFileSync(f); parts.push(b); bytes += b.length; } catch {}
+  }
+  const all = Buffer.concat(parts);
+  const cut = Math.min(tail, all.length);
+  return { text: all.subarray(all.length - cut).toString('utf8'), bytes, truncated: cut < all.length || fs.existsSync(`${file}.lost`) };
 }
