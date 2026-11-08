@@ -64,7 +64,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused" },
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
-  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
+  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?}', result: '{session_id, prompt_delivered, model?}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path. A `browser: true` launch on the claude engine without `model` uses the project\'s `.troop/config.json` `models.browser`, else `claude-sonnet-5-5` (M8-43); `model` in the result is the model passed to the engine.' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
@@ -235,14 +235,14 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         const refusal = sandboxRefusal(engine, project.path);
         if (refusal) throw new RpcError(E.VALIDATION, refusal);
       }
-      const model = str(p, 'model', false) || undefined;
+      let cfg: { browser?: { grant?: unknown }; models?: { browser?: unknown } } = {};
+      try { cfg = JSON.parse(fs.readFileSync(path.join(project.path, '.troop', 'config.json'), 'utf8')) ?? {}; } catch {}
+      const model = str(p, 'model', false) || (p.browser === true && engine.id === 'claude' ? (typeof cfg.models?.browser === 'string' && cfg.models.browser ? cfg.models.browser : 'claude-sonnet-5-5') : undefined);
       if (model && !engine.model_arg) throw new RpcError(E.VALIDATION, `${engine.id} does not take a model argument`);
       let grant: unknown = p.browser_grant;
-      if (grant === undefined || grant === null) {
-        try { grant = (JSON.parse(fs.readFileSync(path.join(project.path, '.troop', 'config.json'), 'utf8')) as { browser?: { grant?: unknown } }).browser?.grant; } catch {}
-      }
+      if (grant === undefined || grant === null) grant = cfg.browser?.grant;
       if (grant !== undefined && grant !== null && !isPreset(grant)) throw new RpcError(E.INVALID_PARAMS, `unknown browser grant ${String(grant)}; one of look, act, debug`);
-      return launchSession(db, {
+      return { ...launchSession(db, {
         host,
         approval,
         browserGrant: (grant as string | undefined) ?? undefined,
@@ -254,7 +254,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         browser: p.browser === true,
         parentId: parent,
         model,
-      });
+      }), ...(model ? { model } : {}) };
     },
   });
 

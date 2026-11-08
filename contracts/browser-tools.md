@@ -52,6 +52,8 @@ A session may hold a browser grant, a preset that limits its tools. Each preset 
 
 The grant is `browser_grant` on the session row. `session.launch` takes it as `browser_grant`; else the project's `.troop/config.json` `browser.grant`; else none, which allows every tool. An unknown name fails the launch with -32602 "unknown browser grant <name>; one of look, act, debug".
 
+Model (M8-43): a `browser: true` launch on the claude engine without `model` uses the project's `.troop/config.json` `models.browser`, else `claude-sonnet-5-5`. A `model` param always wins. Other engines and non-browser sessions get no default. `session.launch` returns the model it passed as `model`.
+
 `browser.hello` returns `{ok: true, bound: 'session', grant}`, `grant` null when none. `tools/list` shows only the grant's tools. The workbench checks every `browser.*` call against the stored grant (`browser.describe` by its `tool` param; `outcome` is not checked): a tool outside it fails -32039 "needs grant <smallest preset>" and writes no `browser.tool` row.
 
 ### Batch
