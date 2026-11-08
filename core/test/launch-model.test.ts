@@ -125,7 +125,7 @@ for (const flag of [[], ['--model', 'flag-model']]) {
       const jobs = join(h.home, 'jobs.json');
       writeFileSync(jobs, JSON.stringify([{ engine: noModel.id, model: 'job-model', worktree: 'job-rejected' }]));
       const r = await runNode([cli, 'launch', '--jobs', jobs, '--project', h.home, ...flag], h.env);
-      assert.equal(r.code, 2, r.stdout + r.stderr);
+      assert.equal(r.code, 1, r.stdout + r.stderr);
       assert.match(r.stderr, /does not take a model argument/);
       assert.doesNotMatch(r.stderr, /bad jobs file/);
       assert.deepEqual(h.requests, [], 'no job may open a project, worktree or session');

@@ -109,7 +109,7 @@ test('O5a: leaving done during settlement waits until the total deadline', async
     changeState(db, sessionId, 'done');
     await sleep(2000);
     changeState(db, sessionId, 'working');
-    assert.deepEqual(await wait, { state: 'working', timed_out: true });
+    assert.deepEqual(await wait, { state: 'working', timed_out: true, wait_reason: null, waiting_on_person: false });
   } finally {
     await turnJobsIdle();
     db.close();
@@ -122,7 +122,7 @@ test('O5a2: done must stay in the target states for the settlement period', asyn
     const wait = methods.get('session.wait')!.handler({ session_id: sessionId, states: ['done'], settle_ms: 1000, timeout_ms: 5000 }, ctx);
     const start = performance.now();
     changeState(db, sessionId, 'done');
-    assert.deepEqual(await wait, { state: 'done', timed_out: false });
+    assert.deepEqual(await wait, { state: 'done', timed_out: false, wait_reason: null, waiting_on_person: false });
     const elapsed = performance.now() - start;
     assert.ok(elapsed >= 900, 'elapsed was ' + elapsed + ' ms, expected at least 900 ms');
   } finally {
@@ -140,7 +140,7 @@ test('O5a3: a leave and return between polls restarts the settle window', async 
     await sleep(300);
     changeState(db, sessionId, 'working');
     changeState(db, sessionId, 'done');
-    assert.deepEqual(await wait, { state: 'done', timed_out: false });
+    assert.deepEqual(await wait, { state: 'done', timed_out: false, wait_reason: null, waiting_on_person: false });
     const elapsed = performance.now() - start;
     assert.ok(elapsed >= 750, 'elapsed was ' + elapsed + ' ms, expected at least 750 ms');
   } finally {
@@ -163,7 +163,7 @@ test('O5b: omitting settle_ms returns done promptly over the real pipe', async (
         changeState(db, sessionId, 'done');
         const reply = await wait;
         assert.equal(reply.error, undefined);
-        assert.deepEqual(reply.result, { state: 'done', timed_out: false });
+        assert.deepEqual(reply.result, { state: 'done', timed_out: false, wait_reason: null, waiting_on_person: false });
         const elapsed = performance.now() - start;
         assert.ok(elapsed < 750, 'elapsed after state change was ' + elapsed + ' ms, expected under 750 ms');
       } finally {
@@ -197,7 +197,7 @@ for (const settle_ms of [0, 60000]) {
     const { db, sessionId, methods, ctx } = waitFixture();
     try {
       const reply = await methods.get('session.wait')!.handler({ session_id: sessionId, states: ['done'], settle_ms, timeout_ms: 50 }, ctx);
-      assert.deepEqual(reply, { state: 'working', timed_out: true });
+      assert.deepEqual(reply, { state: 'working', timed_out: true, wait_reason: null, waiting_on_person: false });
     } finally {
       db.close();
     }

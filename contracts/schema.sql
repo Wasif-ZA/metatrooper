@@ -425,7 +425,7 @@ CREATE TABLE done_proof (
   output_tail TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX done_proof_session ON done_proof(session_id, at);
-CREATE TABLE IF NOT EXISTS automation (
+CREATE TABLE automation (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES project(id),
   name TEXT NOT NULL,
@@ -440,7 +440,7 @@ CREATE TABLE IF NOT EXISTS automation (
   next_due TEXT NOT NULL,          -- ISO time (nowIso)
   created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS automation_run (
+CREATE TABLE automation_run (
   id TEXT PRIMARY KEY,
   automation_id TEXT NOT NULL REFERENCES automation(id),
   due_at TEXT NOT NULL,
@@ -450,4 +450,4 @@ CREATE TABLE IF NOT EXISTS automation_run (
   detail TEXT,
   session_id TEXT
 );
-CREATE INDEX IF NOT EXISTS automation_run_idx ON automation_run(automation_id, at);
+CREATE INDEX automation_run_idx ON automation_run(automation_id, at);
