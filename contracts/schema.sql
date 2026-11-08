@@ -410,3 +410,17 @@ CREATE TABLE desktop_action_outcome (
   window INTEGER NOT NULL,
   verify_title_hash TEXT
 );
+
+CREATE TABLE done_proof (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  at TEXT NOT NULL,
+  revision TEXT,                               -- git HEAD when the check finished
+  tree TEXT,                                   -- git tree of the folder when the check finished; null outside a repository
+  command TEXT NOT NULL,
+  environment TEXT NOT NULL,
+  acceptance TEXT,
+  exit_code INTEGER,
+  output_tail TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX done_proof_session ON done_proof(session_id, at);

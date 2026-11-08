@@ -31,6 +31,7 @@ import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
 import { Approvals } from './approvals.ts';
 import { Desktop } from './desktop/driver.ts';
+import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
@@ -74,6 +75,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
   { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
+  { name: 'done.check', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, command, acceptance?}', result: 'the stored done_proof row: runs `command` in the session folder, keeps the output tail, the folder tree and the exit code' },
+  { name: 'done.result', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{result: done | checks_passed | needs_review, unverified, proof, current}: the latest check on the folder as it is now' },
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
@@ -389,6 +392,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return { focused: true };
     },
   });
+
+  m.set('done.check', { handler: (p) => runCheck(db, str(p, 'session_id'), str(p, 'command'), str(p, 'acceptance', false)) });
+  m.set('done.result', { handler: (p) => doneResult(db, str(p, 'session_id')) });
 
   m.set('session.clear-status', {
     handler: (p) => {

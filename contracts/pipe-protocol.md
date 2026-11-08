@@ -150,6 +150,8 @@ file; `session.wait` with `settle_ms` only cuts down the early returns.
 | `session.seen` | `{session_id}` | {}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` | -32002 |  |  |
 | `session.hide` | `{session_id}` | {} | -32002 |  |  |
 | `session.limit-resume` | `{session_id, on: bool}` | {}; sets the tile's "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean | -32602, -32002 |  |  |
+| `done.check` | `{session_id, command, acceptance?}` | the stored done_proof row: runs `command` in the session folder, keeps the output tail, the folder tree and the exit code | -32002, -32602 |  |  |
+| `done.result` | `{session_id}` | {result: done \| checks_passed \| needs_review, unverified, proof, current}: the latest check on the folder as it is now | -32002, -32602 |  |  |
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
 | `session.owners` | `{project_id}` | {repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` | -32002 |  |  |
 | `session.paste-prompt` | `{session_id}` | {written, reason?}: types the held prompt once; refused for an `external` session | -32002, -32602 |  |  |
