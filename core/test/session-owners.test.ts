@@ -94,7 +94,7 @@ test('M4-26 and M4-32: a file changed only through the shell is claimed at Stop;
     utimesSync(join(h.repo, 'before.txt'), past, past);
     await h.turnStart(a, 'native-a');
     await sleep(20);
-    execFileSync('sed', ['-i', 's/one/one and two/', 'a.txt'], { cwd: h.repo });
+    execFileSync(process.execPath, ['-e', "const fs = require('fs'); fs.writeFileSync('a.txt', fs.readFileSync('a.txt', 'utf8').replace('one', 'one and two'))"], { cwd: h.repo });
     writeFileSync(join(h.repo, 'made.txt'), 'new\n');
     await h.hook('Stop', { session_id: 'native-a', stop_hook_active: false }, a);
     await until(() => h.claims(a).length === 1, 10000);
