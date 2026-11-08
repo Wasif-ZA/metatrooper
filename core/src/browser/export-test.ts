@@ -3,7 +3,7 @@ import { ACTIONABLE } from './snapshot.ts';
 export type Step =
   | { tool: 'navigate'; url: string }
   | { tool: 'back' }
-  | { tool: 'click' | 'type' | 'select'; role: string; name: string; submit?: boolean; value?: string }
+  | { tool: 'click' | 'type' | 'select'; role: string; name: string; submit?: boolean; value?: string; password?: boolean }
   | { tool: 'key'; keys: string };
 
 const NAMED = /^(Enter|Tab|Escape|Backspace|Delete|Space|Arrow(Up|Down|Left|Right)|Home|End|PageUp|PageDown)$/;
@@ -17,7 +17,7 @@ export function exportTest(steps: Step[]): string {
     if (s.tool === 'back') return ['await page.goBack();'];
     if (s.tool === 'key') return NAMED.test(s.keys.split('+').pop()!) ? [`await page.keyboard.press(${J(s.keys)});`] : ['// a key press was not recorded'];
     if (!s.name) return [`// a ${s.tool} on an element with no name was not recorded`];
-    const at = ACTIONABLE.has(s.role) ? `page.getByRole(${J(s.role)}, { name: ${J(s.name)}, exact: true })` : `page.getByText(${J(s.name)}, { exact: true })`;
+    const at = s.password === true ? `page.getByLabel(${J(s.name)}, { exact: true })` : ACTIONABLE.has(s.role) ? `page.getByRole(${J(s.role)}, { name: ${J(s.name)}, exact: true })` : `page.getByText(${J(s.name)}, { exact: true })`;
     if (s.tool === 'click') return [`await ${at}.click();`];
     if (s.tool === 'select') return [`await ${at}.selectOption(${J(s.value)});`];
     return [`await ${at}.fill(process.env.MT_FILL_${++fills} ?? '');`, ...(s.submit ? [`await ${at}.press('Enter');`] : [])];
