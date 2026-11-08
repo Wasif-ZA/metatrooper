@@ -476,9 +476,9 @@ for (const action of ['key', 'click']) test('M6-15 hardening: helper-refused ' +
 
 test('M6-15 hardening: printable ASCII endpoints reach the helper', async t => {
   const f = fixture(t);
-  assert.deepEqual(await f.act({ keys: ' ' }), { status: 'confirmed' });
+  await assert.rejects(f.act({ keys: ' ' }), refused(-32602, /keys must name a key/));
   assert.deepEqual(await f.act({ keys: '~' }), { status: 'confirmed' });
-  assert.deepEqual(f.inputs().map(r => r.keys), [' ', '~']);
+  assert.deepEqual(f.inputs().map(r => r.keys), ['~']);
 });
 
 for (const report of [
