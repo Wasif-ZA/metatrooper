@@ -135,6 +135,10 @@ file; `session.wait` with `settle_ms` only cuts down the early returns.
 |---|---|---|---|---|---|
 | `core.ping` | `{}` | {ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued |  | yes |  |
 | `settings.set` | `{key, value}` | {}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4) | -32602, -32003 |  | yes |
+| `automation.set` | `{project_id, name, every_min, runner: string[], script, engine_id, prompt, timeout_ms?, id?}` | {id}; the check script (relative to the project folder) is hashed and pinned on every save, and the core runs it every `every_min` minutes and wakes the engine only when it exits 1 | -32002, -32003, -32602 |  | yes |
+| `automation.enable` | `{id, enabled}` | {}; enabling restarts the schedule from now | -32002, -32602 |  | yes |
+| `automation.delete` | `{id}` | {}; its runs go too | -32602 |  | yes |
+| `automation.list` | `{project_id?}` | {automations: [{id, project_id, name, every_min, runner, script, engine_id, prompt, timeout_ms, enabled, next_due, runs: [last 8, newest first: {id, due_at, at, outcome, exit_code, detail, session_id}]}]} |  |  |  |
 | `core.stop` | `{}` | {}; the core exits a moment after replying |  |  | yes |
 | `account.state` | `{}` | {state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in |  |  |  |
 | `project.open` | `{path}` | {project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\Users\wasif\proj\` becomes `c:/Users/wasif/proj` | -32002 | yes |  |

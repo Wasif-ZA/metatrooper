@@ -19,6 +19,10 @@ before(buildGenerated);
 const EXPECTED_METHODS = [
   'core.ping',
   'settings.set',
+  'automation.set',
+  'automation.enable',
+  'automation.delete',
+  'automation.list',
   'core.stop',
   'account.state',
   'project.open',
@@ -109,6 +113,9 @@ const EXPECTED_MOVED = [
 
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
+  'automation.set',
+  'automation.enable',
+  'automation.delete',
   'core.stop',
   'session.search',
   'settings.set',
