@@ -58,7 +58,8 @@ test('M6-26e the window has no application menu; Alt and Ctrl+R leave the render
     pipe.close();
     const id = launched.result.session_id as string;
     const probes = () => (existsSync(probeFile) ? readFileSync(probeFile, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
-    const first = await until(() => probes().find((p) => p.state.sessions.some((x: { id: string }) => x.id === id)), 30_000);
+    // Find the first probe with loads greater than zero containing the session.
+    const first = await until(() => probes().find((p) => p.loads > 0 && p.state.sessions.some((x: { id: string }) => x.id === id)), 30_000);
     assert.equal(first.app_menu, false, 'Menu.getApplicationMenu() is null');
     assert.equal(first.loads, 1);
 
