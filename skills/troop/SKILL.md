@@ -38,6 +38,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.seen            {session_id}
   session.hide            {session_id}
   session.limit-resume    {session_id, on: bool}
+  usage.summary           {window: today|week|run, run_id?}
   session.clear-status    {session_id}
   session.owners          {project_id}
   session.paste-prompt    {session_id}
