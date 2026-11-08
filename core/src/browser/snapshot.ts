@@ -132,7 +132,7 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
   for (const f of frames) if (f.parent && f.owner) children.set(`${f.parent}:${f.owner}`, f);
   const lines: string[] = frames.some((f) => f.hiddenOver) ? ['(over 2000 hidden elements; some hidden text may remain)'] : [];
   const seen = new Set<string>();
-  const walkFrame = (frame: Frame, start: AXNode | undefined, depth: number) => {
+  const walkFrame = (frame: Frame, start: AXNode | undefined, depth: number, inHid = false) => {
     seen.add(frame.id);
     const byId = new Map(frame.nodes.map((n) => [n.nodeId, n]));
     const hiddenIds = frame.hidden;
@@ -177,10 +177,10 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
       }
       for (const c of n.childIds ?? []) walk(byId.get(c), next, hid);
       const child = n.backendDOMNodeId ? children.get(`${frame.id}:${n.backendDOMNodeId}`) : undefined;
-      if (child && !seen.has(child.id)) walkFrame(child, undefined, next);
+      if (child && !seen.has(child.id)) walkFrame(child, undefined, next, hid);
     };
     const first = start ?? frame.nodes.find((n) => !n.parentId) ?? frame.nodes[0];
-    walk(first, depth, !!first && isHid(first));
+    walk(first, depth, inHid || (!!first && isHid(first)));
   };
   if (scope) {
     const frame = frames.find((f) => f.id === scope.frameId);
