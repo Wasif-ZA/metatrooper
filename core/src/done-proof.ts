@@ -52,7 +52,7 @@ export async function runCheck(db: DatabaseSync, session_id: string, command: st
 export async function doneResult(db: DatabaseSync, session_id: string) {
   const cwd = cwdOf(db, session_id);
   const current = await folderTree(cwd);
-  const proof = (current.tree ? db.prepare('SELECT * FROM done_proof WHERE session_id = ? AND tree = ? ORDER BY at DESC, id DESC LIMIT 1').get(session_id, current.tree) : undefined) as DoneProof | undefined;
+  const proof = (current.tree ? db.prepare('SELECT * FROM done_proof WHERE session_id = ? AND tree = ? ORDER BY julianday(at) DESC, id DESC LIMIT 1').get(session_id, current.tree) : undefined) as DoneProof | undefined;
   const result = proof?.exit_code === 0 ? (proof.acceptance ? 'done' : 'checks_passed') : 'needs_review';
   const state = (db.prepare('SELECT state FROM session WHERE id = ?').get(session_id) as { state: string }).state;
   return { result, unverified: state === 'done' && result === 'needs_review', proof: proof ?? null, current };

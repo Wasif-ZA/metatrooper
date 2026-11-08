@@ -821,9 +821,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('automation.list', {
     handler: (p) => {
       const rows = (typeof p.project_id === 'string'
-        ? db.prepare('SELECT * FROM automation WHERE project_id = ? ORDER BY created_at').all(p.project_id)
-        : db.prepare('SELECT * FROM automation ORDER BY created_at').all()) as Array<Record<string, unknown>>;
-      const runs = db.prepare('SELECT id, due_at, at, outcome, exit_code, detail, session_id FROM automation_run WHERE automation_id = ? ORDER BY at DESC, id DESC LIMIT 8');
+        ? db.prepare('SELECT * FROM automation WHERE project_id = ? ORDER BY julianday(created_at)').all(p.project_id)
+        : db.prepare('SELECT * FROM automation ORDER BY julianday(created_at)').all()) as Array<Record<string, unknown>>;
+      const runs = db.prepare('SELECT id, due_at, at, outcome, exit_code, detail, session_id FROM automation_run WHERE automation_id = ? ORDER BY julianday(at) DESC, id DESC LIMIT 8');
       return {
         automations: rows.map((a) => ({
           id: a.id, project_id: a.project_id, name: a.name, every_min: a.every_min, runner: JSON.parse(a.runner as string), script: a.script,
