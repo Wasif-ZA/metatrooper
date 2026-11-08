@@ -96,7 +96,7 @@ const PAGE_WALK = String.raw`function mtWalk(root, mode) {
     const block = !contents && !INLINE.includes(cs.display);
     if (block) brk();
     for (const c of el.childNodes) {
-      if (c.nodeType === 3) cur += c.data.replace(/\s+/g, ' ');
+      if (c.nodeType === 3) { if (cs.visibility === 'visible') cur += c.data.replace(/\s+/g, ' '); }
       else if (c.nodeType === 1) { if (c.tagName === 'BR') brk(); else rd(c, s); }
     }
     if (block) brk();
