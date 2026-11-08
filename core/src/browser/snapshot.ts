@@ -10,6 +10,7 @@ export interface AXNode {
   role?: { value?: unknown };
   name?: { value?: unknown };
   value?: { value?: unknown };
+  properties?: Array<{ name?: string; value?: { value?: unknown } }>;
   ignored?: boolean;
   backendDOMNodeId?: number;
 }
@@ -163,9 +164,11 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
       const clk = !isRef && !hid && !!n.backendDOMNodeId && !!frame.clickable?.has(n.backendDOMNodeId);
       let full = String(n.name?.value ?? '').replace(/\s+/g, ' ').trim();
       if (!hid) for (const t of cut.get(n.nodeId) ?? []) full = full.split(t).join(' ').replace(/\s+/g, ' ').trim();
+      const isEd = (m: AXNode) => ACTIONABLE.has(String(m.role?.value ?? '')) || !!m.properties?.some((p) => p.name === 'editable');
+      let ed = clk && isEd(n);
       if (clk && !full) {
         const texts: string[] = [];
-        const gather = (m: AXNode) => { for (const c of m.childIds ?? []) { const k = byId.get(c); if (!k || isHid(k)) continue; if (k.role?.value === 'StaticText') texts.push(String(k.name?.value ?? '')); gather(k); } };
+        const gather = (m: AXNode) => { for (const c of m.childIds ?? []) { const k = byId.get(c); if (!k || isHid(k)) continue; if (isEd(k)) ed = true; if (k.role?.value === 'StaticText') texts.push(String(k.name?.value ?? '')); gather(k); } };
         gather(n);
         full = texts.join(' ').replace(/\s+/g, ' ').trim();
       }
@@ -178,7 +181,8 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
           const ref = refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main);
           line += ` [ref=${ref}]`;
           // the clickable's displayed name, kept whole for describe
-          if (full && name !== WITHHELD) (refs.names ??= new Map()).set(ref, full);
+          if (full && name !== WITHHELD && !ed) (refs.names ??= new Map()).set(ref, full);
+          else refs.names?.delete(ref);
         }
         if (isRef) {
           line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main)}]`;
