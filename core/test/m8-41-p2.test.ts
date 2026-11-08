@@ -213,3 +213,85 @@ test('M8-41-p2 D2-4 named button ref is absent from names', () => {
   assert.equal(refs.names?.has(ref[1]), false);
   assert.equal(refs.names?.size, 0);
 });
+
+// Build an unnamed clickable wrapper (backend 20) around the given child nodes.
+function wrapperFrames(children: Frame['nodes'], hidden: number[] = [], wrapperProps?: Frame['nodes'][number]['properties']): Frame[] {
+  return [{
+    id: 'main', clickable: new Set([20]), hidden: new Set(hidden),
+    nodes: [
+      { nodeId: '1', role: { value: 'RootWebArea' }, childIds: ['2'] },
+      { nodeId: '2', parentId: '1', role: { value: 'generic' }, backendDOMNodeId: 20, childIds: [children[0].nodeId], properties: wrapperProps },
+      ...children,
+    ],
+  }];
+}
+
+// Return the ref of the single clickable line in a render.
+function clickableRef(lines: string[]): string {
+  const line = lines.find(line => /^\s*clickable\b.*\[ref=[^\]]+\]$/.test(line));
+  assert.ok(line, lines.join('\n'));
+  const ref = /\[ref=([^\]]+)\]/.exec(line);
+  assert.ok(ref);
+  return ref[1];
+}
+
+// Stale D2 name is dropped once the clickable text becomes hidden.
+test('M8-41-p2 D3-1 clickable ref loses its stored name when its text turns hidden', () => {
+  const refs = newRefs();
+  const text = [{ nodeId: '3', parentId: '2', role: { value: 'StaticText' }, name: { value: 'Open settings' }, backendDOMNodeId: 30 }];
+  const first = render(wrapperFrames(text), refs);
+  assert.ok(first);
+  const ref = clickableRef(first);
+  assert.equal(refs.names?.get(ref), 'Open settings');
+  const second = render(wrapperFrames(text, [30]), refs);
+  assert.ok(second);
+  assert.equal(clickableRef(second), ref, second.join('\n'));
+  assert.equal(refs.names?.has(ref), false);
+});
+
+// Unnamed wrapper around a textbox does not store the typed text.
+test('M8-41-p2 D3-2 clickable wrapper over a textbox stores no name', () => {
+  const refs = newRefs();
+  const frames = wrapperFrames([
+    { nodeId: '3', parentId: '2', role: { value: 'textbox' }, childIds: ['4'] },
+    { nodeId: '4', parentId: '3', role: { value: 'StaticText' }, name: { value: 'typed secret' }, backendDOMNodeId: 30 },
+  ]);
+  const lines = render(frames, refs);
+  assert.ok(lines);
+  assert.equal(refs.names?.has(clickableRef(lines)), false);
+});
+
+// Unnamed wrapper around a rich-text editor does not store the typed text.
+test('M8-41-p2 D3-3 clickable wrapper over a richtext generic stores no name', () => {
+  const refs = newRefs();
+  const frames = wrapperFrames([
+    { nodeId: '3', parentId: '2', role: { value: 'generic' }, properties: [{ name: 'editable', value: { value: 'richtext' } }], childIds: ['4'] },
+    { nodeId: '4', parentId: '3', role: { value: 'StaticText' }, name: { value: 'typed draft' }, backendDOMNodeId: 30 },
+  ]);
+  const lines = render(frames, refs);
+  assert.ok(lines);
+  assert.equal(refs.names?.has(clickableRef(lines)), false);
+});
+
+// Unnamed clickable that is itself a plaintext editable does not store its text.
+test('M8-41-p2 D3-4 editable clickable node stores no name', () => {
+  const refs = newRefs();
+  const frames = wrapperFrames(
+    [{ nodeId: '3', parentId: '2', role: { value: 'StaticText' }, name: { value: 'note' }, backendDOMNodeId: 30 }],
+    [],
+    [{ name: 'editable', value: { value: 'plaintext' } }],
+  );
+  const lines = render(frames, refs);
+  assert.ok(lines);
+  assert.equal(refs.names?.has(clickableRef(lines)), false);
+});
+
+// Control: a plain unnamed clickable still stores its visible text.
+test('M8-41-p2 D3-5 plain clickable wrapper still stores Open menu', () => {
+  const refs = newRefs();
+  const lines = render(wrapperFrames([
+    { nodeId: '3', parentId: '2', role: { value: 'StaticText' }, name: { value: 'Open menu' }, backendDOMNodeId: 30 },
+  ]), refs);
+  assert.ok(lines);
+  assert.equal(refs.names?.get(clickableRef(lines)), 'Open menu');
+});
