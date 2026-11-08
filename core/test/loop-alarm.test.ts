@@ -81,3 +81,69 @@ test('tool ab with input c differs from tool a with input bc', () => {
   alarm.observe(call('a', 'bc'));
   assert.equal(alarm.streak, 1);
 });
+
+test('identical calls keep returning stop after the fifth call', () => {
+  const alarm = createLoopAlarm();
+  for (let i = 0; i < 4; i++) alarm.observe(call());
+  assert.equal(alarm.observe(call()), 'stop');
+  assert.equal(alarm.observe(call()), 'stop');
+  assert.equal(alarm.streak, 6);
+});
+
+test('stop verdicts do not increase nudges', () => {
+  const alarm = createLoopAlarm();
+  for (let i = 0; i < 4; i++) alarm.observe(call());
+  assert.equal(alarm.nudges, 2);
+  for (let i = 0; i < 3; i++) {
+    assert.equal(alarm.observe(call()), 'stop');
+    assert.equal(alarm.nudges, 2);
+  }
+});
+
+test('not-a-loop during a stop streak starts a fresh streak', () => {
+  const alarm = createLoopAlarm();
+  for (let i = 0; i < 5; i++) alarm.observe(call());
+  assert.equal(alarm.streak, 5);
+  alarm.choose('not-a-loop');
+  assert.equal(alarm.falseAlarms, 1);
+  assert.equal(alarm.streak, 0);
+  assert.equal(alarm.observe(call()), 'ok');
+  assert.equal(alarm.observe(call()), 'ok');
+  assert.equal(alarm.streak, 2);
+  assert.equal(alarm.observe(call()), 'nudge');
+  assert.equal(alarm.nudges, 3);
+});
+
+test('alarm properties and serialization do not expose raw input or output', () => {
+  const alarm = createLoopAlarm();
+  const input = 'private-input-7e9b2c';
+  const output = 'private-output-4a8f1d';
+  for (let i = 0; i < 5; i++) alarm.observe(call('read', input, output));
+  const keys = Object.keys(alarm);
+  const properties = keys.map(key => alarm[key as keyof typeof alarm]);
+  for (const raw of [input, output]) {
+    assert.equal(keys.includes(raw), false);
+    assert.equal(properties.includes(raw), false);
+    assert.equal(JSON.stringify(alarm).includes(raw), false);
+  }
+});
+
+test('alarms keep streaks and counters independent', () => {
+  const first = createLoopAlarm();
+  const second = createLoopAlarm();
+  for (let i = 0; i < 5; i++) first.observe(call());
+  assert.equal(second.streak, 0);
+  assert.equal(second.nudges, 0);
+  assert.equal(second.falseAlarms, 0);
+  assert.equal(second.observe(call()), 'ok');
+  first.choose('not-a-loop');
+  assert.equal(first.streak, 0);
+  assert.equal(first.falseAlarms, 1);
+  assert.equal(second.streak, 1);
+  assert.equal(second.falseAlarms, 0);
+  assert.equal(second.observe(call()), 'ok');
+  assert.equal(second.observe(call()), 'nudge');
+  assert.equal(second.nudges, 1);
+  assert.equal(first.streak, 0);
+  assert.equal(first.nudges, 2);
+});
