@@ -1,4 +1,4 @@
-# M7-21: Demo and isolated instances read nothing from the owner's home
+﻿# M7-21: Demo and isolated instances read nothing from the owner's home
 
 Part of the MetaTrooper desk epic (becoming Ouros), Milestone 7. Priority: High. Effort: not sized. Depends on: none.
 Status: bug confirmed in code 2026-10-31.
@@ -18,11 +18,11 @@ Status: bug confirmed in code 2026-10-31.
 
 ## Acceptance criteria
 
-- [ ] M7-21a. readLimits takes its engine home from the instance home or a setting, never os.homedir(), when METATROOPER_HOME is set.
-- [ ] M7-21b. A test seeds a fake ~/.codex and asserts the demo meter ignores it.
+- [x] M7-21a. readLimits takes its engine home from the instance home or a setting, never os.homedir(), when METATROOPER_HOME is set. (2026-11-08: `engineHome()` in core/src/paths.ts.)
+- [x] M7-21b. A test seeds a fake ~/.codex and asserts the demo meter ignores it. (2026-11-08: core/test/m7-21-demo-limits.test.ts; fails without the fix.)
 - [ ] M7-21c. A --demo run shows zero real usage figures on a frame capture.
 - [ ] M7-21d. Each of the three unverified bugs is reproduced or closed with a dated note.
-- [ ] M7-21e. M5-11 recording steps drop the DOM-hide workaround for meters.
+- [ ] M7-21e. M5-11 recording steps drop the DOM-hide workaround for meters. (2026-11-08: no DOM-hide step is in issues/m5-11 or tests/demo; nothing to drop in the repo.)
 
 ## Rules that bind every child
 
