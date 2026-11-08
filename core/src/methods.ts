@@ -481,12 +481,12 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('session.read', {
     handler: async (p) => {
       const id = str(p, 'session_id');
-      const n = p.lines ?? 50;
+      const n = p.lines === undefined ? 50 : p.lines;
       if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 500) throw new RpcError(E.INVALID_PARAMS, 'lines must be a whole number from 1 to 500');
       const row = db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined;
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
       const secrets = knownSecretValues();
-      return { session_id: id, state: row.state, lines: ((await term.lastLines(id, n)) ?? []).map((l) => scrub(l, secrets)) };
+      return { session_id: id, state: row.state, lines: ((await term.readLines(id, n)) ?? []).map((l) => scrub(l, secrets)) };
     },
   });
 
