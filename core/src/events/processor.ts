@@ -108,7 +108,8 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const own = typeof conv === 'string' && !foreign ? conv : s.native_id;
         const waited = s.state === 'waiting_for_you' && /^claude\.(PreToolUse|PostToolUse|PostToolUseFailure)$/.test(ev.kind) ? permissionWait(ev.session_id, ev.seq, own) : null;
         if (!foreign) {
-          if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd') setNative.run(conv, ev.session_id);
+          // A codex.turn does not set native_id when the session has none yet.
+          if (typeof conv === 'string' && ev.kind !== 'claude.SessionEnd' && !(ev.kind === 'codex.turn' && s.native_id === null)) setNative.run(conv, ev.session_id);
           if (ev.kind.startsWith('claude.') && typeof payload.transcript_path === 'string') noteTranscript(ev.session_id, payload.transcript_path);
           // last_tool names a tool asked for and not yet finished, so a later bell, stall or input wait is not shown as its permission prompt.
           if (ev.kind === 'claude.PreToolUse' && typeof payload.tool_name === 'string' && s.state !== 'done' && s.state !== 'idle' && waited === null) setTool.run(payload.tool_name, ev.session_id);

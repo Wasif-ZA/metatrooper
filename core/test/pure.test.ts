@@ -239,6 +239,40 @@ test('codex.turn from another thread does not mark the session done', async () =
   }
 });
 
+test('codex.turn does not set native_id when the session has none', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const prev = process.env.METATROOPER_HOME;
+  process.env.METATROOPER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'troop-thread-'));
+  try {
+    const { openCoreDb } = await import('../src/store/db.ts');
+    const { syncEngines, BUILT_IN } = await import('../src/engines/registry.ts');
+    const { appendEvent } = await import('../src/events/append.ts');
+    const { processEvents } = await import('../src/events/processor.ts');
+    const db = openCoreDb();
+    syncEngines(db, BUILT_IN);
+    db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', 'c:/p', 'p', 'x', 'x')").run();
+    db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at, native_id) VALUES ('s', 'p', 'codex', 'pty', 'working', 'x', 'x', NULL)").run();
+    const state = () => (db.prepare("SELECT state FROM session WHERE id = 's'").get() as { state: string }).state;
+    const nativeId = () => (db.prepare("SELECT native_id FROM session WHERE id = 's'").get() as { native_id: string | null }).native_id;
+    appendEvent('codex.turn', 's', { 'thread-id': 'child' }, db);
+    processEvents(db);
+    assert.equal(nativeId(), null);
+    appendEvent('core.activity', 's', { session_id: 'main', state: 'working' }, db);
+    processEvents(db);
+    assert.equal(nativeId(), 'main');
+    appendEvent('codex.turn', 's', { 'thread-id': 'child' }, db);
+    processEvents(db);
+    assert.equal(nativeId(), 'main');
+    assert.notEqual(state(), 'done');
+    db.close();
+  } finally {
+    if (prev === undefined) delete process.env.METATROOPER_HOME;
+    else process.env.METATROOPER_HOME = prev;
+  }
+});
+
 test('resolveSpentNotices clears notices for exited, missing and re-working sessions only', async () => {
   const fs = await import('node:fs');
   const os = await import('node:os');
