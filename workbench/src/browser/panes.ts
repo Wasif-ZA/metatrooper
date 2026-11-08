@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
-import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, SUSPICIOUS, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
@@ -1279,7 +1279,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId,
       returnByValue: true,
-      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const w = e && e.ownerDocument.defaultView; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password", child: !w || w !== w.top, origin: w ? String(w.origin) : "", text: e ? String(e.innerText || "").replace(/\s+/g, " ").trim().slice(0, 120) : "" }; }',
+      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const w = e && e.ownerDocument.defaultView; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password", child: !w || w !== w.top, origin: w ? String(w.origin) : "" }; }',
     });
     // a control inside a child frame belongs to that frame's own origin; one that cannot be established is refused
     if (el.result?.value?.child !== false) {
@@ -1292,8 +1292,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
     const secrets = scrubSecretValues();
     const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets);
-    const raw = String(el.result?.value?.text ?? '');
-    const text = name || SUSPICIOUS.some((r) => r.test(raw)) ? '' : redactSecretValues(raw, secrets);
+    const text = name || a.ref === undefined ? '' : redactSecretValues(pane.refs.names?.get(String(a.ref)) ?? '', secrets).slice(0, 120);
     return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? ''), text }, password: el.result?.value?.password === true, hidden: !n };
   }
 

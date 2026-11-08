@@ -35,12 +35,13 @@ export interface Refs {
   byKey: Map<string, string>;
   byRef: Map<string, Target>;
   tags: Map<string, string>;
+  names?: Map<string, string>;
   next: number;
   frames: number;
 }
 
 export function newRefs(): Refs {
-  return { byKey: new Map(), byRef: new Map(), tags: new Map(), next: 0, frames: 0 };
+  return { byKey: new Map(), byRef: new Map(), tags: new Map(), names: new Map(), next: 0, frames: 0 };
 }
 
 function refFor(refs: Refs, frameId: string, backendNodeId: number, main: boolean): string {
@@ -165,7 +166,12 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
       let next = d;
       if (!skip) {
         let line = `${'  '.repeat(d)}${clk ? 'clickable' : role}${name && !hid ? ` "${name}"` : ''}`;
-        if (clk) line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main)}]`;
+        if (clk) {
+          const ref = refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main);
+          line += ` [ref=${ref}]`;
+          // the clickable's displayed name, kept whole for describe
+          if (full && name !== WITHHELD) (refs.names ??= new Map()).set(ref, full);
+        }
         if (isRef) {
           line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main)}]`;
           const value = n.value?.value;
