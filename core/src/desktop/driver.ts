@@ -10,7 +10,7 @@ import type { MethodSpec } from '../pipe/commands.ts';
 import { nowIso, ulid } from '../time.ts';
 import { actionHash, desktopKeysProblem, riskReason } from '../approvals.ts';
 import { treeChanges, type TreeNodes } from './changes.ts';
-import { actionHeld, ACTION_HELD, beginRiskyAction, ensureActionOutcomes, finishRiskyAction, releaseRiskyAction } from './action-outcomes.ts';
+import { actionHeld, ACTION_HELD, beginRiskyAction, ensureActionOutcomes, finishRiskyAction, releaseRiskyAction, voidTitleProofs } from './action-outcomes.ts';
 import { ancestors, parentTableAsync } from '../browser/ancestry.ts';
 import { beginAction, endAction } from '../watch/watcher.ts';
 import { covers, endGrant, grantPin, liveGrants, pauseForDrift, pinDrifted, sameWindow, setGrantPin, takeoverPaused, titleMatches, type GrantRow, type WindowInfo } from '../grants.ts';
@@ -392,9 +392,11 @@ export class Desktop {
         if (before.info.title === p.verify_title) throw new RpcError(E.INVALID_PARAMS, 'verify_title already matches before the action');
         verifyTitleHash = titleHash(p.verify_title);
       }
+      let voided = false;
       let started = false;
       const send = async (op: string, params: Record<string, unknown>, note = '') => {
         const out = await this.dispatch(sessionId, now.grant_id, op, params, note, () => {
+          if (!voided) { voidTitleProofs(this.db, sessionId, hash); voided = true; }
           if (risky && !started) { beginRiskyAction(this.db, hash, sessionId, now.grant_id, hwnd, verifyTitleHash); started = true; }
         });
         return out;

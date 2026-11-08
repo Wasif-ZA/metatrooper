@@ -260,7 +260,7 @@ test('M8-40d: a tool result keeps its blocks in place, drops invisible text, and
   assert.equal(screenResult(bare), bare);
 });
 
-test('M8-40 probe 1 (Gemini HIGH, driver.ts desktop.action.verify): a different non-risky action reaching the verify_title must not clear a Send hold', { todo: 'verify clears on title match alone' }, async t => {
+test('M8-40 probe 1 (Gemini HIGH, driver.ts desktop.action.verify): a different non-risky action reaching the verify_title must not clear a Send hold', async t => {
   const f = fixture(t, unverifiable);
   const { action_hash } = await f.act({ verify_title: 'Sent' });
   await f.act({ action: 'key', keys: 'Tab' });
