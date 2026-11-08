@@ -50,3 +50,25 @@ Not sized until M8-0.
 - New repo dependencies pass the gate: MIT, 25k+ stars, maintained.
 - Codex writes the tests for any step Claude builds, and the other way round.
 - No em dashes; comments say what the code does, not why.
+
+## Read of the named tools (M8-45a, 2026-11-08)
+
+Read from GitHub metadata, READMEs and home pages only. No tool was installed or run.
+
+| Tool | Where | Measures | Data from | Licence | Stars | Last push |
+|---|---|---|---|---|---|---|
+| RepoBench | github.com/felipcsousa/repobench | Which agent CLI fixes your repo's tasks, scored by hidden verifiers | Local runs on tasks built from your merged PRs | Apache-2.0 | 3 | 2026-09-11 |
+| RepoGauge | github.com/s1liconcow/repogauge | Agent accuracy on your repo, SWE-bench style | Local runs on tasks from repo history | Other | 3 | 2026-04-26 |
+| CodeJoust | github.com/he-yufeng/CodeJoust | Agents on the same bug: tests, diff, cost, time | Local runs on a bug you give it | MIT | 8 | 2026-08-27 |
+| agent-bench | Not found. The closest hit is THUDM/AgentBench, a general LLM-as-agent benchmark, which is probably not the tool meant | General agent ability | Its own tasks | not checked | 3817 | 2026-02-08 |
+| cc-canary | Not found (only test fixtures came up) | | | | | |
+| trackbaseline.com | Site only, no repo | Drift in coding agents across 14 probes against a baseline | Local SQLite; cloud sync on paid plans | Not stated | | |
+| nerfed.watch | Site only, no repo | Quality regressions in Claude Code and Codex | Its own fixed task packs; no scores published yet | Not stated | | |
+
+None passes the dependency gate (MIT, 25k+ stars). None was found to read another tool's run records. Each one runs its own tasks.
+
+## Built values (M8-45d)
+
+- `MIN_RUNS = 5`: an engine with fewer runs on a repo is not ranked, and a repo where no engine has 5 runs says "not enough runs".
+- Got-worse flag: the last 5 runs compared with the earlier ones (at least 5), raised on a pass-rate drop of 0.2 or more.
+- Code: `core/src/scorecard.ts` (pure, no imports). It takes records shaped `{engine, repo, at, checksPassed, repairTries, undone, usd}`. No such records exist yet: M8-F1, M8-F2 and M8-F3 have not been built, so nothing writes them.
