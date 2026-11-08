@@ -30,6 +30,7 @@ const EXPECTED_METHODS = [
   'session.resume',
   'session.focus',
   'session.live-text',
+  'session.output',
   'session.search',
   'session.seen',
   'session.hide',
