@@ -39,6 +39,8 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.hide            {session_id}
   session.limit-resume    {session_id, on: bool}
   usage.summary           {window: today|week|run, run_id?}
+  done.check              {session_id, command, acceptance?}
+  done.result             {session_id}
   session.clear-status    {session_id}
   session.owners          {project_id}
   session.read            {session_id, lines?}
