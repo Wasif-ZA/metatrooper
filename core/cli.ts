@@ -498,9 +498,14 @@ async function main(): Promise<number> {
           console.error(`bad jobs file ${jobsFile}: ${(e as Error).message}`);
           return 2;
         }
-        let worst = 0;
-        for (const job of jobs) worst = Math.max(worst, await launchOne({ project, approval: a.opts.get('--approval'), model, ...job }, json, emit));
-        return worst;
+        // Run every job in order and report failures to stderr.
+        const failed: string[] = [];
+        for (let i = 0; i < jobs.length; i++) {
+          const code = await launchOne({ project, approval: a.opts.get('--approval'), model, ...jobs[i] }, json, emit);
+          if (code) failed.push(`job ${i + 1} (${jobs[i].engine}${jobs[i].worktree ? ` on ${jobs[i].worktree}` : ''})`);
+        }
+        if (failed.length) console.error(`${failed.length} of ${jobs.length} jobs failed: ${failed.join(', ')}`);
+        return failed.length ? 1 : 0;
       }
       const engine = a.pos[0];
       if (!engine) {
