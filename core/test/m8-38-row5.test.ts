@@ -15,13 +15,13 @@ const T = { timeout: 180000 };
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Form with a title, a position, a size and a body; prints `HWND <n>` once shown and `say` lines for events.
-const form = (title: string, x: number, y: number, w: number, h: number, body: string) => `
+const form = (title: string, x: number, y: number, w: number, h: number, body: string, topmost = false) => `
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $f = New-Object System.Windows.Forms.Form
 $f.Text = '${title}'; $f.StartPosition = 'Manual'; $f.Location = New-Object System.Drawing.Point(${x}, ${y}); $f.Width = ${w}; $f.Height = ${h}
 function say($s) { [Console]::Out.WriteLine($s); [Console]::Out.Flush() }
 ${body}
-$f.Add_Shown({ say ('HWND ' + $f.Handle.ToInt64()) })
+$f.Add_Shown({ ${topmost ? '$f.TopMost = $true; ' : ''}say ('HWND ' + $f.Handle.ToInt64()) })
 [System.Windows.Forms.Application]::Run($f)
 `;
 
@@ -29,9 +29,9 @@ $f.Add_Shown({ say ('HWND ' + $f.Handle.ToInt64()) })
 const FIXTURE = form('row5 fixture', 1500, 700, 500, 300, `
 $b = New-Object System.Windows.Forms.Button; $b.Text = 'Btn'; $b.AccessibleName = 'Btn'; $b.Location = New-Object System.Drawing.Point(10, 10); $b.Add_Click({ say 'EV button' }); $f.Controls.Add($b)
 $l = New-Object System.Windows.Forms.Label; $l.Text = 'Lbl'; $l.AccessibleName = 'Lbl'; $l.Location = New-Object System.Drawing.Point(10, 90); $l.Add_Click({ say 'EV label' }); $f.Controls.Add($l)
-`);
-// Cover: a plain form placed over the fixture (the fixture spans 1500..2000 x 700..1000 on screen).
-const COVER = form('row5 cover', 1480, 680, 560, 360, '');
+`, true);
+// Cover: a topmost form placed over the fixture (the fixture spans 1500..2000 x 700..1000 on screen).
+const COVER = form('row5 cover', 1480, 680, 560, 360, '', true);
 // Edge page: an autofocused input whose oninput sets the document title.
 const PAGE = `<!doctype html><meta charset="utf-8"><title>row5 page</title><body style="margin:0">
 <input aria-label="PageInput" autofocus style="position:fixed;top:0;left:0;width:300px" oninput="document.title='input '+this.value">
@@ -212,7 +212,8 @@ describe('M8-38 row 5: refuse posted input that is lost', { skip: process.platfo
     writeFileSync(page, PAGE);
     const profile = mkdtempSync(join(tmpdir(), 'm8-38-row5-profile-'));
     profiles.push(profile);
-    const edge = spawn(EDGE, [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--window-position=1800,100', '--window-size=700,500', `--app=file:///${page.replace(/\\/g, '/')}`], { stdio: 'ignore' });
+    // Edge keeps its page visible even when it opens behind other windows.
+    const edge = spawn(EDGE, [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-features=CalculateNativeWinOcclusion','--window-position=1800,100', '--window-size=700,500', `--app=file:///${page.replace(/\\/g, '/')}`], { stdio: 'ignore' });
     kids.push(edge);
     const w = await findNewWindow('row5 page', known);
     assert.ok(w, 'Edge window did not appear');
