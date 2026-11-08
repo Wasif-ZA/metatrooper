@@ -80,7 +80,6 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
-  { name: 'session.output', stable: true, params: '{session_id, tail_bytes?}', result: '{text, bytes, truncated}: the last tail_bytes (default 65536, max 1048576) of the durable raw output log (output/<session_id>.log.1 then .log, escape codes included); bytes is the total kept on disk; truncated is true when older output exists beyond the text returned' },
   { name: 'session.search', needsUi: true, params: '{query, session_ids?}', result: "{hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19)" },
   { name: 'session.seen', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus`' },
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
@@ -419,14 +418,6 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const out: Record<string, { line?: string; title?: string; held?: boolean }> = liveText();
       for (const id of heldPrompts()) out[id] = { ...out[id], held: true };
       return out;
-    },
-  });
-  m.set('session.output', {
-    handler: (p) => {
-      const id = str(p, 'session_id');
-      if (!term.validOutputId(id)) throw new RpcError(E.INVALID_PARAMS, 'session_id is invalid');
-      const n = typeof p.tail_bytes === 'number' && Number.isFinite(p.tail_bytes) ? Math.floor(p.tail_bytes) : 65536;
-      return term.readOutput(id, Math.min(Math.max(n, 0), 1048576));
     },
   });
   m.set('session.search', { needsUi: true, handler: async (p) => ({ hits: await term.search(str(p, 'query'), 50, Array.isArray(p.session_ids) ? new Set(p.session_ids.filter((x): x is string => typeof x === 'string')) : undefined) }) });
