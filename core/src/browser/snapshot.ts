@@ -10,6 +10,7 @@ export interface AXNode {
   role?: { value?: unknown };
   name?: { value?: unknown };
   value?: { value?: unknown };
+  properties?: Array<{ name?: string; value?: { value?: unknown } }>;
   ignored?: boolean;
   backendDOMNodeId?: number;
 }
@@ -35,12 +36,13 @@ export interface Refs {
   byKey: Map<string, string>;
   byRef: Map<string, Target>;
   tags: Map<string, string>;
+  names?: Map<string, string>;
   next: number;
   frames: number;
 }
 
 export function newRefs(): Refs {
-  return { byKey: new Map(), byRef: new Map(), tags: new Map(), next: 0, frames: 0 };
+  return { byKey: new Map(), byRef: new Map(), tags: new Map(), names: new Map(), next: 0, frames: 0 };
 }
 
 function refFor(refs: Refs, frameId: string, backendNodeId: number, main: boolean): string {
@@ -132,7 +134,15 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
   for (const f of frames) if (f.parent && f.owner) children.set(`${f.parent}:${f.owner}`, f);
   const lines: string[] = frames.some((f) => f.hiddenOver) ? ['(over 2000 hidden elements; some hidden text may remain)'] : [];
   const seen = new Set<string>();
-  const walkFrame = (frame: Frame, start: AXNode | undefined, depth: number) => {
+  // whether a frame's iframe, or any host above it, is hidden
+  const frameHid = (f: Frame, depth = 0): boolean => {
+    const p = f.parent && f.owner && depth < 16 ? frames.find((x) => x.id === f.parent) : undefined;
+    if (!p) return false;
+    const byId = new Map(p.nodes.map((n) => [n.nodeId, n]));
+    for (let n = p.nodes.find((x) => x.backendDOMNodeId === f.owner); n; n = n.parentId ? byId.get(n.parentId) : undefined) if (n.backendDOMNodeId && p.hidden?.has(n.backendDOMNodeId)) return true;
+    return p.hidden?.has(f.owner!) || frameHid(p, depth + 1);
+  };
+  const walkFrame = (frame: Frame, start: AXNode | undefined, depth: number, inHid = false) => {
     seen.add(frame.id);
     const byId = new Map(frame.nodes.map((n) => [n.nodeId, n]));
     const hiddenIds = frame.hidden;
@@ -154,9 +164,11 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
       const clk = !isRef && !hid && !!n.backendDOMNodeId && !!frame.clickable?.has(n.backendDOMNodeId);
       let full = String(n.name?.value ?? '').replace(/\s+/g, ' ').trim();
       if (!hid) for (const t of cut.get(n.nodeId) ?? []) full = full.split(t).join(' ').replace(/\s+/g, ' ').trim();
+      const isEd = (m: AXNode) => ACTIONABLE.has(String(m.role?.value ?? '')) || !!m.properties?.some((p) => p.name === 'editable');
+      let ed = clk && isEd(n);
       if (clk && !full) {
         const texts: string[] = [];
-        const gather = (m: AXNode) => { for (const c of m.childIds ?? []) { const k = byId.get(c); if (!k || isHid(k)) continue; if (k.role?.value === 'StaticText') texts.push(String(k.name?.value ?? '')); gather(k); } };
+        const gather = (m: AXNode) => { for (const c of m.childIds ?? []) { const k = byId.get(c); if (!k || isHid(k)) continue; if (isEd(k)) ed = true; if (k.role?.value === 'StaticText') texts.push(String(k.name?.value ?? '')); gather(k); } };
         gather(n);
         full = texts.join(' ').replace(/\s+/g, ' ').trim();
       }
@@ -165,7 +177,13 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
       let next = d;
       if (!skip) {
         let line = `${'  '.repeat(d)}${clk ? 'clickable' : role}${name && !hid ? ` "${name}"` : ''}`;
-        if (clk) line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main)}]`;
+        if (clk) {
+          const ref = refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main);
+          line += ` [ref=${ref}]`;
+          // the clickable's displayed name, kept whole for describe
+          if (full && name !== WITHHELD && !ed) (refs.names ??= new Map()).set(ref, full);
+          else refs.names?.delete(ref);
+        }
         if (isRef) {
           line += ` [ref=${refFor(refs, frame.id, n.backendDOMNodeId!, frame.id === main)}]`;
           const value = n.value?.value;
@@ -177,20 +195,20 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
       }
       for (const c of n.childIds ?? []) walk(byId.get(c), next, hid);
       const child = n.backendDOMNodeId ? children.get(`${frame.id}:${n.backendDOMNodeId}`) : undefined;
-      if (child && !seen.has(child.id)) walkFrame(child, undefined, next);
+      if (child && !seen.has(child.id)) walkFrame(child, undefined, next, hid);
     };
     const first = start ?? frame.nodes.find((n) => !n.parentId) ?? frame.nodes[0];
-    walk(first, depth, !!first && isHid(first));
+    walk(first, depth, inHid || (!!first && isHid(first)));
   };
   if (scope) {
     const frame = frames.find((f) => f.id === scope.frameId);
     const node = frame?.nodes.find((n) => n.backendDOMNodeId === scope.backendNodeId);
     if (!frame || !node) return null;
-    walkFrame(frame, node, 0);
+    walkFrame(frame, node, 0, frameHid(frame));
     return lines;
   }
   if (frames[0]) walkFrame(frames[0], undefined, 0);
-  for (const f of frames) if (!seen.has(f.id) && f.nodes.length) walkFrame(f, undefined, 0);
+  for (const f of frames) if (!seen.has(f.id) && f.nodes.length) walkFrame(f, undefined, 0, frameHid(f));
   return lines;
 }
 

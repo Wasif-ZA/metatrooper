@@ -45,7 +45,7 @@ function record(sessionId: string, tool: string, p: Record<string, any>): void {
   const step: Step | null = tool === 'navigate' ? { tool, url: scrub(String(p.url), scrubSecretValues()) }
     : tool === 'back' ? { tool }
     : tool === 'key' ? { tool, keys: String(p.keys) }
-    : tool === 'click' || tool === 'type' || tool === 'select' ? { tool, role: String(c.role ?? ''), name: String(c.name ?? ''), ...(tool === 'type' ? { submit: p.submit === true } : {}), ...(tool === 'select' ? { value: String(p.value) } : {}) } as Step
+    : tool === 'click' || tool === 'type' || tool === 'select' ? { tool, role: String(c.role ?? ''), name: String(c.name || (tool === 'click' ? c.text : '') || ''), ...(tool === 'type' ? { submit: p.submit === true } : {}), ...(tool === 'select' ? { value: String(p.value) } : {}), ...(c.password === true ? { password: true } : {}) } as Step
     : null;
   if (!step) return;
   const list = recorded.get(sessionId) ?? [];

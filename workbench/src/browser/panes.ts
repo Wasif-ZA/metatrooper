@@ -96,7 +96,7 @@ const PAGE_WALK = String.raw`function mtWalk(root, mode) {
     const block = !contents && !INLINE.includes(cs.display);
     if (block) brk();
     for (const c of el.childNodes) {
-      if (c.nodeType === 3) cur += c.data.replace(/\s+/g, ' ');
+      if (c.nodeType === 3) { if (cs.visibility === 'visible') cur += c.data.replace(/\s+/g, ' '); }
       else if (c.nodeType === 1) { if (c.tagName === 'BR') brk(); else rd(c, s); }
     }
     if (block) brk();
@@ -1251,7 +1251,7 @@ ame, after checking the ref's field is a password field on the origin saved with
   }
 
   /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, or the accessibility tree cannot be read for the control, so it cannot be named. The name is whole; only displays shorten it. */
-  private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
+  private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string; text: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
     let objectId: string | undefined;
@@ -1292,7 +1292,8 @@ ame, after checking the ref's field is a password field on the origin saved with
     // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
     const secrets = scrubSecretValues();
     const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets);
-    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
+    const text = name || a.ref === undefined ? '' : redactSecretValues(pane.refs.names?.get(String(a.ref)) ?? '', secrets).slice(0, 120);
+    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? ''), text }, password: el.result?.value?.password === true, hidden: !n };
   }
 
   /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
