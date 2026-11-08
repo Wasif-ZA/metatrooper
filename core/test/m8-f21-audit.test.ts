@@ -169,6 +169,37 @@ test('M8-F21d: audit.list scrubs credential strings on the public API', async (t
   assert.ok(rows.every((row) => row.detail === '[secret]'));
 });
 
+test('M8-F21d: a known secret longer than 2000 characters in an event payload never appears, not even a prefix', (t) => {
+  const f = fixture(t);
+  const secret = 'SECRET' + 'k'.repeat(2494);
+  assert.equal(secret.length, 2500);
+  event(f.db, 'claude.tool', times[2], 'claude-hook', 's1', JSON.stringify({ text: secret }));
+  const rows = auditRows(f.db, 'p1', {}, [secret]);
+  assert.equal(rows.length, 1);
+  const prefix = secret.slice(0, 20);
+  for (const row of rows) {
+    assert.ok(!row.detail.includes(prefix));
+    assert.ok(!row.action.includes(prefix));
+    assert.ok(!JSON.stringify(row).includes(prefix));
+  }
+});
+
+test('M8-F21d: a known secret with a quote and a backslash stored JSON-escaped never appears', (t) => {
+  const f = fixture(t);
+  const secret = 'fixture"pass\\word';
+  event(f.db, 'codex.turn', times[2], 'codex-notify', 's2', JSON.stringify({ text: secret }));
+  const rows = auditRows(f.db, 'p1', {}, [secret]);
+  assert.equal(rows.length, 1);
+  const escaped = JSON.stringify(secret).slice(1, -1);
+  for (const row of rows) {
+    for (const text of [row.detail, row.action]) {
+      assert.ok(!text.includes(secret));
+      assert.ok(!text.includes(escaped));
+      assert.ok(!text.includes('pass\\word'));
+    }
+  }
+});
+
 test('M8-F21: actions and details are capped at 300 characters', async (t) => {
   const f = fixture(t);
   const long = 'x'.repeat(450);
