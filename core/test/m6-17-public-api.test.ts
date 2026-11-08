@@ -26,6 +26,7 @@ const EXPECTED_METHODS = [
   'project.hide',
   'session.launch',
   'session.list',
+  'audit.list',
   'session.wait',
   'session.resume',
   'session.focus',
@@ -109,6 +110,7 @@ const EXPECTED_MOVED = [
 
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
+  'audit.list',
   'core.stop',
   'session.search',
   'settings.set',
