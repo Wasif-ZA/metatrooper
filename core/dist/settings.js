@@ -30,12 +30,6 @@ export const DEFAULTS = {
     idle_fade_ms: 5000,
     show_in_recordings: false,
   },
-  savers: {
-    shrink_shell: false,
-    lean_handoffs: false,
-    small_screenshots: false,
-    cheap_model: false,
-  },
   worktree: {
     npm_ci: true,
     stale_days: 7,
