@@ -158,6 +158,14 @@ export function lastLines(id: string, n: number): Promise<string[] | null> {
   }));
 }
 
+/** Like lastLines, but an exited session falls back to its saved screen text (last SCREEN_ROWS rows, wrapped rows not joined); null with neither. */
+export async function readLines(id: string, n: number): Promise<string[] | null> {
+  const live = await lastLines(id, n);
+  if (live) return live;
+  const text = savedScreen(id)?.text;
+  return text == null ? null : text.split('\n').map((l) => l.trim()).filter(Boolean).slice(-n);
+}
+
 export interface Hit { session_id: string; line: number; text: string }
 
 /** Lines (wrapped rows joined) of every live terminal, or only those in `only`, that contain `query`, ignoring case; most recent terminal and line first. */

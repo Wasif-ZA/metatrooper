@@ -36,6 +36,8 @@ const EXPECTED_METHODS = [
   'session.limit-resume',
   'session.clear-status',
   'session.owners',
+  'session.read',
+  'session.send',
   'session.paste-prompt',
   'needs_you.mark-read',
   'needs_you.mark-unread',
@@ -249,7 +251,7 @@ test('session.wait sees a target state that is left again before the next poll',
   processEvents(db);
   methods.get('session.seen')!.handler({ session_id: sessionId }, ctx);
   assert.equal((db.prepare('SELECT state FROM session WHERE id = ?').get(sessionId) as { state: string }).state, 'idle');
-  assert.deepEqual(await wait, { state: 'done', timed_out: false });
+  assert.deepEqual(await wait, { state: 'done', timed_out: false, wait_reason: null, waiting_on_person: false });
   db.close();
 });
 

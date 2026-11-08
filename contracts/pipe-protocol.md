@@ -108,7 +108,7 @@ survives in the WAL for at most about 30 s.
 ## Queue fallback (client side)
 
 Only state-changing methods are ever queued. Not queued (they fail fast with "core offline" instead):
-`session.focus`, `session.live-text`, `session.list`, `session.wait`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
+`session.focus`, `session.live-text`, `session.list`, `session.wait`, `session.read`, `session.send`, `session.search`, `engines.check`, every `browser.*` method, and the methods that carry
 secret values (`plugin.preview`, `plugin.install`, `plugin.secret.set`, `mcp.resolve`), which are never
 written to the `command` table.
 
@@ -130,6 +130,9 @@ A session in `done` has ended a turn, or its session file went quiet for 20 s; i
 work, and it can go back to `working`. An orchestrator that needs a lane's result waits for the lane's own output
 file; `session.wait` with `settle_ms` only cuts down the early returns.
 
+`session.wait` also returns `wait_reason` (the reason the session is waiting, or null) and `waiting_on_person`, true when the
+state is `waiting_for_you`: only a person can answer it, and `session.send` refuses such a session.
+
 <!-- methods:start -->
 | Method | Params | Result | Errors | Stable | Needs `ui.hello` |
 |---|---|---|---|---|---|
@@ -142,7 +145,7 @@ file; `session.wait` with `settle_ms` only cuts down the early returns.
 | `project.hide` | `{project_id}` | {}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back | -32002, -32003 |  |  |
 | `session.launch` | `{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"\|"act"\|"debug", parent_id?}` | {session_id, prompt_delivered, model?}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path. A `browser: true` launch on the claude engine without `model` uses the project's `.troop/config.json` `models.browser`, else `claude-sonnet-5-5` (M8-43); `model` in the result is the model passed to the engine. | -32002, -32003, -32602, -32020, -32040 | yes |  |
 | `session.list` | `{project_id?, all?: bool}` | {sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true` |  | yes |  |
-| `session.wait` | `{session_id, states: [state, ...], timeout_ms, settle_ms?}` | {state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms` | -32602, -32002 | yes |  |
+| `session.wait` | `{session_id, states: [state, ...], timeout_ms, settle_ms?}` | {state, timed_out, wait_reason, waiting_on_person}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms` | -32602, -32002 | yes |  |
 | `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id | -32002, -32602, -32003 | yes |  |
 | `session.focus` | `{session_id}` | {focused: bool} | -32002 | yes |  |
 | `session.live-text` | `{}` | {<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |  | yes |  |
@@ -153,6 +156,8 @@ file; `session.wait` with `settle_ms` only cuts down the early returns.
 | `usage.summary` | `{window: today\|week\|run, run_id?}` | {window, total, in, out, cache_read, cache_write, usd, usd_estimated, parts: [{kind, tokens}], by_agent: [{session_id, engine_id, tokens, usd, usd_estimated}], estimate: true, repeat_reads: [{session_id, file_path, count}], savers: [{id, on, saving}]}; token use for the window (run needs run_id), the parts sum to total; -32602 on a bad window or a run without run_id | -32602 |  |  |
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
 | `session.owners` | `{project_id}` | {repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` | -32002 |  |  |
+| `session.read` | `{session_id, lines?}` | {session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted | -32002, -32602 |  |  |
+| `session.send` | `{session_id, text}` | {sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you` | -32002, -32602 |  |  |
 | `session.paste-prompt` | `{session_id}` | {written, reason?}: types the held prompt once; refused for an `external` session | -32002, -32602 |  |  |
 | `needs_you.mark-read` | `{id}` | {} | -32002 |  |  |
 | `needs_you.mark-unread` | `{id}` | {} | -32002 |  |  |
