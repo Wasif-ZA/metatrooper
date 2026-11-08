@@ -140,3 +140,20 @@ test('M7-23 an estimated usage row makes the session chip show ~$ and est.', () 
     f.close();
   }
 });
+
+test('M7-23 snapshot still works on a usage table without usd_estimated and reports 0', () => {
+  const f = fixture();
+  try {
+    const now = '2026-11-09T00:00:00Z';
+    f.db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', '/path/p', 'p', ?, ?)").run(now, now);
+    f.db.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('codex', '{}', 1)").run();
+    f.db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s', 'p', 'codex', 'pty', 'working', ?, ?)").run(now, now);
+    f.db.prepare("INSERT INTO usage (at, session_id, engine_id, provider, tokens_in, tokens_out, usd, source, dedupe_key) VALUES (?, 's', 'codex', 'local-cli', 100, 20, 0.5, 'codex-session', 'k')").run(now);
+    f.db.exec('ALTER TABLE usage DROP COLUMN usd_estimated');
+    const session = snapshot(f.db, 'p').sessions.find(s => s.id === 's')!;
+    assert.equal(session.usd, 0.5);
+    assert.equal(session.usd_estimated, 0);
+  } finally {
+    f.close();
+  }
+});

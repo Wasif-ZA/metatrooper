@@ -121,3 +121,25 @@ test('M7-23b agy usage stays unpriced through the snapshot and its chip says no 
     f.close();
   }
 });
+
+test('M7-23 upgrading a db without usd_estimated backfills priced gpt rows once and leaves claude rows at 0', async () => {
+  const f = await fixture('codex');
+  try {
+    f.db.exec('ALTER TABLE usage DROP COLUMN usd_estimated');
+    const ins = f.db.prepare("INSERT INTO usage (at, session_id, engine_id, provider, model, tokens_in, tokens_out, usd, source, dedupe_key) VALUES ('x', 's', 'codex', 'local-cli', ?, 1, 1, ?, 'transcript', ?)");
+    ins.run('gpt-9-test', 0.5, 'g1');
+    ins.run('gpt-9-test', null, 'g2');
+    ins.run('claude-sonnet-5-5', 0.5, 'c1');
+    const { openCoreDb } = await import('../src/store/db.ts');
+    const db = openCoreDb();
+    const flag = (k: string) => (db.prepare('SELECT usd_estimated FROM usage WHERE dedupe_key = ?').get(k) as { usd_estimated: number }).usd_estimated;
+    assert.deepEqual([flag('g1'), flag('g2'), flag('c1')], [1, 0, 0]);
+    db.exec("UPDATE usage SET usd_estimated = 0 WHERE dedupe_key = 'g1'");
+    db.close();
+    const again = openCoreDb();
+    assert.equal((again.prepare("SELECT usd_estimated FROM usage WHERE dedupe_key = 'g1'").get() as { usd_estimated: number }).usd_estimated, 0);
+    again.close();
+  } finally {
+    f.close();
+  }
+});

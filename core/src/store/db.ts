@@ -51,7 +51,10 @@ export function openCoreDb(): DatabaseSync {
     addColumn('session', 'limit_resume', 'INTEGER NOT NULL DEFAULT 1');
     addColumn('session', 'wait_reason', 'TEXT');
     addColumn('session', 'browser_grant', 'TEXT');
+    const hadEst = (db.prepare('PRAGMA table_info(usage)').all() as Array<{ name: string }>).some((c) => c.name === 'usd_estimated');
     addColumn('usage', 'usd_estimated', 'INTEGER NOT NULL DEFAULT 0');
+    // Backfill once on first add: every gpt model is priced by the estimated gpt-* fallback.
+    if (!hadEst) db.exec("UPDATE usage SET usd_estimated = 1 WHERE usd IS NOT NULL AND model LIKE 'gpt-%'");
     addColumn('project', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
     addColumn('project', 'older', 'INTEGER NOT NULL DEFAULT 0');
     for (const table of ['notify_sink', 'notify_delivery', 'limit_history', 'approval']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));

@@ -134,12 +134,14 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const driven = cols.has('driven_engine') ? 's.driven_engine' : 'NULL AS driven_engine';
   const resume = cols.has('limit_resume') ? 's.limit_resume' : '1 AS limit_resume';
   const reason = cols.has('wait_reason') ? 's.wait_reason AS reason' : 'NULL AS reason';
+  const hasEst = (db.prepare('PRAGMA table_info(usage)').all() as Array<{ name: string }>).some((c) => c.name === 'usd_estimated');
+  const est = hasEst ? '(SELECT COALESCE(MAX(usd_estimated), 0) FROM usage u WHERE u.session_id = s.id) AS usd_estimated' : '0 AS usd_estimated';
   const sessions = projectId
     ? (db.prepare(
         `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${resume}, ${reason},
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
-           (SELECT COALESCE(MAX(usd_estimated), 0) FROM usage u WHERE u.session_id = s.id) AS usd_estimated,
+           ${est},
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
       ).all(projectId) as Snapshot['sessions'])
