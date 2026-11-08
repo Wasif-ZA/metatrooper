@@ -30,6 +30,7 @@ import { trustFolder } from './trust.ts';
 import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
 import { Approvals } from './approvals.ts';
+import { auditRows } from './audit.ts';
 import { Desktop } from './desktop/driver.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
 
@@ -66,6 +67,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
   { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
+  { name: 'audit.list', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{project_id, limit?, before?}', result: "{rows: [{at, session_id, agent, action, detail, source}]}: newest first; source is system (gate decisions, core events) or agent (the agent's own call or words); read only, secrets scrubbed (M8-F21)" },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
@@ -266,6 +268,19 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
          WHERE (? = '' OR project_id = ?) AND (? = 1 OR hidden = 0) ORDER BY julianday(started_at) DESC`,
       ).all(project, project, p.all === true ? 1 : 0);
       return { sessions };
+    },
+  });
+
+  m.set('audit.list', {
+    needsUi: true,
+    handler: (p) => {
+      const id = str(p, 'project_id');
+      if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'project not found');
+      const limit = p.limit;
+      if (limit !== undefined && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 500)) throw new RpcError(E.INVALID_PARAMS, 'limit must be a whole number from 1 to 500');
+      const before = p.before;
+      if (before !== undefined && typeof before !== 'string') throw new RpcError(E.INVALID_PARAMS, 'before must be a string');
+      return { rows: auditRows(db, id, { limit, before }, scrubSecretValues()) };
     },
   });
 
