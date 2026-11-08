@@ -40,6 +40,8 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.limit-resume    {session_id, on: bool}
   session.clear-status    {session_id}
   session.owners          {project_id}
+  session.read            {session_id, lines?}
+  session.send            {session_id, text}
   session.paste-prompt    {session_id}
   needs_you.mark-read     {id}
   needs_you.mark-unread   {id}
@@ -98,6 +100,16 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 
 A session in `waiting_for_you` needs the human. Report it to the user and stop. Do not answer
 another agent's prompt yourself.
+
+## Driving another agent
+
+1. `troop launch <engine> --prompt <text> --json` returns the new session id.
+2. `troop wait <id> --json` blocks until it is done, idle, exited or waiting; exit 4 means it timed out.
+3. `troop read <id> --json` returns the last lines of its terminal, secrets redacted.
+4. `troop send <id> <text...> --json` types a follow-up and presses Enter.
+
+If a wait returns `waiting_on_person: true`, a person must act: report it and stop. `send` and every other verb can
+never answer an approval or gate.
 
 ## Tools and short output
 

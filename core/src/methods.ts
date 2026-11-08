@@ -4,7 +4,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { E, RpcError } from './pipe/errors.ts';
-import { scrubSecretValues, setBrowserSecret } from './secrets.ts';
+import { knownSecretValues, scrubSecretValues, setBrowserSecret } from './secrets.ts';
+import { scrub } from './redact.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { isPreset } from './browser/grants.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
@@ -66,7 +67,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
   { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?}', result: '{session_id, prompt_delivered}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
-  { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
+  { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out, wait_reason, waiting_on_person}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
   { name: 'session.resume', stable: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS, E.VALIDATION], params: '{session_id}', result: "{session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id" },
   { name: 'session.focus', stable: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{focused: bool}' },
   { name: 'session.live-text', stable: true, params: '{}', result: "{<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second" },
@@ -76,6 +77,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
+  { name: 'session.read', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, lines?}', result: '{session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted' },
+  { name: 'session.send', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, text}', result: '{sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you`' },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
   { name: 'needs_you.mark-read', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
   { name: 'needs_you.mark-unread', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
@@ -285,6 +288,8 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         throw new RpcError(E.INVALID_PARAMS, 'settle_ms must be a whole number from 0 to 60000');
       }
       const read = () => (db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined)?.state;
+      // Wraps a wait result with why the session waits and whether only a person can act.
+      const out = (state: string, timed_out: boolean) => ({ state, timed_out, wait_reason: (db.prepare('SELECT wait_reason FROM session WHERE id = ?').get(id) as { wait_reason: string | null } | undefined)?.wait_reason ?? null, waiting_on_person: state === 'waiting_for_you' });
       const end = Date.now() + timeout;
       let state = read();
       if (state === undefined) throw new RpcError(E.NOT_FOUND, 'session not found');
@@ -302,20 +307,20 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
             const now = Date.now();
             if (!states.includes(state)) since = 0;
             else if (!since) since = now;
-            if (since && now - since >= settle) return { state, timed_out: false };
+            if (since && now - since >= settle) return out(state, false);
             const left = end - now;
-            if (left <= 0) return { state, timed_out: true };
+            if (left <= 0) return out(state, true);
             await new Promise<void>((r) => { wake = r; setTimeout(r, Math.min(200, left, since ? since + settle - now : 200)); });
             state = read() ?? state;
           }
         }
         while (!hit && !states.includes(state)) {
           const left = end - Date.now();
-          if (left <= 0) return { state, timed_out: true };
+          if (left <= 0) return out(state, true);
           await new Promise<void>((r) => { wake = r; setTimeout(r, Math.min(200, left)); });
           state = read() ?? state;
         }
-        return { state: hit ?? state, timed_out: false };
+        return out(hit ?? state, false);
       } finally {
         off();
       }
@@ -470,6 +475,35 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!repo) return { repo: null, paths: [] };
       const titles = Object.fromEntries(Object.entries(liveText()).map(([id, t]) => [id, t.title]));
       return { repo, paths: owners(db, repo, titles) };
+    },
+  });
+
+  m.set('session.read', {
+    handler: async (p) => {
+      const id = str(p, 'session_id');
+      const n = p.lines ?? 50;
+      if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 500) throw new RpcError(E.INVALID_PARAMS, 'lines must be a whole number from 1 to 500');
+      const row = db.prepare('SELECT state FROM session WHERE id = ?').get(id) as { state: string } | undefined;
+      if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
+      const secrets = knownSecretValues();
+      return { session_id: id, state: row.state, lines: ((await term.lastLines(id, n)) ?? []).map((l) => scrub(l, secrets)) };
+    },
+  });
+
+  m.set('session.send', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      const text = p.text;
+      if (typeof text !== 'string' || text.length < 1 || text.length > 4000) throw new RpcError(E.INVALID_PARAMS, 'text must be a string of 1 to 4000 characters');
+      if (/[\x00-\x1f\x7f-\x9f]/.test(text)) throw new RpcError(E.INVALID_PARAMS, 'text must not contain control characters');
+      const row = db.prepare('SELECT host, state FROM session WHERE id = ?').get(id) as { host: string; state: string } | undefined;
+      if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (row.state === 'waiting_for_you') throw new RpcError(E.INVALID_PARAMS, 'the session is waiting on a person; only the user can answer it');
+      if (row.host === 'external') throw new RpcError(E.INVALID_PARAMS, 'the session was opened outside MetaTrooper; type into its own terminal');
+      // Pastes the text the way a delivered comment is pasted, then presses Enter.
+      if (!term.paste(id, text)) throw new RpcError(E.INVALID_PARAMS, 'the session has no open terminal');
+      term.write(id, '\r');
+      return { sent: true };
     },
   });
 

@@ -35,6 +35,10 @@ const USAGE = `usage: troop <command> [--json]
   sessions [--all]              list sessions (hidden ones with --all)
   owners [path]                 uncommitted files of the current project and the session that owns each
   focus|seen|hide <session>     act on a session by id or id prefix
+  wait <session> [--timeout <s>]
+                                block until the session is done, idle, exited or waiting on a person (default 600 s, max 600); exits 4 on timeout
+  read <session> [--lines <n>]  print the last lines (default 50, max 500) of the session terminal, secrets redacted
+  send <session> <text...>      type text into the session and press Enter; never answers an approval or gate
   engines [--check]             show engine health (--check re-runs the checks)
   gate [--since <date>] [--until <date>]
                                 adoption-gate numbers A-01 to A-05 for a window (default: last 14 days)
@@ -67,7 +71,7 @@ interface Args {
   inputs: string[];
 }
 
-const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout', '--model']);
+const VALUED = new Set(['--project', '--prompt', '--worktree', '--jobs', '--approval', '--input', '--timeout', '--model', '--lines']);
 
 function parse(argv: string[]): Args {
   const a: Args = { pos: [], flags: new Set(), opts: new Map(), inputs: [] };
@@ -556,6 +560,37 @@ async function main(): Promise<number> {
       if (!id) return 1;
       const r = await rpc(`session.${cmd}`, { session_id: id }, json);
       if (r.result) emit(r.result, cmd === 'focus' ? (r.result.focused ? 'focused' : 'window not found') : 'ok');
+      return r.code;
+    }
+
+    case 'wait': {
+      if (!a.pos[0]) { console.error('usage: troop wait <session> [--timeout <s>]'); return 2; }
+      const secs = a.opts.has('--timeout') ? Number(a.opts.get('--timeout')) : 600;
+      if (!Number.isInteger(secs) || secs < 1 || secs > 600) { console.error('--timeout must be a whole number of seconds from 1 to 600'); return 2; }
+      const id = resolveSession(a.pos[0]);
+      if (!id) return 1;
+      const r = await rpc('session.wait', { session_id: id, states: ['done', 'waiting_for_you', 'idle', 'exited'], timeout_ms: secs * 1000 }, json);
+      if (!r.result) return r.code;
+      const res = r.result;
+      emit(res, res.timed_out ? `timed out (${res.state})` : res.waiting_on_person ? `waiting on you: ${res.wait_reason ?? ''}` : String(res.state));
+      return res.timed_out ? 4 : 0;
+    }
+
+    case 'read': {
+      if (!a.pos[0]) { console.error('usage: troop read <session> [--lines <n>]'); return 2; }
+      const id = resolveSession(a.pos[0]);
+      if (!id) return 1;
+      const r = await rpc('session.read', { session_id: id, ...(a.opts.has('--lines') ? { lines: Number(a.opts.get('--lines')) } : {}) }, json);
+      if (r.result) emit(r.result, (r.result.lines as string[]).join('\n'));
+      return r.code;
+    }
+
+    case 'send': {
+      if (a.pos.length < 2) { console.error('usage: troop send <session> <text...>'); return 2; }
+      const id = resolveSession(a.pos[0]);
+      if (!id) return 1;
+      const r = await rpc('session.send', { session_id: id, text: a.pos.slice(1).join(' ') }, json);
+      if (r.result) emit(r.result, 'sent');
       return r.code;
     }
 
