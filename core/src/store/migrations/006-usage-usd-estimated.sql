@@ -1,0 +1,1 @@
+-- 006: usage.usd_estimated (M7-23). The column is added by addColumn in db.ts (fresh databases get it from contracts/schema.sql), so this file only records the migration.

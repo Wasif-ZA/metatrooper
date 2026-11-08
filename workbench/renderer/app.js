@@ -1103,7 +1103,7 @@ function tileMeta(x) {
 
 function costChip(x) {
   if (x.tokens === null || x.tokens === undefined) return 'usage unknown';
-  const usd = x.usd === null || x.usd === undefined ? '' : ` · $${x.usd.toFixed(2)}`;
+  const usd = x.usd === null || x.usd === undefined ? ' · no price' : x.usd_estimated ? ` · ~$${x.usd.toFixed(2)} est.` : ` · $${x.usd.toFixed(2)}`;
   return `${x.tokens.toLocaleString('en-US')} tok${usd}`;
 }
 
