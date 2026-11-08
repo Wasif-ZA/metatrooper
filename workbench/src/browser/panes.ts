@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import dns from 'node:dns';
 import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
-import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
+import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, SUSPICIOUS, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
@@ -1251,7 +1251,7 @@ ame, after checking the ref's field is a password field on the origin saved with
   }
 
   /** The origin of the control's own frame (the pane's for the main frame) and the control an input tool would act on: the ref's node, or the focused element for `key`. `hidden`: focus is in a cross-origin frame or a closed shadow root, or the accessibility tree cannot be read for the control, so it cannot be named. The name is whole; only displays shorten it. */
-  private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string } | null; password: boolean; hidden: boolean }> {
+  private async describeControl(pane: Pane, a: Record<string, any>): Promise<{ origin: string; control: { automation_id: string; name: string; role: string; text: string } | null; password: boolean; hidden: boolean }> {
     let origin = '';
     try { origin = new URL(pane.view.webContents.getURL()).origin; } catch {}
     let objectId: string | undefined;
@@ -1279,7 +1279,7 @@ ame, after checking the ref's field is a password field on the origin saved with
     const el = await this.cmd(pane, 'Runtime.callFunctionOn', {
       objectId,
       returnByValue: true,
-      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const w = e && e.ownerDocument.defaultView; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password", child: !w || w !== w.top, origin: w ? String(w.origin) : "" }; }',
+      functionDeclaration: 'function () { const e = this.nodeType === 1 ? this : this.parentElement; const w = e && e.ownerDocument.defaultView; return { id: (e && e.id) || "", password: !!e && e.tagName === "INPUT" && e.type === "password", child: !w || w !== w.top, origin: w ? String(w.origin) : "", text: e ? String(e.innerText || "").replace(/\s+/g, " ").trim().slice(0, 120) : "" }; }',
     });
     // a control inside a child frame belongs to that frame's own origin; one that cannot be established is refused
     if (el.result?.value?.child !== false) {
@@ -1292,7 +1292,9 @@ ame, after checking the ref's field is a password field on the origin saved with
     // a page can copy a filled secret into a control's name or id; the description goes to the MCP server and the approval row
     const secrets = scrubSecretValues();
     const name = redactSecretValues(String(n?.name?.value ?? '').replace(/\s+/g, ' ').trim(), secrets);
-    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? '') }, password: el.result?.value?.password === true, hidden: !n };
+    const raw = String(el.result?.value?.text ?? '');
+    const text = name || SUSPICIOUS.some((r) => r.test(raw)) ? '' : redactSecretValues(raw, secrets);
+    return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? ''), text }, password: el.result?.value?.password === true, hidden: !n };
   }
 
   /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
