@@ -133,6 +133,14 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
   for (const f of frames) if (f.parent && f.owner) children.set(`${f.parent}:${f.owner}`, f);
   const lines: string[] = frames.some((f) => f.hiddenOver) ? ['(over 2000 hidden elements; some hidden text may remain)'] : [];
   const seen = new Set<string>();
+  // whether a frame's iframe, or any host above it, is hidden
+  const frameHid = (f: Frame, depth = 0): boolean => {
+    const p = f.parent && f.owner && depth < 16 ? frames.find((x) => x.id === f.parent) : undefined;
+    if (!p) return false;
+    const byId = new Map(p.nodes.map((n) => [n.nodeId, n]));
+    for (let n = p.nodes.find((x) => x.backendDOMNodeId === f.owner); n; n = n.parentId ? byId.get(n.parentId) : undefined) if (n.backendDOMNodeId && p.hidden?.has(n.backendDOMNodeId)) return true;
+    return p.hidden?.has(f.owner!) || frameHid(p, depth + 1);
+  };
   const walkFrame = (frame: Frame, start: AXNode | undefined, depth: number, inHid = false) => {
     seen.add(frame.id);
     const byId = new Map(frame.nodes.map((n) => [n.nodeId, n]));
@@ -192,11 +200,11 @@ export function render(frames: Frame[], refs: Refs, scope?: Target): string[] | 
     const frame = frames.find((f) => f.id === scope.frameId);
     const node = frame?.nodes.find((n) => n.backendDOMNodeId === scope.backendNodeId);
     if (!frame || !node) return null;
-    walkFrame(frame, node, 0);
+    walkFrame(frame, node, 0, frameHid(frame));
     return lines;
   }
   if (frames[0]) walkFrame(frames[0], undefined, 0);
-  for (const f of frames) if (!seen.has(f.id) && f.nodes.length) walkFrame(f, undefined, 0);
+  for (const f of frames) if (!seen.has(f.id) && f.nodes.length) walkFrame(f, undefined, 0, frameHid(f));
   return lines;
 }
 
