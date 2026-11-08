@@ -363,6 +363,7 @@ CREATE TABLE usage (
   cache_read   INTEGER,
   cache_write  INTEGER,
   usd          REAL,                           -- NULL when the model price is unknown
+  usd_estimated INTEGER NOT NULL DEFAULT 0,    -- 1 when usd came from an estimated price
   source       TEXT NOT NULL CHECK (source IN ('transcript','codex-session','callrouter','gateway','unknown')),
   dedupe_key   TEXT NOT NULL UNIQUE            -- claude: message.id; codex: turn id; else '<session>:<step>:<n>'
 );

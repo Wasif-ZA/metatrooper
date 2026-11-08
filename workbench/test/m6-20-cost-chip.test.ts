@@ -85,7 +85,7 @@ test('M6-20a Claude tile cost chip equals session tokens in usage; engine with n
       (sum, r) => sum + (r.tokens_in ?? 0) + (r.tokens_out ?? 0) + (r.cache_read ?? 0) + (r.cache_write ?? 0),
       0,
     );
-    const expectedMissingChip = `${expectedMissingTokens.toLocaleString('en-US')} tok`;
+    const expectedMissingChip = `${expectedMissingTokens.toLocaleString('en-US')} tok · no price`;
 
     assert.equal(costChip(missingUsdSession), expectedMissingChip);
     assert.equal(tileMeta(missingUsdSession), expectedMissingChip);
