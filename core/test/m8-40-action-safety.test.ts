@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Approvals } from '../src/approvals.ts';
+import { Approvals, desktopKeysProblem } from '../src/approvals.ts';
 import { Desktop } from '../src/desktop/driver.ts';
 import { migrate } from '../src/store/db.ts';
 import { cleanScreenText, screenResult } from '../src/hook/screen-data.ts';
@@ -277,8 +277,33 @@ for (const keys of ['enter', 'Return', 'Enter+', 'ENTER']) {
   });
 }
 
-test('M8-40 probe 2b (Gemini HIGH, approvals.ts classifier): a literal space key on the Send button must be risky', { todo: 'space key classified safe' }, async t => {
+test('M8-40 probe 2b: empty key chords on the Send button are refused with nothing sent', async t => {
   const f = fixture(t);
-  const r = await f.act({ action: 'key', keys: ' ' });
-  assert.match(r.action_hash, HASH);
+  for (const keys of [' ', '  ', '+', '', ' + ']) {
+    await assert.rejects(f.act({ action: 'key', keys }), (e: any) => {
+      assert.equal(e.code, -32602);
+      assert.match(e.message, /keys must name a key/);
+      return true;
+    });
+  }
+  assert.deepEqual(f.inputs(), []);
+});
+
+test('M8-40: desktopKeysProblem accepts named keys and aliases and refuses empty chords', () => {
+  for (const keys of ['Enter', 'Space', 'space', 'Alt+F', 'a', 'Enter+']) {
+    assert.equal(desktopKeysProblem(keys), null, JSON.stringify(keys));
+  }
+  for (const keys of [' ', '+', '']) {
+    assert.equal(desktopKeysProblem(keys), 'keys must name a key, like Enter, Space or Alt+F; nothing was sent', JSON.stringify(keys));
+  }
+});
+
+test('M8-40: desktop approval.check refuses a literal space key on the Send button', async t => {
+  const f = fixture(t);
+  await assert.rejects(f.check({ action: 'key', args: { window: 100, ref: 'e1', keys: ' ' } }), (e: any) => {
+    assert.equal(e.code, -32602);
+    assert.match(e.message, /keys must name a key/);
+    return true;
+  });
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM approval').get()!.n, 0);
 });
