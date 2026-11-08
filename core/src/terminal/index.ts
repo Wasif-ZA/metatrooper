@@ -346,16 +346,21 @@ const outputFile = (id: string) => path.join(outputDir(), `${id.replace(/[^\w-]/
 function appendOutput(id: string, data: string): void {
   try {
     const file = outputFile(id);
-    fs.mkdirSync(outputDir(), { recursive: true });
     let size = outputSizes.get(id);
-    if (size === undefined) { try { size = fs.statSync(file).size; } catch { size = 0; } }
-    if (size > OUTPUT_LOG_MAX) {
+    if (size === undefined) {
+      fs.mkdirSync(outputDir(), { recursive: true });
+      try { size = fs.statSync(file).size; } catch { size = 0; }
+    }
+    const rotate = () => {
       if (fs.existsSync(`${file}.1`)) fs.writeFileSync(`${file}.lost`, ''); // marks that older output was dropped
       fs.renameSync(file, `${file}.1`);
       size = 0;
-    }
+    };
+    if (size > OUTPUT_LOG_MAX) rotate(); // an already oversized log is rotated before this chunk lands
     fs.appendFileSync(file, data);
-    outputSizes.set(id, size + Buffer.byteLength(data));
+    size += Buffer.byteLength(data);
+    if (size > OUTPUT_LOG_MAX) { rotate(); fs.writeFileSync(file, ''); } // the crossing chunk rotates at once and leaves a fresh log
+    outputSizes.set(id, size);
   } catch {}
 }
 
