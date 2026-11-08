@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
 
-interface Price { in: number; out: number; cache_read: number; cache_write: number }
+interface Price { in: number; out: number; cache_read: number; cache_write: number; source?: string; as_of?: string; estimated?: boolean }
 
 const offsets = new Map<string, number>();
 const transcripts = new Map<string, string>();
@@ -13,6 +13,12 @@ function priceFor(model: string | null): Price | null {
   if (!model) return null;
   prices ??= (JSON.parse(fs.readFileSync(fileURLToPath(new URL('../prices.json', import.meta.url)), 'utf8')) as { models: Record<string, Price> }).models;
   return prices[model] ?? Object.entries(prices).find(([k]) => k.endsWith('*') && model.startsWith(k.slice(0, -1)))?.[1] ?? null;
+}
+
+/** True when the model price is flagged estimated or lacks a source or as_of date. */
+export function usdEstimated(model: string | null): boolean {
+  const p = priceFor(model);
+  return !!p && (p.estimated === true || !p.source || !p.as_of);
 }
 
 /** Token estimate for text sent to an agent: one token per 3 UTF-8 bytes, rounded up. */
@@ -56,10 +62,10 @@ export function readClaudeTranscript(db: DatabaseSync, sessionId: string, transc
   const session = db.prepare('SELECT engine_id, run_id, step_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null } | undefined;
   if (!session) return 0;
   const upsert = db.prepare(
-    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key)
-     VALUES (?, ?, ?, ?, ?, 'local-cli', ?, ?, ?, ?, ?, ?, 'transcript', ?)
+    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, usd_estimated, source, dedupe_key)
+     VALUES (?, ?, ?, ?, ?, 'local-cli', ?, ?, ?, ?, ?, ?, ?, 'transcript', ?)
      ON CONFLICT(dedupe_key) DO UPDATE SET at = excluded.at, model = excluded.model, tokens_in = excluded.tokens_in,
-       tokens_out = excluded.tokens_out, cache_read = excluded.cache_read, cache_write = excluded.cache_write, usd = excluded.usd`,
+       tokens_out = excluded.tokens_out, cache_read = excluded.cache_read, cache_write = excluded.cache_write, usd = excluded.usd, usd_estimated = excluded.usd_estimated`,
   );
   let n = 0;
   for (const line of lines) {
@@ -72,7 +78,7 @@ export function readClaudeTranscript(db: DatabaseSync, sessionId: string, transc
     const t = { i: u.input_tokens ?? 0, o: u.output_tokens ?? 0, cr: u.cache_read_input_tokens ?? 0, cw: u.cache_creation_input_tokens ?? 0 };
     const model = typeof m.model === 'string' ? m.model : null;
     try {
-      upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, model, t.i, t.o, t.cr, t.cw, usdFor(model, t.i, t.o, t.cr, t.cw), m.id);
+      upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, model, t.i, t.o, t.cr, t.cw, usdFor(model, t.i, t.o, t.cr, t.cw), usdEstimated(model) ? 1 : 0, m.id);
       n++;
     } catch {}
   }
@@ -140,10 +146,10 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
   let st = codexTurns.get(file);
   if (!st) codexTurns.set(file, (st = { turn: null, model: null, base: {}, last: {}, before: false }));
   const upsert = db.prepare(
-    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key)
-     VALUES (?, ?, ?, ?, ?, 'local-cli', ?, ?, ?, ?, ?, ?, 'codex-session', ?)
+    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, usd_estimated, source, dedupe_key)
+     VALUES (?, ?, ?, ?, ?, 'local-cli', ?, ?, ?, ?, ?, ?, ?, 'codex-session', ?)
      ON CONFLICT(dedupe_key) DO UPDATE SET at = excluded.at, model = excluded.model, tokens_in = excluded.tokens_in,
-       tokens_out = excluded.tokens_out, cache_read = excluded.cache_read, cache_write = excluded.cache_write, usd = excluded.usd`,
+       tokens_out = excluded.tokens_out, cache_read = excluded.cache_read, cache_write = excluded.cache_write, usd = excluded.usd, usd_estimated = excluded.usd_estimated`,
   );
   const d = (k: keyof Totals) => (st!.last[k] ?? 0) - (st!.base[k] ?? 0);
   let n = 0;
@@ -168,7 +174,7 @@ export function readCodexSession(db: DatabaseSync, sessionId: string, file: stri
       const i = d('input_tokens') - cr;
       const o = d('output_tokens');
       try {
-        upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), `codex:${sessionId}:${st.turn}`);
+        upsert.run(rec.timestamp ?? new Date().toISOString(), session.run_id, session.step_id, sessionId, session.engine_id, st.model, i, o, cr, cw, usdFor(st.model, i, o, cr, cw), usdEstimated(st.model) ? 1 : 0, `codex:${sessionId}:${st.turn}`);
         n++;
       } catch {}
     }
@@ -189,8 +195,8 @@ export function readAgyTranscript(db: DatabaseSync, sessionId: string, file: str
   const session = db.prepare('SELECT engine_id, run_id, step_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string; run_id: string | null; step_id: string | null } | undefined;
   if (!session) return 0;
   const upsert = db.prepare(
-    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, source, dedupe_key)
-     VALUES (?, ?, ?, ?, ?, 'local-cli', NULL, ?, ?, ?, 0, NULL, 'transcript', ?)
+    `INSERT INTO usage (at, run_id, step_id, session_id, engine_id, provider, model, tokens_in, tokens_out, cache_read, cache_write, usd, usd_estimated, source, dedupe_key)
+     VALUES (?, ?, ?, ?, ?, 'local-cli', NULL, ?, ?, ?, 0, NULL, 0, 'transcript', ?)
      ON CONFLICT(dedupe_key) DO UPDATE SET at = excluded.at, tokens_in = excluded.tokens_in, tokens_out = excluded.tokens_out, cache_read = excluded.cache_read`,
   );
   let n = 0;

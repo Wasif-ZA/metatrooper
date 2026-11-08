@@ -85,7 +85,7 @@ test('M6-20a Claude tile cost chip equals session tokens in usage; engine with n
       (sum, r) => sum + (r.tokens_in ?? 0) + (r.tokens_out ?? 0) + (r.cache_read ?? 0) + (r.cache_write ?? 0),
       0,
     );
-    const expectedMissingChip = `${expectedMissingTokens.toLocaleString('en-US')} tok`;
+    const expectedMissingChip = `${expectedMissingTokens.toLocaleString('en-US')} tok · no price`;
 
     assert.equal(costChip(missingUsdSession), expectedMissingChip);
     assert.equal(tileMeta(missingUsdSession), expectedMissingChip);
@@ -108,6 +108,34 @@ test('M6-20a Claude tile cost chip equals session tokens in usage; engine with n
     assert.ok(!gitMeta.includes('tok'));
     assert.ok(!gitMeta.includes('usage unknown'));
 
+  } finally {
+    f.close();
+  }
+});
+
+
+test('M7-23 an estimated usage row makes the session chip show ~$ and est.', () => {
+  const f = fixture();
+  try {
+    const now = '2026-11-09T00:00:00Z';
+    f.db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p', '/path/p', 'p', ?, ?)").run(now, now);
+    f.db.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('codex', '{}', 1)").run();
+    f.db.prepare("INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES ('s', 'p', 'codex', 'pty', 'working', ?, ?)").run(now, now);
+    const insertUsage = f.db.prepare(
+      "INSERT INTO usage (at, session_id, engine_id, provider, tokens_in, tokens_out, usd, usd_estimated, source, dedupe_key) VALUES (?, 's', 'codex', 'local-cli', 100, 20, ?, ?, 'codex-session', ?)",
+    );
+    insertUsage.run(now, 0.5, 1, 'estimated');
+    insertUsage.run(now, 0.25, 0, 'confirmed');
+    const session = snapshot(f.db, 'p').sessions.find(s => s.id === 's')!;
+    assert.equal(session.tokens, 240);
+    assert.equal(session.usd, 0.75);
+    assert.equal(session.usd_estimated, 1);
+    const { costChip, tileMeta } = evaluateRenderer();
+    const chip = costChip(session);
+    assert.ok(chip.includes('~$'));
+    assert.ok(chip.includes('est.'));
+    assert.equal(chip, '240 tok · ~$0.75 est.');
+    assert.equal(tileMeta(session), chip);
   } finally {
     f.close();
   }
