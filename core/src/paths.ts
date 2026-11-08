@@ -19,6 +19,11 @@ export function homeDir(): string {
   return process.env.METATROOPER_HOME || path.join(os.homedir(), '.metatrooper');
 }
 
+// Home that engine session logs (~/.codex, ~/.claude) are read from: the instance home when isolated, else the real home.
+export function engineHome(): string {
+  return process.env.METATROOPER_HOME ? homeDir() : os.homedir();
+}
+
 export function dbFile(): string {
   return path.join(homeDir(), 'troop.db');
 }

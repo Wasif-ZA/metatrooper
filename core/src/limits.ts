@@ -1,9 +1,8 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { nowIso } from './time.ts';
-import { homeDir } from './paths.ts';
+import { engineHome, homeDir } from './paths.ts';
 
 const TAIL_BYTES = 512 * 1024;
 
@@ -31,7 +30,7 @@ function newest(dir: string, depth: number): string | null {
 }
 
 /** The last rate_limits reading in the newest Codex session file under <home>/.codex/sessions/YYYY/MM/DD. */
-export function lastCodexLimits(home = os.homedir()): { at: string; plan: string | null; windows: Window[] } | null {
+export function lastCodexLimits(home = engineHome()): { at: string; plan: string | null; windows: Window[] } | null {
   const file = newest(path.join(home, '.codex', 'sessions'), 3);
   if (!file) return null;
   const size = fs.statSync(file).size;
@@ -72,7 +71,7 @@ export function lastClaudeLimits(troopHome: string): { at: string; windows: Arra
 }
 
 /** Writes limit_reading rows: Codex from its session files, Claude from the statusline wrapper's file; unavailable when there is none. */
-export function readLimits(db: DatabaseSync, home = os.homedir(), troopHome = homeDir()): void {
+export function readLimits(db: DatabaseSync, home = engineHome(), troopHome = homeDir()): void {
   const now = nowIso();
   const put = db.prepare(
     `INSERT INTO limit_reading (provider, account, window, used_pct, resets_at, read_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)
