@@ -107,6 +107,10 @@ another agent's prompt yourself.
 `troop route run <recipe> [args]` runs it. Inside a session MetaTrooper started, plain `metarouter` is the same
 bundled copy.
 
+## If `troop` is missing
+
+Inside a MetaTrooper session router/bin is first on PATH, so `troop` should resolve. If the shell says `troop: command not found` or "not recognized", run `node <repo>/core/cli.ts <args>` instead, or add `<repo>/router/bin` to PATH, and check with `troop ping --json`.
+
 ## Rules
 
 - Never commit, push or open PRs. Print the command for the user to run.
