@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createLoopAlarm, NUDGE_OPTIONS } from '../src/loop-alarm.ts';
 
-const call = (tool = 'read', input = 'a', output = 'x', polling?: boolean) => ({ tool, input, output, polling });
+const call = (tool = 'read', input = 'a', output = 'x') => ({ tool, input, output });
 
 test('nudge options are the four choices', () => {
   assert.deepEqual([...NUDGE_OPTIONS], ['pause', 'rewind', 'try-another-way', 'not-a-loop']);
@@ -40,14 +40,24 @@ test('a different tool with the same input resets the streak', () => {
   assert.equal(alarm.streak, 1);
 });
 
-test('polling calls are ok and transparent to the streak', () => {
+test('a poll with changing output stays ok', () => {
   const alarm = createLoopAlarm();
-  alarm.observe(call());
-  assert.equal(alarm.observe(call('poll', 'z', 'q', true)), 'ok');
-  assert.equal(alarm.streak, 1);
-  alarm.observe(call());
-  assert.equal(alarm.streak, 2);
-  assert.equal(alarm.observe(call()), 'nudge');
+  for (let i = 0; i < 10; i++) {
+    assert.equal(alarm.observe(call('poll', 'z', 'progress ' + i)), 'ok');
+    assert.equal(alarm.streak, 1);
+  }
+  assert.equal(alarm.nudges, 0);
+});
+
+test('a poll whose output stops changing nudges at three and stops at five', () => {
+  const alarm = createLoopAlarm();
+  for (let i = 0; i < 3; i++) {
+    assert.equal(alarm.observe(call('poll', 'z', 'progress ' + i)), 'ok');
+  }
+  const verdicts = [1, 2, 3, 4, 5].map(() => alarm.observe(call('poll', 'z', 'waiting')));
+  assert.deepEqual(verdicts, ['ok', 'ok', 'nudge', 'nudge', 'stop']);
+  assert.equal(alarm.streak, 5);
+  assert.equal(alarm.nudges, 2);
 });
 
 test('not-a-loop counts a false alarm and resets the streak', () => {
@@ -146,4 +156,17 @@ test('alarms keep streaks and counters independent', () => {
   assert.equal(second.nudges, 1);
   assert.equal(first.streak, 0);
   assert.equal(first.nudges, 2);
+});
+
+test('invalid thresholds throw RangeError and minimum valid thresholds are accepted', () => {
+  for (const options of [
+    { stopAt: 3 },
+    { nudgeAt: 4, stopAt: 2 },
+    { nudgeAt: NaN },
+    { nudgeAt: 0 },
+    { stopAt: 5.5 },
+  ]) {
+    assert.throws(() => createLoopAlarm(options), RangeError);
+  }
+  assert.doesNotThrow(() => createLoopAlarm({ nudgeAt: 1, stopAt: 2 }));
 });

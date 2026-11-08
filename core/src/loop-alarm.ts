@@ -14,7 +14,6 @@ export interface ToolCall {
   tool: string;
   input: string;
   output: string;
-  polling?: boolean;
 }
 
 /** Detector that watches repeated identical tool calls. */
@@ -28,10 +27,13 @@ export interface LoopAlarm {
 
 const sha = (s: string): string => createHash('sha256').update(s).digest('hex');
 
-/** Creates a loop alarm that nudges at nudgeAt and stops at stopAt identical calls in a row. */
+/** Creates a loop alarm that nudges at nudgeAt and stops at stopAt identical calls in a row; throws RangeError unless 1 <= nudgeAt < stopAt, both integers. */
 export function createLoopAlarm(opts: { nudgeAt?: number; stopAt?: number } = {}): LoopAlarm {
   const nudgeAt = opts.nudgeAt ?? 3;
   const stopAt = opts.stopAt ?? 5;
+  if (!Number.isInteger(nudgeAt) || !Number.isInteger(stopAt) || nudgeAt < 1 || stopAt <= nudgeAt) {
+    throw new RangeError(`invalid loop alarm thresholds: nudgeAt=${nudgeAt}, stopAt=${stopAt}`);
+  }
   let lastKey = '';
   let lastDigest = '';
   let streak = 0;
@@ -39,7 +41,6 @@ export function createLoopAlarm(opts: { nudgeAt?: number; stopAt?: number } = {}
   let nudges = 0;
   return {
     observe(call) {
-      if (call.polling) return 'ok';
       const key = sha(call.tool + '\0' + call.input);
       const digest = sha(call.output);
       streak = key === lastKey && digest === lastDigest ? streak + 1 : 1;
