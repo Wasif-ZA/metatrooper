@@ -92,6 +92,7 @@ export function desktopKeysProblem(keys         )                {
   const printable = (t        ) => /^[ -~]*$/.test(t) || (/^ *[^\p{C}\p{Z}\p{M}\s] *$/u.test(t) && t.trim().length === 1);
   if (typeof keys !== 'string' || !keys.split('+').every(printable)) return 'keys must be printable, like Enter, Alt+F or é; a non-ASCII character must be a key on its own';
   const parts = chord(keys);
+  if (parts.length === 0) return 'keys must name a key, like Enter, Space or Alt+F; nothing was sent';
   if (parts.some((m) => /^(control|ctrl|shift)$/i.test(m))) return `Control and Shift cannot be sent: apps read them from the keyboard state, which a posted key does not change, so ${keys} would not arrive as pressed; nothing was sent`;
   return null;
 }

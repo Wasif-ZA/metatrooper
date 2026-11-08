@@ -19,6 +19,10 @@ before(buildGenerated);
 const EXPECTED_METHODS = [
   'core.ping',
   'settings.set',
+  'automation.set',
+  'automation.enable',
+  'automation.delete',
+  'automation.list',
   'core.stop',
   'account.state',
   'project.open',
@@ -36,6 +40,9 @@ const EXPECTED_METHODS = [
   'session.seen',
   'session.hide',
   'session.limit-resume',
+  'usage.summary',
+  'done.check',
+  'done.result',
   'session.clear-status',
   'session.owners',
   'session.read',
@@ -114,6 +121,9 @@ const EXPECTED_MOVED = [
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
   'audit.list',
+  'automation.set',
+  'automation.enable',
+  'automation.delete',
   'core.stop',
   'session.search',
   'settings.set',

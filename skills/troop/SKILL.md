@@ -23,6 +23,10 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
 ```text
   core.ping               {}  (stable)
   settings.set            {key, value}
+  automation.set          {project_id, name, every_min, runner: string[], script, engine_id, prompt, timeout_ms?, id?}
+  automation.enable       {id, enabled}
+  automation.delete       {id}
+  automation.list         {project_id?}
   core.stop               {}
   account.state           {}
   project.open            {path}  (stable)
