@@ -1,4 +1,4 @@
-﻿# M7-21: Demo and isolated instances read nothing from the owner's home
+# M7-21: Demo and isolated instances read nothing from the owner's home
 
 Part of the MetaTrooper desk epic (becoming Ouros), Milestone 7. Priority: High. Effort: not sized. Depends on: none.
 Status: bug confirmed in code 2026-10-31.
