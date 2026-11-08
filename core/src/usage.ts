@@ -36,8 +36,10 @@ export function usageSummary(db: DatabaseSync, o: UsageOpts) {
   const [file_reads, shell, screenshots, instructions] = est.map((n) => Math.floor(n * k));
   const other = total - t.o - file_reads - shell - screenshots - instructions;
   const parts = [['file_reads', file_reads], ['shell', shell], ['screenshots', screenshots], ['instructions', instructions], ['replies', t.o], ['other', other]].map(([kind, tokens]) => ({ kind, tokens }));
-  const by_agent = db.prepare(`SELECT session_id, engine_id, SUM(tokens_in + tokens_out + cache_read + cache_write) AS tokens FROM usage WHERE ${w.u} GROUP BY session_id, engine_id ORDER BY tokens DESC`).all(...w.args);
-  return { window: o.window, total, in: t.i, out: t.o, cache_read: t.cr, cache_write: t.cw, parts, by_agent, estimate: true };
+  // Dollars are NULL unless every row is priced; estimated if any row is.
+  const by_agent = (db.prepare(`SELECT session_id, engine_id, SUM(tokens_in + tokens_out + cache_read + cache_write) AS tokens, CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END AS usd, COALESCE(MAX(usd_estimated), 0) AS usd_estimated FROM usage WHERE ${w.u} GROUP BY session_id, engine_id ORDER BY tokens DESC`).all(...w.args) as Record<string, unknown>[]).map((r) => ({ ...r, usd_estimated: !!r.usd_estimated }));
+  const d = db.prepare(`SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END AS usd, COALESCE(MAX(usd_estimated), 0) AS e FROM usage WHERE ${w.u}`).get(...w.args) as { usd: number | null; e: number };
+  return { window: o.window, total, in: t.i, out: t.o, cache_read: t.cr, cache_write: t.cw, usd: d.usd, usd_estimated: !!d.e, parts, by_agent, estimate: true };
 }
 
 /** Files read more than once per session in the window; a pure query that never touches Read. */
