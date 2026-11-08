@@ -46,7 +46,7 @@ async function decide(params: Record<string, unknown>, decision: 'approve' | 're
   const pending = approvals.check(params);
   let row: { id: string; reason: string } | undefined;
   for (let i = 0; i < 100 && !row; i++) {
-    row = db.prepare("SELECT id, reason FROM approval WHERE status = 'waiting' ORDER BY created_at DESC LIMIT 1").get() as typeof row;
+    row = db.prepare("SELECT id, reason FROM approval WHERE status = 'waiting' ORDER BY created_at DESC, rowid DESC LIMIT 1").get() as typeof row;
     if (!row) await new Promise((r) => setTimeout(r, 10));
   }
   assert.ok(row, 'an approval row is waiting');
@@ -87,7 +87,7 @@ test('M6-12 the first input on a new origin asks; Approve for this session cover
   assert.deepEqual(first, { decision: 'approved', reason: 'new origin' });
   const again = await decide(check({ action: 'type', args: { ref: 'e2', text: 'hello' }, control: { automation_id: 'q', name: 'Search', role: 'textbox' } }), 'approve', 'session');
   assert.deepEqual(again, { decision: 'approved', reason: 'new origin' });
-  assert.equal((db.prepare("SELECT scope FROM approval WHERE reason = 'new origin' ORDER BY created_at DESC LIMIT 1").get() as { scope: string }).scope, 'session');
+  assert.equal((db.prepare("SELECT scope FROM approval WHERE reason = 'new origin' ORDER BY created_at DESC, rowid DESC LIMIT 1").get() as { scope: string }).scope, 'session');
   // any input on the approved origin, any control, now goes through without a row
   const rows = () => (db.prepare('SELECT COUNT(*) AS n FROM approval').get() as { n: number }).n;
   const before = rows();
