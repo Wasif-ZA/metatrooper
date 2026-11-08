@@ -66,11 +66,20 @@ const codeIs = (code: number) => (error: unknown) => {
   return true;
 };
 
+const ID_SHAPE = /^(a\d{12}[qd]|e\d{12})$/;
+// Checks each row's id shape, then returns the rows without the id for whole-row comparison.
+function plain(rows: AuditRow[]) {
+  return rows.map(({ id, ...rest }) => {
+    assert.match(id, ID_SHAPE);
+    return rest;
+  });
+}
+
 test('M8-F21a: every row names the session agent, action and time', async (t) => {
   const f = fixture(t);
   approval(f.db);
   event(f.db, 'codex.turn', times[2], 'codex-notify', 's2', '{"reply":"Done"}');
-  assert.deepEqual(await f.list(), [
+  assert.deepEqual(plain(await f.list()), [
     { at: times[3], session_id: 's1', agent: 'claude', action: 'gate approved', detail: 'User approved sending', source: 'system' },
     { at: times[2], session_id: 's2', agent: 'codex', action: 'codex.turn', detail: '{"reply":"Done"}', source: 'agent' },
     { at: times[1], session_id: 's1', agent: 'claude', action: 'asked to click on browser https://example.test', detail: 'Click Send', source: 'agent' },
@@ -90,9 +99,9 @@ test('M8-F21b: pending requests are agent rows and decisions are system rows', a
   assert.ok(requests.every((r) => r.source === 'agent'));
   assert.ok(!rows.some((r) => r.action === 'gate waiting'));
   for (const status of ['approved', 'rejected', 'expired']) {
-    assert.deepEqual(rows.find((r) => r.action === 'gate ' + status), {
+    assert.deepEqual(plain([rows.find((r) => r.action === 'gate ' + status)!]), [{
       at: times[3], session_id: 's1', agent: 'claude', action: 'gate ' + status, detail: status + ' reason', source: 'system',
-    });
+    }]);
   }
 });
 
@@ -297,4 +306,29 @@ for (const limit of [0, 501, 1.5, '2']) {
 test('M8-F21: unknown project returns NOT_FOUND', async (t) => {
   const f = fixture(t);
   await assert.rejects(f.list({ project_id: 'unknown' }), codeIs(E.NOT_FOUND));
+});
+
+test('M8-F21: paging over rows sharing one timestamp skips none', async (t) => {
+  const f = fixture(t);
+  for (const kind of ['page.a', 'page.b', 'page.c']) event(f.db, kind, times[2]);
+  const seen: AuditRow[] = [];
+  let cursor: { before?: string; before_id?: string } = {};
+  for (let page = 0; page < 10; page++) {
+    const rows = await f.list({ limit: 1, ...cursor });
+    if (rows.length === 0) break;
+    seen.push(...rows);
+    const last = rows[rows.length - 1];
+    cursor = { before: last.at, before_id: last.id };
+  }
+  assert.deepEqual(seen.map((r) => r.action), ['page.c', 'page.b', 'page.a']);
+  assert.ok(seen.every((r) => r.at === times[2]));
+  const ids = seen.map((r) => r.id);
+  assert.deepEqual(ids, [...ids].sort().reverse());
+  assert.equal(new Set(ids).size, 3);
+});
+
+test('M8-F21: before_id without before is -32602', async (t) => {
+  const f = fixture(t);
+  event(f.db, 'codex.turn');
+  await assert.rejects(f.list({ before_id: 'e000000000001' }), codeIs(E.INVALID_PARAMS));
 });

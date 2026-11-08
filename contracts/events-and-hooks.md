@@ -330,7 +330,10 @@ focuses the window and opens that item, or the inbox when the item is already re
 ## Audit trail (M8-F21)
 
 `audit.list` (`core/src/audit.ts`) reads one project's `approval` and `event` rows and returns them newest first as
-`{at, session_id, agent, action, detail, source}`. `agent` is the session's engine. Each approval gives a request row
+`{id, at, session_id, agent, action, detail, source}`. `agent` is the session's engine. `id` is a stable unique
+string per row (approval request `a<rowid>q`, decision `a<rowid>d`, event `e<seq>`, zero padded). Rows sort by
+`(at, id)` descending; for the next page pass the last row's `at` and `id` as `before` and `before_id` (`before_id`
+alone is INVALID_PARAMS), so rows sharing a timestamp are not skipped. Each approval gives a request row
 (`asked to <action> on <surface> <target>`, detail is the summary built from the agent's own call) and, once decided,
 a `gate <status>` row with the reason. Events give one row per kind, detail is the payload cut to 300 characters;
 `term.output`, `term.bell`, `core.activity`, `core.title-state` and `core.seen` are left out. `source` is `agent` for
