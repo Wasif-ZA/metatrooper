@@ -260,12 +260,106 @@ test('M8-40d: a tool result keeps its blocks in place, drops invisible text, and
   assert.equal(screenResult(bare), bare);
 });
 
-test('M8-40 probe 1 (Gemini HIGH, driver.ts desktop.action.verify): a different non-risky action reaching the verify_title must not clear a Send hold', { todo: 'verify clears on title match alone' }, async t => {
+test('M8-40 probe 1 (Gemini HIGH, driver.ts desktop.action.verify): a different non-risky action reaching the verify_title must not clear a Send hold', async t => {
   const f = fixture(t, unverifiable);
   const { action_hash } = await f.act({ verify_title: 'Sent' });
   await f.act({ action: 'key', keys: 'Tab' });
   f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
   assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: false });
+});
+
+test('M8-40: a held title proof still confirms when no later input was dispatched', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: true });
+  assert.equal(f.inputs().length, 1);
+  assert.deepEqual((await f.call('desktop.action.held', { session_id: 's1' }) as any).actions, []);
+});
+
+test('M8-40: a later risky input permanently voids the older title proof until user release', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  const later = await f.act({ ref: 'e2', expect: expectOf(DELETE), verify_title: 'Deleted' });
+  assert.equal(later.status, 'unverifiable');
+  assert.notEqual(later.action_hash, action_hash);
+  assert.equal(f.inputs().length, 2);
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: false });
+  f.update({ windows: [WINDOW] });
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: false });
+  await assert.rejects(f.act(), held);
+  assert.equal(f.methods.get('desktop.action.release').needsUi, true);
+  assert.deepEqual(await f.call('desktop.action.release', { session_id: 's1', action_hash }), { status: 'released' });
+  const list: any = await f.call('desktop.action.held', { session_id: 's1' });
+  assert.deepEqual(list.actions.map((a: any) => a.action_hash), [later.action_hash]);
+  f.update({ windows: [{ ...WINDOW, title: 'Deleted' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash: later.action_hash }), { confirmed: true });
+});
+
+test('M8-40: a later non-risky input permanently voids the title proof until user release', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  f.update({ input_status: 'confirmed' });
+  assert.deepEqual(await f.act({ action: 'key', keys: 'Tab' }), { status: 'confirmed' });
+  assert.equal(f.inputs().length, 2);
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: false });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: false });
+  await assert.rejects(f.act(), held);
+  assert.equal(f.methods.get('desktop.action.release').needsUi, true);
+  assert.deepEqual(await f.call('desktop.action.release', { session_id: 's1', action_hash }), { status: 'released' });
+  assert.deepEqual((await f.call('desktop.action.held', { session_id: 's1' }) as any).actions, []);
+  assert.equal((await f.act()).status, 'confirmed');
+  assert.equal(f.inputs().length, 3);
+});
+
+test('M8-40: input in another session preserves this session title proof', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  f.db.prepare("INSERT INTO session (id,project_id,engine_id,host,state,state_at,started_at,pid) VALUES ('s2','p1','fake','pty','working','t','t',?)").run(process.pid);
+  f.db.exec("INSERT INTO grant (id,session_id,hwnd,pid,process_start,exe,title,created_at) VALUES ('gr_second','s2',200,4100,'2026-10-12T01:00:00.000Z','fake.exe','Compose','t')");
+  f.update({ windows: [WINDOW, { ...WINDOW, hwnd: 200 }] });
+  const later: any = await f.call('desktop.act', { ...PARAMS, session_id: 's2', window: 200, action: 'key', keys: 'Tab', ref: 'e1', expect: { ...expectOf(SEND), grant_id: 'gr_second' } });
+  assert.equal(later.status, 'unverifiable');
+  assert.equal(f.inputs().length, 2);
+  assert.equal(f.inputs()[1].hwnd, 200);
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }, { ...WINDOW, hwnd: 200 }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: true });
+});
+
+test('M8-40: an identical held retry does not void the title proof when nothing dispatches', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  await assert.rejects(f.act({ verify_title: 'Sent' }), held);
+  assert.equal(f.inputs().length, 1);
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: true });
+});
+
+test('M8-40: invalid later keys do not void the title proof when nothing dispatches', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  await assert.rejects(f.act({ action: 'key', keys: 'Ctrl+A' }), (e: any) => { assert.equal(e.code, -32602); return true; });
+  assert.equal(f.inputs().length, 1);
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: true });
+});
+
+test('M8-40: a later input also voids a pending row title proof', async t => {
+  const f = fixture(t, unverifiable);
+  const { action_hash } = await f.act({ verify_title: 'Sent' });
+  f.db.prepare("UPDATE desktop_action_outcome SET status = 'pending' WHERE action_hash = ?").run(action_hash);
+  await f.act({ action: 'key', keys: 'Tab' });
+  assert.equal(f.inputs().length, 2);
+  assert.equal((f.db.prepare('SELECT verify_title_hash FROM desktop_action_outcome WHERE action_hash = ?').get(action_hash) as any).verify_title_hash, null);
+  // A restarted core converts a pending outcome to unverifiable without restoring its proof.
+  f.db.prepare("UPDATE desktop_action_outcome SET status = 'unverifiable' WHERE action_hash = ?").run(action_hash);
+  f.update({ windows: [{ ...WINDOW, title: 'Sent' }] });
+  assert.deepEqual(await f.call('desktop.action.verify', { ...PARAMS, action_hash }), { confirmed: false });
+  assert.equal(f.methods.get('desktop.action.release').needsUi, true);
+  assert.deepEqual(await f.call('desktop.action.release', { session_id: 's1', action_hash }), { status: 'released' });
 });
 
 for (const keys of ['enter', 'Return', 'Enter+', 'ENTER']) {

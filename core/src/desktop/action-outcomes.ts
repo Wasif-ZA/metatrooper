@@ -34,3 +34,9 @@ export function releaseRiskyAction(db: DatabaseSync, sessionId: string, hash: st
   if (!Number(row.changes)) throw new RpcError(E.GATE_STALE, 'no completed held action matches this session and hash');
   return { status: 'released' };
 }
+
+// Voids title verification for other held actions in the session when a new input occurs.
+export function voidTitleProofs(db: DatabaseSync, sessionId: string, hash: string): void {
+  db.prepare("UPDATE desktop_action_outcome SET verify_title_hash = NULL, updated_at = ? WHERE session_id = ? AND action_hash != ? AND status IN ('pending', 'unverifiable') AND verify_title_hash IS NOT NULL")
+    .run(nowIso(), sessionId, hash);
+}
