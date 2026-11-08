@@ -149,6 +149,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `session.resume` | `{session_id}` | {session_id, prompt_delivered, approval, resumed} for an `exited` session: same engine and folder, with the engine's `resume_args` when it has them and a `native_id`; the new session gets a `core.resumed` event naming the old id | -32002, -32602, -32003 | yes |  |
 | `session.focus` | `{session_id}` | {focused: bool} | -32002 | yes |  |
 | `session.live-text` | `{}` | {<session_id>: {line?, title?, held?: true}}: each terminal session's last non-empty screen row (first `terminal.last_line_chars` characters, read at most every `terminal.last_line_every_ms`) and last title. `held: true` marks a session whose launch prompt the core still holds for `session.paste-prompt`; such a session can appear with only that field. Held in core memory only and never written to the database, because typed text shows on screen (M1-05); empty after a core restart. Polled by the workbench once a second |  | yes |  |
+| `session.output` | `{session_id, tail_bytes?}` | {text, bytes, truncated}: the last tail_bytes (default 65536, max 1048576) of the durable raw output log (output/<session_id>.log.1 then .log, escape codes included); bytes is the total kept on disk; truncated is true when older output exists beyond the text returned |  | yes |  |
 | `session.search` | `{query, session_ids?}` | {hits: [{session_id, line, text}]}: lines of every live terminal's (or only the listed sessions') headless scrollback that contain `query` as plain text, ignoring case, wrapped rows joined; the most recently active terminal first and its newest line first, at most 50. `line` is the buffer row the line starts on; `text` is 300 characters of it around the match. Never queued and never written to the database (M6-19) |  |  | yes |
 | `session.seen` | `{session_id}` | {}; moves `done` to `idle`. Sent by the workbench when a card is opened and by `session.focus` | -32002 |  |  |
 | `session.hide` | `{session_id}` | {} | -32002 |  |  |
@@ -289,6 +290,7 @@ It is separate because the main pipe has no server-pushed messages. Same ACL as 
   (`~/.metatrooper/screens/<session>.json`, the last 200 rows, written when the pty exits and when the core stops)
   gets that screen as `{"op":"snapshot","seq":0,"data":...}`, then `{"op":"exit","code":<exit code or "unknown">}`, and
   closes. `attach` to an unknown session, or an ended one with no saved screen, gets
-  `{"op":"error","code":"no-session"}` and closes. Saved screens older than 30 days are deleted at core start.
+  `{"op":"error","code":"no-session"}` and closes. Saved screens and output logs older than 30 days are deleted at core start.
+  Every session's raw pty output (escape codes included) is also appended to `~/.metatrooper/output/<session>.log`, which survives a core restart; past 8 MiB it is renamed to `<session>.log.1` (replacing any older one), so at most about 16 MiB is kept per session. Read it with `session.output`.
 - Disconnect is an implicit detach; the pty keeps running. Several viewers on one session all receive output;
   input from any goes to the pty; the latest `resize` wins.
