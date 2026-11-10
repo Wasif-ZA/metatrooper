@@ -3,6 +3,7 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Kbd } from '@astryxdesign/core/Kbd';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { createStore } from './store.js';
+import { AgentHead } from './agenthead.jsx';
 
 export const inboxStore = createStore({ tick: 0, filter: 'all' });
 
@@ -63,12 +64,10 @@ export function Inbox() {
           {asks.length ? <li className="ou-ihead">Needs your answer<i>{asks.length}</i></li> : null}
           {asks.map((x) => (
             <li key={x.id} className="ou-irow ou-unread" data-action="pick" data-id={x.id} onClick={open} tabIndex={0} role="button">
-              <Glyph kind="needs" />
-              <span className="ou-iwho">{x.engine_id}</span>
-              <span className="ou-ititle">{taskOf(x)}</span>
-              <span className="ou-imeta">{away(x.project_id)}{x.last_line ? <span className="ou-chip">{x.last_line}</span> : null}</span>
-              <span className="ou-actions"><Button size="sm" label="Answer" data-action="pick" data-id={x.id} onClick={open} /></span>
-              <span className="ou-itime">{ago(x.state_at)}</span>
+              <AgentHead x={x}>
+                {away(x.project_id) ? <span className="ou-imeta">{away(x.project_id).replace(/ · $/, '')}</span> : null}
+                <Button size="sm" label="Answer" data-action="pick" data-id={x.id} onClick={open} />
+              </AgentHead>
             </li>
           ))}
           {notes.length ? <li className="ou-ihead">Notices<i>{notes.length}</i></li> : null}

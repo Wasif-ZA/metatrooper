@@ -86,7 +86,7 @@ homeView.draw = () => {
 
 // Enter or Space on a focused row acts like a click on it.
 document.addEventListener('keydown', (e) => {
-  if ((e.key !== 'Enter' && e.key !== ' ') || !e.target.matches?.('.ou-irow, .ou-agent')) return;
+  if ((e.key !== 'Enter' && e.key !== ' ') || !e.target.matches?.('.ou-irow, .ou-agent, .ou-ide-ahead')) return;
   e.preventDefault();
   e.target.click();
 });

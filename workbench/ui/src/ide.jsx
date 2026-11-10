@@ -17,6 +17,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { editorState, openEditor } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
+import { AgentHead } from './agenthead.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -921,15 +922,9 @@ function Agents({ st }) {
     <div id="ide-agents" className="ou-ide-agents">
       {rows.map((x) => {
         const files = changedFiles(x.id).map(slashed);
-        const wait = x.state === 'waiting_for_you';
         return (
           <section key={x.id} className="ou-ide-acol">
-            <button className="ou-ide-ahead" data-action="pick" data-id={x.id}>
-              <span className={wait ? 'ou-dot ou-dot-wait' : x.state === 'working' || x.state === 'starting' ? 'ou-dot ou-dot-work' : 'ou-dot'} />
-              <span className="ou-ide-task">{taskOf(x)}</span>
-              <span className="ou-ide-engine">{x.engine_id}</span>
-              {wait ? <span className="ou-ide-needs">Needs you</span> : <span className="ou-ide-state">{STATE_WORDS[x.state] || x.state}</span>}
-            </button>
+            <AgentHead x={x} className="ou-ide-ahead" data-action="pick" data-id={x.id} role="button" tabIndex={0} />
             <div className="ou-ide-afiles">
               {files.length ? files.map((f) => (
                 <button key={f} className="ou-ide-afile" title={f} onClick={() => void openFile(st, f, { owner: x.id, changes: true })}>
