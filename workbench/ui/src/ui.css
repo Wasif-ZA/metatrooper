@@ -230,6 +230,46 @@ html { font-size: 16px; }
 .ou-ide-askrow { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
 .ou-ide dialog h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
 
+/* Markdown preview: GitHub's file view, one centred reading column. */
+.ou-md { height: 100%; overflow: auto; background: var(--pane); user-select: text; }
+.ou-md-doc { box-sizing: border-box; max-width: 820px; margin: 0 auto; padding: 32px 40px 96px; font-size: 15px; line-height: 1.6; color: var(--body-strong); overflow-wrap: break-word; }
+.ou-md-body > :first-child { margin-top: 0; }
+.ou-md-body :is(h1, h2, h3, h4, h5, h6) { margin: 24px 0 16px; font-weight: 600; line-height: 1.25; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.ou-md-body h1 { font-size: 28px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+.ou-md-body h2 { font-size: 22px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+.ou-md-body h3 { font-size: 18px; }
+.ou-md-body h4 { font-size: 15px; }
+.ou-md-body h5 { font-size: 13px; }
+.ou-md-body h6 { font-size: 13px; color: var(--mute); }
+.ou-md-body :is(p, ul, ol, pre, table, blockquote), .ou-md-front { margin: 0 0 16px; }
+.ou-md-body :is(ul, ol) { padding-left: 28px; }
+.ou-md-body ul { list-style: disc; }
+.ou-md-body ol { list-style: decimal; }
+.ou-md-body :is(ul, ol) :is(ul, ol) { margin-bottom: 0; }
+.ou-md-body li + li { margin-top: 4px; }
+.ou-md-body li:has(> input[type="checkbox"]) { list-style: none; }
+.ou-md-body li > input[type="checkbox"] { margin: 0 6px 0 -20px; vertical-align: middle; }
+.ou-md-body strong { font-weight: 600; color: var(--ink); }
+.ou-md-body a { color: var(--syn-fn); text-decoration: none; cursor: pointer; }
+.ou-md-body a:hover { text-decoration: underline; }
+.ou-md-body a:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.ou-md-body code { padding: 1px 5px; background: var(--canvas); font: 13px var(--mono); }
+.ou-md-body pre { padding: 14px 16px; border: 1px solid var(--hairline); background: var(--canvas); overflow-x: auto; font: 13px/20px var(--mono); }
+.ou-md-body pre code { padding: 0; background: none; font: inherit; }
+.ou-md-body blockquote { padding: 0 16px; border-left: 3px solid var(--hairline-strong); color: var(--mute); }
+.ou-md-body blockquote > :last-child { margin-bottom: 0; }
+.ou-md-body table { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: inherit; }
+.ou-md-body :is(th, td) { padding: 6px 13px; border: 1px solid var(--hairline); text-align: left; white-space: normal; }
+.ou-md-body th { font-weight: 600; color: var(--ink); background: var(--canvas); }
+.ou-md-body :is(th, td)[align="center"] { text-align: center; }
+.ou-md-body :is(th, td)[align="right"] { text-align: right; }
+.ou-md-body hr { height: 0; margin: 24px 0; border: 0; border-top: 1px solid var(--hairline); }
+.ou-md-body a.ou-md-img { padding: 1px 6px; border: 1px solid var(--hairline); font: 12px var(--mono); color: var(--mute); }
+.ou-md-front { font: 12px var(--mono); color: var(--mute); }
+.ou-md-front summary { cursor: pointer; }
+.ou-md-front pre { margin: 8px 0 0; padding: 0; border: 0; background: none; font: inherit; white-space: pre-wrap; }
+.ou-md-empty { margin: 0; color: var(--mute); }
+
 @layer app {
   .ou-ide { grid-template-rows: minmax(0, 1fr) 22px; }
   .ou-ide-status { grid-column: 1 / -1; height: 22px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-top: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--mute); font: 11px/22px var(--mono); user-select: none; overflow: hidden; }
