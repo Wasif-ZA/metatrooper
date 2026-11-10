@@ -111,7 +111,7 @@ export function namedPaths(rels: unknown): string[] | null {
 }
 
 /** One write from the Git tab. Paths go after `--`, the message goes on stdin, nothing passes through a shell. */
-export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> {
+export async function gitAct(git: Run, op: string, arg: unknown): Promise<string | void> {
   const path = typeof arg === 'string' ? arg : '';
   const named = (verb: string[]) => { const list = namedPaths(arg); if (!list) throw new Error('name the files'); return git(['--literal-pathspecs', ...verb, '--', ...list]); };
   // A repo with no commit has no HEAD for restore to read; take the files out of the index instead.
@@ -136,7 +136,7 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> 
       if (!path.trim() || path.includes('\0') || path.length > 64 * 1024) throw new Error('write a commit message first');
       if (!(await git(['diff', '--cached', '--name-only'])).trim()) throw new Error('nothing staged; press + on a file first');
       await git(['commit', '-F', '-'], path.trim());
-      return;
+      return (await git(['rev-parse', '--short', 'HEAD'])).trim();
     case 'push': await git(['push']); return;
     case 'pull': await git(['pull', '--ff-only']); return;
     default: throw new Error(`unknown git action ${op}`);

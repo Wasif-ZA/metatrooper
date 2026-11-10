@@ -459,8 +459,9 @@ function handlers(): void {
       } catch { return null; }
     }
     let error: string | undefined;
+    let commit: string | undefined;
     try {
-      if (typeof op === 'string' && op !== 'view') await gitAct(git, op, arg);
+      if (typeof op === 'string' && op !== 'view') commit = (await gitAct(git, op, arg)) || undefined;
     } catch (e) {
       error = why(e);
     } finally {
@@ -471,7 +472,7 @@ function handlers(): void {
       const repo = await repoOfAsync(project.path);
       let groups: GitView['groups'];
       try { if (repo && d) groups = ownerGroups(view.changes, await ownersAsync(d, repo)); } catch {}
-      return { ...view, groups, error };
+      return { ...view, groups, error, commit };
     } catch (e) {
       return { error: why(e) };
     }
