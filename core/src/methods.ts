@@ -149,6 +149,7 @@ export const METHODS: MethodDecl[] = [
 ];
 
 const cell = (s: string) => s.split('|').join('\\|');
+const NOT_AGENT_PANE = 'only an agent pane can be given to a session; a user pane carries the whole kept sign-in, so lend the site instead';
 
 export function methodTable(): string {
   const rows = METHODS.map((d) => `| \`${d.name}\` | \`${cell(d.params)}\` | ${cell(d.result)} | ${d.errors?.join(', ') ?? ''} | ${d.stable ? 'yes' : ''} | ${d.needsUi ? 'yes' : ''} |`);
@@ -739,6 +740,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const sessionId = str(p, 'session_id', false) || null;
       if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, projectId)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
       if (p.agent === true && !sessionId) throw new RpcError(E.INVALID_PARAMS, 'agent panes need a session_id');
+      if (p.agent !== true && sessionId) throw new RpcError(E.INVALID_PARAMS, NOT_AGENT_PANE);
       const lent = p.lent === true;
       if (lent && (p.agent !== true || !lentSites(projectId).includes(originOf(str(p, 'url'))))) throw new RpcError(E.INVALID_PARAMS, 'a lent pane is an agent pane on a site the user lent');
       const id = p.agent === true ? `bp_agent_${ulid()}` : `bp_${ulid()}`;
@@ -767,6 +769,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const pane = db.prepare('SELECT project_id FROM browser_pane WHERE id = ?').get(str(p, 'pane_id')) as { project_id: string } | undefined;
       if (!pane) throw new RpcError(E.NOT_FOUND, 'pane not found');
       const sessionId = str(p, 'session_id', false) || null;
+      if (sessionId && !str(p, 'pane_id').startsWith('bp_agent_')) throw new RpcError(E.INVALID_PARAMS, NOT_AGENT_PANE);
       if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, pane.project_id)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
       db.prepare('UPDATE browser_pane SET session_id = ? WHERE id = ?').run(sessionId, str(p, 'pane_id'));
       return {};

@@ -32,11 +32,13 @@ export interface ServerDeps {
   glide?: (sessionId: string, rectPx: unknown, caption: string) => Promise<{ arrived: true; ms: number; shown: boolean; late: boolean }>;
 }
 
-/** Panes a session may drive: those it owns. */
+const AGENT_PANE = 'bp_agent_';
+
+/** Panes a session may drive: the agent panes it owns, never a user pane on the kept profile. */
 export function ownedPanes(db: DatabaseSync, sessionId: string): PaneRow[] {
-  return db.prepare(
+  return (db.prepare(
     'SELECT * FROM browser_pane bp WHERE bp.open = 1 AND bp.session_id = ? ORDER BY bp.id',
-  ).all(sessionId) as unknown as PaneRow[];
+  ).all(sessionId) as unknown as PaneRow[]).filter((r) => r.id.startsWith(AGENT_PANE));
 }
 
 /** Each session's successful actions for export_test, at most 500. */
@@ -183,6 +185,7 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
         owned.push({ id: paneId } as PaneRow);
       }
       if (!paneId) return fail(id, -32602, owned.length ? 'pane_id is required: this session has several panes' : 'this session has no browser pane');
+      if (!paneId.startsWith(AGENT_PANE)) return fail(id, -32030, 'an agent may drive only its own agent panes, not a user pane; to use the user\'s sign-in, ask them to lend the site (navigate with signed_in: true)');
       if (!owned.some((r) => r.id === paneId)) return fail(id, -32030, 'pane not owned by the calling session');
       if (tool === 'outcome') {
         const status = typeof params.status === 'string' ? params.status : '';

@@ -239,6 +239,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function strip<T>(headers: Record<string, T>, name: RegExp): Record<string, T> {
+  return Object.fromEntries(Object.entries(headers).filter(([k]) => !name.test(k)));
+}
+
 function handedOff(pane: { handoff: string | null }): ToolError {
   return new ToolError(-32036, `the user has the pane (${pane.handoff}); wait until they give it back`);
 }
@@ -334,6 +338,13 @@ export class PaneManager {
     try { return (settings().browser.lent[projectId] ?? []).includes(new URL(url).origin); } catch { return false; }
   }
 
+  /** True when the pane's row is closed or gone in the database (a revoked lend), ahead of the next sync. */
+  private revoked(pane: Pane): boolean {
+    const db = this.hooks.db();
+    if (!db) return false;
+    try { return !(db.prepare('SELECT open FROM browser_pane WHERE id = ?').get(pane.row.id) as { open: number } | undefined)?.open; } catch { return false; }
+  }
+
   private isUserPane(pane: Pane | undefined): pane is Pane {
     return !!pane && !pane.row.id.startsWith(AGENT_PANE);
   }
@@ -346,13 +357,21 @@ export class PaneManager {
     if (this.guarded.has(partition)) return ses;
     this.guarded.add(partition);
     ses.setUserAgent(plainUserAgent(ses.getUserAgent()));
+    // A request on the kept profile that names no pane is held to the lent sites while a lent pane is open.
+    const held = (wc: WebContents | undefined, pane: Pane | undefined) => {
+      const owner = pane ?? [...this.panes.values()].find((p) => [...p.popups].some((w) => !w.isDestroyed() && w.webContents === wc));
+      return owner ? !!owner.row.lent : !agent && [...this.panes.values()].some((p) => p.row.lent && p.row.project_id === row.project_id);
+    };
+    const offList = (d: { url: string; webContents?: WebContents }) => !agent && held(d.webContents, this.byContents(d.webContents)) && !this.lentTo(row.project_id, d.url.replace(/^ws(s?):/, 'http$1:'));
+    // test doubles of the session stub only onBeforeRequest
+    ses.webRequest.onBeforeSendHeaders?.((d, cb) => cb({ requestHeaders: offList(d) ? strip(d.requestHeaders, /^(cookie|authorization)$/i) : d.requestHeaders }));
+    ses.webRequest.onHeadersReceived?.((d, cb) => cb(offList(d) && d.responseHeaders ? { responseHeaders: strip(d.responseHeaders, /^set-cookie2?$/i) } : {}));
     ses.webRequest.onBeforeRequest((details, cb) => {
       const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
       const frame = details.resourceType === 'mainFrame' || details.resourceType === 'subFrame';
-      // A frame request on the kept profile that names no pane is held to the lent sites while a lent pane is open.
-      const owner = pane ?? [...this.panes.values()].find((p) => [...p.popups].some((w) => !w.isDestroyed() && w.webContents === details.webContents));
-      const fenced = frame && (owner ? !!owner.row.lent : !agent && [...this.panes.values()].some((p) => p.row.lent && p.row.project_id === row.project_id));
-      if (fenced && (/^https?:/.test(details.url) ? !this.lentTo(row.project_id, details.url) : details.resourceType === 'subFrame' && details.url.startsWith('data:'))) return cb({ cancel: true });
+      if (pane?.row.lent && this.revoked(pane)) return cb({ cancel: true });
+      const fenced = frame && held(details.webContents, pane);
+      if (fenced &&(/^https?:/.test(details.url) ? !this.lentTo(row.project_id, details.url) : details.resourceType === 'subFrame' && details.url.startsWith('data:'))) return cb({ cancel: true });
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
       Promise.resolve().then(() => checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null }))).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
@@ -645,6 +664,8 @@ export class PaneManager {
         if (pane.handoff === null) break;
         pane.handoff = null;
         pane.handedBack = true;
+        // what the page logged while the user had it is not the agent's to read
+        pane.console = [];
         pane.handBackNext = wc.isLoadingMainFrame();
         break;
       default: return;
@@ -657,6 +678,8 @@ export class PaneManager {
     if (!pane.row.session_id || pane.handoff !== null) return;
     const vendor = challengeOf(doc);
     if (!vendor) return;
+    // a listener the agent added could read what the user types; a fresh document has none
+    if (pane.scripted) return this.log(pane, 'blocked', `the site is checking for a human (${vendor}), but evaluate ran on this page; navigate to load it again, then the pane goes to the user`);
     pane.handoff = `the site is checking for a human (${vendor}); solve it in the pane, then give it back`;
     this.log(pane, 'blocked', pane.handoff);
     this.emitState(pane);
@@ -665,7 +688,7 @@ export class PaneManager {
 
   private async onDebuggerEvent(pane: Pane, method: string, params: Record<string, any>): Promise<void> {
     if (method === 'Fetch.requestPaused') {
-      const verdict = await Promise.resolve().then(() => checkUrl(params.request.url, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
+      const verdict = pane.row.lent && this.revoked(pane) ? { allow: false as const, reason: 'the user took back the lent sign-in' } : await Promise.resolve().then(() => checkUrl(params.request.url, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
       if (verdict.allow) await this.cmd(pane, 'Fetch.continueRequest', { requestId: params.requestId }).catch(() => {});
       else {
         await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' }).catch(() => {});
@@ -770,7 +793,7 @@ export class PaneManager {
 
   /** An agent's input event; the take-over flag is checked right before each one is sent. */
   private async input(pane: Pane, a: Record<string, any>, method: string, params: Record<string, unknown>): Promise<any> {
-    this.notPaused(a);
+    this.notPaused(a, pane);
     return this.cmd(pane, method, params);
   }
 
@@ -856,7 +879,7 @@ export class PaneManager {
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
     if (pane.row.lent && !this.lentTo(pane.row.project_id, url)) throw new ToolError(-32031, 'navigation blocked: this pane uses the user\'s sign-in and that site is not lent');
     if (agent && pane.handoff) throw handedOff(pane);
-    if (agent) this.notPaused(agent);
+    if (agent) this.notPaused(agent, pane);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
       if (!/ERR_ABORTED/.test(e.message)) throw new ToolError(-32099, `could not load ${url}: ${e.message}`);
     });
@@ -887,7 +910,7 @@ export class PaneManager {
   /** The border box of a ref's element in the pane's viewport, after scrolling it into view. */
   private async box(pane: Pane, t: Target, ref: unknown, a?: Record<string, any>): Promise<{ objectId: string; x: number; y: number; left: number; top: number; right: number; bottom: number }> {
     const objectId = await this.resolve(pane, t, ref);
-    if (a) this.notPaused(a);
+    if (a) this.notPaused(a, pane);
     await this.cmd(pane, 'DOM.scrollIntoViewIfNeeded', { backendNodeId: t.backendNodeId }).catch(() => {});
     const box = await this.cmd(pane, 'DOM.getBoxModel', { backendNodeId: t.backendNodeId }).catch(() => {
       throw new ToolError(-32602, `ref ${String(ref)} is not visible (it has no layout box)`);
@@ -1101,7 +1124,7 @@ export class PaneManager {
     const from = Date.now();
     // the user may have taken the pane while the first snapshot was read; navigate and back send no Input.* to stop them
     if (pane.handoff) throw handedOff(pane);
-    this.notPaused({ _session: session });
+    this.notPaused({ _session: session }, pane);
     const r = await work();
     await this.settle(pane);
     const wc = pane.view.webContents;
@@ -1125,7 +1148,7 @@ export class PaneManager {
   private async evalIsolated(pane: Pane, expression: string, doc?: number, a?: Record<string, any>): Promise<unknown> {
     const contextId = await this.isolated(pane);
     if (pane.handoff) throw handedOff(pane);
-    if (a) this.notPaused(a);
+    if (a) this.notPaused(a, pane);
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
     if (doc !== undefined && (pane.handedBack || pane.secretOnPage || pane.row.lent)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
@@ -1221,6 +1244,7 @@ export class PaneManager {
     if (pane.handoff) throw handedOff(pane);
     if (name === 'handoff') {
       if (typeof a.reason !== 'string' || !a.reason.trim()) throw new ToolError(-32602, 'reason is required');
+      if (pane.scripted) throw new ToolError(-32038, 'evaluate ran on this page, so it cannot go to the user; navigate to load it again, then hand off');
       pane.handoff = a.reason.replace(/\s+/g, ' ').trim().slice(0, 300);
       this.emitState(pane);
       this.hooks.paneEvent({ kind: 'handoff', pane_id: pane.row.id, reason: pane.handoff });
@@ -1228,7 +1252,7 @@ export class PaneManager {
     }
     if (pane.crashed && !(name === 'navigate' && pane.crashed.startsWith('the page crashed'))) throw new ToolError(-32034, pane.crashed);
     if (name === 'dialog') {
-      this.notPaused(a);
+      this.notPaused(a, pane);
       if (!pane.dialog) throw new ToolError(-32002, 'no dialog is open');
       const d = pane.dialog;
       await this.cmd(pane, 'Page.handleJavaScriptDialog', { accept: a.accept === true, ...(typeof a.prompt_text === 'string' ? { promptText: a.prompt_text } : {}) });
@@ -1332,24 +1356,28 @@ ame, after checking the ref's field is a password field on the origin saved with
     return { origin, control: { automation_id: redactSecretValues(String(el.result?.value?.id ?? ''), secrets), name, role: String(n?.role?.value ?? ''), ...(text ? { text } : {}) }, password: el.result?.value?.password === true, hidden: !n };
   }
 
-  /** Fails with "paused by the user" while the take-over flag holds the calling session (D62). */
-  private notPaused(a: Record<string, any>): void {
+  /** Fails with "paused by the user" while the take-over flag holds the calling session (D62), and when a lent pane is closed or no longer the session's (a revoked lend). */
+  private notPaused(a: Record<string, any>, pane?: Pane): void {
     const db = this.hooks.db();
     if (!a._session || !db) return;
     let paused = false;
     try { paused = takeoverPaused(db, String(a._session)); } catch {}
     if (paused) throw new ToolError(-32030, 'paused by the user');
+    if (!pane?.row?.lent) return;
+    let owned = true;
+    try { owned = !!db.prepare('SELECT 1 FROM browser_pane WHERE id = ? AND open = 1 AND session_id = ?').get(pane.row.id, String(a._session)); } catch {}
+    if (!owned) throw new ToolError(-32030, 'this pane is closed or no longer yours; nothing was sent');
   }
 
   /** Fails when the pane's origin, the control's name or id, whether it is a password field or whether focus is hidden differs from `expect`, what an approval was given for. */
   private async recheck(pane: Pane, tool: string, a: Record<string, any>): Promise<void> {
     // the user may have taken the pane while this call glided the cursor
     if (pane.handoff) throw handedOff(pane);
-    this.notPaused(a);
+    this.notPaused(a, pane);
     if (!a.expect || typeof a.expect !== 'object') return;
     const d = await this.describeControl(pane, { ...a, tool });
     if (pane.handoff) throw handedOff(pane);
-    this.notPaused(a);
+    this.notPaused(a, pane);
     if (d.origin !== String(a.expect.origin ?? '')) throw new ToolError(-32035, 'the page changed origin since the control was checked; nothing was sent');
     const now = d.control;
     if (d.hidden !== (a.expect.hidden === true) || d.password !== (a.expect.password === true) || (now?.name ?? '') !== String(a.expect.name ?? '') || (now?.automation_id ?? '') !== String(a.expect.automation_id ?? '')) {
@@ -1406,7 +1434,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       return this.page(pane, name, rest, budget);
     }
     if (name === 'describe') return this.describeControl(pane, a);
-    if (['navigate', 'back', 'scroll', 'evaluate'].includes(name)) this.notPaused(a);
+    if (['navigate', 'back', 'scroll', 'evaluate'].includes(name)) this.notPaused(a, pane);
     const recheck = () => this.recheck(pane, name, a);
     switch (name) {
       case 'key': {
@@ -1484,7 +1512,7 @@ ame, after checking the ref's field is a password field on the origin saved with
           const { node, x, y, size } = await this.target(pane, a.ref, a);
           await this.clickAt(pane, x, y, recheck, a, size, `type ${Array.from(a.text).length} characters`);
           let text = a.text;
-          this.notPaused(a);
+          this.notPaused(a, pane);
           await this.cmd(pane, 'DOM.focus', { backendNodeId: node.backendNodeId }).catch(() => {});
           for (const type of ['keyDown', 'keyUp']) {
             await this.input(pane, a, 'Input.dispatchKeyEvent', { type, key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, ...(type === 'keyDown' ? { commands: ['selectAll'] } : {}) });
@@ -1533,7 +1561,7 @@ ame, after checking the ref's field is a password field on the origin saved with
           const p = await this.box(pane, node, a.ref, a);
           await this.pointAt(pane, p.x, p.y, a, { width: p.right - p.left, height: p.bottom - p.top }, 'select');
           await recheck();
-          this.notPaused(a);
+          this.notPaused(a, pane);
           await this.cmd(pane, 'Runtime.callFunctionOn', {
             objectId: p.objectId,
             functionDeclaration: 'function (v) { this.value = v; this.dispatchEvent(new Event("input", { bubbles: true })); this.dispatchEvent(new Event("change", { bubbles: true })); }',
