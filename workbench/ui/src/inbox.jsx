@@ -32,13 +32,12 @@ function NoteActions({ n }) {
   );
 }
 
-function TerminalPreview({ sessionId }) {
+function TerminalPreview({ sessionId, stamp }) {
   const [state, setState] = useState({ lines: null, error: false });
 
   useEffect(() => {
     let active = true;
-    setState({ lines: null, error: false });
-    rpc('session.read', { session_id: sessionId, lines: 20 })
+    rpc('session.read', { session_id: sessionId, lines: 20 }, true)
       .then((res) => {
         if (!active) return;
         if (res && res.result && res.result.lines != null) {
@@ -59,10 +58,10 @@ function TerminalPreview({ sessionId }) {
     return () => {
       active = false;
     };
-  }, [sessionId]);
+  }, [sessionId, stamp]);
 
   if (state.error || state.lines === null) {
-    return <div className="ou-ipane-muted">Terminal preview needs session.read; open it on the Wall.</div>;
+    return <div className="ou-ipane-muted">No terminal text to show yet. Open it on the Wall.</div>;
   }
 
   return <pre className="ou-ipane-pre">{state.lines}</pre>;
@@ -101,7 +100,7 @@ function DetailAsk({ x }) {
         <div className="ou-ipane-task">{taskOf(x)}</div>
         {x.last_line ? <div className="ou-ipane-lastline">{x.last_line}</div> : null}
       </div>
-      <TerminalPreview sessionId={x.id} />
+      <TerminalPreview key={x.id} sessionId={x.id} stamp={x.last_line} />
       <div className="ou-ipane-answer">
         <TextInput
           label="Answer"
