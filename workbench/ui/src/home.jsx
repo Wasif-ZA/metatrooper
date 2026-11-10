@@ -1,13 +1,8 @@
 import { useState } from 'react';
-import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
-import { Heading } from '@astryxdesign/core/Heading';
-import { List, ListItem } from '@astryxdesign/core/List';
+import { Kbd } from '@astryxdesign/core/Kbd';
 import { Selector } from '@astryxdesign/core/Selector';
-import { StatusDot } from '@astryxdesign/core/StatusDot';
-import { Text } from '@astryxdesign/core/Text';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
 
@@ -18,18 +13,27 @@ function greeting() {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function Tile({ label, n, sub, hot }) {
+const svg = (d) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+const ICONS = {
+  needs: 'M8 2.5a4 4 0 00-4 4v2.2L2.8 11h10.4L12 8.7V6.5a4 4 0 00-4-4zM6.6 13a1.5 1.5 0 002.8 0',
+  working: 'M8 2v2.5M8 11.5V14M2 8h2.5M11.5 8H14M3.8 3.8l1.7 1.7M10.5 10.5l1.7 1.7M3.8 12.2l1.7-1.7M10.5 5.5l1.7-1.7',
+  done: 'M3 8.5l3.2 3.2L13 4.8',
+  files: 'M4 2.5h5l3 3v8H4zM9 2.5v3h3',
+};
+
+// Tile anatomy follows Paperclip's metric tile: icon, big value, label, one-line breakdown.
+function Tile({ icon, label, n, sub, hot }) {
   return (
-    <Card padding={4} className={hot ? 'ou-hotcard' : undefined}>
-      <div className={hot ? 'ou-tile ou-hot' : 'ou-tile'}>
-        <Text color="secondary" size="sm">{label}</Text>
-        <Text size="2xl" weight="bold">{String(n)}</Text>
-        <Text color="secondary" size="sm">{sub}</Text>
-      </div>
-    </Card>
+    <div className={hot ? 'ou-tile ou-hot' : 'ou-tile'}>
+      <span className="ou-tileicon">{svg(ICONS[icon])}</span>
+      <b>{n}</b>
+      <span className="ou-tilelabel">{label}</span>
+      <span className="ou-tilesub">{sub}</span>
+    </div>
   );
 }
 
+// The start box is the centred composer of OpenHands' home: text first, agent picker and Start in its footer.
 function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
@@ -45,17 +49,31 @@ function StartBox({ ready }) {
     await pick(r.result.session_id);
   };
   return (
-    <Card padding={3}>
+    <div className="ou-composer" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
       <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
-      <div className="ou-startrow">
-        <Selector label="Agent" isLabelHidden size="sm" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
-        <Button variant="primary" label="Start" onClick={start} />
+      <div className="ou-composerfoot">
+        <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
+        <span className="ou-composerhint"><Kbd keys="Ctrl+Enter" /></span>
+        <Button variant="primary" size="sm" label="Start" onClick={start} />
       </div>
-    </Card>
+    </div>
   );
 }
 
-const dot = (state) => (state === 'waiting_for_you' ? 'warning' : state === 'working' || state === 'starting' ? 'success' : 'neutral');
+const tone = (state) => (state === 'waiting_for_you' ? 'ou-dot ou-dot-wait' : state === 'working' || state === 'starting' ? 'ou-dot ou-dot-work' : 'ou-dot');
+
+// Agent cards follow Paperclip's live cards: identity row, the task, then what the agent last said in mono, with a quiet footer.
+function AgentCard({ x }) {
+  const files = changedFiles(x.id).length;
+  return (
+    <div className={x.state === 'waiting_for_you' ? 'ou-agent ou-agent-wait' : 'ou-agent'} data-action="pick" data-id={x.id} role="button" tabIndex={0}>
+      <header><span className={tone(x.state)} /><b>{x.engine_id}</b><span className="ou-agentstate">{STATE_WORDS[x.state] || x.state}</span><span className="ou-agenttime">{ago(x.state_at)}</span></header>
+      <p>{taskOf(x)}</p>
+      <pre>{x.last_line || ' '}</pre>
+      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span>{x.state === 'waiting_for_you' ? <span className="ou-wait">Needs you</span> : null}</footer>
+    </div>
+  );
+}
 
 export function Home() {
   homeStore.use();
@@ -73,66 +91,62 @@ export function Home() {
   const ready = s.engines.filter((e) => e.light !== 'red');
   const needs = waiting.length + approvals.length + alerts.length;
   const name = project().name;
+  const asks = waiting.length + approvals.length + alerts.length > 0;
   return (
     <div className="ou-col ou-home">
-      <header>
-        <Heading level={1}>{greeting()}</Heading>
-        <Text as="p" color="secondary">{mine.length ? `${mine.length} ${mine.length === 1 ? 'agent' : 'agents'} in ${name}` : `No agents running in ${name}`}</Text>
+      <header className="ou-pagehead ou-hero">
+        <h1>{greeting()}</h1>
+        <p>{mine.length ? `${mine.length} ${mine.length === 1 ? 'agent' : 'agents'} in ${name}` : `No agents running in ${name}`}</p>
       </header>
       {ready.length ? <StartBox ready={ready} /> : null}
       <div className="ou-tiles">
-        <Tile label="Needs you" n={needs} sub={needs ? 'waiting on an answer' : 'nothing waiting'} hot={needs > 0} />
-        <Tile label="Working" n={working.length} sub={working.length ? 'running now' : 'none running'} />
-        <Tile label="Finished" n={done.length} sub={done.length ? 'ready to review' : 'nothing to review'} />
-        <Tile label="Changed files" n={files} sub={files ? 'not handed back yet' : 'no changes'} />
+        <Tile icon="needs" label="Needs you" n={needs} sub={needs ? 'waiting on an answer' : 'nothing waiting'} hot={needs > 0} />
+        <Tile icon="working" label="Working" n={working.length} sub={working.length ? 'running now' : 'none running'} />
+        <Tile icon="done" label="Finished" n={done.length} sub={done.length ? 'ready to review' : 'nothing to review'} />
+        <Tile icon="files" label="Changed files" n={files} sub={files ? 'not handed back yet' : 'no changes'} />
       </div>
-      {waiting.length || approvals.length || alerts.length ? (
-        <>
-          <Heading level={2}>Waiting on you</Heading>
-          <Card padding={0}><List hasDividers>
-            {waiting.map((x) => (
-              <ListItem key={x.id} data-action="pick" data-id={x.id} label={taskOf(x)} description={`${away(x)}${x.engine_id}${x.last_line ? ` · ${x.last_line}` : ''}`}
-                startContent={<StatusDot variant="warning" label="Needs you" />}
-                endContent={<span className="ou-actions"><span className="ou-wait">Needs you</span><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} /></span>} />
-            ))}
-            {approvals.length ? (
-              <ListItem data-action="sheet" label={`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`} description="Allow or refuse each one"
-                startContent={<StatusDot variant="warning" label="Needs you" />}
-                endContent={<Button size="sm" variant="primary" label="Review" data-action="sheet" />} />
-            ) : null}
-            {alerts.map((n) => (
-              <ListItem key={n.id} data-action="inbox-open" data-id={n.id} label={n.text} description={`${n.kind} · ${ago(n.at)}`}
-                startContent={<StatusDot variant="warning" label="Needs you" />}
-                endContent={<Button size="sm" label="Open" data-action="inbox-open" data-id={n.id} />} />
-            ))}
-          </List></Card>
-        </>
-      ) : null}
-      <Heading level={2}>Agents</Heading>
-      {mine.length ? (
-        <div className="ou-cards">
-          {mine.map((x) => (
-            <div key={x.id} data-action="pick" data-id={x.id} role="button" tabIndex={0}>
-              <Card padding={4}>
-                <div className="ou-split"><span className="ou-actions"><StatusDot variant={dot(x.state)} label={STATE_WORDS[x.state] || x.state} /><Text weight="bold">{x.engine_id}</Text></span><Text color="secondary" size="sm">{STATE_WORDS[x.state] || x.state}</Text></div>
-                <Text as="p">{taskOf(x)}</Text>
-                <div className="ou-split"><Text color="secondary" size="sm" maxLines={1}>{x.last_line || ''}</Text>{changedFiles(x.id).length ? <Badge label={`${changedFiles(x.id).length} files`} /> : null}</div>
-              </Card>
-            </div>
-          ))}
-        </div>
-      ) : <EmptyState title="Start one with the box above." isCompact />}
-      {recent.length ? (
-        <>
-          <Heading level={2}>Recent</Heading>
-          <Card padding={0}><List hasDividers>
-            {recent.map((n) => (
-              <ListItem key={n.id} data-action="inbox-open" data-id={n.id} label={n.text} startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : 'neutral'} label={n.kind === 'failed' ? 'Failed' : 'Finished'} />}
-                endContent={<span className="ou-actions"><Text color="secondary" size="sm">{ago(n.at)}</Text><Button size="sm" variant="ghost" label="Open" data-action="inbox-open" data-id={n.id} /></span>} />
-            ))}
-          </List></Card>
-        </>
-      ) : null}
+      <h2>Agents</h2>
+      {mine.length ? <div className="ou-cards">{mine.map((x) => <AgentCard key={x.id} x={x} />)}</div> : <EmptyState title="No agents yet" description="Start one with the box above." isCompact />}
+      <div className={asks && recent.length ? 'ou-two' : undefined}>
+        {asks ? (
+          <section>
+            <h2>Waiting on you</h2>
+            <ul className="ou-list">
+              {waiting.map((x) => (
+                <li key={x.id} className="ou-irow ou-unread" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
+                  <span className="ou-dot ou-dot-wait" /><span className="ou-ititle">{taskOf(x)}</span><span className="ou-imeta">{away(x)}{x.engine_id}</span>
+                  <span className="ou-actions"><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} /></span>
+                </li>
+              ))}
+              {approvals.length ? (
+                <li className="ou-irow ou-unread" data-action="sheet" role="button" tabIndex={0}>
+                  <span className="ou-dot ou-dot-wait" /><span className="ou-ititle">{`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`}</span><span className="ou-imeta">Allow or refuse each one</span>
+                  <span className="ou-actions"><Button size="sm" variant="primary" label="Review" data-action="sheet" /></span>
+                </li>
+              ) : null}
+              {alerts.map((n) => (
+                <li key={n.id} className="ou-irow ou-unread" data-action="inbox-open" data-id={n.id} role="button" tabIndex={0}>
+                  <span className="ou-dot ou-dot-wait" /><span className="ou-ititle">{n.text}</span><span className="ou-imeta">{n.kind}</span>
+                  <span className="ou-itime">{ago(n.at)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {recent.length ? (
+          <section>
+            <h2>Recent</h2>
+            <ul className="ou-list">
+              {recent.map((n) => (
+                <li key={n.id} className="ou-irow" data-action="inbox-open" data-id={n.id} role="button" tabIndex={0}>
+                  <span className={n.kind === 'failed' ? 'ou-dot ou-dot-bad' : 'ou-dot'} /><span className="ou-ititle">{n.text}</span>
+                  <span className="ou-itime">{ago(n.at)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

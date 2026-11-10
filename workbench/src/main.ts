@@ -32,7 +32,7 @@ import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts'
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
-import { activeTheme, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
+import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
 import { crashAction, freshNeeds, watchDb } from './queries.ts';
 
@@ -541,7 +541,8 @@ function handlers(): void {
   on('settingsPage', () => {
     const s = settings();
     const alarms = db()?.prepare("SELECT value FROM meta WHERE key = 'loop_false_alarms'").get() as { value: string } | undefined;
-    return { reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme } };
+    const defaults = Object.fromEntries([...PAGE_KEYS].map((k) => [k, k.split('.').reduce<unknown>((o, p) => (o as Record<string, unknown>)[p], DEFAULTS)]));
+    return { defaults, reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme } };
   });
   on('setSetting', async (key: unknown, value: unknown) => {
     if (typeof key !== 'string' || !PAGE_KEYS.has(key)) return { error: 'not a Settings page key' };

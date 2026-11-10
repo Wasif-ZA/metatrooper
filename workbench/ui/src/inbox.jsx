@@ -1,11 +1,7 @@
 import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
-import { Heading } from '@astryxdesign/core/Heading';
-import { List, ListItem } from '@astryxdesign/core/List';
+import { Kbd } from '@astryxdesign/core/Kbd';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { StatusDot } from '@astryxdesign/core/StatusDot';
-import { Text } from '@astryxdesign/core/Text';
 import { createStore } from './store.js';
 
 export const inboxStore = createStore({ tick: 0, filter: 'all' });
@@ -13,20 +9,29 @@ export const inboxStore = createStore({ tick: 0, filter: 'all' });
 const FILTERS = [['all', 'All'], ['needs', 'Needs you'], ['done', 'Finished'], ['failed', 'Failed']];
 const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way'], ['not-a-loop', 'Not a loop']];
 
+// Shape carries the state, as in Herdr: filled dot needs you, check finished, cross failed, hollow dot for information.
+function Glyph({ kind }) {
+  const p = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (kind === 'needs') return <svg {...p} className="ou-g ou-g-needs" aria-label="Needs you"><circle cx="7" cy="7" r="3.5" fill="currentColor" stroke="none" /></svg>;
+  if (kind === 'done') return <svg {...p} className="ou-g" aria-label="Finished"><path d="M3 7.5l2.6 2.6L11 4.5" /></svg>;
+  if (kind === 'failed') return <svg {...p} className="ou-g ou-g-bad" aria-label="Failed"><path d="M4 4l6 6M10 4l-6 6" /></svg>;
+  return <svg {...p} className="ou-g" aria-label="For your information"><circle cx="7" cy="7" r="3" /></svg>;
+}
+
 function NoteActions({ n }) {
   const loop = loopOf(n);
   const lend = lendOf(n);
   return (
     <span className="ou-actions">
-      <Text color="secondary" size="sm">{ago(n.at)}</Text>
       {loop ? LOOP_CHOICES.map(([choice, label]) => <Button key={choice} size="sm" label={label} data-action="loop-choose" data-id={loop} data-choice={choice} />) : null}
       {lend ? <Button size="sm" variant="primary" label="Lend this site" data-action="lend-set" data-project={lend.project} data-origin={lend.origin} /> : null}
       {lend ? <Button size="sm" label="No" data-action="dismiss" data-id={n.id} /> : null}
-      <Button size="sm" variant="ghost" label={n.read_at ? 'Mark unread' : 'Mark read'} data-action={n.read_at ? 'inbox-unread' : 'inbox-read'} data-id={n.id} />
+      <span className="ou-hoveronly"><Button size="sm" variant="ghost" label={n.read_at ? 'Mark unread' : 'Mark read'} data-action={n.read_at ? 'inbox-unread' : 'inbox-read'} data-id={n.id} /></span>
     </span>
   );
 }
 
+// Row anatomy follows Paperclip's inbox: 44px rows, state glyph, title whose weight says unread, quiet meta, a fixed time column.
 export function Inbox() {
   const { filter } = inboxStore.use();
   if (ui.view !== 'inbox') return null;
@@ -35,33 +40,47 @@ export function Inbox() {
   const showAsks = filter === 'all' || filter === 'needs';
   const asks = showAsks ? waitingAll() : [];
   const approvals = showAsks ? s.approvals || [] : [];
-  const notes = s.needs_you.filter((n) => (filter === 'all' ? true : filter === 'needs' ? !isInfo(n) : n.kind === filter));
+  const kindOf = (n) => (n.kind === 'failed' ? 'failed' : n.kind === 'done' ? 'done' : isInfo(n) ? 'info' : 'needs');
+  const rank = { needs: 0, failed: 1, done: 2, info: 3 };
+  const notes = s.needs_you.filter((n) => (filter === 'all' ? true : filter === 'needs' ? !isInfo(n) : n.kind === filter))
+    .slice().sort((a, b) => (Boolean(a.read_at) - Boolean(b.read_at)) || (rank[kindOf(a)] - rank[kindOf(b)]));
   const count = { all: waitingAll().length + (s.approvals || []).length + s.needs_you.length, needs: needsCount(), done: s.needs_you.filter((n) => n.kind === 'done').length, failed: s.needs_you.filter((n) => n.kind === 'failed').length };
   const open = () => homeView.set('wall');
   return (
-    <div className="ou-col">
-      <header>
-        <Heading level={1}>Needs you</Heading>
-        <Text as="p" color="secondary">{count.needs ? `${count.needs} waiting on you` : 'Nothing is waiting on you'}</Text>
+    <div className="ou-col ou-inbox">
+      <header className="ou-split ou-pagehead">
+        <div>
+          <h1>Needs you</h1>
+          <p>{count.needs ? `${count.needs} waiting on you` : 'Nothing is waiting on you'}</p>
+        </div>
+        <SegmentedControl label="Filter" size="sm" value={filter} onChange={(v) => inboxStore.set({ filter: v })}>
+          {FILTERS.map(([id, label]) => <SegmentedControlItem key={id} value={id} label={`${label} · ${count[id]}`} />)}
+        </SegmentedControl>
       </header>
-      <SegmentedControl label="Filter" value={filter} onChange={(v) => inboxStore.set({ filter: v })}>
-        {FILTERS.map(([id, label]) => <SegmentedControlItem key={id} value={id} label={`${label} · ${count[id]}`} />)}
-      </SegmentedControl>
-      {approvals.length ? <><Heading level={2}>Agent actions waiting for a yes</Heading><div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} /></> : null}
+      {approvals.length ? <><h2>Agent actions waiting for a yes</h2><div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} /></> : null}
       {asks.length || notes.length ? (
-        <Card padding={0}><List hasDividers>
+        <ul className="ou-list">
           {asks.map((x) => (
-            <ListItem key={x.id} data-action="pick" data-id={x.id} onClick={open} label={taskOf(x)} description={`${away(x.project_id)}${x.engine_id} is asking${x.last_line ? ` · ${x.last_line}` : ''}`}
-              startContent={<StatusDot variant="warning" label="Waiting for you" />}
-              endContent={<Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} onClick={open} />} />
+            <li key={x.id} className="ou-irow ou-unread" data-action="pick" data-id={x.id} onClick={open} tabIndex={0} role="button">
+              <Glyph kind="needs" />
+              <span className="ou-ititle">{taskOf(x)}</span>
+              <span className="ou-imeta">{away(x.project_id)}{x.engine_id} is asking{x.last_line ? ` · ${x.last_line}` : ''}</span>
+              <span className="ou-actions"><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} onClick={open} /></span>
+              <span className="ou-itime">{ago(x.state_at)}</span>
+            </li>
           ))}
           {notes.map((n) => (
-            <ListItem key={n.id} data-action="inbox-open" data-id={n.id} onClick={open} label={n.text} description={n.kind}
-              startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : n.read_at || isInfo(n) ? 'neutral' : 'warning'} label={n.kind === 'failed' ? 'Failed' : n.read_at || isInfo(n) ? 'For your information' : 'Needs you'} />}
-              endContent={<NoteActions n={n} />} />
+            <li key={n.id} className={n.read_at ? 'ou-irow' : 'ou-irow ou-unread'} data-action="inbox-open" data-id={n.id} onClick={open} tabIndex={0} role="button">
+              <Glyph kind={kindOf(n)} />
+              <span className="ou-ititle">{n.text}</span>
+              <span className="ou-imeta">{n.kind}</span>
+              <NoteActions n={n} />
+              <span className="ou-itime">{ago(n.at)}</span>
+            </li>
           ))}
-        </List></Card>
-      ) : approvals.length ? null : <EmptyState title="Nothing here." isCompact />}
+        </ul>
+      ) : approvals.length ? null : <EmptyState title="Nothing here." description="Agents that ask, finish or fail show up in this list." isCompact />}
+      <footer className="ou-keys"><Kbd keys="J" /><Kbd keys="K" /> move <Kbd keys="Enter" /> open</footer>
     </div>
   );
 }

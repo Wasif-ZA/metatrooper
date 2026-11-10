@@ -16,15 +16,15 @@ export function Addons() {
   if (ui.view !== 'addons') return null;
   const engines = ui.snap.engines;
   return (
-    <div className="ou-col">
-      <header className="ou-split">
+    <div className="ou-col ou-addons">
+      <header className="ou-split ou-pagehead">
         <div>
-          <Heading level={1}>Add-ons</Heading>
-          <Text as="p" color="secondary">Agents Ouros can start, and plugins that add tools.</Text>
+          <h1>Add-ons</h1>
+          <p>Agents Ouros can start, and plugins that add tools.</p>
         </div>
         <Button label="Check agents again" data-action="check-engines" />
       </header>
-      <Heading level={2}>Agents</Heading>
+      <h2>Agents</h2>
       {engines.length ? (
         <Card padding={0}><List hasDividers>
           {engines.map((e) => {
@@ -37,7 +37,7 @@ export function Addons() {
           })}
         </List></Card>
       ) : <EmptyState title="No agents found." isCompact />}
-      <Heading level={2}>Plugins</Heading>
+      <h2>Plugins</h2>
       {rows === null ? <Text color="secondary">Loading.</Text> : rows.length ? (
         <Card padding={0}><List hasDividers>
           {rows.map((p) => (
