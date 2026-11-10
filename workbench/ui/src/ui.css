@@ -247,8 +247,8 @@ html { font-size: 16px; }
 .ou-md-body ol { list-style: decimal; }
 .ou-md-body :is(ul, ol) :is(ul, ol) { margin-bottom: 0; }
 .ou-md-body li + li { margin-top: 4px; }
-.ou-md-body li:has(> input[type="checkbox"]) { list-style: none; }
-.ou-md-body li > input[type="checkbox"] { margin: 0 6px 0 -20px; vertical-align: middle; }
+.ou-md-body li:has(> input[type="checkbox"], > p:first-child > input[type="checkbox"]) { list-style: none; }
+.ou-md-body li input[type="checkbox"] { margin: 0 6px 0 -20px; vertical-align: middle; }
 .ou-md-body strong { font-weight: 600; color: var(--ink); }
 .ou-md-body a { color: var(--syn-fn); text-decoration: none; cursor: pointer; }
 .ou-md-body a:hover { text-decoration: underline; }
