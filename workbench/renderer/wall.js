@@ -129,10 +129,10 @@ const wall = (() => {
       ids.forEach((id, i) => R[id] = { left: 8 + (i % cols) * (w + G), top: TOP + Math.floor(i / cols) * (hh + G), width: w, height: hh });
       return { R, C: colW(W), RX: 8, H };
     }
-    const C = colW(W), RX = 8 + C + G, RW = W - 8 - RX;
+    const rest = ORDER.filter((id) => !BIG.includes(id));
+    const C = rest.length ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
     const bw = (C - G * (BIG.length - 1)) / BIG.length;
     BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });
-    const rest = ORDER.filter((id) => !BIG.includes(id));
     const work = rest.filter((id) => active(S[id])), open = rest.filter((id) => !active(S[id]) && S[id].open);
     const all = rest.filter((id) => folded(S[id])), cap = Math.max(0, Math.floor((H * 0.5) / (BAR + G)));
     // past the cap the last slot counts the rest, so no session leaves the wall unseen
