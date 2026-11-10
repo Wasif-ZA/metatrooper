@@ -58,6 +58,7 @@ html { font-size: 16px; }
 .ou-ah-name { font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
 .ou-ah-proj { font: 11px var(--mono); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 40%; }
 .ou-ah-state { font-size: 11px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
+.ou-ah-proj + .ou-ah-state::before { content: "\00B7"; margin-right: 6px; color: var(--mute); }
 .ou-ah[data-state="waiting_for_you"] .ou-ah-state { color: var(--wait); }
 .ou-ah-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .ou-ah-acts :is(button, .btn, .astryx-button) { height: 24px; min-height: 24px; border: 0; border-radius: 4px; background: transparent; color: var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0 8px; font-size: 12px; line-height: 1; box-shadow: none; }
