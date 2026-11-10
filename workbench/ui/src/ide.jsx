@@ -777,7 +777,7 @@ function Files({ st, changed }) {
           <ContextMenu id="ide-tree-menu" size="sm" label="File actions" items={items}
             onContextMenu={(e) => setTarget(rowTarget(st, e.target))}
             onOpenChange={(open) => { const run = pending.current; pending.current = null; if (!open && run) setTimeout(run, 0); }}>
-            <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span aria-hidden="true">{st.rootOpen ? '\u25be' : '\u25b8'}</span>{p.name}</button>} items={st.rootOpen ? treeItems(st, '', changed) : []}
+            <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span aria-hidden="true">{st.rootOpen ? '\u25be' : '\u25b8'}</span><span aria-hidden="true"><FileIcon isDir /></span>{p.name}</button>} items={st.rootOpen ? treeItems(st, '', changed) : []}
               onKeyDown={(e) => {
                 const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
                 if (t) { e.preventDefault(); st.renaming = t.path; bump(); }
