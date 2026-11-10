@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('troop', {
   pickFolder: () => ipcRenderer.invoke('pickFolder'),
   handback: (projectId) => ipcRenderer.invoke('handback', projectId),
   copyText: (text) => ipcRenderer.invoke('copyText', text),
+  reportIssue: (facts) => ipcRenderer.invoke('reportIssue', facts),
   readText: () => ipcRenderer.invoke('readText'),
   restartCore: () => ipcRenderer.invoke('restartCore'),
   stopCore: () => ipcRenderer.invoke('stopCore'),

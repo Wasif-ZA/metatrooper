@@ -3,7 +3,9 @@ import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import os from 'node:os';
+import { cleanReport, ISSUE_PREFIX, issueUrl, localIso } from './report-issue.ts';
 import { connect } from 'node:net';
 import { PARENT_SESSION_ENV } from '../../core/src/terminal/parent-env.ts';
 import { windowsBuild } from '../../core/src/terminal/windows-build.ts';
@@ -600,6 +602,15 @@ function handlers(): void {
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
+  on('reportIssue', async (raw: unknown) => {
+    const r = cleanReport(raw);
+    let commit = '';
+    try { commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: app.getAppPath(), encoding: 'utf8', timeout: 3000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch {}
+    const url = issueUrl({ ...r, version: app.getVersion(), commit, os: `${os.type()} ${os.release()} ${os.arch()}`, time: localIso() });
+    if (!url.startsWith(ISSUE_PREFIX)) return false;
+    await shell.openExternal(url);
+    return true;
+  });
   on('copyText', (text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
     return true;

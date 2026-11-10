@@ -6,6 +6,16 @@ const DEMO = new URLSearchParams(location.search).has('demo');
 const LIVE_STATES = ['starting', 'working', 'waiting_for_you', 'unknown'];
 const STATE_WORDS = { starting: 'starting', working: 'working', waiting_for_you: 'waiting for you', done: 'done', idle: 'idle', unknown: 'state unknown', exited: 'exited' };
 
+const recentErrors = [];
+const keepError = (text) => { recentErrors.push(`${new Date().toISOString()} ${text}`.slice(0, 300)); if (recentErrors.length > 20) recentErrors.shift(); };
+addEventListener('error', (e) => keepError(`${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno})`));
+addEventListener('unhandledrejection', (e) => keepError(`unhandled rejection: ${e.reason?.message ?? e.reason}`));
+const VIEW_NAMES = { home: 'Home', ide: 'IDE', wall: 'Wall', inbox: 'Inbox', addons: 'Add-ons' };
+function reportIssue() {
+  const view = globalThis.settingsView?.isOpen() ? 'Settings' : VIEW_NAMES[ui.view || 'wall'] || ui.view;
+  void api.reportIssue({ view, project: project()?.name || '', errors: recentErrors });
+}
+
 const ui = {
   snap: null,
   projectId: load('projectId'),
@@ -893,6 +903,7 @@ function paletteItems() {
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
   items.push({ group: 'Actions', label: 'Settings', meta: 'Ctrl+,', run: () => settingsView.open() });
   items.push({ group: 'Actions', label: 'Add-ons: agents and plugins', run: () => homeView.set('addons') });
+  items.push({ group: 'Actions', label: 'Report issue on GitHub', run: reportIssue });
   items.push({ group: 'Core', label: 'Notification sinks (Slack, ntfy, webhooks)', run: openSinks });
   return items;
 }
@@ -1522,6 +1533,9 @@ async function onClick(e) {
       return;
     case 'open-logs':
       await api.openLogs();
+      return;
+    case 'report-issue':
+      reportIssue();
       return;
     case 'launch': {
       hideMenu();
