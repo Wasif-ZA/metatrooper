@@ -193,7 +193,7 @@ export function Settings() {
     <div className="ou-settings">
       <nav className="ou-snav" aria-label="Settings sections">
         <div className="ou-snav-head">
-          <button type="button" className="ou-snav-back" onClick={() => settingsView.close()}>â€¹ Back</button>
+          <button type="button" className="ou-snav-back" onClick={() => settingsView.close()}>‹ Back</button>
           <div className="ou-snav-title">Settings</div>
         </div>
         <div className="ou-search"><TextInput ref={search} type="search" size="md" label="Search settings" isLabelHidden value={query} onChange={setQuery} placeholder="Search settings" hasClear /><Kbd keys="/" /></div>
