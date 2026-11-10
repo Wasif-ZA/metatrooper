@@ -21,9 +21,11 @@ function greeting() {
 function Tile({ label, n, sub, hot }) {
   return (
     <Card padding={4} variant={hot ? 'orange' : 'default'}>
-      <Text color="secondary" size="sm" as="div">{label}</Text>
-      <Text as="div" size="2xl" weight="bold">{String(n)}</Text>
-      <Text color="secondary" size="sm" as="div">{sub}</Text>
+      <div className="ou-tile">
+        <Text color="secondary" size="sm">{label}</Text>
+        <Text size="2xl" weight="bold">{String(n)}</Text>
+        <Text color="secondary" size="sm">{sub}</Text>
+      </div>
     </Card>
   );
 }
