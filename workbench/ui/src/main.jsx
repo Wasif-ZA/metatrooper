@@ -9,6 +9,7 @@ import { Settings, settingsStore } from './settings.jsx';
 import { Inbox, inboxStore } from './inbox.jsx';
 import { Addons, drawAddons } from './addons.jsx';
 import { Home, homeStore } from './home.jsx';
+import { Ide, drawIde, ideShown, ideKeys } from './ide.jsx';
 
 const el = (id) => document.getElementById(id);
 
@@ -22,6 +23,7 @@ const start = () => {
   mount('settings', Settings);
   mount('needsview', Inbox);
   mount('addons', Addons);
+  mount('ide', Ide);
   el('home').replaceChildren();
   mount('home', Home);
 };
@@ -61,6 +63,16 @@ document.addEventListener('keydown', (e) => {
 });
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
+globalThis.ideView = { draw: drawIde, shown: ideShown };
+
+document.addEventListener('keydown', (e) => {
+  if (!ideView.shown() || !e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'p' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.find(); }
+  else if (k === 'f' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.search(); }
+  else if (k === 'p' && e.shiftKey) { e.preventDefault(); ideKeys.palette(!ideKeys.paletteOpen() && !overlayOpen()); }
+  else if (k === 'w' && !e.shiftKey) { e.preventDefault(); ideKeys.closeTab(); }
+});
 
 // home.js stays loaded for homeView.set and shown; only its drawing is replaced.
 homeView.draw = () => {

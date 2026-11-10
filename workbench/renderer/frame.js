@@ -21,9 +21,9 @@ globalThis.frameView = (() => {
   }
 
   function draw() {
-    const view = ui.view || 'wall';
-    document.querySelectorAll('#frame [data-action="view"]').forEach((b) => {
-      if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    const view = globalThis.settingsView?.isOpen() ? 'settings' : ui.view || 'wall';
+    [...document.querySelectorAll('#frame [data-action="view"]'), ...document.querySelectorAll('#frame [data-action="settings"]')].forEach((b) => {
+      if ((b.dataset.view || 'settings') === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     const n = needsCount();
     const pill = document.getElementById('frameNeeds');
