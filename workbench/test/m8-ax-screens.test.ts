@@ -42,7 +42,7 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -147,7 +147,7 @@ test('Settings exposes all nine sections and only writable keys', () => {
 
 test('Settings section navigation selects each literal group of controls', () => {
   const h = harness(Settings);
-  for (const [section, row] of [['General', 'Before each tool call'], ['Appearance', 'Font size'], ['Reliability', 'Loop alarm'], ['Savings', 'Shrink shell output'], ['Safety', 'Take-over key'], ['Add-ons', 'Agents and plugins'], ['Notifications', 'Slack, ntfy and webhooks'], ['Advanced', 'Logs folder']]) {
+  for (const [section, row] of [['General', 'Before each tool call'], ['General', 'Font size'], ['Reliability', 'Loop alarm'], ['Savings', 'Shrink shell output'], ['Safety', 'Take-over key'], ['Add-ons', 'Agents and plugins'], ['Notifications', 'Slack, ntfy and webhooks'], ['Advanced', 'Logs folder']]) {
     h.draw(); h.one((n: any) => n.props.label === section && n.props.onClick).props.onClick();
     const html = h.html(); assert.ok(html.includes(row), section);
   }
@@ -197,7 +197,7 @@ for (const [section, text, key, min, max, current] of [
 
 test('Reliability has exactly six unavailable rows with no interactive control', () => {
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); const html = h.html();
-  assert.equal(h.all(label('Not built yet')).length, 6);
+  assert.equal(h.all(hasClass('ou-soontag')).length, 6); assert.ok(h.all(hasClass('ou-soontag')).every(n => textContent(n) === 'Not built yet'));
   const rows = h.all((n: any) => n.type === 'div' && n.props.className === 'ou-row ou-soon');
   assert.equal(rows.length, 6);
   for (const row of rows) { const markup = renderToStaticMarkup(React.createElement(row.type, row.props)); assert.doesNotMatch(markup, /<(button|input|select|textarea)\b/); }
@@ -415,17 +415,18 @@ const textContent = (node: any): string => Array.isArray(node) ? node.map(textCo
 
 test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd follow the new anatomy', () => {
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); h.draw();
-  assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Finishing', 'Watching', 'Budgets', 'Not built yet']);
-  assert.equal(h.all(hasClass('ou-rows')).length, 4);
-  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Token limit per agent', 'Fix failing checks, up to 3 tries', 'Retry provider errors', 'Check after every edit', 'Ask when a request can mean two things', 'Keep runs going when Ouros closes', 'Checkpoint every turn']);
+  assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Finishing', 'Watching', 'Budgets']);
+  assert.equal(h.all(hasClass('ou-rows')).length, 3);
+  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Fix failing checks, up to 3 tries', 'Check after every edit', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Retry provider errors', 'Ask when a request can mean two things', 'Keep runs going when Ouros closes', 'Token limit per agent', 'Checkpoint every turn']);
   assert.deepEqual(h.all((n: any) => n.type === 'h1').map(textContent), ['Reliability']);
   assert.equal(textContent(h.one(hasClass('ou-crumb'))), 'Settings/Reliability');
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
   const groups = h.all(hasClass('ou-navgroup'));
-  assert.deepEqual(groups.map(textContent), ['', 'Agents', 'Extend', '']);
-  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General', 'Appearance'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced']]);
+  assert.deepEqual(groups.map(textContent), ['App', 'Agents', 'Extend', 'System']);
+  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced']]);
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
-  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Appearance', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']);
+  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']);
+  assert.equal(textContent(h.one(hasClass('ou-snav-title'))), 'Settings'); assert.equal(h.one(hasClass('ou-snav-back')).type, 'button');
   assert.ok(navs.every(n => n.props.icon?.type === 'svg'));
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
   settingsStore.set({ section: 'safety' }); h.draw();
@@ -486,11 +487,13 @@ test('Inbox groups, columns, chips, glyphs, unread state and notice order match 
   assert.deepEqual(rows.map(n => n.props['data-id']), ['ask', 'unread-needs', 'unread-failed', 'unread-done', 'unread-info', 'read-needs', 'read-failed', 'read-done', 'read-info']);
   assert.deepEqual(rows.map(n => hasClass('ou-unread')(n)), [true, true, true, true, true, false, false, false, false]);
   assert.ok(rows.every(n => n.type === 'li' && n.props.role === 'button' && n.props.tabIndex === 0));
-  assert.deepEqual(h.all((n: any) => n.type === 'svg' && n.props['aria-label']).map(n => n.props['aria-label']), ['Needs you', 'Needs you', 'Failed', 'Finished', 'For your information', 'Needs you', 'Failed', 'Finished', 'For your information']);
-  assert.deepEqual(h.all(hasClass('ou-iwho')).map(textContent), ['engine-b', '', '', '', '', '', '', '', '']);
-  assert.deepEqual(h.all(hasClass('ou-chip')).map(textContent), ['Choose a fixture', 'question', 'failed', 'done', 'other', 'question', 'failed', 'done', 'other']);
-  assert.equal(h.all(hasClass('ou-ititle')).length, 9); assert.equal(h.all(hasClass('ou-imeta')).length, 9);
-  assert.deepEqual(h.all(hasClass('ou-itime')).map(textContent), ['1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago']);
+  assert.deepEqual(h.all((n: any) => n.type === 'svg' && n.props['aria-label']).map(n => n.props['aria-label']), ['Needs you', 'Failed', 'Finished', 'For your information', 'Needs you', 'Failed', 'Finished', 'For your information']);
+  assert.deepEqual(h.all(hasClass('ou-iwho')).map(textContent), ['', '', '', '', '', '', '', '']);
+  assert.deepEqual(h.all(hasClass('ou-ah-proj')).map(textContent), ['engine-b']); assert.deepEqual(h.all(hasClass('ou-ah-name')).map(textContent), ['Task ask']); assert.deepEqual(h.all(hasClass('ou-ah-state')).map(textContent), ['waiting_for_you']);
+  assert.equal(h.one(hasClass('ou-ah-tile')).props['data-mono'], 'EN'); assert.equal(h.one(hasClass('ou-ah')).props['data-state'], 'waiting_for_you');
+  assert.deepEqual(h.all(hasClass('ou-chip')).map(textContent), ['question', 'failed', 'done', 'other', 'question', 'failed', 'done', 'other']);
+  assert.equal(h.all(hasClass('ou-ititle')).length, 8); assert.equal(h.all(hasClass('ou-imeta')).length, 9);
+  assert.deepEqual(h.all(hasClass('ou-itime')).map(textContent), ['1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago']);
   assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
   g.ui.snap.live = []; h.draw(); assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Notices8']);
   g.ui.snap.needs_you = []; g.ui.snap.live = [session('ask', 'waiting_for_you')]; h.draw(); assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Needs your answer1']);
@@ -498,14 +501,14 @@ test('Inbox groups, columns, chips, glyphs, unread state and notice order match 
 });
 
 test('Home puts Answer in the waiting agent card and renders literal card anatomy', () => {
-  g.ui.snap.sessions = [session('done', 'done', { last_line: 'All checks passed' }), session('working', 'working', { last_line: 'Editing fixtures' }), session('wait', 'waiting_for_you', { last_line: 'Choose a fixture' })];
+  g.ui.snap.sessions = [session('done', 'done', { last_line: 'All checks passed' }), session('working', 'working', { last_line: 'Editing fixtures' }), session('wait', 'waiting_for_you', { last_line: 'Choose a fixture', state_at: 'then' })];
   g.ui.snap.live = [session('wait', 'waiting_for_you')]; g.STATE_WORDS = { waiting_for_you: 'Needs you', working: 'Working', done: 'Finished' };
   const h = harness(Home); const html = h.html();
   const cards = h.all(hasClass('ou-agent'));
   assert.deepEqual(cards.map(n => n.props['data-id']), ['wait', 'working', 'done']);
   assert.ok(cards.every(n => n.props.className === 'ou-agent' && n.props['data-action'] === 'pick' && n.props.tabIndex === 0 && n.props.role === 'button'));
   const markup = cards.map(n => renderToStaticMarkup(n));
-  assert.match(markup[0], /<header>.*synthetic.*Needs you.*1m ago.*<\/header><p>Task wait<\/p><pre>Choose a fixture<\/pre><footer><span>No changes yet<\/span><button[^>]*data-action="pick" data-id="wait"/);
+  assert.match(markup[0], /<div class="ou-agent"[^>]*><div class="ou-ah" data-state="waiting_for_you"><span class="ou-ah-tile" data-mono="SY"><i class="ou-ah-pip"><\/i><\/span><span class="ou-ah-name">Task wait<\/span><span class="ou-ah-proj">synthetic<\/span><span class="ou-ah-state">Needs you · 1m ago<\/span><span class="ou-ah-acts"><\/span><\/div><p>Task wait<\/p><pre>Choose a fixture<\/pre><footer><span>No changes yet<\/span><button[^>]*data-action="pick" data-id="wait"/);
   assert.match(markup[1], /<pre>Editing fixtures<\/pre><footer><span>2 changed files<\/span>/);
   assert.match(markup[2], /<pre>All checks passed<\/pre><footer><span>1 changed file<\/span>/);
   assert.equal(h.all(label('Answer')).length, 1); assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
@@ -554,11 +557,11 @@ async function keyboardHarness() {
   const listeners: any[] = []; const focused: string[] = []; const clicked: string[] = []; let prevented = 0;
   const row = (id: string, className = 'ou-irow'): any => {
     const r: any = { id, className, contains: (element: any) => element === r || element?.owner === r,
-      matches: (selector: string) => { assert.equal(selector, '.ou-irow, .ou-agent'); return ['ou-irow', 'ou-agent'].includes(className); },
+      matches: (selector: string) => { assert.equal(selector, '.ou-irow, .ou-agent, .ou-ide-ahead'); return ['ou-irow', 'ou-agent', 'ou-ide-ahead'].includes(className); },
       closest: () => null, focus() { g.document.activeElement = r; focused.push(id); }, click: () => clicked.push(id) };
     return r;
   };
-  const rows = [row('first'), row('middle'), row('last')]; const head = row('header', 'ou-ihead'); const card = row('agent', 'ou-agent');
+  const rows = [row('first'), row('middle'), row('last')]; const head = row('header', 'ou-ihead'); const card = row('agent', 'ou-agent'); const ahead = row('ahead', 'ou-ide-ahead');
   g.document = { documentElement: { style: {} }, readyState: 'loading', activeElement: null,
     addEventListener: (name: string, fn: any) => { if (name === 'keydown') listeners.push(fn); },
     getElementById: (id: string) => { assert.equal(id, 'needsview'); return { querySelectorAll: (selector: string) => { assert.equal(selector, '.ou-irow'); return rows; } }; },
@@ -568,7 +571,7 @@ async function keyboardHarness() {
     const name = 'keyboard-' + keyboardSequence++ + '.mjs'; await bundle("import './src/main.jsx';", name); await import(pathToFileURL(join(temp, name)).href);
   } finally { delete g.__axCreateRoot; }
   assert.equal(listeners.length, 3);
-  return { rows, head, card, focused, clicked, get prevented() { return prevented; },
+  return { rows, head, card, ahead, focused, clicked, get prevented() { return prevented; },
     clear() { focused.length = 0; clicked.length = 0; prevented = 0; },
     press(key: string, extra: any = {}) { const e = { key, ctrlKey: false, altKey: false, metaKey: false, target: { closest: () => null }, preventDefault: () => prevented++, ...extra }; for (const listener of listeners) listener(e); },
   };
@@ -598,8 +601,8 @@ test('Needs you j and k ignore other views, fields, modified keys and empty list
 
 test('Enter and Space click focused rows and agent cards but ignore group headers and nested controls', async () => {
   const h = await keyboardHarness();
-  for (const key of ['Enter', ' ']) { h.press(key, { target: h.rows[0] }); h.press(key, { target: h.card }); }
-  assert.deepEqual(h.clicked, ['first', 'agent', 'first', 'agent']); assert.equal(h.prevented, 4); h.clear();
+  for (const key of ['Enter', ' ']) { h.press(key, { target: h.rows[0] }); h.press(key, { target: h.card }); h.press(key, { target: h.ahead }); }
+  assert.deepEqual(h.clicked, ['first', 'agent', 'ahead', 'first', 'agent', 'ahead']); assert.equal(h.prevented, 6); h.clear();
   for (const key of ['Enter', ' ']) {
     h.press(key, { target: h.head });
     for (const tag of ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'SPAN']) h.press(key, { target: { tagName: tag, matches: () => false, click: () => h.clicked.push(tag), closest: () => null } });
