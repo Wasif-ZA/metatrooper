@@ -83,7 +83,7 @@ test('step 3: stage-paths and unstage-paths refuse invalid paths with name the f
   let recordedArgs: string[] = [];
   const recordingGit: Run = async (args: string[]) => { recordedArgs = args; return ''; };
   await gitAct(recordingGit, 'stage-paths', ['file.ts']);
-  assert.deepEqual(recordedArgs, ['--literal-pathspecs', 'add', '--', 'file.ts']);
+  assert.deepEqual(recordedArgs, ['--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul']);
 
   await gitAct(recordingGit, 'unstage-paths', ['file.ts']);
   assert.deepEqual(recordedArgs, ['--literal-pathspecs', 'restore', '--staged', '--', 'file.ts']);
@@ -165,4 +165,30 @@ test('step 3: diffs carry --no-ext-diff and --no-textconv', async (t) => {
   assert.equal(res, 'unified diff output');
   assert.ok(diffCalls[0].includes('--no-ext-diff'));
   assert.ok(diffCalls[0].includes('--no-textconv'));
+});
+
+// Protects gitpane.ts:119-121: paths are literal NUL-separated stdin, never argv.
+test('fix-05 stage-paths sends spaces, leading dash and pathspec syntax only on stdin', async () => {
+  const calls: any[] = [];
+  await gitAct(async (args, input) => { calls.push([args, input]); return ''; }, 'stage-paths', ['a b.ts', '-x', ':(top)y']);
+  assert.deepEqual(calls, [[['--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul'], 'a b.ts\0-x\0:(top)y']]);
+});
+// Protects gitpane.ts:110, :120: a NUL cannot inject an additional stdin path.
+test('fix-05 NUL path is refused before git runs', async () => {
+  let calls = 0;
+  await assert.rejects(gitAct(async () => { calls++; return ''; }, 'stage-paths', ['safe\0victim']), /name the files/);
+  assert.equal(calls, 0);
+});
+// Protects gitpane.ts:107, :121 and runIn stdin forwarding; uses a throwaway repo only.
+test('fix-05 1500 untracked paths stage in one call, including a literal -x', async t => {
+  const repo = createTempGitRepo(t);
+  const names = ['-x', 'a b.ts', ...Array.from({ length: 1498 }, (_, i) => 'file-' + i + '.txt')];
+  // Windows cannot create a colon in a file name; exercise this literal on POSIX too.
+  if (process.platform !== 'win32') names.push(':(top)y');
+  for (const name of names) fs.writeFileSync(path.join(repo, name), 'test');
+  let calls = 0;
+  await gitAct(async (args, input) => { calls++; return runIn(repo)(args, input); }, 'stage-paths', names);
+  assert.equal(calls, 1);
+  const staged = (await runIn(repo)(['diff', '--cached', '--name-only', '-z'])).split('\0').filter(Boolean).sort();
+  assert.deepEqual(staged, [...names].sort());
 });

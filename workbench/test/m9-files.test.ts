@@ -309,3 +309,24 @@ test('step 2: searchText falls back to git grep when ripgrep is unavailable', as
   assert.equal(typeof gitResult.hits[0].text, 'string');
   assert.equal(gitResult.hits[0].text.replace(/\x00+$/, ''), rgResult.hits[0].text);
 });
+
+// Protects files.ts:93 and :124: decoding must never silently replace source bytes.
+for (const [name, bytes] of [
+  ['cp1252', Buffer.from([0x63, 0x61, 0x66, 0xe9])],
+  ['truncated UTF-8', Buffer.from([0x61, 0xc3])],
+] as const) test('fix-02 refuses ' + name + ' on read and overwrite without changing any byte', t => {
+  const { root } = createFixture(t);
+  const file = path.join(root, 'encoding.txt'); fs.writeFileSync(file, bytes);
+  assert.deepEqual(readText(root, 'encoding.txt'), { error: 'not UTF-8 text' });
+  assert.deepEqual(writeText(root, 'encoding.txt', 'replacement', null), { error: 'not UTF-8 text' });
+  assert.deepEqual(fs.readFileSync(file), bytes);
+});
+// Protects files.ts:93, :124-125: accepted Unicode/BOM/CRLF and empty files still round trip.
+for (const [name, text] of [['BOM', '\uFEFFcafé'], ['Unicode', 'café'], ['CRLF', 'café\r\n'], ['empty', '']]) {
+  test('fix-02 reads and saves valid UTF-8 ' + name, t => {
+    const { root } = createFixture(t); const file = path.join(root, 'valid.txt'); fs.writeFileSync(file, text);
+    assert.equal((readText(root, 'valid.txt') as { text: string }).text, text);
+    assert.equal((writeText(root, 'valid.txt', text.replace(/\r\n/g, '\n'), null) as { ok: boolean }).ok, true);
+    assert.deepEqual(fs.readFileSync(file), Buffer.from(text));
+  });
+}

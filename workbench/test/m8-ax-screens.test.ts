@@ -35,20 +35,20 @@ async function bundle(contents: string, output: string) {
     loader: { '.css': 'empty' }, outfile: join(temp, output),
   });
 }
-await bundle("export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
+await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
 
 const screens = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
 const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home } = screens;
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard', 'PluginInstall', 'Automations', 'Field', 'Screen']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
 
 // Expand app components with persistent hook slots and retain real library controls for server rendering.
-function harness(Screen: any) {
+function harness(Screen: any, runEffects = false) {
   if (Screen === Settings) {
     let nodes: any[] = [];
     const draw = () => {
@@ -72,6 +72,7 @@ function harness(Screen: any) {
       const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       const previous = internals.H;
       internals.H = {
+        useEffect: (fn: any) => { if (runEffects) { const i = cursor++; if (!slots[i]) { slots[i] = true; queueMicrotask(fn); } } },
         useSyncExternalStore: (_subscribe: any, snapshot: any) => snapshot(),
         useState: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial; return [slots[i], (v: any) => { slots[i] = typeof v === 'function' ? v(slots[i]) : v; }]; },
       };
@@ -132,14 +133,14 @@ test('index loads the bundle after app and preserves the four screen containers'
   for (const id of ['settings', 'needsview', 'addons', 'home']) assert.match(html, new RegExp('id="' + id + '"'));
 });
 
-test('Settings exposes all eight sections and only writable keys', () => {
+test('Settings exposes all nine sections and only writable keys', () => {
   const h = harness(Settings); const html = h.html();
-  for (const name of ['General', 'Appearance', 'Reliability', 'Savings', 'Safety', 'Add-ons', 'Notifications', 'Advanced']) assert.ok(html.includes(name), name);
+  for (const name of ['General', 'Appearance', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']) assert.ok(html.includes(name), name);
   const source = readFileSync(join(wb, 'ui/src/settings.jsx'), 'utf8');
   const main = readFileSync(join(wb, 'src/main.ts'), 'utf8');
   const pageKeys = vm.runInNewContext(/const PAGE_KEYS = new Set\((\[[^;]+\])\)/.exec(main)![1]);
   const keys = [...source.matchAll(/key: '([a-z_]+\.[a-z_]+)'/g)].map(m => m[1]);
-  assert.equal(keys.length, 17);
+  assert.equal(keys.length, 22);
   for (const key of keys) assert.ok(key === 'sessions.approval' || pageKeys.includes(key), key);
 });
 
@@ -422,9 +423,9 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
   const groups = h.all(hasClass('ou-navgroup'));
   assert.deepEqual(groups.map(textContent), ['', 'Agents', 'Extend', '']);
-  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General', 'Appearance'], ['Reliability', 'Savings', 'Safety'], ['Add-ons', 'Notifications'], ['Advanced']]);
+  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General', 'Appearance'], ['Reliability', 'Savings', 'Safety', 'Automations'], ['Add-ons', 'Notifications'], ['Advanced']]);
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
-  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Appearance', 'Reliability', 'Savings', 'Safety', 'Add-ons', 'Notifications', 'Advanced']);
+  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Appearance', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']);
   assert.ok(navs.every(n => n.props.icon?.type === 'svg'));
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
   settingsStore.set({ section: 'safety' }); h.draw();
@@ -464,6 +465,8 @@ test('settingsPage returns every literal PAGE_KEYS default independently of curr
     'savers.shrink_shell': false, 'savers.lean_handoffs': false, 'savers.small_screenshots': false, 'savers.cheap_model': false,
     'worktree.npm_ci': true, 'worktree.stale_days': 7, 'terminal.font_size': 13, 'terminal.scrollback': 10000,
     'reliability.loop_alarm': true, 'reliability.loop_nudge_at': 3, 'reliability.loop_stop_at': 5, 'reliability.token_limit': 0, 'reliability.done_needs_check': true,
+    'agent_cursor.mode': 'snappy', 'agent_cursor.idle_fade_ms': 5000, 'agent_cursor.show_in_recordings': false,
+    'ui.toast_ms': 3500, 'ui.error_toast_ms': 7000,
   });
   assert.deepEqual(Object.keys(defaults).sort(), Array.from(pageKeys).sort());
 });
@@ -645,4 +648,98 @@ test('Settings search, focus, reset and check-command handlers in a real React r
   const match = /^AX_RESULTS (.+)$/m.exec(result.stdout); assert.ok(match, result.stdout + result.stderr);
   const results = JSON.parse(match[1]); assert.equal(results.length, 8);
   for (const item of results) await t.test(item.name, () => assert.equal(item.error, undefined, item.error));
+});
+
+// Protects plugin-install.jsx:17, :25, :27 and :44: preview gates installation and source edits invalidate it.
+test('wire-08 install requires a valid preview, sends its exact hash and permissions, and clears on edit', async () => {
+  const closed: any[] = []; const Screen = () => React.createElement(screens.PluginInstall, { onClose: (v: any) => closed.push(v) });
+  const h = harness(Screen); h.draw();
+  assert.equal(h.all(label('Install')).length, 0);
+  h.one(label('Plugin folder or git URL')).props.onChange('  C:/plugins/demo  '); h.draw();
+  let valid = false;
+  const pre = { valid: true, manifest_hash: 'hash-123', screen: { plugin: { id: 'demo', version: '1' }, permissions: [{ permission: 'network', text: 'Network' }, { permission: 'secrets:TOKEN', text: 'Token' }], engines: [], mcp_servers: [], warnings: [] } };
+  g.rpc = async (...args: any[]) => { calls.push(args); return args[0] === 'plugin.preview' ? { result: valid ? pre : { valid: false, errors: ['bad manifest'] } } : { error: { message: 'manifest changed' } }; };
+  await h.one(label('Check')).props.onClick(); h.draw(); assert.equal(h.all(label('Install')).length, 0);
+  valid = true; await h.one(label('Check')).props.onClick(); h.draw();
+  const staleInstall = h.one(label('Install')).props.onClick;
+  await staleInstall(); h.draw();
+  assert.deepEqual(calls.filter(c => c[0] === 'plugin.install'), [['plugin.install', { source: 'C:/plugins/demo', approved_permissions: ['network', 'secrets:TOKEN'], manifest_hash: 'hash-123' }]]);
+  assert.deepEqual(closed, [], 'core rejection leaves the dialog open');
+  h.one(label('Plugin folder or git URL')).props.onChange('C:/plugins/other'); h.draw();
+  assert.equal(h.all(label('Install')).length, 0);
+  assert.ok(calls.every(c => ['plugin.preview', 'plugin.install'].includes(c[0])));
+  assert.ok(calls.every(c => !Object.hasOwn(c[1], 'secrets')), 'secret values never cross this dialog');
+});
+// Protects addons.jsx:129-130 removal AlertDialog onAction: confirmation and id-only named core call.
+test('wire-08 Remove waits for confirmation and calls only plugin.remove with plugin_id', async () => {
+  g.ui.view = 'addons';
+  addonsStore.set({ rows: [{ id: 'demo', version: '1', enabled: true, permissions: [], description: 'Demo' }] });
+  const h = harness(Addons); h.draw(); calls.length = 0;
+  h.one(label('Remove')).props.onClick(); h.draw();
+  assert.deepEqual(calls, []);
+  const dialog = h.one((n: any) => n.props.actionLabel === 'Remove');
+  assert.equal(dialog.props.isOpen, true);
+  dialog.props.onOpenChange(false); h.draw(); assert.deepEqual(calls, []);
+  h.one(label('Remove')).props.onClick(); h.draw();
+  await h.one((n: any) => n.props.actionLabel === 'Remove').props.onAction();
+  assert.deepEqual(calls.filter(c => c[0] === 'rpc'), [['rpc', 'plugin.remove', { plugin_id: 'demo' }]]);
+});
+// Protects automations.jsx:31-34: required fields gate RPC and runner is an argv array.
+test('wire-07 automation form gates empty fields and splits runner into arguments', async () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  const h = harness(screens.Automations); h.draw(); calls.length = 0;
+  const submit = async () => { h.draw(); await h.one(label('Add automation')).props.onClick(); };
+  await submit(); assert.deepEqual(calls, []);
+  for (const [field, value] of [['Name', 'Nightly'], ['Runner', 'node  --trace-warnings'], ['Check script', 'scripts/check.mjs']]) {
+    h.one((n: any) => n.props.label === field && n.props.onChange).props.onChange(value); await submit(); assert.deepEqual(calls, []);
+  }
+  h.one((n: any) => n.props.label === 'Prompt' && n.props.onChange).props.onChange('Fix the failing check'); h.draw();
+  for (const [field, value] of [['Name', 'Nightly'], ['Runner', 'node  --trace-warnings'], ['Check script', 'scripts/check.mjs'], ['Prompt', 'Fix the failing check']]) {
+    h.one((n: any) => n.props.label === field && n.props.onChange).props.onChange('');
+    await submit(); assert.deepEqual(calls, [], field + ' must be required');
+    h.one((n: any) => n.props.label === field && n.props.onChange).props.onChange(value); h.draw();
+  }
+  for (const minutes of [0, -1, 1.5]) {
+    h.one((n: any) => n.props.label === 'Minutes between runs' && n.props.onChange).props.onChange(minutes);
+    await submit(); assert.deepEqual(calls, [], 'invalid interval');
+  }
+  h.one((n: any) => n.props.label === 'Minutes between runs' && n.props.onChange).props.onChange(30); h.draw();
+  g.rpc = async (...args: any[]) => { calls.push(args); return { error: { message: 'script must be inside the project folder' } }; };
+  await submit();
+  assert.deepEqual(calls, [['automation.set', { project_id: 'p1', name: 'Nightly', every_min: 30, runner: ['node', '--trace-warnings'], script: 'scripts/check.mjs', engine_id: 'codex', prompt: 'Fix the failing check' }]]);
+  h.draw(); assert.equal(h.one((n: any) => n.props.label === 'Check script' && n.props.onChange).props.value, 'scripts/check.mjs', 'error preserves the draft');
+});
+
+// Protects automations.jsx:34 and app.js:134-136: core validation errors reach the user.
+test('wire-07 outside-script error is displayed and does not clear the form', async () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  const h = harness(screens.Automations); h.draw();
+  for (const [field, value] of [['Name', 'Nightly'], ['Check script', '../outside.mjs'], ['Prompt', 'Fix']]) {
+    h.one((n: any) => n.props.label === field && n.props.onChange).props.onChange(value); h.draw();
+  }
+  const app = readFileSync(join(wb, 'renderer/app.js'), 'utf8');
+  const fn = app.match(/^async function rpcOnce\([^]*?^}/m); assert.ok(fn);
+  g.api.call = async (...args: any[]) => { calls.push(['api.call', ...args]); return { kind: 'reply', reply: { error: { code: -32003, message: 'script must be inside the project folder' } } }; };
+  g.rpc = new Function('api', 'toast', fn[0] + '; return rpcOnce;')(g.api, g.toast);
+  await h.one(label('Add automation')).props.onClick(); h.draw();
+  assert.ok(calls.some(c => c[0] === 'toast' && c[1] === 'script must be inside the project folder' && c[2] === true));
+  assert.equal(h.one((n: any) => n.props.label === 'Check script' && n.props.onChange).props.value, '../outside.mjs');
+});
+
+// Protects home.jsx:52 and :59 branch gate and session.launch payload: empty worktree means no creation call.
+test('wire-03 blank worktree branch omits worktree.create and preserves exact launch params', async () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  const h = harness(Home); h.draw(); h.one(label('Options')).props.onClick(); h.draw();
+  h.one(label('Branch for a new worktree')).props.onChange('   '); h.draw(); calls.length = 0;
+  await h.one(label('Start')).props.onClick();
+  assert.deepEqual(calls.filter(c => c[0] === 'rpc'), [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'codex' }]]);
+});
+// Protects automations.jsx:49 Remove onClick: the renderer sends only the stored automation id.
+test('wire-07 Remove sends automation.delete with that id only', async () => {
+  g.ui.snap.engines = [{ id: 'codex', light: 'green' }];
+  const row = { id: 'a1', name: 'Nightly', every_min: 30, runner: ['node'], script: 'check.mjs', engine_id: 'codex', enabled: true, runs: [] };
+  g.rpc = async (...args: any[]) => { calls.push(args); return { result: { automations: [row] } }; };
+  const h = harness(screens.Automations, true); h.draw(); await flush(); h.draw(); calls.length = 0;
+  await h.one(label('Remove')).props.onClick();
+  assert.deepEqual(calls, [['automation.delete', { id: 'a1' }], ['automation.list', { project_id: 'p1' }, true]]);
 });

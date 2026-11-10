@@ -1,4 +1,8 @@
 import test, { after, beforeEach } from 'node:test';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { readText, writeText } from '../src/files.ts';
+import { parseStatusV2 } from '../src/gitpane.ts';
 import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -147,7 +151,7 @@ async function bundle(contents: string, output: string) {
       b.onLoad({ filter: /.*/, namespace: 'screen' }, (args: any) => {
         let code = readFileSync(args.path, 'utf8');
         if (args.path.endsWith('ide.jsx')) {
-          code += '\nexport { states as __states, onFor as __onFor, saveTab as __saveTab, reloadTab as __reloadTab, openFile as __openFile, closeTab as __closeTab, dropTab as __dropTab, tabOf as __tabOf }; export const __getCur = () => cur; export const __resetCur = () => { cur = null; };\n';
+          code += '\nexport { states as __states, onFor as __onFor, saveTab as __saveTab, reloadTab as __reloadTab, openFile as __openFile, closeTab as __closeTab, dropTab as __dropTab, tabOf as __tabOf, SourceControl as __SourceControl, gitFiles as __gitFiles }; export const __getCur = () => cur; export const __resetCur = () => { cur = null; };\n';
         }
         return {
           contents: `import { createElement as __create, Fragment as __fragment } from 'react'; function __element(...args) { const node = __create(...args); globalThis.__axCapture?.(node); return node; }\n` + code,
@@ -381,11 +385,11 @@ test('closing a dirty tab asks while closing a clean tab does not', async () => 
 
 test('CRLF files save as CRLF and LF files save as LF', async () => {
   const crlfState = editorState('row1\r\nrow2\r\n', 'crlf.txt', { change() {}, save() {} });
-  assert.equal(crlfState.lineBreak, '\r\n');
-  assert.equal(crlfState.sliceDoc(), 'row1\r\nrow2\r\n');
+  assert.equal(crlfState.lineBreak, '\n');
+  assert.equal(crlfState.sliceDoc(), 'row1\nrow2\n');
 
   const tr = crlfState.update({ changes: { from: 4, insert: '\r\nmiddle' } });
-  assert.equal(tr.state.sliceDoc(), 'row1\r\nmiddle\r\nrow2\r\n');
+  assert.equal(tr.state.sliceDoc(), 'row1\nmiddle\nrow2\n');
 
   const lfState = editorState('row1\nrow2\n', 'lf.txt', { change() {}, save() {} });
   assert.equal(lfState.lineBreak, '\n');
@@ -407,8 +411,9 @@ test('CRLF files save as CRLF and LF files save as LF', async () => {
 
   await __saveTab(cur, 'crlf.txt');
   const writeCall = calls.find((c) => c[0] === 'fsWrite');
-  assert.equal(writeCall[3], 'row1\r\nmiddle\r\nrow2\r\n');
-  assert.equal(writeCall[3].includes('\r\n'), true);
+  // editorState normalizes line endings; files.writeText restores the disk style.
+  assert.equal(writeCall[3], 'row1\nmiddle\nrow2\n');
+  assert.equal(writeCall[3].includes('\r'), false);
 });
 
 test('per-project tab state survives a project switch', async () => {
@@ -547,4 +552,52 @@ test('Not built yet is displayed and save is prevented when api.fsWrite is missi
   const res = await __saveTab(cur, 'nowrite.txt');
   assert.equal(res, false);
   assert.deepEqual(calls, [['toast', 'Saving is not built yet.', undefined]]);
+});
+
+// Protects ide.jsx:124 and :815: conflicts appear once as C and are omitted only by Stage all.
+test('fix-05 a real unmerged row stays out of Stage all but retains its own plus action', async () => {
+  const repo = join(temp, 'merge-fixture'); mkdirSync(repo);
+  const git = (...a: string[]) => execFileSync('git', ['-C', repo, ...a], { encoding: 'utf8', stdio: 'pipe', windowsHide: true });
+  git('init', '-b', 'main'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.com');
+  writeFileSync(join(repo, 'conflict.txt'), 'base\n'); git('add', '.'); git('commit', '-m', 'base');
+  git('checkout', '-b', 'other'); writeFileSync(join(repo, 'conflict.txt'), 'other\n'); git('commit', '-am', 'other');
+  git('checkout', 'main'); writeFileSync(join(repo, 'conflict.txt'), 'main\n'); git('commit', '-am', 'main');
+  assert.throws(() => git('merge', 'other'));
+  writeFileSync(join(repo, 'safe.txt'), 'safe');
+  const status = parseStatusV2(git('status', '--porcelain=v2', '--branch', '-z'));
+  const st = { pid: 'p1', git: status, commitMsg: '', owners: null };
+  const rows = ideModule.__gitFiles(st);
+  assert.equal(rows.staged.filter((f: any) => f.path === 'conflict.txt').length, 0);
+  assert.deepEqual(rows.unstaged.filter((f: any) => f.path === 'conflict.txt'), [{ path: 'conflict.txt', from: undefined, letter: 'C', conflict: true }]);
+  g.api.git = async (...args: any[]) => { calls.push(args); return args[1] === 'stage-paths' ? {} : status; };
+  const h = harness(() => React.createElement(ideModule.__SourceControl, { st })); h.draw(); calls.length = 0;
+  h.one((n: any) => n.props.label === 'Stage all').props.onClick();
+  for (let i = 0; i < 5; i++) await new Promise(setImmediate);
+  assert.deepEqual(calls.filter(c => c[1] === 'stage-paths'), [['p1', 'stage-paths', ['safe.txt']]]);
+  h.draw(); calls.length = 0;
+  h.one((n: any) => n.props.label === 'Stage conflict.txt').props.onClick({ stopPropagation() {} });
+  for (let i = 0; i < 5; i++) await new Promise(setImmediate);
+  assert.deepEqual(calls.filter(c => c[1] === 'stage-paths'), [['p1', 'stage-paths', ['conflict.txt']]]);
+});
+// Protects editor.js:87-91 and files.ts:125: normalized editor text restores original disk line endings.
+test('fix-04 normalized edits save back with the original CRLF or LF bytes', () => {
+  for (const newline of ['\r\n', '\n']) {
+    const name = newline === '\n' ? 'lf-disk.txt' : 'crlf-disk.txt';
+    writeFileSync(join(temp, name), 'café' + newline + 'two' + newline);
+    const opened = readText(temp, name) as { text: string; mtimeMs: number };
+    const state = editorState(opened.text, name, { change() {}, save() {} });
+    assert.equal(state.lineBreak, '\n');
+    assert.equal((writeText(temp, name, state.sliceDoc() + 'three\n', opened.mtimeMs) as { ok: boolean }).ok, true);
+    assert.equal(readFileSync(join(temp, name), 'utf8'), 'café' + newline + 'two' + newline + 'three' + newline);
+  }
+});
+
+// Protects ide.jsx:23-27 and preload.cjs:14 setDirty: tab dirtiness reaches the main-process close gate.
+test('fix-01 editing and saving a tab reports dirty transitions to main', async () => {
+  const dirty: boolean[] = []; g.api.setDirty = async (value: boolean) => dirty.push(value);
+  await drawIde(); const cur = __getCur(); await __openFile(cur, 'dirty-report.txt');
+  const tab = __tabOf(cur, 'dirty-report.txt');
+  tab.state = editorState('changed', tab.path, __onFor(cur, tab.path));
+  __onFor(cur, tab.path).change(); assert.equal(dirty.at(-1), true);
+  await __saveTab(cur, tab.path); assert.equal(dirty.at(-1), false);
 });
