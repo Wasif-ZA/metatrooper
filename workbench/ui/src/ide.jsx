@@ -186,12 +186,24 @@ async function newFile(st, ask) {
   bump();
   try {
     const rel = slashed(ask.path);
+    const parts = folder(rel).split('/');
+    let created = null;
+    for (let i = 1; i <= parts.length; i++) {
+      const prefix = parts.slice(0, i).join('/');
+      if (!prefix || st.dirs.has(prefix) || st.listing.has(prefix) || (st.dirs.get(folder(prefix)) || []).some((e) => e.dir && e.name === base(prefix))) continue;
+      const r = await api.fsCreate(st.pid, prefix, 'dir');
+      if (r && (r.error === 'cannot create that here' || r.error?.startsWith('could not create: EEXIST:'))) continue;
+      if (!r || r.error) { toast((r && r.error) || 'Could not create the folder.', true); return; }
+      if (created === null) created = prefix;
+    }
     const r = await api.fsCreate(st.pid, rel, 'file');
     if (!r || r.error) { toast((r && r.error) || 'Could not create the file.', true); return; }
     if (st.ask === ask) st.ask = null;
-    st.dirs.delete(folder(rel));
+    const refresh = new Set([folder(rel)]);
+    if (created !== null) refresh.add(folder(created));
+    for (const path of refresh) st.dirs.delete(path);
     await openFile(st, rel);
-    await loadDir(st, folder(rel));
+    for (const path of refresh) await loadDir(st, path);
     if (st.git) await loadGitStatus(st);
   } catch (e) {
     toast(String(e), true);
@@ -627,7 +639,7 @@ function Asks({ st }) {
       <Dialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} width={420} purpose="form" aria-label="New file">
         <form onSubmit={(e) => { e.preventDefault(); void newFile(st, a); }}>
           <Layout
-            content={<LayoutContent><Heading level={2}>New file</Heading><TextInput label="Path inside the project" placeholder="notes/todo.md" description="The parent folder must already exist." value={a.path} onChange={(path) => { a.path = path; bump(); }} hasAutoFocus isDisabled={a.busy} /></LayoutContent>}
+            content={<LayoutContent><Heading level={2}>New file</Heading><TextInput label="Path inside the project" placeholder="notes/todo.md" value={a.path} onChange={(path) => { a.path = path; bump(); }} hasAutoFocus isDisabled={a.busy} /></LayoutContent>}
             footer={<LayoutFooter><span className="ou-ide-askrow"><Button variant="ghost" label="Cancel" onClick={cancel} /><Button type="submit" label="Create file" isDisabled={!a.path.trim() || a.busy} /></span></LayoutFooter>}
           />
         </form>
