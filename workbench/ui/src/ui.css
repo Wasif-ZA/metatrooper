@@ -282,6 +282,8 @@ html { font-size: 16px; }
 .ou-ide-term { flex: 1; min-height: 0; overflow: auto; }
 .ou-ide-askrow { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
 .ou-ide dialog h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.ou-ide-image { display: grid; place-items: center; overflow: auto; height: 100%; }
+.ou-ide-image img { max-width: 100%; max-height: 100%; }
 
 /* Markdown preview: GitHub's file view, one centred reading column. */
 .ou-md { height: 100%; overflow: auto; background: var(--pane); user-select: text; }

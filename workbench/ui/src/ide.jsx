@@ -49,6 +49,9 @@ const slashed = (f) => String(f).replace(/\\/g, '/');
 const base = (p) => p.split('/').pop();
 const folder = (p) => p.split('/').slice(0, -1).join('/');
 const tabOf = (st, path) => st.tabs.find((x) => x.path === path);
+const PIC_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
+const isPic = (p) => PIC_EXTS.has(p ? p.split('.').pop().toLowerCase() : '');
+const under = (p, root) => { const norm = root.endsWith('/') ? root.slice(0, -1) : root; return p === norm || p.startsWith(`${norm}/`); };
 const canWrite = () => typeof api.fsWrite === 'function';
 const canSearch = () => typeof api.fsSearch === 'function';
 const inPreview = (t) => t.mode === 'preview' && isMd(t.path);
@@ -182,7 +185,7 @@ async function gitCommit(st) {
   const r = await api.git(st.pid, 'commit', msg);
   if (r && r.error) { toast(r.error, true); return; }
   st.commitMsg = '';
-  toast('Committed');
+  toast(r && r.commit ? `Committed ${r.commit}` : 'Committed');
   await loadGitStatus(st);
 }
 
@@ -252,13 +255,21 @@ async function openFile(st, path, { owner, changes, line } = {}) {
   if (line) { t.gotoLine = line; t.mode = 'file'; }
   bump();
   if (changes) void showChanges(st, path);
-  if (t.text === undefined && !t.error && !t.reading) {
+  if (t.text === undefined && !t.image && !t.error && !t.reading) {
     t.reading = true;
-    const r = await api.fsRead(st.pid, path);
-    t.reading = false;
-    if (!r || r.error) t.error = (r && r.error) || 'Could not read the file.';
-    else { t.text = r.text; t.mtimeMs = r.mtimeMs; }
-    bump();
+    if (isPic(path)) {
+      const r = typeof api.fsImage === 'function' ? await api.fsImage(st.pid, path) : null;
+      t.reading = false;
+      if (!r || r.error) t.error = (r && r.error) || 'Could not read the file.';
+      else t.image = r.url;
+      bump();
+    } else {
+      const r = await api.fsRead(st.pid, path);
+      t.reading = false;
+      if (!r || r.error) t.error = (r && r.error) || 'Could not read the file.';
+      else { t.text = r.text; t.mtimeMs = r.mtimeMs; }
+      bump();
+    }
   } else setTimeout(() => goto(t), 0);
 }
 
@@ -341,6 +352,29 @@ async function renameEntry(st, from, name) {
   } catch (e) {
     toast(String(e), true);
   }
+}
+
+async function deleteEntry(st, path) {
+  st.ask = null;
+  bump();
+  const r = typeof api.fsDelete === 'function' ? await api.fsDelete(st.pid, path) : null;
+  if (!r || r.error) {
+    toast((r && r.error) || 'Could not delete.', true);
+    return;
+  }
+  st.tabs = st.tabs.filter((t) => !under(t.path, path));
+  if (st.active && under(st.active, path)) {
+    st.active = st.tabs.length ? st.tabs[st.tabs.length - 1].path : null;
+  }
+  const parent = folder(path);
+  st.dirs.delete(parent);
+  for (const k of [...st.dirs.keys()]) {
+    if (under(k, path)) st.dirs.delete(k);
+  }
+  bump();
+  await loadDir(st, parent);
+  if (st.git) await loadGitStatus(st);
+  toast('Moved to the Recycle Bin');
 }
 
 async function copyPath(rel, absolute) {
@@ -714,7 +748,7 @@ function Files({ st, changed }) {
     { label: 'Copy path', onClick: () => void copyPath(target.path, true) },
     { label: 'Copy relative path', onClick: () => void copyPath(target.path, false) },
     { type: 'divider' },
-    { label: 'Delete', isDisabled: true, endContent: <NotBuilt /> },
+    { label: 'Delete', onClick: later(() => { st.ask = { kind: 'delete', path: target.path }; bump(); }) },
   ];
   return (
     <>
@@ -914,7 +948,7 @@ function Crumb({ st, tab, changed }) {
             {isChanged ? <SegmentedControlItem value="changes" label="Changes" /> : null}
           </SegmentedControl>
         ) : null}
-        {!tab || tab.error ? null : (
+        {!tab || tab.error || tab.image ? null : (
           <>
             <IconButton size="sm" variant="ghost" label="Reload from disk" tooltip="Reload from disk" icon={svg(RELOAD)} onClick={() => askReload(st, tab.path)} />
             <Button size="sm" variant="ghost" className="ou-ide-save" label="Save" tooltip="Save (Ctrl+S)" isDisabled={!ok || !tab.dirty} onClick={() => void saveTab(st, tab.path)} />
@@ -1036,6 +1070,29 @@ function Asks({ st }) {
       } },
     ]} />;
   }
+  if (a.kind === 'delete') {
+    const hasDirty = st.tabs.some((t) => t.dirty && under(t.path, a.path));
+    return (
+      <Dialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} width={420} purpose="form" role="alertdialog" aria-label={`Move ${a.path} to the Recycle Bin?`}>
+        <Layout
+          content={
+            <LayoutContent>
+              <Heading level={2}>{`Move ${a.path} to the Recycle Bin?`}</Heading>
+              {hasDirty ? <p style={{ margin: '8px 0 0' }}>It has unsaved changes. They will be lost.</p> : null}
+            </LayoutContent>
+          }
+          footer={
+            <LayoutFooter>
+              <span className="ou-ide-askrow">
+                <Button variant="ghost" label="Cancel" onClick={cancel} data-autofocus autoFocus />
+                <Button variant="destructive" label="Move to Recycle Bin" onClick={() => void deleteEntry(st, a.path)} />
+              </span>
+            </LayoutFooter>
+          }
+        />
+      </Dialog>
+    );
+  }
   if (a.kind === 'conflict') {
     return <Ask3 title={`${name} changed on disk since you opened it.`} onCancel={cancel} actions={[
       { label: 'Reload from disk', run: () => { st.ask = null; bump(); void reloadTab(st, a.path); } },
@@ -1062,6 +1119,7 @@ export function ideCommands(cmd = defaultCmd) {
   const t = st.active ? tabOf(st, st.active) : null;
   if (t) out.push(cmd('IDE', 'Save', () => void saveTab(st, t.path)));
   out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
+  if (t) out.push(cmd('IDE', 'Delete file', () => { st.ask = { kind: 'delete', path: t.path }; bump(); }));
   out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
   if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
   if (t && isMd(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => showPreview(st, t.path)));
@@ -1128,8 +1186,9 @@ export function Ide() {
           {!active ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
             : (changed.has(active.path) || active.gitDiff) && active.mode === 'changes' ? <DiffView tab={active} />
               : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
-                : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
-                  : inPreview(active) ? <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} /> : null}
+                : active.image ? <div className="ou-ide-image"><img src={active.image} alt={active.path} /></div>
+                  : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
+                    : inPreview(active) ? <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} /> : null}
         </div>
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
