@@ -508,6 +508,8 @@ function focusInput(side, id) {
   if (id === 'ide-find') el?.select();
 }
 
+export const dirtyIn = (pid) => (states.get(pid)?.tabs || []).filter((x) => x.dirty).map((x) => x.path);
+
 export const ideKeys = {
   find: () => focusInput('files', 'ide-find'),
   search: () => focusInput('search', 'ide-search'),

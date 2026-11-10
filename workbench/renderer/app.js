@@ -1394,6 +1394,8 @@ async function onClick(e) {
       if (id && id !== ui.projectId) switchProject(id);
       return;
     case 'project-hide': {
+      const unsaved = globalThis.ideView?.dirtyIn?.(id) || [];
+      if (unsaved.length && !confirm(`${unsaved.length} unsaved ${unsaved.length === 1 ? 'file' : 'files'} in this project: ${unsaved.slice(0, 5).join(', ')}. Hide it and lose them?`)) return;
       const r = await rpc('project.hide', { project_id: id });
       if (!r.result) return;
       const row = el.closest('.item'), group = row.parentElement;
