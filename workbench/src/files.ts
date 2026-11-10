@@ -90,6 +90,7 @@ export function readText(root: string, rel: string): { text: string; mtimeMs: nu
     if (h.stat.size > MAX_FILE_BYTES) return { error: `too large to show (${Math.round(h.stat.size / 1024)} KiB)` };
     const buf = readAll(h.fd, h.stat.size);
     if (buf.includes(0)) return { error: 'not a text file' };
+    if (!Buffer.from(buf.toString('utf8'), 'utf8').equals(buf)) return { error: 'not UTF-8 text' };
     return { text: buf.toString('utf8'), mtimeMs: h.stat.mtimeMs };
   } catch {
     return NOT_FILE;
@@ -118,6 +119,7 @@ export function writeText(root: string, rel: unknown, text: unknown, baseMtimeMs
     if (h.stat.size > MAX_FILE_BYTES) return { error: 'too large to save' };
     const old = readAll(h.fd, h.stat.size);
     if (old.includes(0)) return { error: 'not a text file' };
+    if (!Buffer.from(old.toString('utf8'), 'utf8').equals(old)) return { error: 'not UTF-8 text' };
     const bytes = Buffer.from(keepStyle(old, text), 'utf8');
     if (bytes.length > MAX_FILE_BYTES) return { error: 'too large to save' };
     let n = 0;
