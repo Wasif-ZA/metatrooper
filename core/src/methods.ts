@@ -100,7 +100,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'shell.list', params: '{}', result: '{shells: [{kind, label, argv}]}' },
   { name: 'shell.open', errors: [E.ENGINE_UNAVAILABLE, E.NOT_FOUND, E.VALIDATION], params: '{kind, project_id}', result: "{shell_id, label, cwd}: a shell tab in the project's folder" },
   { name: 'shell.close', errors: [E.INVALID_PARAMS], params: '{shell_id}', result: '{}' },
-  { name: 'worktree.create', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS)' },
+  { name: 'worktree.create', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, branch?, base?: "HEAD"}', result: '{path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS)' },
   { name: 'ui.hello', params: '{ui_key}', result: '{ok}; marks this connection as a trusted UI connection (see Access)' },
   { name: 'engines.check', params: '{}', result: '{} (results land in `engine_check`)' },
   { name: 'hooks.install', needsUi: true, params: '{codex?: bool}', result: '{diff}' },
@@ -233,6 +233,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         | { id: string; path: string; name: string }
         | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
+      for (const k of ['approval', 'model']) if (p[k] != null && typeof p[k] !== 'string') throw new RpcError(E.INVALID_PARAMS, `${k} must be a string`);
       const requested = str(p, 'approval', false);
       const host = str(p, 'host', false) || (requested === 'isolated' ? 'sandbox' : 'pty');
       if (host !== 'pty' && host !== 'sandbox') throw new RpcError(E.ENGINE_UNAVAILABLE, `host ${host} is not installed`);

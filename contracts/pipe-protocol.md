@@ -173,7 +173,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `shell.list` | `{}` | {shells: [{kind, label, argv}]} |  |  |  |
 | `shell.open` | `{kind, project_id}` | {shell_id, label, cwd}: a shell tab in the project's folder | -32020, -32002, -32003 |  |  |
 | `shell.close` | `{shell_id}` | {} | -32602 |  |  |
-| `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | {path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS) | -32002, -32003, -32602 | yes |  |
+| `worktree.create` | `{project_id, branch?, base?: "HEAD"}` | {path, branch, trusted, existing?, existing_branch?}; an existing branch with no worktree folder is checked out as is (base is then INVALID_PARAMS) | -32002, -32003, -32602 | yes | yes |
 | `ui.hello` | `{ui_key}` | {ok}; marks this connection as a trusted UI connection (see Access) |  |  |  |
 | `engines.check` | `{}` | {} (results land in `engine_check`) |  |  |  |
 | `hooks.install` | `{codex?: bool}` | {diff} |  |  | yes |
