@@ -1694,7 +1694,8 @@ async function onClick(e) {
       if (!pane) return;
       const shots = ui.snap.snapshots.filter((x) => x.pane_id === pane.id);
       const r = el.getBoundingClientRect();
-      const items = browserChrome.menuItems(pane, ui.snap.sessions.map((x) => ({ id: x.id, label: sessionLabel(x) })), ui.browserMode,
+      // core assigns sessions to agent panes only; a user pane keeps just "You only"
+      const items = browserChrome.menuItems(pane, (pane.id.startsWith('bp_agent_') ? ui.snap.sessions : []).map((x) => ({ id: x.id, label: sessionLabel(x) })), ui.browserMode,
         shots.some((x) => x.label === 'before') && shots.some((x) => x.label === 'after'));
       const pick = await api.paneMenu(items, Math.max(0, r.right - 200), r.bottom + 4);
       if (pick === 'before' || pick === 'after') {
