@@ -82,13 +82,13 @@ async function withWall(fn: (h: Awaited<ReturnType<typeof revisionHarness>>, w: 
 
 test('Ctrl+B opens the session list and Ctrl+B closes it', options, async () => withWall(async (_h, w) => {
   await w.key('b', 'KeyB', 2);
-  await w.wait('document.querySelector("#listBtn").getAttribute("aria-pressed") === "true" && getComputedStyle(document.querySelector("#list")).visibility === "visible"');
-  assert.equal(await w.evaluate('document.querySelector("#listBtn").getAttribute("aria-pressed")'), 'true');
-  assert.equal(await w.evaluate('getComputedStyle(document.querySelector("#list")).visibility'), 'visible');
+  await w.wait('document.documentElement.classList.contains("side-rail") && document.querySelector("#frameTog").getAttribute("aria-expanded") === "false"');
+  assert.equal(await w.evaluate('document.documentElement.classList.contains("side-rail")'), true);
+  assert.equal(await w.evaluate('document.querySelector("#frameTog").getAttribute("aria-expanded")'), 'false');
   await w.key('b', 'KeyB', 2);
-  await w.wait('document.querySelector("#listBtn").getAttribute("aria-pressed") === "false" && getComputedStyle(document.querySelector("#list")).visibility === "hidden"');
-  assert.equal(await w.evaluate('document.querySelector("#listBtn").getAttribute("aria-pressed")'), 'false');
-  assert.equal(await w.evaluate('getComputedStyle(document.querySelector("#list")).visibility'), 'hidden');
+  await w.wait('!document.documentElement.classList.contains("side-rail") && document.querySelector("#frameTog").getAttribute("aria-expanded") === "true"');
+  assert.equal(await w.evaluate('document.documentElement.classList.contains("side-rail")'), false);
+  assert.equal(await w.evaluate('document.querySelector("#frameTog").getAttribute("aria-expanded")'), 'true');
 }));
 
 test('Ctrl+K focuses #palette-input and Enter runs the selected item', options, async () => withWall(async (_h, w) => {

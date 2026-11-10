@@ -24,7 +24,7 @@ function makeEl(id = '', tagName = 'DIV'): any {
     contains: (x: any) => { for (let n = x; n; n = n.parent) if (n === el) return true; return false; },
     addEventListener: (t: string, f: (e: any) => void) => { (listeners[t] ||= []).push(f); },
     querySelector: () => null, querySelectorAll: () => [], closest: () => null,
-    focus: () => { (el.owner || doc).activeElement = el; }, blur() {}, select() {}, scrollIntoView() {}, setSelectionRange() {},
+    focus: () => { (el.owner || doc).activeElement = el; }, blur() { const o = el.owner || doc; if (o && o.activeElement === el) o.activeElement = o.body; }, select() {}, scrollIntoView() {}, setSelectionRange() {},
     getBoundingClientRect: () => ({ left: 0, right: 0, top: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 }),
   };
   return el;
@@ -78,15 +78,18 @@ function boot() {
     isOpen: () => settingsOpen,
   };
   class FakeDate extends Date { static now() { return now; } }
-  const ctx = vm.createContext({
+  const ctx: any = {
     window: { troop: api, addEventListener() {} }, document: doc, location: { search: '' }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     URLSearchParams, URL, wall, termView, settingsView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }), Date: FakeDate, console,
     MutationObserver: class { observe() {} },
     setTimeout: (f: () => void, ms = 0) => { const id = ++seq; timers.push({ id, at: now + ms, f }); return id; },
     clearTimeout: (id: number) => { timers = timers.filter((t) => t.id !== id); },
     setInterval: () => 0,
-  });
-  vm.runInContext(`${src('diff.js')}\n${src('browser-chrome.js')}\n${src('app.js')}\nthis.t = { ui, KEYS, onClick, render };`, ctx);
+  };
+  ctx.global = ctx;
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(`${src('diff.js')}\n${src('browser-chrome.js')}\n${src('app.js')}\nthis.t = { ui, KEYS, onClick, render, globalThis: this };`, ctx);
   const t = (ctx as any).t;
   const fire = (type: string, e: any) => {
     let stopped = false;
@@ -96,6 +99,9 @@ function boot() {
   return {
     t, calls, handlers, replies, rolls, wallState, settingsView, el: (id: string) => d.getElementById(id), shown: () => shown,
     now: () => now,
+    global: ctx,
+    globalThis: ctx,
+    ctx,
     advance: async (ms: number) => {
       const until = now + ms;
       for (let n = 0; ; n++) {
@@ -386,7 +392,7 @@ test('M6-26i full text sits in the title of cut-off tile, list and pane tab text
   assert.equal(term.part('.tile-last').title, last);
 
   const html = src('index.html');
-  assert.match(html, /data-action="list" title="Agent list \(Ctrl\+B\)"/);
+  assert.match(html, /data-action="list" title="Agent list"/);
   assert.match(html, /data-action="inbox" title="Jump to the longest wait: Alt\+J"/);
   assert.match(src('app.js'), /label: ui\.mode === 'grid' \? 'Show one terminal' : 'Show all agents as a grid', meta: 'Ctrl\+G'/);
 });
@@ -454,7 +460,16 @@ function tileHarness() {
 const DRIVERS: Record<string, () => Promise<void>> = {
   'Ctrl+K': async () => { const w = boot(); await w.snap(snapOf([])); await w.key('k', { ctrlKey: true }); assert.equal(w.el('palette').hidden, false); },
   'Ctrl+G': async () => { const w = boot(); await w.snap(snapOf([])); const before = w.t.ui.mode; await w.key('g', { ctrlKey: true }); assert.notEqual(w.t.ui.mode, before); },
-  'Ctrl+B': async () => { const w = boot(); await w.snap(snapOf([])); await w.key('b', { ctrlKey: true }); assert.equal(w.wallState.list, true); },
+  'Ctrl+B': async () => {
+    const w = boot();
+    await w.snap(snapOf([]));
+    let toggled = false;
+    w.global.frameView = { toggle: () => { toggled = true; } };
+    (doc.activeElement as any)?.blur?.();
+    doc.body.focus();
+    await w.key('b', { ctrlKey: true });
+    assert.equal(toggled, true);
+  },
   'Ctrl+,': async () => {
     const w = boot();
     await w.snap(snapOf([]));
