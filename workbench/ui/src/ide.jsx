@@ -574,6 +574,7 @@ const IMG_ICON = 'M2 2.5h10v9H2zM2 9.5l3-3 2.5 2.5 2-2 2.5 2.5M5 5.5a1 1 0 100-2
 const FOLDER_ICON = 'M1.5 3.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z';
 const CLOSE = 'M4 4l6 6M10 4l-6 6';
 const RELOAD = 'M11.5 7a4.5 4.5 0 11-1.3-3.2M11.5 2v2.5H9';
+const EXTERNAL_LINK = 'M8 2h4v4M12 2L6 8M6 2H2v10h10V8';
 const CMD = 'M2.5 4.5l3 2.5-3 2.5M7 10h4.5';
 const FOLD = 'M3.5 5.5L7 9l3.5-3.5';
 const UNFOLD = 'M3.5 8.5L7 5l3.5 3.5';
@@ -929,6 +930,10 @@ function DiffView({ tab }) {
   );
 }
 
+function OpenInVsCodeButton({ st, tab }) {
+  return <Button size="sm" variant="ghost" className="ou-ide-open-vscode" label="Open in VS Code" icon={svg(EXTERNAL_LINK, 12)} onClick={() => void openInVsCode(st, tab?.path)} />;
+}
+
 function Crumb({ st, tab, changed }) {
   const isChanged = tab && (changed.has(tab.path) || Boolean(tab.gitDiff));
   const md = Boolean(tab) && isMd(tab.path);
@@ -940,7 +945,6 @@ function Crumb({ st, tab, changed }) {
     <div className="ou-ide-crumb">
       <span className="ou-ide-path">{parts.map((x, i) => <span key={i}>{i ? ' › ' : ''}{i === parts.length - 1 ? <b>{x}</b> : x}</span>)}</span>
       <span className="ou-ide-crumbr">
-        <Button size="sm" variant="ghost" label="Open in VS Code" onClick={() => void openInVsCode(st, tab?.path)} />
         {mode === 'changes' ? <><span className="ou-ide-add">+{lines.filter((l) => l.kind === 'add').length}</span><span className="ou-ide-del">-{lines.filter((l) => l.kind === 'del').length}</span></> : null}
         {isChanged || md ? (
           <SegmentedControl label="View" size="sm" value={mode} onChange={(v) => (v === 'changes' ? void showChanges(st, tab.path) : v === 'preview' ? showPreview(st, tab.path) : showFile(st, tab.path))}>
@@ -1180,6 +1184,7 @@ export function Ide() {
               ))}
             </TabList>
           ) : null}
+          <OpenInVsCodeButton st={st} tab={active} />
         </div>
         <Crumb st={st} tab={active} changed={changed} />
         <div className="ou-ide-view">

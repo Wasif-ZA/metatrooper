@@ -247,7 +247,8 @@ html { font-size: 16px; }
 .ou-ide-mtext b { font-weight: 400; color: var(--ink); }
 .ou-ide-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .ou-ide-folded .ou-ide-panel { height: 28px; }
-.ou-ide-tabs { flex: none; height: 35px; min-width: 0; overflow: hidden; border-bottom: 1px solid var(--hairline); }
+.ou-ide-tabs { flex: none; display: flex; align-items: center; height: 35px; min-width: 0; overflow: hidden; border-bottom: 1px solid var(--hairline); }
+.ou-ide-tabs .ou-ide-open-vscode { flex: none; height: 24px; min-height: 24px; margin-left: auto; margin-right: 8px; padding: 0 8px; color: var(--mute); }
 .ou-ide-tabend { display: inline-flex; align-items: center; gap: 4px; }
 .ou-ide-crumb { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 22px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--hairline); }
 .ou-ide-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--mono); color: var(--mute); }
