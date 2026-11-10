@@ -148,6 +148,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .pane.fold .ph .r1 { display: contents; }
 .pane.fold .ph .tx { order: 9; }
 .pane.fold .ph .r2 { flex: 1 0 auto; flex-wrap: nowrap; min-height: 0; padding: 0; overflow: hidden; background: none; border: 0; }
+.pane.fold .tile-acts { flex: none; flex-wrap: nowrap; }
 
 .pane.fold .ph:hover { background: var(--canvas-soft); }
 .pane.fold .ph .task { flex: 0 1 auto; max-width: 320px; font-weight: 500; color: var(--body-strong); }
@@ -161,20 +162,20 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .ph .r1, .ph .r2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ph .r1 { height: 32px; padding: 0 4px 0 12px; }
 .ph .r2 { flex-wrap: wrap; row-gap: 4px; min-height: 28px; padding: 0 8px 4px 27px; font-size: 11px; color: var(--faint); font-family: var(--mono); }
-.ph .r2 :is(button, .tile-previews, .tile-desk, .act) { max-width: 100%; }
-.ph .r2 > :not(.fl) { flex: none; }
-.ph .r2 button { overflow: hidden; }
-.ph .r2 :is(.tile-previews, .tile-desk):empty { display: none; }
-.tile-previews, .tile-desk, .act { display: flex; flex-wrap: wrap; gap: 4px; }
+.tile-info { flex: 1 1 120px; min-width: 0; height: 24px; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.tile-info > :not(.fl) { flex: none; }
+.tile-acts { max-width: 100%; margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px; }
+.tile-acts button { flex: none; max-width: 100%; overflow: hidden; }
+.tile-previews, .tile-desk, .act { display: contents; }
 .ph .r2 .btn { height: 24px; padding: 0 6px; font-size: 10.5px; }
-.ph .fl { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ph .fl { flex: 1 1 0; min-width: 30%; overflow: hidden; text-overflow: ellipsis; }
 .ph .tx { flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 2px; background: none; color: var(--mute); cursor: pointer; }
 .tile:not(.shell):is([data-state="starting"], [data-state="working"], [data-state="waiting_for_you"], [data-state="unknown"]) .ph .tx { display: none; }
 .ph .tx:hover { background: color-mix(in srgb, var(--del) 25%, transparent); color: var(--ink); }
 .ph .eng { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--body); padding: 0 5px; height: 18px; display: inline-flex; align-items: center; border-radius: 1px; background: var(--canvas); }
 .ph .task { flex: 1 1 40px; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-family: var(--mono); font-weight: 500; font-size: 11.5px; }
 .ph .meta { color: var(--faint); font-size: 11px; display: inline-flex; gap: 8px; align-items: center; font-family: var(--mono); }
-.ph .tile-watch { color: var(--wait); font-size: 11px; font-family: var(--mono); white-space: nowrap; }
+.ph .tile-watch { color: var(--mute); font-size: 11px; font-family: var(--mono); white-space: nowrap; }
 @container (max-width: 300px) { .ph .meta { display: none; } }
 @container (max-width: 340px) { .ph :is(.spk, .eq, .tile-previews) { display: none; } }
 @container (max-width: 280px) { .ph :is(.eng, .pb) { display: none; } }

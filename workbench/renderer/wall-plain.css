@@ -47,7 +47,6 @@
 :root:not([data-look="dither"]) .ph .fl, :root:not([data-look="dither"]) .ph .eng, :root:not([data-look="dither"]) .ph .meta { color: var(--mute); }
 :root:not([data-look="dither"]) .ph .fl { font-family: var(--mono); font-size: 12px; }
 :root:not([data-look="dither"]) .ph .meta, :root:not([data-look="dither"]) .ph .tile-watch { font-family: var(--mono); font-size: 12px; }
-:root:not([data-look="dither"]) .ph .tile-watch { color: var(--mute); }
 :root:not([data-look="dither"]) .ph .dot { width: 8px; height: 8px; background: var(--mute); }
 :root:not([data-look="dither"]) .ph .dot.waiting_for_you { background: var(--wait); }
 :root:not([data-look="dither"]) .ph .dot.exited { background: transparent; border: 1px solid var(--mute); }
