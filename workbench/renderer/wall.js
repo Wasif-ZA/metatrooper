@@ -130,7 +130,7 @@ const wall = (() => {
       return { R, C: colW(W), RX: 8, H };
     }
     const rest = ORDER.filter((id) => !BIG.includes(id));
-    const C = rest.length ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
+    const C = rest.length || !document.body.classList.contains('no-split') ? colW(W) : W - 16, RX = 8 + C + G, RW = W - 8 - RX;
     const bw = (C - G * (BIG.length - 1)) / BIG.length;
     BIG.forEach((id, i) => R[id] = { left: 8 + i * (bw + G), top: TOP, width: bw, height: H });
     const work = rest.filter((id) => active(S[id])), open = rest.filter((id) => !active(S[id]) && S[id].open);
@@ -203,7 +203,8 @@ const wall = (() => {
     const to = (sel, v) => gsap[go ? 'to' : 'set'](sel, { ...v, ...(go ? { duration: dur, ease: 'power2.inOut', overwrite: 'auto' } : {}) });
     to('.strip', { width: C });
     to('#sheet', { left: 16 + C });
-    to('#split', { left: RX, onComplete: () => reportPaneBounds() });
+    const sp = $('#split');
+    if (sp && sp._rx !== RX) { sp._rx = RX; to('#split', { left: RX, onComplete: () => reportPaneBounds() }); }
     fitSearch();
     changed();
   }

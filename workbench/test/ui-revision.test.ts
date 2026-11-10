@@ -124,7 +124,7 @@ test('D15 Diff scope toggles show last turn, uncommitted and whole branch file s
     writeFileSync(join(h.project, 'turn.txt'), 'new turn change\n');
     w = await windowFor(h); await select(h, w, session_id); await w.click('[data-action="tab"][data-tab="diff"]');
     for (const [scope, expected] of [['turn',['turn.txt']],['uncommitted',['older.txt','turn.txt']],['branch',['committed.txt','older.txt','turn.txt']]]) {
-      await w.wait(`document.querySelector('[data-action="diff-scope"][data-scope="${scope}"]')`);
+      await w.wait(`document.querySelector('[data-action="diff-scope"][data-scope="${scope}"]') && !gsap.isTweening('#split')`);
       await w.click(`[data-action="diff-scope"][data-scope="${scope}"]`);
       await w.wait(`ui.sdiff?.key.endsWith(':${scope}') && ui.sdiff.data`);
       assert.deepEqual(await w.evaluate('[...document.querySelectorAll("[data-action=sd-file]")].map(e=>e.dataset.file).sort()'), expected);

@@ -107,7 +107,7 @@ function freshWall(width = 1400) {
   const ctx = vm.createContext({
     gsap: { set: tween, to: tween, fromTo: (target: any, _: any, vars: any) => tween(target, vars), delayedCall: tween },
     termView: { tile: (id: string) => { if (!tiles.has(id)) tiles.set(id, tileNode()); return tiles.get(id); } },
-    document: { body: tileNode(), querySelector: (s: string) => {
+    document: { body: Object.assign(tileNode(), { className: 'no-split' }), querySelector: (s: string) => {
       if (s === '#stage') return stage;
       if (s === '#foldMore') return null;
       if (!nodes.has(s)) nodes.set(s, tileNode());
