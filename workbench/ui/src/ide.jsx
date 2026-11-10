@@ -514,6 +514,7 @@ export const ideKeys = {
   palette: (open) => bridge.setPalette?.(open),
   paletteOpen: () => Boolean(bridge.palette),
   closeTab: () => { if (cur && cur.active) closeTab(cur, cur.active); },
+  save: () => { if (cur && cur.active && tabOf(cur, cur.active)?.dirty) void saveTab(cur, cur.active); },
   asking: () => Boolean(cur && cur.ask),
   preview: () => {
     const t = cur && cur.active ? tabOf(cur, cur.active) : null;
