@@ -146,8 +146,10 @@ test('M6-19a a unique marker printed in one of 4 tiles is found by Ctrl+K within
     w = await windowFor(h);
     const marker = `MARK${Date.now().toString(36)}Q`;
     const target = (await h.pipe.request('session.launch', { project_id: h.projectId, engine_id: 'fake', prompt: marker })).result.session_id;
-    for (let i = 0; i < 3; i++) await h.pipe.request('session.launch', { project_id: h.projectId, engine_id: 'fake', prompt: 'other' });
+    let other = '';
+    for (let i = 0; i < 3; i++) other = (await h.pipe.request('session.launch', { project_id: h.projectId, engine_id: 'fake', prompt: 'other' })).result.session_id;
     await w.wait("document.querySelectorAll('#centre .tile').length === 4");
+    await w.evaluate(`onTilePick(${JSON.stringify(other)})`);
     await w.wait(`!wall.isBig(${JSON.stringify(target)})`);
     await w.key('k', 'KeyK', 2);
     await w.wait('document.activeElement === document.querySelector("#palette-input")');

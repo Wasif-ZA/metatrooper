@@ -151,6 +151,8 @@ test('launcher core palette lists restart and stop commands; Stop core stops the
     assert.ok(labels.some((label: string) => label.startsWith('Stop core')));
     await w.send('Input.insertText', { text: 'Stop core' });
     await w.key('Enter', 'Enter');
+    await w.wait('[...document.querySelectorAll("#palette-list [data-palette]")].some(e=>e.textContent.startsWith("Press Enter again"))');
+    await w.key('Enter', 'Enter');
     await until(async () => !(await coreAnswers(h, 500)), 15000);
   } finally {
     await w?.close();
