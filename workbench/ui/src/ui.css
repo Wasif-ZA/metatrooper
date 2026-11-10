@@ -113,8 +113,12 @@ html { font-size: 16px; }
 
 /* Settings: grouped nav with search, 48px header with breadcrumb, titled row groups (T3 Code); roomy rows and uppercase labels (Paperclip). */
 .ou-settings { grid-column: 1 / -1; display: grid; grid-template-columns: 240px 1fr; height: 100%; min-height: 0; }
-.ou-snav { display: flex; flex-direction: column; gap: 16px; padding: 12px 8px; border-right: 1px solid var(--hairline); overflow: auto; }
-.ou-search { position: relative; }
+.ou-snav { display: flex; flex-direction: column; padding: 12px 8px; border-right: 1px solid var(--hairline); overflow: auto; }
+.ou-snav-head { display: flex; flex-direction: column; gap: 4px; padding: 4px 10px; }
+.ou-snav-back { border: 0; background: transparent; padding: 0; font: inherit; font-size: 12px; line-height: 1.4; color: var(--mute); cursor: pointer; text-align: left; }
+.ou-snav-back:hover { color: var(--ink); }
+.ou-snav-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.ou-search { position: relative; margin: 16px 0 24px; }
 .ou-search > :last-child { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; }
 .ou-search:focus-within > :last-child { display: none; }
 .ou-navgroup { display: flex; flex-direction: column; gap: 2px; }
@@ -125,16 +129,18 @@ html { font-size: 16px; }
 .ou-crumb i { font-style: normal; opacity: .6; }
 .ou-crumb b { font-weight: 500; color: var(--ink); }
 .ou-sbody { overflow: auto; }
-.ou-scol { max-width: 896px; margin: 0 auto; padding: 24px 24px 56px; display: grid; gap: 28px; }
+.ou-scol { max-width: 896px; margin: 0 auto; padding: 24px 24px 56px; display: grid; gap: 24px; }
 .ou-note { margin: 0; max-width: 640px; color: var(--mute); }
-.ou-group { display: grid; gap: 10px; }
-.ou-rows { border: 1px solid var(--hairline); border-radius: 6px; background: color-mix(in srgb, var(--canvas) 60%, var(--canvas-deep)); }
-.ou-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 32px; min-height: 56px; padding: 12px 16px; }
+.ou-group { display: grid; gap: 8px; }
+.ou-rows { border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas-soft); padding: 4px 20px; }
+.ou-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 32px; min-height: 64px; padding: 16px 0; }
 .ou-row + .ou-row { border-top: 1px solid var(--hairline); }
 .ou-rowtext { display: grid; gap: 3px; min-width: 0; }
 .ou-rowtitle { display: inline-flex; align-items: center; gap: 6px; min-height: 20px; font-size: 14px; font-weight: 500; color: var(--ink); }
 .ou-rowhint { max-width: 560px; font-size: 12.5px; line-height: 1.5; color: var(--mute); }
+.ou-soon .ou-rowtext { opacity: .6; }
 .ou-soon .ou-rowtitle { color: var(--body); }
+.ou-soontag { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); background: none; border: 0; }
 .ou-lent { display: grid; gap: 6px; justify-items: end; }
 .ou-lent > span { display: inline-flex; gap: 8px; align-items: center; }
 
@@ -157,13 +163,13 @@ html { font-size: 16px; }
 .ou-ihead i { font-style: normal; letter-spacing: 0; padding: 0 6px; border-radius: 999px; background: var(--canvas-soft); color: var(--body); font-variant-numeric: tabular-nums; }
 .ou-ihead + .ou-irow { border-top: 1px solid var(--hairline); }
 .ou-irow + .ou-ihead { border-top: 1px solid var(--hairline); }
-.ou-scol { margin: 0; }
-.ou-stitle { display: grid; gap: 6px; }
+.ou-scol { max-width: 896px; margin: 0; padding: 24px; display: grid; gap: 24px; }
+.ou-stitle { display: grid; gap: 8px; }
 .ou-stitle h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
 .ou-stitle h1 svg { color: var(--mute); }
 .ou-note { font-size: 14px; line-height: 20px; }
 .ou-rowhint { font-size: 13px; line-height: 19px; }
-.ou-navgroup + .ou-navgroup { margin-top: 4px; }
+.ou-navgroup + .ou-navgroup { margin-top: 24px; }
 /* Add-ons root stays unlayered: it must beat the unlayered .ou-col width, gap and radius tokens above. */
 .ou-col.ou-addons { max-width: 1040px; gap: 0; --radius-container: 0; --radius-element: 0; --radius-inner: 0; --radius-full: 0; }
 
