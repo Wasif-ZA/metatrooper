@@ -99,9 +99,10 @@ test('step 3: commit passes message on stdin with -F - and refuses empty message
 
   // Valid commit passes -F - and message on stdin
   await gitAct(mockGit, 'commit', 'feat: first commit');
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.deepEqual(calls[1].args, ['commit', '-F', '-']);
   assert.equal(calls[1].input, 'feat: first commit');
+  assert.deepEqual(calls[2].args, ['rev-parse', '--short', 'HEAD']);
 
   // Refusal of empty messages
   await assert.rejects(async () => gitAct(mockGit, 'commit', ''), /write a commit message first/);
@@ -127,12 +128,13 @@ test('step 3: commit never injects --amend, --no-verify, -A, or push arguments',
 
   // Potentially hostile message remains on stdin and does not become argv flags
   await gitAct(mockGit, 'commit', '--amend --no-verify -A push');
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.deepEqual(calls[1].args, ['commit', '-F', '-']);
   assert.equal(calls[1].input, '--amend --no-verify -A push');
   assert.equal(calls[1].args.includes('--amend'), false);
   assert.equal(calls[1].args.includes('--no-verify'), false);
   assert.equal(calls[1].args.includes('-A'), false);
+  assert.deepEqual(calls[2].args, ['rev-parse', '--short', 'HEAD']);
 });
 
 test('step 3: GIT_SAFE_ENV is applied on git spawns', async (t) => {
