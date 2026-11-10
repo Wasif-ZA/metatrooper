@@ -73,7 +73,7 @@ function StartBox({ ready }) {
         <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
         <Button variant="ghost" size="sm" label={more ? 'Fewer options' : 'Options'} aria-expanded={more} onClick={() => setMore(!more)} />
         <span className="ou-composerhint"><Kbd keys="Ctrl+Enter" /></span>
-        <Button variant="primary" size="sm" label="Start" onClick={start} />
+        <Button variant="primary" size="sm" label="Start" data-action="home-start" data-engine={chosen} onClick={start} />
       </div>
       {more ? (
         <div className="ou-composerfoot">
