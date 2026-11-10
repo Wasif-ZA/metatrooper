@@ -641,7 +641,7 @@ function renderList(sel) {
   const s = ui.snap;
   const shells = shellRows();
   const sessions = s.sessions.filter((x) => !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close (Ctrl+B)" aria-label="Close the agent list">x</button></div>
+  setHtml('list', `<div class="lh"><h2>Agents</h2><span class="n">${sessions.length} sessions</span>${project() ? '<button class="link" data-action="clear-all" title="Hide every finished session in this project">Clear</button>' : ''}<button class="ib" data-action="list" title="Close" aria-label="Close the agent list">x</button></div>
     <div class="lnew" id="launch">${project() ? `${s.engines.map((e) => `<button class="btn" data-action="launch" data-engine="${esc(e.id)}" ${e.light === 'red' ? 'disabled' : ''} title="${esc(engineTip(e))}">+ ${esc(e.id)}</button>`).join('')}${ui.shellKinds.map((k) => `<button class="btn" data-action="shell-open" data-kind="${esc(k.kind)}" title="A plain ${esc(k.label)} tab in this project">${esc(k.label)}</button>`).join('')}` : '<button class="btn acc" data-action="open-folder">Open a project folder</button>'}</div>
     <div class="lbody" id="sessions" role="list" aria-label="Sessions">
       ${sessions.map((x) => rowHtml(x, sel && x.id === sel.id)).join('')}
@@ -843,7 +843,7 @@ async function saveSink() {
 const KEYS = [
   { keys: 'Ctrl+K', does: 'Open or close the palette and search', where: 'anywhere' },
   { keys: 'Ctrl+G', does: 'Grid on or off', where: 'anywhere' },
-  { keys: 'Ctrl+B', does: 'Agent list on or off', where: 'anywhere' },
+  { keys: 'Ctrl+B', does: 'Sidebar wide or narrow', where: 'outside terminals and text boxes' },
   { keys: 'Ctrl+,', does: 'Settings', where: 'anywhere' },
   { keys: 'Alt+J', does: 'Jump to the agent that has waited longest', where: 'anywhere' },
   { keys: 'Ctrl+Alt+W', does: 'Open or close the watch layout', where: 'anywhere' },
@@ -877,7 +877,7 @@ function paletteItems() {
   items.push({ group: 'Actions', label: 'Open a browser pane', run: async () => { const r = await rpc('pane.open', { project_id: ui.projectId }); if (r.result) { ui.paneId = r.result.pane_id; openTab('browser'); } } });
   items.push({ group: 'Actions', label: 'Open a project folder', run: openFolder });
   for (const [id, label] of TABS) items.push({ group: 'Panels', label, run: () => openTab(id) });
-  items.push({ group: 'Actions', label: 'Toggle the agent list', meta: 'Ctrl+B', run: () => wall.setList(!wall.listOpen()) });
+  items.push({ group: 'Actions', label: 'Toggle the agent list', run: () => wall.setList(!wall.listOpen()) });
   items.push({ group: 'Actions', label: 'Keyboard shortcuts', stay: true, run: () => { ui.keysView = true; ui.paletteAt = 0; document.getElementById('palette-input').value = ''; renderPalette(); } });
   const eq = document.body.classList.contains('ind-eq');
   items.push({ group: 'Actions', label: eq ? 'Working indicator: sparkline' : 'Working indicator: equaliser', run: () => { document.body.classList.toggle('ind-eq', !eq); document.body.classList.toggle('ind-spark', eq); save('ind', eq ? 'spark' : 'eq'); } });
@@ -1227,6 +1227,7 @@ function render(focus = false) {
   setHtml('view', html);
   if (ui.tab === 'browser') browserChrome.after(document.getElementById('view'));
   globalThis.homeView?.draw();
+  globalThis.frameView?.draw();
   globalThis.inboxView?.draw();
   void globalThis.ideView?.draw();
   void globalThis.addonsView?.draw();
@@ -1912,7 +1913,7 @@ document.addEventListener('keydown', (e) => {
     else if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) void runPalette(ui.paletteAt || 0, true); }
     return;
   }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { if (!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) { e.preventDefault(); globalThis.frameView?.toggle(); } return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === ',') { e.preventDefault(); if (!settingsView.close()) void settingsView.open(); return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't' && ui.tab === 'browser' && project()) {
     e.preventDefault();

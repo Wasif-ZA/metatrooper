@@ -1,8 +1,5 @@
-.vseg { display: inline-flex; gap: 2px; padding: 2px; margin-left: 8px; border: 1px solid var(--hairline); border-radius: 8px; font: 500 12.5px 'Geist', 'Segoe UI', sans-serif; }
-.vseg button { height: 24px; padding: 0 12px; border-radius: 6px; color: var(--mute); }
-.vseg button[aria-pressed="true"] { background: var(--canvas-soft); color: var(--ink); }
 
-.home { position: absolute; inset: 40px 0 0 0; z-index: 35; overflow: auto; padding: 32px 32px 64px; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+.home { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; overflow: auto; padding: 32px 32px 64px; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
 .hcol { max-width: 960px; margin: 0 auto; }
 .hhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .hhead h1 { margin: 0; font-weight: 600; font-size: 26px; line-height: 1.2; letter-spacing: -.01em; color: var(--ink); }

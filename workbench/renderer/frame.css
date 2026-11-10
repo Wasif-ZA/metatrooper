@@ -1,0 +1,37 @@
+:root { --side: 240px; --top: 36px; }
+:root.side-rail { --side: 56px; }
+.stage { position: absolute; inset: var(--top) 0 0 var(--side); }
+
+.frame { position: absolute; z-index: 30; left: 0; top: 0; bottom: 0; width: var(--side); display: flex; flex-direction: column; overflow: hidden; background: var(--canvas-deep); border-right: 1px solid var(--hairline); font: 13.5px 'Geist', 'Segoe UI', sans-serif; color: var(--body); }
+.fhead { flex: none; height: var(--top); display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px 0 16px; -webkit-app-region: drag; }
+.fhead > * { -webkit-app-region: no-drag; }
+.frame .brand b { display: inline; }
+.ftog { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 6px; color: var(--mute); }
+.ftog:hover { background: var(--canvas); color: var(--ink); }
+
+.fnav, .ffoot { flex: none; display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
+.ffoot { padding-bottom: 8px; border-top: 1px solid var(--hairline); }
+.fnav button, .ffoot button, .fagent { position: relative; display: flex; align-items: center; gap: 8px; margin: 0 8px; padding: 0 8px; border-radius: 6px; color: var(--body); text-align: left; white-space: nowrap; }
+.fnav button, .ffoot button { height: 32px; font-size: 13.5px; }
+:is(.fnav, .ffoot) button:hover, .fagent:hover { background: var(--canvas); }
+:is(.fnav, .ffoot) button[aria-current="page"] { background: var(--canvas-soft); color: var(--ink); }
+.fi { width: 20px; flex: none; display: grid; place-items: center; }
+.fl, .ft { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fpill { min-width: 18px; height: 18px; padding: 0 5px; flex: none; border: 1px solid var(--wait); border-radius: 999px; color: var(--wait); font: 500 11px/16px var(--mono); text-align: center; }
+.fpill[hidden] { display: none; }
+
+.fsec { flex: none; margin: 8px 8px 0; padding: 14px 10px 6px; border-top: 1px solid var(--hairline); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
+.fagents { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; padding-bottom: 8px; }
+.fagent { flex: none; height: 28px; font-size: 13px; }
+.fdot { width: 7px; height: 7px; margin: 0 6.5px; flex: none; border-radius: 50%; background: var(--hairline-strong); }
+.fdot.wait { background: var(--wait); }
+.fdot.work { background: var(--ink); }
+.fe { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; font: 12px var(--mono); color: var(--mute); }
+.fempty { padding: 4px 18px; font-size: 12px; color: var(--mute); }
+
+:root.side-rail .fhead { height: auto; flex-direction: column; justify-content: flex-start; gap: 6px; padding: 10px 0 4px; }
+:root.side-rail .frame .brand { padding: 0; }
+:root.side-rail .frame :is(.brand b, .fl, .ft, .fe, .fempty) { display: none; }
+:root.side-rail :is(.fnav, .ffoot) button, :root.side-rail .fagent { justify-content: center; padding: 0; }
+:root.side-rail .fsec { padding: 8px 0 0; font-size: 0; }
+:root.side-rail .fpill { position: absolute; top: 1px; right: 2px; min-width: 14px; height: 14px; padding: 0 3px; font-size: 9.5px; line-height: 12px; }

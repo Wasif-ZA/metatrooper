@@ -6,7 +6,7 @@ const wall = (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
   const STAMP = '<span class="stamp"><span class="si"><span class="ink y" aria-hidden="true">Needs you</span><span class="ink p">Needs you</span></span></span>';
-  const TOP = 64, G = 8, BAR = 36, SPN = 15;
+  const TOP = 24, G = 8, BAR = 36, SPN = 15;
   const S = {};
   const HOLD = 3000;
   let BIG = [], ORDER = [], PAIR_AT = 0, mode = 'single', placed = false, snapSel, pending = [];
@@ -122,7 +122,7 @@ const wall = (() => {
 
   const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : Math.max((W - 32) / 3.3 * 1.3, Math.min(460, W * 0.5)));
   function rects() {
-    const W = innerWidth, H = innerHeight - TOP - 60;
+    const st = $('#stage'), W = st?.clientWidth || innerWidth, H = (st?.clientHeight || innerHeight) - TOP - 60;
     const R = {};
     const ids = [...BIG, ...ORDER].filter((id) => S[id]);
     if (mode === 'grid') {
@@ -166,7 +166,7 @@ const wall = (() => {
     el.hidden = !M;
     if (!M) return;
     el.textContent = `+${M.n} more`;
-    el.title = `${M.n} more finished ${M.n === 1 ? 'session' : 'sessions'}; open the session list (Ctrl+B)`;
+    el.title = `${M.n} more finished ${M.n === 1 ? 'session' : 'sessions'}; open the session list`;
     gsap.set(el, { left: M.left, top: M.top, width: M.width, height: M.height });
   }
 

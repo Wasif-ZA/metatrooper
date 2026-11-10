@@ -30,7 +30,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--canv
 @layer app { button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; } }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; border-radius: 4px; }
 
-.title { position: absolute; left: 0; right: 0; top: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding-left: 8px; border-bottom: 1px solid var(--hairline); background: var(--canvas-deep); -webkit-app-region: drag; z-index: 30; }
+.title { position: absolute; left: var(--side); right: 0; top: 0; height: var(--top); display: flex; align-items: center; gap: 8px; padding-left: 8px; border-bottom: 1px solid var(--hairline); background: var(--canvas-deep); -webkit-app-region: drag; z-index: 30; }
 .title > * { -webkit-app-region: no-drag; flex: none; white-space: nowrap; }
 .title > .sp { flex: 1; }
 @media (max-width: 1180px) { .brand b { display: none; } }
@@ -90,7 +90,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--canv
 .win button.x:hover { background: #b5483b; color: #fff; }
 kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 3px; background: var(--canvas); border: 1px solid var(--hairline-strong); border-bottom-width: 2px; }
 
-.search { position: absolute; top: 4px; left: 50%; width: 300px; max-width: calc(100vw - 16px); transform: translateX(-50%); z-index: 40; border-radius: var(--r); background: var(--canvas-deep); border: 1px dotted var(--hairline-strong); overflow: hidden; }
+.search { position: absolute; top: 2px; left: 50%; width: 300px; max-width: calc(100vw - 16px); transform: translateX(-50%); z-index: 40; border-radius: var(--r); background: var(--canvas-deep); border: 1px dotted var(--hairline-strong); overflow: hidden; }
 .search.open { box-shadow: var(--float); }
 .sbar { position: relative; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; color: var(--mute); }
 .sbar input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; color: var(--ink); font: inherit; font-size: 12px; }
@@ -206,8 +206,8 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 @container (max-width: 560px) { .strip .task { visibility: hidden; } }
 @container (max-width: 500px) { .strip .btn { padding: 0 6px; } }
 
-.scrim { position: absolute; inset: 40px 0 0 0; z-index: 20; background: rgba(0,0,0,.55); visibility: hidden; opacity: 0; }
-.alist { position: absolute; z-index: 25; left: 8px; top: 48px; bottom: 8px; width: 288px; display: flex; flex-direction: column; border-radius: var(--r); background: var(--canvas-deep); border: 1px dotted var(--hairline-strong); box-shadow: var(--float); visibility: hidden; }
+.scrim { position: absolute; inset: 0; z-index: 20; background: rgba(0,0,0,.55); visibility: hidden; opacity: 0; }
+.alist { position: absolute; z-index: 25; left: 8px; top: 8px; bottom: 8px; width: 288px; display: flex; flex-direction: column; border-radius: var(--r); background: var(--canvas-deep); border: 1px dotted var(--hairline-strong); box-shadow: var(--float); visibility: hidden; }
 .lh { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 16px; }
 .lh h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .22em; flex: 1; }
 .lh .n { color: var(--faint); font-size: 11.5px; }
@@ -278,7 +278,7 @@ kbd { font-family: var(--mono); font-size: 10px; color: var(--body); min-width: 
 .tile-desk .btn.drive { color: var(--work); }
 
 /* Watch layout (Ctrl+Alt+W): each granted window beside its agent */
-#watch { position: fixed; inset: 40px 16px 16px; z-index: 50; overflow: auto; background: var(--bg); border: 1px var(--bstyle) var(--line); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+#watch { position: fixed; inset: var(--top) 16px 16px calc(var(--side) + 16px); z-index: 50; overflow: auto; background: var(--bg); border: 1px var(--bstyle) var(--line); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
 #watch .wrow { display: flex; gap: 12px; align-items: flex-start; }
 #watch .wtile { flex: 0 0 240px; cursor: pointer; border: 1px var(--bstyle) var(--line); padding: 8px; background: var(--panel); }
 #watch .wtile .fl { color: var(--muted); font-size: 11px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

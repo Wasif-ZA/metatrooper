@@ -1,4 +1,4 @@
-.settings { position: absolute; inset: 40px 0 0 0; z-index: 40; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+.settings { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 40; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
 .settings:focus { outline: none; }
 .snav { display: flex; flex-direction: column; gap: 2px; padding: 20px 8px; border-right: 1px solid var(--hairline); }
 .snav h2 { margin: 0 0 12px; padding: 0 8px; font-weight: 500; font-size: 12px; line-height: 1; color: var(--mute); }

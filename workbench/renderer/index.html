@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
   <link rel="stylesheet" href="vendor/fonts/fonts.css">
   <link rel="stylesheet" href="wall.css">
+  <link rel="stylesheet" href="frame.css">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="browser.css">
   <link rel="stylesheet" href="settings.css">
@@ -17,31 +18,37 @@
   <link rel="stylesheet" href="ui.bundle.css">
 </head>
 <body class="ind-spark">
+  <aside class="frame" id="frame" aria-label="Sidebar">
+    <div class="fhead"><span class="brand" id="brand"><svg width="16" height="16" viewBox="0 0 16 16"><g fill="var(--done)"><circle cx="10" cy="2" r="1.35"/><circle cx="14" cy="2" r="1.35"/><circle cx="10" cy="6" r="1.35"/><circle cx="14" cy="6" r="1.35"/><circle cx="2" cy="10" r="1.35"/><circle cx="6" cy="10" r="1.35"/><circle cx="14" cy="10" r="1.35"/><circle cx="2" cy="14" r="1.35"/><circle cx="6" cy="14" r="1.35"/><circle cx="10" cy="14" r="1.35"/></g><g fill="var(--ink)"><circle cx="2" cy="2" r="1.35"/><circle cx="6" cy="2" r="1.35"/><circle cx="2" cy="6" r="1.35"/><circle cx="6" cy="6" r="1.35"/><circle cx="10" cy="10" r="1.35"/><circle cx="14" cy="14" r="1.35"/></g></svg><b>Ouros</b></span><button class="ftog" id="frameTog" data-frame-toggle title="Collapse sidebar (Ctrl+B)" aria-label="Collapse sidebar" aria-expanded="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button></div>
+    <nav class="vseg fnav" role="group" aria-label="View"><button data-action="view" data-view="home" aria-pressed="false" title="Home" aria-label="Home"><span class="fi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2.5 7L8 2.5 13.5 7v6.5h-11z"/><path d="M6.5 13.5v-4h3v4"/></svg></span><span class="fl">Home</span></button><button data-action="view" data-view="ide" aria-pressed="false" title="IDE" aria-label="IDE"><span class="fi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5"/></svg></span><span class="fl">IDE</span></button><button data-action="view" data-view="wall" aria-pressed="true" title="Wall" aria-label="Wall"><span class="fi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M7 2.5v11M7 8h7.5"/></svg></span><span class="fl">Wall</span></button><button data-action="view" data-view="inbox" aria-pressed="false" title="Needs you" aria-label="Needs you"><span class="fi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M1.5 8.5l2-5.5h9l2 5.5v4.5h-13z"/><path d="M1.5 8.5h4l1 1.5h3l1-1.5h4"/></svg></span><span class="fl">Needs you</span><span class="fpill" id="frameNeeds" hidden></span></button></nav>
+    <div class="fsec">Agents</div>
+    <div class="fagents" id="frame-agents"></div>
+    <div class="ffoot"><button data-action="view" data-view="addons" title="Add-ons" aria-label="Add-ons"><span class="fi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 2.5h4v3h3v4h-3v4H6v-4H3v-4h3z"/></svg></span><span class="fl">Add-ons</span></button><button data-action="settings" title="Settings" aria-label="Settings"><span class="fi"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg></span><span class="fl">Settings</span></button></div>
+  </aside>
   <header class="title">
-    <button class="ib" id="listBtn" data-action="list" title="Agent list (Ctrl+B)" aria-label="Agent list" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
-    <span class="brand" id="brand"><svg width="16" height="16" viewBox="0 0 16 16"><g fill="var(--done)"><circle cx="10" cy="2" r="1.35"/><circle cx="14" cy="2" r="1.35"/><circle cx="10" cy="6" r="1.35"/><circle cx="14" cy="6" r="1.35"/><circle cx="2" cy="10" r="1.35"/><circle cx="6" cy="10" r="1.35"/><circle cx="14" cy="10" r="1.35"/><circle cx="2" cy="14" r="1.35"/><circle cx="6" cy="14" r="1.35"/><circle cx="10" cy="14" r="1.35"/></g><g fill="var(--ink)"><circle cx="2" cy="2" r="1.35"/><circle cx="6" cy="2" r="1.35"/><circle cx="2" cy="6" r="1.35"/><circle cx="6" cy="6" r="1.35"/><circle cx="10" cy="10" r="1.35"/><circle cx="14" cy="14" r="1.35"/></g></svg><b>Ouros</b></span>
+    <button class="ib" id="listBtn" data-action="list" title="Agent list" aria-label="Agent list" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
     <span class="crumb"><span>/</span><button id="project-pick" class="proj kpick" data-action="project-menu" title="Switch project"></button><span id="branch" class="branch"></span><button class="link" data-action="open-folder" title="Open a project folder">Open</button><span id="core" class="core"></span></span>
-    <span class="vseg" role="group" aria-label="View"><button data-action="view" data-view="home" aria-pressed="false">Home</button><button data-action="view" data-view="ide" aria-pressed="false">IDE</button><button data-action="view" data-view="wall" aria-pressed="true">Wall</button><button data-action="view" data-view="inbox" aria-pressed="false">Needs you</button></span>
     <button class="chip needs" id="needs" data-action="inbox" title="Jump to the longest wait: Alt+J"><span class="n roll" id="needsN"><span>0</span></span>need you</button>
     <span class="sp"></span>
     <span class="usage" id="usage"></span>
     <span class="vsep"></span>
     <span id="newagent" class="newagent"></span>
-    <button class="ib" data-action="settings" title="Settings (Ctrl+,)" aria-label="Settings"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg></button>
   </header>
 
-  <main id="centre" class="wall"></main>
-  <div id="start" class="start" hidden></div>
-  <footer id="strip" class="strip"><span id="strip-needs"></span><span id="strip-info" class="task"></span><button class="stab" data-action="tab" data-tab="diff">Diff<span class="n" id="diffN"></span></button><button class="stab" data-action="tab" data-tab="git">Git</button><button class="stab" data-action="tab" data-tab="handback">Hand back</button><button class="stab" data-action="tab" data-tab="browser">Browser</button></footer>
+  <div id="stage" class="stage">
+    <main id="centre" class="wall"></main>
+    <div id="start" class="start" hidden></div>
+    <footer id="strip" class="strip"><span id="strip-needs"></span><span id="strip-info" class="task"></span><button class="stab" data-action="tab" data-tab="diff">Diff<span class="n" id="diffN"></span></button><button class="stab" data-action="tab" data-tab="git">Git</button><button class="stab" data-action="tab" data-tab="handback">Hand back</button><button class="stab" data-action="tab" data-tab="browser">Browser</button></footer>
 
-  <section class="side-split" id="split">
-    <nav class="tabs" id="tabs"></nav>
-    <div id="view" class="view"></div>
-  </section>
+    <section class="side-split" id="split">
+      <nav class="tabs" id="tabs"></nav>
+      <div id="view" class="view"></div>
+    </section>
 
-  <div class="scrim" data-action="list"></div>
-  <aside class="alist" id="list" aria-label="Agents"></aside>
-  <section class="sheet" id="sheet"><div class="tab" id="sheet-tab" data-action="sheet" role="button" tabindex="0" aria-expanded="false"><span class="n roll" id="sheetN"><span>0</span></span><span class="t" id="sheetT"></span><span class="runs" id="sheetRuns"></span><span class="ga" id="sheetAct"></span><span class="chev"><svg width="10" height="10"><path d="M2 6.5L5 3.5 8 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span></div><div class="gates" id="gates"></div></section>
+    <div class="scrim" data-action="list"></div>
+    <aside class="alist" id="list" aria-label="Agents"></aside>
+    <section class="sheet" id="sheet"><div class="tab" id="sheet-tab" data-action="sheet" role="button" tabindex="0" aria-expanded="false"><span class="n roll" id="sheetN"><span>0</span></span><span class="t" id="sheetT"></span><span class="runs" id="sheetRuns"></span><span class="ga" id="sheetAct"></span><span class="chev"><svg width="10" height="10"><path d="M2 6.5L5 3.5 8 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span></div><div class="gates" id="gates"></div></section>
+  </div>
 
   <div class="search" id="search" role="search">
     <div class="sbar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg><input id="palette-input" placeholder="Search agents and commands" autocomplete="off" spellcheck="false"><kbd>Ctrl</kbd><kbd>K</kbd></div>
@@ -69,6 +76,7 @@
   <script src="browser-chrome.js"></script>
   <script src="home.js"></script>
   <script src="ide.js"></script>
+  <script src="frame.js"></script>
   <script src="app.js"></script>
   <script src="ui.bundle.js"></script>
 </body>
