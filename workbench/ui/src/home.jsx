@@ -5,6 +5,7 @@ import { Kbd } from '@astryxdesign/core/Kbd';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { createStore } from './store.js';
+import { Verdict } from './verdict.jsx';
 
 export const homeStore = createStore({ tick: 0 });
 
@@ -70,7 +71,7 @@ function AgentCard({ x }) {
       <header><span className={tone(x.state)} /><b>{x.engine_id}</b><span className="ou-agentstate">{STATE_WORDS[x.state] || x.state}</span><span className="ou-agenttime">{ago(x.state_at)}</span></header>
       <p>{taskOf(x)}</p>
       <pre>{x.last_line || ' '}</pre>
-      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span>{x.state === 'waiting_for_you' ? <Button size="sm" label="Answer" data-action="pick" data-id={x.id} /> : null}</footer>
+      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span><Verdict x={x} />{x.state === 'waiting_for_you' ? <Button size="sm" label="Answer" data-action="pick" data-id={x.id} /> : null}</footer>
     </div>
   );
 }
