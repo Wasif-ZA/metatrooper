@@ -166,6 +166,7 @@ async function bundle(contents: string, output: string) {
 await bundle(`
   import './src/main.jsx';
   export * from './src/ide.jsx';
+  export { Palette, paletteStore, confirmStore } from './src/palette.jsx';
   export * from './src/editor.js';
   export * as React from 'react';
   export { renderToStaticMarkup } from 'react-dom/server';
@@ -176,6 +177,9 @@ const {
   React,
   renderToStaticMarkup,
   Ide,
+  Palette,
+  paletteStore,
+  confirmStore,
   drawIde,
   ideShown,
   ideKeys,
@@ -196,6 +200,8 @@ const {
 } = ideModule;
 
 ideStore.use = () => React.useSyncExternalStore(() => () => {}, ideStore.get, ideStore.get);
+paletteStore.use = () => React.useSyncExternalStore(() => () => {}, paletteStore.get, paletteStore.get);
+confirmStore.use = () => React.useSyncExternalStore(() => () => {}, confirmStore.get, confirmStore.get);
 
 function harness(Screen: any) {
   let nodes: any[] = [];
@@ -330,10 +336,10 @@ test('Open in VS Code and New file from palette', async () => {
   cur.active = null;
   await __openFile(cur, 'src/index.ts');
 
-  const h = harness(Ide);
+  const h = harness(Palette);
   h.draw();
 
-  const cp = h.one((n: any) => n.props?.label === 'IDE commands');
+  const cp = h.one((n: any) => n.props?.label === 'Commands' && n.props?.searchSource);
   assert.ok(cp);
 
   // Search palette for VS Code

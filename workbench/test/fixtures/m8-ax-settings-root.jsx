@@ -49,7 +49,7 @@ export async function run(fixture) {
     await check('search matches labels case-insensitively across sections', async () => {
       await mount(); await input(search(), 'lOoP aLaRm');
       equal(headings(), ['Reliability']); equal(titles(), ['Loop alarm']);
-      equal(host.querySelector('.ou-crumb').textContent, 'Settings/Search');
+      equal(host.querySelector('.ou-crumb').textContent, 'Settings›Search');
     });
     await check('search matches hints and groups results by section', async () => {
       await mount(); await input(search(), '  pRoJeCt  ');
@@ -68,7 +68,7 @@ export async function run(fixture) {
       const safety = [...host.querySelectorAll('nav button')].find(n => n.textContent === 'Safety');
       if (!safety) throw new Error('Safety navigation button is missing');
       flushSync(() => safety.click()); await tick();
-      equal(search().value, ''); equal(host.querySelector('.ou-crumb').textContent, 'Settings/Safety');
+      equal(search().value, ''); equal(host.querySelector('.ou-crumb').textContent, 'Settings›Safety');
       equal(host.querySelector('.ou-stitle h1').textContent, 'Safety'); equal(headings(), ['Computer use', 'Browser']);
     });
     await check('slash focuses search only while Settings is open and outside fields', async () => {
