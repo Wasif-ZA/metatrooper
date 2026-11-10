@@ -6,6 +6,8 @@ import { join, dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 
 const wb = fileURLToPath(new URL('../', import.meta.url));
 const temp = mkdtempSync(join(tmpdir(), 'm8-ax-'));
@@ -27,9 +29,9 @@ async function bundle(contents: string, output: string) {
       });
       b.onLoad({ filter: /.*/, namespace: 'empty-css' }, () => ({ contents: '', loader: 'js' }));
       b.onLoad({ filter: /.*/, namespace: 'mount-spy' }, () => ({ contents: 'export const createRoot = globalThis.__axCreateRoot;', loader: 'js' }));
-      b.onLoad({ filter: /.*/, namespace: 'screen' }, (args: any) => ({ contents: readFileSync(args.path, 'utf8'), loader: args.path.endsWith('.jsx') ? 'jsx' : 'js' }));
+      b.onLoad({ filter: /.*/, namespace: 'screen' }, (args: any) => ({ contents: `import { createElement as __create, Fragment as __fragment } from 'react'; function __element(...args) { const node = __create(...args); globalThis.__axCapture?.(node); return node; }\n` + readFileSync(args.path, 'utf8'), loader: args.path.endsWith('.jsx') ? 'jsx' : 'js' }));
     } }],
-    bundle: true, platform: 'node', format: 'esm', jsx: 'automatic',
+    bundle: true, platform: 'node', format: 'esm', jsx: 'transform', jsxFactory: '__element', jsxFragment: '__fragment',
     loader: { '.css': 'empty' }, outfile: join(temp, output),
   });
 }
@@ -40,10 +42,25 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Settings', 'Control', 'CheckCommand', 'Inbox', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard']);
+
+// Supply the server snapshot for the synthetic settings store.
+settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
 
 // Expand app components with persistent hook slots and retain real library controls for server rendering.
 function harness(Screen: any) {
+  if (Screen === Settings) {
+    let nodes: any[] = [];
+    const draw = () => {
+      nodes = [];
+      g.__axCapture = (node: any) => nodes.push(node);
+      try { return renderToStaticMarkup(React.createElement(Screen)); }
+      finally { delete g.__axCapture; }
+    };
+    return { draw, html: draw, all: (predicate: any) => nodes.filter(predicate), one: (predicate: any) => {
+      const found = nodes.find(predicate); assert.ok(found, 'rendered control exists'); return found;
+    } };
+  }
   const frames = new Map<string, any[]>();
   let nodes: any[] = [];
   function expand(value: any, path: string): any {
@@ -129,7 +146,7 @@ test('Settings exposes all eight sections and only writable keys', () => {
 
 test('Settings section navigation selects each literal group of controls', () => {
   const h = harness(Settings);
-  for (const [section, row] of [['General', 'Before each tool call'], ['Appearance', 'Terminal font size'], ['Reliability', 'Loop alarm'], ['Savings', 'Shrink shell output'], ['Safety', 'Take-over key'], ['Add-ons', 'Agents and plugins'], ['Notifications', 'Slack, ntfy and webhooks'], ['Advanced', 'Logs folder']]) {
+  for (const [section, row] of [['General', 'Before each tool call'], ['Appearance', 'Font size'], ['Reliability', 'Loop alarm'], ['Savings', 'Shrink shell output'], ['Safety', 'Take-over key'], ['Add-ons', 'Agents and plugins'], ['Notifications', 'Slack, ntfy and webhooks'], ['Advanced', 'Logs folder']]) {
     h.draw(); h.one((n: any) => n.props.label === section && n.props.onClick).props.onClick();
     const html = h.html(); assert.ok(html.includes(row), section);
   }
@@ -149,7 +166,7 @@ for (const [section, key, text, value] of [
 ] as const) test('Settings toggles ' + key, async () => {
   settingsStore.set({ section }); const h = harness(Settings); h.draw();
   const control = h.one((n: any) => n.props.label === text && typeof n.props.onChange === 'function');
-  assert.equal(control.props.value, value);
+  assert.equal(control.props.value, value); assert.equal(control.props.size, 'sm');
   const markup = renderToStaticMarkup(React.createElement(control.type, control.props));
   assert.match(markup, /role="switch"/); assert.equal(/ checked(?:="")?/.test(markup), value);
   await control.props.onChange(!value); await flush();
@@ -162,8 +179,8 @@ test('approval uses setApproval and never setSetting', async () => {
 });
 
 for (const [section, text, key, min, max, current] of [
-  ['look', 'Terminal font size', 'terminal.font_size', 8, 28, 13],
-  ['look', 'Terminal scrollback', 'terminal.scrollback', 1000, 200000, 10000],
+  ['look', 'Font size', 'terminal.font_size', 8, 28, 13],
+  ['look', 'Scrollback', 'terminal.scrollback', 1000, 200000, 10000],
   ['reliability', 'Ask me after', 'reliability.loop_nudge_at', 2, 20, 3],
   ['reliability', 'Stop the agent after', 'reliability.loop_stop_at', 3, 50, 5],
   ['reliability', 'Token limit per agent', 'reliability.token_limit', 0, 100000000, 0],
@@ -180,18 +197,9 @@ for (const [section, text, key, min, max, current] of [
 test('Reliability has exactly six unavailable rows with no interactive control', () => {
   settingsStore.set({ section: 'reliability' }); const h = harness(Settings); const html = h.html();
   assert.equal(h.all(label('Not built yet')).length, 6);
-  const rows = h.all((n: any) => n.props.row?.soon);
+  const rows = h.all((n: any) => n.type === 'div' && n.props.className === 'ou-row ou-soon');
   assert.equal(rows.length, 6);
   for (const row of rows) { const markup = renderToStaticMarkup(React.createElement(row.type, row.props)); assert.doesNotMatch(markup, /<(button|input|select|textarea)\b/); }
-});
-
-for (const event of ['enter', 'blur']) test('check command saves changed text on ' + event + ' and ignores unchanged text', async () => {
-  settingsStore.set({ section: 'reliability' }); const h = harness(Settings); h.draw();
-  const input = () => h.one((n: any) => n.props.label === 'Check command for this project' && n.props.onChange);
-  const commit = async () => event === 'enter' ? input().props.onEnter() : h.one((n: any) => n.type === 'span' && n.props.onBlur).props.onBlur();
-  await commit(); assert.deepEqual(calls, []);
-  input().props.onChange('node --test'); h.draw(); await commit();
-  assert.deepEqual(calls, [['setCheck', 'p1', 'node --test']]);
 });
 
 test('lent sites belong only to the current project and Remove revokes that origin', async () => {
@@ -260,7 +268,7 @@ for (const [hour, greeting] of [[0, 'Good morning'], [11, 'Good morning'], [12, 
   try { assert.ok(harness(Home).html().includes(greeting)); } finally { g.Date = DateClass; }
 });
 
-test('Home shows literal tiles, cross-project waiting actions and excludes hidden and exited agents', () => {
+test('Home counts cross-project waiting agents in tiles and excludes hidden and exited cards', () => {
   g.ui.snap.sessions = [session('working', 'working'), session('starting', 'starting'), session('done', 'done'), session('hidden', 'working'), session('gone', 'exited')];
   g.ui.pendingHide.add('hidden'); g.ui.snap.live = [session('wait', 'waiting_for_you', { project_id: 'p2' })];
   g.ui.snap.approvals = [{ id: 'ap' }];
@@ -269,7 +277,7 @@ test('Home shows literal tiles, cross-project waiting actions and excludes hidde
   assert.match(html, /3 agents in Alpha/);
   const tiles = h.all((n: any) => n.type?.name === 'Tile');
   assert.deepEqual(tiles.map(n => [n.props.label, n.props.n, n.props.sub]), [['Needs you', 5, 'waiting on an answer'], ['Working', 2, 'running now'], ['Finished', 1, 'ready to review'], ['Changed files', 3, 'not handed back yet']]);
-  assert.equal(h.one((n: any) => n.props.label === 'Answer').props['data-id'], 'wait'); assert.ok(html.includes('Beta'));
+  assert.equal(h.all(label('Answer')).length, 0); assert.doesNotMatch(html, /Task wait/);
   assert.equal(h.one(label('Review')).props['data-action'], 'sheet'); assert.match(html, /1 agent action waits for a yes/);
   assert.deepEqual(h.all((n: any) => n.type === 'div' && n.props['data-action'] === 'pick').map(n => n.props['data-id']), ['working', 'starting', 'done']);
   assert.doesNotMatch(html, /Task hidden|Task gone/);
@@ -281,7 +289,7 @@ test('Home zero tiles, singular agent, visibility and six recent notes', () => {
   assert.deepEqual(h.all((n: any) => n.type?.name === 'Tile').map(n => [n.props.n, n.props.sub]), [[0, 'nothing waiting'], [0, 'none running'], [0, 'nothing to review'], [0, 'no changes']]);
   g.ui.snap.sessions = [session('only', 'done')]; assert.match(h.html(), /1 agent in Alpha/);
   g.ui.snap.needs_you = [note('q', 'question'), ...Array.from({ length: 8 }, (_, i) => note('r' + i, i % 2 ? 'failed' : 'done', { read_at: 'read' }))];
-  h.draw(); assert.deepEqual(h.all((n: any) => n.props.label === 'Open' && n.props['data-action'] === 'inbox-open').map(n => n.props['data-id']), ['q', 'r0', 'r1', 'r2', 'r3', 'r4', 'r5']);
+  h.draw(); assert.deepEqual(h.all((n: any) => n.type === 'li' && n.props['data-action'] === 'inbox-open').map(n => n.props['data-id']), ['q', 'r0', 'r1', 'r2', 'r3', 'r4', 'r5']);
   g.ui.view = 'wall'; assert.equal(h.html(), ''); g.ui.view = 'home'; g.ui.projectId = 'missing'; assert.equal(h.html(), '');
 });
 
@@ -311,16 +319,12 @@ test('Home launches the ready fallback when a saved engine is unavailable', asyn
 });
 
 
-for (const [name, setup, rowLabel, expected] of [
-  ['waiting', () => { g.ui.snap.live = [session('wait-row', 'waiting_for_you')]; }, 'Task wait-row', { 'data-action': 'pick', 'data-id': 'wait-row' }],
-  ['approval', () => { g.ui.snap.approvals = [{ id: 'approve-row' }]; }, '1 agent action waits for a yes', { 'data-action': 'sheet' }],
-] as const) test('Home ' + name + ' row preserves whole-row activation', () => {
-  setup(); const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.props.label === rowLabel && n.props.endContent);
-  for (const [key, value] of Object.entries(expected)) assert.equal(row.props[key], value);
-  const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(row.type, row.props)))?.[0];
-  assert.ok(opening, 'a list row is rendered');
-  for (const [key, value] of Object.entries(expected)) assert.ok(opening.includes(key + '="' + value + '"'));
+test('Home approval row preserves whole-row activation', () => {
+  g.ui.snap.approvals = [{ id: 'approve-row' }]; const h = harness(Home); h.draw();
+  const row = h.one((n: any) => n.type === 'li' && n.props['data-action'] === 'sheet');
+  assert.equal(row.props.className, 'ou-irow ou-unread');
+  assert.equal(row.props.role, 'button'); assert.equal(row.props.tabIndex, 0);
+  assert.match(renderToStaticMarkup(React.createElement(row.type, row.props)), /1 agent action waits for a yes/);
 });
 
 test('screen text is escaped by React', () => {
@@ -379,10 +383,11 @@ for (const [kind, id, rowLabel, rowAction] of [
   else g.ui.snap.needs_you = [note(id, kind === 'loop' || kind === 'lend' ? 'other' : kind,
     kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : {})];
   const h = harness(Inbox); h.draw();
-  const row = h.one((n: any) => n.props.label === rowLabel && n.props.endContent);
+  const row = h.one((n: any) => n.type === 'li' && n.props['data-id'] === id);
   assert.equal(row.props['data-action'], rowAction);
   assert.equal(row.props['data-id'], id);
   const markup = renderToStaticMarkup(React.createElement(row.type, row.props));
+  assert.ok(markup.includes(rowLabel));
   const opening = /<li\b[^>]*>/.exec(markup)?.[0];
   assert.ok(opening, 'a list row is rendered');
   assert.ok(opening.includes('data-action="' + rowAction + '"'));
@@ -395,7 +400,7 @@ for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test
   g.ui.snap.needs_you = [note('whole-row', kind === 'loop' || kind === 'lend' ? 'other' : kind,
     kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : { read_at: kind === 'done' || kind === 'failed' ? 'read' : null })];
   const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.props.label === 'Note whole-row' && n.props.endContent);
+  const row = h.one((n: any) => n.type === 'li' && n.props['data-id'] === 'whole-row');
   assert.equal(row.props['data-action'], 'inbox-open');
   assert.equal(row.props['data-id'], 'whole-row');
   const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(row.type, row.props)))?.[0];
@@ -403,62 +408,239 @@ for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test
   assert.ok(opening?.includes('data-id="whole-row"'));
 });
 
-test('Needs you j and k focus first controls, wrap, and ignore editing and modified keys', async () => {
-  const listeners = new Map<string, any>();
-  const focused: string[] = [];
-  let prevented = 0;
-  const rows: any[] = [];
-  const control = (id: string, row: any) => ({
-    closest: (selector: string) => { assert.equal(selector, 'li'); return row; },
-    focus() { g.document.activeElement = this; focused.push(id); },
+
+const hasClass = (name: string) => (n: any) => typeof n.props.className === 'string' && n.props.className.split(' ').includes(name);
+const textContent = (node: any): string => Array.isArray(node) ? node.map(textContent).join('') : React.isValidElement(node) ? textContent(node.props.children) : node == null ? '' : String(node);
+
+test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd follow the new anatomy', () => {
+  settingsStore.set({ section: 'reliability' }); const h = harness(Settings); h.draw();
+  assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Finishing', 'Watching', 'Budgets', 'Not built yet']);
+  assert.equal(h.all(hasClass('ou-rows')).length, 4);
+  assert.deepEqual(h.all(hasClass('ou-rowtitle')).map(textContent), ['Say done only when a check passed', 'Check command for this project', 'Loop alarm', 'Ask me after', 'Stop the agent after', 'False alarms so far', 'Token limit per agent', 'Fix failing checks, up to 3 tries', 'Retry provider errors', 'Check after every edit', 'Ask when a request can mean two things', 'Keep runs going when Ouros closes', 'Checkpoint every turn']);
+  assert.deepEqual(h.all((n: any) => n.type === 'h1').map(textContent), ['Reliability']);
+  assert.equal(textContent(h.one(hasClass('ou-crumb'))), 'Settings/Reliability');
+  assert.equal(textContent(h.one(hasClass('ou-note'))), 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.');
+  const groups = h.all(hasClass('ou-navgroup'));
+  assert.deepEqual(groups.map(textContent), ['', 'Agents', 'Extend', '']);
+  assert.deepEqual(groups.map(n => n.props.children[1].map((item: any) => item.props.label)), [['General', 'Appearance'], ['Reliability', 'Savings', 'Safety'], ['Add-ons', 'Notifications'], ['Advanced']]);
+  const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
+  assert.deepEqual(navs.map(n => n.props.label), ['General', 'Appearance', 'Reliability', 'Savings', 'Safety', 'Add-ons', 'Notifications', 'Advanced']);
+  assert.ok(navs.every(n => n.props.icon?.type === 'svg'));
+  assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
+  settingsStore.set({ section: 'safety' }); h.draw();
+  assert.equal(h.one((n: any) => n.props.keys === 'Ctrl+Esc').type.name, 'Kbd');
+});
+
+for (const [section, key, current, defaultValue] of [
+  ['general', 'sessions.metarouter', false, true],
+  ['savings', 'savers.shrink_shell', true, false],
+  ['reliability', 'reliability.loop_nudge_at', 9, 3],
+  ['reliability', 'reliability.token_limit', 10000, 0],
+  ['general', 'sessions.approval', 'contained', 'ask'],
+] as const) test('Reset to default writes the literal default for ' + key, async () => {
+  const [sectionKey, name] = key.split('.'); data[sectionKey][name] = current;
+  data.defaults = { [key]: defaultValue }; settingsStore.set({ section });
+  const h = harness(Settings); h.draw();
+  const buttons = h.all(label('Reset to default')); assert.equal(buttons.length, 1);
+  await buttons[0].props.onClick(); await flush();
+  assert.deepEqual(calls, key === 'sessions.approval' ? [['setApproval', 'ask']] : [['setSetting', key, defaultValue]]);
+  data[sectionKey][name] = defaultValue; h.draw(); assert.equal(h.all(label('Reset to default')).length, 0);
+  data[sectionKey][name] = current; data.defaults = {}; h.draw(); assert.equal(h.all(label('Reset to default')).length, 0);
+  delete data.defaults; h.draw(); assert.equal(h.all(label('Reset to default')).length, 0);
+});
+
+test('settingsPage returns every literal PAGE_KEYS default independently of current settings', async () => {
+  const { stripTypeScriptTypes } = await import('node:module');
+  const { DEFAULTS } = await import('../../core/src/settings.ts');
+  const main = readFileSync(join(wb, 'src/main.ts'), 'utf8');
+  const pageKeys = vm.runInNewContext(/const PAGE_KEYS = new Set\((\[[^;]+\])\)/.exec(main)![1]);
+  const match = /on\('settingsPage', (\(\) => \{[\s\S]*?\n  \})\);/.exec(main); assert.ok(match);
+  data.reliability.loop_nudge_at = 19; data.reliability.loop_stop_at = 49; data.reliability.token_limit = 999;
+  data.terminal.font_size = 26; data.sessions.metarouter = false; data.ui = { theme: 'synthetic' };
+  const handler = vm.runInNewContext(stripTypeScriptTypes('(' + match[1] + ')'), { settings: () => data, db: () => null, PAGE_KEYS: new Set(pageKeys), DEFAULTS });
+  const defaults = JSON.parse(JSON.stringify(handler().defaults));
+  assert.deepEqual(defaults, {
+    'sessions.metarouter': true, 'desktop.watch_pause': true, 'agent_cursor.show_caption': true,
+    'savers.shrink_shell': false, 'savers.lean_handoffs': false, 'savers.small_screenshots': false, 'savers.cheap_model': false,
+    'worktree.npm_ci': true, 'worktree.stale_days': 7, 'terminal.font_size': 13, 'terminal.scrollback': 10000,
+    'reliability.loop_alarm': true, 'reliability.loop_nudge_at': 3, 'reliability.loop_stop_at': 5, 'reliability.token_limit': 0, 'reliability.done_needs_check': true,
   });
-  for (const id of ['first', 'middle', 'last']) {
-    const row: any = { contains: (element: any) => element === row.first || element === row.second };
-    row.first = control(id, row); row.second = control(id + '-second', row);
-    row.querySelector = (selector: string) => { assert.equal(selector, 'button, [tabindex], a'); return row.first; };
-    rows.push(row);
+  assert.deepEqual(Object.keys(defaults).sort(), Array.from(pageKeys).sort());
+});
+
+test('Inbox groups, columns, chips, glyphs, unread state and notice order match the contract', () => {
+  g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture' })];
+  g.ui.snap.needs_you = [note('read-info', 'other', { read_at: 'read' }), note('unread-info', 'other'), note('read-needs', 'question', { read_at: 'read' }), note('unread-done', 'done'), note('unread-failed', 'failed'), note('unread-needs', 'question'), note('read-done', 'done', { read_at: 'read' }), note('read-failed', 'failed', { read_at: 'read' })];
+  const h = harness(Inbox); const html = h.html();
+  assert.match(html, /<h1>Needs you<\/h1>/);
+  assert.equal(h.one(hasClass('ou-list')).type, 'ul');
+  assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Needs your answer1', 'Notices8']);
+  for (const head of h.all(hasClass('ou-ihead'))) {
+    assert.equal(head.type, 'li'); assert.equal(head.props['data-action'], undefined); assert.equal(head.props.tabIndex, undefined);
+    assert.match(renderToStaticMarkup(head), /<i>[18]<\/i>/);
   }
-  g.document = {
-    readyState: 'loading', activeElement: null,
-    addEventListener: (name: string, fn: any) => listeners.set(name, fn),
-    getElementById: (id: string) => { assert.equal(id, 'needsview'); return { querySelectorAll: (selector: string) => { assert.equal(selector, 'li'); return rows; } }; },
+  const rows = h.all(hasClass('ou-irow'));
+  assert.deepEqual(rows.map(n => n.props['data-id']), ['ask', 'unread-needs', 'unread-failed', 'unread-done', 'unread-info', 'read-needs', 'read-failed', 'read-done', 'read-info']);
+  assert.deepEqual(rows.map(n => hasClass('ou-unread')(n)), [true, true, true, true, true, false, false, false, false]);
+  assert.ok(rows.every(n => n.type === 'li' && n.props.role === 'button' && n.props.tabIndex === 0));
+  assert.deepEqual(h.all((n: any) => n.type === 'svg' && n.props['aria-label']).map(n => n.props['aria-label']), ['Needs you', 'Needs you', 'Failed', 'Finished', 'For your information', 'Needs you', 'Failed', 'Finished', 'For your information']);
+  assert.deepEqual(h.all(hasClass('ou-iwho')).map(textContent), ['engine-b', '', '', '', '', '', '', '', '']);
+  assert.deepEqual(h.all(hasClass('ou-chip')).map(textContent), ['Choose a fixture', 'question', 'failed', 'done', 'other', 'question', 'failed', 'done', 'other']);
+  assert.equal(h.all(hasClass('ou-ititle')).length, 9); assert.equal(h.all(hasClass('ou-imeta')).length, 9);
+  assert.deepEqual(h.all(hasClass('ou-itime')).map(textContent), ['1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago']);
+  assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
+  g.ui.snap.live = []; h.draw(); assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Notices8']);
+  g.ui.snap.needs_you = []; g.ui.snap.live = [session('ask', 'waiting_for_you')]; h.draw(); assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Needs your answer1']);
+  g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ihead')).length, 0);
+});
+
+test('Home puts Answer in the waiting agent card and renders literal card anatomy', () => {
+  g.ui.snap.sessions = [session('done', 'done', { last_line: 'All checks passed' }), session('working', 'working', { last_line: 'Editing fixtures' }), session('wait', 'waiting_for_you', { last_line: 'Choose a fixture' })];
+  g.ui.snap.live = [session('wait', 'waiting_for_you')]; g.STATE_WORDS = { waiting_for_you: 'Needs you', working: 'Working', done: 'Finished' };
+  const h = harness(Home); const html = h.html();
+  const cards = h.all(hasClass('ou-agent'));
+  assert.deepEqual(cards.map(n => n.props['data-id']), ['wait', 'working', 'done']);
+  assert.ok(cards.every(n => n.props.className === 'ou-agent' && n.props['data-action'] === 'pick' && n.props.tabIndex === 0 && n.props.role === 'button'));
+  const markup = cards.map(n => renderToStaticMarkup(n));
+  assert.match(markup[0], /<header>.*synthetic.*Needs you.*1m ago.*<\/header><p>Task wait<\/p><pre>Choose a fixture<\/pre><footer><span>No changes yet<\/span><button[^>]*data-action="pick" data-id="wait"/);
+  assert.match(markup[1], /<pre>Editing fixtures<\/pre><footer><span>2 changed files<\/span>/);
+  assert.match(markup[2], /<pre>All checks passed<\/pre><footer><span>1 changed file<\/span>/);
+  assert.equal(h.all(label('Answer')).length, 1); assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
+  assert.equal(h.all(hasClass('ou-irow')).length, 0); assert.doesNotMatch(html, /Waiting on you|ou-agent-wait/);
+  const tiles = h.all(hasClass('ou-tile')); assert.equal(tiles.length, 4);
+  assert.deepEqual(tiles.map(n => hasClass('ou-hot')(n)), [true, false, false, false]);
+  assert.match(renderToStaticMarkup(tiles[0]), /<b>1<\/b><span class="ou-tilelabel">Needs you<\/span><span class="ou-tilesub">waiting on an answer<\/span>/);
+});
+
+test('Home section order and Waiting on you contain only approvals and alerts', () => {
+  g.ui.snap.engines = [{ id: 'ready', light: 'green' }]; g.ui.snap.sessions = [session('wait', 'waiting_for_you')]; g.ui.snap.live = [session('wait', 'waiting_for_you')];
+  g.ui.snap.approvals = [{ id: 'a' }]; g.ui.snap.needs_you = [note('alert', 'question'), note('recent', 'done')];
+  const h = harness(Home); const html = h.html();
+  assert.ok(html.indexOf('ou-composer') < html.indexOf('ou-tiles'));
+  assert.ok(html.indexOf('ou-tiles') < html.indexOf('<h2>Agents</h2>'));
+  assert.ok(html.indexOf('<h2>Agents</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
+  assert.ok(html.indexOf('<h2>Waiting on you</h2>') < html.indexOf('<h2>Recent</h2>'));
+  assert.equal(h.one(label('Task for a new agent')).props.rows, 1);
+  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['sheet', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
+  g.ui.snap.approvals = []; g.ui.snap.needs_you = []; const quiet = h.html(); assert.doesNotMatch(quiet, /Waiting on you/);
+  g.ui.snap.live = []; g.ui.snap.sessions = []; h.draw(); assert.equal(h.all(hasClass('ou-hot')).length, 0);
+});
+
+test('Home Ctrl+Enter launches the current draft and selected engine like Start', async () => {
+  g.ui.snap.engines = [{ id: 'engine-a', light: 'green' }, { id: 'engine-b', light: 'yellow' }];
+  const h = harness(Home); h.draw(); h.one(label('Task for a new agent')).props.onChange('  keyboard fixture  '); h.one(label('Agent')).props.onChange('engine-b'); h.draw();
+  const keydown = h.one(hasClass('ou-composer')).props.onKeyDown;
+  let prevented = 0;
+  keydown({ key: 'Enter', ctrlKey: false, preventDefault: () => prevented++ }); keydown({ key: 'x', ctrlKey: true, preventDefault: () => prevented++ });
+  await flush(); assert.deepEqual(calls, []); assert.equal(prevented, 0);
+  keydown({ key: 'Enter', ctrlKey: true, preventDefault: () => prevented++ }); await flush();
+  assert.equal(prevented, 1);
+  assert.deepEqual(calls, [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'engine-b', prompt: 'keyboard fixture' }], ['save', 'engine', 'engine-b'], ['view', 'wall'], ['pick', 'new-session']]);
+  assert.equal(g.ui.drafts['home-task'], undefined);
+});
+
+test('Add-ons has a scoped root and plain page and section headings', () => {
+  g.ui.view = 'addons'; const h = harness(Addons); const html = h.html();
+  assert.equal(h.one(hasClass('ou-addons')).type, 'div'); assert.match(html, /<h1>Add-ons<\/h1>/);
+  assert.deepEqual(h.all((n: any) => n.type === 'h2').map(textContent), ['Agents', 'Plugins']);
+});
+
+async function keyboardHarness() {
+  const listeners: any[] = []; const focused: string[] = []; const clicked: string[] = []; let prevented = 0;
+  const row = (id: string, className = 'ou-irow'): any => {
+    const r: any = { id, className, contains: (element: any) => element === r || element?.owner === r,
+      matches: (selector: string) => { assert.equal(selector, '.ou-irow, .ou-agent'); return ['ou-irow', 'ou-agent'].includes(className); },
+      closest: () => null, focus() { g.document.activeElement = r; focused.push(id); }, click: () => clicked.push(id) };
+    return r;
+  };
+  const rows = [row('first'), row('middle'), row('last')]; const head = row('header', 'ou-ihead'); const card = row('agent', 'ou-agent');
+  g.document = { readyState: 'loading', activeElement: null,
+    addEventListener: (name: string, fn: any) => { if (name === 'keydown') listeners.push(fn); },
+    getElementById: (id: string) => { assert.equal(id, 'needsview'); return { querySelectorAll: (selector: string) => { assert.equal(selector, '.ou-irow'); return rows; } }; },
   };
   g.__axCreateRoot = () => { throw new Error('screens should wait for DOMContentLoaded'); };
   try {
-    await bundle("import './src/main.jsx';", 'keyboard.mjs');
-    await import(pathToFileURL(join(temp, 'keyboard.mjs')).href);
-    assert.equal(typeof listeners.get('keydown'), 'function');
-    const press = (key: string, extra: any = {}) => listeners.get('keydown')({
-      key, ctrlKey: false, altKey: false, metaKey: false,
-      target: { closest: (selector: string) => { assert.equal(selector, 'input, textarea, select'); return null; } },
-      preventDefault: () => { prevented++; }, ...extra,
-    });
-    g.ui.view = 'inbox';
-    for (const key of ['j', 'j', 'j', 'j', 'k', 'k', 'k', 'k']) press(key);
-    assert.deepEqual(focused, ['first', 'middle', 'last', 'first', 'last', 'middle', 'first', 'last']);
-    assert.equal(prevented, 8);
-    g.document.activeElement = rows[1].second; press('j');
-    assert.equal(g.document.activeElement, rows[2].first);
-    g.document.activeElement = rows[1].second; press('k');
-    assert.equal(g.document.activeElement, rows[0].first);
-    g.document.activeElement = null; press('k');
-    assert.equal(g.document.activeElement, rows[2].first);
-    focused.length = 0; prevented = 0;
-    for (const key of ['j', 'k']) {
-      for (const view of ['home', 'wall', 'addons', 'settings']) { g.ui.view = view; press(key); }
-      g.ui.view = 'inbox';
-      for (const modifier of ['ctrlKey', 'altKey', 'metaKey']) press(key, { [modifier]: true });
-      for (const tag of ['input', 'textarea', 'select']) {
-        const editor = { tagName: tag.toUpperCase() };
-        for (const nested of [false, true]) press(key, { target: {
-          tagName: nested ? 'SPAN' : editor.tagName,
-          closest: (selector: string) => { assert.equal(selector, 'input, textarea, select'); return editor; },
-        } });
-      }
-    }
-    press('x');
-    assert.deepEqual(focused, []); assert.equal(prevented, 0);
-    rows.length = 0; press('j'); press('k');
-    assert.deepEqual(focused, []); assert.equal(prevented, 0);
+    const name = 'keyboard-' + keyboardSequence++ + '.mjs'; await bundle("import './src/main.jsx';", name); await import(pathToFileURL(join(temp, name)).href);
   } finally { delete g.__axCreateRoot; }
+  assert.equal(listeners.length, 2);
+  return { rows, head, card, focused, clicked, get prevented() { return prevented; },
+    clear() { focused.length = 0; clicked.length = 0; prevented = 0; },
+    press(key: string, extra: any = {}) { const e = { key, ctrlKey: false, altKey: false, metaKey: false, target: { closest: () => null }, preventDefault: () => prevented++, ...extra }; for (const listener of listeners) listener(e); },
+  };
+}
+let keyboardSequence = 0;
+
+test('Needs you j and k focus rows, wrap and skip group headers', async () => {
+  const h = await keyboardHarness(); g.ui.view = 'inbox';
+  for (const key of ['j', 'j', 'j', 'j', 'k', 'k', 'k', 'k']) h.press(key);
+  assert.deepEqual(h.focused, ['first', 'middle', 'last', 'first', 'last', 'middle', 'first', 'last']); assert.equal(h.prevented, 8);
+  g.document.activeElement = { owner: h.rows[1] }; h.press('j'); assert.equal(g.document.activeElement, h.rows[2]);
+  g.document.activeElement = { owner: h.rows[1] }; h.press('k'); assert.equal(g.document.activeElement, h.rows[0]);
+  g.document.activeElement = h.head; h.press('j'); assert.equal(g.document.activeElement, h.rows[0]);
+  g.document.activeElement = null; h.press('k'); assert.equal(g.document.activeElement, h.rows[2]);
+});
+
+test('Needs you j and k ignore other views, fields, modified keys and empty lists', async () => {
+  const h = await keyboardHarness();
+  for (const key of ['j', 'k']) {
+    for (const view of ['home', 'wall', 'addons', 'settings']) { g.ui.view = view; h.press(key); }
+    g.ui.view = 'inbox'; for (const modifier of ['ctrlKey', 'altKey', 'metaKey']) h.press(key, { [modifier]: true });
+    for (const tag of ['input', 'textarea', 'select']) for (const nested of [false, true]) h.press(key, { target: { tagName: nested ? 'SPAN' : tag.toUpperCase(), closest: (selector: string) => { assert.equal(selector, 'input, textarea, select'); return { tagName: tag.toUpperCase() }; } } });
+  }
+  h.press('x'); h.rows.length = 0; h.press('j'); h.press('k');
+  assert.deepEqual(h.focused, []); assert.equal(h.prevented, 0);
+});
+
+test('Enter and Space click focused rows and agent cards but ignore group headers and nested controls', async () => {
+  const h = await keyboardHarness();
+  for (const key of ['Enter', ' ']) { h.press(key, { target: h.rows[0] }); h.press(key, { target: h.card }); }
+  assert.deepEqual(h.clicked, ['first', 'agent', 'first', 'agent']); assert.equal(h.prevented, 4); h.clear();
+  for (const key of ['Enter', ' ']) {
+    h.press(key, { target: h.head });
+    for (const tag of ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'SPAN']) h.press(key, { target: { tagName: tag, matches: () => false, click: () => h.clicked.push(tag), closest: () => null } });
+  }
+  h.press('x', { target: h.rows[0] }); assert.deepEqual(h.clicked, []); assert.equal(h.prevented, 0);
+});
+
+test('Settings search, focus, reset and check-command handlers in a real React root', async t => {
+  const output = join(temp, 'settings-root.js');
+  await build({ absWorkingDir: join(wb, 'ui'), tsconfigRaw: {}, stdin: { contents: readFileSync(join(wb, 'test/fixtures/m8-ax-settings-root.jsx'), 'utf8'), resolveDir: join(wb, 'test/fixtures'), loader: 'jsx' }, plugins: [{ name: 'browser-fixture-modules', setup(b: any) {
+    b.onResolve({ filter: /.*/ }, (args: any) => {
+      if (args.path.endsWith('.css')) return { path: args.path, namespace: 'css-stub' };
+      const path = args.path.startsWith('.') ? createRequire(args.namespace === 'fixture' ? args.importer : join(wb, 'test/fixtures/entry.js')).resolve(args.path) : requireUI.resolve(args.path);
+      return { path, namespace: 'fixture' };
+    });
+    b.onLoad({ filter: /.*/, namespace: 'css-stub' }, () => ({ contents: '', loader: 'js' }));
+    b.onLoad({ filter: /.*/, namespace: 'fixture' }, (args: any) => ({ contents: readFileSync(args.path, 'utf8'), loader: args.path.endsWith('.jsx') ? 'jsx' : 'js' }));
+  } }], define: { 'process.env.NODE_ENV': '"development"' }, bundle: true, platform: 'browser', format: 'iife', globalName: 'settingsRootTests', jsx: 'automatic', loader: { '.css': 'empty' }, outfile: output });
+  const page = join(temp, 'settings-root.html');
+  writeFileSync(page, '<!doctype html><html><body><button id="outside">Outside</button><div id="root"></div></body></html>');
+  const entry = join(temp, 'settings-root.cjs');
+  writeFileSync(entry, `
+    const { app, BrowserWindow } = require('electron');
+    const fs = require('node:fs');
+    app.setPath('userData', process.env.METATROOPER_HOME);
+    app.disableHardwareAcceleration();
+    app.whenReady().then(async () => {
+      const win = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+      await win.loadFile(${JSON.stringify(page)});
+      await win.webContents.executeJavaScript(fs.readFileSync(${JSON.stringify(output)}, 'utf8'));
+      const result = await win.webContents.executeJavaScript('settingsRootTests.run(' + ${JSON.stringify(JSON.stringify(data))} + ')');
+      process.stdout.write('AX_RESULTS ' + JSON.stringify(result) + '\\n');
+      win.destroy(); app.exit(0);
+    }).catch(error => { process.stderr.write(String(error.stack)); app.exit(1); });
+  `);
+  const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+  const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
+    const child = spawn(join(wb, 'node_modules/electron/dist', process.platform === 'win32' ? 'electron.exe' : 'electron'), [entry, '--no-sandbox'], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = ''; let stderr = '';
+    const timer = setTimeout(() => { child.kill(); reject(new Error('Electron settings fixture timed out: ' + stderr)); }, 45000);
+    child.stdout.on('data', chunk => stdout += chunk); child.stderr.on('data', chunk => stderr += chunk);
+    child.on('error', error => { clearTimeout(timer); reject(error); });
+    child.on('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+  });
+  assert.equal(result.code, 0, result.stderr + result.stdout);
+  const match = /^AX_RESULTS (.+)$/m.exec(result.stdout); assert.ok(match, result.stdout + result.stderr);
+  const results = JSON.parse(match[1]); assert.equal(results.length, 8);
+  for (const item of results) await t.test(item.name, () => assert.equal(item.error, undefined, item.error));
 });
