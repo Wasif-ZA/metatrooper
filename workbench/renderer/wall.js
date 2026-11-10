@@ -254,7 +254,7 @@ const wall = (() => {
   function setBadge(id, anim) {
     const s = S[id], el = pane(id), b = $('.badge', el);
     el.classList.toggle('working', s.state === 'working');
-    b.className = `tile-state badge ${s.state === 'waiting_for_you' ? 'wait' : s.state === 'working' ? 'work' : s.state === 'done' ? 'unseen' : 'done'}`;
+    b.className = `ou-ah-state tile-state badge ${s.state === 'waiting_for_you' ? 'wait' : s.state === 'working' ? 'work' : s.state === 'done' ? 'unseen' : 'done'}`;
     if (anim) gsap.fromTo(b, { opacity: 0 }, { opacity: 1, duration: 0.3 });
   }
 
