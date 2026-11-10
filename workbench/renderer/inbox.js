@@ -34,7 +34,7 @@ globalThis.inboxView = (() => {
       if (a && (a.dataset.action === 'pick' || a.dataset.action === 'inbox-open')) homeView.set('wall');
     });
     el().addEventListener('keydown', (e) => {
-      if (e.key !== 'j' && e.key !== 'k') return;
+      if ((e.key !== 'j' && e.key !== 'k') || e.ctrlKey || e.altKey || e.metaKey || e.target.closest('input, textarea, select')) return;
       const rows = [...el().querySelectorAll('.irow')];
       const next = rows[rows.indexOf(document.activeElement) + (e.key === 'j' ? 1 : -1)] || rows[e.key === 'j' ? 0 : rows.length - 1];
       if (next) { e.preventDefault(); next.focus(); }

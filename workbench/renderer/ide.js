@@ -79,7 +79,8 @@ globalThis.ideView = (() => {
     if (!st.tabs.includes(rel)) st.tabs.push(rel);
     st.active = rel;
     paint();
-    if (!st.files.has(rel)) { st.files.set(rel, await api.fsRead(ui.projectId, rel)); if (st.active === rel) paint(); }
+    st.files.set(rel, await api.fsRead(ui.projectId, rel));
+    if (st.active === rel) paint();
   }
 
   async function draw() {
@@ -115,15 +116,16 @@ globalThis.ideView = (() => {
         if (t.dataset.mode === 'file') st.diffMode.delete(rel); else st.diffMode.add(rel);
         paint();
         const id = owner(rel);
-        if (t.dataset.mode === 'diff' && id && !st.diffs.has(rel)) { st.diffs.set(rel, (await api.sessionDiffFile(id, rel, 'uncommitted')) || ''); if (st.active === rel) paint(); }
+        if (t.dataset.mode === 'diff' && id) { st.diffs.set(rel, (await api.sessionDiffFile(id, rel, 'uncommitted')) || ''); if (st.active === rel) paint(); }
         else if (t.dataset.mode === 'diff' && !id) { st.diffs.set(rel, ''); paint(); }
       } else if (t.dataset.action === 'pick') homeView.set('wall');
     });
     el().addEventListener('input', async (e) => {
       if (e.target.id !== 'ide-find') return;
       const q = st.q = e.target.value;
-      const hits = q.trim() ? (await api.fsFind(ui.projectId, q)) || [] : [];
-      if (st.q !== q) return;
+      const pid = ui.projectId;
+      const hits = q.trim() ? (await api.fsFind(pid, q)) || [] : [];
+      if (st.q !== q || st.project !== pid || ui.projectId !== pid) return;
       st.hits = hits;
       paint();
     });
@@ -133,7 +135,7 @@ globalThis.ideView = (() => {
       else if (e.key === 'Escape' && st.q) { e.preventDefault(); e.stopPropagation(); st.q = ''; st.hits = []; paint(); }
     });
     document.addEventListener('keydown', (e) => {
-      if (!shown() || !e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'p') return;
+      if (!shown() || overlayOpen() || !e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'p') return;
       e.preventDefault();
       document.getElementById('ide-find')?.focus();
     });

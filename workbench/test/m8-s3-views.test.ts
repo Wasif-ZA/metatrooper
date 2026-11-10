@@ -88,9 +88,10 @@ async function boot(t: any, overrides: Record<string, Function> = {}) {
   for (const id of ['palette', 'inbox', 'sinks', 'menu', 'start', 'settings']) el(id).hidden = true;
   const calls: any[] = [];
   const settings = { sessions: { approval: 'ask', metarouter: false }, terminal: { font_size: 13, scrollback: 10000 }, agent_cursor: { show_caption: true } };
+  let ready = false;
   const api = new Proxy({}, { get(_target, name: string) {
     if (name.startsWith('on')) return () => {};
-    if (name === 'uiSettings') return () => new Promise(() => {});
+    if (name === 'uiSettings' && (!ready || !(name in overrides))) return () => new Promise(() => {});
     return async (...args: any[]) => {
       calls.push([name, ...args]);
       if (name in overrides) return overrides[name](...args);
@@ -113,6 +114,7 @@ async function boot(t: any, overrides: Record<string, Function> = {}) {
   vm.runInContext('globalThis.state = ui;', context);
   for (const fn of domReady) fn();
   await flush();
+  ready = true;
   const w: any = context;
   w.state.snap = snapshot();
   w.state.projectId = 'p1';
@@ -306,7 +308,7 @@ test('Settings switch and approval select write their exact API keys and values'
 });
 
 test('Settings rejects numbers below min, above max and fractional values, accepting both boundaries', async (t) => {
-  const h = await boot(t);
+  const h = await boot(t, { uiSettings: () => ({ theme: {}, ui: { layout: {} } }) });
   await h.w.settingsView.open('look');
   const input = () => control(h, 'settings', 'key', 'terminal.font_size', 'input');
   assert.equal(input().min, '8');

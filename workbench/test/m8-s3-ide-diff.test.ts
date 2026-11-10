@@ -211,7 +211,7 @@ test('IDE numbers context and additions from the new file and deletions from the
   ]);
 });
 
-test('IDE returns to cached file text without a second fsRead or diff request', async (t) => {
+test('IDE returns to file text without another fsRead and refreshes each Changes selection', async (t) => {
   const h = await ide(t);
   await h.fire('ide', 'click', control(h, 'ide', 'mode', 'diff'));
   await h.fire('ide', 'click', control(h, 'ide', 'mode', 'file'));
@@ -225,6 +225,7 @@ test('IDE returns to cached file text without a second fsRead or diff request', 
   assert.equal(rows(h).length, 5);
   assert.deepEqual(h.calls.filter((c) => c[0] === 'fsRead'), [['fsRead', 'p1', 'src/a.js']]);
   assert.deepEqual(h.calls.filter((c) => c[0] === 'sessionDiffFile'), [
+    ['sessionDiffFile', 'changed-session', 'src/a.js', 'uncommitted'],
     ['sessionDiffFile', 'changed-session', 'src/a.js', 'uncommitted'],
   ]);
 });

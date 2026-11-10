@@ -1049,6 +1049,7 @@ function setMode(mode) {
 }
 
 function selectShell(id) {
+  toWall();
   ui.shellSel = id;
   ui.mode = 'single';
   wall.promote(id);
@@ -1062,7 +1063,15 @@ async function openShell(kind) {
   selectShell(r.result.shell_id);
 }
 
+/** Leaves Home, IDE, Needs you or Add-ons for the wall, so a picked terminal is the one on screen. */
+function toWall() {
+  if (ui.view === 'wall') return;
+  ui.view = 'wall';
+  save('view', 'wall');
+}
+
 async function pick(id, focus = true) {
+  toWall();
   ui.shellSel = null;
   ui.localSel = id;
   ui.mode = 'single';

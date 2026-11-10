@@ -33,6 +33,9 @@ globalThis.settingsView = (() => {
       { read: (s) => s.desktop.takeover_key, label: 'Take-over key', hint: 'Stops computer use at once.' },
       { read: (s) => (s.browser.allow_origins.length ? s.browser.allow_origins.join(', ') : 'None'), label: 'Sites agents may open without asking' },
     ] },
+    { id: 'addons', label: 'Add-ons', rows: [
+      { run: () => { close(); homeView.set('addons'); }, button: 'Open', label: 'Agents and plugins', hint: 'Which agents are ready, and what each plugin may do.' },
+    ] },
     { id: 'notify', label: 'Notifications', rows: [
       { run: () => openSinks(), button: 'Manage', label: 'Slack, ntfy and webhooks', hint: 'Where "needs you" and "run failed" get sent.' },
     ] },
@@ -73,6 +76,7 @@ globalThis.settingsView = (() => {
   async function write(key, value) {
     const r = key === 'sessions.approval' ? await api.setApproval(value) : await api.setSetting(key, value);
     if (r && r.error) toast(r.error, true);
+    else if (key.startsWith('terminal.')) { ui.settingsLook = { ...(await api.uiSettings()), firstRun: false }; applyLook(ui.settingsLook); render(); }
     data = await api.settingsPage();
     draw();
   }

@@ -56,6 +56,7 @@ globalThis.homeView = (() => {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    for (const type of ['input', 'change']) el().addEventListener(type, (e) => { const k = e.target.dataset.key; if (k === 'home-task' || k === 'home-engine') ui.drafts[k] = e.target.value; });
     el().addEventListener('click', async (e) => {
       if (!e.target.closest('[data-home-start]')) return;
       const task = el().querySelector('[data-key="home-task"]').value.trim();
