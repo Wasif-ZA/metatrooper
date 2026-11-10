@@ -60,20 +60,24 @@ export function Inbox() {
       {approvals.length ? <><h2>Agent actions waiting for a yes</h2><div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} /></> : null}
       {asks.length || notes.length ? (
         <ul className="ou-list">
+          {asks.length ? <li className="ou-ihead">Needs your answer<i>{asks.length}</i></li> : null}
           {asks.map((x) => (
             <li key={x.id} className="ou-irow ou-unread" data-action="pick" data-id={x.id} onClick={open} tabIndex={0} role="button">
               <Glyph kind="needs" />
+              <span className="ou-iwho">{x.engine_id}</span>
               <span className="ou-ititle">{taskOf(x)}</span>
-              <span className="ou-imeta">{away(x.project_id)}{x.engine_id} is asking{x.last_line ? ` · ${x.last_line}` : ''}</span>
-              <span className="ou-actions"><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} onClick={open} /></span>
+              <span className="ou-imeta">{away(x.project_id)}{x.last_line ? <span className="ou-chip">{x.last_line}</span> : null}</span>
+              <span className="ou-actions"><Button size="sm" label="Answer" data-action="pick" data-id={x.id} onClick={open} /></span>
               <span className="ou-itime">{ago(x.state_at)}</span>
             </li>
           ))}
+          {notes.length ? <li className="ou-ihead">Notices<i>{notes.length}</i></li> : null}
           {notes.map((n) => (
             <li key={n.id} className={n.read_at ? 'ou-irow' : 'ou-irow ou-unread'} data-action="inbox-open" data-id={n.id} onClick={open} tabIndex={0} role="button">
               <Glyph kind={kindOf(n)} />
+              <span className="ou-iwho" />
               <span className="ou-ititle">{n.text}</span>
-              <span className="ou-imeta">{n.kind}</span>
+              <span className="ou-imeta"><span className="ou-chip">{n.kind}</span></span>
               <NoteActions n={n} />
               <span className="ou-itime">{ago(n.at)}</span>
             </li>

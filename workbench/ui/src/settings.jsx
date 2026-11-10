@@ -93,6 +93,17 @@ async function write(key, value) {
   await reload();
 }
 
+const nav = (d) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+const NAV_ICON = {
+  general: 'M2.5 4.5h7M12 4.5h1.5M2.5 8h2M7 8h6.5M2.5 11.5h6M11 11.5h2.5M10.5 3v3M5.5 6.5v3M9.5 10v3',
+  look: 'M8 2.5a5.5 5.5 0 100 11c.9 0 1.3-.6 1.3-1.2 0-.9-.8-1.1-.8-2 0-.7.6-1.3 1.4-1.3H11a2.5 2.5 0 002.5-2.5c0-2.3-2.4-4-5.5-4zM5.2 8h.1M6.5 5.4h.1M9.5 5.2h.1',
+  reliability: 'M8 2l5 1.8v3.7c0 3-2 5.2-5 6.5-3-1.3-5-3.5-5-6.5V3.800zM5.8 8l1.6 1.6 2.9-3',
+  savings: 'M8 2.500v11M10.8 4.800c-.5-.8-1.5-1.3-2.8-1.3-1.7 0-2.9.8-2.9 2.1 0 3 6 1.4 6 4.4 0 1.3-1.3 2.2-3.1 2.2-1.4 0-2.6-.6-3.1-1.5',
+  safety: 'M4.5 7V5.500a3.5 3.5 0 017 0V7M3.5 7h9v6.500h-9zM8 9.800v1.4',
+  addons: 'M6 2.500h4v2.200a1.3 1.3 0 102.6 0h.9v4h-2.200a1.3 1.3 0 100 2.600h2.200v2.200h-4.400v-1a1.3 1.3 0 10-2.6 0v1H2.500V9.500h1a1.3 1.3 0 100-2.600h-1V4.700H6z',
+  notify: 'M8 2.500a4 4 0 00-4 4v2.200L2.8 11h10.400L12 8.700V6.500a4 4 0 00-4-4zM6.6 13a1.5 1.5 0 002.8 0',
+  advanced: 'M3 4.500l3 3-3 3M8 11h5',
+};
 const icon = (d) => <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 const CLOSE = 'M3 3l8 8M11 3l-8 8';
 const UNDO = 'M3.5 5.5h5a2.5 2.5 0 010 5H5M3.5 5.5L5.7 3.3M3.5 5.5l2.2 2.2';
@@ -125,7 +136,7 @@ function Control({ row, data }) {
   }
   const v = valueOf(data, row.key);
   if (row.select) return <Selector label={row.label} isLabelHidden width={220} options={row.select.map(([value, label]) => ({ value, label }))} value={v} onChange={(x) => write(row.key, x)} />;
-  if (typeof v === 'boolean') return <Switch label={row.label} isLabelHidden value={v} onChange={(x) => write(row.key, x)} />;
+  if (typeof v === 'boolean') return <Switch size="sm" label={row.label} isLabelHidden value={v} onChange={(x) => write(row.key, x)} />;
   return <NumberInput label={row.label} isLabelHidden value={v} min={row.min} max={row.max} step={row.step || 1} units={row.unit} isIntegerOnly width={row.unit ? 190 : 110} onChange={(n) => { if (Number.isInteger(n) && n >= row.min && n <= row.max && n !== v) write(row.key, n); }} />;
 }
 
@@ -176,7 +187,7 @@ export function Settings() {
         {NAV.map((g, i) => (
           <div key={i} className="ou-navgroup">
             {g.title ? <span className="ou-navhead">{g.title}</span> : null}
-            {g.ids.map((id) => { const s = SECTIONS.find((x) => x.id === id); return <SideNavItem key={id} label={s.label} isSelected={!q && id === sec.id} onClick={() => { setQuery(''); settingsStore.set({ section: id }); }} />; })}
+            {g.ids.map((id) => { const s = SECTIONS.find((x) => x.id === id); return <SideNavItem key={id} icon={nav(NAV_ICON[id])} label={s.label} isSelected={!q && id === sec.id} onClick={() => { setQuery(''); settingsStore.set({ section: id }); }} />; })}
           </div>
         ))}
       </nav>
@@ -189,7 +200,7 @@ export function Settings() {
           <div className="ou-scol">
             {hits ? (hits.length ? hits.map((g) => <Group key={g.title} group={g} data={data} />) : <Text color="secondary">No setting matches "{query}".</Text>) : (
               <>
-                {sec.note ? <p className="ou-note">{sec.note}</p> : null}
+                <div className="ou-stitle"><h1>{nav(NAV_ICON[sec.id])}{sec.label}</h1>{sec.note ? <p className="ou-note">{sec.note}</p> : null}</div>
                 {sec.groups.map((g, i) => <Group key={g.title || i} group={g} data={data} />)}
               </>
             )}

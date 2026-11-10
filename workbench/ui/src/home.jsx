@@ -50,7 +50,7 @@ function StartBox({ ready }) {
   };
   return (
     <div className="ou-composer" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
-      <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
+      <TextArea label="Task for a new agent" isLabelHidden rows={1} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
       <div className="ou-composerfoot">
         <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
         <span className="ou-composerhint"><Kbd keys="Ctrl+Enter" /></span>
@@ -66,11 +66,11 @@ const tone = (state) => (state === 'waiting_for_you' ? 'ou-dot ou-dot-wait' : st
 function AgentCard({ x }) {
   const files = changedFiles(x.id).length;
   return (
-    <div className={x.state === 'waiting_for_you' ? 'ou-agent ou-agent-wait' : 'ou-agent'} data-action="pick" data-id={x.id} role="button" tabIndex={0}>
+    <div className="ou-agent" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
       <header><span className={tone(x.state)} /><b>{x.engine_id}</b><span className="ou-agentstate">{STATE_WORDS[x.state] || x.state}</span><span className="ou-agenttime">{ago(x.state_at)}</span></header>
       <p>{taskOf(x)}</p>
       <pre>{x.last_line || ' '}</pre>
-      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span>{x.state === 'waiting_for_you' ? <span className="ou-wait">Needs you</span> : null}</footer>
+      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span>{x.state === 'waiting_for_you' ? <Button size="sm" label="Answer" data-action="pick" data-id={x.id} /> : null}</footer>
     </div>
   );
 }
@@ -91,7 +91,7 @@ export function Home() {
   const ready = s.engines.filter((e) => e.light !== 'red');
   const needs = waiting.length + approvals.length + alerts.length;
   const name = project().name;
-  const asks = waiting.length + approvals.length + alerts.length > 0;
+  const asks = approvals.length + alerts.length > 0;
   return (
     <div className="ou-col ou-home">
       <header className="ou-pagehead ou-hero">
@@ -112,16 +112,10 @@ export function Home() {
           <section>
             <h2>Waiting on you</h2>
             <ul className="ou-list">
-              {waiting.map((x) => (
-                <li key={x.id} className="ou-irow ou-unread" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
-                  <span className="ou-dot ou-dot-wait" /><span className="ou-ititle">{taskOf(x)}</span><span className="ou-imeta">{away(x)}{x.engine_id}</span>
-                  <span className="ou-actions"><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} /></span>
-                </li>
-              ))}
               {approvals.length ? (
                 <li className="ou-irow ou-unread" data-action="sheet" role="button" tabIndex={0}>
                   <span className="ou-dot ou-dot-wait" /><span className="ou-ititle">{`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`}</span><span className="ou-imeta">Allow or refuse each one</span>
-                  <span className="ou-actions"><Button size="sm" variant="primary" label="Review" data-action="sheet" /></span>
+                  <span className="ou-actions"><Button size="sm" label="Review" data-action="sheet" /></span>
                 </li>
               ) : null}
               {alerts.map((n) => (
