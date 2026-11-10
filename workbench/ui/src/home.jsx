@@ -156,9 +156,9 @@ export function Home() {
             <h2>Waiting on you</h2>
             <ul className="ou-list">
               {approvals.length ? (
-                <li className="ou-irow ou-unread" data-action="sheet" role="button" tabIndex={0}>
+                <li className="ou-irow ou-unread" data-action="view" data-view="inbox" role="button" tabIndex={0}>
                   <span className="ou-dot ou-dot-wait" /><span className="ou-ititle">{`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`}</span><span className="ou-imeta">Allow or refuse each one</span>
-                  <span className="ou-actions"><Button size="sm" label="Review" data-action="sheet" /></span>
+                  <span className="ou-actions"><Button size="sm" label="Review" data-action="view" data-view="inbox" /></span>
                 </li>
               ) : null}
               {alerts.map((n) => (

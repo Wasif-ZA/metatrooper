@@ -788,7 +788,7 @@ function renderInbox() {
 async function openNeedsYou(id, fallback = true) {
   const n = ui.snap.needs_you.find((y) => y.id === id);
   if (!n) {
-    if (fallback) { document.getElementById('inbox').hidden = false; renderInbox(); }
+    if (fallback) homeView.set('inbox');
     return;
   }
   if ((n.kind === 'done' || n.kind === 'failed') && n.ref) await pick(n.ref);
@@ -1428,12 +1428,9 @@ async function onClick(e) {
       return;
     case 'view': homeView.set(el.dataset.view); break;
     case 'settings': if (!settingsView.close()) void settingsView.open(); break;
-    case 'inbox': {
-      const box = document.getElementById('inbox');
-      box.hidden = !box.hidden;
-      renderInbox();
+    case 'inbox':
+      homeView.set('inbox');
       return;
-    }
     case 'lend-set':
       await rpc('lend.set', { project_id: el.dataset.project, origin: el.dataset.origin, on: true });
       return;
