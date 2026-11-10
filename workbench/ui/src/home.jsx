@@ -98,7 +98,6 @@ function AgentCard({ x }) {
   return (
     <div className="ou-agent" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
       <AgentHead x={x} />
-      <p>{taskOf(x)}</p>
       <pre>{x.last_line || ' '}</pre>
       <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span><Verdict x={x} />{x.state === 'waiting_for_you' ? <Button size="sm" label="Answer" data-action="pick" data-id={x.id} /> : null}</footer>
     </div>

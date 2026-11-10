@@ -118,6 +118,8 @@ function CheckCommand({ row, data }) {
   const id = ui.projectId;
   const saved = (data.reliability.checks || {})[id] || '';
   const [text, setText] = useState(saved);
+  const [seededFor, setSeededFor] = useState(id);
+  if (seededFor !== id) { setSeededFor(id); setText(saved); }
   const save = async () => {
     if (text === saved) return;
     const r = await api.setCheck(id, text);
