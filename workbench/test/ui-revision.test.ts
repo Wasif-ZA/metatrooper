@@ -263,7 +263,9 @@ test('UI-04 home jobs meet click baselines and improve at least three', options,
     w=await windowFor(h); await select(h,w,session_id);
     const counts:{job:string;count:number;baseline:number}[]=[];
     const perform=async(job:string,baseline:number,action:(click:(selector:string)=>Promise<void>)=>Promise<void>,check:()=>Promise<any>)=>{let count=0;const click=async(selector:string)=>{count++;await w!.click(selector)};await action(click);assert.ok(await check(),`${job} completed`);counts.push({job,count,baseline});};
-    await perform('start agent',1,async click=>{await click('[data-action="launch"][data-engine="fake"]')},async()=>!!await until(()=>h.db.prepare('SELECT id FROM session WHERE id != ?').get(session_id),5000));
+    await w.evaluate('homeView.set("home")');await w.wait('!!document.querySelector(\'[data-action="home-start"][data-engine="fake"]\')');
+    await perform('start agent',1,async click=>{await click('[data-action="home-start"][data-engine="fake"]')},async()=>!!await until(()=>h.db.prepare('SELECT id FROM session WHERE id != ?').get(session_id),5000));
+    await select(h,w,session_id);
     await perform('see diff',2,async()=>{await w!.wait('document.querySelector("#view")?.innerText.includes("seed.txt")')},async()=>await w!.evaluate('document.querySelector("#view")?.innerText.includes("seed.txt")'));
     await perform('hand back',2,async click=>{await click('[data-action="tab"][data-tab="handback"]');await w!.wait('document.querySelector("[data-action=handback-copy]")')},async()=>await w!.evaluate('document.querySelector("[data-action=handback-copy]") !== null'));
     await perform('open browser',2,async click=>{await click('[data-action="tab"][data-tab="browser"]');await w!.wait('document.querySelector(".browser")')},async()=>await w!.evaluate(`ui.snap.panes.some(p=>p.id===${JSON.stringify(pane)}) && document.querySelector(".browser")`));
