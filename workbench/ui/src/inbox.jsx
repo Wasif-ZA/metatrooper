@@ -292,9 +292,7 @@ export function Inbox() {
               );
             })}
           </ul>
-        ) : approvals.length ? null : (
-          <EmptyState title="Nothing here." description="Agents that ask, finish or fail show up in this list." isCompact />
-        )}
+        ) : null}
         <footer className="ou-keys ou-inbox-footer">
           <Kbd keys="J" /><Kbd keys="K" /> move <Kbd keys="Enter" /> open
         </footer>

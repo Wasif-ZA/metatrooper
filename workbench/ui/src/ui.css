@@ -88,6 +88,7 @@ html { font-size: 16px; }
 .ou-inbox { display: grid; grid-template-columns: 480px 1fr; height: 100%; max-width: none !important; margin: 0; padding: 0 !important; overflow: hidden; box-sizing: border-box; }
 .ou-inbox-list { display: flex; flex-direction: column; width: 480px; height: 100%; min-height: 0; box-sizing: border-box; border-right: 1px solid var(--hairline); overflow-y: auto; gap: 16px; }
 .ou-inbox-head, .ou-inbox-detail-head { height: 40px; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--hairline); font-size: 13px; font-weight: 600; color: var(--ink); flex: none; box-sizing: border-box; }
+.ou-inbox-head h1, .ou-inbox-head .ou-pagehead { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
 .ou-ifilters { display: flex; align-items: center; height: 36px; min-height: 36px; gap: 8px; flex: none; }
 .ou-ifilters-chip { height: 24px; border: 1px solid var(--hairline); border-radius: 4px; font-size: 12px; padding: 0 8px; background: transparent; color: var(--mute); display: inline-flex; align-items: center; cursor: pointer; line-height: 1; box-sizing: border-box; }
 .ou-ifilters-chip:hover { color: var(--ink); }
