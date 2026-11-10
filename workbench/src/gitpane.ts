@@ -35,7 +35,7 @@ export const GIT_SAFE_ENV = { GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_COUNT: '1', GI
 /** git in `cwd` with the repo's code-running settings off; `input` goes to stdin, which is always closed. */
 export function runIn(cwd: string): Run {
   return async (args, input?: string) => {
-    const p = exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } });
+    const p = exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } });
     p.child.stdin?.on('error', () => {});
     p.child.stdin?.end(input ?? '', 'utf8');
     return (await p).stdout;
@@ -114,6 +114,8 @@ export function namedPaths(rels: unknown): string[] | null {
 export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> {
   const path = typeof arg === 'string' ? arg : '';
   const named = (verb: string[]) => { const list = namedPaths(arg); if (!list) throw new Error('name the files'); return git(['--literal-pathspecs', ...verb, '--', ...list]); };
+  // A repo with no commit has no HEAD for restore to read; take the files out of the index instead.
+  const unstageVerb = async () => (await git(['rev-parse', '--verify', '-q', 'HEAD']).then(() => true, () => false)) ? ['restore', '--staged'] : ['rm', '--cached', '-r', '-q', '--ignore-unmatch'];
   switch (op) {
     case 'stage-paths': {
       const list = namedPaths(arg);
@@ -121,7 +123,7 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> 
       await git(['--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul'], list.join('\0'));
       return;
     }
-    case 'unstage-paths': await named(['restore', '--staged']); return;
+    case 'unstage-paths': if (!namedPaths(arg)) throw new Error('name the files'); await named(await unstageVerb()); return;
     case 'stage': await git(['add', '--', path || '.']); return;
     case 'stage-group': {
       const list = Array.isArray(arg) ? arg : [];
@@ -129,7 +131,7 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> 
       await git(['add', '--', ...list]);
       return;
     }
-    case 'unstage': await git(['restore', '--staged', '--', path || '.']); return;
+    case 'unstage': await git([...await unstageVerb(), '--', path || '.']); return;
     case 'commit':
       if (!path.trim() || path.includes('\0') || path.length > 64 * 1024) throw new Error('write a commit message first');
       if (!(await git(['diff', '--cached', '--name-only'])).trim()) throw new Error('nothing staged; press + on a file first');
