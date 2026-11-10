@@ -1,6 +1,6 @@
 import { mock } from 'node:test';
 
-const ses = { webRequest: { onBeforeRequest() {} }, on() {}, setPermissionCheckHandler() {}, setPermissionRequestHandler() {}, clearStorageData: async () => {} };
+const ses = { getUserAgent: () => 'Mozilla/5.0', setUserAgent() {}, webRequest: { onBeforeRequest() {} }, on() {}, setPermissionCheckHandler() {}, setPermissionRequestHandler() {}, clearStorageData: async () => {} };
 let made = 0;
 class WebContentsView {
   webContents = {

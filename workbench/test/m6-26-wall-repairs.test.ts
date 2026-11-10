@@ -71,10 +71,16 @@ function boot() {
   }, { get: (t: any, k: string) => (k in t ? t[k] : () => {}) });
   let shown: any[] = [];
   const termView: any = new Proxy({ show: (next: any) => { shown = next.sessions; }, state: () => null }, { get: (t: any, k: string) => (k in t ? t[k] : () => {}) });
+  let settingsOpen = false;
+  const settingsView = {
+    open: () => { calls.push({ method: 'settings.open', params: [], at: now }); settingsOpen = true; },
+    close: () => { calls.push({ method: 'settings.close', params: [], at: now }); const wasOpen = settingsOpen; settingsOpen = false; return wasOpen; },
+    isOpen: () => settingsOpen,
+  };
   class FakeDate extends Date { static now() { return now; } }
   const ctx = vm.createContext({
     window: { troop: api, addEventListener() {} }, document: doc, location: { search: '' }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    URLSearchParams, URL, wall, termView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }), Date: FakeDate, console,
+    URLSearchParams, URL, wall, termView, settingsView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }), Date: FakeDate, console,
     MutationObserver: class { observe() {} },
     setTimeout: (f: () => void, ms = 0) => { const id = ++seq; timers.push({ id, at: now + ms, f }); return id; },
     clearTimeout: (id: number) => { timers = timers.filter((t) => t.id !== id); },
@@ -88,7 +94,7 @@ function boot() {
     for (const capture of [true, false]) for (const l of docListeners) if (l.type === type && l.capture === capture && !stopped) l.f(ev);
   };
   return {
-    t, calls, handlers, replies, rolls, wallState, el: (id: string) => d.getElementById(id), shown: () => shown,
+    t, calls, handlers, replies, rolls, wallState, settingsView, el: (id: string) => d.getElementById(id), shown: () => shown,
     now: () => now,
     advance: async (ms: number) => {
       const until = now + ms;
@@ -449,6 +455,15 @@ const DRIVERS: Record<string, () => Promise<void>> = {
   'Ctrl+K': async () => { const w = boot(); await w.snap(snapOf([])); await w.key('k', { ctrlKey: true }); assert.equal(w.el('palette').hidden, false); },
   'Ctrl+G': async () => { const w = boot(); await w.snap(snapOf([])); const before = w.t.ui.mode; await w.key('g', { ctrlKey: true }); assert.notEqual(w.t.ui.mode, before); },
   'Ctrl+B': async () => { const w = boot(); await w.snap(snapOf([])); await w.key('b', { ctrlKey: true }); assert.equal(w.wallState.list, true); },
+  'Ctrl+,': async () => {
+    const w = boot();
+    await w.snap(snapOf([]));
+    await w.key(',', { ctrlKey: true });
+    assert.equal(w.settingsView.isOpen(), true);
+    await w.key(',', { ctrlKey: true });
+    assert.equal(w.settingsView.isOpen(), false);
+    assert.deepEqual(w.calls.filter((c) => c.method.startsWith('settings.')).map((c) => c.method), ['settings.close', 'settings.open', 'settings.close']);
+  },
   'Alt+J': async () => {
     const w = boot();
     const t = (s: number) => new Date(Date.UTC(2026, 9, 14, 10, 0, s)).toISOString();
@@ -553,7 +568,7 @@ test('M6-26h static: every key a handler checks with a modifier has a KEYS row',
   // fails_when=app.js or terminal.js checks a key under ctrlKey, altKey or mod that no KEYS row names
   // no_claim=keys with no modifier, such as Space to swap in Compare
   const w = boot();
-  const tokens = new Set((w.t.KEYS as Array<{ keys: string }>).flatMap((k) => k.keys.toLowerCase().split(/[ ,+]+/)));
+  const tokens = new Set((w.t.KEYS as Array<{ keys: string }>).flatMap((k) => k.keys.toLowerCase().split(/,\s+/).flatMap((chord) => chord.split(/[ +]+/))));
   const missing = (source: string) => modifierKeys(source).filter((k) => !tokens.has(k));
   assert.deepEqual(missing(src('app.js')), []);
   assert.deepEqual(missing(src('terminal.js')), []);
@@ -567,8 +582,8 @@ test('M6-26h sweep: every Ctrl or Alt combination a handler consumes on the wall
   const w = boot();
   await w.snap(snapOf([]));
   const norm: Record<string, string> = { left: 'arrowleft', right: 'arrowright', up: 'arrowup', down: 'arrowdown', '+': '=' };
-  const listed = new Set(Array.from(w.t.KEYS as Array<{ keys: string }>).flatMap((k) => k.keys.split(',').map((c) => c.trim().split(' ')[0].toLowerCase().split('+').map((p, i, a) => (i === a.length - 1 && p === '' ? '+' : norm[p] ?? p)).filter(Boolean).join('+'))));
-  const names = [...'abcdefghijklmnopqrstuvwxyz0123456789', '=', '+', '-', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`)];
+  const listed = new Set(Array.from(w.t.KEYS as Array<{ keys: string }>).flatMap((k) => k.keys.split(/,\s+/).map((c) => c.trim().split(' ')[0].toLowerCase().split('+').map((p, i, a) => (i === a.length - 1 && p === '' ? '+' : norm[p] ?? p)).filter(Boolean).join('+'))));
+  const names = [...'abcdefghijklmnopqrstuvwxyz0123456789', ',', '=', '+', '-', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`)];
   const consumed: string[] = [];
   for (const mod of ['ctrl', 'alt']) {
     for (const key of names) {
@@ -590,7 +605,7 @@ test('M6-26h sweep: every Ctrl or Alt combination a handler consumes on the wall
   }
   const bareFn = (c: string) => { const k = c.split('+').pop()!; return /^f\d+$/.test(k) && listed.has(k); };
   assert.deepEqual([...new Set(consumed)].filter((c) => !listed.has(c) && !bareFn(c)), []);
-  assert.ok(consumed.includes('ctrl+k') && consumed.includes('alt+j') && consumed.includes('ctrl+v'), 'the sweep sees real handlers');
+  assert.ok(consumed.includes('ctrl+,') && consumed.includes('ctrl+k') && consumed.includes('alt+j') && consumed.includes('ctrl+v'), 'the sweep sees real handlers');
 });
 
 test('M6-26k icon and symbol buttons carry an aria-label, the popovers are dialogs, and Esc closes them from their inputs', async () => {

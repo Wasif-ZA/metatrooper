@@ -8,6 +8,7 @@ import { homeDir } from '../../../core/src/paths.ts';
 import { checkUrl, connectedVerdict, type PolicyContext } from '../../../core/src/browser/policy.ts';
 import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, newRefs, numberBoxes, render, resolveRef, type AXNode, type Frame, type Refs, type Target } from '../../../core/src/browser/snapshot.ts';
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
+import { challengeOf, plainUserAgent } from './challenge.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
 
 /** Typed text goes in pieces of this many characters, with the pause checked before each, as on the desktop. */
@@ -196,6 +197,8 @@ interface Pane {
   handedBack: boolean;
   /** Give back was pressed while the main frame was loading; the page it commits counts as handed back. */
   handBackNext: boolean;
+  /** Response status and headers of recent documents, by URL. */
+  docs: Map<string, { status: number; headers: Record<string, string> }>;
 }
 
 interface Dialog {
@@ -334,6 +337,7 @@ export class PaneManager {
     const ses = electronSession.fromPartition(partition);
     if (this.guarded.has(partition)) return ses;
     this.guarded.add(partition);
+    ses.setUserAgent(plainUserAgent(ses.getUserAgent()));
     ses.webRequest.onBeforeRequest((details, cb) => {
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
@@ -386,7 +390,7 @@ export class PaneManager {
     const overlay = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, preload: path.join(here, 'overlay-preload.cjs') } });
     overlay.setBackgroundColor('#00000000');
     void overlay.webContents.loadFile(OVERLAY);
-    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false };
+    const pane: Pane = { row, view, overlay, dbg: view.webContents.debugger, refs: newRefs(), lastSnapshot: new Map(), cursors: new Map(), cursorN: 0, navs: 0, crashed: null, console: [], network: new Map(), worlds: new Map(), status: null, picking: null, parked: false, reconnected: false, detachedAt: 0, typed: new Set(row.session_id ? [] : [row.url].flatMap(loopbackPort)), ready: Promise.resolve(), dialog: null, onDialog: null, errorFor: null, clickedAt: 0, popups: new Set(), pickStack: [], handoff: null, secretOnPage: false, scripted: false, handedBack: false, handBackNext: false, docs: new Map() };
     this.panes.set(row.id, pane);
     this.win.contentView.addChildView(view);
     this.wireContents(pane);
@@ -483,6 +487,7 @@ export class PaneManager {
       }
       pane.status = code;
       pane.errorFor = null;
+      this.humanCheck(pane, { url, status: code, headers: pane.docs.get(url)?.headers ?? {}, main: true });
       if (url !== 'about:blank') this.hooks.urlChanged(pane.row.id, url);
     });
     wc.on('did-navigate-in-page', (_e, url) => this.hooks.urlChanged(pane.row.id, url));
@@ -634,6 +639,17 @@ export class PaneManager {
     this.emitState(pane);
   }
 
+  /** Hands an agent's pane to the user when the loaded document is a human check. */
+  private humanCheck(pane: Pane, doc: Parameters<typeof challengeOf>[0]): void {
+    if (!pane.row.session_id || pane.handoff !== null) return;
+    const vendor = challengeOf(doc);
+    if (!vendor) return;
+    pane.handoff = `the site is checking for a human (${vendor}); solve it in the pane, then give it back`;
+    this.log(pane, 'blocked', pane.handoff);
+    this.emitState(pane);
+    this.hooks.paneEvent({ kind: 'handoff', pane_id: pane.row.id, reason: pane.handoff });
+  }
+
   private async onDebuggerEvent(pane: Pane, method: string, params: Record<string, any>): Promise<void> {
     if (method === 'Fetch.requestPaused') {
       const verdict = await Promise.resolve().then(() => checkUrl(params.request.url, this.paneCtx(pane))).catch((e: Error) => ({ allow: false as const, reason: `the check failed: ${e.message}` }));
@@ -647,6 +663,7 @@ export class PaneManager {
     }
     if (method === 'Page.frameNavigated' && params.frame?.parentId) {
       dropFrame(pane.refs, params.frame.id);
+      this.humanCheck(pane, { url: String(params.frame.url ?? '') + String(params.frame.urlFragment ?? ''), status: null, headers: {}, main: false });
       return;
     }
     if (method === 'Page.frameDetached') {
@@ -693,6 +710,10 @@ export class PaneManager {
       return;
     }
     if (method === 'Network.responseReceived') {
+      if (params.type === 'Document') {
+        pane.docs.set(params.response.url, { status: params.response.status, headers: params.response.headers ?? {} });
+        if (pane.docs.size > 16) pane.docs.delete(pane.docs.keys().next().value as string);
+      }
       const r = pane.network.get(params.requestId);
       if (r) r.status = params.response.status;
       const ip = params.response.remoteIPAddress;
@@ -777,7 +798,7 @@ export class PaneManager {
   }
 
   /** A pane not on screen stays attached as a 1 px view in the window corner with an emulated viewport, so it still lays out, takes input and renders captures. */
-  private layout(): void {
+  layout(): void {
     const win = this.win.getContentBounds();
     const onScreen = (id: string) => id === this.shown && this.bounds !== null && this.bounds.width > 0;
     for (const [id, pane] of this.panes) {

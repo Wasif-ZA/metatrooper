@@ -1,7 +1,7 @@
 import { mock } from 'node:test';
 
 let beforeRequest: (details: { url: string; webContents?: unknown }, cb: (r: { cancel?: boolean }) => void) => void = () => {};
-const ses = { webRequest: { onBeforeRequest(h: typeof beforeRequest) { beforeRequest = h; } }, on() {}, setPermissionCheckHandler() {}, setPermissionRequestHandler() {} };
+const ses = { getUserAgent: () => 'Mozilla/5.0', setUserAgent() {}, webRequest: { onBeforeRequest(h: typeof beforeRequest) { beforeRequest = h; } }, on() {}, setPermissionCheckHandler() {}, setPermissionRequestHandler() {} };
 mock.module('electron', { exports: { app: {}, clipboard: {}, Menu: {}, nativeImage: {}, session: { fromPartition: () => ses }, WebContentsView: class {} } });
 const { PaneManager } = await import('../../src/browser/panes.ts');
 

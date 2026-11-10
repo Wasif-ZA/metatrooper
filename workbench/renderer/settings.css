@@ -1,0 +1,31 @@
+.settings { position: absolute; inset: 40px 0 0 0; z-index: 40; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+.settings:focus { outline: none; }
+.snav { display: flex; flex-direction: column; gap: 2px; padding: 20px 8px; border-right: 1px solid var(--hairline); }
+.snav h2 { margin: 0 0 12px; padding: 0 8px; font-weight: 500; font-size: 12px; line-height: 1; color: var(--mute); }
+.snav button { height: 32px; padding: 0 8px; border-radius: 6px; text-align: left; color: var(--body); }
+.snav button:hover { background: var(--canvas); }
+.snav button[aria-current] { background: var(--canvas-soft); color: var(--ink); }
+.sbody { overflow: auto; padding: 20px 32px 48px; }
+.scol { max-width: 800px; margin: 0 auto; }
+.scol header { display: flex; align-items: center; justify-content: space-between; height: 32px; margin-bottom: 8px; }
+.scol h1 { margin: 0; font-weight: 600; font-size: 20px; line-height: 1.25; letter-spacing: -.01em; color: var(--ink); }
+.snote { margin: 0 0 12px; max-width: 56ch; color: var(--mute); line-height: 1.5; }
+.srows { border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); }
+.srw { display: flex; align-items: center; gap: 24px; min-height: 56px; padding: 10px 16px; }
+.srw + .srw { border-top: 1px solid var(--hairline); }
+.srw .st { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.srw .st b { font-weight: 500; color: var(--ink); }
+.srw .st span { font-size: 12.5px; line-height: 1.45; color: var(--mute); }
+.srw.soon .st b { color: var(--body); }
+.stag { flex: none; padding: 1px 9px; border-radius: 999px; font-weight: 500; font-size: 12px; line-height: 18px; background: var(--canvas-soft); color: var(--mute); }
+.sval { flex: none; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--body); }
+.settings select, .settings input[type="number"] { height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--hairline-strong); background: var(--canvas-deep); color: var(--ink); font: inherit; }
+.settings input[type="number"] { width: 96px; }
+.snum { display: inline-flex; align-items: center; gap: 8px; color: var(--mute); }
+.settings .btn { height: 32px; border-radius: 6px; font-weight: 500; font-size: 13px; }
+.sw { flex: none; width: 36px; height: 20px; padding: 2px; border-radius: 999px; background: var(--hairline-strong); transition: background .12s; }
+.sw i { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--canvas-deep); transition: transform .12s; }
+.sw[aria-checked="true"] { background: var(--ink); }
+.sw[aria-checked="true"] i { transform: translateX(16px); }
+.settings :is(button, select, input):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .sw, .sw i { transition: none; } }

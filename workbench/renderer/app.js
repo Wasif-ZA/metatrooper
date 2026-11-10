@@ -14,6 +14,7 @@ const ui = {
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
   split: load('split') === '1',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
+  view: ['home', 'ide', 'inbox'].includes(load('view')) ? load('view') : 'wall',
   localSel: null,
   shells: [],
   shellKinds: [],
@@ -278,7 +279,7 @@ function renderCompare(pane) {
     </div>`).join('')}`;
 }
 
-const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
+const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
 function reportPaneBounds() {
   const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && (ui.picking || !document.querySelector(PANE_OVERLAYS)) ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
@@ -840,6 +841,7 @@ const KEYS = [
   { keys: 'Ctrl+K', does: 'Open or close the palette and search', where: 'anywhere' },
   { keys: 'Ctrl+G', does: 'Grid on or off', where: 'anywhere' },
   { keys: 'Ctrl+B', does: 'Agent list on or off', where: 'anywhere' },
+  { keys: 'Ctrl+,', does: 'Settings', where: 'anywhere' },
   { keys: 'Alt+J', does: 'Jump to the agent that has waited longest', where: 'anywhere' },
   { keys: 'Ctrl+Alt+W', does: 'Open or close the watch layout', where: 'anywhere' },
   { keys: 'Esc', does: 'Close the open panel or popover', where: 'anywhere' },
@@ -886,6 +888,7 @@ function paletteItems() {
   items.push({ group: 'Core', confirm: 'restart', name: 'Restart core (loads new core code; open agents stop)', label: armed === 'restart' ? 'Press Enter again to restart; open agents stop' : 'Restart core (loads new core code; open agents stop)', run: async () => { toast('Restarting core'); await api.restartCore(); toast('Core restarted'); } });
   items.push({ group: 'Core', confirm: 'stop', name: 'Stop core (stops every agent)', label: armed === 'stop' ? 'Press Enter again to stop every agent' : 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
+  items.push({ group: 'Actions', label: 'Settings', meta: 'Ctrl+,', run: () => settingsView.open() });
   items.push({ group: 'Core', label: 'Notification sinks (Slack, ntfy, webhooks)', run: openSinks });
   return items;
 }
@@ -990,6 +993,7 @@ function closePopovers() {
     if (!el.hidden) { el.hidden = true; closed = true; }
   }
   if (!document.getElementById('menu').hidden) { hideMenu(); closed = true; }
+  if (!closed && globalThis.settingsView?.close()) closed = true;
   const usage = document.getElementById('usage');
   if (usage.classList.contains('open')) { usage.classList.remove('open'); closed = true; }
   return closed;
@@ -1011,7 +1015,7 @@ function hideMenu() {
 
 /** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
 function overlayOpen() {
-  return ['palette', 'inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || document.getElementById('usage').classList.contains('open')
+  return ['palette', 'inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || Boolean(globalThis.settingsView?.isOpen()) || document.getElementById('usage').classList.contains('open')
     || wall.sheetOpen() || wall.listOpen();
 }
 
@@ -1202,14 +1206,16 @@ function render(focus = false) {
   renderSheet();
   renderTabs();
   let html;
-  if (ui.tab === 'kit') html = kitTab(); // spike m8-0
-  else if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
+  if (!project()) html = '<p class="empty">Open a project folder to begin.</p>';
   else if (ui.tab === 'browser') html = renderBrowser();
   else if (ui.tab === 'handback') html = renderHandback();
   else if (ui.tab === 'git') html = renderGit();
   else html = renderDiffTab(sel);
   setHtml('view', html);
   if (ui.tab === 'browser') browserChrome.after(document.getElementById('view'));
+  globalThis.homeView?.draw();
+  globalThis.inboxView?.draw();
+  void globalThis.ideView?.draw();
   reportPaneBounds();
   renderStrip(sel);
   renderInbox();
@@ -1397,6 +1403,8 @@ async function onClick(e) {
     case 'palette':
       openPalette();
       return;
+    case 'view': homeView.set(el.dataset.view); break;
+    case 'settings': if (!settingsView.close()) void settingsView.open(); break;
     case 'inbox': {
       const box = document.getElementById('inbox');
       box.hidden = !box.hidden;
@@ -1885,6 +1893,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); wall.setList(!wall.listOpen()); return; }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === ',') { e.preventDefault(); if (!settingsView.close()) void settingsView.open(); return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't' && ui.tab === 'browser' && project()) {
     e.preventDefault();
     void rpc('pane.open', { project_id: ui.projectId }).then((r) => { if (r.result) ui.paneId = r.result.pane_id; });

@@ -71,3 +71,56 @@ body.doc-hidden .runb .step.run .num { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
   .bstrip .ind.move, .runb.wipe, .runb .step.tick .num, .runb .step.run .num, .runb .thumb.dev { animation: none; }
 }
+
+/* Plain look: Browser tab matches the Home and Settings screens. */
+:root:not([data-look="dither"]) .browser { font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+:root:not([data-look="dither"]) .browser :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:root:not([data-look="dither"]) .bstrip .bt { font-size: 12.5px; }
+:root:not([data-look="dither"]) .bstrip .tag { font-size: 11px; }
+:root:not([data-look="dither"]) .bstrip .x { border-radius: 6px; }
+:root:not([data-look="dither"]) .baddr { height: 38px; box-sizing: border-box; padding: 0 8px; gap: 4px; }
+:root:not([data-look="dither"]) .baddr .ib { width: 28px; min-width: 28px; height: 28px; font-size: 14px; line-height: 1; border-radius: 6px; color: var(--body-strong); }
+:root:not([data-look="dither"]) .baddr .ib:disabled { color: var(--faint); opacity: .5; cursor: default; }
+:root:not([data-look="dither"]) .baddr .tb { height: 28px; padding: 0 10px; margin-left: 4px; border-radius: 6px; font-size: 12.5px; font-weight: 500; }
+:root:not([data-look="dither"]) .burl { height: 28px; margin: 0 4px; padding: 0 10px; border-radius: 6px; border-color: var(--hairline); background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13px; }
+:root:not([data-look="dither"]) .burl:focus-within { border-color: var(--ink); }
+:root:not([data-look="dither"]) .burl .zoom { border-radius: 6px; font-size: 11px; }
+:root:not([data-look="dither"]) .loadbar { margin: -2px 0 0; height: 2px; }
+:root:not([data-look="dither"]) .loadbar.on { background: var(--ink); opacity: .35; animation: none; }
+
+:root:not([data-look="dither"]) .brun { height: 44px; padding: 4px 8px 0; }
+:root:not([data-look="dither"]) .runb { height: 36px; border-radius: 6px; border-color: var(--hairline); font-size: 12px; }
+
+:root:not([data-look="dither"]) .browser > .toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; min-height: 36px; margin: 8px 8px 0; padding: 0 8px 0 12px; box-sizing: border-box; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas); font-size: 13px; }
+:root:not([data-look="dither"]) .browser > .toolbar > span:not(.label) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--body-strong); }
+:root:not([data-look="dither"]) .browser > .toolbar b { font-weight: 500; color: var(--ink); }
+:root:not([data-look="dither"]) .browser > .toolbar button { flex: none; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--canvas); color: var(--body-strong); font: 500 12.5px 'Geist', 'Segoe UI', sans-serif; }
+:root:not([data-look="dither"]) .browser > .toolbar button:hover:not(:disabled) { background: var(--canvas-soft); border-color: var(--hairline-strong); }
+:root:not([data-look="dither"]) .browser > .toolbar button:disabled { color: var(--faint); opacity: .5; }
+:root:not([data-look="dither"]) .browser > .toolbar button.primary { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
+:root:not([data-look="dither"]) .browser > .permbar { border-color: var(--wait); }
+:root:not([data-look="dither"]) .browser > .findbar { min-height: 38px; margin: 0; padding: 0 8px; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; background: var(--canvas); }
+:root:not([data-look="dither"]) .findbar input { flex: 1; width: auto; min-width: 0; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--ink); font: inherit; font-size: 13px; }
+:root:not([data-look="dither"]) .findbar input:focus { border-color: var(--ink); outline: 0; }
+:root:not([data-look="dither"]) .findbar .label { flex: none; min-width: 56px; text-align: right; font-size: 12px; color: var(--mute); font-variant-numeric: tabular-nums; }
+
+:root:not([data-look="dither"]) .browser > .empty { display: grid; place-items: center; align-content: center; gap: 12px; flex: 1; min-height: 160px; margin: 8px; text-align: center; font-style: normal; font-size: 13.5px; color: var(--mute); }
+:root:not([data-look="dither"]) .browser .btn { height: 32px; padding: 0 12px; border-radius: 6px; font-weight: 500; font-size: 13px; }
+
+:root:not([data-look="dither"]) .browser :is(.panel, .compare figure) { border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); }
+:root:not([data-look="dither"]) .browser .panel { padding: 16px; }
+:root:not([data-look="dither"]) .browser .meta, :root:not([data-look="dither"]) .compare figcaption { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .browser h3 { margin: 16px 0 8px; font-weight: 500; font-size: 12px; line-height: 1; color: var(--mute); }
+:root:not([data-look="dither"]) .comment-form h3 { margin: 0 0 12px; font-size: 13.5px; color: var(--ink); }
+:root:not([data-look="dither"]) .comment-form .crop { border-radius: 6px; border-color: var(--hairline); }
+:root:not([data-look="dither"]) .comment-form .form { grid-template-columns: 56px minmax(0, 1fr); gap: 8px 12px; }
+:root:not([data-look="dither"]) .comment-form .form label { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .comment-form :is(select, textarea) { height: auto; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--hairline-strong); background: var(--canvas-deep); color: var(--ink); font: inherit; font-size: 13px; }
+:root:not([data-look="dither"]) .comment-form select { height: 32px; padding: 0 8px; }
+:root:not([data-look="dither"]) .comment-form .toolbar { margin: 4px 0 0; }
+:root:not([data-look="dither"]) .comment-form .toolbar button { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--canvas); color: var(--body-strong); font: 500 13px 'Geist', 'Segoe UI', sans-serif; }
+:root:not([data-look="dither"]) .comment-form .toolbar button.primary { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
+:root:not([data-look="dither"]) .timeline table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+:root:not([data-look="dither"]) .timeline th { padding: 0 8px 8px; text-align: left; font-weight: 500; font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .timeline td { height: 36px; padding: 0 8px; border-top: 1px solid var(--hairline); color: var(--body-strong); }
+:root:not([data-look="dither"]) .timeline td.meta { font-variant-numeric: tabular-nums; }

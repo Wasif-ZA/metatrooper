@@ -31,7 +31,7 @@ test('the task line falls back like the tile: path-like title, then step, then f
 
 test('a row with no session keeps the plain title and is never suppressed', () => {
   const other = { ...done, kind: 'other', ref: 'sink1', text: 'notify failed' };
-  assert.deepEqual(toastFor(other, null, { window: true, session: 'sink1' }), { title: 'MetaTrooper needs you', body: 'notify failed' });
+  assert.deepEqual(toastFor(other, null, { window: true, session: 'sink1' }), { title: 'Ouros needs you', body: 'notify failed' });
 });
 
 

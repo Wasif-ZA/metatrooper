@@ -1,3 +1,4 @@
+import { listDir, readText } from './files.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -270,6 +271,9 @@ function appendLine(envName: string, value: unknown): void {
   } catch {}
 }
 
+/** The settings the Settings page may write. */
+const PAGE_KEYS = new Set(['sessions.approval', 'sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback']);
+
 /** Asks the core, the only writer of settings.json, to set one key; returns the core's error message, if any. */
 async function writeSetting(key: string, value: unknown): Promise<string | null> {
   const out = await call('settings.set', { key, value }, { ui: true });
@@ -510,6 +514,21 @@ function handlers(): void {
     const error = await writeSetting('sessions.approval', value);
     return error ? { error } : { ok: true };
   });
+  const projectRoot = (projectId: unknown) => {
+    const d = db();
+    return d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined)?.path ?? null : null;
+  };
+  on('fsList', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? listDir(root, rel) : null; });
+  on('fsRead', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? readText(root, rel) : { error: 'pick a project first' }; });
+  on('settingsPage', () => {
+    const s = settings();
+    return { sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme } };
+  });
+  on('setSetting', async (key: unknown, value: unknown) => {
+    if (typeof key !== 'string' || !PAGE_KEYS.has(key)) return { error: 'not a Settings page key' };
+    const error = await writeSetting(key, value);
+    return error ? { error } : { ok: true };
+  });
   let layoutWrites = Promise.resolve<unknown>(null);
   on('saveLayout', (projectId: unknown, layout: unknown) => {
     if (typeof projectId !== 'string' || !layout || typeof layout !== 'object' || Array.isArray(layout) || JSON.stringify(layout).length > 64 * 1024) return { error: 'bad layout' };
@@ -641,6 +660,7 @@ function createWindow(): void {
     closeDesktopOverlay();
     win = null;
   });
+  win.on('resize', () => panes?.layout());
   panes = new PaneManager(win, {
     db,
     probe: (entry) => appendLine('METATROOPER_WORKBENCH_PROBE', { at: Date.now(), state: entry }),

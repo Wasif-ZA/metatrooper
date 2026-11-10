@@ -57,6 +57,7 @@ const fakePane = (id: string) => {
   const pane = {
     row: { id, project_id: 'proj' }, view: { webContents: wc }, overlay: { webContents: { isDestroyed: () => true, send() {}, executeJavaScript: async () => null } },
     dbg: { sendCommand, detach() {} }, refs: { byRef: new Map(), byKey: new Map() }, lastSnapshot: new Map(), cursors: new Map(), worlds: new Map(), reconnected: false, detachedAt: 0, navs: 0, crashed: null as string | null, console: [] as Array<{ text: string }>,
+    docs: new Map(), handoff: null,
     picking: null, dialog: null, errorFor: null as string | null, clickedAt: 0, popups: new Set(), pickStack: [] as number[], ready: Promise.resolve(),
   };
   internal.panes.set(id, pane);
@@ -124,7 +125,7 @@ r.forwardToErrorPageKeepsUrl = backCleared && pane.errorFor === 'https://nowhere
 wc.emit('did-fail-load', {}, -202, 'ERR_CERT_AUTHORITY_INVALID', 'https://self-signed.example/', true);
 r.certificatePage = decodeURIComponent(wc.loads.at(-1)!).includes('This page is not secure');
 wc.emit('did-fail-load', {}, -20, 'ERR_BLOCKED_BY_CLIENT', 'http://10.0.0.5/', true);
-r.blockedPage = decodeURIComponent(wc.loads.at(-1)!).includes('MetaTrooper blocked this page');
+r.blockedPage = decodeURIComponent(wc.loads.at(-1)!).includes('Ouros blocked this page');
 const n = wc.loads.length;
 wc.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'https://a.example/', true);
 wc.emit('did-fail-load', {}, -105, 'ERR_NAME_NOT_RESOLVED', 'https://frame.invalid/', false);
