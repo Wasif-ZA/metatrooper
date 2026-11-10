@@ -279,7 +279,7 @@ test('Home counts cross-project waiting agents in tiles and excludes hidden and 
   const tiles = h.all((n: any) => n.type?.name === 'Tile');
   assert.deepEqual(tiles.map(n => [n.props.label, n.props.n, n.props.sub]), [['Needs you', 5, 'waiting on an answer'], ['Working', 2, 'running now'], ['Finished', 1, 'ready to review'], ['Changed files', 3, 'not handed back yet']]);
   assert.equal(h.all(label('Answer')).length, 0); assert.doesNotMatch(html, /Task wait/);
-  assert.equal(h.one(label('Review')).props['data-action'], 'sheet'); assert.match(html, /1 agent action waits for a yes/);
+  assert.equal(h.one(label('Review')).props['data-action'], 'view'); assert.equal(h.one(label('Review')).props['data-view'], 'inbox'); assert.match(html, /1 agent action waits for a yes/);
   assert.deepEqual(h.all((n: any) => n.type === 'div' && n.props['data-action'] === 'pick').map(n => n.props['data-id']), ['working', 'starting', 'done']);
   assert.doesNotMatch(html, /Task hidden|Task gone/);
   g.ui.snap.approvals.push({ id: 'ap2' }); assert.match(h.html(), /2 agent actions wait for a yes/);
@@ -322,7 +322,7 @@ test('Home launches the ready fallback when a saved engine is unavailable', asyn
 
 test('Home approval row preserves whole-row activation', () => {
   g.ui.snap.approvals = [{ id: 'approve-row' }]; const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.type === 'li' && n.props['data-action'] === 'sheet');
+  const row = h.one((n: any) => n.type === 'li' && n.props['data-action'] === 'view' && n.props['data-view'] === 'inbox');
   assert.equal(row.props.className, 'ou-irow ou-unread');
   assert.equal(row.props.role, 'button'); assert.equal(row.props.tabIndex, 0);
   assert.match(renderToStaticMarkup(React.createElement(row.type, row.props)), /1 agent action waits for a yes/);
@@ -530,7 +530,7 @@ test('Home section order and Waiting on you contain only approvals and alerts', 
   assert.ok(html.indexOf('<h2>Changed files</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
   assert.ok(html.indexOf('<h2>Waiting on you</h2>') < html.indexOf('<h2>Recent</h2>'));
   assert.equal(h.one(label('Task for a new agent')).props.rows, 1);
-  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['sheet', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
+  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['view', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
   g.ui.snap.approvals = []; g.ui.snap.needs_you = []; const quiet = h.html(); assert.doesNotMatch(quiet, /Waiting on you/);
   g.ui.snap.live = []; g.ui.snap.sessions = []; h.draw(); assert.equal(h.all(hasClass('ou-hot')).length, 0);
 });

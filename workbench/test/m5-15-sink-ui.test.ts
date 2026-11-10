@@ -39,11 +39,11 @@ const makeSaveAndOpenSinks = (ui: any, doc: any, rpc: any, toast: any, renderSin
   )(ui, doc, rpc, toast, renderSinks);
 };
 
-const makeOpenNeedsYou = (ui: any, doc: any, rpc: any, wall: any, renderInbox: any, pick: any, openTab: any) => {
+const makeOpenNeedsYou = (ui: any, doc: any, rpc: any, wall: any, renderInbox: any, pick: any, openTab: any, homeView: any) => {
   return new Function(
-    'ui', 'document', 'rpc', 'wall', 'renderInbox', 'pick', 'openTab',
+    'ui', 'document', 'rpc', 'wall', 'renderInbox', 'pick', 'openTab', 'homeView',
     `${fn('openNeedsYou')}; return openNeedsYou;`
-  )(ui, doc, rpc, wall, renderInbox, pick, openTab);
+  )(ui, doc, rpc, wall, renderInbox, pick, openTab, homeView);
 };
 
 const createDocument = (elements: Record<string, any>, querySelectors: Record<string, any[]> = {}) => ({
@@ -206,7 +206,7 @@ test('saveSink builds parameters, filters checked kinds, and calls notify.sink.l
   assert.equal(calls[1].method, 'notify.sink.list');
 });
 
-test('openNeedsYou marks gates as read, opens sheets, and falls back to inbox', async () => {
+test('openNeedsYou marks gates as read, opens Needs you, and falls back to Needs you', async () => {
   const calls: Array<{ method: string; params: any; quiet: boolean }> = [];
   const rpc = async (method: string, params: any, quiet = false) => {
     calls.push({ method, params, quiet });
@@ -222,12 +222,15 @@ test('openNeedsYou marks gates as read, opens sheets, and falls back to inbox', 
       needs_you: [{ id: 'gate-row-1', kind: 'gate', text: 'Needs approval' }],
     },
   };
-  const openNeedsYou = makeOpenNeedsYou(ui, doc, rpc, wall, renderInbox, async () => {}, async () => {});
+  const views: string[] = [];
+  const homeView = { set: (v: string) => { views.push(v); } };
+  const openNeedsYou = makeOpenNeedsYou(ui, doc, rpc, wall, renderInbox, async () => {}, async () => {}, homeView);
 
   await openNeedsYou('gate-row-1');
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { method: 'needs_you.mark-read', params: { id: 'gate-row-1' }, quiet: true });
-  assert.equal(wall.sheet, true);
+  assert.deepEqual(views, ['inbox']);
+  assert.equal(wall.sheet, false);
   assert.equal(inbox.hidden, true);
   assert.equal(inboxRendered, false);
 
@@ -235,19 +238,23 @@ test('openNeedsYou marks gates as read, opens sheets, and falls back to inbox', 
   wall.sheet = false;
   inbox.hidden = true;
   inboxRendered = false;
+  views.length = 0;
 
   await openNeedsYou('unknown-gate');
   assert.equal(calls.length, 0);
   assert.equal(wall.sheet, false);
-  assert.equal(inbox.hidden, false);
-  assert.equal(inboxRendered, true);
+  assert.equal(inbox.hidden, true);
+  assert.equal(inboxRendered, false);
+  assert.deepEqual(views, ['inbox']);
 
   calls.length = 0;
   wall.sheet = false;
   inbox.hidden = true;
   inboxRendered = false;
+  views.length = 0;
 
   await openNeedsYou('unknown-gate', false);
+  assert.deepEqual(views, []);
   assert.equal(calls.length, 0);
   assert.equal(wall.sheet, false);
   assert.equal(inbox.hidden, true);

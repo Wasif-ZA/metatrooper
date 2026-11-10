@@ -135,3 +135,45 @@ test('night-05 Home html puts Agents before the tiles and Changed files after th
   assert.ok(at('ou-tiles') < at('<h2>Changed files</h2>'));
   assert.ok(at('ou-cards') < at('ou-tiles'));
 });
+
+// The real click dispatcher from app.js, driven with the data attributes the screens render.
+function clickWith(el: any, hidden = { hidden: true }) {
+  const onClick = new Function('homeView', 'document', `${fn('onClick')}; return onClick;`)(
+    g.homeView, { getElementById: (id: string) => (id === 'inbox' ? hidden : { hidden: false }) },
+  );
+  const target = { closest: (sel: string) => (sel === '[data-action]' ? el : null) };
+  return onClick({ target, stopPropagation() {} });
+}
+const asEl = (props: any) => ({ tagName: 'DIV', dataset: { action: props['data-action'], view: props['data-view'] }, closest: () => null });
+
+test('night-06 Home approval row and Review button open Needs you', async () => {
+  g.ui.snap.approvals = [{ id: 'ap' }];
+  const h = harness(Home); h.draw();
+  const row = h.one((n: any) => n.type === 'li' && n.props.className === 'ou-irow ou-unread');
+  const review = h.one(label('Review'));
+  for (const props of [row.props, review.props]) {
+    assert.equal(props['data-action'], 'view'); assert.equal(props['data-view'], 'inbox');
+  }
+  g.ui.view = 'home'; await clickWith(asEl(row.props));
+  assert.equal(g.ui.view, 'inbox');
+  g.ui.view = 'home'; await clickWith(asEl(review.props));
+  assert.equal(g.ui.view, 'inbox');
+});
+
+test('night-06 action inbox switches to Needs you and leaves the old popover hidden', async () => {
+  const popover = { hidden: true };
+  await clickWith({ tagName: 'BUTTON', dataset: { action: 'inbox' }, closest: () => null }, popover);
+  assert.equal(g.ui.view, 'inbox');
+  assert.equal(popover.hidden, true);
+});
+
+test('night-06 openNeedsYou with an unknown id opens Needs you and leaves the popover hidden', async () => {
+  const popover = { hidden: true };
+  const openNeedsYou = new Function('ui', 'document', 'homeView', 'rpc', `${fn('openNeedsYou')}; return openNeedsYou;`)(
+    g.ui, { getElementById: (id: string) => (id === 'inbox' ? popover : null) }, g.homeView, g.rpc,
+  );
+  await openNeedsYou('missing-id');
+  assert.equal(popover.hidden, true);
+  assert.equal(g.ui.view, 'inbox');
+  assert.deepEqual(calls, [['view', 'inbox']]);
+});
