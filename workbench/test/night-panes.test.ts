@@ -203,13 +203,16 @@ for (const failure of ['rejection', 'error response']) test('ad63319c session.re
   assert.equal(text(h.one(hasClass('ou-ipane-muted'))), 'No terminal text to show yet. Open it on the Wall.');
 });
 
-for (const sendBy of ['button', 'Enter']) test('ad63319c answer via ' + sendBy + ' sends the exact session and terminal payload', () => {
-  asks(); inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw();
+for (const sendBy of ['button', 'Enter']) test('ad63319c answer via ' + sendBy + ' sends the exact session and terminal payload', async () => {
+  // Send one trimmed answer to the selected agent in the current project.
+  asks(); g.ui.snap.live[1].project_id = g.ui.projectId;
+  inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw(); await flush();
   assert.equal(h.one(label('Send')).props.isDisabled, true);
   h.one(label('Answer')).props.onChange('  use the feature branch  '); h.draw();
   assert.equal(h.one(label('Send')).props.isDisabled, false);
   const beforeSend = calls.length;
-  if (sendBy === 'button') h.one(label('Send')).props.onClick(); else h.one(label('Answer')).props.onEnter();
+  if (sendBy === 'button') await h.one(label('Send')).props.onClick(); else await h.one(label('Answer')).props.onEnter();
+  await flush();
   assert.deepEqual(calls.slice(beforeSend), [['termInput', 's-b', 'use the feature branch\r']]);
   h.draw(); assert.equal(h.one(label('Answer')).props.value, '');
 });
