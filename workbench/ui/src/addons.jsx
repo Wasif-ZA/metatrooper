@@ -45,7 +45,7 @@ function card(it, open, toggle, remove) {
       <div className="ou-acard-name"><b>{it.id}</b><span>{source}</span></div>
       <div className="ou-acard-slot">
         {p ? <><Switch size="sm" label={p.enabled ? 'On' : 'Off'} isLabelHidden value={!!p.enabled} isDisabled data-action="addon-toggle" data-id={p.id} /><Badge label="Not built yet" /><Button size="sm" variant="ghost" label="Remove" onClick={() => remove(p.id)} /></>
-          : it.state === 'bad' ? <><Badge label="Not ready" className="ou-notready" /><Button size="sm" label="Check again" data-action="check-engines" /></>
+          : it.state === 'bad' ? <><Badge label="Not ready" className="ou-notready" /><Button size="sm" variant="ghost" label="Check again" data-action="check-engines" /></>
           : <Badge label="Ready" className="ou-acard-ready" />}
       </div>
       <p className="ou-acard-desc">
