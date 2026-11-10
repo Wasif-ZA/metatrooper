@@ -486,3 +486,73 @@ test('3796944f hiding a project drops its IDE tabs and dirty state while retaini
   assert.deepEqual(h.all((n: any) => n.type?.name === 'Tab' && n.props.title).map((n: any) => n.props.value), ['kept.ts']);
   assert.deepEqual(dirtyIn('review-keep'), ['kept.ts']);
 });
+
+const reviewSwitch = new Function('return (' + reviewApp.match(/function switchProject\(id\) \{[^]*?\r?\n\}/)![0] + ')')();
+const reviewOpen = new Function('return (' + reviewApp.match(/async function openNeedsYou\(id, fallback = true\) \{[^]*?\r?\n\}/)![0] + ')')();
+const receivePendingNeeds = new AsyncFunction('s', reviewApp.match(/  if \(ui\.pendingNeedsYou\) \{[^]*?\r?\n  \}/)![0]);
+
+test('49c9d6b0 opening a notice whose session belongs to another project switches project first', async (t) => {
+  // Opening a notice for another project switches project before picking the target session.
+  g.ui.snap.projects.push({ id: 'p2', name: 'Other project' });
+  g.ui.snap.live = [{ ...session('s-away', 'Other question?'), project_id: 'p2' }];
+  g.ui.snap.needs_you = [{ ...note('n-away', 'done'), ref: 's-away' }];
+  reviewGlobals(t, {
+    save: (...args: any[]) => calls.push(['save', ...args]),
+    setView: () => calls.push(['setView', g.ui.projectId, g.ui.pendingNeedsYou]),
+    switchProject: reviewSwitch,
+    openNeedsYou: reviewOpen,
+    pick: async (id: string) => calls.push(['pick', id, g.ui.projectId]),
+  });
+  inboxStore.set({ selectedId: 'n-away' });
+  const h = harness(Inbox); h.draw();
+  const before = calls.length;
+  h.one(label('Open')).props.onClick();
+  assert.deepEqual(calls.slice(before), [['view', 'wall'], ['save', 'projectId', 'p2'], ['setView', 'p2', 'n-away']]);
+  assert.equal(g.ui.projectId, 'p2');
+  assert.equal(g.ui.pendingNeedsYou, 'n-away');
+  await receivePendingNeeds({ sessions: [{ id: 's-away', project_id: 'p2' }] });
+  assert.deepEqual(calls.slice(before), [['view', 'wall'], ['save', 'projectId', 'p2'], ['setView', 'p2', 'n-away'], ['pick', 's-away', 'p2']]);
+  assert.equal(g.ui.pendingNeedsYou, null);
+});
+
+test('49c9d6b0 opening a notice from the current project does not switch project and opens it directly', async (t) => {
+  // Opening a notice from the current project opens directly without switching project.
+  g.ui.snap.live = [session('s-a', 'Local question?')];
+  g.ui.snap.needs_you = [note('n-local', 'done')];
+  reviewGlobals(t, {
+    save: (...args: any[]) => calls.push(['save', ...args]),
+    setView: () => calls.push(['setView', g.ui.projectId, g.ui.pendingNeedsYou]),
+    switchProject: reviewSwitch,
+    openNeedsYou: reviewOpen,
+    pick: async (id: string) => calls.push(['pick', id, g.ui.projectId]),
+  });
+  inboxStore.set({ selectedId: 'n-local' });
+  const h = harness(Inbox); h.draw();
+  const before = calls.length;
+  h.one(label('Open')).props.onClick();
+  await flush();
+  assert.deepEqual(calls.slice(before), [['view', 'wall'], ['pick', 's-a', 'p1']]);
+  assert.equal(g.ui.projectId, 'p1');
+  assert.equal(g.ui.pendingNeedsYou, undefined);
+});
+
+test('49c9d6b0 a notice whose project is unknown or hidden does not throw and does not open the wrong session', async (t) => {
+  // A notice whose referenced session is not found does not throw and preserves target session.
+  g.ui.snap.sessions = [session('s-local', 'Local question?')];
+  g.ui.snap.needs_you = [{ ...note('n-hidden', 'done'), ref: 's-hidden' }];
+  reviewGlobals(t, {
+    save: (...args: any[]) => calls.push(['save', ...args]),
+    setView: () => calls.push(['setView', g.ui.projectId, g.ui.pendingNeedsYou]),
+    switchProject: reviewSwitch,
+    openNeedsYou: reviewOpen,
+    pick: async (id: string) => calls.push(['pick', id, g.ui.projectId]),
+  });
+  inboxStore.set({ selectedId: 'n-hidden' });
+  const h = harness(Inbox); h.draw();
+  const before = calls.length;
+  assert.doesNotThrow(() => h.one(label('Open')).props.onClick());
+  await flush();
+  assert.deepEqual(calls.slice(before), [['view', 'wall'], ['pick', 's-hidden', 'p1']]);
+  assert.equal(g.ui.projectId, 'p1');
+  assert.equal(g.ui.pendingNeedsYou, undefined);
+});
