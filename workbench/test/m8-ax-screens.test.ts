@@ -209,7 +209,7 @@ test('Inbox renders literal filter counts, answer, loop, lending and read action
   g.ui.snap.approvals = [{ summary: 'Synthetic approval' }];
   g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s-loop' }), note('lend', 'other', { ref: 'lend:p1 https://alpha.example' }), note('done', 'done'), note('failed', 'failed', { read_at: 'read' })];
   const h = harness(Inbox); const html = h.html();
-  for (const [name, count] of [['All', 6], ['Needs you', 4], ['Finished', 1], ['Failed', 1]]) assert.match(html, new RegExp(name + '(?: ·)? ' + count));
+  assert.deepEqual(h.all((n: any) => n.props.value && n.props.label && !n.props.onChange).map(n => n.props.label), ['All · 6', 'Needs you · 4', 'Finished · 1', 'Failed · 1']);
   for (const text of ['Synthetic approval', 'Beta']) assert.ok(html.includes(text), text);
   assert.match(html, /data-action="pick" data-id="ask"/);
   const loops = h.all(action('loop-choose'));
@@ -307,7 +307,7 @@ test('Home launch without a result preserves the draft and does nothing else', a
 test('Home launches the ready fallback when a saved engine is unavailable', async () => {
   g.load = () => 'uninstalled'; g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
   const h = harness(Home); h.draw(); assert.equal(h.one(label('Agent')).props.value, 'ready'); await h.one(label('Start')).props.onClick();
-  assert.deepEqual(calls[0], ['rpc', 'session.launch', { project_id: 'p1', engine_id: 'ready' }]);
+  assert.deepEqual(calls, [['rpc', 'session.launch', { project_id: 'p1', engine_id: 'ready' }], ['save', 'engine', 'ready'], ['view', 'wall'], ['pick', 'new-session']]);
 });
 
 
@@ -318,6 +318,9 @@ for (const [name, setup, rowLabel, expected] of [
   setup(); const h = harness(Home); h.draw();
   const row = h.one((n: any) => n.props.label === rowLabel && n.props.endContent);
   for (const [key, value] of Object.entries(expected)) assert.equal(row.props[key], value);
+  const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(row.type, row.props)))?.[0];
+  assert.ok(opening, 'a list row is rendered');
+  for (const [key, value] of Object.entries(expected)) assert.ok(opening.includes(key + '="' + value + '"'));
 });
 
 test('screen text is escaped by React', () => {
@@ -360,4 +363,102 @@ test('renderer bundle is at least as new as every ui/src file', () => {
   const bundle = statSync(join(wb, 'renderer/ui.bundle.js')).mtimeMs;
   function check(dir: string) { for (const entry of readdirSync(dir, { withFileTypes: true })) { const path = join(dir, entry.name); if (entry.isDirectory()) check(path); else assert.ok(bundle >= statSync(path).mtimeMs, 'Stale ui.bundle.js: ' + path); } }
   check(join(wb, 'ui/src'));
+});
+
+
+for (const [kind, id, rowLabel, rowAction] of [
+  ['waiting', 'ask-row', 'Task ask-row', 'pick'],
+  ['question', 'question-row', 'Note question-row', 'inbox-open'],
+  ['done', 'done-row', 'Note done-row', 'inbox-open'],
+  ['failed', 'failed-row', 'Note failed-row', 'inbox-open'],
+  ['loop', 'loop-row', 'Note loop-row', 'inbox-open'],
+  ['lend', 'lend-row', 'Note lend-row', 'inbox-open'],
+] as const) test('Inbox ' + kind + ' row carries its action and opens the wall', () => {
+  g.ui.view = 'inbox';
+  if (kind === 'waiting') g.ui.snap.live = [session(id, 'waiting_for_you')];
+  else g.ui.snap.needs_you = [note(id, kind === 'loop' || kind === 'lend' ? 'other' : kind,
+    kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : {})];
+  const h = harness(Inbox); h.draw();
+  const row = h.one((n: any) => n.props.label === rowLabel && n.props.endContent);
+  assert.equal(row.props['data-action'], rowAction);
+  assert.equal(row.props['data-id'], id);
+  const markup = renderToStaticMarkup(React.createElement(row.type, row.props));
+  const opening = /<li\b[^>]*>/.exec(markup)?.[0];
+  assert.ok(opening, 'a list row is rendered');
+  assert.ok(opening.includes('data-action="' + rowAction + '"'));
+  assert.ok(opening.includes('data-id="' + id + '"'));
+  row.props.onClick();
+  assert.deepEqual(calls, [['view', 'wall']]);
+});
+
+for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test('Home ' + kind + ' note carries its action on the row', () => {
+  g.ui.snap.needs_you = [note('whole-row', kind === 'loop' || kind === 'lend' ? 'other' : kind,
+    kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : { read_at: kind === 'done' || kind === 'failed' ? 'read' : null })];
+  const h = harness(Home); h.draw();
+  const row = h.one((n: any) => n.props.label === 'Note whole-row' && n.props.endContent);
+  assert.equal(row.props['data-action'], 'inbox-open');
+  assert.equal(row.props['data-id'], 'whole-row');
+  const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(row.type, row.props)))?.[0];
+  assert.ok(opening?.includes('data-action="inbox-open"'));
+  assert.ok(opening?.includes('data-id="whole-row"'));
+});
+
+test('Needs you j and k focus first controls, wrap, and ignore editing and modified keys', async () => {
+  const listeners = new Map<string, any>();
+  const focused: string[] = [];
+  let prevented = 0;
+  const rows: any[] = [];
+  const control = (id: string, row: any) => ({
+    closest: (selector: string) => { assert.equal(selector, 'li'); return row; },
+    focus() { g.document.activeElement = this; focused.push(id); },
+  });
+  for (const id of ['first', 'middle', 'last']) {
+    const row: any = { contains: (element: any) => element === row.first || element === row.second };
+    row.first = control(id, row); row.second = control(id + '-second', row);
+    row.querySelector = (selector: string) => { assert.equal(selector, 'button, [tabindex], a'); return row.first; };
+    rows.push(row);
+  }
+  g.document = {
+    readyState: 'loading', activeElement: null,
+    addEventListener: (name: string, fn: any) => listeners.set(name, fn),
+    getElementById: (id: string) => { assert.equal(id, 'needsview'); return { querySelectorAll: (selector: string) => { assert.equal(selector, 'li'); return rows; } }; },
+  };
+  g.__axCreateRoot = () => { throw new Error('screens should wait for DOMContentLoaded'); };
+  try {
+    await bundle("import './src/main.jsx';", 'keyboard.mjs');
+    await import(pathToFileURL(join(temp, 'keyboard.mjs')).href);
+    assert.equal(typeof listeners.get('keydown'), 'function');
+    const press = (key: string, extra: any = {}) => listeners.get('keydown')({
+      key, ctrlKey: false, altKey: false, metaKey: false,
+      target: { closest: (selector: string) => { assert.equal(selector, 'input, textarea, select'); return null; } },
+      preventDefault: () => { prevented++; }, ...extra,
+    });
+    g.ui.view = 'inbox';
+    for (const key of ['j', 'j', 'j', 'j', 'k', 'k', 'k', 'k']) press(key);
+    assert.deepEqual(focused, ['first', 'middle', 'last', 'first', 'last', 'middle', 'first', 'last']);
+    assert.equal(prevented, 8);
+    g.document.activeElement = rows[1].second; press('j');
+    assert.equal(g.document.activeElement, rows[2].first);
+    g.document.activeElement = rows[1].second; press('k');
+    assert.equal(g.document.activeElement, rows[0].first);
+    g.document.activeElement = null; press('k');
+    assert.equal(g.document.activeElement, rows[2].first);
+    focused.length = 0; prevented = 0;
+    for (const key of ['j', 'k']) {
+      for (const view of ['home', 'wall', 'addons', 'settings']) { g.ui.view = view; press(key); }
+      g.ui.view = 'inbox';
+      for (const modifier of ['ctrlKey', 'altKey', 'metaKey']) press(key, { [modifier]: true });
+      for (const tag of ['input', 'textarea', 'select']) {
+        const editor = { tagName: tag.toUpperCase() };
+        for (const nested of [false, true]) press(key, { target: {
+          tagName: nested ? 'SPAN' : editor.tagName,
+          closest: (selector: string) => { assert.equal(selector, 'input, textarea, select'); return editor; },
+        } });
+      }
+    }
+    press('x');
+    assert.deepEqual(focused, []); assert.equal(prevented, 0);
+    rows.length = 0; press('j'); press('k');
+    assert.deepEqual(focused, []); assert.equal(prevented, 0);
+  } finally { delete g.__axCreateRoot; }
 });

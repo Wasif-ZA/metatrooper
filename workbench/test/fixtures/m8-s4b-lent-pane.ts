@@ -254,3 +254,34 @@ test('lent subframes cannot bypass the origin fence with data URLs', async () =>
     assert.deepEqual(await h.request(h.lent, 'data:text/html,<script>1</script>', 'subFrame'), { cancel: true });
   } finally { h.close(); }
 });
+
+
+for (const first of ['user', 'lent']) test('user popup frames escape the lent fence with ' + first + ' created first', async () => {
+  const h = harness(first);
+  try {
+    const popupContents = { id: 9001 };
+    const popup = { isDestroyed: () => false, webContents: popupContents };
+    h.user.pane.popups.add(popup);
+    assert.equal([...h.internal.panes.values()].some((p: any) => p.view.webContents === popupContents), false);
+    assert.equal(h.internal.byContents(popupContents), undefined);
+    for (const resourceType of ['mainFrame', 'subFrame']) {
+      const result = await new Promise<any>(resolve => h.user.wc.session.before({
+        url: 'https://1.1.1.1/unlent', resourceType, webContents: popupContents,
+      }, resolve));
+      assert.deepEqual(result, { cancel: false });
+    }
+    assert.deepEqual(await h.request(h.lent, 'https://1.1.1.1/unlent'), { cancel: true });
+  } finally { h.close(); }
+});
+
+test('frame requests with unknown WebContents and no popup owner fail closed', async () => {
+  const h = harness();
+  try {
+    for (const resourceType of ['mainFrame', 'subFrame']) {
+      const result = await new Promise<any>(resolve => h.lent.wc.session.before({
+        url: 'https://1.1.1.1/unlent', resourceType, webContents: { id: 9002 },
+      }, resolve));
+      assert.deepEqual(result, { cancel: true });
+    }
+  } finally { h.close(); }
+});

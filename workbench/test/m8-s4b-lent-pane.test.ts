@@ -25,7 +25,7 @@ test('M8-S4b lent pane and signed_in server contracts with fake Electron', t => 
   t.diagnostic(output);
   assert.ifError(result.error);
   assert.equal(result.status, 0, output);
-  assert.match(output, /^# pass 14$/m);
+  assert.match(output, /^# pass 17$/m);
   assert.match(output, /^# fail 0$/m);
   assert.match(output, /^# todo 0$/m);
 });

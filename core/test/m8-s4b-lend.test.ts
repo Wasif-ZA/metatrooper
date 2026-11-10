@@ -158,3 +158,35 @@ test('navigate MCP schema exposes signed_in as a boolean', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(schema.properties.signed_in)), { type: 'boolean' });
   assert.deepEqual(JSON.parse(JSON.stringify(schema.required)), ['url']);
 });
+
+
+for (const on of [true, false]) test('lend.set on ' + on + ' preserves or closes only this projects open lent panes', () => {
+  const h = fixture();
+  try {
+    h.call('lend.set', { project_id: 'A', origin: 'https://shop.example', on: true });
+    h.call('lend.set', { project_id: 'A', origin: 'https://other.example', on: true });
+    h.db.exec("INSERT INTO browser_pane (id, project_id, session_id, url, open, lent) VALUES " +
+      "('bp_agent_shop','A','sA','https://shop.example/',1,1)," +
+      "('bp_agent_other_site','A','sA','https://other.example/',1,1)," +
+      "('bp_agent_closed','A','sA','https://shop.example/',0,1)," +
+      "('bp_agent_plain','A','sA','https://shop.example/',1,0)," +
+      "('bp_user','A',NULL,'https://shop.example/',1,0)," +
+      "('bp_agent_project_b','B','sB','https://shop.example/',1,1)");
+    const rows = () => h.db.prepare('SELECT id, open FROM browser_pane ORDER BY id').all().map(r => ({ ...r }));
+    assert.deepEqual(rows(), [
+      { id: 'bp_agent_closed', open: 0 }, { id: 'bp_agent_other_site', open: 1 },
+      { id: 'bp_agent_plain', open: 1 }, { id: 'bp_agent_project_b', open: 1 },
+      { id: 'bp_agent_shop', open: 1 }, { id: 'bp_user', open: 1 },
+    ]);
+    h.call('lend.set', { project_id: 'A', origin: 'https://shop.example/path', on });
+    assert.deepEqual(rows(), on ? [
+      { id: 'bp_agent_closed', open: 0 }, { id: 'bp_agent_other_site', open: 1 },
+      { id: 'bp_agent_plain', open: 1 }, { id: 'bp_agent_project_b', open: 1 },
+      { id: 'bp_agent_shop', open: 1 }, { id: 'bp_user', open: 1 },
+    ] : [
+      { id: 'bp_agent_closed', open: 0 }, { id: 'bp_agent_other_site', open: 0 },
+      { id: 'bp_agent_plain', open: 1 }, { id: 'bp_agent_project_b', open: 1 },
+      { id: 'bp_agent_shop', open: 0 }, { id: 'bp_user', open: 1 },
+    ]);
+  } finally { h.close(); }
+});
