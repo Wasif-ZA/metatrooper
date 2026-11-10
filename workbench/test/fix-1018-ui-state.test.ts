@@ -171,7 +171,7 @@ test('UI-05 the title chip, footer and sheet tab each say what they count', asyn
   const w = boot();
   await w.snap(snapOf([session('a', 'waiting_for_you')]));
   assert.match(w.el('needs').title, /^Counts agents waiting in every project, agent actions waiting for approval and unread Inbox alerts\./);
-  assert.match(w.el('strip-needs').innerHTML, /title="Counts agents waiting in every project, agent actions waiting for approval and unread Inbox alerts"/);
+  assert.match(w.el('strip-needs').innerHTML, /^<span class="link" data-action="inbox">Inbox<\/span>$/);
   assert.equal(w.el('sheet-tab').title, 'Counts agent actions waiting for approval, in every project');
 });
 
