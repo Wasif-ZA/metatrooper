@@ -219,7 +219,7 @@ test('lent sites belong only to the current project and Remove revokes that orig
   data.browser.lent.p1 = []; assert.match(h.html(), />None</); assert.equal(h.all(label('Remove')).length, 0);
 });
 
-test('Inbox renders filter chips, group counts, answer, loop, lending and read actions', { todo: 'Needs you filter counts failed notices' }, () => {
+test('Inbox renders filter chips, group counts, answer, loop, lending and read actions', () => {
   g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2' })];
   g.ui.snap.approvals = [{ summary: 'Synthetic approval' }];
   g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s-loop' }), note('lend', 'other', { ref: 'lend:p1 https://alpha.example' }), note('done', 'done'), note('failed', 'failed', { read_at: 'read' })];
@@ -531,7 +531,8 @@ test('Home puts Answer in the waiting agent card and renders literal card anatom
   assert.match(markup[1], /<pre>Editing fixtures<\/pre><footer><span>2 changed files<\/span>/);
   assert.match(markup[2], /<pre>All checks passed<\/pre><footer><span>1 changed file<\/span>/);
   assert.equal(h.all(label('Answer')).length, 1); assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
-  assert.equal(h.all((n: any) => hasClass('ou-irow')(n) && n.props['data-action']).length, 0); assert.equal(h.all(hasClass('ou-irow')).length, 3);
+  const cardArea = harness(function Screen() { return h.one(hasClass('ou-cards')); }); cardArea.draw();
+  assert.equal(cardArea.all((n: any) => hasClass('ou-irow')(n) && n.props['data-action']).length, 0); assert.equal(h.all(hasClass('ou-irow')).length, 5);
   assert.doesNotMatch(html, /Waiting on you|ou-agent-wait/);
   const tiles = h.all(hasClass('ou-tile')); assert.equal(tiles.length, 4);
   assert.deepEqual(tiles.map(n => hasClass('ou-hot')(n)), [true, false, false, false]);
@@ -546,10 +547,13 @@ test('Home section order and Waiting on you contain only approvals and alerts', 
   assert.ok(html.indexOf('<h2>Agents</h2>') < html.indexOf('ou-tiles'));
   assert.ok(html.indexOf('ou-composer') < html.indexOf('<h2>Agents</h2>'));
   assert.ok(html.indexOf('ou-tiles') < html.indexOf('<h2>Changed files</h2>'));
-  assert.ok(html.indexOf('<h2>Changed files</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
+  assert.ok(html.indexOf('<h2>Changed files</h2>') < html.indexOf('<h2>Projects</h2>'));
+  assert.ok(html.indexOf('<h2>Projects</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
   assert.ok(html.indexOf('<h2>Waiting on you</h2>') < html.indexOf('<h2>Recent</h2>'));
   assert.equal(h.one(label('Task for a new agent')).props.rows, 1);
-  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['view', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
+  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['project-go', 'p1'], ['project-go', 'p2'], ['view', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
+  const waiting = harness(function Screen() { return h.one((n: any) => n.type === 'section' && textContent(n.props.children[0]) === 'Waiting on you'); }); waiting.draw();
+  assert.deepEqual(waiting.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['view', undefined], ['inbox-open', 'alert']]);
   g.ui.snap.approvals = []; g.ui.snap.needs_you = []; const quiet = h.html(); assert.doesNotMatch(quiet, /Waiting on you/);
   g.ui.snap.live = []; g.ui.snap.sessions = []; h.draw(); assert.equal(h.all(hasClass('ou-hot')).length, 0);
 });

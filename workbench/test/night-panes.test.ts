@@ -152,8 +152,12 @@ test('ad63319c selecting a notice displays its text without opening the Wall', (
   assert.equal(g.ui.view, 'inbox'); assert.deepEqual(calls, []);
 });
 
-test('ad63319c Enter on a selected notice opens its referenced session on the Wall', { todo: 'Enter on a notice only selects it and never opens the Wall' }, () => {
+test('ad63319c Enter on a selected notice opens its referenced session on the Wall', () => {
   g.ui.snap.needs_you = [note('n-a', 'done')];
+  const app = readFileSync(join(wb, 'renderer/app.js'), 'utf8');
+  const open = app.match(/async function openNeedsYou\(id, fallback = true\) \{[^]*?\r?\n\}/);
+  assert.ok(open, 'real openNeedsYou function exists');
+  g.openNeedsYou = new Function(open[0] + '; return openNeedsYou;')();
   const h = harness(Inbox); h.draw(); const selected = h.one(row('n-a'));
   selected.props.onClick(event()); h.draw();
   const listeners: any[] = [];
@@ -168,7 +172,7 @@ test('ad63319c Enter on a selected notice opens its referenced session on the Wa
 
 test('ad63319c preview reads the selected session with a literal 20-line request', async () => {
   asks(); inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw(); await flush();
-  assert.deepEqual(calls, [['rpc', 'session.read', { session_id: 's-b', lines: 20 }]]);
+  assert.deepEqual(calls, [['rpc', 'session.read', { session_id: 's-b', lines: 20 }, true]]);
   h.html(); assert.equal(text(h.one(hasClass('ou-ipane-pre'))), 'synthetic terminal');
 });
 
@@ -196,7 +200,7 @@ for (const failure of ['rejection', 'error response']) test('ad63319c session.re
   assert.deepEqual(h.state('TerminalPreview', 0), { lines: null, error: true });
   assert.doesNotThrow(() => h.html()); assert.equal(h.all(hasClass('ou-ipane-pre')).length, 0);
   assert.equal(text(h.one(hasClass('ou-ipane-lastline'))), 'Which branch for alpha?');
-  assert.equal(text(h.one(hasClass('ou-ipane-muted'))), 'Terminal preview needs session.read; open it on the Wall.');
+  assert.equal(text(h.one(hasClass('ou-ipane-muted'))), 'No terminal text to show yet. Open it on the Wall.');
 });
 
 for (const sendBy of ['button', 'Enter']) test('ad63319c answer via ' + sendBy + ' sends the exact session and terminal payload', () => {
@@ -223,7 +227,7 @@ for (const [chip, ids] of [
   ['Needs you', ['s-a', 's-b', 'q']],
   ['Finished', ['d']],
   ['Failed', ['f']],
-] as const) test('ad63319c ' + chip + ' chip narrows rows to its kind', chip === 'Needs you' ? { todo: 'Needs you chip includes failed notices as well as questions' } : {}, () => {
+] as const) test('ad63319c ' + chip + ' chip narrows rows to its kind', () => {
   filterFixture(); const h = harness(Inbox); h.draw();
   h.one((n: any) => hasClass('ou-ifilters-chip')(n) && text(n) === chip).props.onClick(); h.draw();
   assert.deepEqual(rowIds(h), ids);
