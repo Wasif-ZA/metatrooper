@@ -97,6 +97,7 @@ html { font-size: 16px; }
 .ou-ipane > :not(.ou-inbox-detail-head) { padding-left: 16px; padding-right: 16px; }
 .ou-inbox-list > :not(.ou-inbox-head):not(.ou-inbox-footer) { margin-left: 16px; margin-right: 16px; }
 .ou-ipane-empty { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+.ou-inbox-detail-empty { flex: 1; display: grid; place-items: center; padding: 32px; }
 .ou-ipane-btn { width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--mute); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
 .ou-ipane-btn:hover { background: var(--canvas-soft); color: var(--ink); }
 .ou-ipane-question { display: flex; flex-direction: column; gap: 4px; }

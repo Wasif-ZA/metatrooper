@@ -304,9 +304,7 @@ export function Inbox() {
           {!activeRow ? 'Details' : activeRow.type === 'ask' ? 'Agent' : 'Notice'}
         </div>
         {!activeRow ? (
-          <div className="ou-ipane-empty">
-            <EmptyState title="Nothing is waiting on you." isCompact />
-          </div>
+          <div className="ou-ipane-empty ou-inbox-detail-empty"><EmptyState title="Nothing is waiting on you." description="Questions from agents and finished work show up here." isCompact /></div>
         ) : activeRow.type === 'ask' ? (
           <DetailAsk key={activeRow.item.id} x={activeRow.item} />
         ) : (
