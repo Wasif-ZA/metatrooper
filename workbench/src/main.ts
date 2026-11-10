@@ -1,4 +1,4 @@
-import { createEntry, inside as fsInside, listDir, rankFiles, readText, renameEntry, searchText, writeText } from './files.ts';
+import { createEntry, inside as fsInside, listDir, openOutside, rankFiles, readText, renameEntry, searchText, writeText } from './files.ts';
 import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
@@ -547,7 +547,20 @@ function handlers(): void {
   on('fsCreate', (projectId: unknown, rel: unknown, kind: unknown) => { const root = projectRoot(projectId); return root ? createEntry(root, rel, kind) : { error: 'pick a project first' }; });
   on('fsRename', (projectId: unknown, from: unknown, to: unknown) => { const root = projectRoot(projectId); return root ? renameEntry(root, from, to) : { error: 'pick a project first' }; });
   on('fsSearch', (projectId: unknown, query: unknown) => { const root = projectRoot(projectId); return root ? searchText(root, query).catch(() => ({ hits: [], more: false })) : { hits: [], more: false }; });
+  on('fsOpenOutside', async (projectId: unknown, rel: unknown) => {
+    const root = projectRoot(projectId);
+    if (!root || typeof rel !== 'string') return { error: 'pick a project first' };
+    const file = openOutside(root, rel);
+    if (typeof file !== 'string') return file;
+    try {
+      const error = await shell.openPath(file);
+      return error ? { error } : { ok: true };
+    } catch (e) {
+      return { error: String(e) };
+    }
+  });
   on('openInVsCode', (projectId: unknown, rel: unknown) => {
+    console.log(JSON.stringify({ at: new Date().toISOString(), event: 'openInVsCode', projectId, extension: typeof rel === 'string' ? path.extname(rel) : '' }));
     const root = projectRoot(projectId);
     if (!root) return { error: 'pick a project first' };
     const file = rel == null ? null : typeof rel === 'string' ? fsInside(root, rel) : null;

@@ -59,6 +59,17 @@ export function listDir(root: string, rel: string): Array<{ name: string; dir: b
     .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
 }
 
+export function openOutside(root: string, rel: string): string | { error: string } {
+  const full = inside(root, rel);
+  if (!full) return NOT_FILE;
+  if (!/^(pdf|png|jpg|jpeg|gif|webp|svg|html|htm)$/i.test(path.extname(full).slice(1))) return { error: 'this file type cannot be opened outside' };
+  try {
+    return fs.statSync(full).isFile() ? full : NOT_FILE;
+  } catch {
+    return NOT_FILE;
+  }
+}
+
 function readAll(fd: number, size: number): Buffer {
   const buf = Buffer.alloc(size);
   let n = 0;

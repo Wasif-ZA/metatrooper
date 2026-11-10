@@ -12,6 +12,7 @@ import { Layout, LayoutContent, LayoutFooter } from '@astryxdesign/core/Layout';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { TreeList } from '@astryxdesign/core/TreeList';
+import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { editorState, openEditor } from './editor.js';
 
@@ -177,6 +178,41 @@ async function openFile(st, path, { owner, changes, line } = {}) {
     else { t.text = r.text; t.mtimeMs = r.mtimeMs; }
     bump();
   } else setTimeout(() => goto(t), 0);
+}
+
+async function newFile(st, ask) {
+  if (!ask.path.trim() || ask.busy) return;
+  ask.busy = true;
+  bump();
+  try {
+    const rel = slashed(ask.path);
+    const r = await api.fsCreate(st.pid, rel, 'file');
+    if (!r || r.error) { toast((r && r.error) || 'Could not create the file.', true); return; }
+    if (st.ask === ask) st.ask = null;
+    st.dirs.delete(folder(rel));
+    await openFile(st, rel);
+    await loadDir(st, folder(rel));
+    if (st.git) await loadGitStatus(st);
+  } catch (e) {
+    toast(String(e), true);
+  } finally {
+    ask.busy = false;
+    bump();
+  }
+}
+
+async function openOutside(st, path) {
+  try {
+    const r = await api.fsOpenOutside(st.pid, path);
+    if (r && r.error) toast(r.error, true);
+  } catch (e) { toast(String(e), true); }
+}
+
+async function openInVsCode(st, path) {
+  try {
+    const r = await api.openInVsCode(st.pid, path);
+    if (r && r.error) toast(r.error, true);
+  } catch (e) { toast(String(e), true); }
 }
 
 async function showChanges(st, path) {
@@ -510,15 +546,16 @@ function DiffView({ tab }) {
 }
 
 function Crumb({ st, tab, changed }) {
-  const isChanged = changed.has(tab.path);
+  const isChanged = tab && changed.has(tab.path);
   const mode = isChanged ? tab.mode : 'file';
-  const parts = tab.path.split('/');
+  const parts = tab ? tab.path.split('/') : [];
   const lines = mode === 'changes' && tab.diff ? diffLines(tab.diff) : [];
   const ok = canWrite();
   return (
     <div className="ou-ide-crumb">
       <span className="ou-ide-path">{parts.map((x, i) => <span key={i}>{i ? ' / ' : ''}{i === parts.length - 1 ? <b>{x}</b> : x}</span>)}</span>
       <span className="ou-ide-crumbr">
+        <Button size="sm" variant="ghost" label="Open in VS Code" onClick={() => void openInVsCode(st, tab?.path)} />
         {mode === 'changes' ? <><span className="ou-ide-add">+{lines.filter((l) => l.kind === 'add').length}</span><span className="ou-ide-del">-{lines.filter((l) => l.kind === 'del').length}</span></> : null}
         {isChanged ? (
           <SegmentedControl label="View" size="sm" value={mode} onChange={(v) => (v === 'changes' ? void showChanges(st, tab.path) : showFile(st, tab.path))}>
@@ -526,7 +563,7 @@ function Crumb({ st, tab, changed }) {
             <SegmentedControlItem value="changes" label="Changes" />
           </SegmentedControl>
         ) : null}
-        {tab.error ? null : (
+        {!tab || tab.error ? null : (
           <>
             <IconButton size="sm" variant="ghost" label="Reload from disk" tooltip="Reload from disk" icon={svg(RELOAD)} onClick={() => askReload(st, tab.path)} />
             <Button size="sm" label="Save" tooltip="Save (Ctrl+S)" isDisabled={!ok || !tab.dirty} onClick={() => void saveTab(st, tab.path)} />
@@ -585,6 +622,18 @@ function Asks({ st }) {
   if (!a) return null;
   const name = base(a.path);
   const cancel = () => { st.closeAll = false; st.ask = null; bump(); };
+  if (a.kind === 'new') {
+    return (
+      <Dialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} width={420} purpose="form" aria-label="New file">
+        <form onSubmit={(e) => { e.preventDefault(); void newFile(st, a); }}>
+          <Layout
+            content={<LayoutContent><Heading level={2}>New file</Heading><TextInput label="Path inside the project" placeholder="notes/todo.md" description="The parent folder must already exist." value={a.path} onChange={(path) => { a.path = path; bump(); }} hasAutoFocus isDisabled={a.busy} /></LayoutContent>}
+            footer={<LayoutFooter><span className="ou-ide-askrow"><Button variant="ghost" label="Cancel" onClick={cancel} /><Button type="submit" label="Create file" isDisabled={!a.path.trim() || a.busy} /></span></LayoutFooter>}
+          />
+        </form>
+      </Dialog>
+    );
+  }
   if (a.kind === 'discard') {
     return <AlertDialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} title={`Discard your changes to ${name}?`} description="The file is read again from disk." actionLabel="Discard" onAction={() => { st.ask = null; bump(); void reloadTab(st, a.path); }} />;
   }
@@ -617,6 +666,7 @@ export function Ide() {
       const out = [];
       const t = st.active ? tabOf(st, st.active) : null;
       if (t) out.push(cmd('IDE', 'Save', () => void saveTab(st, t.path)));
+      out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
       out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
       if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
       if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
@@ -680,12 +730,12 @@ export function Ide() {
             </TabList>
           ) : null}
         </div>
-        {active ? <Crumb st={st} tab={active} changed={changed} /> : null}
+        <Crumb st={st} tab={active} changed={changed} />
         <div className="ou-ide-view">
           {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || (changed.has(t.path) && t.mode === 'changes')} />)}
           {!active ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
             : changed.has(active.path) && active.mode === 'changes' ? <DiffView tab={active} />
-              : active.error ? <EmptyState isCompact title={active.error} />
+              : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
                 : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p> : null}
         </div>
         <div className="ou-ide-panel">
