@@ -139,7 +139,7 @@ test('default theme is dither and search switches to persistent charcoal setting
   assert.equal(JSON.parse(readFileSync(settingsPath, 'utf8')).ui.theme, 'charcoal');
 }));
 
-test('M6-19a a unique marker printed in one of 4 tiles is found by Ctrl+K within 1 s and opens that tile at the line', { ...options, todo: 'new palette highlights no option after typing, so Enter does not open the scrollback hit' }, async () => {
+test('M6-19a a unique marker printed in one of 4 tiles is found by Ctrl+K within 1 s and opens that tile at the line', options, async () => {
   const printer = 'const m = process.argv[2]; for (let i = 0; i < 300; i++) console.log("filler-a-" + i); if (m && m.startsWith("MARK")) console.log(m); for (let i = 0; i < 300; i++) console.log("filler-b-" + i); setInterval(() => {}, 1000);';
   const h = await revisionHarness(undefined, printer); let w: Awaited<ReturnType<typeof windowFor>> | undefined;
   try {

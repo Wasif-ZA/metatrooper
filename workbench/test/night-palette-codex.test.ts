@@ -58,6 +58,7 @@ after(() => { for (const [key, descriptor] of savedGlobals) { if (descriptor) Ob
 const calls: any[] = [];
 paletteStore.use = paletteStore.get;
 confirmStore.use = confirmStore.get;
+React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.H = { useEffect: () => {} };
 function nodes(value: any): any[] {
   if (Array.isArray(value)) return value.flatMap(nodes);
   if (!React.isValidElement(value)) return [];
