@@ -130,6 +130,7 @@ html { font-size: 16px; }
 .ou-tileicon { position: absolute; top: 18px; right: 18px; color: var(--mute); }
 .ou-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .ou-agent { display: flex; flex-direction: column; min-height: 168px; border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas); cursor: pointer; }
+.ou-agent .ou-ah-pip { border-color: var(--canvas); }
 .ou-agent:hover { border-color: var(--hairline-strong); }
 .ou-agent:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .ou-agent-wait { border-color: color-mix(in srgb, var(--wait) 55%, var(--hairline)); }
@@ -207,7 +208,7 @@ html { font-size: 16px; }
 .ou-rowhint { font-size: 13px; line-height: 19px; }
 .ou-navgroup + .ou-navgroup { margin-top: 24px; }
 /* Add-ons root stays unlayered: it must beat the unlayered .ou-col width, gap and radius tokens above. */
-.ou-col.ou-addons { max-width: 1040px; gap: 0; --radius-container: 0; --radius-element: 0; --radius-inner: 0; --radius-full: 0; }
+.ou-col.ou-addons { max-width: none; gap: 0; --radius-container: 0; --radius-element: 0; --radius-inner: 0; --radius-full: 0; }
 
 /* IDE: Herdr's code layout. Full-height explorer, tabs over breadcrumb over editor, agents side by side in a bottom panel. */
 .ide { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13px; color: var(--body-strong); }
