@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { CommandPalette } from '@astryxdesign/core/CommandPalette';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { createStore } from './store.js';
@@ -95,6 +96,26 @@ const source = {
 export function Palette() {
   const { open } = paletteStore.use();
   const { item: confirmItem } = confirmStore.use();
+  useEffect(() => {
+    if (!open) return;
+    const container = document.getElementById('cmdk');
+    if (!container) return;
+    const highlightFirst = () => {
+      const input = container.querySelector('input[role="combobox"]');
+      if (input && !input.getAttribute('aria-activedescendant') && container.querySelector('[role="option"]')) {
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      }
+    };
+    const observer = new MutationObserver(highlightFirst);
+    observer.observe(container, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-activedescendant', 'aria-selected'],
+    });
+    highlightFirst();
+    return () => observer.disconnect();
+  }, [open]);
   return (
     <>
       <CommandPalette
