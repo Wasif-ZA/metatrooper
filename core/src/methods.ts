@@ -97,6 +97,8 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
   { name: 'session.read', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, lines?}', result: '{session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted' },
   { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
+  { name: 'session.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, labels: string[]}', result: '{labels}' },
+  { name: 'labels.list', errors: [E.INVALID_PARAMS], params: '{project_id}', result: '{labels: [{name, count}]}' },
   { name: 'session.send', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, text}', result: '{sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you`' },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
   { name: 'needs_you.mark-read', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
@@ -575,6 +577,36 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         | { id: string; session_id: string; parent_id: string | null; at: string; cwd: string | null; summary: string | null; files: string; transcript: string | null }
         | undefined;
       return { handoff: row ? { ...row, files: JSON.parse(row.files) } : null };
+    },
+  });
+
+  m.set('session.labels-set', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      if (!Array.isArray(p.labels) || !p.labels.every((label) => typeof label === 'string')) throw new RpcError(E.INVALID_PARAMS, 'labels must be an array of strings');
+      const labels = [...new Set((p.labels as string[]).map((label) => label.trim()))];
+      if (labels.some((label) => label.length < 1 || label.length > 32)) throw new RpcError(E.INVALID_PARAMS, 'each label must be 1 to 32 characters');
+      if (labels.length > 8) throw new RpcError(E.INVALID_PARAMS, 'at most 8 labels');
+      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      db.exec('BEGIN');
+      try {
+        db.prepare('DELETE FROM session_label WHERE session_id = ?').run(id);
+        const insert = db.prepare('INSERT INTO session_label (session_id, name) VALUES (?, ?)');
+        for (const label of labels) insert.run(id, label);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
+      return { labels: (db.prepare('SELECT name FROM session_label WHERE session_id = ? ORDER BY name').all(id) as Array<{ name: string }>).map((row) => row.name) };
+    },
+  });
+
+  m.set('labels.list', {
+    handler: (p) => {
+      const id = str(p, 'project_id');
+      const labels = db.prepare('SELECT l.name, COUNT(*) AS count FROM session_label l JOIN session s ON s.id = l.session_id WHERE s.project_id = ? GROUP BY l.name ORDER BY count DESC, l.name ASC').all(id);
+      return { labels };
     },
   });
 

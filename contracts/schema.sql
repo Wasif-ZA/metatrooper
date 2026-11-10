@@ -78,6 +78,12 @@ CREATE TABLE session (
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
 
+CREATE TABLE session_label (
+  session_id TEXT NOT NULL REFERENCES session(id),
+  name TEXT NOT NULL,
+  PRIMARY KEY (session_id, name)
+);
+
 CREATE TABLE session_state_log (
   session_id TEXT NOT NULL REFERENCES session(id),
   at TEXT NOT NULL,
