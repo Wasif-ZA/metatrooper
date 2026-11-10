@@ -200,7 +200,8 @@ html { font-size: 16px; }
 .ou-ihead i { font-style: normal; letter-spacing: 0; padding: 0 6px; border-radius: 999px; background: var(--canvas-soft); color: var(--body); font-variant-numeric: tabular-nums; }
 .ou-ihead + .ou-irow { border-top: 1px solid var(--hairline); }
 .ou-irow + .ou-ihead { border-top: 1px solid var(--hairline); }
-.ou-scol { max-width: 896px; margin: 0; padding: 24px; display: grid; gap: 24px; }
+.ou-scol { max-width: 896px; margin: 0; padding: 24px 24px 56px; display: grid; gap: 24px; }
+.ou-proj-actions { margin-top: 8px; }
 .ou-stitle { display: grid; gap: 8px; }
 .ou-stitle h1 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
 .ou-stitle h1 svg { color: var(--mute); }

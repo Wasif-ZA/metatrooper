@@ -157,7 +157,7 @@ export function Home() {
               </li>
             ))}
           </ul>
-          <p className="ou-empty">
+          <div className="ou-proj-actions">
             <Button
               size="sm"
               variant="ghost"
@@ -166,7 +166,7 @@ export function Home() {
               className="ou-btn-line"
               icon={<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3.5h4l1.5 2H14v7.5H2z" /></svg>}
             />
-          </p>
+          </div>
         </section>
         {asks ? (
           <section>

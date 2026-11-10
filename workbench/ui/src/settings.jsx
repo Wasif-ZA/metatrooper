@@ -26,7 +26,7 @@ const SECTIONS = [
       { key: 'sessions.approval', label: 'Before each tool call', hint: 'Ask shows every command for a yes. Auto lets agents run inside their own Ouros worktree.', select: [['ask', 'Ask me'], ['contained', 'Auto in Ouros worktrees']] },
       { key: 'sessions.metarouter', label: 'Route shell commands through metarouter', hint: 'Shorter command output for agents.' },
       { key: 'ui.toast_ms', label: 'Keep a message on screen for', hint: 'The small notes at the corner of the window.', unit: 'ms', min: 1000, max: 60000, step: 500 },
-      { key: 'ui.error_toast_ms', label: 'Keep an error message on screen for', unit: 'ms', min: 1000, max: 60000, step: 500 },
+      { key: 'ui.error_toast_ms', label: 'Keep an error message on screen for', hint: 'Error notes stay longer so you can read them.', unit: 'ms', min: 1000, max: 60000, step: 500 },
     ] },
     { title: 'Appearance', rows: [
       { theme: true, label: 'Theme' },
