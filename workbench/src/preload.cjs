@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('troop', {
   readText: () => ipcRenderer.invoke('readText'),
   restartCore: () => ipcRenderer.invoke('restartCore'),
   stopCore: () => ipcRenderer.invoke('stopCore'),
+  setDirty: (dirty) => ipcRenderer.invoke('setDirty', dirty),
   openLogs: () => ipcRenderer.invoke('openLogs'),
   longtasks: (entries) => ipcRenderer.invoke('longtasks', entries),
   probe: (state) => ipcRenderer.invoke('probe', state),

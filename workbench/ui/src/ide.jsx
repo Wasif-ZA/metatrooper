@@ -19,7 +19,12 @@ import { editorState, openEditor } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 
 export const ideStore = createStore({ tick: 0 });
-const bump = () => ideStore.set({ tick: ideStore.get().tick + 1 });
+let sentDirty = false;
+const bump = () => {
+  const dirty = [...states.values()].some((st) => st.tabs.some((x) => x.dirty));
+  if (dirty !== sentDirty) { sentDirty = dirty; void api.setDirty?.(dirty); }
+  ideStore.set({ tick: ideStore.get().tick + 1 });
+};
 
 const states = new Map();
 let cur = null;

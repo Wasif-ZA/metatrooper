@@ -645,6 +645,7 @@ function handlers(): void {
   });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
+  on('setDirty', (dirty: unknown) => { dirtyFiles = dirty === true; return true; });
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
   on('reportIssue', async (raw: unknown) => {
     const r = cleanReport(raw);
@@ -721,6 +722,7 @@ function createWindow(): void {
   win.webContents.on('did-finish-load', push);
   win.webContents.on('did-finish-load', () => { loads++; });
   win.webContents.on('will-prevent-unload', (e) => {
+    if (closing) { e.preventDefault(); return; }
     if (!win || win.isDestroyed()) return;
     if (dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: 'Some files in the IDE have unsaved changes.' }) === 0) e.preventDefault();
   });
@@ -732,7 +734,7 @@ function createWindow(): void {
     if (act === 'reload') { reloadedAt = Date.now(); win?.webContents.reload(); }
     else if (act === 'stop') dialog.showErrorBox('Ouros', `The window crashed again (${d.reason}). Restart Ouros; the logs folder has details.`);
   });
-  win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
+  win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) { detachAll(); dirtyFiles = false; } });
   win.on('unresponsive', () => console.error('window unresponsive'));
   win.on('responsive', () => console.error('window responsive again'));
   win.on('close', (e) => {
@@ -817,6 +819,7 @@ function coreUp(): Promise<boolean> {
 /** Starts the core detached when none answers, without the parent Claude Code session's identity; it outlives the window. */
 let ownCore = false;
 let closing = false;
+let dirtyFiles = false;
 /** The pid of the core a --demo window started, so quitting can confirm it stopped before the demo home goes. */
 let demoCorePid: number | null = null;
 
@@ -899,6 +902,10 @@ function busy(): boolean {
 
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
 async function onClose(): Promise<void> {
+  if (dirtyFiles && win && !win.isDestroyed()) {
+    const { response } = await dialog.showMessageBox(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: 'Some files in the IDE have unsaved changes.' });
+    if (response === 1) return;
+  }
   if (ownCore && busy() && !demo) {
     const { response } = await dialog.showMessageBox(win!, {
       type: 'question',
