@@ -161,6 +161,8 @@ html { font-size: 16px; }
 .ou-scol { max-width: 896px; margin: 0 auto; padding: 24px 24px 56px; display: grid; gap: 24px; }
 .ou-note { margin: 0; max-width: 640px; color: var(--mute); }
 .ou-group { display: grid; gap: 8px; }
+.ou-scol > .ou-group + .ou-group { margin-top: 8px; }
+.ou-group h3 { margin-bottom: 0; }
 .ou-rows { border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas-soft); padding: 4px 20px; }
 .ou-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 32px; min-height: 64px; padding: 16px 0; }
 .ou-row + .ou-row { border-top: 1px solid var(--hairline); }
