@@ -69,13 +69,20 @@ function TerminalPreview({ sessionId, stamp }) {
 
 function DetailAsk({ x }) {
   const [answer, setAnswer] = useState('');
+  const here = !x.project_id || x.project_id === ui.projectId;
+  const projectName = ui.snap?.projects?.find((p) => p.id === x.project_id)?.name || 'another project';
 
-  const send = () => {
+  const send = async () => {
+    if (!here) return;
     const text = answer.trim();
     if (!text) return;
-    troop.termInput(x.id, text + '\r');
-    setAnswer('');
-    toast(`Sent to ${x.engine_id}`);
+    try {
+      await troop.termInput(x.id, text + '\r');
+      setAnswer('');
+      toast(`Sent to ${x.engine_id}`);
+    } catch (err) {
+      toast(String((err && err.message) || err), true);
+    }
   };
 
   return (
@@ -88,7 +95,10 @@ function DetailAsk({ x }) {
           data-id={x.id}
           aria-label="Open on Wall"
           title="Open on Wall"
-          onClick={() => homeView.set('wall')}
+          onClick={(e) => {
+            e.stopPropagation();
+            openOnWall(x);
+          }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
             <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" />
@@ -109,15 +119,17 @@ function DetailAsk({ x }) {
           onChange={setAnswer}
           onEnter={send}
           width="100%"
+          isDisabled={!here}
         />
         <div className="ou-ipane-answer-row">
           <Button
             variant="primary"
             label="Send"
-            isDisabled={!answer.trim()}
+            isDisabled={!here || !answer.trim()}
             onClick={send}
           />
         </div>
+        {!here ? <div className="ou-ipane-muted">{`In ${projectName}. Open it on the Wall to answer.`}</div> : null}
       </div>
     </>
   );
@@ -134,12 +146,22 @@ function DetailNotice({ n, kindOf }) {
         <span className="ou-ipane-noticetext">{n.text}</span>
       </div>
       <div className="ou-ipane-muted">{meta}</div>
+      <Button size="sm" variant="ghost" label="Open" onClick={() => { homeView.set('wall'); void openNeedsYou(n.id); }} />
       <NoteActions n={n} />
     </div>
   );
 }
 
-const openOnWall = (id) => { homeView.set('wall'); void pick(id); };
+const openOnWall = (x) => {
+  if (x.project_id && x.project_id !== ui.projectId) {
+    homeView.set('wall');
+    ui.pendingPick = x.id;
+    switchProject(x.project_id);
+    return;
+  }
+  homeView.set('wall');
+  void pick(x.id);
+};
 
 export function Inbox() {
   const { filter, selectedId } = inboxStore.use();
@@ -215,7 +237,7 @@ export function Inbox() {
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); openOnWall(x.id); }
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); openOnWall(x); }
                   }}
                   tabIndex={0}
                   role="button"
@@ -277,7 +299,7 @@ export function Inbox() {
             <EmptyState title="Nothing is waiting on you." isCompact />
           </div>
         ) : activeRow.type === 'ask' ? (
-          <DetailAsk x={activeRow.item} />
+          <DetailAsk key={activeRow.item.id} x={activeRow.item} />
         ) : (
           <DetailNotice n={activeRow.item} kindOf={kindOf} />
         )}

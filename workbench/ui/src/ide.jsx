@@ -543,6 +543,7 @@ function focusInput(side, id) {
 }
 
 export const dirtyIn = (pid) => (states.get(pid)?.tabs || []).filter((x) => x.dirty).map((x) => x.path);
+export const dropProject = (pid) => { if (cur && cur.pid === pid) cur = null; if (states.delete(pid)) bump(); };
 
 export const ideKeys = {
   find: () => { if (cur) cur.findOpen = true; focusInput('files', 'ide-find'); },

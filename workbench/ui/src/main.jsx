@@ -9,7 +9,7 @@ import { Settings, settingsStore } from './settings.jsx';
 import { Inbox, inboxStore } from './inbox.jsx';
 import { Addons, drawAddons } from './addons.jsx';
 import { Home, homeStore } from './home.jsx';
-import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn } from './ide.jsx';
+import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn, dropProject } from './ide.jsx';
 import { Palette, paletteView } from './palette.jsx';
 
 const el = (id) => document.getElementById(id);
@@ -68,7 +68,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
-globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn };
+globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn, dropProject };
 globalThis.paletteView = paletteView;
 
 document.addEventListener('keydown', (e) => {

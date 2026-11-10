@@ -1398,6 +1398,7 @@ async function onClick(e) {
       if (unsaved.length && !confirm(`${unsaved.length} unsaved ${unsaved.length === 1 ? 'file' : 'files'} in this project: ${unsaved.slice(0, 5).join(', ')}. Hide it and lose them?`)) return;
       const r = await rpc('project.hide', { project_id: id });
       if (!r.result) return;
+      globalThis.ideView?.dropProject?.(id);
       const row = el.closest('.item'), group = row.parentElement;
       if (!group) return;
       row.remove();
