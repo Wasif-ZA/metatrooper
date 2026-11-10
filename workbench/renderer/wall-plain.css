@@ -1,0 +1,197 @@
+/* Wall, title bar, footer strip, approval sheet, drawer, palette, Inbox, menus and toasts for the plain look. */
+:root:not([data-look="dither"]) { --ui: 'Geist', 'Segoe UI', sans-serif; }
+:root:not([data-look="dither"]) :is(.title, .strip, .sheet, .alist, .search, .inbox, .menu, .toast, .pop, .pane) { font-family: var(--ui); font-size: 13px; }
+:root:not([data-look="dither"]) :is(.title, .strip, .sheet, .alist, .search, .inbox, .menu, .toast, .pop, .pane) :is(button, input, select) { font-family: inherit; }
+
+/* title bar */
+:root:not([data-look="dither"]) .title { gap: 8px; padding: 0 8px; }
+:root:not([data-look="dither"]) .title :is(.ib, .chip, .btn, .kpick) { height: 28px; border-radius: 6px; }
+:root:not([data-look="dither"]) .title .ib { min-width: 28px; padding: 0 6px; }
+:root:not([data-look="dither"]) .title .chip, :root:not([data-look="dither"]) .title .btn { font-size: 12.5px; font-weight: 500; padding: 0 10px; }
+:root:not([data-look="dither"]) .title .btn.acc { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
+:root:not([data-look="dither"]) .brand { height: 28px; font-size: 13px; font-weight: 600; }
+:root:not([data-look="dither"]) .brand b { font-family: var(--ui); font-size: 14px; font-weight: 600; letter-spacing: 0; }
+:root:not([data-look="dither"]) .crumb { height: 28px; gap: 6px; font-size: 13px; }
+:root:not([data-look="dither"]) .crumb .link { font-size: 12.5px; color: var(--mute); }
+:root:not([data-look="dither"]) .title .kpick { padding: 0 8px; font-size: 13px; font-weight: 500; color: var(--ink); }
+:root:not([data-look="dither"]) .title .kpick .meta { font-size: 12px; font-weight: 400; color: var(--mute); }
+:root:not([data-look="dither"]) .title .branch { height: 28px; font-size: 12.5px; color: var(--mute); }
+:root:not([data-look="dither"]) .crumb .core { height: 28px; padding: 0 8px; margin-left: 0; border: 0; border-radius: 6px; color: var(--mute); font-size: 12.5px; }
+:root:not([data-look="dither"]) .vseg { height: 28px; margin-left: 4px; font-size: 12.5px; }
+:root:not([data-look="dither"]) .vseg button { height: 22px; padding: 0 10px; }
+:root:not([data-look="dither"]) .title .needs { margin-left: 4px; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12.5px; }
+:root:not([data-look="dither"]) .needs .n { min-width: 18px; height: 18px; line-height: 18px; border-radius: 999px; font-size: 11.5px; }
+:root:not([data-look="dither"]) .needs.zero { color: var(--mute); border-color: var(--hairline); }
+:root:not([data-look="dither"]) .needs.zero .n { background: var(--canvas-soft); color: var(--mute); }
+:root:not([data-look="dither"]) .uchip { font-family: var(--ui); }
+:root:not([data-look="dither"]) .uchip.warn { border-color: var(--hairline-strong); color: var(--body-strong); }
+:root:not([data-look="dither"]) .vsep { height: 16px; }
+:root:not([data-look="dither"]) .newagent { margin-right: 4px; }
+:root:not([data-look="dither"]) .search { top: 6px; border-color: var(--hairline); background: var(--canvas); }
+:root:not([data-look="dither"]) .search:not(.open) { border-radius: 6px; }
+:root:not([data-look="dither"]) .search.open { border-radius: 12px; border-color: var(--hairline-strong); }
+:root:not([data-look="dither"]) .search:not(.open) .sbar { height: 26px; }
+:root:not([data-look="dither"]) .search.open .sbar { height: 40px; padding: 0 8px 0 14px; }
+:root:not([data-look="dither"]) .sbar input { font-size: 13px; }
+:root:not([data-look="dither"]) kbd { font-family: var(--ui); font-size: 11px; border-bottom-width: 1px; border-radius: 4px; }
+:root:not([data-look="dither"]) .pop { border-radius: 12px; border-color: var(--hairline); background: var(--canvas); padding: 12px 14px 4px; }
+:root:not([data-look="dither"]) .pop h4 { font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+:root:not([data-look="dither"]) .urow { border-top-style: solid; border-top-color: var(--hairline); }
+:root:not([data-look="dither"]) .urow .e, :root:not([data-look="dither"]) .ul { font-family: var(--ui); font-size: 12px; }
+
+/* tiles */
+:root:not([data-look="dither"]) .pane { border-radius: 12px; border-color: var(--hairline); }
+:root:not([data-look="dither"]) .pane.attn { border-color: var(--wait); }
+:root:not([data-look="dither"]) .edge { border-radius: 12px; box-shadow: none; }
+:root:not([data-look="dither"]) .swc, :root:not([data-look="dither"]) .shim { display: none; }
+:root:not([data-look="dither"]) .tile-body { border-radius: 0 0 12px 12px; }
+:root:not([data-look="dither"]) .tile .ph, :root:not([data-look="dither"]) .tile[data-state] .ph { height: 58px; background: none; box-shadow: none; border-bottom: 0; border-radius: 12px 12px 0 0; }
+:root:not([data-look="dither"]) .ph .r1 { height: 34px; padding: 0 6px 0 12px; gap: 8px; }
+:root:not([data-look="dither"]) .ph .r2 { height: 24px; padding: 0 12px; gap: 8px; font-size: 12px; color: var(--mute); background: none; border-top: 0; border-bottom: 1px solid var(--hairline); }
+:root:not([data-look="dither"]) .tile .ph .r2, :root:not([data-look="dither"]) .tile[data-state] .ph .r2 { background: none; border-top: 0; }
+:root:not([data-look="dither"]) .tile[data-state="waiting_for_you"] .ph .r2 { background: color-mix(in srgb, var(--wait) 7%, transparent); border-bottom-color: color-mix(in srgb, var(--wait) 35%, var(--hairline)); }
+:root:not([data-look="dither"]) .ph .fl, :root:not([data-look="dither"]) .ph .eng, :root:not([data-look="dither"]) .ph .meta { color: var(--mute); }
+:root:not([data-look="dither"]) .ph .fl { font-family: var(--mono); font-size: 12px; }
+:root:not([data-look="dither"]) .ph .meta, :root:not([data-look="dither"]) .ph .tile-watch { font-family: var(--mono); font-size: 12px; }
+:root:not([data-look="dither"]) .ph .tile-watch { color: var(--mute); }
+:root:not([data-look="dither"]) .ph .dot { width: 8px; height: 8px; background: var(--mute); }
+:root:not([data-look="dither"]) .ph .dot.waiting_for_you { background: var(--wait); }
+:root:not([data-look="dither"]) .ph .dot.exited { background: transparent; border: 1px solid var(--mute); }
+:root:not([data-look="dither"]) .ph .eng { height: auto; padding: 0; background: none; border-radius: 0; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; }
+:root:not([data-look="dither"]) .ph .task { font-family: var(--ui); font-size: 13px; font-weight: 500; color: var(--ink); }
+:root:not([data-look="dither"]) .ph .badge { height: auto; padding: 0; border: 0; border-radius: 0; font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--mute); }
+:root:not([data-look="dither"]) .ph .badge:is(.work, .unseen, .done) { color: var(--mute); }
+:root:not([data-look="dither"]) .stamp { transform: none; }
+:root:not([data-look="dither"]) .stamp .ink.y { display: none; }
+:root:not([data-look="dither"]) .stamp .ink.p { height: 20px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid var(--wait); border-radius: 999px; background: none; color: var(--wait); font-family: var(--ui); font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0; text-transform: none; }
+:root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr) { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
+:root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr):hover { background: var(--canvas-soft); color: var(--ink); }
+:root:not([data-look="dither"]) .ph .tx { width: 28px; height: 28px; border-radius: 6px; }
+:root:not([data-look="dither"]) .ph .tx:hover { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .ph .act { gap: 6px; }
+:root:not([data-look="dither"]) .tile-desk .btn { height: 28px; border-radius: 6px; font-size: 12.5px; }
+:root:not([data-look="dither"]) .tile-desk .btn.warn, :root:not([data-look="dither"]) .tile-desk .badge.warn { color: var(--wait); }
+:root:not([data-look="dither"]) .ph .tile-changed { font-family: var(--ui); font-size: 12px; color: var(--body); background: none; border: 0; padding: 0; text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 3px; }
+:root:not([data-look="dither"]) .spk rect { fill: var(--hairline); }
+:root:not([data-look="dither"]) .spk rect.on { fill: var(--mute); }
+:root:not([data-look="dither"]) .pane.fold .ph { height: 100%; border-radius: 12px; }
+:root:not([data-look="dither"]) .pane.fold .ph .r2 { border-bottom: 0; background: none; }
+:root:not([data-look="dither"]) .pane.fold .ph .task { font-size: 13px; }
+:root:not([data-look="dither"]) .fold-more { border-style: solid; border-color: var(--hairline); border-radius: 12px; font-family: var(--ui); font-size: 12.5px; }
+:root:not([data-look="dither"]) .ph :is(button, .tx):focus-visible, :root:not([data-look="dither"]) .strip :is(button, .link):focus-visible, :root:not([data-look="dither"]) .sheet :is(button, input, .tab):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* footer strip */
+:root:not([data-look="dither"]) .strip { height: 44px; padding: 0 8px 0 14px; gap: 8px; border-radius: 12px; border-color: var(--hairline); background: var(--canvas); color: var(--mute); font-size: 12.5px; }
+:root:not([data-look="dither"]) .strip .needs-l { font-weight: 500; font-size: 12.5px; color: var(--wait); }
+:root:not([data-look="dither"]) .strip .link { color: var(--body-strong); font-size: 12.5px; }
+:root:not([data-look="dither"]) .strip .task { color: var(--mute); font-size: 12px; }
+:root:not([data-look="dither"]) .strip .stab { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--body); font-size: 12.5px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+:root:not([data-look="dither"]) .strip .stab:hover { background: var(--canvas-soft); color: var(--ink); }
+:root:not([data-look="dither"]) .strip .stab.on { background: var(--canvas-soft); color: var(--ink); }
+:root:not([data-look="dither"]) .strip .stab .n { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .strip .btn { height: 28px; border-radius: 6px; font-size: 12.5px; }
+
+/* approval sheet */
+:root:not([data-look="dither"]) .sheet { border-radius: 12px; border-color: var(--hairline); background: var(--canvas); }
+:root:not([data-look="dither"]) .sheet .tab { height: 44px; padding: 0 14px; gap: 10px; font-size: 13px; }
+:root:not([data-look="dither"]) .sheet .tab .t { font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink); }
+:root:not([data-look="dither"]) .sheet .tab .n { min-width: 20px; height: 20px; line-height: 20px; border-radius: 999px; background: var(--wait); color: #0b0b0c; font-size: 12px; font-weight: 600; text-align: center; }
+:root:not([data-look="dither"]) .sheet .tab .n.roll { height: 20px; }
+:root:not([data-look="dither"]) .sheet:has(.gates:empty, .gates > .gate:not([data-approval])) .tab .n { background: var(--canvas-soft); color: var(--mute); }
+:root:not([data-look="dither"]) .sheet .tab .runs { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .sheet .tab .btn { height: 28px; border-radius: 6px; }
+:root:not([data-look="dither"]) .gates { padding: 4px 12px 12px; gap: 12px; }
+:root:not([data-look="dither"]) .gate { border-radius: 12px; border-color: var(--hairline); background: var(--canvas-deep); padding: 12px 16px 14px; gap: 8px; }
+:root:not([data-look="dither"]) .gate.cur { border-color: var(--hairline-strong); }
+:root:not([data-look="dither"]) .gate .gt { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .gate .gt b { color: var(--body-strong); font-weight: 500; }
+:root:not([data-look="dither"]) .gate .gt .dm { width: 8px; height: 8px; border-radius: 50%; }
+:root:not([data-look="dither"]) .gate .gt .link { font-size: 12px; text-decoration: none; }
+:root:not([data-look="dither"]) .gate .gs { font-size: 13.5px; font-weight: 600; }
+:root:not([data-look="dither"]) .gate .gd { font-size: 13px; line-height: 1.5; color: var(--body); }
+:root:not([data-look="dither"]) .gate .btn { height: 28px; border-radius: 6px; font-size: 12.5px; font-weight: 500; }
+:root:not([data-look="dither"]) .gate .btn.acc { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
+:root:not([data-look="dither"]) .gate .ga input { height: 28px; border-radius: 6px; border-color: var(--hairline-strong); font-size: 12.5px; }
+:root:not([data-look="dither"]) .gate .ga .lnk { font-size: 12.5px; }
+:root:not([data-look="dither"]) .verdict { transform: none; box-shadow: none; border: 1px solid currentColor; border-radius: 999px; padding: 2px 10px; font-family: var(--ui); font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+:root:not([data-look="dither"]) .verdict.ok { color: var(--body-strong); }
+:root:not([data-look="dither"]) .scan-line { font-size: 12px; }
+:root:not([data-look="dither"]) .steps .s, :root:not([data-look="dither"]) .step-gate { font-size: 12.5px; }
+:root:not([data-look="dither"]) .step-gate { border-radius: 6px; }
+
+/* agent list drawer */
+:root:not([data-look="dither"]) .alist { border-radius: 12px; border-color: var(--hairline); background: var(--canvas); }
+:root:not([data-look="dither"]) .lh { padding: 12px 8px 8px 16px; gap: 6px; }
+:root:not([data-look="dither"]) .lh h2 { font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+:root:not([data-look="dither"]) .lh .n { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .lh .link { height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; color: var(--mute); }
+:root:not([data-look="dither"]) .lh .link:hover, :root:not([data-look="dither"]) .lh .ib:hover { background: var(--canvas-soft); color: var(--ink); }
+:root:not([data-look="dither"]) .lh .ib { height: 28px; min-width: 28px; border-radius: 6px; }
+:root:not([data-look="dither"]) .lnew { padding: 0 12px 8px 16px; gap: 6px; }
+:root:not([data-look="dither"]) .lnew .btn { height: 28px; border-radius: 6px; font-size: 12.5px; font-weight: 500; padding: 0 10px; }
+:root:not([data-look="dither"]) .lsec { padding: 12px 16px 4px; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--mute); }
+:root:not([data-look="dither"]) .alist .li { min-height: 32px; margin: 0 8px; width: calc(100% - 16px); padding: 6px 8px; column-gap: 10px; border-radius: 6px; }
+:root:not([data-look="dither"]) .alist .li:hover { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .alist .li.sel { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .alist .li.sel::before { display: none; }
+:root:not([data-look="dither"]) .alist .li .dot { width: 8px; height: 8px; margin-top: 5px; background: var(--mute); }
+:root:not([data-look="dither"]) .alist .li .dot.waiting_for_you { background: var(--wait); }
+:root:not([data-look="dither"]) .alist .li .dot.exited { background: transparent; border: 1px solid var(--mute); }
+:root:not([data-look="dither"]) .alist .li .dot.failed { background: var(--del); }
+:root:not([data-look="dither"]) .alist .li .t { font-size: 13px; color: var(--ink); }
+:root:not([data-look="dither"]) .alist .li .a, :root:not([data-look="dither"]) .alist .li .m { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .alist .li .m { font-family: var(--ui); }
+:root:not([data-look="dither"]) .alist .li .m button { height: 28px; border-radius: 6px; font-size: 12.5px; }
+:root:not([data-look="dither"]) .alist .li .hide { font-size: 12px; }
+:root:not([data-look="dither"]) .alist .li.drop { outline-style: solid; }
+:root:not([data-look="dither"]) .alist .run1 { font-size: 12.5px; }
+:root:not([data-look="dither"]) .lfoot { padding: 8px 16px 12px; border-top-color: var(--hairline); }
+:root:not([data-look="dither"]) .lfoot .lsec { padding: 4px 0 8px; }
+:root:not([data-look="dither"]) .u { font-size: 12px; }
+:root:not([data-look="dither"]) .u .e { font-family: var(--ui); }
+:root:not([data-look="dither"]) .alist :is(.li, button):focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+/* palette */
+:root:not([data-look="dither"]) .rg { padding: 10px 10px 4px; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+:root:not([data-look="dither"]) .search.open .res { padding: 4px 6px 6px; }
+:root:not([data-look="dither"]) .ri { height: 32px; padding: 0 10px; border-radius: 6px; font-size: 13px; }
+:root:not([data-look="dither"]) .ri:hover, :root:not([data-look="dither"]) .ri.cur { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .ri.cur::before { display: none; }
+:root:not([data-look="dither"]) .ri .sub { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .ri mark { font-weight: 600; text-decoration: none; }
+:root:not([data-look="dither"]) .search.open .sfoot { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .ri:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+/* Inbox, menus, toasts */
+:root:not([data-look="dither"]) :is(.inbox, .menu, .toast) { border-radius: 12px; border-color: var(--hairline-strong); background: var(--canvas); }
+:root:not([data-look="dither"]) .inbox { top: 48px; padding: 4px; }
+:root:not([data-look="dither"]) .inbox .head, :root:not([data-look="dither"]) .menu .mh { padding: 8px 10px 4px; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--mute); }
+:root:not([data-look="dither"]) .inbox .item, :root:not([data-look="dither"]) .menu .item { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 10px; border-radius: 6px; font-size: 13px; color: var(--body-strong); }
+:root:not([data-look="dither"]) .inbox .item:hover, :root:not([data-look="dither"]) .menu .item:hover { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .inbox .item .meta { font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .inbox .item.read { opacity: 1; color: var(--mute); }
+:root:not([data-look="dither"]) .inbox .item .link { flex: none; font-size: 12px; color: var(--mute); }
+:root:not([data-look="dither"]) .inbox .item .link:hover { color: var(--ink); }
+:root:not([data-look="dither"]) .inbox .item .dot { width: 8px; height: 8px; background: var(--mute); }
+:root:not([data-look="dither"]) .inbox .item .dot.waiting_for_you { background: var(--wait); }
+:root:not([data-look="dither"]) .inbox .item .dot.failed { background: var(--del); }
+:root:not([data-look="dither"]) .inbox .empty { font-size: 13px; }
+:root:not([data-look="dither"]) .menu { padding: 4px; min-width: 180px; }
+:root:not([data-look="dither"]) .menu .sep { margin: 4px 0; }
+:root:not([data-look="dither"]) .menu .kmenu .item.on { background: var(--canvas-soft); }
+:root:not([data-look="dither"]) .toast { padding: 12px 14px; font-size: 13px; line-height: 1.45; }
+:root:not([data-look="dither"]) .toast.error { border-color: var(--del); }
+:root:not([data-look="dither"]) :is(.inbox .item, .menu .item):focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+:root:not([data-look="dither"]) .ph :is(.tile-desk, .tile-previews) :is(.btn, button) { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
+:root:not([data-look="dither"]) .ph :is(.tile-desk, .tile-previews) :is(.btn, button):hover { background: var(--canvas-soft); color: var(--ink); }
+:root:not([data-look="dither"]) .ph .tile-desk .btn.warn { color: var(--wait); }
+:root:not([data-look="dither"]) .lnew .btn { background: none; border-color: var(--hairline); color: var(--body-strong); }
+:root:not([data-look="dither"]) .lnew .btn:hover:not(:disabled) { background: var(--canvas-soft); color: var(--ink); }
+
+/* narrow tiles: the task name gives way first, buttons tighten, nothing is clipped */
+:root:not([data-look="dither"]) .ph .r1 { min-width: 0; overflow: hidden; }
+:root:not([data-look="dither"]) .ph .r1 > * { flex-shrink: 0; }
+:root:not([data-look="dither"]) .ph .r1 > .tile-task { flex: 1 1 40px; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root:not([data-look="dither"]) .ph .r1 > .tile-engine { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root:not([data-look="dither"]) .ph .r1 :is(.btn, .pb, .ub) { padding: 0 8px; font-size: 12px; }
+@container (max-width: 640px) { :root:not([data-look="dither"]) .ph .r1 > .tile-engine { display: none; } }

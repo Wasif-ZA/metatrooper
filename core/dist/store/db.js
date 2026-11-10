@@ -77,8 +77,8 @@ export function checkSchema(db              , dir = migrationsDir)       {
   const tracked = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migration'").get();
   const newest = tracked ? Number((db.prepare('SELECT max(id) AS id FROM schema_migration').get()                         ).id ?? 0) : 0;
   const known = Math.max(0, ...migrationFiles(dir).map((f) => Number(f.slice(0, 3))));
-  if (newest > known) throw new Error(`troop.db has migration ${newest}, newer than this MetaTrooper`);
-  if (newest < known) throw new Error(`troop.db is at migration ${newest}, behind this MetaTrooper (${known}); restart the core to migrate it`);
+  if (newest > known) throw new Error(`troop.db has migration ${newest}, newer than this Ouros`);
+  if (newest < known) throw new Error(`troop.db is at migration ${newest}, behind this Ouros (${known}); restart the core to migrate it`);
 }
 
 /** Applies each `NNN-<name>.sql` in `dir` not yet in `schema_migration`, in id order, one transaction each. */

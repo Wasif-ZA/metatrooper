@@ -1,4 +1,5 @@
-import { listDir, readText } from './files.ts';
+import { listDir, rankFiles, readText } from './files.ts';
+import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -519,7 +520,24 @@ function handlers(): void {
     return d && typeof projectId === 'string' ? (d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined)?.path ?? null : null;
   };
   on('fsList', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? listDir(root, rel) : null; });
+  on('fsFind', async (projectId: unknown, query: unknown) => {
+    const root = projectRoot(projectId);
+    if (!root || typeof query !== 'string' || query.length > 200) return [];
+    try { return rankFiles((await runIn(root)(['ls-files', '-z', '--cached', '--others', '--exclude-standard'])).split('\0').filter(Boolean), query); } catch { return []; }
+  });
   on('fsRead', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? readText(root, rel) : { error: 'pick a project first' }; });
+  on('addons', () => {
+    const d = db();
+    if (!d) return [];
+    const rows = d.prepare('SELECT id, version, manifest, permissions, enabled FROM plugin ORDER BY id').all() as Array<{ id: string; version: string; manifest: string; permissions: string; enabled: number }>;
+    return rows.map((r) => {
+      let description = '';
+      let permissions: string[] = [];
+      try { description = String(JSON.parse(r.manifest).description ?? ''); } catch {}
+      try { permissions = (JSON.parse(r.permissions) as string[]).map(describePermission); } catch {}
+      return { id: r.id, version: r.version, enabled: r.enabled === 1, description, permissions };
+    });
+  });
   on('settingsPage', () => {
     const s = settings();
     return { sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme } };

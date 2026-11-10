@@ -1,6 +1,6 @@
 /* The IDE screen: project files on the left, open files as tabs, agents beside the tree. Files are read-only here. */
 globalThis.ideView = (() => {
-  const st = { project: null, dirs: new Map(), open: new Set(['']), tabs: [], active: null, files: new Map() };
+  const st = { project: null, dirs: new Map(), open: new Set(['']), tabs: [], active: null, files: new Map(), diffs: new Map(), diffMode: new Set(), q: '', hits: [] };
   const el = () => document.getElementById('ide');
   const shown = () => ui.view === 'ide' && Boolean(project());
   const FILE = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M3.5 1.5h4.5l2.5 2.5v8.5h-7z"/><path d="M8 1.5V4h2.5"/></svg>';
@@ -11,10 +11,25 @@ globalThis.ideView = (() => {
     st.dirs.set(rel, (await api.fsList(ui.projectId, rel || '.')) || []);
   }
 
+  const slashed = (f) => String(f).replace(/\\/g, '/');
+
   function changed() {
     const set = new Set();
-    for (const x of ui.snap.sessions) for (const f of changedFiles(x.id)) set.add(String(f.path || f).replace(/\\/g, '/'));
+    for (const x of ui.snap.sessions) for (const f of changedFiles(x.id)) set.add(slashed(f));
     return set;
+  }
+
+  function owner(rel) {
+    const x = ui.snap.sessions.find((y) => changedFiles(y.id).some((f) => slashed(f) === rel));
+    return x ? x.id : null;
+  }
+
+  function diffView(rel) {
+    const text = st.diffs.get(rel);
+    if (text === undefined) return '<p class="iempty">Loading.</p>';
+    const lines = text ? diffLines(text) : [];
+    if (!lines.length) return '<p class="iempty">No changes to show for this file.</p>';
+    return `<div class="idiff">${lines.map((l) => `<div class="dl ${l.kind}"><span class="n">${l.kind === 'hunk' ? '' : l.line}</span><span class="t">${esc(l.text)}</span></div>`).join('')}</div>`;
   }
 
   function tree(rel, depth, marks) {
@@ -28,6 +43,7 @@ globalThis.ideView = (() => {
 
   function viewer() {
     if (!st.active) return '<p class="iempty">Pick a file on the left.</p>';
+    if (st.diffMode.has(st.active)) return diffView(st.active);
     const f = st.files.get(st.active);
     if (!f) return '<p class="iempty">Loading.</p>';
     if (f.error) return `<p class="iempty">${esc(f.error)}</p>`;
@@ -43,11 +59,20 @@ globalThis.ideView = (() => {
   function paint() {
     const marks = changed();
     const p = project();
-    el().innerHTML = `<aside class="iside"><div class="ihd"><span>Explorer</span></div><div class="itree" role="tree" aria-label="${esc(p.name)} files"><div class="iroot">${esc(p.name)}</div>${tree('', 0, marks)}</div>
+    const finding = document.activeElement && document.activeElement.id === 'ide-find';
+    const view = el().querySelector('.iview');
+    const scroll = view ? [view.scrollTop, view.scrollLeft] : null;
+    st.marksKey = [...marks].sort().join('|');
+    if (st.active && !marks.has(st.active)) st.diffMode.delete(st.active);
+    const found = st.hits.map((h) => `<button class="trow hit${st.active === h ? ' cur' : ''}" data-file="${esc(h)}" title="${esc(h)}">${FILE}<span>${esc(h.split('/').pop())}<em>${esc(h.split('/').slice(0, -1).join('/'))}</em></span>${marks.has(h) ? '<i title="Changed by an agent"></i>' : ''}</button>`).join('');
+    el().innerHTML = `<aside class="iside"><div class="ihd"><span>Explorer</span></div><div class="ifind"><input id="ide-find" value="${esc(st.q)}" placeholder="Find a file (Ctrl+P)" autocomplete="off" spellcheck="false" aria-label="Find a file by name"></div>
+        <div class="itree" role="tree" aria-label="${esc(p.name)} files">${st.q.trim() ? found || '<p class="iempty small">No file matches.</p>' : `<div class="iroot">${esc(p.name)}</div>${tree('', 0, marks)}`}</div>
         <div class="ihd"><span>Agents</span></div><div class="iagents" id="ide-agents">${agents()}</div></aside>
       <section class="imain"><div class="itabs" role="tablist">${st.tabs.map((t) => `<span class="itab${t === st.active ? ' on' : ''}" role="tab" aria-selected="${t === st.active}"><button data-tab-file="${esc(t)}" title="${esc(t)}">${esc(t.split('/').pop())}</button><button class="x" data-close="${esc(t)}" aria-label="Close ${esc(t)}">x</button></span>`).join('')}</div>
-        ${st.active ? `<div class="icrumb">${esc(st.active.split('/').join(' / '))}<span>Read only</span></div>` : ''}
+        ${st.active ? `<div class="icrumb">${esc(st.active.split('/').join(' / '))}${marks.has(st.active) ? `<span class="iseg"><button data-mode="file" aria-pressed="${!st.diffMode.has(st.active)}">File</button><button data-mode="diff" aria-pressed="${st.diffMode.has(st.active)}">Changes</button></span>` : '<span>Read only</span>'}</div>` : ''}
         <div class="iview">${viewer()}</div></section>`;
+    if (finding) { const f = document.getElementById('ide-find'); f.focus(); f.setSelectionRange(st.q.length, st.q.length); }
+    if (scroll) { const v = el().querySelector('.iview'); v.scrollTop = scroll[0]; v.scrollLeft = scroll[1]; }
   }
 
   async function openFile(rel) {
@@ -61,14 +86,14 @@ globalThis.ideView = (() => {
     el().hidden = !shown();
     if (!shown()) return;
     if (st.project !== ui.projectId) {
-      Object.assign(st, { project: ui.projectId, dirs: new Map(), open: new Set(['']), tabs: [], active: null, files: new Map() });
+      Object.assign(st, { project: ui.projectId, dirs: new Map(), open: new Set(['']), tabs: [], active: null, files: new Map(), diffs: new Map(), diffMode: new Set(), q: '', hits: [] });
       el().innerHTML = '';
       await load('');
       if (st.project === ui.projectId && shown()) paint();
       return;
     }
     const a = document.getElementById('ide-agents');
-    if (a) a.innerHTML = agents(); else paint();
+    if (a && st.marksKey === [...changed()].sort().join('|')) a.innerHTML = agents(); else paint();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -85,7 +110,32 @@ globalThis.ideView = (() => {
         st.tabs = st.tabs.filter((x) => x !== t.dataset.close);
         if (st.active === t.dataset.close) st.active = st.tabs[st.tabs.length - 1] || null;
         paint();
+      } else if (t.dataset.mode !== undefined) {
+        const rel = st.active;
+        if (t.dataset.mode === 'file') st.diffMode.delete(rel); else st.diffMode.add(rel);
+        paint();
+        const id = owner(rel);
+        if (t.dataset.mode === 'diff' && id && !st.diffs.has(rel)) { st.diffs.set(rel, (await api.sessionDiffFile(id, rel, 'uncommitted')) || ''); if (st.active === rel) paint(); }
+        else if (t.dataset.mode === 'diff' && !id) { st.diffs.set(rel, ''); paint(); }
       } else if (t.dataset.action === 'pick') homeView.set('wall');
+    });
+    el().addEventListener('input', async (e) => {
+      if (e.target.id !== 'ide-find') return;
+      const q = st.q = e.target.value;
+      const hits = q.trim() ? (await api.fsFind(ui.projectId, q)) || [] : [];
+      if (st.q !== q) return;
+      st.hits = hits;
+      paint();
+    });
+    el().addEventListener('keydown', async (e) => {
+      if (e.target.id !== 'ide-find') return;
+      if (e.key === 'Enter' && st.hits.length) { e.preventDefault(); await openFile(st.hits[0]); }
+      else if (e.key === 'Escape' && st.q) { e.preventDefault(); e.stopPropagation(); st.q = ''; st.hits = []; paint(); }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!shown() || !e.ctrlKey || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'p') return;
+      e.preventDefault();
+      document.getElementById('ide-find')?.focus();
     });
   });
 

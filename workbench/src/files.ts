@@ -39,3 +39,17 @@ export function readText(root: string, rel: string): { text: string } | { error:
   if (buf.includes(0)) return { error: 'not a text file' };
   return { text: buf.toString('utf8') };
 }
+
+/** Up to `limit` paths that contain every word of `query`, best first: name starts with it, name contains it, then path contains it; shorter paths win ties. */
+export function rankFiles(paths: string[], query: string, limit = 50): string[] {
+  const words = query.toLowerCase().split(/[ ]+/).filter(Boolean);
+  if (!words.length) return [];
+  const scored: Array<[number, string]> = [];
+  for (const p of paths) {
+    const low = p.toLowerCase();
+    if (!words.every((w) => low.includes(w))) continue;
+    const name = low.slice(low.lastIndexOf('/') + 1);
+    scored.push([name.startsWith(words[0]) ? 0 : name.includes(words[0]) ? 1 : 2, p]);
+  }
+  return scored.sort((a, b) => a[0] - b[0] || a[1].length - b[1].length || a[1].localeCompare(b[1])).slice(0, limit).map((x) => x[1]);
+}

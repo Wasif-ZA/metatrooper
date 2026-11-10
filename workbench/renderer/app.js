@@ -14,7 +14,7 @@ const ui = {
   diffScope: ['turn', 'uncommitted', 'branch'].includes(load('diffScope')) ? load('diffScope') : 'turn',
   split: load('split') === '1',
   mode: load('mode') === 'grid' ? 'grid' : 'single',
-  view: ['home', 'ide', 'inbox'].includes(load('view')) ? load('view') : 'wall',
+  view: ['home', 'ide', 'inbox', 'addons'].includes(load('view')) ? load('view') : 'wall',
   localSel: null,
   shells: [],
   shellKinds: [],
@@ -279,7 +279,7 @@ function renderCompare(pane) {
     </div>`).join('')}`;
 }
 
-const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
+const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #addons:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
 function reportPaneBounds() {
   const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && (ui.picking || !document.querySelector(PANE_OVERLAYS)) ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
@@ -398,7 +398,7 @@ function refreshHandback() {
 }
 
 
-const TABS = [['diff', 'Diff'], ['git', 'Git'], ['handback', 'Hand-back'], ['browser', 'Browser']];
+const TABS = [['diff', 'Diff'], ['git', 'Git'], ['handback', 'Hand back'], ['browser', 'Browser']];
 const THEME_VARS = {
   bg: ['--canvas-deep'], panel: ['--canvas'], panel2: ['--canvas-soft'], line: ['--hairline', '--hairline-strong'], line_strong: ['--hairline-strong'],
   text: ['--ink', '--body-strong', '--body'], body_strong: ['--body-strong'], body: ['--body'], muted: ['--mute', '--faint'], faint: ['--faint'],
@@ -889,6 +889,7 @@ function paletteItems() {
   items.push({ group: 'Core', confirm: 'stop', name: 'Stop core (stops every agent)', label: armed === 'stop' ? 'Press Enter again to stop every agent' : 'Stop core (stops every agent)', run: async () => { await api.stopCore(); toast('Core stopped'); } });
   items.push({ group: 'Core', label: 'Open logs folder', run: () => api.openLogs() });
   items.push({ group: 'Actions', label: 'Settings', meta: 'Ctrl+,', run: () => settingsView.open() });
+  items.push({ group: 'Actions', label: 'Add-ons: agents and plugins', run: () => homeView.set('addons') });
   items.push({ group: 'Core', label: 'Notification sinks (Slack, ntfy, webhooks)', run: openSinks });
   return items;
 }
@@ -1216,6 +1217,7 @@ function render(focus = false) {
   globalThis.homeView?.draw();
   globalThis.inboxView?.draw();
   void globalThis.ideView?.draw();
+  void globalThis.addonsView?.draw();
   reportPaneBounds();
   renderStrip(sel);
   renderInbox();

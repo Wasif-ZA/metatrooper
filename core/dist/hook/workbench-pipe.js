@@ -9,7 +9,7 @@ const CALL_TIMEOUT_MS = 30_000;
 
                                                                                                           
 
-/** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
+/** The Ouros session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
 export function findSession()                {
   const db = openReaderDb();
   if (!db) return null;

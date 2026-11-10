@@ -51,3 +51,34 @@
 .ifilters button[aria-pressed="true"] { background: var(--canvas-soft); border-color: var(--hairline-strong); color: var(--ink); }
 .ifilters i { margin-left: 6px; font-style: normal; font-variant-numeric: tabular-nums; color: var(--mute); }
 .igates { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.hrow.static { cursor: default; }
+.hrow.static:hover { background: none; }
+.hrow.top { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; }
+.hrow.top .hdot { margin-top: 7px; }
+.hrow code, .anote code { font: 12px var(--mono); padding: 2px 6px; border-radius: 4px; background: var(--canvas-soft); color: var(--body-strong); }
+.aperms { margin: 6px 0 0; padding-left: 16px; font-size: 12px; line-height: 1.6; color: var(--body); }
+.anote { margin-top: 16px; font-size: 12.5px; line-height: 1.6; color: var(--mute); }
+.hempty.pad { padding: 12px 16px; margin: 0; }
+.hcomp { margin-bottom: 16px; border: 1px solid var(--hairline-strong); border-radius: 12px; background: var(--canvas); }
+.hcomp textarea { display: block; width: 100%; padding: 12px 14px 4px; border: 0; background: none; color: var(--ink); font: inherit; line-height: 1.5; resize: none; outline: none; }
+.hcomp:focus-within { border-color: var(--body); }
+.hcf { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 8px 8px; }
+.hcf select { height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--body-strong); font: inherit; }
+
+/* first-run start screen, plain look */
+:root:not([data-look="dither"]) .start { border: 0; background: var(--canvas-deep); padding: 48px 32px; font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13.5px; color: var(--body-strong); }
+:root:not([data-look="dither"]) .start > * { max-width: 600px; margin-left: auto; margin-right: auto; }
+:root:not([data-look="dither"]) .start h3 { margin-top: 0; margin-bottom: 12px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+:root:not([data-look="dither"]) .start .firstrun h3 { font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--mute); }
+:root:not([data-look="dither"]) .start ol { padding: 4px 16px 4px 36px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); }
+:root:not([data-look="dither"]) .start li { margin: 0; padding: 14px 0; line-height: 2.2; }
+:root:not([data-look="dither"]) .start li + li { border-top: 1px solid var(--hairline); }
+:root:not([data-look="dither"]) .start button { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--hairline-strong); font-weight: 500; font-size: 13px; color: var(--body-strong); }
+:root:not([data-look="dither"]) .start button.primary { background: var(--ink); border-color: var(--ink); color: var(--canvas-deep); }
+:root:not([data-look="dither"]) .start textarea { display: block; width: 100%; margin-top: 4px; padding: 10px 12px; border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--canvas-deep); color: var(--ink); font: inherit; line-height: 1.5; resize: vertical; }
+:root:not([data-look="dither"]) .start .actions { margin-top: 10px; line-height: 1; }
+:root:not([data-look="dither"]) .ecard { border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); }
+:root:not([data-look="dither"]) .start:not([hidden]) { display: flex; flex-direction: column; }
+:root:not([data-look="dither"]) .start > * { width: 100%; align-self: center; flex: none; }
+:root:not([data-look="dither"]) .start .firstrun { order: 3; margin: 24px auto 0; }
+:root:not([data-look="dither"]) body:not(.no-split) .start { right: auto; width: var(--colw, 554px); }

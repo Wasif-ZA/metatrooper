@@ -6,8 +6,8 @@ import { actionHash, GATE_WAIT_MS, desktopKeysProblem,              } from '../a
 import { WorkbenchPipe, findSession,            } from './workbench-pipe.js';
 import { serveMcp,              } from './mcp-stdio.js';
 
-const UNAVAILABLE = 'desktop not available: the MetaTrooper workbench is closed';
-const CORE_OFFLINE = 'not sent: the MetaTrooper core is offline, so this action cannot be checked';
+const UNAVAILABLE = 'desktop not available: the Ouros workbench is closed';
+const CORE_OFFLINE = 'not sent: the Ouros core is offline, so this action cannot be checked';
 const CONTROL_CHANGED = -32035;
 
 const win = { window: { type: 'integer', description: 'A window handle from windows.' } };
@@ -31,7 +31,7 @@ const workbench = new WorkbenchPipe(UNAVAILABLE);
 
 async function core(method        , params                         , waitMs = 60_000)                 {
   const out = await coreCall(method, params, { waitMs });
-  if (out.kind !== 'reply') return { error: { code: -32099, message: method === 'approval.check' || method === 'desktop.act' ? CORE_OFFLINE : 'the MetaTrooper core is offline' } };
+  if (out.kind !== 'reply') return { error: { code: -32099, message: method === 'approval.check' || method === 'desktop.act' ? CORE_OFFLINE : 'the Ouros core is offline' } };
   return out.reply;
 }
 
@@ -109,7 +109,7 @@ async function toolCall(name        , raw                         )             
   const { expect: _drop, session_id: _s, pid: _p, ...args } = raw ?? {};
   if (!(await workbench.available())) return fail(UNAVAILABLE);
   const session_id = workbench.sessionId ?? findSession();
-  if (!session_id) return fail('this process is not inside a MetaTrooper session');
+  if (!session_id) return fail('this process is not inside an Ouros session');
   const me = { session_id, pid: process.pid };
   const r = name === 'windows' ? await core('desktop.windows', me)
     : name === 'snapshot' ? await core('desktop.snapshot', { ...me, window: args.window, max_nodes: args.max_nodes })

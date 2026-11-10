@@ -18,7 +18,7 @@ function request(method        , params                         , timeoutMs = 30
   return new Promise((resolve, reject) => {
     const socket = net.connect(corePipe());
     const id = `shim-${process.pid}-${Date.now()}`;
-    const timer = setTimeout(() => { socket.destroy(); reject(new Error('MetaTrooper core did not answer')); }, timeoutMs);
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error('Ouros core did not answer')); }, timeoutMs);
     const decode = createDecoder((raw) => {
       const r = raw                                                                  ;
       if (r.id !== id) return;
@@ -28,7 +28,7 @@ function request(method        , params                         , timeoutMs = 30
       else resolve(r.result);
     });
     socket.on('data', (c) => { try { decode(c); } catch {} });
-    socket.once('error', () => { clearTimeout(timer); reject(new Error('MetaTrooper core is not running')); });
+    socket.once('error', () => { clearTimeout(timer); reject(new Error('Ouros core is not running')); });
     socket.once('connect', () => socket.write(encode({ jsonrpc: '2.0', id, method, params, meta: { origin: 'cli' } })));
   });
 }

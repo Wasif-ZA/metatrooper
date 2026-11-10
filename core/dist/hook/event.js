@@ -57,8 +57,8 @@ async function deliverComments(db              , sessionId        )             
   const comments = rows.filter((r) => r.kind !== 'notice');
   const notices = rows.filter((r) => r.kind === 'notice');
   const context = [
-    comments.length ? 'Comments from the MetaTrooper browser:\n\n' + comments.map((r) => r.body).join('\n\n') : '',
-    notices.length ? 'Notices from MetaTrooper:\n\n' + notices.map((r) => r.body).join('\n\n') : '',
+    comments.length ? 'Comments from the Ouros browser:\n\n' + comments.map((r) => r.body).join('\n\n') : '',
+    notices.length ? 'Notices from Ouros:\n\n' + notices.map((r) => r.body).join('\n\n') : '',
   ].filter(Boolean).join('\n\n');
   const line = JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } }) + '\n';
   await new Promise      ((resolve) => process.stdout.write(line, () => resolve()));

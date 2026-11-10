@@ -72,6 +72,12 @@ export const DEFAULTS = {
         warn: '#ff7a1a', bad: '#c8695c', grey: '#5a5a5a', unseen: '#b8b8b8', term_bg: '#0e0e0f', term_fg: '#b8b8b8', add_bg: '#f2f2f212', add_fg: '#e8e8e8',
         del_bg: '#c8695c17', del_fg: '#c8695c', font_ui: "'Space Mono', ui-monospace, Consolas, monospace", font_mono: DITHER_MONO,
       },
+      ouros: {
+        label: 'Ouros', look: 'plain', scheme: 'dark', bg: '#0a0a0a', panel: '#171717', panel2: '#262626', line: '#222222', line_strong: '#303030',
+        text: '#fafafa', body_strong: '#e5e5e5', body: '#a1a1a1', muted: '#858585', faint: '#6a6a6a', accent: '#e5e5e5', on_accent: '#171717', ok: '#e5e5e5',
+        warn: '#ff7a1a', bad: '#fca5a5', grey: '#5a5a5a', unseen: '#a1a1a1', term_bg: '#0c0c0c', term_fg: '#c8c8c8', add_bg: '#86efac1f', add_fg: '#86efac',
+        del_bg: '#fca5a51f', del_fg: '#fca5a5', font_ui: "'Geist', 'Segoe UI', sans-serif", font_mono: DITHER_MONO,
+      },
       charcoal: {
         label: 'Warp charcoal', look: 'charcoal', scheme: 'dark', bg: '#221e1b', panel: '#2b2622', panel2: '#383330', line: '#3f3a36', line_strong: '#4d4742',
         text: '#f7f5f0', body_strong: '#dad2c1', body: '#c9c0ad', muted: '#aea69c', faint: '#7d756c', accent: '#f7f5f0', on_accent: '#2b2622', ok: '#a8c58a',
