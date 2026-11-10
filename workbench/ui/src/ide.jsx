@@ -22,7 +22,7 @@ const states = new Map();
 let cur = null;
 const bridge = {};
 
-const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', q: '', hits: [], sq: '', sres: null, searching: false, ask: null, closeAll: false });
+const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', q: '', hits: [], sq: '', sres: null, searching: false, ask: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
 const slashed = (f) => String(f).replace(/\\/g, '/');
 const base = (p) => p.split('/').pop();
 const folder = (p) => p.split('/').slice(0, -1).join('/');
@@ -65,6 +65,86 @@ function ownerOf(path, preferred) {
   if (preferred && has(preferred)) return preferred;
   const x = ui.snap.sessions.find((y) => has(y.id));
   return x ? x.id : null;
+}
+
+function statusLetter(index, worktree, forStaged) {
+  const code = forStaged ? index : worktree;
+  if (code === '?') return 'U';
+  if (code === 'A') return 'A';
+  if (code === 'D') return 'D';
+  if (code === 'R') return 'R';
+  if (code === 'M' || code === 'T') return 'M';
+  return code === '.' ? '' : code;
+}
+
+function gitFiles(st) {
+  if (!st.git || !st.git.files) return { staged: [], unstaged: [] };
+  const staged = [];
+  const unstaged = [];
+  for (const f of st.git.files) {
+    if (f.index !== '.' && f.index !== '?') staged.push({ path: f.path, from: f.from, letter: statusLetter(f.index, f.worktree, true) });
+    if (f.worktree !== '.') unstaged.push({ path: f.path, from: f.from, letter: statusLetter(f.index, f.worktree, false) });
+  }
+  return { staged, unstaged };
+}
+
+async function loadGitStatus(st) {
+  const seq = ++st.gitSeq;
+  const r = await api.git(st.pid, 'status');
+  if (st.gitSeq !== seq) return;
+  st.git = r && !r.error ? r : (r && r.error ? { error: r.error } : { error: 'Could not read git status.' });
+  bump();
+}
+
+async function gitStage(st, paths) {
+  const r = await api.git(st.pid, 'stage-paths', paths);
+  if (r && r.error) { toast(r.error, true); return; }
+  await loadGitStatus(st);
+}
+
+async function gitUnstage(st, paths) {
+  const r = await api.git(st.pid, 'unstage-paths', paths);
+  if (r && r.error) { toast(r.error, true); return; }
+  await loadGitStatus(st);
+}
+
+async function gitCommit(st) {
+  const msg = st.commitMsg.trim();
+  if (!msg) return;
+  const r = await api.git(st.pid, 'commit', msg);
+  if (r && r.error) { toast(r.error, true); return; }
+  st.commitMsg = '';
+  toast('Committed');
+  await loadGitStatus(st);
+}
+
+async function openGitDiff(st, path, staged) {
+  let t = tabOf(st, path);
+  const isDeleted = staged
+    ? st.git.files.some((f) => f.path === path && f.index === 'D')
+    : st.git.files.some((f) => f.path === path && f.worktree === 'D');
+  if (!t) {
+    t = { path, mode: isDeleted ? 'changes' : 'file', dirty: false };
+    st.tabs.push(t);
+  }
+  st.active = path;
+  t.mode = 'changes';
+  t.diff = undefined;
+  const seq = (t.diffSeq || 0) + 1;
+  t.diffSeq = seq;
+  bump();
+  const text = await api.git(st.pid, staged ? 'diff-staged' : 'diff', path);
+  if (t.diffSeq !== seq) return;
+  t.diff = typeof text === 'string' ? text : '';
+  bump();
+  if (!isDeleted && t.text === undefined && !t.error && !t.reading) {
+    t.reading = true;
+    const r = await api.fsRead(st.pid, path);
+    t.reading = false;
+    if (!r || r.error) t.error = (r && r.error) || 'Could not read the file.';
+    else { t.text = r.text; t.mtimeMs = r.mtimeMs; }
+    bump();
+  }
 }
 
 const onFor = (st, path) => ({
@@ -133,6 +213,7 @@ async function saveTab(st, path, force = false) {
     const now = t.view ? t.view.state : t.state;
     if (now && now.doc === state.doc) t.dirty = false;
     bump();
+    if (st.git) await loadGitStatus(st);
     return true;
   }
   if (r && r.conflict) { st.ask = { kind: 'conflict', path }; bump(); return false; }
@@ -227,6 +308,7 @@ function focusInput(side, id) {
 export const ideKeys = {
   find: () => focusInput('files', 'ide-find'),
   search: () => focusInput('search', 'ide-search'),
+  changes: () => { if (!cur) return; cur.side = 'changes'; bump(); void loadGitStatus(cur); },
   palette: (open) => bridge.setPalette?.(open),
   paletteOpen: () => Boolean(bridge.palette),
   closeTab: () => { if (cur && cur.active) closeTab(cur, cur.active); },
@@ -239,6 +321,8 @@ const RELOAD = 'M11.5 7a4.5 4.5 0 11-1.3-3.2M11.5 2v2.5H9';
 const CMD = 'M2.5 4.5l3 2.5-3 2.5M7 10h4.5';
 const FOLD = 'M3.5 5.5L7 9l3.5-3.5';
 const UNFOLD = 'M3.5 8.5L7 5l3.5 3.5';
+const PLUS = 'M7 3v8M3 7h8';
+const MINUS = 'M3 7h8';
 
 const TINT = { js: 'fn', jsx: 'fn', ts: 'fn', tsx: 'fn', mjs: 'fn', cjs: 'fn', json: 'type', css: 'keyword', html: 'number' };
 function FileIcon({ path }) {
@@ -326,6 +410,69 @@ function Search({ st }) {
             {st.sres.more ? <p className="ou-ide-muted">Showing the first 200 matches.</p> : null}
           </>
         ) : <p className="ou-ide-muted">No matches.</p>) : null}
+      </div>
+    </>
+  );
+}
+
+function ScRow({ st, file, staged }) {
+  return (
+    <div className="ou-ide-scrow" role="button" tabIndex={0} title={file.path}
+      onClick={() => void openGitDiff(st, file.path, staged)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          void openGitDiff(st, file.path, staged);
+        }
+      }}>
+      <span className="ou-ide-scletter">{file.letter}</span>
+      <span className="ou-ide-name">{base(file.path)}</span>
+      <span className="ou-ide-dir">{folder(file.path)}</span>
+      <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={svg(staged ? MINUS : PLUS, 12)}
+        onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path]) : gitStage(st, [file.path])); }} />
+    </div>
+  );
+}
+
+function SourceControl({ st }) {
+  useEffect(() => { void loadGitStatus(st); }, [st]);
+
+  if (st.git && st.git.error) {
+    const isNotRepo = /not a git repository/i.test(st.git.error);
+    return <div className="ou-ide-tree"><p className="ou-ide-muted">{isNotRepo ? 'This folder is not a git repository.' : st.git.error}</p></div>;
+  }
+
+  const { staged, unstaged } = gitFiles(st);
+  const canCommit = st.commitMsg.trim().length > 0 && staged.length > 0;
+
+  return (
+    <>
+      <div className="ou-ide-sccommit">
+        <textarea className="ou-ide-scmsg" rows={3} placeholder="Commit message" value={st.commitMsg}
+          onChange={(e) => { st.commitMsg = e.target.value; bump(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); void gitCommit(st); } }} />
+        <div className="ou-ide-scactions">
+          <Button size="sm" label="Commit" isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
+          <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={svg(RELOAD)} onClick={() => void loadGitStatus(st)} />
+        </div>
+      </div>
+      <div className="ou-ide-tree">
+        {!st.git ? <p className="ou-ide-muted">Loading.</p> : (
+          <>
+            <div className="ou-ide-schead">
+              <span>Staged</span><span className="ou-ide-count">{staged.length}</span>
+            </div>
+            {staged.map((f) => <ScRow key={`s:${f.path}`} st={st} file={f} staged />)}
+            {!staged.length ? <p className="ou-ide-muted">No staged files.</p> : null}
+            <div className="ou-ide-schead">
+              <span>Changes</span><span className="ou-ide-count">{unstaged.length}</span>
+              {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={svg(PLUS, 12)}
+                onClick={() => void gitStage(st, unstaged.map((f) => f.path))} /> : null}
+            </div>
+            {unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
+            {!unstaged.length ? <p className="ou-ide-muted">No changes.</p> : null}
+          </>
+        )}
       </div>
     </>
   );
@@ -503,18 +650,20 @@ export function Ide() {
   const changed = changedSet();
   const active = st.active ? tabOf(st, st.active) : null;
   const agentCount = ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).length;
+  const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
 
   return (
     <div className="ou-ide" key={st.pid}>
       <aside className="ou-ide-side">
         <div className="ou-ide-head">
-          <SegmentedControl label="Explorer" size="sm" value={st.side} onChange={(v) => { st.side = v; bump(); }}>
+          <SegmentedControl label="Explorer" size="sm" value={st.side} onChange={(v) => { st.side = v; bump(); if (v === 'changes') void loadGitStatus(st); }}>
             <SegmentedControlItem value="files" label="Files" />
             <SegmentedControlItem value="search" label="Search" />
+            <SegmentedControlItem value="changes" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} />
           </SegmentedControl>
           <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={svg(CMD)} onClick={() => setPalette(true)} />
         </div>
-        {st.side === 'search' ? <Search st={st} /> : <Files st={st} changed={changed} />}
+        {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
       </aside>
       <section className={panel ? 'ou-ide-main' : 'ou-ide-main ou-ide-folded'}>
         <div className="ou-ide-tabs">

@@ -70,6 +70,7 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'p' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.find(); }
   else if (k === 'f' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.search(); }
+  else if (k === 'g' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.changes(); }
   else if (k === 'p' && e.shiftKey) { e.preventDefault(); ideKeys.palette(!ideKeys.paletteOpen() && !overlayOpen()); }
   else if (k === 'w' && !e.shiftKey) { e.preventDefault(); ideKeys.closeTab(); }
 });
