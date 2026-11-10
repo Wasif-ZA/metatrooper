@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
@@ -25,6 +25,18 @@ const ICONS = {
   shield: 'M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z',
 };
 
+const plusIcon = (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 3.5v9M3.5 8h9" />
+  </svg>
+);
+
+const warnIcon = (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="ou-dash-usagewarn-icon">
+    <path d="M8 2.5l6 11H2zM8 6.5v3.5M8 12v.5" />
+  </svg>
+);
+
 function formatTokens(n) {
   const v = Number(n) || 0;
   if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`.replace('.0M', 'M');
@@ -37,6 +49,41 @@ function formatDay(iso) {
   const parts = String(iso).split('-');
   if (parts.length >= 3) return `${parts[1]}/${parts[2]}`;
   return String(iso);
+}
+
+function formatUntil(resets_at) {
+  if (!resets_at) return '';
+  const diffMs = new Date(resets_at).getTime() - Date.now();
+  if (isNaN(diffMs) || diffMs <= 0) return 'in 0m';
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 60) return `in ${Math.max(1, mins)}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `in ${hours}h`;
+  const days = Math.round(hours / 24);
+  return `in ${days}d`;
+}
+
+function activityText(r) {
+  const action = String(r?.action || '').replace(/[._]/g, ' ').trim();
+  const detail = r?.detail;
+  if (!detail) return action;
+  if (typeof detail === 'string') {
+    const trimmed = detail.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const obj = JSON.parse(trimmed);
+        if (obj && typeof obj === 'object') {
+          const val = obj.engine || obj.engine_id || (obj.prompt ? String(obj.prompt).slice(0, 60) : '') || obj.path || obj.reason;
+          if (val) return action ? `${action} ${val}` : String(val);
+        }
+        return action;
+      } catch {
+        return action ? `${action} ${trimmed}` : trimmed;
+      }
+    }
+    return action ? `${action} ${detail}` : detail;
+  }
+  return action;
 }
 
 function outcomeWord(state) {
@@ -53,17 +100,20 @@ function outcomeColor(state) {
   return 'mute';
 }
 
-function UsageWarn({ engine, pct }) {
-  if (pct == null || pct < 80) return null;
+function UsageWarn({ limit }) {
+  if (!limit) return null;
+  const rel = formatUntil(limit.resets_at);
+  const resetPart = rel ? `, resets ${rel}` : '';
+  const text = `${limit.provider} has used ${Math.round(limit.used_pct)}% of its ${limit.window} window${resetPart}`;
   return (
     <div className="ou-dash-usagewarn">
-      {`${engine} has used ${pct}% of its window.`}
+      {warnIcon}
+      <span>{text}</span>
     </div>
   );
 }
 
-// The start box is the centred composer of OpenHands' home: text first, agent picker and Start in its footer.
-function StartBox({ ready }) {
+function StartBox({ ready, open }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
   const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
@@ -71,6 +121,19 @@ function StartBox({ ready }) {
   const [branch, setBranch] = useState('');
   const [model, setModel] = useState('');
   const [approval, setApproval] = useState('default');
+  const composerRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      const el = composerRef.current?.querySelector('textarea');
+      if (el) {
+        el.focus();
+        const t = setTimeout(() => el?.focus(), 50);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [open]);
+
   const start = async () => {
     const text = task.trim();
     let target = ui.projectId;
@@ -93,8 +156,8 @@ function StartBox({ ready }) {
     await pick(r.result.session_id);
   };
   return (
-    <div className="ou-composer" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
-      <TextArea label="Task for a new agent" isLabelHidden rows={1} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
+    <div ref={composerRef} className="ou-composer" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
+      <TextArea autoFocus label="Task for a new agent" isLabelHidden rows={1} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
       <div className="ou-composerfoot">
         <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
         <Button variant="ghost" size="sm" label={more ? 'Fewer options' : 'Options'} aria-expanded={more} onClick={() => setMore(!more)} />
@@ -123,13 +186,12 @@ export function NewTask() {
     <Dialog isOpen={Boolean(open)} onOpenChange={(o) => newTaskStore.set({ open: Boolean(o) })} aria-label="New task" width={560}>
       <DialogHeader title="New task" onOpenChange={(o) => newTaskStore.set({ open: Boolean(o) })} />
       <div style={{ padding: '0 16px 16px' }}>
-        {ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />}
+        {ready.length ? <StartBox ready={ready} open={Boolean(open)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />}
       </div>
     </Dialog>
   );
 }
 
-// Agent cards follow Paperclip's live cards: identity row, the task, then what the agent last said in mono, with a quiet footer.
 function AgentCard({ x }) {
   const files = changedFiles(x.id).length;
   return (
@@ -150,11 +212,11 @@ function AgentCard({ x }) {
 
 function DashTile({ icon, label, value, sub, hot }) {
   return (
-    <div className={hot ? 'ou-dash-tile ou-tile ou-hot' : 'ou-dash-tile ou-tile'}>
-      <span className="ou-dash-tileicon ou-tileicon">{svg(ICONS[icon])}</span>
+    <div className={hot ? 'ou-dash-tile ou-hot' : 'ou-dash-tile'}>
+      <span className="ou-dash-tileicon">{svg(ICONS[icon])}</span>
       <b>{value}</b>
-      <span className="ou-dash-tilelabel ou-tilelabel">{label}</span>
-      <span className="ou-dash-tilesub ou-tilesub">{sub}</span>
+      <span className="ou-dash-tilelabel">{label}</span>
+      <span className="ou-dash-tilesub">{sub}</span>
     </div>
   );
 }
@@ -174,7 +236,7 @@ function ChartBox({ title, sub, children }) {
 }
 
 function ChartDates({ days }) {
-  if (!days || !days.length) return null;
+  if (!days || !days.length) return <div className="ou-dash-chart-dates" aria-hidden="true"><span>&nbsp;</span></div>;
   const first = days[0]?.day;
   const mid = days[Math.floor(days.length / 2)]?.day;
   const last = days[days.length - 1]?.day;
@@ -188,8 +250,8 @@ function ChartDates({ days }) {
 }
 
 function ChartRuns({ data, loading, error }) {
-  if (loading) return <ChartBox title="Runs by outcome" sub="Last 14 days"><span className="ou-dash-muted">Loading.</span></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Runs by outcome" sub="Last 14 days"><span className="ou-dash-muted">No data yet.</span></ChartBox>;
+  if (loading) return <ChartBox title="Runs by outcome" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
+  if (error || !data || !data.days) return <ChartBox title="Runs by outcome" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
   const days = data.days;
   const max = Math.max(1, ...days.map((d) => (d.succeeded || 0) + (d.failed || 0) + (d.unchecked || 0)));
   return (
@@ -214,9 +276,9 @@ function ChartRuns({ data, loading, error }) {
           return (
             <div key={d.day || i} className="ou-dash-chart-col">
               <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                {u > 0 ? <rect x="0" y="0" width="10" height={uPct} fill="var(--mute)" /> : null}
-                {f > 0 ? <rect x="0" y={uPct} width="10" height={fPct} fill="var(--del)" /> : null}
-                {s > 0 ? <rect x="0" y={uPct + fPct} width="10" height={sPct} fill="var(--green)" /> : null}
+                {u > 0 ? <rect x="0" y="0" width="10" height={uPct} fill="var(--st-other)" /> : null}
+                {f > 0 ? <rect x="0" y={uPct} width="10" height={fPct} fill="var(--st-bad)" /> : null}
+                {s > 0 ? <rect x="0" y={uPct + fPct} width="10" height={sPct} fill="var(--st-ok)" /> : null}
               </svg>
             </div>
           );
@@ -224,19 +286,19 @@ function ChartRuns({ data, loading, error }) {
       </div>
       <ChartDates days={days} />
       <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--green)' }} />Succeeded</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--del)' }} />Failed</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--mute)' }} />Unchecked</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />Succeeded</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-bad)' }} />Failed</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-other)' }} />Unchecked</span>
       </div>
     </ChartBox>
   );
 }
 
-const ENGINE_COLORS = ['var(--blue)', 'var(--amber)', 'var(--green)', 'var(--accent)'];
+const ENGINE_COLORS = ['var(--st-run)', 'var(--st-ok)', 'var(--st-wait)', 'var(--st-other)'];
 
 function ChartTokens({ data, loading, error }) {
-  if (loading) return <ChartBox title="Tokens and cost by engine" sub="This week"><span className="ou-dash-muted">Loading.</span></ChartBox>;
-  if (error || !data) return <ChartBox title="Tokens and cost by engine" sub="This week"><span className="ou-dash-muted">No data yet.</span></ChartBox>;
+  if (loading) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
+  if (error || !data) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
   const raw = data.by_agent || [];
   const map = new Map();
   for (const r of raw) {
@@ -246,11 +308,11 @@ function ChartTokens({ data, loading, error }) {
     map.set(r.engine_id, cur);
   }
   const engines = Array.from(map.values());
-  if (!engines.length) return <ChartBox title="Tokens and cost by engine" sub="This week"><span className="ou-dash-muted">No data yet.</span></ChartBox>;
+  if (!engines.length) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
   const max = Math.max(1, ...engines.map((e) => e.tokens));
   return (
     <ChartBox title="Tokens and cost by engine" sub="This week">
-      <div className="ou-dash-chart-bars" style={{ height: '110px' }}>
+      <div className="ou-dash-chart-bars">
         {engines.map((e, idx) => {
           const heightPct = e.tokens > 0 ? Math.max(4, Math.round((e.tokens / max) * 100)) : 0;
           const color = ENGINE_COLORS[idx % ENGINE_COLORS.length];
@@ -274,13 +336,15 @@ function ChartTokens({ data, loading, error }) {
           );
         })}
       </div>
+      <div className="ou-dash-chart-dates" aria-hidden="true"><span>&nbsp;</span></div>
+      <div className="ou-dash-legend" aria-hidden="true"><span>&nbsp;</span></div>
     </ChartBox>
   );
 }
 
 function ChartSessions({ data, loading, error }) {
-  if (loading) return <ChartBox title="Sessions by state" sub="Last 14 days"><span className="ou-dash-muted">Loading.</span></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Sessions by state" sub="Last 14 days"><span className="ou-dash-muted">No data yet.</span></ChartBox>;
+  if (loading) return <ChartBox title="Sessions by state" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
+  if (error || !data || !data.days) return <ChartBox title="Sessions by state" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
   const days = data.days;
   const parsed = days.map((d) => {
     const st = d.started || {};
@@ -311,10 +375,10 @@ function ChartSessions({ data, loading, error }) {
           return (
             <div key={p.day || i} className="ou-dash-chart-col">
               <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                {p.other > 0 ? <rect x="0" y="0" width="10" height={otherPct} fill="var(--mute)" /> : null}
-                {p.done > 0 ? <rect x="0" y={otherPct} width="10" height={donePct} fill="var(--green)" /> : null}
-                {p.wait > 0 ? <rect x="0" y={otherPct + donePct} width="10" height={waitPct} fill="var(--wait)" /> : null}
-                {p.w > 0 ? <rect x="0" y={otherPct + donePct + waitPct} width="10" height={wPct} fill="var(--blue)" /> : null}
+                {p.other > 0 ? <rect x="0" y="0" width="10" height={otherPct} fill="var(--st-other)" /> : null}
+                {p.done > 0 ? <rect x="0" y={otherPct} width="10" height={donePct} fill="var(--st-ok)" /> : null}
+                {p.wait > 0 ? <rect x="0" y={otherPct + donePct} width="10" height={waitPct} fill="var(--st-wait)" /> : null}
+                {p.w > 0 ? <rect x="0" y={otherPct + donePct + waitPct} width="10" height={wPct} fill="var(--st-run)" /> : null}
               </svg>
             </div>
           );
@@ -322,18 +386,18 @@ function ChartSessions({ data, loading, error }) {
       </div>
       <ChartDates days={days} />
       <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--blue)' }} />Working</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--wait)' }} />Waiting</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--green)' }} />Done</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--mute)' }} />Other</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-run)' }} />Working</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-wait)' }} />Waiting</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />Done</span>
+        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-other)' }} />Other</span>
       </div>
     </ChartBox>
   );
 }
 
 function ChartChecks({ data, loading, error }) {
-  if (loading) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><span className="ou-dash-muted">Loading.</span></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><span className="ou-dash-muted">No data yet.</span></ChartBox>;
+  if (loading) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
+  if (error || !data || !data.days) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
   const days = data.days;
   const totalPassed = days.reduce((n, d) => n + (d.passed || 0), 0);
   const totalRuns = days.reduce((n, d) => n + (d.runs || 0), 0);
@@ -352,7 +416,7 @@ function ChartChecks({ data, loading, error }) {
           return (
             <div key={d.day || i} className="ou-dash-chart-col">
               <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                <rect x="0" y="0" width="10" height="100" fill="var(--green)" />
+                <rect x="0" y="0" width="10" height="100" fill="var(--st-ok)" />
               </svg>
             </div>
           );
@@ -361,7 +425,7 @@ function ChartChecks({ data, loading, error }) {
       <ChartDates days={days} />
       <div className="ou-dash-legend">
         <span className="ou-dash-legend-item">
-          <span className="ou-dash-legend-sq" style={{ background: 'var(--green)' }} />
+          <span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />
           {`${totalPassed} of ${totalRuns} passed`}
         </span>
       </div>
@@ -423,6 +487,10 @@ export function Home() {
   const approvals = s.approvals || [];
   const needsCount = waiting.length + approvals.length + alerts.length;
 
+  const limits = s.limits || [];
+  const hot = limits.filter((l) => l.status === 'ok' && l.used_pct >= 80);
+  const highestLimit = hot.length ? hot.slice().sort((a, b) => (b.used_pct || 0) - (a.used_pct || 0))[0] : null;
+
   const usdVal = Number(usageToday?.usd) || 0;
   const usdEst = Boolean(usageToday?.usd_estimated);
   const tokensVal = Number(usageToday?.total) || 0;
@@ -442,15 +510,16 @@ export function Home() {
           <span className="ou-dash-proj">{name}</span>
         </div>
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
+          icon={plusIcon}
           label="New task"
           tooltip="New task (Ctrl+N)"
           onClick={openNewTask}
         />
       </header>
 
-      <UsageWarn />
+      <UsageWarn limit={highestLimit} />
 
       <section className="ou-dash-section">
         <div className="ou-dash-section-label">AGENTS</div>
@@ -467,7 +536,7 @@ export function Home() {
         )}
       </section>
 
-      <div className="ou-tiles ou-dash-tiles">
+      <div className="ou-dash-tiles">
         <DashTile
           icon="needs"
           label="Needs you"
@@ -504,14 +573,14 @@ export function Home() {
 
       <div className="ou-dash-split">
         <section>
-          <div className="ou-dash-section-head">RECENT ACTIVITY</div>
+          <div className="ou-dash-section-label">RECENT ACTIVITY</div>
           {auditRows.length ? (
             <div className="ou-dash-list">
               {auditRows.map((r) => (
                 <div key={r.id || `${r.at}-${r.agent}`} className="ou-dash-row">
                   <span className={`ou-dash-dot ${r.source === 'agent' ? 'ou-dash-dot-agent' : 'ou-dash-dot-system'}`} />
                   <span className="ou-dash-agent-name">{r.agent}</span>
-                  <span className="ou-dash-row-text">{`${r.action || ''}${r.detail ? ` ${r.detail}` : ''}`}</span>
+                  <span className="ou-dash-row-text">{activityText(r)}</span>
                   <span className="ou-dash-row-time">{ago(r.at)}</span>
                 </div>
               ))}
@@ -521,7 +590,7 @@ export function Home() {
           )}
         </section>
         <section>
-          <div className="ou-dash-section-head">RECENT SESSIONS</div>
+          <div className="ou-dash-section-label">RECENT SESSIONS</div>
           {recentSessions.length ? (
             <div className="ou-dash-list">
               {recentSessions.map((x) => (
