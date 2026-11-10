@@ -393,6 +393,7 @@ html { font-size: 16px; }
   .ou-addons-head .ou-actions { flex-wrap: wrap; }
   .ou-pagehead .ou-addons-scope { font-size: 12px; }
   .ou-addons-search { margin-bottom: 20px; }
+  .ou-addons-search input { padding-left: 34px; }
   .ou-addons-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; margin-bottom: 24px; }
   .ou-facets { display: grid; gap: 20px; align-content: start; }
   .ou-facetrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
