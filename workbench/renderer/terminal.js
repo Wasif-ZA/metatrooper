@@ -1,8 +1,11 @@
 // Live terminals: one xterm.js instance per shown session, fed from the core's terminal pipe through the main process.
-const TILE_HTML = `<div class="tile-head ph"><div class="r1">
-  <span class="dot"></span><span class="cdot" hidden></span><b class="tile-engine eng"></b><span class="tile-task task"></span>
-  <span class="tile-state badge"></span>
-  <button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></div>
+const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state="">
+  <span class="dot"></span><span class="cdot" hidden></span>
+  <span class="ou-ah-tile" data-mono=""><i class="ou-ah-pip"></i></span>
+  <span class="ou-ah-name tile-task task"></span>
+  <span class="ou-ah-proj tile-engine eng"></span>
+  <span class="ou-ah-state tile-state badge"></span>
+  <span class="ou-ah-acts"><button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></span></div>
   <div class="r2"><span class="tile-info"><span class="tile-last fl"></span><button class="tile-changed link" data-action="changed-menu" hidden></button><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span></span>
   <span class="tile-acts"><span class="tile-previews"></span><span class="tile-desk"></span>
   <span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
@@ -198,10 +201,15 @@ const termView = (() => {
   function label(t, x) {
     const set = (sel, text) => { const e = t.el.querySelector(sel); if (e.textContent !== text) e.textContent = text; };
     t.el.querySelector('.dot').className = `dot ${x.state}${x.unseen ? ' unseen' : ''}`;
+    const ah = t.el.querySelector('.ou-ah');
+    if (ah) ah.dataset.state = x.state;
     const cdot = t.el.querySelector('.cdot');
     cdot.hidden = !x.colour;
     if (x.colour && cdot.dataset.c !== x.colour) { cdot.dataset.c = x.colour; cdot.style.background = x.colour; }
     set('.tile-engine', x.engine_id);
+    const mono = String(x.engine_id || '').slice(0, 2).toUpperCase();
+    const monoEl = t.el.querySelector('.ou-ah-tile');
+    if (monoEl) monoEl.dataset.mono = mono;
     t.engine = String(x.engine_id).split(' > ')[0];
     set('.tile-task', x.task);
     t.el.querySelector('.tile-task').title = x.task || '';

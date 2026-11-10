@@ -32,8 +32,6 @@ body { position: relative; }
 :root:not([data-look="dither"]) :is(.lfoot, .urow) { border-top-style: solid; }
 .gate .ga .lnk { white-space: nowrap; }
 :root:not([data-look="dither"]) .pane { background: var(--pane); border-color: var(--hairline); }
-:root:not([data-look="dither"]) .pane.working { border-color: var(--hairline-strong); }
-:root:not([data-look="dither"]) .pane.working::before, :root:not([data-look="dither"]) .pane.working::after { display: none; }
 :root:not([data-look="dither"]) .chip, :root:not([data-look="dither"]) .btn { border-radius: 5px; }
 :root:not([data-look="dither"]) .needs, :root:not([data-look="dither"]) .badge { text-transform: none; letter-spacing: 0; }
 :root:not([data-look="dither"]) .mini, :root:not([data-look="dither"]) .bar { background: var(--hairline-strong); border-radius: 2px; }
@@ -50,7 +48,7 @@ body { position: relative; }
 
 /* tiles: xterm hosts inside the mockup panes */
 .wall { position: absolute; inset: 0; isolation: isolate; z-index: 0; }
-.tile-body { padding: 6px 4px 4px 10px; background: var(--pane); border-radius: 0 0 var(--r) var(--r); contain: paint; }
+.tile-body { padding: 6px 4px 4px 10px; background: var(--pane); border-radius: 0; contain: paint; }
 .pane.fold .tile-body { visibility: hidden; }
 .paired .pane.big .ph .act { display: none; }
 .ph .rs { display: none; }
@@ -62,13 +60,9 @@ body { position: relative; }
 .tile.outside .tile-body { opacity: .6; }
 .tile.outside .ph .rs { display: none; }
 .tile.shell .ph .pb, .tile.shell .ph .ub { display: none; }
-.pane.on:not(.big) { border-color: var(--body); }
+.pane.on, .pane:focus-within { border-color: var(--hairline-strong); }
 .ph { cursor: pointer; }
-.ph .dot { background: var(--done); }
-.ph .dot.working, .ph .dot.starting { background: var(--work); }
-.ph .dot.waiting_for_you { background: var(--wait); }
-.ph .dot.unseen { background: var(--unseen); box-shadow: none; }
-.ph .dot.exited { background: transparent; border: 1px solid var(--faint); }
+.ph .dot { display: none; }
 
 /* run steps under the big pane */
 .runbox { position: absolute; z-index: 4; display: none; overflow: auto; border-radius: var(--r); background: var(--canvas-deep); border: 1px var(--bstyle) var(--hairline-strong); padding: 6px 4px; }
