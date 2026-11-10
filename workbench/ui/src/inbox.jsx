@@ -203,12 +203,11 @@ export function Inbox() {
         <div className="ou-ifilters">
           {FILTERS.map(([id, label]) => {
             const isSelected = filter === id;
-            if (count[id] === 0 && !isSelected) return null;
             return (
               <button
                 key={id}
                 type="button"
-                className={isSelected ? 'ou-ifilters-chip ou-ifilters-selected' : 'ou-ifilters-chip'}
+                className={isSelected ? 'ou-ifilters-chip ou-ifilters-selected' : count[id] === 0 ? 'ou-ifilters-chip ou-ifilters-zero' : 'ou-ifilters-chip'}
                 onClick={() => inboxStore.set({ filter: id })}
               >
                 {label}
