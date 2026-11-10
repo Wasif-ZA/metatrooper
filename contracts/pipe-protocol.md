@@ -168,6 +168,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
 | `session.owners` | `{project_id}` | {repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed` | -32002 |  |  |
 | `session.read` | `{session_id, lines?}` | {session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted | -32002, -32602 |  |  |
+| `session.handoff` | `{session_id}` | {handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} \| null}: the latest handoff by at | -32002, -32602 |  |  |
 | `session.send` | `{session_id, text}` | {sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you` | -32002, -32602 |  |  |
 | `session.paste-prompt` | `{session_id}` | {written, reason?}: types the held prompt once; refused for an `external` session | -32002, -32602 |  |  |
 | `needs_you.mark-read` | `{id}` | {} | -32002 |  |  |

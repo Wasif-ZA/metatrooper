@@ -214,7 +214,7 @@ async function leftBehind(db: DatabaseSync, sessionId: string, titles: Record<st
 /** One notice to the parent of an exited session: its owned paths, whether each is committed, its last line and transcript. */
 async function handBack(db: DatabaseSync, sessionId: string, titles: Record<string, string | undefined>): Promise<void> {
   const row = db.prepare('SELECT parent_id, cwd FROM session WHERE id = ?').get(sessionId) as { parent_id: string | null; cwd: string | null } | undefined;
-  if (!row?.parent_id) return;
+  if (!row) return;
   const repo = await repoOfAsync(row.cwd);
   const claimed = new Set<string>();
   for (const r of db.prepare("SELECT payload FROM event WHERE kind = 'core.claim' AND session_id = ?").all(sessionId) as Array<{ payload: string }>) {
@@ -224,6 +224,11 @@ async function handBack(db: DatabaseSync, sessionId: string, titles: Record<stri
   try { if (repo) dirty = new Set((await ownersAsync(db, repo, titles)).map((o) => o.path)); } catch {}
   const transcript = (db.prepare("SELECT json_extract(payload, '$.transcript_path') AS t FROM event WHERE session_id = ? AND json_extract(payload, '$.transcript_path') IS NOT NULL ORDER BY seq DESC LIMIT 1").get(sessionId) as { t: string } | undefined)?.t;
   const last = liveText()[sessionId]?.line;
+  if (row.parent_id || claimed.size) {
+    db.prepare('INSERT INTO handoff (id, session_id, parent_id, at, cwd, summary, files, transcript) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(ulid(), sessionId, row.parent_id, nowIso(), row.cwd, last ?? null, JSON.stringify([...claimed].sort().map((path) => ({ path, committed: !dirty.has(path) }))), transcript ?? null);
+  }
+  if (!row.parent_id) return;
   const files = [...claimed].sort().map((f) => `${f} (${dirty.has(f) ? 'uncommitted' : 'committed'})`);
   const lines = [`Session ${labelOf(db, sessionId, titles)}, launched from this session, has ended.`, `Files: ${files.length ? files.join(', ') : 'none changed'}.`];
   if (last) lines.push(`Its last line: ${last}`);

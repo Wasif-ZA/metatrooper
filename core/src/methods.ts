@@ -96,6 +96,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
   { name: 'session.owners', errors: [E.NOT_FOUND], params: '{project_id}', result: "{repo, paths: [{path, owners: [{id, title, state}], shared, unclaimed}]}: each uncommitted path of the project's repository with the session that owns it, from the latest `core.claim` naming it; a path committed after that claim is `unclaimed`" },
   { name: 'session.read', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, lines?}', result: '{session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted' },
+  { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
   { name: 'session.send', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, text}', result: '{sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you`' },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
   { name: 'needs_you.mark-read', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
@@ -561,6 +562,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
       const secrets = knownSecretValues();
       return { session_id: id, state: row.state, lines: ((await term.readLines(id, n)) ?? []).map((l) => scrub(l, secrets)) };
+    },
+  });
+
+  m.set('session.handoff', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      const row = db.prepare('SELECT id, session_id, parent_id, at, cwd, summary, files, transcript FROM handoff WHERE session_id = ? ORDER BY at DESC LIMIT 1').get(id) as
+        | { id: string; session_id: string; parent_id: string | null; at: string; cwd: string | null; summary: string | null; files: string; transcript: string | null }
+        | undefined;
+      return { handoff: row ? { ...row, files: JSON.parse(row.files) } : null };
     },
   });
 

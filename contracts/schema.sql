@@ -77,6 +77,18 @@ CREATE TABLE session (
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
 
+CREATE TABLE handoff (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES session(id),
+  parent_id TEXT REFERENCES session(id),
+  at TEXT NOT NULL,
+  cwd TEXT,
+  summary TEXT,                                -- the session's last terminal line
+  files TEXT NOT NULL,                         -- JSON array of {path, committed}
+  transcript TEXT                              -- transcript path
+);
+CREATE INDEX handoff_session ON handoff(session_id, at);
+
 -- Queue 1: append-only, written by hooks, launch.js and the codex notify wrapper.
 CREATE TABLE event (
   seq         INTEGER PRIMARY KEY AUTOINCREMENT,

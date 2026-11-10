@@ -53,6 +53,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.clear-status    {session_id}
   session.owners          {project_id}
   session.read            {session_id, lines?}
+  session.handoff         {session_id}
   session.send            {session_id, text}
   session.paste-prompt    {session_id}
   needs_you.mark-read     {id}
