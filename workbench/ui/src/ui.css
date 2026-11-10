@@ -81,7 +81,6 @@ html { font-size: 16px; }
 .ou-tilelabel { font-size: 14px; color: var(--body-strong); }
 .ou-tilesub { font-size: 12px; color: var(--mute); }
 .ou-tileicon { position: absolute; top: 18px; right: 18px; color: var(--mute); }
-.ou-hot b, .ou-hot .ou-tileicon { color: var(--wait); }
 .ou-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .ou-agent { display: flex; flex-direction: column; min-height: 168px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas); cursor: pointer; }
 .ou-agent:hover { border-color: var(--hairline-strong); }

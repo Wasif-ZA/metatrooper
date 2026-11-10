@@ -604,7 +604,7 @@ function renderTitle() {
   setHtml('core', (s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
     : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`) + (warn ? ` ${warn}` : ''));
   const cur = s.projects.find((p) => p.id === ui.projectId);
-  setHtml('project-pick', `${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}${cur ? `<span class="meta">${esc(liveCounts(cur.id))}</span>` : ''} <svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`);
+  setHtml('project-pick', `${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}${cur ? `<span class="meta">${esc(liveCounts(cur.id).replace(/(, | \xb7 )\d+ waiting$/, ''))}</span>` : ''} <svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`);
   const needs = needsCount();
   wall.roll(document.getElementById('needsN'), needs);
   const chip = document.getElementById('needs');
@@ -760,11 +760,10 @@ function renderDiffTab(sel) {
 
 function renderStrip(sel) {
   const s = ui.snap;
-  const needs = needsCount();
   const working = s.sessions.filter((x) => x.state === 'working').length;
   const d = ui.sdiff && ui.sdiff.data;
   const n = d && d.files ? d.files.length + d.untracked.length : 0;
-  setHtml('strip-needs', needs ? `<span class="needs-l" data-action="inbox" title="${NEEDS_COUNTS}"><span class="dot waiting_for_you"></span>${needs} need${needs === 1 ? 's' : ''} you</span>` : '<span class="link" data-action="inbox">Inbox</span>');
+  setHtml('strip-needs', '<span class="link" data-action="inbox">Inbox</span>');
   const info = sel ? `${sel.engine_id} · ${sel.task || taskOf(sel)} · ${working} working` : `${working} working`;
   setHtml('strip-info', esc(info));
   document.getElementById('strip-info').title = info;

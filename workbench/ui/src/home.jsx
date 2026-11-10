@@ -15,7 +15,7 @@ function greeting() {
 
 const svg = (d) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 const ICONS = {
-  needs: 'M8 2.5a4 4 0 00-4 4v2.2L2.8 11h10.4L12 8.7V6.5a4 4 0 00-4-4zM6.6 13a1.5 1.5 0 002.8 0',
+  needs: 'M1.5 8.5l2-5.5h9l2 5.5v4.5h-13zM1.5 8.5h4l1 1.5h3l1-1.5h4',
   working: 'M8 2v2.5M8 11.5V14M2 8h2.5M11.5 8H14M3.8 3.8l1.7 1.7M10.5 10.5l1.7 1.7M3.8 12.2l1.7-1.7M10.5 5.5l1.7-1.7',
   done: 'M3 8.5l3.2 3.2L13 4.8',
   files: 'M4 2.5h5l3 3v8H4zM9 2.5v3h3',

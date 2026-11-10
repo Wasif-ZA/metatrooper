@@ -342,7 +342,7 @@ const wall = (() => {
   }
   /** Closed: the title bar's free gap, or a 34px icon when the gap is under 160px. Open: centred, up to 600px. */
   function searchSpot(open) {
-    const W = innerWidth, l = $('.title .needs'), r = $('#usage');
+    const W = innerWidth, l = $('.title .crumb'), r = $('#usage');
     const L = (l ? l.getBoundingClientRect().right : 0) + 12, Rt = (r ? r.getBoundingClientRect().left : W) - 12;
     const mini = !open && Rt - L < 160;
     const w = open ? Math.min(600, W - 16) : mini ? 34 : Math.min(300, Rt - L);

@@ -84,7 +84,6 @@ body { position: relative; }
 .step-err { margin: 0 0 4px 15px; padding: 4px 8px; border-left: 2px solid var(--del); color: var(--del); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
 
 /* strip under the big pane */
-.strip .needs-l { display: inline-flex; align-items: center; gap: 6px; color: var(--wait); font-weight: 700; cursor: pointer; }
 .strip .link { cursor: pointer; color: var(--faint); }
 .strip .btn.on { background: var(--canvas-soft); color: var(--ink); border-color: var(--body); }
 .strip .btn .n { color: var(--ink); }
