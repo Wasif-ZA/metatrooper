@@ -194,6 +194,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `pane.close` | `{pane_id}` | {} | -32002 |  | yes |
 | `pane.url` | `{pane_id, url}` | {}; the workbench reports each navigation |  |  | yes |
 | `lend.ask` | `{session_id, origin}` | {}; raises one Needs you row asking the user to lend their sign-in on `origin` (http or https) to agents in the session's project; one open row per project and origin | -32002, -32602 |  | yes |
+| `pane.note` | `{pane_id, text}` | {}; raises one Needs you row about the pane; one open row per pane | -32002 |  | yes |
 | `lend.set` | `{project_id, origin, on}` | {sites}; adds or removes `origin` in the UI-only `browser.lent` setting for the project and resolves its open ask; removing one closes the project open lent panes. A lent agent pane uses the project kept browser profile and may only load lent origins in a frame | -32002, -32602 |  | yes |
 | `pane.assign` | `{pane_id, session_id?}` | {}; sets or clears the one session allowed to drive the pane | -32002 |  | yes |
 | `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |

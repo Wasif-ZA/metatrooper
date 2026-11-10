@@ -79,6 +79,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   pane.close              {pane_id}
   pane.url                {pane_id, url}
   lend.ask                {session_id, origin}
+  pane.note               {pane_id, text}
   lend.set                {project_id, origin, on}
   pane.assign             {pane_id, session_id?}
   pane.capture            {pane_id, label}
