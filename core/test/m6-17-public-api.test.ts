@@ -49,6 +49,7 @@ const EXPECTED_METHODS = [
   'session.clear-status',
   'session.owners',
   'session.read',
+  'session.handoff',
   'session.send',
   'session.paste-prompt',
   'needs_you.mark-read',
