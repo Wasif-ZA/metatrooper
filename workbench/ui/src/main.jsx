@@ -8,6 +8,7 @@ import { neutralTheme } from '@astryxdesign/theme-neutral/built';
 import { Settings, settingsStore } from './settings.jsx';
 import { Inbox, inboxStore } from './inbox.jsx';
 import { Addons, drawAddons } from './addons.jsx';
+import { Home, homeStore } from './home.jsx';
 
 const el = (id) => document.getElementById(id);
 
@@ -21,6 +22,8 @@ const start = () => {
   mount('settings', Settings);
   mount('needsview', Inbox);
   mount('addons', Addons);
+  el('home').replaceChildren();
+  mount('home', Home);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
@@ -49,3 +52,10 @@ globalThis.inboxView = {
 };
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
+
+// home.js stays loaded for homeView.set and shown; only its drawing is replaced.
+homeView.draw = () => {
+  el('home').hidden = !homeView.shown();
+  document.querySelectorAll('.vseg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === (ui.view || 'wall'))));
+  homeStore.set({ tick: homeStore.get().tick + 1 });
+};
