@@ -271,7 +271,8 @@ CREATE TABLE browser_pane (
   session_id   TEXT REFERENCES session(id),    -- the one session allowed to drive it; NULL = user only
   url          TEXT,
   dev_port     INTEGER,
-  open         INTEGER NOT NULL DEFAULT 1
+  open         INTEGER NOT NULL DEFAULT 1,
+  lent         INTEGER NOT NULL DEFAULT 0      -- 1: an agent pane on the project's kept profile, held to browser.lent sites
 );
 
 CREATE TABLE snapshot (

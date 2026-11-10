@@ -615,11 +615,14 @@ function renderTitle() {
 }
 
 const INFO_KINDS = ['gate', 'approval', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
+const loopOf = (n) => (n.kind === 'other' && String(n.ref).startsWith('loop:') ? n.ref.slice(5) : null);
+const lendOf = (n) => { const m = n.kind === 'other' && /^lend:(\S+) (\S+)$/.exec(String(n.ref)); return m ? { project: m[1], origin: m[2] } : null; };
+const isInfo = (n) => INFO_KINDS.includes(n.kind) && !loopOf(n) && !lendOf(n);
 const NEEDS_COUNTS = 'Counts agents waiting in every project, agent actions waiting for approval and unread Inbox alerts';
 
 function needsCount() {
   const s = ui.snap;
-  return waitingAll().length + (s.approvals || []).length + s.needs_you.filter((n) => !n.read_at && !INFO_KINDS.includes(n.kind)).length;
+  return waitingAll().length + (s.approvals || []).length + s.needs_you.filter((n) => !n.read_at && !isInfo(n)).length;
 }
 
 function waitingAll() {
@@ -1422,6 +1425,12 @@ async function onClick(e) {
       renderInbox();
       return;
     }
+    case 'lend-set':
+      await rpc('lend.set', { project_id: el.dataset.project, origin: el.dataset.origin, on: true });
+      return;
+    case 'loop-choose':
+      await rpc('loop.choose', { session_id: id, choice: el.dataset.choice });
+      return;
     case 'inbox-read':
       await rpc('needs_you.mark-read', { id });
       return;

@@ -55,7 +55,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'session.search', 'session.list',
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check',
-  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve',
+  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
 ]);
@@ -273,7 +273,7 @@ function appendLine(envName: string, value: unknown): void {
 }
 
 /** The settings the Settings page may write. */
-const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback']);
+const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback', 'reliability.loop_alarm', 'reliability.loop_nudge_at', 'reliability.loop_stop_at', 'reliability.token_limit', 'reliability.done_needs_check']);
 
 /** Asks the core, the only writer of settings.json, to set one key; returns the core's error message, if any. */
 async function writeSetting(key: string, value: unknown): Promise<string | null> {
@@ -540,11 +540,19 @@ function handlers(): void {
   });
   on('settingsPage', () => {
     const s = settings();
-    return { sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme } };
+    const alarms = db()?.prepare("SELECT value FROM meta WHERE key = 'loop_false_alarms'").get() as { value: string } | undefined;
+    return { reliability: { ...s.reliability, false_alarms: Number(alarms?.value ?? 0) }, sessions: s.sessions, desktop: s.desktop, browser: s.browser, agent_cursor: s.agent_cursor, savers: s.savers, worktree: s.worktree, terminal: { font_size: s.terminal.font_size, scrollback: s.terminal.scrollback }, ui: { theme: s.ui.theme } };
   });
   on('setSetting', async (key: unknown, value: unknown) => {
     if (typeof key !== 'string' || !PAGE_KEYS.has(key)) return { error: 'not a Settings page key' };
     const error = await writeSetting(key, value);
+    return error ? { error } : { ok: true };
+  });
+  on('setCheck', async (projectId: unknown, command: unknown) => {
+    if (typeof projectId !== 'string' || !projectRoot(projectId) || typeof command !== 'string' || command.length > 500) return { error: 'bad check command' };
+    const checks: Record<string, string> = { ...settings().reliability.checks };
+    if (command.trim()) checks[projectId] = command.trim(); else delete checks[projectId];
+    const error = await writeSetting('reliability.checks', checks);
     return error ? { error } : { ok: true };
   });
   let layoutWrites = Promise.resolve<unknown>(null);
@@ -945,8 +953,9 @@ if (!app.requestSingleInstanceLock()) {
       panes: panes as PaneManager,
       refreshPanes: syncPanes,
       glide: (sessionId, rect, caption) => desktopGlide(sessionId, rect, caption, cursorLook(sessionId)),
-      openPane: async (projectId, sessionId) => {
-        const out = await call('pane.open', { project_id: projectId, session_id: sessionId, agent: true }, { ui: true });
+      askLend: async (sessionId, origin) => { await call('lend.ask', { session_id: sessionId, origin }, { ui: true }); schedulePush(); },
+      openPane: async (projectId, sessionId, lentUrl) => {
+        const out = await call('pane.open', { project_id: projectId, session_id: sessionId, agent: true, ...(lentUrl ? { lent: true, url: lentUrl } : {}) }, { ui: true });
         const paneId = out.kind === 'reply' ? (out.reply.result as { pane_id?: string } | undefined)?.pane_id : undefined;
         if (!paneId) throw new ToolError(-32099, out.kind === 'reply' && out.reply.error ? `could not open a browser pane: ${out.reply.error.message}` : 'could not open a browser pane: the core is offline');
         schedulePush();

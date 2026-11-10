@@ -57,6 +57,7 @@ export function openCoreDb()               {
     // Backfill once on first add: every gpt model is priced by the estimated gpt-* fallback.
     if (!hadEst) db.exec("UPDATE usage SET usd_estimated = 1 WHERE usd IS NOT NULL AND model LIKE 'gpt-%'");
     addColumn('project', 'hidden', 'INTEGER NOT NULL DEFAULT 0');
+    addColumn('browser_pane', 'lent', 'INTEGER NOT NULL DEFAULT 0');
     addColumn('project', 'older', 'INTEGER NOT NULL DEFAULT 0');
     for (const table of ['notify_sink', 'notify_delivery', 'limit_history', 'approval']) db.exec(schemaBlock(schemaText, new RegExp(`CREATE TABLE ${table} \\([\\s\\S]*?\\n\\);`, 'g'))[0].replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
     db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');

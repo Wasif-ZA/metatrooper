@@ -12,10 +12,14 @@ globalThis.settingsView = (() => {
       { key: 'agent_cursor.show_caption', label: 'Caption beside the agent cursor', hint: 'Says what the agent is about to click.' },
     ] },
     { id: 'reliability', label: 'Reliability', note: 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.', rows: [
-      { soon: true, label: 'Say done only when a check passed', hint: 'A run with no passing check ends as "Needs your review".' },
+      { key: 'reliability.done_needs_check', label: 'Say done only when a check passed', hint: 'A finished agent with no passing check reads "needs your review".' },
+      { check: true, label: 'Check command for this project', hint: 'Runs in the folder the agent worked in when it finishes. Empty means every finish needs your review.' },
       { soon: true, label: 'Fix failing checks, up to 3 tries', hint: 'Each try starts from clean files. Tests and check settings are protected from edits.' },
-      { soon: true, label: 'Loop alarm', hint: 'A nudge after 3 identical calls, a stop after 5.' },
-      { soon: true, label: 'Run budget', hint: 'A log line at 80% of the limit. At 100% it asks you.' },
+      { key: 'reliability.loop_alarm', label: 'Loop alarm', hint: 'Claude agents only. Watches for the same call giving the same result.' },
+      { key: 'reliability.loop_nudge_at', label: 'Ask me after', unit: 'identical calls', min: 2, max: 20 },
+      { key: 'reliability.loop_stop_at', label: 'Stop the agent after', unit: 'identical calls', min: 3, max: 50 },
+      { read: (s) => String(s.reliability.false_alarms), label: 'False alarms so far', hint: 'Times you answered "Not a loop".' },
+      { key: 'reliability.token_limit', label: 'Token limit per agent', hint: 'A log line at 80%. At 100% the agent is paused and you are asked. 0 turns it off.', unit: 'tokens', min: 0, max: 100000000, step: 10000 },
       { soon: true, label: 'Retry provider errors', hint: 'Backs off and retries. Asks before switching model.' },
       { soon: true, label: 'Check after every edit', hint: 'Typecheck, lint and the nearest tests.' },
       { soon: true, label: 'Ask when a request can mean two things', hint: 'Shows as one Needs you card.' },
@@ -32,6 +36,7 @@ globalThis.settingsView = (() => {
       { key: 'desktop.watch_pause', label: 'Pause the agent when I touch the desktop', hint: 'Computer use stops while your mouse or keyboard is busy.' },
       { read: (s) => s.desktop.takeover_key, label: 'Take-over key', hint: 'Stops computer use at once.' },
       { read: (s) => (s.browser.allow_origins.length ? s.browser.allow_origins.join(', ') : 'None'), label: 'Sites agents may open without asking' },
+      { lent: true, label: 'Sites where agents may use my sign-in', hint: 'This project only. An agent on one of these sites acts as you. It is asked for per site in Needs you.' },
     ] },
     { id: 'addons', label: 'Add-ons', rows: [
       { run: () => { close(); homeView.set('addons'); }, button: 'Open', label: 'Agents and plugins', hint: 'Which agents are ready, and what each plugin may do.' },
@@ -53,6 +58,8 @@ globalThis.settingsView = (() => {
 
   function control(row, i) {
     if (row.soon) return '<span class="stag">Not built yet</span>';
+    if (row.check) return `<input type="text" class="stext" data-check value="${esc((data.reliability.checks || {})[ui.projectId] || '')}" placeholder="npm test" maxlength="500" aria-label="${esc(row.label)}"${ui.projectId ? '' : ' disabled'}>`;
+    if (row.lent) { const sites = (data.browser.lent || {})[ui.projectId] || []; return sites.length ? `<span class="slent">${sites.map((o) => `<span class="sval">${esc(o)}</span><button class="btn" data-unlend="${esc(o)}">Remove</button>`).join('')}</span>` : '<span class="sval">None</span>'; }
     if (row.read) return `<span class="sval">${esc(row.read(data))}</span>`;
     if (row.button) return `<button class="btn" data-run="${i}">${esc(row.button)}</button>`;
     if (row.theme) {
@@ -103,12 +110,14 @@ globalThis.settingsView = (() => {
       if (!t) return;
       if (t.dataset.sec) { section = t.dataset.sec; draw(); }
       else if ('close' in t.dataset) close();
+      else if (t.dataset.unlend) void rpc('lend.set', { project_id: ui.projectId, origin: t.dataset.unlend, on: false }).then(async () => { data = await api.settingsPage(); draw(); });
       else if (t.dataset.run) SECTIONS.find((s) => s.id === section).rows[Number(t.dataset.run)].run();
       else if (t.getAttribute('role') === 'switch') void write(t.dataset.key, t.getAttribute('aria-checked') !== 'true');
     });
     el().addEventListener('change', (e) => {
       const t = e.target;
       if ('theme' in t.dataset) void setLook(t.value);
+      else if ('check' in t.dataset) void api.setCheck(ui.projectId, t.value).then(async (r) => { if (r && r.error) toast(r.error, true); data = await api.settingsPage(); draw(); });
       else if (t.type === 'number') { const n = Number(t.value); if (Number.isInteger(n) && n >= Number(t.min) && n <= Number(t.max)) void write(t.dataset.key, n); else draw(); }
       else if (t.dataset.key) void write(t.dataset.key, t.value);
     });

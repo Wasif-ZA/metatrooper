@@ -87,7 +87,7 @@ async function boot(t: any, overrides: Record<string, Function> = {}) {
   };
   for (const id of ['palette', 'inbox', 'sinks', 'menu', 'start', 'settings']) el(id).hidden = true;
   const calls: any[] = [];
-  const settings = { sessions: { approval: 'ask', metarouter: false }, terminal: { font_size: 13, scrollback: 10000 }, agent_cursor: { show_caption: true } };
+  const settings = { reliability: { loop_alarm: true, loop_nudge_at: 3, loop_stop_at: 5, token_limit: 0, done_needs_check: true, checks: {}, false_alarms: 0 }, sessions: { approval: 'ask', metarouter: false }, terminal: { font_size: 13, scrollback: 10000 }, agent_cursor: { show_caption: true } };
   let ready = false;
   const api = new Proxy({}, { get(_target, name: string) {
     if (name.startsWith('on')) return () => {};
@@ -275,15 +275,15 @@ test('a late root response from the previous project cannot replace the new IDE 
   assert.deepEqual(controls(h.el('ide').innerHTML).filter((b) => 'file' in b.dataset).map((b) => b.dataset.file), ['new.txt']);
 });
 
-test('Settings reliability has nine Not built yet rows and no interactive value controls', async (t) => {
+test('Settings reliability has six Not built yet rows without interactive controls', async (t) => {
   const h = await boot(t);
   await h.w.settingsView.open('reliability');
   const html = h.el('settings').innerHTML;
   assert.equal(h.el('settings').hidden, false);
-  assert.equal((html.match(/class="srw soon"/g) || []).length, 9);
-  assert.equal((html.match(/<span class="stag">Not built yet<\/span>/g) || []).length, 9);
-  const rows = html.split('<div class="srw soon">').slice(1);
-  assert.equal(rows.length, 9);
+  assert.equal((html.match(/class="srw soon"/g) || []).length, 6);
+  assert.equal((html.match(/<span class="stag">Not built yet<\/span>/g) || []).length, 6);
+  const rows = [...html.matchAll(/<div class="srw soon">([\s\S]*?)(?=<div class="srw|$)/g)].map((m) => m[1]);
+  assert.equal(rows.length, 6);
   for (const row of rows) {
     assert.match(row, /Not built yet/);
     assert.doesNotMatch(row, /role="switch"|<select\b|<input\b/);

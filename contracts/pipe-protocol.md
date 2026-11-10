@@ -159,6 +159,7 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `session.hide` | `{session_id}` | {} | -32002 |  |  |
 | `session.limit-resume` | `{session_id, on: bool}` | {}; sets the tile's "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean | -32602, -32002 |  |  |
 | `usage.summary` | `{window: today\|week\|run, run_id?}` | {window, total, in, out, cache_read, cache_write, usd, usd_estimated, parts: [{kind, tokens}], by_agent: [{session_id, engine_id, tokens, usd, usd_estimated}], estimate: true, repeat_reads: [{session_id, file_path, count}], savers: [{id, on, saving}]}; token use for the window (run needs run_id), the parts sum to total; -32602 on a bad window or a run without run_id | -32602 |  |  |
+| `loop.choose` | `{session_id, choice}` | {false_alarms}; answers a loop alarm nudge: `pause` interrupts the agent, `try-another-way` tells it to change approach, `not-a-loop` resets the count and is counted as a false alarm; `rewind` is refused until file restore exists. Resolves the nudge row | -32002, -32602 |  | yes |
 | `done.check` | `{session_id, command, acceptance?}` | the stored done_proof row: runs `command` in the session folder, keeps the output tail, the folder tree and the exit code | -32002, -32602 |  |  |
 | `done.result` | `{session_id}` | {result: done \| checks_passed \| needs_review, unverified, proof, current}: the latest check on the folder as it is now | -32002, -32602 |  |  |
 | `session.clear-status` | `{session_id}` | {}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read | -32002, -32602 |  |  |
@@ -189,9 +190,11 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `notify.sink.test` | `{id}` | {ok, error?} |  | yes | yes |
 | `notify.sink.remove` | `{id}` | {} |  | yes | yes |
 | `comment.deliver` | `{comment_id}` | {clipboard_at, typed}: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it | -32002 |  |  |
-| `pane.open` | `{project_id, url?, session_id?, agent?: bool}` | {pane_id}; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>`. Stable in the agent form | -32002, -32602 | yes | yes |
+| `pane.open` | `{project_id, url?, session_id?, agent?: bool, lent?: bool}` | {pane_id}; `lent: true` (with `agent: true` and a `url` whose origin is in `browser.lent` for the project, -32602 otherwise) opens the agent pane on the project's kept profile; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>`. Stable in the agent form | -32002, -32602 | yes | yes |
 | `pane.close` | `{pane_id}` | {} | -32002 |  | yes |
 | `pane.url` | `{pane_id, url}` | {}; the workbench reports each navigation |  |  | yes |
+| `lend.ask` | `{session_id, origin}` | {}; raises one Needs you row asking the user to lend their sign-in on `origin` (http or https) to agents in the session's project; one open row per project and origin | -32002, -32602 |  | yes |
+| `lend.set` | `{project_id, origin, on}` | {sites}; adds or removes `origin` in the UI-only `browser.lent` setting for the project and resolves its open ask. A lent agent pane uses the project kept browser profile and may only load lent origins in a frame | -32002, -32602 |  | yes |
 | `pane.assign` | `{pane_id, session_id?}` | {}; sets or clears the one session allowed to drive the pane | -32002 |  | yes |
 | `pane.capture` | `{pane_id, label}` | {snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row | -32602 |  | yes |
 | `approval.check` | `{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}` | {decision, reason?, approval_id?, instruction?}; a `rejected` carries the instruction text of the user when they gave one; never queued; waits until a person decides; no timer (`contracts/approvals.md`) |  |  |  |

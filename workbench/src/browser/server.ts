@@ -5,6 +5,7 @@ import { createDecoder, encode } from '../../../core/src/pipe/framing.ts';
 import { ancestors, parentTableAsync } from '../../../core/src/browser/ancestry.ts';
 import { appendEvent, openWriterDb } from '../../../core/src/events/append.ts';
 import { E } from '../../../core/src/pipe/errors.ts';
+import { settings } from '../../../core/src/settings.ts';
 import { PRESETS, smallestPreset } from '../../../core/src/browser/grants.ts';
 import { scrub, scrubDeep } from '../../../core/src/redact.ts';
 import { scrubSecretValues } from '../../../core/src/secrets.ts';
@@ -24,7 +25,9 @@ export interface ServerDeps {
   panes: PaneManager;
   refreshPanes: () => void;
   /** Opens a pane owned by the session through the core's `pane.open` and returns its id. */
-  openPane: (projectId: string, sessionId: string) => Promise<string>;
+  openPane: (projectId: string, sessionId: string, lentUrl?: string) => Promise<string>;
+  /** Raises the Needs you ask to lend the user's sign-in on an origin. */
+  askLend: (sessionId: string, origin: string) => Promise<void>;
   /** The desktop cursor host: glides the session's cursor to a physical-pixel rectangle (contracts/agent-cursor.md). */
   glide?: (sessionId: string, rectPx: unknown, caption: string) => Promise<{ arrived: true; ms: number; shown: boolean; late: boolean }>;
 }
@@ -157,6 +160,21 @@ export async function startBrowserServer(pipePath: string, deps: ServerDeps): Pr
       if (tool === 'export_test') return send({ jsonrpc: '2.0', id, result: { text: exportTest(recorded.get(bound.sessionId) ?? []) } });
       const owned = ownedPanes(db, bound.sessionId);
       let paneId = typeof params.pane_id === 'string' ? params.pane_id : null;
+      if (tool === 'navigate' && params.signed_in === true && !paneId) {
+        const s = db.prepare('SELECT project_id FROM session WHERE id = ?').get(bound.sessionId) as { project_id: string | null } | undefined;
+        let origin = '';
+        try { origin = new URL(String(params.url)).origin; } catch {}
+        if (!s?.project_id || !/^https?:/.test(origin)) return fail(id, -32602, 'signed_in needs an http or https url and a session with a project');
+        if (!(settings().browser.lent[s.project_id] ?? []).includes(origin)) {
+          await deps.askLend(bound.sessionId, origin);
+          return fail(id, -32031, `the user has not lent their sign-in on ${origin}; they have been asked in Needs you. Call again after they answer, or navigate without signed_in`);
+        }
+        paneId = owned.find((r) => r.lent)?.id ?? null;
+        if (!paneId) {
+          paneId = await deps.openPane(s.project_id, bound.sessionId, String(params.url));
+          owned.push({ id: paneId } as PaneRow);
+        }
+      }
       if (!paneId && owned.length === 1) paneId = owned[0].id;
       if (!paneId && !owned.length && tool === 'navigate') {
         const s = db.prepare('SELECT project_id FROM session WHERE id = ?').get(bound.sessionId) as { project_id: string | null } | undefined;

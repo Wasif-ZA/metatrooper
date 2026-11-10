@@ -7,6 +7,8 @@ import { corePipe, termPipe } from './paths.ts';
 import { startTermServer } from './terminal/pipe.ts';
 import { wireTermEvents } from './terminal/events.ts';
 import * as term from './terminal/index.ts';
+import { checkBudgets, proveDone, watchRecord } from './reliability.ts';
+import { onStateChange } from './events/state.ts';
 import { deliverPrompts } from './sessions/launch.ts';
 import { nowIso } from './time.ts';
 import { rotateUiKey } from './uikey.ts';
@@ -22,7 +24,7 @@ import { processEvents, resolveSpentNotices, resolveUncommitted, turnJobsIdle } 
 import { checkActivity, checkHeldStops, checkPids, checkStalled } from './sessions/watch.ts';
 import { checkFatal } from './sessions/fatal.ts';
 import { ingestSpools } from './sandbox/spool.ts';
-import { readMeters } from './meter.ts';
+import { readMeters, watchTranscripts } from './meter.ts';
 import { readLimits } from './limits.ts';
 import { earlyEnd, recordReadings, resumeAtReset } from './sessions/limit-resume.ts';
 import { syncBuiltinPlugins } from './plugins/store.ts';
@@ -138,7 +140,10 @@ async function main(): Promise<void> {
   every(5000, () => endOrphanGrants(db));
   every(5000, () => sweepDevServers(db));
   every(2000, () => setMeta.run('core_heartbeat', nowIso()));
+  watchTranscripts(watchRecord);
   every(2000, () => readMeters(db));
+  every(2000, () => checkBudgets(db));
+  onStateChange((id, state) => { if (state === 'done') void proveDone(db, id).catch(failed('proveDone')); });
   const limits = () => { readLimits(db); recordReadings(db); earlyEnd(db); };
   try { limits(); } catch (e) { failed('limits')(e); }
   every(60_000, limits);

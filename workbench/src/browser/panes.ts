@@ -10,6 +10,7 @@ import { diffLines, dropFrame, findLines, fit, hiddenReason, interactiveOnly, ne
 import { MAX_LINE } from '../../../core/src/pipe/framing.ts';
 import { challengeOf, plainUserAgent } from './challenge.ts';
 import { takeoverPaused } from '../../../core/src/grants.ts';
+import { settings } from '../../../core/src/settings.ts';
 
 /** Typed text goes in pieces of this many characters, with the pause checked before each, as on the desktop. */
 const TYPE_CHUNK = 8;
@@ -149,6 +150,8 @@ export interface PaneRow {
   url: string | null;
   dev_port: number | null;
   open: number;
+  /** 1 for an agent pane on the project's kept profile, held to the sites the user lent. */
+  lent?: number;
 }
 
 interface Pane {
@@ -326,22 +329,31 @@ export class PaneManager {
     return undefined;
   }
 
+  /** True when the user lent this URL's origin to agents in the project. */
+  private lentTo(projectId: string, url: string): boolean {
+    try { return (settings().browser.lent[projectId] ?? []).includes(new URL(url).origin); } catch { return false; }
+  }
+
   private isUserPane(pane: Pane | undefined): pane is Pane {
     return !!pane && !pane.row.id.startsWith(AGENT_PANE);
   }
 
   /** The pane's partition: every request (frames, workers, WebSockets) passes the address policy, downloads and permissions follow the pane kind. Agent-opened panes get an in-memory partition of their own. */
   private guardPartition(row: PaneRow): Electron.Session {
-    const agent = row.id.startsWith(AGENT_PANE);
+    const agent = row.id.startsWith(AGENT_PANE) && !row.lent;
     const partition = agent ? `troop-${row.project_id}-${row.id}` : `persist:troop-${row.project_id}`;
     const ses = electronSession.fromPartition(partition);
     if (this.guarded.has(partition)) return ses;
     this.guarded.add(partition);
     ses.setUserAgent(plainUserAgent(ses.getUserAgent()));
     ses.webRequest.onBeforeRequest((details, cb) => {
+      const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
+      const frame = details.resourceType === 'mainFrame' || details.resourceType === 'subFrame';
+      // A frame request on the kept profile that names no pane is held to the lent sites while a lent pane is open.
+      const fenced = frame && (pane ? !!pane.row.lent : !agent && [...this.panes.values()].some((p) => p.row.lent && p.row.project_id === row.project_id));
+      if (fenced && (/^https?:/.test(details.url) ? !this.lentTo(row.project_id, details.url) : details.resourceType === 'subFrame' && details.url.startsWith('data:'))) return cb({ cancel: true });
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
-      const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
       Promise.resolve().then(() => checkUrl(details.url, pane ? this.paneCtx(pane) : this.policy({ ...row, session_id: agent ? row.session_id : null }))).then((v) => cb({ cancel: !v.allow }), () => cb({ cancel: true }));
     });
     ses.on('will-download', (e, item, wc) => {
@@ -468,7 +480,7 @@ export class PaneManager {
         return { action: 'deny' };
       }
       pane.clickedAt = 0;
-      if (disposition === 'new-window') return { action: 'allow', overrideBrowserWindowOptions: { parent: this.win, width: 520, height: 680, autoHideMenuBar: true, webPreferences: POPUP_PREFS } };
+      if (disposition === 'new-window' && !pane.row.lent) return { action: 'allow', overrideBrowserWindowOptions: { parent: this.win, width: 520, height: 680, autoHideMenuBar: true, webPreferences: POPUP_PREFS } };
       if (this.isUserPane(pane)) this.hooks.openPane(pane.row.project_id, url);
       else void this.load(pane, url).catch(() => {});
       return { action: 'deny' };
@@ -788,7 +800,7 @@ export class PaneManager {
     if (pane.view.webContents.isDestroyed()) return;
     const ses = pane.view.webContents.session;
     pane.view.webContents.close();
-    if (id.startsWith(AGENT_PANE)) void ses.clearStorageData().catch(() => {});
+    if (id.startsWith(AGENT_PANE) && !pane.row.lent) void ses.clearStorageData().catch(() => {});
   }
 
   /** Shows one pane in the given window area; null bounds hide every pane. */
@@ -841,6 +853,7 @@ export class PaneManager {
   private async load(pane: Pane, url: string, agent?: Record<string, any>): Promise<void> {
     const verdict = await checkUrl(url, this.paneCtx(pane));
     if (!verdict.allow) throw new ToolError(-32031, `navigation blocked: ${verdict.reason}`);
+    if (pane.row.lent && !this.lentTo(pane.row.project_id, url)) throw new ToolError(-32031, 'navigation blocked: this pane uses the user\'s sign-in and that site is not lent');
     if (agent && pane.handoff) throw handedOff(pane);
     if (agent) this.notPaused(agent);
     await pane.view.webContents.loadURL(url).catch((e: Error) => {
@@ -1113,7 +1126,7 @@ export class PaneManager {
     if (pane.handoff) throw handedOff(pane);
     if (a) this.notPaused(a);
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated before evaluate ran; nothing was run');
-    if (doc !== undefined && (pane.handedBack || pane.secretOnPage)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
+    if (doc !== undefined && (pane.handedBack || pane.secretOnPage || pane.row.lent)) throw new ToolError(-32038, 'evaluate is off on this page now; nothing was run');
     const r = await this.cmd(pane, 'Runtime.evaluate', { expression, contextId, returnByValue: true, awaitPromise: true, timeout: 10_000 });
     if (doc !== undefined && pane.navs !== doc) throw new ToolError(-32037, 'the page navigated while evaluate ran; its result is dropped');
     if (r.exceptionDetails) throw new ToolError(-32099, `evaluate threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
@@ -1611,6 +1624,7 @@ ame, after checking the ref's field is a password field on the origin saved with
       }
       case 'evaluate': {
         if (typeof a.expression !== 'string') throw new ToolError(-32602, 'expression is required');
+        if (pane.row.lent) throw new ToolError(-32038, 'evaluate is off in a pane that uses the user\'s sign-in');
         if (pane.handedBack) throw new ToolError(-32038, 'evaluate is off on a page the user had through a handoff; navigate first');
         if (pane.secretOnPage) throw new ToolError(-32038, 'evaluate is off on a page a secret was typed into; navigate first');
         pane.scripted = true;

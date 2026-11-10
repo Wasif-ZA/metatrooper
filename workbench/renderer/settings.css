@@ -19,8 +19,11 @@
 .srw.soon .st b { color: var(--body); }
 .stag { flex: none; padding: 1px 9px; border-radius: 999px; font-weight: 500; font-size: 12px; line-height: 18px; background: var(--canvas-soft); color: var(--mute); }
 .sval { flex: none; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--body); }
-.settings select, .settings input[type="number"] { height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--hairline-strong); background: var(--canvas-deep); color: var(--ink); font: inherit; }
+
+.settings select, .settings input[type="number"], .settings .stext { height: 32px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--hairline-strong); background: var(--canvas-deep); color: var(--ink); font: inherit; }
 .settings input[type="number"] { width: 96px; }
+.settings .stext { flex: none; width: 240px; font-family: var(--mono); font-size: 12px; }
+.slent { display: grid; grid-template-columns: auto auto; gap: 6px 8px; align-items: center; justify-items: end; }
 .snum { display: inline-flex; align-items: center; gap: 8px; color: var(--mute); }
 .settings .btn { height: 32px; border-radius: 6px; font-weight: 500; font-size: 13px; }
 .sw { flex: none; width: 36px; height: 20px; padding: 2px; border-radius: 999px; background: var(--hairline-strong); transition: background .12s; }

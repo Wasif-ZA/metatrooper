@@ -44,6 +44,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.hide            {session_id}
   session.limit-resume    {session_id, on: bool}
   usage.summary           {window: today|week|run, run_id?}
+  loop.choose             {session_id, choice}
   done.check              {session_id, command, acceptance?}
   done.result             {session_id}
   session.clear-status    {session_id}
@@ -74,9 +75,11 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   notify.sink.test        {id}  (stable)
   notify.sink.remove      {id}  (stable)
   comment.deliver         {comment_id}
-  pane.open               {project_id, url?, session_id?, agent?: bool}  (stable)
+  pane.open               {project_id, url?, session_id?, agent?: bool, lent?: bool}  (stable)
   pane.close              {pane_id}
   pane.url                {pane_id, url}
+  lend.ask                {session_id, origin}
+  lend.set                {project_id, origin, on}
   pane.assign             {pane_id, session_id?}
   pane.capture            {pane_id, label}
   approval.check          {session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}

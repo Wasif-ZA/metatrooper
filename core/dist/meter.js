@@ -33,6 +33,13 @@ export function usdFor(model               , inT        , outT        , cacheRea
   return (inT * p.in + outT * p.out + cacheRead * p.cache_read + cacheWrite * p.cache_write) / 1e6;
 }
 
+let recordWatcher                                                                       = null;
+
+/** Sets the one function that is shown every parsed Claude transcript record as it is read. */
+export function watchTranscripts(fn                      )       {
+  recordWatcher = fn;
+}
+
 const READ_CHUNK = 8 * 1024 * 1024;
 
 /** Complete lines added since the last read, at most READ_CHUNK bytes per call; a line longer than that is skipped. */
@@ -73,6 +80,7 @@ export function readClaudeTranscript(db              , sessionId        , transc
     if (!line) continue;
     let rec     ;
     try { rec = JSON.parse(line); } catch { continue; }
+    try { recordWatcher?.(db, sessionId, rec); } catch {}
     const m = rec?.message;
     if (!m?.id || !m.usage) continue;
     const u = m.usage;

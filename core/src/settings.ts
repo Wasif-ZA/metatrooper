@@ -22,6 +22,7 @@ export const DEFAULTS = {
   },
   browser: {
     allow_origins: [] as string[],
+    lent: {} as Record<string, string[]>,
   },
   agent_cursor: {
     mode: 'snappy',
@@ -34,6 +35,14 @@ export const DEFAULTS = {
     lean_handoffs: false,
     small_screenshots: false,
     cheap_model: false,
+  },
+  reliability: {
+    loop_alarm: true,
+    loop_nudge_at: 3,
+    loop_stop_at: 5,
+    token_limit: 0,
+    done_needs_check: true,
+    checks: {} as Record<string, string>,
   },
   worktree: {
     npm_ci: true,

@@ -22,7 +22,7 @@ globalThis.homeView = (() => {
     const working = mine.filter((x) => x.state === 'working' || x.state === 'starting');
     const done = mine.filter((x) => x.state === 'done');
     const files = mine.reduce((n, x) => n + changedFiles(x.id).length, 0);
-    const alerts = s.needs_you.filter((n) => !n.read_at && !INFO_KINDS.includes(n.kind));
+    const alerts = s.needs_you.filter((n) => !n.read_at && !isInfo(n));
     const recent = s.needs_you.filter((n) => n.kind === 'done' || n.kind === 'failed').slice(0, 6);
     const name = (x) => (x.project_id === ui.projectId ? '' : `${(s.projects.find((p) => p.id === x.project_id) || {}).name || 'other project'} · `);
     const ready = s.engines.filter((e) => e.light !== 'red');

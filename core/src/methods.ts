@@ -16,6 +16,7 @@ import { checkAll, engineVersion } from './engines/health.ts';
 import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { beingRemoved } from './worktree.ts';
 import * as term from './terminal/index.ts';
+import { chooseLoop } from './reliability.ts';
 import { availableShells } from './terminal/shells.ts';
 import { forgetLive, liveText } from './terminal/events.ts';
 import { appendEvent } from './events/append.ts';
@@ -85,6 +86,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
   { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
   { name: 'usage.summary', errors: [E.INVALID_PARAMS], params: '{window: today|week|run, run_id?}', result: '{window, total, in, out, cache_read, cache_write, usd, usd_estimated, parts: [{kind, tokens}], by_agent: [{session_id, engine_id, tokens, usd, usd_estimated}], estimate: true, repeat_reads: [{session_id, file_path, count}], savers: [{id, on, saving}]}; token use for the window (run needs run_id), the parts sum to total; -32602 on a bad window or a run without run_id' },
+  { name: 'loop.choose', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, choice}', result: '{false_alarms}; answers a loop alarm nudge: `pause` interrupts the agent, `try-another-way` tells it to change approach, `not-a-loop` resets the count and is counted as a false alarm; `rewind` is refused until file restore exists. Resolves the nudge row' },
   { name: 'done.check', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, command, acceptance?}', result: 'the stored done_proof row: runs `command` in the session folder, keeps the output tail, the folder tree and the exit code' },
   { name: 'done.result', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{result: done | checks_passed | needs_review, unverified, proof, current}: the latest check on the folder as it is now' },
   { name: 'session.clear-status', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{}: sets `idle`, appends `core.status-cleared`, marks its inbox rows read' },
@@ -115,9 +117,11 @@ export const METHODS: MethodDecl[] = [
   { name: 'notify.sink.test', stable: true, needsUi: true, params: '{id}', result: '{ok, error?}' },
   { name: 'notify.sink.remove', stable: true, needsUi: true, params: '{id}', result: '{}' },
   { name: 'comment.deliver', errors: [E.NOT_FOUND], params: '{comment_id}', result: "{clipboard_at, typed}: always copied; typed into the agent's terminal without Enter unless its engine takes comments through hooks (Claude), where the UserPromptSubmit hook delivers it" },
-  { name: 'pane.open', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, url?, session_id?, agent?: bool}', result: "{pane_id}; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>`. Stable in the agent form" },
+  { name: 'pane.open', stable: true, needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, url?, session_id?, agent?: bool, lent?: bool}', result: "{pane_id}; `lent: true` (with `agent: true` and a `url` whose origin is in `browser.lent` for the project, -32602 otherwise) opens the agent pane on the project's kept profile; a browser pane the user opened, or with `agent: true` (needs `session_id`) one the workbench opened for an agent's first `navigate`, id `bp_agent_<ulid>`. Stable in the agent form" },
   { name: 'pane.close', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id}', result: '{}' },
   { name: 'pane.url', needsUi: true, params: '{pane_id, url}', result: '{}; the workbench reports each navigation' },
+  { name: 'lend.ask', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, origin}', result: "{}; raises one Needs you row asking the user to lend their sign-in on `origin` (http or https) to agents in the session's project; one open row per project and origin" },
+  { name: 'lend.set', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, origin, on}', result: '{sites}; adds or removes `origin` in the UI-only `browser.lent` setting for the project and resolves its open ask. A lent agent pane uses the project kept browser profile and may only load lent origins in a frame' },
   { name: 'pane.assign', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, session_id?}', result: '{}; sets or clears the one session allowed to drive the pane' },
   { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
   { name: 'approval.check', params: '{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}', result: '{decision, reason?, approval_id?, instruction?}; a `rejected` carries the instruction text of the user when they gave one; never queued; waits until a person decides; no timer (`contracts/approvals.md`)' },
@@ -433,6 +437,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   });
 
   m.set('done.check', { handler: (p) => runCheck(db, str(p, 'session_id'), str(p, 'command'), str(p, 'acceptance', false)) });
+  m.set('loop.choose', { needsUi: true, handler: (p) => chooseLoop(db, str(p, 'session_id'), str(p, 'choice')) });
   m.set('done.result', { handler: (p) => doneResult(db, str(p, 'session_id')) });
 
   m.set('session.clear-status', {
@@ -687,6 +692,45 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  const originOf = (url: string): string => {
+    let u: URL;
+    try { u = new URL(url); } catch { throw new RpcError(E.INVALID_PARAMS, 'not a URL'); }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new RpcError(E.INVALID_PARAMS, 'only http and https sites can be lent');
+    return u.origin;
+  };
+  const lentSites = (projectId: string): string[] => settings().browser.lent[projectId] ?? [];
+  const lendRef = (projectId: string, origin: string) => `lend:${projectId} ${origin}`;
+
+  m.set('lend.ask', {
+    needsUi: true,
+    handler: (p) => {
+      const s = db.prepare('SELECT project_id, engine_id FROM session WHERE id = ?').get(str(p, 'session_id')) as { project_id: string; engine_id: string } | undefined;
+      if (!s) throw new RpcError(E.NOT_FOUND, 'session not found');
+      const origin = originOf(str(p, 'origin'));
+      const ref = lendRef(s.project_id, origin);
+      db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, 'other', ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = 'other' AND resolved_at IS NULL)")
+        .run(ulid(), nowIso(), ref, `${s.engine_id} wants to use your sign-in on ${origin}`, ref);
+      return {};
+    },
+  });
+
+  m.set('lend.set', {
+    needsUi: true,
+    handler: (p) => {
+      const projectId = str(p, 'project_id');
+      if (!db.prepare('SELECT 1 FROM project WHERE id = ?').get(projectId)) throw new RpcError(E.NOT_FOUND, 'project not found');
+      if (typeof p.on !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'on must be true or false');
+      const origin = originOf(str(p, 'origin'));
+      const sites = lentSites(projectId).filter((o) => o !== origin);
+      if (p.on) sites.push(origin);
+      const all: Record<string, string[]> = { ...settings().browser.lent, [projectId]: sites };
+      if (!sites.length) delete all[projectId];
+      setSetting('browser', 'lent', all);
+      db.prepare("UPDATE needs_you SET resolved_at = ? WHERE ref = ? AND kind = 'other' AND resolved_at IS NULL").run(nowIso(), lendRef(projectId, origin));
+      return { sites };
+    },
+  });
+
   m.set('pane.open', {
     handler: (p) => {
       const projectId = str(p, 'project_id');
@@ -694,8 +738,10 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const sessionId = str(p, 'session_id', false) || null;
       if (sessionId && !db.prepare('SELECT 1 FROM session WHERE id = ? AND project_id = ?').get(sessionId, projectId)) throw new RpcError(E.NOT_FOUND, 'session not found in this project');
       if (p.agent === true && !sessionId) throw new RpcError(E.INVALID_PARAMS, 'agent panes need a session_id');
+      const lent = p.lent === true;
+      if (lent && (p.agent !== true || !lentSites(projectId).includes(originOf(str(p, 'url'))))) throw new RpcError(E.INVALID_PARAMS, 'a lent pane is an agent pane on a site the user lent');
       const id = p.agent === true ? `bp_agent_${ulid()}` : `bp_${ulid()}`;
-      db.prepare('INSERT INTO browser_pane (id, project_id, session_id, url, open) VALUES (?, ?, ?, ?, 1)').run(id, projectId, sessionId, str(p, 'url', false) || null);
+      db.prepare('INSERT INTO browser_pane (id, project_id, session_id, url, open, lent) VALUES (?, ?, ?, ?, 1, ?)').run(id, projectId, sessionId, str(p, 'url', false) || null, lent ? 1 : 0);
       return { pane_id: id };
     },
   });

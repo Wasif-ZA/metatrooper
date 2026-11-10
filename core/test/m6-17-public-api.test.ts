@@ -40,6 +40,7 @@ const EXPECTED_METHODS = [
   'session.hide',
   'session.limit-resume',
   'usage.summary',
+  'loop.choose',
   'done.check',
   'done.result',
   'session.clear-status',
@@ -73,6 +74,8 @@ const EXPECTED_METHODS = [
   'pane.open',
   'pane.close',
   'pane.url',
+  'lend.ask',
+  'lend.set',
   'pane.assign',
   'pane.capture',
   'approval.check',
@@ -119,6 +122,7 @@ const EXPECTED_MOVED = [
 
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
+  'loop.choose',
   'audit.list',
   'automation.set',
   'automation.enable',
@@ -139,6 +143,8 @@ const EXPECTED_NEEDS_UI = new Set([
   'pane.open',
   'pane.close',
   'pane.url',
+  'lend.ask',
+  'lend.set',
   'pane.assign',
   'pane.capture',
   'approval.resolve',
