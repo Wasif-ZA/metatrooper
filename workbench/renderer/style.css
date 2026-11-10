@@ -3,7 +3,7 @@
   --term-fg: var(--body);
   --add-bg: rgba(242,242,242,.07);
   --del-bg: rgba(200,105,92,.09);
-  --bstyle: dotted;
+  --bstyle: solid;
   --bg: var(--canvas-deep);
   --panel: var(--canvas);
   --panel-2: var(--canvas-soft);

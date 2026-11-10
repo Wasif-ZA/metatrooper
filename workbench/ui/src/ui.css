@@ -18,8 +18,8 @@ html { font-size: 16px; }
   --font-family-body: 'Geist', 'Segoe UI', sans-serif;
   --font-family-heading: 'Geist', 'Segoe UI', sans-serif;
   --font-family-code: var(--mono);
-  --radius-container: 6px;
-  --radius-element: 5px;
+  --radius-container: 0;
+  --radius-element: 4px;
   --radius-inner: 4px;
   --text-body-size: 13px;
   --text-label-size: 13px;
@@ -63,7 +63,7 @@ html { font-size: 16px; }
 .ou-ah-acts :is(button, .btn, .astryx-button):is(.tx, [data-action="hide"]) { width: 24px; min-width: 24px; padding: 0; color: var(--mute); }
 
 /* Lists: full-width hairline rows, 40px, title weight says unread, fixed time column (Paperclip inbox, bb task list). */
-.ou-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-deep); overflow: hidden; }
+.ou-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas-deep); overflow: hidden; }
 .ou-irow { display: flex; align-items: center; gap: 10px; height: 34px; min-height: 34px; padding: 0 12px; cursor: pointer; color: var(--mute); background: var(--canvas-deep); box-sizing: border-box; }
 .ou-irow > .ou-ah { width: 100%; }
 .ou-irow + .ou-irow { border-top: 1px solid var(--hairline); }
@@ -107,7 +107,7 @@ html { font-size: 16px; }
 /* Home: start box (OpenHands hero, bb composer anatomy), borderless tiles and agent cards (Paperclip dashboard). */
 .ou-home { padding-top: 24px; }
 .ou-hero { text-align: left; }
-.ou-composer { border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--canvas); }
+.ou-composer { border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas); }
 .ou-composer:focus-within { border-color: var(--body); }
 .ou-composer textarea { border: 0 !important; background: none !important; box-shadow: none !important; outline: none !important; resize: none; min-height: 56px; }
 .ou-composer > :first-child { padding: 4px 4px 0; }
@@ -122,7 +122,7 @@ html { font-size: 16px; }
 .ou-tilesub { font-size: 12px; color: var(--mute); }
 .ou-tileicon { position: absolute; top: 18px; right: 18px; color: var(--mute); }
 .ou-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-.ou-agent { display: flex; flex-direction: column; min-height: 168px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas); cursor: pointer; }
+.ou-agent { display: flex; flex-direction: column; min-height: 168px; border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas); cursor: pointer; }
 .ou-agent:hover { border-color: var(--hairline-strong); }
 .ou-agent:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .ou-agent-wait { border-color: color-mix(in srgb, var(--wait) 55%, var(--hairline)); }
@@ -399,3 +399,7 @@ html { font-size: 16px; }
     .ou-facetrow { justify-content: flex-start; }
   }
 }
+
+#home, #needsview, #addons, .ou-col, .ou-sbody, .ou-snav, .ou-ide-tree, .ou-ide-diff, .ou-md, [role="listbox"] { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
+#home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
+#home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }

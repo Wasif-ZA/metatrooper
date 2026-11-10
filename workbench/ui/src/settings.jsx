@@ -206,7 +206,7 @@ export function Settings() {
       </nav>
       <div className="ou-smain">
         <header className="ou-shead">
-          <span className="ou-crumb">Settings<i>/</i><b>{hits ? 'Search' : sec.label}</b></span>
+          <span className="ou-crumb">Settings<i>›</i><b>{hits ? 'Search' : sec.label}</b></span>
           <IconButton label="Close settings" tooltip="Close (Esc)" variant="ghost" onClick={() => settingsView.close()} icon={icon(CLOSE)} />
         </header>
         <div className="ou-sbody">

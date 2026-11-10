@@ -618,7 +618,7 @@ function renderTitle() {
     return `<span>${esc(u.provider)} <span class="mini"><i style="width:${Math.round(r.used_pct)}%"></i></span>${Math.round(r.used_pct)}%</span>`;
   }).join('')}</button>
     <div class="pop" role="tooltip"><h4><span>Usage</span><span>% used · resets in</span></h4>${limitRows('urow')}</div>` : '');
-  setHtml('newagent', project() ? '<button class="btn acc" data-action="launch-menu" title="Start an agent or a terminal">+ New</button>' : '');
+  setHtml('newagent', project() ? '<button class="btn" data-action="launch-menu" title="Start an agent or a terminal">+ New</button>' : '');
   const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 15000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
   setHtml('branch', g && g.branch ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
