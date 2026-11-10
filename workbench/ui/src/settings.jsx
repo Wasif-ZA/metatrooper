@@ -109,20 +109,21 @@ const CLOSE = 'M3 3l8 8M11 3l-8 8';
 const UNDO = 'M3.5 5.5h5a2.5 2.5 0 010 5H5M3.5 5.5L5.7 3.3M3.5 5.5l2.2 2.2';
 
 function CheckCommand({ row, data }) {
-  const saved = (data.reliability.checks || {})[ui.projectId] || '';
+  const id = ui.projectId;
+  const saved = (data.reliability.checks || {})[id] || '';
   const [text, setText] = useState(saved);
   const save = async () => {
     if (text === saved) return;
-    const r = await api.setCheck(ui.projectId, text);
+    const r = await api.setCheck(id, text);
     if (r && r.error) toast(r.error, true);
     await reload();
   };
-  return <span onBlur={save}><TextInput label={row.label} isLabelHidden value={text} onChange={setText} onEnter={save} placeholder="npm test" isDisabled={!ui.projectId} width={220} /></span>;
+  return <span onBlur={save}><TextInput label={row.label} isLabelHidden value={text} onChange={setText} onEnter={save} placeholder="npm test" isDisabled={!id} width={220} /></span>;
 }
 
 function Control({ row, data }) {
   if (row.soon) return <Badge label="Not built yet" />;
-  if (row.check) return <CheckCommand row={row} data={data} />;
+  if (row.check) return <CheckCommand key={ui.projectId || ''} row={row} data={data} />;
   if (row.lent) {
     const sites = (data.browser.lent || {})[ui.projectId] || [];
     if (!sites.length) return <span className="ou-value">None</span>;
