@@ -2036,6 +2036,7 @@ async function openTermLink(target, line, col) {
       const o = await rpc('pane.open', { project_id: ui.projectId });
       if (!o.result) return api.openLink(target, line, col);
       paneId = o.result.pane_id;
+      for (let i = 0; i < 60 && !ui.snap.panes.some((p) => p.id === paneId); i++) await new Promise((res) => setTimeout(res, 50));
       const r = await api.paneNavigate(paneId, url);
       if (!r.ok) toast(r.error, true);
     }
