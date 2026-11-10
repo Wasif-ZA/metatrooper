@@ -645,7 +645,7 @@ function handlers(): void {
   });
   on('restartCore', async () => { await restartCore(); ownCore = true; return true; });
   on('stopCore', async () => { await stopCore(); return true; });
-  on('setDirty', (dirty: unknown) => { dirtyFiles = dirty === true; return true; });
+  on('setDirty', (dirty: unknown, summary: unknown) => { dirtyFiles = dirty === true; dirtySummary = dirtyFiles && typeof summary === 'string' ? summary.replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 300) : ''; return true; });
   on('openLogs', async () => { fs.mkdirSync(logsDir(), { recursive: true }); return (await shell.openPath(logsDir())) === ''; });
   on('reportIssue', async (raw: unknown) => {
     const r = cleanReport(raw);
@@ -820,6 +820,8 @@ function coreUp(): Promise<boolean> {
 let ownCore = false;
 let closing = false;
 let dirtyFiles = false;
+let dirtySummary = '';
+const unsavedMessage = () => dirtySummary ? `Unsaved changes in ${dirtySummary}.` : 'Some files in the IDE have unsaved changes.';
 /** The pid of the core a --demo window started, so quitting can confirm it stopped before the demo home goes. */
 let demoCorePid: number | null = null;
 
@@ -903,7 +905,7 @@ function busy(): boolean {
 /** Closing asks only when the window started the core and work is open; an idle own core is stopped, a core started elsewhere is left alone. */
 async function onClose(): Promise<void> {
   if (dirtyFiles && win && !win.isDestroyed()) {
-    const { response } = await dialog.showMessageBox(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: 'Some files in the IDE have unsaved changes.' });
+    const { response } = await dialog.showMessageBox(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: unsavedMessage() });
     if (response === 1) return;
   }
   if (ownCore && busy() && !demo) {
