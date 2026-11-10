@@ -5,13 +5,13 @@ const TILE_HTML = `<div class="tile-head ph"><div class="ou-ah r1" data-state=""
   <span class="ou-ah-name tile-task task"></span>
   <span class="ou-ah-proj tile-engine eng"></span>
   <span class="ou-ah-state tile-state badge"></span>
-  <span class="ou-ah-acts"><button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button></span></div>
-  <div class="r2"><span class="tile-info"><span class="tile-last fl"></span><button class="tile-changed link" data-action="changed-menu" hidden></button><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span></span>
-  <span class="tile-acts"><span class="tile-previews"></span><span class="tile-desk"></span>
-  <span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
-  <button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button><button class="ub" data-action="unpair" title="Unpair">Unpair</button>
+  <span class="ou-ah-acts"><span class="act"><button class="btn" data-action="open-panel" data-tab="diff" title="What this agent changed">Diff</button><button class="btn" data-action="open-panel" data-tab="handback" title="The command to commit these changes">Hand back</button></span>
+  <button class="ub" data-action="unpair" title="Unpair">Unpair</button>
   <button class="btn rs" data-action="resume-tile" title="Start this agent again">Resume</button>
-  <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button></span></div>
+  <button class="btn lr" data-action="limit-resume" aria-pressed="true" title="When a usage limit resets, type Continue where you left off.">At reset: go on</button>
+  <button class="tx" data-action="hide" title="Hide this tile" aria-label="Hide this tile"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg></button>
+  <details class="tile-more"><summary class="tx" aria-label="More actions" title="More actions">...</summary><menu><span class="tile-previews"></span><span class="tile-desk"></span><button class="pb" data-action="pair" title="Pair beside the big pane (Shift+click in the list)">Pair</button></menu></details></span></div>
+  <div class="r2"><span class="tile-info"><span class="tile-last fl"></span><button class="tile-changed link" data-action="changed-menu" hidden></button><svg class="spk" width="30" height="12" viewBox="0 0 30 12" aria-hidden="true"></svg><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tile-watch" hidden>input watcher off</span><span class="tile-meta meta"></span><span class="tile-ctx meta"></span></span></div>
   <span class="shim"><i></i></span></div><div class="tile-body"></div>`;
 
 const termView = (() => {
@@ -62,7 +62,7 @@ const termView = (() => {
     el.dataset.id = sessionId;
     el.role = 'group';
     el.innerHTML = TILE_HTML;
-    el.querySelector('.tile-head').addEventListener('click', (e) => { if (!e.target.closest('button')) onPick(sessionId, e); });
+    el.querySelector('.tile-head').addEventListener('click', (e) => { if (!e.target.closest('button, summary, .tile-more')) onPick(sessionId, e); });
     // a UI Automation invoke clicks the tile itself, not a point inside it
     el.addEventListener('click', (e) => { if (e.target === el) onPick(sessionId, e); });
     const body = el.querySelector('.tile-body');
@@ -227,6 +227,11 @@ const termView = (() => {
     if (t.deskHtml !== desk) { t.deskHtml = desk; t.el.querySelector('.tile-desk').innerHTML = desk; }
     set('.tile-changed', x.changed ? `${x.changed} changed` : '');
     t.el.querySelector('.tile-changed').hidden = !x.changed;
+    const r2 = t.el.querySelector('.r2');
+    if (r2) {
+      const hasInfo = Boolean((x.last && String(x.last).trim()) || x.changed || x.watchOff || (x.meta && String(x.meta).trim()) || (x.ctx && x.ctx.text));
+      r2.hidden = !hasInfo;
+    }
     t.el.dataset.state = x.state;
     const name = `${x.task || x.engine_id}, ${x.words || x.state}`;
     if (t.el.ariaLabel !== name) t.el.ariaLabel = name;

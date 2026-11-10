@@ -43,8 +43,9 @@
 :root:not([data-look="dither"]) .shim { display: none; }
 :root:not([data-look="dither"]) .tile-body { border-radius: 0; }
 :root:not([data-look="dither"]) .tile .ph { border-bottom: 1px solid var(--hairline); border-radius: 0; }
-:root:not([data-look="dither"]) .ph .r1 { padding: 0 6px 0 12px; gap: 8px; }
-:root:not([data-look="dither"]) .ph .r2 { padding: 0 12px 6px; font-size: 12px; color: var(--mute); border-bottom: 1px solid var(--hairline); }
+:root:not([data-look="dither"]) .ph .r1 { height: 28px; padding: 0 6px 0 12px; gap: 8px; }
+:root:not([data-look="dither"]) .ph .r2 { height: 20px; line-height: 20px; min-height: 0; padding: 0 12px 0 27px; font-size: 11px; color: var(--mute); border-bottom: 0; }
+:root:not([data-look="dither"]) .ph .r2:empty, :root:not([data-look="dither"]) .ph .r2:has(.tile-info:empty), :root:not([data-look="dither"]) .ph .r2[hidden], :root:not([data-look="dither"]) .tile.shell .ph .r2 { height: 0; min-height: 0; padding: 0; border: 0; }
 :root:not([data-look="dither"]) .ph .fl, :root:not([data-look="dither"]) .ph .meta { color: var(--mute); }
 :root:not([data-look="dither"]) .ph .fl { font-family: var(--mono); font-size: 12px; }
 :root:not([data-look="dither"]) .ph .meta, :root:not([data-look="dither"]) .ph .tile-watch { font-family: var(--mono); font-size: 12px; }
@@ -172,5 +173,5 @@
 
 /* narrow tiles */
 :root:not([data-look="dither"]) .ph .r1 { min-width: 0; overflow: hidden; }
-:root:not([data-look="dither"]) .ph .r2 :is(.btn, .pb, .ub) { font-size: 12px; }
+:root:not([data-look="dither"]) .ph .ou-ah-acts :is(.btn, .pb, .ub) { font-size: 12px; }
 @container (max-width: 640px) { :root:not([data-look="dither"]) .ph .r1 > .tile-engine { display: none; } }
