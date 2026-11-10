@@ -80,7 +80,7 @@ const termView = (() => {
         linksFor(sessionId, text).then((links) => cb(links.length ? links.map((l) => ({
           range: { start: { x: l.start + 1, y }, end: { x: l.start + l.text.length, y } },
           text: l.text,
-          activate: (e) => { if (e.ctrlKey || e.metaKey) void troop.openLink(l.target, l.line, l.col); },
+          activate: (e) => { if (e.ctrlKey || e.metaKey) void (typeof openTermLink === 'function' ? openTermLink(l.target, l.line, l.col) : troop.openLink(l.target, l.line, l.col)); },
         })) : undefined), () => cb(undefined));
       },
     });

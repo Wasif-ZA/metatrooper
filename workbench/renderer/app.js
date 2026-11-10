@@ -2019,6 +2019,46 @@ async function paneGo() {
   render();
 }
 
+async function openTermLink(target, line, col) {
+  if (/^https?:\/\//.test(target)) {
+    let u;
+    try { u = new URL(target); } catch { return api.openLink(target, line, col); }
+    if (!['localhost', '127.0.0.1', '0.0.0.0'].includes(u.hostname)) return api.openLink(target, line, col);
+    if (u.hostname === '0.0.0.0') u.hostname = 'localhost';
+    const url = u.href;
+    const sameOrigin = (a) => { try { return new URL(a).origin === u.origin; } catch { return false; } };
+    const mine = ui.snap.panes.find((p) => !p.id.startsWith('bp_agent_') && !p.session_id && sameOrigin((ui.paneState[p.id] || {}).url || p.url));
+    let paneId = mine ? mine.id : null;
+    if (mine) {
+      const r = await api.paneNavigate(paneId, url);
+      if (!r.ok) { toast(r.error, true); return; }
+    } else {
+      const o = await rpc('pane.open', { project_id: ui.projectId });
+      if (!o.result) return api.openLink(target, line, col);
+      paneId = o.result.pane_id;
+      const r = await api.paneNavigate(paneId, url);
+      if (!r.ok) toast(r.error, true);
+    }
+    ui.paneId = paneId;
+    ui.urlDraft = null;
+    ui.browserMode = 'live';
+    ui.tab = 'browser';
+    ui.split = true;
+    save('tab', 'browser');
+    save('split', '1');
+    render();
+    return;
+  }
+  const root = project()?.path;
+  const norm = (s) => s.replace(/\\/g, '/').toLowerCase();
+  if (root && norm(target).startsWith(norm(root) + '/') && typeof globalThis.ideView?.open === 'function') {
+    homeView.set('ide');
+    await ideView.open(target.replace(/\\/g, '/').slice(root.length + 1), line);
+    return;
+  }
+  return api.openLink(target, line, col);
+}
+
 function openFind() {
   if (!ui.paneId) return;
   if (!ui.find) ui.find = { text: '', active: 0, matches: 0 };
