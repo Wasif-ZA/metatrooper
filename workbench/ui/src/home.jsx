@@ -150,6 +150,17 @@ export function Home() {
             </ul>
           ) : <p className="ou-empty">No agent has changed a file yet.</p>}
         </section>
+        <section>
+          <h2>Projects</h2>
+          <ul className="ou-list">
+            {s.projects.filter((p) => !p.older).slice(0, 8).map((p) => (
+              <li key={p.id} className="ou-irow" data-action="project-go" data-id={p.id} title={p.path} role="button" tabIndex={0}>
+                <span className="ou-ititle">{p.name}</span><span className="ou-imeta">{p.id === ui.projectId ? 'open now' : ''}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="ou-empty"><Button size="sm" variant="ghost" label="Open folder" data-action="open-folder" /></p>
+        </section>
         {asks ? (
           <section>
             <h2>Waiting on you</h2>
