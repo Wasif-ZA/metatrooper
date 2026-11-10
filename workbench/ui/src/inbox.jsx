@@ -151,7 +151,7 @@ export function Inbox() {
   const approvals = showAsks ? s.approvals || [] : [];
   const kindOf = (n) => (n.kind === 'failed' ? 'failed' : n.kind === 'done' ? 'done' : isInfo(n) ? 'info' : 'needs');
   const rank = { needs: 0, failed: 1, done: 2, info: 3 };
-  const notes = s.needs_you.filter((n) => (filter === 'all' ? true : filter === 'needs' ? !isInfo(n) : n.kind === filter))
+  const notes = s.needs_you.filter((n) => (filter === 'all' ? true : filter === 'needs' ? kindOf(n) === 'needs' : n.kind === filter))
     .slice().sort((a, b) => (Boolean(a.read_at) - Boolean(b.read_at)) || (rank[kindOf(a)] - rank[kindOf(b)]));
   const count = {
     all: waitingAll().length + (s.approvals || []).length + s.needs_you.length,
@@ -246,6 +246,9 @@ export function Inbox() {
                     if (inboxStore.get().selectedId !== n.id) {
                       inboxStore.set({ selectedId: n.id });
                     }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); homeView.set('wall'); void openNeedsYou(n.id); }
                   }}
                   tabIndex={0}
                   role="button"
