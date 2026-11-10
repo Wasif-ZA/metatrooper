@@ -19,16 +19,29 @@ import { editorState, openEditor } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 
 export const ideStore = createStore({ tick: 0 });
-let sentDirty = false;
+let sentSummary = '';
 const bump = () => {
-  const dirty = [...states.values()].some((st) => st.tabs.some((x) => x.dirty));
-  if (dirty !== sentDirty) { sentDirty = dirty; void api.setDirty?.(dirty); }
+  const summary = unsavedSummary();
+  if (summary !== sentSummary) { sentSummary = summary; void api.setDirty?.(Boolean(summary), summary); }
   ideStore.set({ tick: ideStore.get().tick + 1 });
 };
 
 const states = new Map();
 let cur = null;
 const bridge = {};
+
+const projectName = (pid) => ((ui.snap.projects || []).find((p) => p.id === pid) || {}).name || 'another project';
+
+export function unsavedSummary() {
+  const parts = [];
+  for (const [pid, st] of states) {
+    const dirtyTabs = st.tabs.filter((x) => x.dirty);
+    if (dirtyTabs.length > 0) {
+      parts.push(`${projectName(pid)}: ${dirtyTabs.map((x) => base(x.path)).join(', ')}`);
+    }
+  }
+  return parts.join('; ');
+}
 
 const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', q: '', hits: [], sq: '', sres: null, searching: false, ask: null, renaming: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
 const slashed = (f) => String(f).replace(/\\/g, '/');
@@ -51,6 +64,15 @@ export async function drawIde() {
     cur.sig = sig;
     bump();
     return;
+  }
+  if (cur) {
+    const dirtyTabs = cur.tabs.filter((x) => x.dirty);
+    if (dirtyTabs.length > 0) {
+      const top3 = dirtyTabs.slice(0, 3).map((x) => base(x.path)).join(', ');
+      const more = dirtyTabs.length > 3 ? ` and ${dirtyTabs.length - 3} more` : '';
+      const names = `${top3}${more}`;
+      toast(`Unsaved in ${projectName(cur.pid)}: ${names}. Switch back to save them.`);
+    }
   }
   if (cur && !cur.tabs.some((x) => x.dirty)) states.delete(cur.pid);
   const st = states.get(ui.projectId) || fresh(ui.projectId);
@@ -774,7 +796,7 @@ function ScRow({ st, file, staged }) {
       <span className="ou-ide-dir">{folder(file.path)}</span>
       {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
       <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={svg(staged ? MINUS : PLUS, 12)}
-        onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path]) : gitStage(st, [file.path])); }} />
+        onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path, file.from].filter(Boolean)) : gitStage(st, [file.path])); }} />
     </div>
   );
 }
