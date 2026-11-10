@@ -13,7 +13,7 @@ named.
 
 ## Scope
 
-MetaTrooper is four parts. Each is in scope:
+Ouros is four parts. Each is in scope:
 
 - **The wall:** the workbench window (`workbench/`), its approval cards, take-over key and watch layout.
 - **Browser use:** the `metatrooper-browser` MCP server, the browser panes, origin rules, browser secrets, handoff
@@ -23,7 +23,7 @@ MetaTrooper is four parts. Each is in scope:
 - **Core services:** the core (`core/`), the hooks it installs, the named pipe and its trusted UI key, session
   resume, port ownership, notifications, the plugin install screen and the plugins in this repository.
 
-Good reports show an agent using MetaTrooper's own tools to act outside the panes and windows it was given, to
+Good reports show an agent using Ouros's own tools to act outside the panes and windows it was given, to
 perform a risky action without a person approving it, to keep acting after the take-over key, or to read a saved
 secret.
 

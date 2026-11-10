@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { exportTest, type Step } from '../src/browser/export-test.ts';
 
-const HEAD = "import { test } from '@playwright/test';\n\ntest('recorded by MetaTrooper', async ({ page }) => {\n";
+const HEAD = "import { test } from '@playwright/test';\n\ntest('recorded by Ouros', async ({ page }) => {\n";
 const TAIL = '});\n';
 
 // protects=with nothing recorded the test body is the single line the spec gives

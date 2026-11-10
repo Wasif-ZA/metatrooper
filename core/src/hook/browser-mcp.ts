@@ -7,7 +7,7 @@ import { BATCH_TOOLS, BATCH_MAX, checkBatch } from '../browser/batch.ts';
 import { serveMcp } from './mcp-stdio.ts';
 import { fence } from '../browser/snapshot.ts';
 
-const UNAVAILABLE = 'browser not available: the MetaTrooper workbench is closed';
+const UNAVAILABLE = 'browser not available: the Ouros workbench is closed';
 
 const pane = { pane_id: { type: 'string', description: 'From panes; may be omitted when this session owns exactly one pane.' } };
 const budget = {
@@ -55,7 +55,7 @@ async function checkedCall(name: string, args: Record<string, unknown>): Promise
     const { session_id, origin, control, password, hidden } = d.result as { session_id: string; origin: string; control: Control | null; password: boolean; hidden: boolean };
     const check = { session_id, surface: 'browser', target: origin || 'about:blank', action: name, args, control };
     const out = await coreCall('approval.check', { ...check, password, hidden, action_hash: actionHash(check) }, { waitMs: GATE_WAIT_MS });
-    if (out.kind !== 'reply') return stopped({ code: -32099, message: 'not sent: the MetaTrooper core is offline, so this action cannot be checked' });
+    if (out.kind !== 'reply') return stopped({ code: -32099, message: 'not sent: the Ouros core is offline, so this action cannot be checked' });
     if (out.reply.error) return stopped(out.reply.error);
     const v = out.reply.result as { decision: string; reason?: string; instruction?: string };
     if (v.decision === 'deny') return stopped({ code: -32030, message: `not sent: ${v.reason}` });

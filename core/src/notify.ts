@@ -63,7 +63,7 @@ function request(kind: SinkRow['kind'], item: Item, text: string, link: string):
   const json = { 'Content-Type': 'application/json' };
   switch (kind) {
     case 'ntfy':
-      return { headers: { Title: `MetaTrooper: ${item.kind}`, Priority: item.kind === 'gate' || item.kind === 'handoff' ? 'high' : 'default', Click: link }, body: text };
+      return { headers: { Title: `Ouros: ${item.kind}`, Priority: item.kind === 'gate' || item.kind === 'handoff' ? 'high' : 'default', Click: link }, body: text };
     case 'slack-webhook':
       return { headers: json, body: JSON.stringify({ text: `${text}\n${link}` }) };
     case 'discord-webhook':
@@ -203,7 +203,7 @@ export function listSinks(db: DatabaseSync): { sinks: Array<Record<string, unkno
 }
 
 export async function testSink(db: DatabaseSync, id: string): Promise<{ ok: boolean; error?: string }> {
-  const error = await deliver(find(db, id), { id: 'test', at: nowIso(), kind: 'other', text: 'Test message from MetaTrooper' });
+  const error = await deliver(find(db, id), { id: 'test', at: nowIso(), kind: 'other', text: 'Test message from Ouros' });
   return error === null ? { ok: true } : { ok: false, error };
 }
 

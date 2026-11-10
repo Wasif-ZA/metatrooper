@@ -45,7 +45,7 @@ export function sandboxRefusal(engine: EngineSpec, cwd: string, deps = { runtime
   const dir = canonicalPath(cwd);
   if (isAskPath(dir, settings().sessions.ask_paths)) return 'isolated never runs on an ask path';
   const worktrees = canonicalPath(path.join(homeDir(), 'worktrees')).toLowerCase() + '/';
-  if (!dir.toLowerCase().startsWith(worktrees)) return 'isolated runs only in a MetaTrooper worktree';
+  if (!dir.toLowerCase().startsWith(worktrees)) return 'isolated runs only in an Ouros worktree';
   const runtime = deps.runtime();
   if (!runtime) return 'no container runtime answers; start Docker Desktop';
   const image = spawnSync(runtime, ['image', 'inspect', imageTag()], { stdio: 'pipe', timeout: 15_000, windowsHide: true });

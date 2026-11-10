@@ -260,7 +260,7 @@ test('h-c-trust-review an engine write while the temp file is written aborts the
   assert.deepEqual(trustFolder(dir, [engine]), []);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { projects: {}, engineOwn: 3 });
   assert.equal(warn.mock.callCount(), 3);
-  assert.match(String(warn.mock.calls[0].arguments[0]), /changed while MetaTrooper was writing it/);
+  assert.match(String(warn.mock.calls[0].arguments[0]), /changed while Ouros was writing it/);
   assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith('.troop-tmp')), []);
 });
 

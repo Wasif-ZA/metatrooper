@@ -81,7 +81,7 @@ function parse<T>(text: string | null, fallback: T): T {
   }
 }
 
-/** A project folder that is gone, or a MetaTrooper worktree that no longer holds a `.git` entry; the menu leaves it out. */
+/** A project folder that is gone, or an Ouros worktree that no longer holds a `.git` entry; the menu leaves it out. */
 export function goneCheckout(p: string): boolean {
   if (!fs.existsSync(p)) return true;
   return /[\\/]\.metatrooper[\\/]worktrees[\\/]/i.test(p) && !fs.existsSync(path.join(p, '.git'));
@@ -225,7 +225,7 @@ export function taskOf(x: TaskRow): string {
 /** The OS toast for a needs-you row, or null when its session's tile is focused while the window has focus. */
 export function toastFor(n: Snapshot['needs_you'][number], session: TaskRow | null, focused: { window: boolean; session: string | null }): { title: string; body: string } | null {
   if (session && focused.window && n.ref === focused.session) return null;
-  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'MetaTrooper needs you';
+  const what = n.kind === 'done' ? 'Agent finished' : n.kind === 'failed' ? 'Agent failed' : 'Ouros needs you';
   return { title: session ? `${what}: ${session.engine_id} · ${taskOf(session)}` : what, body: n.text };
 }
 

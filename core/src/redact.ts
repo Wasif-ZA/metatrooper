@@ -203,7 +203,7 @@ export function notifyText(kind: string, text: string): string {
     .replace(/[A-Za-z0-9_+=-]{24,}/g, '<redacted>')
     .trim()
     .slice(0, 160);
-  return `MetaTrooper (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
+  return `Ouros (${NOTIFY_LABEL[kind] ?? 'needs you'}): ${clean}`;
 }
 
 export const CREDENTIAL_PATTERNS: RegExp[] = [

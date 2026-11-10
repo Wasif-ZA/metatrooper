@@ -238,7 +238,7 @@ const termView = (() => {
       t.outside = true;
       t.el.classList.add('outside');
       t.term.options.disableStdin = true;
-      t.term.write('Opened outside MetaTrooper. Type in its own terminal; this tile follows its hooks only.\r\n');
+      t.term.write('Opened outside Ouros. Type in its own terminal; this tile follows its hooks only.\r\n');
     }
     t.el.classList.toggle('asking', x.state === 'waiting_for_you');
     t.el.classList.toggle('on', x.id === selected);

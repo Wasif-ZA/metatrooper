@@ -313,7 +313,7 @@ function renderHandback() {
   const byName = h.files.filter((f) => f.kind !== 'text').map((f) => `<li>${esc(f.path)} <span class="meta">${esc(f.kind)}</span></li>`).join('');
   const texts = h.files.filter((f) => f.kind === 'text').map((f) => `<button class="chip ${ui.hbFile === f.path ? 'on' : ''}" data-action="hb-file" data-file="${esc(f.path)}">${esc(f.path)} <span class="meta">+${f.added} -${f.deleted}</span></button>`).join('');
   return `<div class="panel">${bar}
-    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. MetaTrooper never commits; it gives you the command to run yourself.</p>'}
+    ${h.files.length ? `<div class="log">${esc(h.stat)}</div>` : '<p class="empty">Nothing staged. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab</button> or with git add. Ouros never commits; it gives you the command to run yourself.</p>'}
     ${texts ? `<h3>Comment on a line</h3><div class="toolbar">${texts}</div>${renderDiff()}` : ''}
     ${byName ? `<h3>Binary and submodules</h3><ul>${byName}</ul>` : ''}
     ${h.untracked.length ? `<h3>Untracked (never staged here)</h3><ul>${h.untracked.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -661,7 +661,7 @@ function renderStart() {
   const engines = ui.snap.engines;
   const firstRun = ui.settingsLook && ui.settingsLook.firstRun ? `<div class="firstrun"><h3>Before each tool call</h3>
     <button class="primary" data-action="first-approval" data-value="ask">Ask before each tool call (recommended)</button>
-    <button data-action="first-approval" data-value="contained">Auto mode in MetaTrooper worktrees</button></div>` : '';
+    <button data-action="first-approval" data-value="contained">Auto mode in Ouros worktrees</button></div>` : '';
   const cards = !engines.length || engines.some((e) => e.light !== 'red') ? '' : `<h3>No agent is ready yet</h3><div class="ecards">${engines.filter((e) => e.install).map((e) => `<div class="ecard">
     <b>${esc(e.id)}</b>${e.fix ? `<p class="fix">${esc(e.fix)}</p>` : ''}
     <p>Install: <code>${esc(e.install)}</code></p>${e.login ? `<p>Log in: <code>${esc(e.login)}</code></p>` : ''}
@@ -1499,7 +1499,7 @@ async function onClick(e) {
       wall.setList(false);
       save('engine', el.dataset.engine);
       const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: el.dataset.engine });
-      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for MetaTrooper: ${r.result.setup.join(', ')}`);
+      if (r.result && r.result.setup) toast(`Set up ${el.dataset.engine} for Ouros: ${r.result.setup.join(', ')}`);
       if (r.result) await pick(r.result.session_id);
       return;
     }

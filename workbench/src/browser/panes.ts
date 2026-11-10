@@ -460,7 +460,7 @@ export class PaneManager {
     wc.setWindowOpenHandler(({ url, disposition }) => {
       if (!/^https?:/.test(url)) return { action: 'deny' };
       if (Date.now() - pane.clickedAt > GESTURE_MS) {
-        this.log(pane, 'blocked', `MetaTrooper blocked a window the page opened without a click: ${url}`);
+        this.log(pane, 'blocked', `Ouros blocked a window the page opened without a click: ${url}`);
         return { action: 'deny' };
       }
       pane.clickedAt = 0;
@@ -557,7 +557,7 @@ export class PaneManager {
   private guardPopup(pane: Pane, child: BrowserWindow): void {
     // the address policy lives on the pane's session; a popup in any other session would have none
     if (child.webContents.session !== pane.view.webContents.session) {
-      this.log(pane, 'blocked', `MetaTrooper closed a window that did not share the pane's session: ${child.webContents.getURL()}`);
+      this.log(pane, 'blocked', `Ouros closed a window that did not share the pane's session: ${child.webContents.getURL()}`);
       child.close();
       return;
     }
@@ -641,7 +641,7 @@ export class PaneManager {
       else {
         await this.cmd(pane, 'Fetch.failRequest', { requestId: params.requestId, errorReason: 'BlockedByClient' }).catch(() => {});
         this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.request.url, reason: verdict.reason });
-        this.log(pane, 'blocked', `MetaTrooper blocked ${params.request.url}: ${verdict.reason}`);
+        this.log(pane, 'blocked', `Ouros blocked ${params.request.url}: ${verdict.reason}`);
       }
       return;
     }
@@ -701,7 +701,7 @@ export class PaneManager {
         if (!verdict.allow) {
           const reason = verdict.reason;
           this.hooks.probe({ kind: 'blocked', pane: pane.row.id, url: params.response.url, reason });
-          this.log(pane, 'blocked', `MetaTrooper blocked ${params.response.url}: ${reason}`);
+          this.log(pane, 'blocked', `Ouros blocked ${params.response.url}: ${reason}`);
           await pane.view.webContents.loadURL('about:blank').catch(() => {});
         }
       }
@@ -1763,7 +1763,7 @@ function escapeHtml(s: string): string {
 const ERROR_TEXT: Record<string, [string, string]> = {
   load: ['This page did not load', 'The address could not be reached.'],
   certificate: ['This page is not secure', 'The site sent a certificate this browser does not trust, so the page was not loaded.'],
-  blocked: ['MetaTrooper blocked this page', 'The address is not on the browser pane allowlist.'],
+  blocked: ['Ouros blocked this page', 'The address is not on the browser pane allowlist.'],
   crash: ['This page crashed', 'The page stopped working.'],
 };
 

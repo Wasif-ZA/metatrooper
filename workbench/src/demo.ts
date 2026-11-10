@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { demoProblem } from '../../core/src/paths.ts';
 
-export const DEMO_TITLE = 'MetaTrooper (demo)';
+export const DEMO_TITLE = 'Ouros (demo)';
 /** The demo registers its own take-over key, so it never collides with a real workbench holding the default one. */
 export const DEMO_TAKEOVER_KEY = 'Control+Alt+Shift+Q';
 

@@ -8,7 +8,7 @@ const CALL_TIMEOUT_MS = 30_000;
 
 export type Reply = { result?: unknown; error?: { code: number; message: string; instruction?: string } };
 
-/** The MetaTrooper session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
+/** The Ouros session this process belongs to: the first ancestor whose pid is a session's launcher pid. */
 export function findSession(): string | null {
   const db = openReaderDb();
   if (!db) return null;

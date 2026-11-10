@@ -528,7 +528,7 @@ export class Desktop {
       if (w.pid !== p.pid || w.process_start !== p.process_start) throw new RpcError(E.VALIDATION, 'that window now belongs to another process; pick it again from the list');
       if (!this.workbench.size) throw new RpcError(E.VALIDATION, NO_WORKBENCH_EXE);
       if (!w.exe_path) throw new RpcError(E.VALIDATION, 'that window\'s executable could not be read, so it cannot be granted');
-      if (this.refused(w)) throw new RpcError(E.VALIDATION, 'the MetaTrooper workbench cannot be granted');
+      if (this.refused(w)) throw new RpcError(E.VALIDATION, 'the Ouros workbench cannot be granted');
       if (w.elevated) throw new RpcError(E.VALIDATION, 'an elevated window cannot be granted');
       if (w.root !== hwnd) throw new RpcError(E.VALIDATION, 'only a top-level window can be granted');
       const live = liveGrants(this.db, sessionId).find((g) => sameWindow(g, w));

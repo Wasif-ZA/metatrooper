@@ -33,5 +33,5 @@ export function exportTest(steps: Step[]): string {
     return [`await ${at}.fill(process.env.MT_FILL_${++fills} ?? '');`, ...(s.submit ? [`await ${at}.press('Enter');`] : [])];
   });
   const body = (lines.length ? lines : ['// nothing recorded yet']).map((l) => `  ${l}`).join('\n');
-  return `import { test } from '@playwright/test';\n\ntest('recorded by MetaTrooper', async ({ page }) => {\n${body}\n});\n`;
+  return `import { test } from '@playwright/test';\n\ntest('recorded by Ouros', async ({ page }) => {\n${body}\n});\n`;
 }

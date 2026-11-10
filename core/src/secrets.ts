@@ -65,7 +65,7 @@ export function secretStoreWarning(): string | null {
 function linuxBlob(pluginId: string, name: string, value: string): string {
   if (secretStoreWarning()) return PLAIN_PREFIX + value;
   const id = randomUUID();
-  secretTool(['store', `--label=MetaTrooper ${pluginId} ${name}`, ...keyringAttrs(pluginId, name, id)], value);
+  secretTool(['store', `--label=Ouros ${pluginId} ${name}`, ...keyringAttrs(pluginId, name, id)], value);
   return KEYRING_PREFIX + id;
 }
 

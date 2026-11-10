@@ -149,13 +149,13 @@ test('UI-20 the git sync label says how far ahead and behind origin the branch i
   assert.equal(label(0, 0), 'up to date with origin');
 });
 
-test('UI-21 the empty Hand-back says how to stage and that MetaTrooper never commits', async () => {
+test('UI-21 the empty Hand-back says how to stage and that Ouros never commits', async () => {
   const w = boot({ api: { handback: () => ({ files: [], untracked: [], stat: '', command: '' }) } });
   w.t.ui.tab = 'handback';
   w.t.ui.split = true;
   await w.snap(snapOf([]));
   await w.snap(snapOf([]));
-  assert.match(w.el('view').innerHTML, /Nothing staged\. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab<\/button> or with git add\. MetaTrooper never commits/);
+  assert.match(w.el('view').innerHTML, /Nothing staged\. Stage files in the <button class="link" data-action="tab" data-tab="git">Git tab<\/button> or with git add\. Ouros never commits/);
 });
 
 test('UI-11 the need-you chip is neutral at 0 and coloured when something needs you', async () => {

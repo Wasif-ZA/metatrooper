@@ -128,7 +128,7 @@ export function validateManifest(manifest: unknown, dir: string | null): string[
   if (errors.length) return errors;
   const m = manifest as Manifest;
   const perms = new Set(m.permissions ?? []);
-  if (reservedId(m.id)) errors.push('/id: core- ids are reserved for MetaTrooper');
+  if (reservedId(m.id)) errors.push('/id: core- ids are reserved for Ouros');
 
   for (const [list, name] of [[m.engines, 'engines'], [m.actions, 'actions'], [m.panes, 'panes'], [m.mcp, 'mcp']] as const) {
     for (const id of duplicates((list ?? []).map((x) => x.id))) errors.push(`/${name}: duplicate id ${id}`);
@@ -165,7 +165,7 @@ const PERMISSION_WORDS: Record<string, string> = {
   'project:read': 'Read files in the project folder (declared only: Windows does not block other reads)',
   'project:write': 'Change files in the project folder (declared only: Windows does not block other writes)',
   'run:write': 'Write files in the run folder',
-  network: 'Connect to the internet (declared only: MetaTrooper does not block network access)',
+  network: 'Connect to the internet (declared only: Ouros does not block network access)',
   browser: 'Drive browser panes it opens through the core',
   clipboard: 'Write to the clipboard',
 };
@@ -190,7 +190,7 @@ export function installScreen(m: Manifest, previous: string[] | null): InstallSc
   const warnings = [
     'Plugins run as you. Windows does not sandbox their files or network in this version; only secrets, browser and clipboard are enforced.',
   ];
-  if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and MetaTrooper does not block it.');
+  if ((m.permissions ?? []).includes('network')) warnings.push('This plugin connects to the internet, and Ouros does not block it.');
   const storeWarning = (m.permissions ?? []).some((p) => p.startsWith('secrets:')) ? secretStoreWarning() : null;
   if (storeWarning) warnings.push(storeWarning);
   if (previous && (m.permissions ?? []).some((p) => !before.has(p))) warnings.push('This version asks for permissions the installed version did not have.');
@@ -200,7 +200,7 @@ export function installScreen(m: Manifest, previous: string[] | null): InstallSc
     external_actions: (m.actions ?? []).filter((a) => a.external).map((a) => ({ id: a.id, title: a.title ?? a.id, destination_field: a.destination_field ?? '' })),
     engines: (m.engines ?? []).map((e) => ({ id: e.id, command: e.command, roles: e.roles })),
     mcp_servers: (m.mcp ?? []).map((s) => s.transport === 'http'
-      ? { id: s.id, command: s.url ?? '', engines: s.engines, host: new URL(s.url ?? 'https://invalid').host, signin: s.headers ? 'MetaTrooper (header secret)' : 'the engine', writes: mcpWrites(s) }
+      ? { id: s.id, command: s.url ?? '', engines: s.engines, host: new URL(s.url ?? 'https://invalid').host, signin: s.headers ? 'Ouros (header secret)' : 'the engine', writes: mcpWrites(s) }
       : { id: s.id, command: [s.command, ...(s.args ?? [])].join(' '), engines: s.engines }),
     warnings,
   };

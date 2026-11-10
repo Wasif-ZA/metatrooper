@@ -24,7 +24,7 @@ function ingestOne(db: DatabaseSync, id: string, exited: boolean, sandbox: boole
   const tooLarge = size > MAX_SPOOL;
   if (tooLarge && !db.prepare("SELECT 1 FROM needs_you WHERE kind = 'spool-too-large' AND ref = ?").get(id)) {
     db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) VALUES (?, ?, 'spool-too-large', ?, ?)")
-      .run(ulid(), nowIso(), id, `Sandboxed session ${id.slice(0, 8)} wrote more than 10 MiB of events; MetaTrooper stopped reading them.`);
+      .run(ulid(), nowIso(), id, `Sandboxed session ${id.slice(0, 8)} wrote more than 10 MiB of events; Ouros stopped reading them.`);
   }
   const offset = getOffset();
   if (!tooLarge && size > offset) {

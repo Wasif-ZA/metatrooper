@@ -32,7 +32,7 @@ function codexScript(): string {
 
 /** A shell command running a core script with node; refuses a script path the hook shell would expand inside double quotes. */
 export function nodeCommand(script: string, args: string): string {
-  if (/[$`"%]/.test(script)) throw new Error(`cannot install hooks from ${script}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move MetaTrooper to a folder without them`);
+  if (/[$`"%]/.test(script)) throw new Error(`cannot install hooks from ${script}: the path holds $, a backtick, a double quote or %, which the hook shell would expand; move Ouros to a folder without them`);
   return `node "${script}" ${args}`;
 }
 
@@ -107,7 +107,7 @@ function globalClaudeHooks(): Set<string> {
   }
 }
 
-/** Per-session arguments carrying MetaTrooper's Claude hooks and statusline wrapper, or the declared Codex hooks (else the Codex notify wrapper), so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
+/** Per-session arguments carrying Ouros's Claude hooks and statusline wrapper, or the declared Codex hooks (else the Codex notify wrapper), so no global file is edited; only the Claude hooks `troop hooks install` did not already put in the user's settings. */
 export function sessionHookArgs(engine: EngineSpec, sessionId: string, version: string | null = null, db?: DatabaseSync): string[] {
   const codexHooks = engine.hooks?.kind === 'codex-config' ? codexHookArgs(engine.hooks.events, sessionId) : [];
   if (engine.mcp_attach?.kind === 'codex-config') return codexHooks.length ? codexHooks : codexNotifyArgs();
@@ -167,7 +167,7 @@ function tomlArray(values: string[]): string {
   return `[${values.map((v) => JSON.stringify(v)).join(', ')}]`;
 }
 
-/** The notify array in a config.toml with every MetaTrooper wrapper peeled off; null when there is none. */
+/** The notify array in a config.toml with every Ouros wrapper peeled off; null when there is none. */
 function userNotify(text: string): string[] | null {
   const m = text.match(NOTIFY_RE);
   let previous: string[] | null = m ? JSON.parse(m[1]) : null;
@@ -192,7 +192,7 @@ export function geminiSettingsFile(sessionId: string): string {
   return path.join(homeDir(), 'engines', 'gemini', `${sessionId}.json`);
 }
 
-/** Environment for engines whose hooks travel in a per-session file: the Gemini CLI system settings file holding only MetaTrooper's hooks. */
+/** Environment for engines whose hooks travel in a per-session file: the Gemini CLI system settings file holding only Ouros's hooks. */
 export function sessionHookEnv(engine: EngineSpec, sessionId: string, db?: DatabaseSync): Record<string, string> {
   if (engine.hooks?.kind !== 'gemini-system-settings') return {};
   const file = geminiSettingsFile(sessionId);

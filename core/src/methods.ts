@@ -539,7 +539,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const row = db.prepare('SELECT host, state FROM session WHERE id = ?').get(id) as { host: string; state: string } | undefined;
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
       if (row.state === 'waiting_for_you') throw new RpcError(E.INVALID_PARAMS, 'the session is waiting on a person; only the user can answer it');
-      if (row.host === 'external') throw new RpcError(E.INVALID_PARAMS, 'the session was opened outside MetaTrooper; type into its own terminal');
+      if (row.host === 'external') throw new RpcError(E.INVALID_PARAMS, 'the session was opened outside Ouros; type into its own terminal');
       // Pastes the text the way a delivered comment is pasted, then presses Enter.
       if (!term.paste(id, text)) throw new RpcError(E.INVALID_PARAMS, 'the session has no open terminal');
       term.write(id, '\r');
@@ -552,7 +552,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const id = str(p, 'session_id');
       const row = db.prepare('SELECT host FROM session WHERE id = ?').get(id) as { host: string } | undefined;
       if (!row) throw new RpcError(E.NOT_FOUND, 'session not found');
-      if (row.host === 'external') throw new RpcError(E.INVALID_PARAMS, 'the session was opened outside MetaTrooper; type into its own terminal');
+      if (row.host === 'external') throw new RpcError(E.INVALID_PARAMS, 'the session was opened outside Ouros; type into its own terminal');
       return writePrompt(db, id);
     },
   });

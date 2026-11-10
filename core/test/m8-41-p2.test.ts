@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { exportTest, type Step } from '../src/browser/export-test.ts';
 import { newRefs, render, type Frame } from '../src/browser/snapshot.ts';
 
-const HEAD = "import { test } from '@playwright/test';\n\ntest('recorded by MetaTrooper', async ({ page }) => {\n";
+const HEAD = "import { test } from '@playwright/test';\n\ntest('recorded by Ouros', async ({ page }) => {\n";
 const TAIL = '});\n';
 
 // Build a child frame whose iframe host inherits its parent's hidden state.

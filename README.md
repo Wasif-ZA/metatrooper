@@ -1,7 +1,7 @@
 <p align="center"><strong>Windows first, Linux beta. Install from source. Local only: no account, no telemetry.</strong></p>
 
 <p align="center">
-  <img src="assets/archive/metatrooper/hero.png" width="640" alt="MetaTrooper: dithered dots on near-black gathering into four terminal clusters">
+  <img src="assets/archive/metatrooper/hero.png" width="640" alt="Ouros: dithered dots on near-black gathering into four terminal clusters">
 </p>
 
 <p align="center">
@@ -39,7 +39,7 @@
 ## What it is
 
 You run three agents in three terminals. You lose track of which one is waiting on you. You paste screenshots back
-and forth so an agent can see what it built. MetaTrooper puts every agent in a terminal it owns, on one wall, and
+and forth so an agent can see what it built. Ouros puts every agent in a terminal it owns, on one wall, and
 shows you which one needs you.
 
 It has four parts:
@@ -51,12 +51,12 @@ It has four parts:
 | **Computer use** (Windows) | Agents act on the app windows you give them, with their own visible cursor. One key takes over. |
 | **Core services** | A background service owns the terminals. Sessions come back after a restart, dev servers get previews, and other tools can drive it. |
 
-MetaTrooper runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads
+Ouros runs the official CLIs you install and sign in to yourself. It never signs in for you and never reads
 their login tokens. It is not affiliated with or endorsed by Anthropic, OpenAI or Google.
 
 ## What's next: Ouros
 
-MetaTrooper is becoming Ouros, an IDE built around your agents. It is for developers first, then for people who are
+Ouros (the new name for MetaTrooper) is becoming an IDE built around your agents. It is for developers first, then for people who are
 not developers but need code work done.
 
 **None of this is built yet.** These are design previews with demo data. Everything in the sections below this one
@@ -100,7 +100,7 @@ The plan is in [`spec.md`](spec.md) (Milestone 8) and [`ouros-spec.md`](ouros-sp
 
 ## Quickstart
 
-There is no installer yet. You run MetaTrooper from a clone of this repo.
+There is no installer yet. You run Ouros from a clone of this repo.
 
 You need:
 
@@ -119,9 +119,9 @@ The window starts the core service if it is not already running. Close the windo
 Open it again and they are still there.
 
 On first run the window asks how agents should start: **Ask before each tool call** (the default) or **Auto mode in
-MetaTrooper worktrees**. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
+Ouros worktrees**. You can change it later in `~/.metatrooper/settings.json` (`sessions.approval`).
 
-From source, `troop` below means `node core/cli.ts`. To check what MetaTrooper found:
+From source, `troop` below means `node core/cli.ts`. To check what Ouros found:
 
 ```bash
 node core/cli.ts engines     # which agent CLIs are installed
@@ -129,7 +129,7 @@ node core/cli.ts ping        # is the core up (exit 3 and "core offline" when it
 ```
 
 > [!WARNING]
-> **Two things happen on first run.** Launching Claude Code from the window installs MetaTrooper's hooks into
+> **Two things happen on first run.** Launching Claude Code from the window installs Ouros's hooks into
 > `~/.claude/settings.json`. `troop hooks uninstall` takes them out again and leaves the rest of the file byte for
 > byte. The core keeps its state in `~/.metatrooper/troop.db`. A newer core migrates it, after which an older build
 > cannot open it.
@@ -203,9 +203,9 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
 - **Grants.** An agent acts only on windows you give it. On its tile, pick **Give window** and choose one. The grant
   covers that window and its own menus and dialogs. It ends when the window closes, when you revoke it from the
   tile, or when the core restarts. Other windows answer "window not granted; ask the user to give it to you".
-- **What it refuses.** The MetaTrooper window, elevated (admin) windows and the secure desktop can never be granted.
+- **What it refuses.** The Ouros window, elevated (admin) windows and the secure desktop can never be granted.
   Key chords with Control or Shift are refused, because a posted key cannot carry them. Password fields, send-like
-  buttons and file dialogs ask every time. Every desktop tool fails while the MetaTrooper window is closed.
+  buttons and file dialogs ask every time. Every desktop tool fails while the Ouros window is closed.
 - **Your pointer stays yours.** The driver sends window messages and control actions, never real mouse input. A
   few modern apps take keyboard focus for a moment during an action.
 - **Seeing it.** The agent's cursor glides to each target. A thin frame in the agent's colour outlines each granted
@@ -213,15 +213,15 @@ built into Windows, so nothing is installed. Full rules: [`contracts/desktop-too
 - **Take-over key.** Ctrl+Alt+Q (setting `desktop.takeover_key`) pauses all agent input, desktop and browser, at
   once. Calls then return "paused by the user". Resume each session from its tile.
 - **Watcher.** Agents keep their auto mode, so an agent could script the desktop through its own shell. While any
-  grant is live, the core watches for that. Injected input that no MetaTrooper action sent raises "input from
+  grant is live, the core watches for that. Injected input that no Ouros action sent raises "input from
   another program". A desktop change while you are away from the keyboard raises "the desktop changed while you
   were away from it". Both pause the agents (setting `desktop.watch_pause`, on by default). If Windows blocks the
   watcher, granted tiles say "input watcher off" in orange.
 - **Watch layout.** Ctrl+Alt+W shows each granted window as a live thumbnail beside its agent's tile. It is meant for
   a second monitor.
 - **Demo mode.** `npm run dev -- --demo` in `workbench/` opens a separate copy with its own data folder, demo
-  sessions and no secrets. Its window is the only MetaTrooper window an agent may be given, and only to a demo
-  session, so an agent can test MetaTrooper itself.
+  sessions and no secrets. Its window is the only Ouros window an agent may be given, and only to a demo
+  session, so an agent can test Ouros itself.
 
 ## Core services
 
@@ -273,7 +273,7 @@ From source, `troop` means `node core/cli.ts`. Add `--json` to any command for o
 | Stop the core | `troop stop` |
 
 `launch` takes `--approval ask|edits|contained`. `ask` asks before each tool call. `contained` runs the engine's auto
-mode in a MetaTrooper worktree. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start
+mode in an Ouros worktree. Folders listed in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start
 in `ask`.
 
 `troop skills install` copies the skills in `skills/` into `~/.claude/skills/`. The `troop` skill teaches an agent to
@@ -282,7 +282,7 @@ start and follow other sessions through this CLI.
 ### Approval profiles
 
 `--approval ask|edits|contained` on `launch`. A new install starts every agent in `ask` (each tool call needs your
-OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on a MetaTrooper worktree. A
+OK) unless you picked auto mode at first run; `contained` runs the engine's auto mode on an Ouros worktree. A
 settings file from an older version keeps its value.
 
 Folders you list in `sessions.ask_paths` in `~/.metatrooper/settings.json` always start in `ask`, whatever was
@@ -311,7 +311,7 @@ bundled copy, and Claude sessions are told to send shell commands through it. Tu
 ## Privacy
 
 - **What leaves your machine.** The core and the window make no network connection of their own. Your agents talk
-  to their own vendors, as they do outside MetaTrooper. A plugin with the `network` permission connects where its
+  to their own vendors, as they do outside Ouros. A plugin with the `network` permission connects where its
   install screen says, and only after you approve it. Pages you or an agent open in a browser pane load as in any
   browser.
 - **One exception.** When Windows "Automatically detect settings" is on, the window's Chromium looks up the LAN host

@@ -81,7 +81,7 @@ test('M6-16a-f a scripted agent drives a --demo workbench through metatrooper-de
 
       // the demo window and the other workbench's window, as the helper sees them
       const windows = async () => (await helper.request<{ windows: any[] }>('list')).windows;
-      const demoWin = await until(async () => (await windows()).find((w) => w.pid === demo.pid && w.title === 'MetaTrooper (demo)'), 60_000);
+      const demoWin = await until(async () => (await windows()).find((w) => w.pid === demo.pid && w.title === 'Ouros (demo)'), 60_000);
       const otherWin = await until(async () => (await windows()).find((w) => w.pid === otherWb.pid && w.title), 60_000);
 
       // M6-16c on the other (non-demo) core: neither workbench window is listed or grantable

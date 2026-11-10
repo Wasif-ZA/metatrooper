@@ -1,11 +1,11 @@
 ---
 name: troop
-description: Start and follow MetaTrooper agent sessions from inside an agent session with the troop CLI.
+description: Start and follow Ouros agent sessions from inside an agent session with the troop CLI.
 ---
 
 # troop
 
-Use the `troop` CLI to work with MetaTrooper's core. Always pass `--json` and read the JSON output.
+Use the `troop` CLI to work with Ouros's core. Always pass `--json` and read the JSON output.
 
 ## Start and follow agents
 
@@ -121,15 +121,15 @@ never answer an approval or gate.
 
 ## Tools and short output
 
-`troop route` is metarouter, bundled with MetaTrooper. Use it for shell commands whose output is long:
+`troop route` is metarouter, bundled with Ouros. Use it for shell commands whose output is long:
 `troop route exec -- <command>` prints the lines that matter and keeps the full log
 (`troop route log` reads it back). `troop route search <words>` finds a saved recipe and
-`troop route run <recipe> [args]` runs it. Inside a session MetaTrooper started, plain `metarouter` is the same
+`troop route run <recipe> [args]` runs it. Inside a session Ouros started, plain `metarouter` is the same
 bundled copy.
 
 ## If `troop` is missing
 
-Inside a MetaTrooper session router/bin is first on PATH, so `troop` should resolve. If the shell says `troop: command not found` or "not recognized", run `node <repo>/core/cli.ts <args>` instead, or add `<repo>/router/bin` to PATH, and check with `troop ping --json`.
+Inside an Ouros session router/bin is first on PATH, so `troop` should resolve. If the shell says `troop: command not found` or "not recognized", run `node <repo>/core/cli.ts <args>` instead, or add `<repo>/router/bin` to PATH, and check with `troop ping --json`.
 
 ## Rules
 

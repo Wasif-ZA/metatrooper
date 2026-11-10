@@ -150,7 +150,7 @@ test('M6-15 metatrooper-desktop: workbench closed, then describe, approval, glid
     for (const [name, args] of [['windows', {}], ['snapshot', { window: 100 }], ['type', { window: 100, ref: 'e1', text: 'x' }]] as const) {
       const r = await mcp.tool(name, args);
       assert.equal(r.isError, true);
-      assert.equal(r.content[0].text, 'desktop not available: the MetaTrooper workbench is closed');
+      assert.equal(r.content[0].text, 'desktop not available: the Ouros workbench is closed');
     }
 
     wb = await fakeWorkbench(iso.prefix, iso.env.FAKE_UIA_LOG!);

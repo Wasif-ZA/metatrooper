@@ -1,9 +1,9 @@
 # Skills
 
-Agent skills bundled with MetaTrooper. `troop skills install` copies them into
+Agent skills bundled with Ouros. `troop skills install` copies them into
 `~/.claude/skills/`; `troop skills list` shows which are already there.
 
-## MetaTrooper's own (MIT, `skills/LICENSE`)
+## Ouros's own (MIT, `skills/LICENSE`)
 
 | Skill | Use it for |
 |---|---|

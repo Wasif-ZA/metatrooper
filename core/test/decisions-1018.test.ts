@@ -223,7 +223,7 @@ test('D19 a writer refuses a destination it does not own and records nothing; de
   const [taken, moved] = [ulid(), ulid()];
   fs.mkdirSync(`${home}/mcp`, { recursive: true });
   fs.writeFileSync(`${home}/mcp/${taken}.json`, 'mine');
-  assert.throws(() => mcpAttachArgs(db, claude, taken, true), /already exists and MetaTrooper did not write it/);
+  assert.throws(() => mcpAttachArgs(db, claude, taken, true), /already exists and Ouros did not write it/);
   assert.equal(fs.readFileSync(`${home}/mcp/${taken}.json`, 'utf8'), 'mine');
   assert.equal(records(), 0, 'nothing recorded for a file it did not write');
   // a recorded file whose folder is later swapped for a junction to a folder outside the home
@@ -234,7 +234,7 @@ test('D19 a writer refuses a destination it does not own and records nothing; de
   try {
     fs.renameSync(`${home}/engines/gemini`, `${home}/engines/gemini-real`);
     fs.symlinkSync(outside, `${home}/engines/gemini`, 'junction');
-    assert.throws(() => sessionHookEnv(gemini, ulid(), db), /not inside MetaTrooper's home/);
+    assert.throws(() => sessionHookEnv(gemini, ulid(), db), /not inside Ouros's home/);
     removeSessionFiles(db, moved);
     assert.equal(fs.readFileSync(`${outside}/${moved}.json`, 'utf8'), 'keep');
     assert.equal(records(), 0);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MetaTrooper</title>
+<title>Ouros</title>
 <meta name="description" content="Run Claude Code, Codex and Gemini side by side on one wall. Agents can drive a browser and your Windows apps, and anything risky stops for you first. Free, open source, local, no account.">
 <style>
 :root{--bg:#f6f6f4;--fg:#151516;--mut:#5e5e62;--line:#dcdcd8;--card:#fff;--code:#ececea;--btn:#151516;--btn-ink:#f6f6f4;--dot:#c8c8c4;--wait:#c45200;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
@@ -77,7 +77,7 @@ footer p{margin:0;max-width:60ch}
 <body>
 <div class="w">
 <header class="top">
- <a class="brand" href="#">MetaTrooper</a>
+ <a class="brand" href="#">Ouros</a>
  <nav><a href="#parts">Four parts</a><a href="#start">Get started</a><a href="#limits">Limits</a><a href="https://github.com/Wasif-ZA/metatrooper">GitHub</a><button class="t" id="theme" type="button">Light / dark</button></nav>
 </header>
 
@@ -142,7 +142,7 @@ footer p{margin:0;max-width:60ch}
     <li><b>Built in.</b> It uses Windows UI Automation. Nothing extra is installed.</li>
     <li><b>Take-over.</b> Ctrl+Alt+Q pauses every agent's input, desktop and browser.</li>
     <li><b>Watcher.</b> Input from another program, or a change while you are away, pauses the agents and tells you.</li>
-    <li><b>Refused.</b> The MetaTrooper window, admin windows and the secure desktop can never be given.</li>
+    <li><b>Refused.</b> The Ouros window, admin windows and the secure desktop can never be given.</li>
    </ul>
   </div>
   <figure><img src="computer-use-takeover.gif" width="1600" height="1000" alt="Recording: an agent types into Notepad with its cursor showing; Ctrl+Alt+Q pauses it and the tile says paused by you" onerror="this.closest('figure').remove()"><figcaption>Computer use, then the take-over key.</figcaption></figure>
@@ -183,7 +183,7 @@ npm run dev</code></pre>
  <ul class="limits">
   <li><b>Windows first.</b> Linux is a beta from source, without computer use. macOS is not supported.</li>
   <li><b>No installer or auto-update yet.</b> You update with <code>git pull</code>.</li>
-  <li><b>Not a guard against hostile programs.</b> Grants and approvals cover MetaTrooper's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.</li>
+  <li><b>Not a guard against hostile programs.</b> Grants and approvals cover Ouros's own tools. A program running as you can already drive your apps; the watcher tells you when it sees one.</li>
   <li><b>Take-over is close to instant.</b> A key already posted to an app may land just after the pause.</li>
   <li><b>No sandbox for agents' code yet.</b> Agents use your machine with your permissions.</li>
  </ul>
@@ -191,8 +191,8 @@ npm run dev</code></pre>
 
 <section>
  <h2>Questions</h2>
- <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside MetaTrooper. Pages you open in a browser pane load as in any browser.</p></details>
- <details><summary>Do I need an account or API keys?</summary><p>No. Install and sign in to the official CLIs yourself. MetaTrooper runs them and never reads their login tokens.</p></details>
+ <details><summary>What leaves my machine?</summary><p>The core and the window make no network connection of their own. Your agents talk to their own vendors, as they do outside Ouros. Pages you open in a browser pane load as in any browser.</p></details>
+ <details><summary>Do I need an account or API keys?</summary><p>No. Install and sign in to the official CLIs yourself. Ouros runs them and never reads their login tokens.</p></details>
  <details><summary>What does it change on my machine?</summary><p>State lives in <code>~/.metatrooper/</code>. Launching Claude Code installs hooks in its settings file, and one command takes them out again, leaving the rest byte for byte.</p></details>
  <details><summary>Can an agent approve its own actions?</summary><p>No. Only the window can approve, through a key agents are not given.</p></details>
  <details><summary>What is the licence?</summary><p>The core and window are AGPL-3.0. The SDK, plugins, skills, engine files and public formats are MIT.</p></details>
@@ -203,7 +203,7 @@ npm run dev</code></pre>
 </section>
 
 <footer>
- <a class="brand" href="#">MetaTrooper</a>
+ <a class="brand" href="#">Ouros</a>
  <p>Built in Sydney by Wasif Zaman. Not affiliated with or endorsed by Anthropic, OpenAI or Google.</p>
  <a href="https://github.com/Wasif-ZA/metatrooper">Source</a>
 </footer>

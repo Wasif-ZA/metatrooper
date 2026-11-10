@@ -160,7 +160,7 @@ test('M4-29: two sessions change one file in overlapping turns with no hint: sha
     for (const [id, native, other] of [[a, 'native-a', b], [b, 'native-b', a]]) {
       const first = await h.hook('UserPromptSubmit', { session_id: native, prompt: 'next' }, id);
       const ctx = JSON.parse(first.stdout).hookSpecificOutput.additionalContext as string;
-      assert.match(ctx, /^Notices from MetaTrooper:/);
+      assert.match(ctx, /^Notices from Ouros:/);
       assert.equal(ctx.match(/\[notice /g)!.length, 1);
       assert.match(ctx, new RegExp(`Also changed by session .*\\(${other.slice(0, 8)}\\), uncommitted: x\\.ts`));
       const again = await h.hook('UserPromptSubmit', { session_id: native, prompt: 'again' }, id);

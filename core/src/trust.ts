@@ -49,7 +49,7 @@ function retried(file: string, fn: () => void): void {
       return fn();
     } catch (e) {
       if (!(e instanceof Changed)) throw e;
-      console.warn(`trust: ${file} changed while MetaTrooper was writing it; write abandoned, the other change kept`);
+      console.warn(`trust: ${file} changed while Ouros was writing it; write abandoned, the other change kept`);
       if (i === 2) throw e;
     }
   }

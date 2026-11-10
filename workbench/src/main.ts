@@ -602,7 +602,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 560,
-    title: demo ? DEMO_TITLE : 'MetaTrooper',
+    title: demo ? DEMO_TITLE : 'Ouros',
     backgroundColor: activeTheme().bg,
     show: false,
     webPreferences: {
@@ -625,7 +625,7 @@ function createWindow(): void {
     panes?.show(null, null);
     const act = crashAction(d.reason, reloadedAt, Date.now());
     if (act === 'reload') { reloadedAt = Date.now(); win?.webContents.reload(); }
-    else if (act === 'stop') dialog.showErrorBox('MetaTrooper', `The window crashed again (${d.reason}). Restart MetaTrooper; the logs folder has details.`);
+    else if (act === 'stop') dialog.showErrorBox('Ouros', `The window crashed again (${d.reason}). Restart Ouros; the logs folder has details.`);
   });
   win.webContents.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) detachAll(); });
   win.on('unresponsive', () => console.error('window unresponsive'));

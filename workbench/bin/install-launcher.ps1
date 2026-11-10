@@ -15,8 +15,8 @@ foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetF
   $lnk.Arguments = "`"$app`""
   $lnk.WorkingDirectory = $app
   $lnk.IconLocation = $icon
-  $lnk.Description = 'MetaTrooper'
+  $lnk.Description = 'Ouros'
   $lnk.Save()
 }
 "metatrooper command: $shimDir\metatrooper.cmd"
-"shortcuts: Start menu and desktop (MetaTrooper)"
+"shortcuts: Start menu and desktop (Ouros)"

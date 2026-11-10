@@ -1,6 +1,6 @@
 ---
 name: second-opinion
-description: Ask a different coding agent (Claude, Codex or Gemini) to check a diff, a plan or a diagnosis through MetaTrooper, then compare its answer with yours. Use before a risky or hard-to-reverse change, when stuck after two failed fixes, or when the user asks for a second opinion or a cross-check.
+description: Ask a different coding agent (Claude, Codex or Gemini) to check a diff, a plan or a diagnosis through Ouros, then compare its answer with yours. Use before a risky or hard-to-reverse change, when stuck after two failed fixes, or when the user asks for a second opinion or a cross-check.
 ---
 
 # second-opinion

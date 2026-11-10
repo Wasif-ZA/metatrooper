@@ -22,7 +22,7 @@ test('sandboxRefusal rejects ask paths and projects outside worktrees', () => {
     const inside = join(home, 'work', 'client', 'project');
     writeFileSync(join(home, 'settings.json'), JSON.stringify({ sessions: { ask_paths: [join(home, 'work', 'client')] } }));
     assert.match(sandboxRefusal(claude, inside, { runtime, now: Date.now })!, /ask path/);
-    assert.match(sandboxRefusal(claude, outside, { runtime, now: Date.now })!, /MetaTrooper worktree/);
+    assert.match(sandboxRefusal(claude, outside, { runtime, now: Date.now })!, /Ouros worktree/);
   } finally {
     delete process.env.METATROOPER_HOME;
     rmSync(home, { recursive: true, force: true });
@@ -131,7 +131,7 @@ test('session.launch refuses isolated for a non-worktree project without a sessi
         const before = db.prepare('SELECT COUNT(*) AS n FROM session').get().n;
         const reply = await pipe.request('session.launch', { approval: 'isolated', host: 'sandbox', engine_id: 'claude', project_id: opened.result.project_id });
         assert.equal(reply.error?.code, -32003);
-        assert.match(reply.error.message, /isolated runs only in a MetaTrooper worktree/);
+        assert.match(reply.error.message, /isolated runs only in an Ouros worktree/);
         assert.equal(db.prepare('SELECT COUNT(*) AS n FROM session').get().n, before);
         assert.deepEqual(db.prepare('SELECT id FROM session').all(), []);
         assert.equal(db.prepare("SELECT COUNT(*) AS n FROM event WHERE kind = 'launch'").get().n, 0);
