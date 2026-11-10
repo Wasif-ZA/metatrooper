@@ -90,7 +90,6 @@ export function editorState(text, path, on) {
   return EditorState.create({
     doc: text,
     extensions: [
-      text.includes('\r\n') ? EditorState.lineSeparator.of('\r\n') : [],
       lineNumbers(), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(), indentOnInput(), bracketMatching(), closeBrackets(),
       EditorState.tabSize.of(tabs || py ? 4 : 2),
       indentUnit.of(tabs ? '\t' : py ? '    ' : '  '),
