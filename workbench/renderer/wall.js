@@ -5,7 +5,6 @@ const wall = (() => {
   const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (s, r = document) => r.querySelector(s);
   const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
-  const STAMP = '<span class="stamp"><span class="si"><span class="ink y" aria-hidden="true">Needs you</span><span class="ink p">Needs you</span></span></span>';
   const TOP = 24, G = 8, BAR = 36, SPN = 15;
   const S = {};
   const HOLD = 3000;
@@ -34,7 +33,7 @@ const wall = (() => {
       if (!s) { S[x.id] = { state: x.state, shell: x.shell, open: false, hist: Array(SPN).fill(0), lvl: 0 }; fx.push([x.id, null, x.state]); KEY[x.id] = x.from || x.id; }
       else if (s.state !== x.state) { fx.push([x.id, s.state, x.state]); s.state = x.state; if (active(s)) s.open = false; }
     }
-    for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); pane(id)?._br?.kill(); delete S[id]; delete KEY[id]; }
+    for (const id of Object.keys(S)) if (!ids.has(id)) { stopLive(id); delete S[id]; delete KEY[id]; }
     BIG = BIG.filter((id) => S[id]);
     ORDER = ORDER.filter((id) => S[id] && !BIG.includes(id));
     for (const id of ids) if (!BIG.includes(id) && !ORDER.includes(id)) { if (!seed(id)) ORDER.push(id); }
@@ -111,8 +110,7 @@ const wall = (() => {
       if (!el) continue;
       const anim = placed && from !== null;
       setBadge(id, anim);
-      if (to === 'waiting_for_you') { attn(id, true, anim ? 0.8 : 0); if (anim) sweep(el); }
-      else if (from === 'waiting_for_you') attn(id, false);
+      el.classList.toggle('attn', to === 'waiting_for_you');
       if (to === 'working') startLive(id); else stopLive(id);
     }
     pending = [];
@@ -253,47 +251,11 @@ const wall = (() => {
     }
   }, 350);
 
-  function stampLand(sp) {
-    if (RM) return gsap.fromTo(sp, { opacity: 0 }, { opacity: 1, duration: 0.3 });
-    gsap.fromTo(sp, { opacity: 0 }, { opacity: 1, duration: 0.06 });
-    gsap.fromTo($('.si', sp), { scale: 1.25 }, { scale: 1, duration: 0.3, ease: 'power3.out' });
-    gsap.fromTo($('.ink.y', sp), { x: 6, y: -4 }, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' });
-    gsap.fromTo($('.ink.p', sp), { x: -3, y: 3 }, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' });
-  }
   function setBadge(id, anim) {
-    const s = S[id], el = pane(id);
-    const b = $('.badge', el), sp = $('.stamp', el);
+    const s = S[id], el = pane(id), b = $('.badge', el);
     el.classList.toggle('working', s.state === 'working');
-    if (s.state === 'waiting_for_you') {
-      b.style.display = 'none';
-      if (!sp) { const n = h(STAMP); b.after(n); if (anim) stampLand(n); }
-      return;
-    }
-    b.className = `tile-state badge ${s.state === 'working' ? 'work' : s.state === 'done' ? 'unseen' : 'done'}`;
-    const show = () => { b.style.display = ''; if (anim) gsap.fromTo(b, { opacity: 0 }, { opacity: 1, duration: 0.3 }); };
-    if (sp) {
-      if (!anim) { sp.remove(); return show(); }
-      gsap.to($('.si', sp), RM ? { opacity: 0, duration: 0.2 } : { scale: 1.12, y: -6, opacity: 0, duration: 0.25, ease: 'power2.in' });
-      gsap.delayedCall(0.26, () => { sp.remove(); show(); });
-      return;
-    }
-    show();
-  }
-
-  function attn(id, on, delay = 0) {
-    const el = pane(id), edge = $('.edge', el);
-    el.classList.toggle('attn', on);
-    if (el._br) el._br.kill();
-    if (!on) return gsap.to(edge, { opacity: 0, duration: 0.6 });
-    if (RM) return gsap.set(edge, { opacity: 1 });
-    gsap.set(edge, { opacity: 0.3 });
-    el._br = gsap.to(edge, { opacity: 1, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1, delay });
-  }
-  function sweep(el) {
-    if (RM) return;
-    const c = h('<span class="swc"><i class="sweep"></i></span>');
-    el.appendChild(c);
-    gsap.fromTo($('i', c), { xPercent: -110 }, { xPercent: 230, duration: 0.8, ease: 'power2.inOut', onComplete: () => c.remove() });
+    b.className = `tile-state badge ${s.state === 'waiting_for_you' ? 'wait' : s.state === 'working' ? 'work' : s.state === 'done' ? 'unseen' : 'done'}`;
+    if (anim) gsap.fromTo(b, { opacity: 0 }, { opacity: 1, duration: 0.3 });
   }
 
   function roll(el, n) {

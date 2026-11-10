@@ -39,15 +39,11 @@
 
 /* tiles */
 :root:not([data-look="dither"]) .pane { border-radius: 12px; border-color: var(--hairline); }
-:root:not([data-look="dither"]) .pane.attn { border-color: var(--wait); }
-:root:not([data-look="dither"]) .edge { border-radius: 12px; box-shadow: none; }
-:root:not([data-look="dither"]) .swc, :root:not([data-look="dither"]) .shim { display: none; }
+:root:not([data-look="dither"]) .shim { display: none; }
 :root:not([data-look="dither"]) .tile-body { border-radius: 0 0 12px 12px; }
-:root:not([data-look="dither"]) .tile .ph, :root:not([data-look="dither"]) .tile[data-state] .ph { height: 58px; background: none; box-shadow: none; border-bottom: 0; border-radius: 12px 12px 0 0; }
+:root:not([data-look="dither"]) .tile .ph { border-bottom: 0; border-radius: 12px 12px 0 0; }
 :root:not([data-look="dither"]) .ph .r1 { height: 34px; padding: 0 6px 0 12px; gap: 8px; }
-:root:not([data-look="dither"]) .ph .r2 { height: 24px; padding: 0 12px; gap: 8px; font-size: 12px; color: var(--mute); background: none; border-top: 0; border-bottom: 1px solid var(--hairline); }
-:root:not([data-look="dither"]) .tile .ph .r2, :root:not([data-look="dither"]) .tile[data-state] .ph .r2 { background: none; border-top: 0; }
-:root:not([data-look="dither"]) .tile[data-state="waiting_for_you"] .ph .r2 { background: color-mix(in srgb, var(--wait) 7%, transparent); border-bottom-color: color-mix(in srgb, var(--wait) 35%, var(--hairline)); }
+:root:not([data-look="dither"]) .ph .r2 { padding: 0 12px 6px; font-size: 12px; color: var(--mute); border-bottom: 1px solid var(--hairline); }
 :root:not([data-look="dither"]) .ph .fl, :root:not([data-look="dither"]) .ph .eng, :root:not([data-look="dither"]) .ph .meta { color: var(--mute); }
 :root:not([data-look="dither"]) .ph .fl { font-family: var(--mono); font-size: 12px; }
 :root:not([data-look="dither"]) .ph .meta, :root:not([data-look="dither"]) .ph .tile-watch { font-family: var(--mono); font-size: 12px; }
@@ -58,22 +54,17 @@
 :root:not([data-look="dither"]) .ph .eng { height: auto; padding: 0; background: none; border-radius: 0; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; }
 :root:not([data-look="dither"]) .ph .task { font-family: var(--ui); font-size: 13px; font-weight: 500; color: var(--ink); }
 :root:not([data-look="dither"]) .ph .badge { height: auto; padding: 0; border: 0; border-radius: 0; font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--mute); }
-:root:not([data-look="dither"]) .ph .badge:is(.work, .unseen, .done) { color: var(--mute); }
-:root:not([data-look="dither"]) .stamp { transform: none; }
-:root:not([data-look="dither"]) .stamp .ink.y { display: none; }
-:root:not([data-look="dither"]) .stamp .ink.p { height: 20px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid var(--wait); border-radius: 999px; background: none; color: var(--wait); font-family: var(--ui); font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0; text-transform: none; }
-:root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr) { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
+:root:not([data-look="dither"]) .ph .badge.wait { color: var(--ink); }
+:root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr) { height: 24px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
 :root:not([data-look="dither"]) .ph :is(.act .btn, .pb, .ub, .rs, .lr):hover { background: var(--canvas-soft); color: var(--ink); }
 :root:not([data-look="dither"]) .ph .tx { width: 28px; height: 28px; border-radius: 6px; }
 :root:not([data-look="dither"]) .ph .tx:hover { background: var(--canvas-soft); }
-:root:not([data-look="dither"]) .ph .act { gap: 6px; }
-:root:not([data-look="dither"]) .tile-desk .btn { height: 28px; border-radius: 6px; font-size: 12.5px; }
 :root:not([data-look="dither"]) .tile-desk .btn.warn, :root:not([data-look="dither"]) .tile-desk .badge.warn { color: var(--wait); }
 :root:not([data-look="dither"]) .ph .tile-changed { font-family: var(--ui); font-size: 12px; color: var(--body); background: none; border: 0; padding: 0; text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 3px; }
 :root:not([data-look="dither"]) .spk rect { fill: var(--hairline); }
 :root:not([data-look="dither"]) .spk rect.on { fill: var(--mute); }
 :root:not([data-look="dither"]) .pane.fold .ph { height: 100%; border-radius: 12px; }
-:root:not([data-look="dither"]) .pane.fold .ph .r2 { border-bottom: 0; background: none; }
+:root:not([data-look="dither"]) .pane.fold .ph .r2 { padding: 0; border-bottom: 0; }
 :root:not([data-look="dither"]) .pane.fold .ph .task { font-size: 13px; }
 :root:not([data-look="dither"]) .fold-more { border-style: solid; border-color: var(--hairline); border-radius: 12px; font-family: var(--ui); font-size: 12.5px; }
 :root:not([data-look="dither"]) .ph :is(button, .tx):focus-visible, :root:not([data-look="dither"]) .strip :is(button, .link):focus-visible, :root:not([data-look="dither"]) .sheet :is(button, input, .tab):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -179,7 +170,7 @@
 :root:not([data-look="dither"]) .toast { padding: 12px 14px; font-size: 13px; line-height: 1.45; }
 :root:not([data-look="dither"]) .toast.error { border-color: var(--del); }
 :root:not([data-look="dither"]) :is(.inbox .item, .menu .item):focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-:root:not([data-look="dither"]) .ph :is(.tile-desk, .tile-previews) :is(.btn, button) { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
+:root:not([data-look="dither"]) .ph :is(.tile-desk, .tile-previews) :is(.btn, button) { height: 24px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-family: var(--ui); font-size: 12.5px; font-weight: 500; }
 :root:not([data-look="dither"]) .ph :is(.tile-desk, .tile-previews) :is(.btn, button):hover { background: var(--canvas-soft); color: var(--ink); }
 :root:not([data-look="dither"]) .ph .tile-desk .btn.warn { color: var(--wait); }
 :root:not([data-look="dither"]) .lnew .btn { background: none; border-color: var(--hairline); color: var(--body-strong); }
@@ -190,5 +181,5 @@
 :root:not([data-look="dither"]) .ph .r1 > * { flex-shrink: 0; }
 :root:not([data-look="dither"]) .ph .r1 > .tile-task { flex: 1 1 40px; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root:not([data-look="dither"]) .ph .r1 > .tile-engine { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:root:not([data-look="dither"]) .ph .r1 :is(.btn, .pb, .ub) { padding: 0 8px; font-size: 12px; }
+:root:not([data-look="dither"]) .ph .r2 :is(.btn, .pb, .ub) { font-size: 12px; }
 @container (max-width: 640px) { :root:not([data-look="dither"]) .ph .r1 > .tile-engine { display: none; } }

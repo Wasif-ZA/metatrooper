@@ -33,13 +33,11 @@ body { position: relative; }
 .gate .ga .lnk { white-space: nowrap; }
 :root:not([data-look="dither"]) .pane { background: var(--pane); border-color: var(--hairline); }
 :root:not([data-look="dither"]) .pane.working { border-color: var(--hairline-strong); }
-:root:not([data-look="dither"]) .pane.working::before, :root:not([data-look="dither"]) .pane.working::after, :root:not([data-look="dither"]) .edge::before, :root:not([data-look="dither"]) .edge::after { display: none; }
-:root:not([data-look="dither"]) .edge { inset: -1px; padding: 0; border-radius: var(--r); border: 1px solid var(--wait); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wait) 12%, transparent), 0 0 24px color-mix(in srgb, var(--wait) 16%, transparent); }
+:root:not([data-look="dither"]) .pane.working::before, :root:not([data-look="dither"]) .pane.working::after { display: none; }
 :root:not([data-look="dither"]) .chip, :root:not([data-look="dither"]) .btn { border-radius: 5px; }
 :root:not([data-look="dither"]) .needs, :root:not([data-look="dither"]) .badge { text-transform: none; letter-spacing: 0; }
 :root:not([data-look="dither"]) .mini, :root:not([data-look="dither"]) .bar { background: var(--hairline-strong); border-radius: 2px; }
 :root:not([data-look="dither"]) .mini i, :root:not([data-look="dither"]) .bar i { background: var(--body); }
-:root:not([data-look="dither"]) .sweep { background: radial-gradient(50% 100% at 50% 0, color-mix(in srgb, var(--wait) 22%, transparent), transparent 75%); -webkit-mask: none; mask: none; }
 
 /* title bar extras */
 .crumb select { background: none; border: 0; color: var(--body-strong); font: inherit; padding: 0 2px; max-width: 220px; }

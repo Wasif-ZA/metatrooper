@@ -890,10 +890,6 @@ function paletteItems() {
   items.push({ group: 'Actions', label: 'Keyboard shortcuts', stay: true, run: () => { ui.keysView = true; ui.paletteAt = 0; document.getElementById('palette-input').value = ''; renderPalette(); } });
   const eq = document.body.classList.contains('ind-eq');
   items.push({ group: 'Actions', label: eq ? 'Working indicator: sparkline' : 'Working indicator: equaliser', run: () => { document.body.classList.toggle('ind-eq', !eq); document.body.classList.toggle('ind-spark', eq); save('ind', eq ? 'spark' : 'eq'); } });
-  const hdr = load('hdr') || 'line';
-  for (const [k, name] of [['line', 'second line tinted'], ['head', 'whole header tinted'], ['edge', 'edge bar'], ['words', 'coloured words'], ['ask', 'only when it needs you']]) {
-    if (k !== hdr) items.push({ group: 'Actions', label: `Tile state colour: ${name}`, run: () => { setHdr(k); save('hdr', k); } });
-  }
   const themes = (ui.settingsLook && ui.settingsLook.themes) || [];
   for (const t of themes) items.push({ group: 'Theme', label: `Theme: ${t.label}`, meta: ui.look && ui.look.theme.name === t.id ? 'current' : '', run: () => setLook(t.id) });
   const armed = ui.armed && ui.armed.key;
@@ -1987,8 +1983,6 @@ observeLongTasks();
 setInterval(tickAges, 5000);
 document.getElementById('palette-input').addEventListener('focus', openPalette);
 if (DEMO) document.body.classList.add('demo');
-function setHdr(k) { for (const c of [...document.body.classList]) if (c.startsWith('hdr-')) document.body.classList.remove(c); document.body.classList.add(`hdr-${k}`); }
-setHdr(load('hdr') || 'line');
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
 void Promise.all([api.uiSettings(), fontsLoaded]).then(([look]) => {
