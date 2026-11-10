@@ -972,15 +972,15 @@ export function Inbox() {
               </div>
             </div>
             {activeRow.type === 'ask' ? (
-              <DetailAsk key={activeRow.item.id} x={activeRow.item} text={sessionText} error={sessionTextError} />
+              <DetailAsk key={`ask-${activeRow.item.id}`} x={activeRow.item} text={sessionText} error={sessionTextError} />
             ) : activeRow.type === 'working' ? (
               <div className="ou-ny-ask">
                 <TerminalPreview text={sessionText} error={sessionTextError} />
               </div>
             ) : (
-              <DetailNotice key={activeRow.item.id} n={activeRow.item} kindOf={kindOf} />
+              <DetailNotice key={`notice-${activeRow.item.id}`} n={activeRow.item} kindOf={kindOf} />
             )}
-            <RunLedger key={ledgerSessionId || activeRow.id} sessionId={ledgerSessionId} />
+            <RunLedger key={`ledger-${ledgerSessionId || activeRow.id}`} sessionId={ledgerSessionId} />
             <div className="ou-ny-slot" data-slot="handoff">
               <div className="ou-ny-slot-title">Handoff</div>
               <div className="ou-ny-slot-body">The handoff note shows here once the core records it.</div>
