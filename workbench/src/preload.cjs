@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('troop', {
   settingsPage: () => ipcRenderer.invoke('settingsPage'),
   setSetting: (key, value) => ipcRenderer.invoke('setSetting', key, value),
   setCheck: (projectId, command) => ipcRenderer.invoke('setCheck', projectId, command),
+  runCheck: (sessionId) => ipcRenderer.invoke('runCheck', sessionId),
   saveLayout: (projectId, layout) => ipcRenderer.invoke('saveLayout', projectId, layout),
   termInput: (sessionId, data) => ipcRenderer.invoke('termInput', sessionId, data),
   termResize: (sessionId, cols, rows) => ipcRenderer.invoke('termResize', sessionId, cols, rows),

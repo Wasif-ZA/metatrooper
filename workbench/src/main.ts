@@ -603,6 +603,20 @@ function handlers(): void {
     const error = await writeSetting('reliability.checks', checks);
     return error ? { error } : { ok: true };
   });
+  // The window may run only the check command saved for the session's project; it never sends a command.
+  on('runCheck', async (sessionId: unknown) => {
+    const d = db();
+    const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT project_id FROM session WHERE id = ?').get(sessionId) as { project_id: string } | undefined) : undefined;
+    if (!row) return { error: 'session not found' };
+    const command = (settings().reliability.checks as Record<string, string>)[row.project_id];
+    if (typeof command !== 'string' || !command.trim()) return { error: 'no check command saved for this project; add one in Settings, Reliability' };
+    console.log(`runCheck ${String(sessionId).slice(0, 40)} ${command.slice(0, 200)}`);
+    const out = await call('done.check', { session_id: sessionId as string, command }, { ui: true, waitMs: 610_000 });
+    if (out.kind !== 'reply') return { error: 'the core is offline or the check ran out of time' };
+    if (out.reply.error) return { error: out.reply.error.message };
+    const proof = out.reply.result as { exit_code: number | null; command: string; output_tail: string };
+    return { ok: true, exit_code: proof.exit_code, command: proof.command, output_tail: String(proof.output_tail ?? '').slice(-2000) };
+  });
   let layoutWrites = Promise.resolve<unknown>(null);
   on('saveLayout', (projectId: unknown, layout: unknown) => {
     if (typeof projectId !== 'string' || !layout || typeof layout !== 'object' || Array.isArray(layout) || JSON.stringify(layout).length > 64 * 1024) return { error: 'bad layout' };
