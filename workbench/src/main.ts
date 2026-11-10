@@ -1,4 +1,4 @@
-import { listDir, rankFiles, readText } from './files.ts';
+import { createEntry, inside as fsInside, listDir, rankFiles, readText, renameEntry, searchText, writeText } from './files.ts';
 import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
@@ -30,7 +30,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
-import { gitAct, gitView, ownerGroups, runIn, type GitView } from './gitpane.ts';
+import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
@@ -421,7 +421,7 @@ function handlers(): void {
     const project = d.prepare('SELECT path FROM project WHERE id = ?').get(projectId) as { path: string } | undefined;
     if (!project) return null;
     try {
-      return await gitIn(project.path)(['diff', '--cached', '--', file]);
+      return await gitIn(project.path)(['diff', '--no-ext-diff', '--no-textconv', '--cached', '--', file]);
     } catch {
       return null;
     }
@@ -443,8 +443,18 @@ function handlers(): void {
     if (!project) return { error: 'pick a project first' };
     const git = runIn(project.path);
     const why = (e: unknown) => { const err = e as Error & { stderr?: string }; return (err.stderr || err.message).trim().split(String.fromCharCode(10)).slice(-3).join(' '); };
-    if ((op === 'diff' || op === 'diff-staged') && typeof arg === 'string') {
-      try { return await git(['diff', ...(op === 'diff-staged' ? ['--cached'] : []), '--', arg]); } catch { return null; }
+    if (op === 'status') {
+      try { return parseStatusV2(await git(['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'])); } catch (e) { return { error: why(e) }; }
+    }
+    if (op === 'diff' || op === 'diff-staged') {
+      if (!namedPaths([arg])) return null;
+      const rel = arg as string;
+      const lit = (args: string[]) => git(['--literal-pathspecs', ...args]);
+      try {
+        const out = await lit(['diff', '--no-ext-diff', '--no-textconv', ...(op === 'diff-staged' ? ['--cached'] : []), '--', rel]);
+        if (out || op === 'diff-staged' || !(await lit(['ls-files', '--others', '--exclude-standard', '--', rel]))) return out;
+        try { return await lit(['diff', '--no-ext-diff', '--no-textconv', '--no-index', '--', '/dev/null', rel]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
+      } catch { return null; }
     }
     let error: string | undefined;
     try {
@@ -528,6 +538,25 @@ function handlers(): void {
     try { return rankFiles((await runIn(root)(['ls-files', '-z', '--cached', '--others', '--exclude-standard'])).split('\0').filter(Boolean), query); } catch { return []; }
   });
   on('fsRead', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? readText(root, rel) : { error: 'pick a project first' }; });
+  on('fsWrite', (projectId: unknown, rel: unknown, text: unknown, baseMtimeMs: unknown) => {
+    const root = projectRoot(projectId);
+    const r = root ? writeText(root, rel, text, baseMtimeMs) : { error: 'pick a project first' };
+    console.log(`fsWrite ${String(projectId).slice(0, 40)} ${String(rel).slice(0, 300)} ${typeof text === 'string' ? Buffer.byteLength(text, 'utf8') : 0} bytes ${'ok' in r ? 'ok' : r.error}`);
+    return r;
+  });
+  on('fsCreate', (projectId: unknown, rel: unknown, kind: unknown) => { const root = projectRoot(projectId); return root ? createEntry(root, rel, kind) : { error: 'pick a project first' }; });
+  on('fsRename', (projectId: unknown, from: unknown, to: unknown) => { const root = projectRoot(projectId); return root ? renameEntry(root, from, to) : { error: 'pick a project first' }; });
+  on('fsSearch', (projectId: unknown, query: unknown) => { const root = projectRoot(projectId); return root ? searchText(root, query).catch(() => ({ hits: [], more: false })) : { hits: [], more: false }; });
+  on('openInVsCode', (projectId: unknown, rel: unknown) => {
+    const root = projectRoot(projectId);
+    if (!root) return { error: 'pick a project first' };
+    const file = rel == null ? null : typeof rel === 'string' ? fsInside(root, rel) : null;
+    if (rel != null && !file) return { error: 'not a file in this project' };
+    const code = resolveLaunch('code');
+    if (!code) return { error: 'VS Code (code) is not on PATH' };
+    spawn(code.argv[0], [...code.argv.slice(1), root, ...(file ? [file] : [])], { detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, ...code.env } }).on('error', (e) => console.error(`could not open VS Code: ${e.message}`)).unref();
+    return { ok: true };
+  });
   on('addons', () => {
     const d = db();
     if (!d) return [];
@@ -676,6 +705,10 @@ function createWindow(): void {
   if (demo) win.on('page-title-updated', (e) => e.preventDefault());
   win.webContents.on('did-finish-load', push);
   win.webContents.on('did-finish-load', () => { loads++; });
+  win.webContents.on('will-prevent-unload', (e) => {
+    if (!win || win.isDestroyed()) return;
+    if (dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: 'Some files in the IDE have unsaved changes.' }) === 0) e.preventDefault();
+  });
   let reloadedAt = -Infinity;
   win.webContents.on('render-process-gone', (_e, d) => {
     detachAll();

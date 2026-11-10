@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { GIT_SAFE_ENV } from './gitpane.ts';
 
 export type Git = (args: string[]) => string | Promise<string>;
 
@@ -18,15 +19,15 @@ const READ_ONLY = new Set(['diff', 'ls-files', 'merge-base', 'rev-parse']);
 export function gitIn(cwd: string): Git {
   return (args) => {
     if (!READ_ONLY.has(args[0])) throw new Error(`git ${args[0]} is not allowed in the hand-back tray`);
-    return exec('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).then((r) => r.stdout);
+    return exec('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } }).then((r) => r.stdout);
   };
 }
 
 /** One file's diff against `base`; an untracked file, which `git diff` skips, shows as all new lines. */
 export async function fileDiff(git: Git, base: string, file: string): Promise<string> {
-  const out = await git(['diff', base, '--', file]);
+  const out = await git(['diff', '--no-ext-diff', '--no-textconv', base, '--', file]);
   if (out || !(await git(['ls-files', '--others', '--exclude-standard', '--', file]))) return out;
-  try { return await git(['diff', '--no-index', '--', '/dev/null', file]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
+  try { return await git(['diff', '--no-ext-diff', '--no-textconv', '--no-index', '--', '/dev/null', file]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
 }
 
 /** Files changed since `base` with line counts (null for binary), and untracked files, for the Diff tab. */
