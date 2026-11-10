@@ -44,7 +44,7 @@ export function unsavedSummary() {
   return parts.join('; ');
 }
 
-const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', findOpen: false, q: '', hits: [], sq: '', sres: null, searching: false, ask: null, renaming: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
+const fresh = (pid) => ({ pid, rootOpen: true, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', findOpen: false, q: '', hits: [], sq: '', sres: null, searching: false, ask: null, renaming: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
 const slashed = (f) => String(f).replace(/\\/g, '/');
 const base = (p) => p.split('/').pop();
 const folder = (p) => p.split('/').slice(0, -1).join('/');
@@ -779,7 +779,7 @@ function Files({ st, changed }) {
           <ContextMenu id="ide-tree-menu" size="sm" label="File actions" items={items}
             onContextMenu={(e) => setTarget(rowTarget(st, e.target))}
             onOpenChange={(open) => { const run = pending.current; pending.current = null; if (!open && run) setTimeout(run, 0); }}>
-            <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<span className="ou-ide-root">{p.name}</span>} items={treeItems(st, '', changed)}
+            <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span aria-hidden="true">{st.rootOpen ? '\u25be' : '\u25b8'}</span>{p.name}</button>} items={st.rootOpen ? treeItems(st, '', changed) : []}
               onKeyDown={(e) => {
                 const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
                 if (t) { e.preventDefault(); st.renaming = t.path; bump(); }
