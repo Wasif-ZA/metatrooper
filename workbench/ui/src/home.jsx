@@ -159,7 +159,16 @@ export function Home() {
               </li>
             ))}
           </ul>
-          <p className="ou-empty"><Button size="sm" variant="ghost" label="Open folder" data-action="open-folder" /></p>
+          <p className="ou-empty">
+            <Button
+              size="sm"
+              variant="ghost"
+              label="Open folder"
+              data-action="open-folder"
+              className="ou-btn-line"
+              icon={<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3.5h4l1.5 2H14v7.5H2z" /></svg>}
+            />
+          </p>
         </section>
         {asks ? (
           <section>

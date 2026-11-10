@@ -43,6 +43,8 @@ html { font-size: 16px; }
 .ou-dot-wait { background: var(--wait); }
 .ou-dot-work { background: var(--ink); }
 .ou-dot-bad { background: var(--del); }
+.ou-btn-line { height: 28px; border: 1px solid var(--hairline); border-radius: 4px; }
+.ou-btn-line:hover { background: var(--canvas-soft); }
 .ou-wait { padding: 1px 7px; border: 1px solid color-mix(in srgb, var(--wait) 45%, transparent); border-radius: 4px; font-size: 11px; font-weight: 500; line-height: 16px; color: var(--wait); }
 .ou-value { font-family: var(--mono); font-size: 12px; color: var(--body); }
 
