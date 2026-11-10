@@ -261,9 +261,16 @@ for (const [filter, visible, absent] of [['needs', 'Note question', 'Note done']
   const html = h.html(); assert.ok(html.includes(visible)); assert.ok(!html.includes(absent));
 });
 
-test('Inbox is empty when hidden and says Nothing here when empty', () => {
-  // Keep all four filters available when the list has no rows.
-  const h = harness(Inbox); assert.equal(h.html(), ''); g.ui.view = 'inbox'; assert.match(h.html(), /Nothing here\./);
+test('Inbox is empty when hidden and shows one empty message in the detail pane', () => {
+  // Keep one empty message in the detail pane and all four list filters available.
+  const h = harness(Inbox); assert.equal(h.html(), ''); g.ui.view = 'inbox';
+  const html = h.html();
+  assert.equal((html.match(/Nothing is waiting on you\./g) || []).length, 1);
+  const empty = h.all((n: any) => n.props.title === 'Nothing is waiting on you.');
+  assert.equal(empty.length, 1);
+  assert.equal(h.all((n: any) => n.type === empty[0].type).length, 1);
+  assert.match(renderToStaticMarkup(h.one(hasClass('ou-ipane-empty'))), /Nothing is waiting on you\./);
+  assert.doesNotMatch(renderToStaticMarkup(h.one(hasClass('ou-inbox-list'))), /Nothing is waiting on you\.|Nothing here\./);
   assert.deepEqual(h.all(hasClass('ou-ifilters-chip')).map(textContent), ['All', 'Needs you', 'Finished', 'Failed']);
   assert.deepEqual(h.all(hasClass('ou-ifilters-zero')).map(textContent), ['Needs you', 'Finished', 'Failed']);
 });
