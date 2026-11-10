@@ -46,6 +46,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   usage.summary           {window: today|week|run, run_id?}
   usage.session           {session_id}
   stats.sessions          {project_id?, days?: 1-90 (14)}
+  stats.checks            {project_id?, days?: 1-90 (14)}
   loop.choose             {session_id, choice}
   done.check              {session_id, command, acceptance?}
   done.result             {session_id}

@@ -30,3 +30,17 @@ export function sessionStats(db: DatabaseSync, o: StatsOpts = {}) {
     return row;
   }) };
 }
+
+/** Daily done-check runs, passes, and pass rates. */
+export function checkStats(db: DatabaseSync, o: StatsOpts = {}) {
+  const buckets = dayBuckets(o);
+  const project = o.project_id === undefined ? '' : ' AND s.project_id = ?';
+  const args = o.project_id === undefined ? [] : [o.project_id];
+  const checks = db.prepare(`SELECT COUNT(*) AS runs, COALESCE(SUM(CASE WHEN p.exit_code = 0 THEN 1 ELSE 0 END), 0) AS passed
+    FROM done_proof p JOIN session s ON s.id = p.session_id
+    WHERE p.at >= ? AND p.at < ?${project}`);
+  return { days: buckets.map(({ day, start, end }) => {
+    const { runs, passed } = checks.get(start, end, ...args) as { runs: number; passed: number };
+    return { day, runs, passed, rate: runs === 0 ? null : passed / runs };
+  }) };
+}

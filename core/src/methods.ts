@@ -10,7 +10,7 @@ import type { MethodSpec } from './pipe/commands.ts';
 import { isPreset } from './browser/grants.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { repeatReads, saverReport, sessionUsage, usageSummary } from './usage.ts';
-import { sessionStats } from './stats.ts';
+import { checkStats, sessionStats } from './stats.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
@@ -89,6 +89,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'usage.summary', errors: [E.INVALID_PARAMS], params: '{window: today|week|run, run_id?}', result: '{window, total, in, out, cache_read, cache_write, usd, usd_estimated, parts: [{kind, tokens}], by_agent: [{session_id, engine_id, tokens, usd, usd_estimated}], estimate: true, repeat_reads: [{session_id, file_path, count}], savers: [{id, on, saving}]}; token use for the window (run needs run_id), the parts sum to total; -32602 on a bad window or a run without run_id' },
   { name: 'usage.session', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id}', result: '{session_id, engine_id, tokens_in, tokens_out, cache_read, cache_write, usd, usd_estimated, unpriced, by_model: [{model, tokens_in, tokens_out, usd}]}; all-time session usage, models ordered by usd then total tokens descending; usd sums priced rows (0 when none), usd_estimated is true when any priced row is estimated, unpriced counts rows with null usd; -32002 session not found' },
   { name: 'stats.sessions', errors: [E.INVALID_PARAMS], params: '{project_id?, days?: 1-90 (14)}', result: '{days: [{day, succeeded, failed, unchecked, started: {starting, working, waiting_for_you, done, idle, unknown, exited}}]}; local calendar days oldest first through today, including hidden sessions; ended_at outcomes use the latest done_proof by at: exit_code 0 succeeds, any other value including null fails, no proof is unchecked; started_at counts by current state' },
+  { name: 'stats.checks', errors: [E.INVALID_PARAMS], params: '{project_id?, days?: 1-90 (14)}', result: '{days: [{day, runs, passed, rate}]}; done_proof runs by at in local calendar days oldest first through today; passed counts exit_code 0, rate is passed / runs or null when runs is 0; project_id filters through the session' },
   { name: 'loop.choose', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, choice}', result: '{false_alarms}; answers a loop alarm nudge: `pause` interrupts the agent, `try-another-way` tells it to change approach, `not-a-loop` resets the count and is counted as a false alarm; `rewind` is refused until file restore exists. Resolves the nudge row' },
   { name: 'done.check', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, command, acceptance?}', result: 'the stored done_proof row: runs `command` in the session folder, keeps the output tail, the folder tree and the exit code' },
   { name: 'done.result', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{result: done | checks_passed | needs_review, unverified, proof, current}: the latest check on the folder as it is now' },
@@ -396,6 +397,13 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     handler: (p) => {
       if (p.project_id !== undefined && typeof p.project_id !== 'string') throw new RpcError(E.INVALID_PARAMS, 'project_id must be a string');
       return sessionStats(db, { project_id: p.project_id === undefined ? undefined : str(p, 'project_id', false), days: p.days as number | undefined });
+    },
+  });
+
+  m.set('stats.checks', {
+    handler: (p) => {
+      if (p.project_id !== undefined && typeof p.project_id !== 'string') throw new RpcError(E.INVALID_PARAMS, 'project_id must be a string');
+      return checkStats(db, { project_id: p.project_id === undefined ? undefined : str(p, 'project_id', false), days: p.days as number | undefined });
     },
   });
 
