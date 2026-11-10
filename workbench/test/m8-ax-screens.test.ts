@@ -512,7 +512,8 @@ test('Home puts Answer in the waiting agent card and renders literal card anatom
   assert.match(markup[1], /<pre>Editing fixtures<\/pre><footer><span>2 changed files<\/span>/);
   assert.match(markup[2], /<pre>All checks passed<\/pre><footer><span>1 changed file<\/span>/);
   assert.equal(h.all(label('Answer')).length, 1); assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
-  assert.equal(h.all(hasClass('ou-irow')).length, 0); assert.doesNotMatch(html, /Waiting on you|ou-agent-wait/);
+  assert.equal(h.all((n: any) => hasClass('ou-irow')(n) && n.props['data-action']).length, 0); assert.equal(h.all(hasClass('ou-irow')).length, 3);
+  assert.doesNotMatch(html, /Waiting on you|ou-agent-wait/);
   const tiles = h.all(hasClass('ou-tile')); assert.equal(tiles.length, 4);
   assert.deepEqual(tiles.map(n => hasClass('ou-hot')(n)), [true, false, false, false]);
   assert.match(renderToStaticMarkup(tiles[0]), /<b>1<\/b><span class="ou-tilelabel">Needs you<\/span><span class="ou-tilesub">waiting on an answer<\/span>/);
@@ -523,8 +524,10 @@ test('Home section order and Waiting on you contain only approvals and alerts', 
   g.ui.snap.approvals = [{ id: 'a' }]; g.ui.snap.needs_you = [note('alert', 'question'), note('recent', 'done')];
   const h = harness(Home); const html = h.html();
   assert.ok(html.indexOf('ou-composer') < html.indexOf('ou-tiles'));
-  assert.ok(html.indexOf('ou-tiles') < html.indexOf('<h2>Agents</h2>'));
-  assert.ok(html.indexOf('<h2>Agents</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
+  assert.ok(html.indexOf('<h2>Agents</h2>') < html.indexOf('ou-tiles'));
+  assert.ok(html.indexOf('ou-composer') < html.indexOf('<h2>Agents</h2>'));
+  assert.ok(html.indexOf('ou-tiles') < html.indexOf('<h2>Changed files</h2>'));
+  assert.ok(html.indexOf('<h2>Changed files</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
   assert.ok(html.indexOf('<h2>Waiting on you</h2>') < html.indexOf('<h2>Recent</h2>'));
   assert.equal(h.one(label('Task for a new agent')).props.rows, 1);
   assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['sheet', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
