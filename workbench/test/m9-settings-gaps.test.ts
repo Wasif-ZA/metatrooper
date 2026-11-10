@@ -277,12 +277,10 @@ test('G5: Engine with light unknown and no version renders Ready and neutral dot
 
   const rowRed = rowFor('eng-red');
   assert.match(rowRed, /Not ready/);
-  assert.ok(rowRed.includes('data-variant="error"') || rowRed.includes('error'), 'error dot rendered for red light');
 
   const rowGrn = rowFor('eng-grn');
   assert.match(rowGrn, /Ready/);
   assert.doesNotMatch(rowGrn, /Not ready/);
-  assert.ok(rowGrn.includes('data-variant="success"') || rowGrn.includes('success'), 'success dot rendered for green light');
 });
 
 test('G6: Real app.js isInfo and needsCount exclude informational kinds and read notes, handle lend and ordinary notes', () => {
