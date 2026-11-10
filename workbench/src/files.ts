@@ -59,6 +59,25 @@ export function listDir(root: string, rel: string): Array<{ name: string; dir: b
     .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
 }
 
+const IMAGE_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+/** A png, jpg, gif or webp inside the root as a data URL, read through one checked handle. */
+export function readImage(root: string, rel: unknown): { url: string } | { error: string } {
+  const ext = typeof rel === 'string' ? path.extname(rel).slice(1).toLowerCase() : '';
+  if (typeof rel !== 'string' || !Object.hasOwn(IMAGE_MIME, ext)) return { error: 'not an image this window can show' };
+  const h = openChecked(root, rel, 'r');
+  if (!h) return NOT_FILE;
+  try {
+    if (h.stat.size > MAX_IMAGE_BYTES) return { error: `too large to show (${Math.round(h.stat.size / 1024)} KiB)` };
+    return { url: `data:${IMAGE_MIME[ext]};base64,${readAll(h.fd, h.stat.size).toString('base64')}` };
+  } catch {
+    return NOT_FILE;
+  } finally {
+    fs.closeSync(h.fd);
+  }
+}
+
 export function openOutside(root: string, rel: string): string | { error: string } {
   if (typeof rel !== 'string' || path.isAbsolute(rel)) return NOT_FILE;
   const full = inside(root, rel);

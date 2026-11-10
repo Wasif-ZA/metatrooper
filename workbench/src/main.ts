@@ -1,4 +1,4 @@
-import { createEntry, deleteTarget, inside as fsInside, listDir, openOutside, rankFiles, readText, renameEntry, searchText, writeText } from './files.ts';
+import { createEntry, deleteTarget, inside as fsInside, listDir, openOutside, rankFiles, readImage, readText, renameEntry, searchText, writeText } from './files.ts';
 import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
@@ -541,6 +541,7 @@ function handlers(): void {
     try { return rankFiles((await runIn(root)(['ls-files', '-z', '--cached', '--others', '--exclude-standard'])).split('\0').filter(Boolean), query); } catch { return []; }
   });
   on('fsRead', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root && typeof rel === 'string' ? readText(root, rel) : { error: 'pick a project first' }; });
+  on('fsImage', (projectId: unknown, rel: unknown) => { const root = projectRoot(projectId); return root ? readImage(root, rel) : { error: 'pick a project first' }; });
   on('fsWrite', (projectId: unknown, rel: unknown, text: unknown, baseMtimeMs: unknown) => {
     const root = projectRoot(projectId);
     const r = root ? writeText(root, rel, text, baseMtimeMs) : { error: 'pick a project first' };
