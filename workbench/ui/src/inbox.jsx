@@ -95,11 +95,16 @@ function TerminalPreview({ sessionId, stamp }) {
     };
   }, [sessionId, stamp]);
 
-  if (state.error || state.lines === null) {
-    return <div className="ou-ipane-muted">No terminal text to show yet. Open it on the Wall.</div>;
-  }
-
-  return <pre className="ou-ipane-pre">{state.lines}</pre>;
+  return (
+    <div className="ou-ny-terminal-block">
+      <div className="ou-ny-section-label">Last output</div>
+      {state.error || state.lines === null ? (
+        <div className="ou-ipane-muted">No terminal text to show yet. Open it on the Wall.</div>
+      ) : (
+        <pre className="ou-ipane-pre">{state.lines}</pre>
+      )}
+    </div>
+  );
 }
 
 function formatTokens(n) {
@@ -229,27 +234,14 @@ function DetailAsk({ x }) {
 
   return (
     <div className="ou-ny-ask">
-      <div className="ou-ny-ask-open">
-        <Button
-          variant="ghost"
-          size="sm"
-          label="Open on Wall"
-          aria-label="Open on Wall"
-          title="Open on Wall"
-          data-action="pick"
-          data-id={x.id}
-          onClick={(e) => {
-            e.stopPropagation();
-            openOnWall(x);
-          }}
-        />
-      </div>
       <div className="ou-ipane-question">
+        <div className="ou-ny-section-label">Question</div>
         <div className="ou-ipane-task">{taskOf(x)}</div>
         {x.last_line ? <div className="ou-ipane-lastline">{x.last_line}</div> : null}
       </div>
       <TerminalPreview key={x.id} sessionId={x.id} stamp={x.last_line} />
       <div className="ou-ipane-answer">
+        <div className="ou-ny-section-label">Answer</div>
         <TextInput
           label="Answer"
           placeholder="Type your answer, Enter sends"
@@ -419,6 +411,8 @@ export function Inbox() {
 
   let activeStatus = null;
   let activeTitle = '';
+  let activeIsSession = false;
+  let activeItem = null;
   let propEngine = null;
   let propProject = null;
   let propBranch = null;
@@ -428,8 +422,10 @@ export function Inbox() {
   let ledgerSessionId = null;
 
   if (activeRow) {
-    const isSession = activeRow.type === 'ask' || activeRow.type === 'working';
-    const item = activeRow.item;
+    activeIsSession = activeRow.type === 'ask' || activeRow.type === 'working';
+    activeItem = activeRow.item;
+    const isSession = activeIsSession;
+    const item = activeItem;
     activeStatus = statusInfo(item, isSession, kindOf);
     activeTitle = isSession ? taskOf(item) : item.text;
 
@@ -608,10 +604,7 @@ export function Inbox() {
     >
       <div className="ou-inbox-list">
         <header className="ou-inbox-head">
-          <div className="ou-ny-head-left">
-            <span className="ou-ny-pretitle">TRIAGE</span>
-            <h1 className="ou-ny-title">Needs you</h1>
-          </div>
+          <h1 className="ou-ny-title">Needs you</h1>
           <div className="ou-ny-counts">
             {waitingCount} waiting {'\u00B7'} {workingCount} working {'\u00B7'} {noticesCount} notices
           </div>
@@ -688,17 +681,37 @@ export function Inbox() {
               <StatusRing status={activeStatus.status} />
               <span>{activeStatus.word}</span>
             </div>
-            <button
-              type="button"
-              className="ou-ny-close"
-              aria-label="Close details"
-              title="Close details"
-              onClick={() => inboxStore.set({ selectedId: null })}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <path d="M3 3l8 8M11 3l-8 8" />
-              </svg>
-            </button>
+            <div className="ou-ny-side-head-actions">
+              {activeIsSession || activeItem.ref ? <button
+                type="button"
+                className="ou-ny-close"
+                aria-label="Open on Wall"
+                title="Open on Wall"
+                data-action="pick"
+                data-id={activeIsSession ? activeItem.id : (activeItem.ref || activeItem.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (activeIsSession) openOnWall(activeItem);
+                  else if (activeItem.ref) openNotice(activeItem);
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" />
+                  <path d="M5.5 1.5v11M1.5 5.5h4" />
+                </svg>
+              </button> : null}
+              <button
+                type="button"
+                className="ou-ny-close"
+                aria-label="Close details"
+                title="Close details"
+                onClick={() => inboxStore.set({ selectedId: null })}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M3 3l8 8M11 3l-8 8" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div className="ou-ny-side-body">
             <div className="ou-ny-side-title">{activeTitle}</div>
@@ -724,7 +737,7 @@ export function Inbox() {
               </div>
               <div className="ou-ny-grid-row">
                 <div className="ou-ny-grid-label">Branch</div>
-                <div className="ou-ny-grid-val">{propBranch || '-'}</div>
+                <div className="ou-ny-grid-val ou-ny-prop-branch">{propBranch || '-'}</div>
               </div>
               <div className="ou-ny-grid-row">
                 <div className="ou-ny-grid-label">Folder</div>
@@ -743,21 +756,6 @@ export function Inbox() {
               <DetailAsk key={activeRow.item.id} x={activeRow.item} />
             ) : activeRow.type === 'working' ? (
               <div className="ou-ny-ask">
-                <div className="ou-ny-ask-open">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    label="Open on Wall"
-                    aria-label="Open on Wall"
-                    title="Open on Wall"
-                    data-action="pick"
-                    data-id={activeRow.item.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openOnWall(activeRow.item);
-                    }}
-                  />
-                </div>
                 <TerminalPreview key={activeRow.item.id} sessionId={activeRow.item.id} stamp={activeRow.item.last_line} />
               </div>
             ) : (
