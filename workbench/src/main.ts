@@ -607,7 +607,7 @@ function handlers(): void {
   });
   on('setCheck', async (projectId: unknown, command: unknown) => {
     if (typeof projectId !== 'string' || !projectRoot(projectId) || typeof command !== 'string' || command.length > 500) return { error: 'bad check command' };
-    const checks: Record<string, string> = { ...settings().reliability.checks };
+    const checks: Record<string, string> = { ...settings().reliability?.checks };
     if (command.trim()) checks[projectId] = command.trim(); else delete checks[projectId];
     const error = await writeSetting('reliability.checks', checks);
     return error ? { error } : { ok: true };
@@ -617,7 +617,7 @@ function handlers(): void {
     const d = db();
     const row = d && typeof sessionId === 'string' ? (d.prepare('SELECT project_id FROM session WHERE id = ?').get(sessionId) as { project_id: string } | undefined) : undefined;
     if (!row) return { error: 'session not found' };
-    const command = (settings().reliability.checks as Record<string, string>)[row.project_id];
+    const command = ((settings().reliability?.checks ?? {}) as Record<string, string>)[row.project_id];
     if (typeof command !== 'string' || !command.trim()) return { error: 'no check command saved for this project; add one in Settings, Reliability' };
     console.log(`runCheck ${String(sessionId).slice(0, 40)} ${command.slice(0, 200)}`);
     const out = await call('done.check', { session_id: sessionId as string, command }, { ui: true, waitMs: 610_000 });
