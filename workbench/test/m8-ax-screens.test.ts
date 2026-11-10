@@ -17,7 +17,7 @@ after(() => { rmSync(temp, { recursive: true, force: true }); if (previousHome =
 const requireUI = createRequire(join(wb, 'ui/package.json'));
 const { build } = requireUI('esbuild');
 async function bundle(contents: string, output: string) {
-  await build({
+  try { await build({
     absWorkingDir: join(wb, 'ui'), tsconfigRaw: {},
     stdin: { contents, resolveDir: join(wb, 'ui'), loader: 'jsx' },
     plugins: [{ name: 'installed-ui-modules', setup(b: any) {
@@ -33,7 +33,22 @@ async function bundle(contents: string, output: string) {
     } }],
     bundle: true, platform: 'node', format: 'esm', jsx: 'transform', jsxFactory: '__element', jsxFragment: '__fragment',
     loader: { '.css': 'empty' }, outfile: join(temp, output),
-  });
+  }); } catch (error: any) {
+    if (error.code !== 'EPERM' || process.platform !== 'win32') throw error;
+    // Compile real sources with inherited handles and the same capture and mount boundaries.
+    const helper = join(temp, 'capture.jsx');
+    writeFileSync(helper, `import { createElement, Fragment } from ${JSON.stringify(requireUI.resolve('react'))}; export const __fragment = Fragment; export function __element(...args) { const node = createElement(...args); globalThis.__axCapture?.(node); return node; }`);
+    const mount = join(temp, 'mount.mjs');
+    writeFileSync(mount, 'export const createRoot = globalThis.__axCreateRoot;');
+    const entry = join(temp, output + '.jsx');
+    const source = contents.replaceAll("'./src/", "'" + join(wb, 'ui/src/').replaceAll('\\', '/')).replace(/'(react(?:-dom\/server)?)'/g, (_, name) => JSON.stringify(requireUI.resolve(name)));
+    writeFileSync(entry, source);
+    const binary = join(dirname(requireUI.resolve('esbuild/package.json')), '../@esbuild/win32-x64/esbuild.exe');
+    await new Promise<void>((resolveBuild, reject) => {
+      const child = spawn(binary, [entry, '--bundle', '--platform=node', '--format=esm', '--jsx=transform', '--jsx-factory=__element', '--jsx-fragment=__fragment', '--inject:' + helper, '--alias:react-dom/client=' + mount, '--loader:.css=empty', '--banner:js=import { createRequire as __axRequire } from "node:module"; const require = __axRequire(import.meta.url);', '--outfile=' + join(temp, output)], { stdio: 'inherit', windowsHide: true });
+      child.on('error', reject); child.on('exit', code => code === 0 ? resolveBuild() : reject(new Error('esbuild exited ' + code)));
+    });
+  }
 }
 await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
 
@@ -247,7 +262,10 @@ for (const [filter, visible, absent] of [['needs', 'Note question', 'Note done']
 });
 
 test('Inbox is empty when hidden and says Nothing here when empty', () => {
+  // Keep all four filters available when the list has no rows.
   const h = harness(Inbox); assert.equal(h.html(), ''); g.ui.view = 'inbox'; assert.match(h.html(), /Nothing here\./);
+  assert.deepEqual(h.all(hasClass('ou-ifilters-chip')).map(textContent), ['All', 'Needs you', 'Finished', 'Failed']);
+  assert.deepEqual(h.all(hasClass('ou-ifilters-zero')).map(textContent), ['Needs you', 'Finished', 'Failed']);
 });
 
 test('Add-ons renders readiness fallbacks, installs, provenance and plugin permissions', () => {
@@ -306,9 +324,13 @@ test('Home zero tiles, singular agent, visibility and six recent notes', () => {
 });
 
 test('Home start box appears only with a non-red engine', () => {
+  // Retain engine gating while pinning Start at the end with its shortcut tooltip.
   g.ui.snap.engines = [{ id: 'bad', light: 'red' }]; const h = harness(Home); h.draw(); assert.equal(h.all(label('Start')).length, 0);
   g.ui.snap.engines.push({ id: 'ready', light: 'yellow' }); h.draw(); assert.equal(h.all(label('Start')).length, 1);
   assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options, [{ value: 'ready', label: 'ready' }]);
+  assert.equal(h.one(label('Start')).props.tooltip, 'Start (Ctrl+Enter)');
+  assert.deepEqual(React.Children.toArray(h.one(hasClass('ou-composerfoot')).props.children).map((n: any) => n.props.label), ['Agent', 'Options', 'Start']);
+  assert.equal(h.all((n: any) => n.props.keys === 'Ctrl+Enter').length, 0);
 });
 
 for (const [text, prompt] of [['', undefined], ['   ', undefined], ['  fix fixtures  ', 'fix fixtures']] as const) test('Home launch payload for ' + JSON.stringify(text), async () => {
@@ -856,6 +878,7 @@ test('Inbox Needs you filter and loop-choose action through real app onClick', a
 });
 
 test('Add-ons engine readiness states and dot classes', () => {
+  // Check readiness through Badge props as well as rendered card classes and text.
   g.ui.view = 'addons';
   g.ui.snap.engines = [
     { id: 'unk', light: 'unknown' },
@@ -865,6 +888,12 @@ test('Add-ons engine readiness states and dot classes', () => {
   const h = harness(Addons);
   h.draw();
   const cards = h.all(hasClass('ou-acard'));
+  const readyBadges = h.all(hasClass('ou-acard-ready'));
+  const notReady = h.one(hasClass('ou-notready'));
+  assert.deepEqual(readyBadges.map(n => n.props.label), ['Ready', 'Ready']);
+  assert.equal(notReady.props.label, 'Not ready');
+  assert.notEqual(notReady.type, 'span');
+  for (const badge of readyBadges) assert.equal(badge.type, notReady.type);
   const cardUnk = cards.find((c: any) => textContent(c).includes('unk'));
   const cardBad = cards.find((c: any) => textContent(c).includes('bad'));
   const cardGood = cards.find((c: any) => textContent(c).includes('good'));

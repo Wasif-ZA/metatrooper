@@ -415,7 +415,8 @@ test('3796944f selecting another agent starts a fresh keyed answer draft in both
   assert.deepEqual(calls.filter(c => c[0] === 'termInput'), []);
 });
 
-test('3796944f notice Open follows its target and targetless notices have no Open button', { todo: 'DetailNotice always renders Open, including notices with no navigable target' }, async (t) => {
+test('3796944f notice Open follows its target and targetless notices have no Open button', async (t) => {
+  // Show Open only for finished or failed sessions and uncommitted work.
   const openSource = reviewApp.match(/async function openNeedsYou\(id, fallback = true\) \{[^]*?\r?\n\}/)![0];
   reviewGlobals(t, {
     openNeedsYou: new Function('return (' + openSource + ')')(),
@@ -428,14 +429,24 @@ test('3796944f notice Open follows its target and targetless notices have no Ope
   h.one(label('Open')).props.onClick(); await flush();
   assert.deepEqual(calls, [['view', 'wall'], ['pick', 's-a']]);
   g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-failed' }); h.draw(); calls.length = 0;
+  assert.equal(h.all(label('Open')).length, 1);
   h.one(label('Open')).props.onClick(); await flush();
   assert.deepEqual(calls, [['view', 'wall'], ['pick', 's-b']]);
   g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-git' }); h.draw(); calls.length = 0;
+  assert.equal(h.all(label('Open')).length, 1);
   h.one(label('Open')).props.onClick(); await flush();
   assert.deepEqual(calls, [['view', 'wall'], ['rpc', 'needs_you.mark-read', { id: 'n-git' }, true], ['openTab', 'git']]);
   g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-empty' }); h.draw(); calls.length = 0;
   assert.equal(h.all(label('Open')).length, 0);
   assert.deepEqual(calls, []);
+  for (const kind of ['done', 'failed', 'other']) {
+    g.ui.snap.needs_you = [{ ...note('n-targetless', kind), ref: null }];
+    inboxStore.set({ selectedId: 'n-targetless' }); h.draw();
+    assert.equal(h.all(label('Open')).length, 0, kind);
+  }
+  g.ui.snap.needs_you = [{ ...note('n-info', 'other'), ref: 's-a' }];
+  inboxStore.set({ selectedId: 'n-info' }); h.draw();
+  assert.equal(h.all(label('Open')).length, 0);
 });
 
 test('3796944f hiding a project drops its IDE tabs and dirty state while retaining other project tabs', async (t) => {
