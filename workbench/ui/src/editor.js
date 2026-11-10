@@ -19,9 +19,11 @@ const ourosTheme = EditorView.theme({
   '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '20px' },
   '.cm-content': { caretColor: 'var(--ink)' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--ink)' },
-  '.cm-gutters': { background: 'var(--pane)', color: 'var(--faint)', border: 'none' },
+  '.cm-gutters': { background: 'var(--pane)', color: 'var(--faint)', border: 'none', minWidth: '46px' },
+  '.cm-lineNumbers': { minWidth: '46px' },
+  '.cm-lineNumbers .cm-gutterElement': { textAlign: 'right', paddingRight: '16px', paddingLeft: '8px', boxSizing: 'border-box', opacity: '0.6' },
   '.cm-activeLine': { background: 'var(--canvas)' },
-  '.cm-activeLineGutter': { background: 'var(--canvas)' },
+  '.cm-activeLineGutter': { background: 'var(--canvas)', opacity: '1', color: 'var(--body-strong)' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { background: 'var(--canvas-soft)' },
   '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': { background: 'none', outline },
   '.cm-searchMatch, .cm-searchMatch-selected': { background: 'none', outline },
@@ -67,7 +69,14 @@ export function editorState(text, path, on) {
       language(path),
       syntaxHighlighting(ourosHighlight),
       ourosTheme,
-      EditorView.updateListener.of((u) => { if (u.docChanged) on.change(); }),
+      EditorView.updateListener.of((u) => {
+        if (u.docChanged) on.change();
+        if ((u.selectionSet || u.docChanged) && on.selection) {
+          const head = u.state.selection.main.head;
+          const line = u.state.doc.lineAt(head);
+          on.selection({ line: line.number, col: head - line.from + 1 });
+        }
+      }),
       keymap.of([{ key: 'Mod-s', preventDefault: true, run: () => (on.save(), true) }, ...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...findKeys, indentWithTab]),
     ],
   });

@@ -151,6 +151,14 @@ async function openGitDiff(st, path, staged) {
 const onFor = (st, path) => ({
   change() { const t = tabOf(st, path); if (t && !t.dirty) { t.dirty = true; bump(); } },
   save() { void saveTab(st, path); },
+  selection({ line, col }) {
+    const t = tabOf(st, path);
+    if (t && (t.line !== line || t.col !== col)) {
+      t.line = line;
+      t.col = col;
+      bump();
+    }
+  },
 });
 
 function goto(t) {
@@ -363,7 +371,15 @@ export const ideKeys = {
 };
 
 const svg = (d, size = 14) => <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
+const svg24 = (d) => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 const FILE = 'M3.5 1.5h4.5l2.5 2.5v8.5h-7zM8 1.5V4h2.5';
+const CODE = 'M4.5 4.5L2 7l2.5 2.5M9.5 4.5L12 7l-2.5 2.5M8 3l-2 8';
+const JSON_ICON = 'M4.5 2.5a1 1 0 00-1 1v2a1 1 0 01-1 1 1 1 0 011 1v2a1 1 0 001 1M9.5 2.5a1 1 0 011 1v2a1 1 0 001 1 1 1 0 00-1 1v2a1 1 0 01-1 1';
+const MD_ICON = 'M2 3.5h10v7H2zM4 8.5V5.5l1.5 1.8 1.5-1.8v3M9.5 6.5v2m-1-1l1 1 1-1';
+const CSS_ICON = 'M4.5 2.5l-1 9M10.5 2.5l-1 9M2.5 5.5h9M1.5 8.5h9';
+const HTML_ICON = 'M4 4.5L1.5 7 4 9.5M10 4.5l2.5 2.5-2.5 2.5M8 3.5l-2 7';
+const IMG_ICON = 'M2 2.5h10v9H2zM2 9.5l3-3 2.5 2.5 2-2 2.5 2.5M5 5.5a1 1 0 100-2 1 1 0 000 2';
+const FOLDER_ICON = 'M1.5 3.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z';
 const CLOSE = 'M4 4l6 6M10 4l-6 6';
 const RELOAD = 'M11.5 7a4.5 4.5 0 11-1.3-3.2M11.5 2v2.5H9';
 const CMD = 'M2.5 4.5l3 2.5-3 2.5M7 10h4.5';
@@ -371,13 +387,98 @@ const FOLD = 'M3.5 5.5L7 9l3.5-3.5';
 const UNFOLD = 'M3.5 8.5L7 5l3.5 3.5';
 const PLUS = 'M7 3v8M3 7h8';
 const MINUS = 'M3 7h8';
+const BRANCH = 'M3.5 2a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm0 3v4m0 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm0 1.5c1.5 0 3.5 0 5-1.5s1.5-2 1.5-3.5m0 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z';
+const CHECK_CIRCLE = 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
 
-const TINT = { js: 'fn', jsx: 'fn', ts: 'fn', tsx: 'fn', mjs: 'fn', cjs: 'fn', json: 'type', css: 'keyword', html: 'number' };
-function FileIcon({ path }) {
-  const k = TINT[path.split('.').pop().toLowerCase()];
-  return <span className="ou-ide-ficon" style={{ color: k ? `var(--syn-${k})` : 'var(--mute)' }}>{svg(FILE)}</span>;
+const LANGS = {
+  js: 'JavaScript', jsx: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript',
+  ts: 'TypeScript', tsx: 'TypeScript', json: 'JSON',
+  md: 'Markdown', markdown: 'Markdown', css: 'CSS', scss: 'SCSS', less: 'LESS',
+  html: 'HTML', htm: 'HTML', svg: 'SVG', xml: 'XML', py: 'Python', rb: 'Ruby',
+  rs: 'Rust', go: 'Go', sh: 'Shell', bash: 'Shell', zsh: 'Shell', yml: 'YAML', yaml: 'YAML', toml: 'TOML',
+};
+const langOf = (path) => {
+  if (!path) return '';
+  const ext = path.split('.').pop().toLowerCase();
+  return LANGS[ext] || ext.toUpperCase();
+};
+
+const CODE_EXTS = new Set(['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'py', 'sh', 'bash', 'zsh', 'rb', 'rs', 'go', 'c', 'cpp', 'h', 'java', 'astro', 'vue', 'svelte']);
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif']);
+
+const TINT = {
+  js: 'fn', jsx: 'fn', ts: 'fn', tsx: 'fn', mjs: 'fn', cjs: 'fn',
+  json: 'type',
+  css: 'keyword', scss: 'keyword', less: 'keyword',
+  html: 'number', htm: 'number',
+  md: 'string', markdown: 'string',
+  png: 'type', jpg: 'type', jpeg: 'type', gif: 'type', svg: 'type', webp: 'type', ico: 'type',
+};
+
+function fileShape(path, isDir) {
+  if (isDir) return 'folder';
+  if (!path) return 'file';
+  const ext = path.split('.').pop().toLowerCase();
+  if (ext === 'json') return 'json';
+  if (ext === 'md' || ext === 'markdown') return 'markdown';
+  if (ext === 'css' || ext === 'scss' || ext === 'less') return 'css';
+  if (ext === 'html' || ext === 'htm') return 'html';
+  if (IMAGE_EXTS.has(ext)) return 'image';
+  if (CODE_EXTS.has(ext)) return 'code';
+  return 'file';
 }
+
+function fileIconD(shape) {
+  if (shape === 'code') return CODE;
+  if (shape === 'json') return JSON_ICON;
+  if (shape === 'markdown') return MD_ICON;
+  if (shape === 'css') return CSS_ICON;
+  if (shape === 'html') return HTML_ICON;
+  if (shape === 'image') return IMG_ICON;
+  if (shape === 'folder') return FOLDER_ICON;
+  return FILE;
+}
+
+function FileIcon({ path, isDir }) {
+  const shape = fileShape(path, isDir);
+  const ext = path ? path.split('.').pop().toLowerCase() : '';
+  const k = isDir ? 'type' : TINT[ext];
+  return <span className="ou-ide-ficon" style={{ color: k ? `var(--syn-${k})` : 'var(--mute)' }}>{svg(fileIconD(shape))}</span>;
+}
+
 const Ring = () => <span className="ou-ide-ring" title="Changed by an agent" />;
+
+function gitStatusOf(st, path) {
+  if (!st.git || !st.git.files) return null;
+  const f = st.git.files.find((x) => x.path === path);
+  if (!f) return null;
+  if (f.worktree && f.worktree !== '.') return statusLetter(f.index, f.worktree, false);
+  if (f.index && f.index !== '.' && f.index !== '?') return statusLetter(f.index, f.worktree, true);
+  return null;
+}
+
+function TreeDecorations({ st, path, isChanged }) {
+  const gitLetter = gitStatusOf(st, path);
+  const t = tabOf(st, path);
+  const isDirty = Boolean(t && t.dirty);
+  if (!gitLetter && !isDirty && !isChanged) return null;
+  return (
+    <span className="ou-ide-tree-decorations">
+      {isDirty ? <span className="ou-ide-dirty" title="Unsaved" /> : null}
+      {gitLetter ? <span className={`ou-ide-gitletter ou-ide-git-${gitLetter.toLowerCase()}`} title={`Git: ${gitLetter}`}>{gitLetter}</span> : null}
+      {isChanged ? <Ring /> : null}
+    </span>
+  );
+}
+
+function CompactEmpty({ icon, label }) {
+  return (
+    <div className="ou-ide-empty">
+      {icon ? <span className="ou-ide-empty-icon">{icon}</span> : null}
+      <span className="ou-ide-empty-label">{label}</span>
+    </div>
+  );
+}
 
 function LoadDir({ st, rel }) {
   useEffect(() => { void loadDir(st, rel); }, [st, rel]);
@@ -391,9 +492,16 @@ function treeItems(st, rel, changed) {
       const kids = st.dirs.get(path);
       const children = !kids ? [{ id: `${path}//loading`, label: <LoadDir st={st} rel={path} />, isDisabled: true }]
         : kids.length ? treeItems(st, path, changed) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }];
-      return { id: path, label: e.name, children };
+      return { id: path, label: e.name, children, startContent: <FileIcon isDir /> };
     }
-    return { id: path, label: e.name, isSelected: st.active === path, onClick: () => void openFile(st, path), startContent: <FileIcon path={path} />, endContent: changed.has(path) ? <Ring /> : null };
+    return {
+      id: path,
+      label: e.name,
+      isSelected: st.active === path,
+      onClick: () => void openFile(st, path),
+      startContent: <FileIcon path={path} />,
+      endContent: <TreeDecorations st={st} path={path} isChanged={changed.has(path)} />,
+    };
   });
 }
 
@@ -414,7 +522,7 @@ function Files({ st, changed }) {
       <div className="ou-ide-tree">
         {st.q.trim() ? (st.hits.length ? st.hits.map((h) => (
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
-            <FileIcon path={h} /><span className="ou-ide-name">{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span>{changed.has(h) ? <Ring /> : null}
+            <FileIcon path={h} /><span className="ou-ide-name">{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />
           </button>
         )) : <p className="ou-ide-muted">No file matches.</p>) : (
           <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<span className="ou-ide-root">{p.name}</span>} items={treeItems(st, '', changed)} />
@@ -534,7 +642,12 @@ function EditorHost({ st, tab, hidden }) {
     const view = openEditor(ref.current, tab.state || tab.text, tab.path, onFor(st, tab.path));
     tab.view = view;
     tab.state = null;
+    const head = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(head);
+    tab.line = line.number;
+    tab.col = head - line.from + 1;
     goto(tab);
+    bump();
     return () => { tab.state = view.state; tab.view = null; view.destroy(); };
   }, [ready, st, tab]);
   return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
@@ -565,7 +678,7 @@ function Crumb({ st, tab, changed }) {
   const ok = canWrite();
   return (
     <div className="ou-ide-crumb">
-      <span className="ou-ide-path">{parts.map((x, i) => <span key={i}>{i ? ' / ' : ''}{i === parts.length - 1 ? <b>{x}</b> : x}</span>)}</span>
+      <span className="ou-ide-path">{parts.map((x, i) => <span key={i}>{i ? ' › ' : ''}{i === parts.length - 1 ? <b>{x}</b> : x}</span>)}</span>
       <span className="ou-ide-crumbr">
         <Button size="sm" variant="ghost" label="Open in VS Code" onClick={() => void openInVsCode(st, tab?.path)} />
         {mode === 'changes' ? <><span className="ou-ide-add">+{lines.filter((l) => l.kind === 'add').length}</span><span className="ou-ide-del">-{lines.filter((l) => l.kind === 'del').length}</span></> : null}
@@ -589,7 +702,7 @@ function Crumb({ st, tab, changed }) {
 
 function Agents({ st }) {
   const rows = ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  if (!rows.length) return <div id="ide-agents" className="ou-ide-agents"><p className="ou-ide-muted">No agents running.</p></div>;
+  if (!rows.length) return <div id="ide-agents" className="ou-ide-agents"><CompactEmpty icon={svg24(CHECK_CIRCLE)} label="No agents running." /></div>;
   return (
     <div id="ide-agents" className="ou-ide-agents">
       {rows.map((x) => {
@@ -608,12 +721,54 @@ function Agents({ st }) {
                 <button key={f} className="ou-ide-afile" title={f} onClick={() => void openFile(st, f, { owner: x.id, changes: true })}>
                   <span className="ou-ide-name">{base(f)}</span><span className="ou-ide-dir">{folder(f)}</span>
                 </button>
-              )) : <p className="ou-ide-muted">No changes yet</p>}
+              )) : <CompactEmpty icon={svg24(CHECK_CIRCLE)} label="No changes yet" />}
             </div>
           </section>
         );
       })}
     </div>
+  );
+}
+
+function StatusBar({ st, active, agentCount }) {
+  useEffect(() => {
+    if (st.git === null) void loadGitStatus(st);
+  }, [st]);
+  const branch = st.git && st.git.branch;
+  const nc = typeof needsCount === 'function' ? needsCount() : null;
+  const line = active ? (active.line ?? 1) : null;
+  const col = active ? (active.col ?? 1) : null;
+  const lang = active ? langOf(active.path) : '';
+
+  return (
+    <footer className="ou-ide-status">
+      <div className="ou-ide-status-left">
+        {branch ? (
+          <span className="ou-ide-status-item" title={`Branch: ${branch}`}>
+            {svg(BRANCH, 12)}
+            <span>{branch}</span>
+          </span>
+        ) : null}
+        <span className="ou-ide-status-item">
+          {agentCount} {agentCount === 1 ? 'agent working' : 'agents working'}
+        </span>
+        {nc ? (
+          <span className="ou-ide-status-item ou-ide-status-needs">
+            <span className="ou-dot ou-dot-wait" />
+            <span>{typeof nc === 'number' ? `${nc} needs you` : 'needs you'}</span>
+          </span>
+        ) : null}
+      </div>
+      <div className="ou-ide-status-right">
+        {active ? (
+          <>
+            <span className="ou-ide-status-item">Ln {line}, Col {col}</span>
+            <span className="ou-ide-status-item">UTF-8</span>
+            {lang ? <span className="ou-ide-status-item">{lang}</span> : null}
+          </>
+        ) : null}
+      </div>
+    </footer>
   );
 }
 
@@ -763,6 +918,7 @@ export function Ide() {
           )) : null}
         </div>
       </section>
+      <StatusBar st={st} active={active} agentCount={agentCount} />
       <Asks st={st} />
       <CommandPalette isOpen={palette} onOpenChange={setPalette} searchSource={source} label="IDE commands" emptySearchText="Nothing matches."
         onValueChange={(id) => setTimeout(() => (runs.current.get(id) ?? (() => void openFile(cur, id)))(), 0)} />
