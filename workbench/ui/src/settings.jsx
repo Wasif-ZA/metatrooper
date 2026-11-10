@@ -10,13 +10,14 @@ import { Switch } from '@astryxdesign/core/Switch';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import { Automations } from './automations.jsx';
 
 export const settingsStore = createStore({ data: null, section: 'general' });
 
 // Nav groups and the page anatomy follow T3 Code's settings: grouped nav with search, 48px header, titled row groups.
 const NAV = [
   { ids: ['general', 'look'] },
-  { title: 'Agents', ids: ['reliability', 'savings', 'safety'] },
+  { title: 'Agents', ids: ['reliability', 'savings', 'safety', 'automations'] },
   { title: 'Extend', ids: ['addons', 'notify'] },
   { ids: ['advanced'] },
 ];
@@ -69,6 +70,7 @@ const SECTIONS = [
     { read: (s) => (s.browser.allow_origins.length ? s.browser.allow_origins.join(', ') : 'None'), label: 'Sites agents may open without asking' },
     { lent: true, label: 'Sites where agents may use my sign-in', hint: 'This project only. An agent on one of these sites acts as you. It is asked for per site in Needs you.' },
   ] }] },
+  { id: 'automations', label: 'Automations', note: 'A check script runs on a timer in this project. An agent is started only when the script exits with code 1.', groups: [], body: Automations },
   { id: 'addons', label: 'Add-ons', groups: [{ rows: [
     { run: () => { settingsView.close(); homeView.set('addons'); }, button: 'Open', label: 'Agents and plugins', hint: 'Which agents are ready, and what each plugin may do.' },
   ] }] },
@@ -103,6 +105,7 @@ const NAV_ICON = {
   addons: 'M6 2.500h4v2.200a1.3 1.3 0 102.6 0h.9v4h-2.200a1.3 1.3 0 100 2.600h2.200v2.200h-4.400v-1a1.3 1.3 0 10-2.6 0v1H2.500V9.500h1a1.3 1.3 0 100-2.600h-1V4.700H6z',
   notify: 'M8 2.500a4 4 0 00-4 4v2.200L2.8 11h10.400L12 8.700V6.500a4 4 0 00-4-4zM6.6 13a1.5 1.5 0 002.8 0',
   advanced: 'M3 4.500l3 3-3 3M8 11h5',
+  automations: 'M8 4.5V8l2.5 1.5M8 2.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z',
 };
 const icon = (d) => <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 const CLOSE = 'M3 3l8 8M11 3l-8 8';
@@ -203,6 +206,7 @@ export function Settings() {
               <>
                 <div className="ou-stitle"><h1>{nav(NAV_ICON[sec.id])}{sec.label}</h1>{sec.note ? <p className="ou-note">{sec.note}</p> : null}</div>
                 {sec.groups.map((g, i) => <Group key={g.title || i} group={g} data={data} />)}
+                {sec.body ? <sec.body /> : null}
               </>
             )}
           </div>
