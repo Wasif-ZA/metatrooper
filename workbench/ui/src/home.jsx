@@ -8,6 +8,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { Verdict } from './verdict.jsx';
 import { Usage } from './usage.jsx';
+import { Audit } from './audit.jsx';
 
 export const homeStore = createStore({ tick: 0 });
 
@@ -172,6 +173,7 @@ export function Home() {
         ) : null}
       </div>
       <Usage />
+      <Audit />
     </div>
   );
 }
