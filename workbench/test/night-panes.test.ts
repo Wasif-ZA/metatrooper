@@ -321,3 +321,154 @@ test('d9d885ca find stays visible with text after blur and panel switches', asyn
   h.one((n: any) => n.props.id === 'ide-find').props.onBlur(); h.draw();
   assert.equal(h.all((n: any) => n.props.id === 'ide-find').length, 0);
 });
+
+const reviewApp = readFileSync(join(wb, 'renderer/app.js'), 'utf8');
+const reviewPanes = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+function reviewGlobals(t: any, values: any) {
+  for (const [key, value] of Object.entries(values)) {
+    const previous = Object.getOwnPropertyDescriptor(g, key);
+    Object.defineProperty(g, key, { configurable: true, writable: true, value });
+    t.after(() => previous ? Object.defineProperty(g, key, previous) : delete g[key]);
+  }
+}
+
+// Preserve single-child component keys through the existing array-aware harness.
+function keyedInboxHarness() {
+  const keyed = (value: any): any => {
+    if (Array.isArray(value)) return value.map(keyed);
+    if (!React.isValidElement(value)) return value;
+    const props: any = {};
+    for (const [key, child] of Object.entries(value.props)) {
+      if (React.isValidElement(child)) props[key] = child.key == null ? keyed(child) : [keyed(child)];
+      else if (Array.isArray(child)) props[key] = keyed(child);
+    }
+    return React.cloneElement(value, props);
+  };
+  return harness({ Inbox: () => keyed(Inbox()) }.Inbox);
+}
+
+test('3796944f cross-project answers are blocked and local answers send typed text exactly once', async () => {
+  g.ui.snap.projects.push({ id: 'p2', name: 'Other project' });
+  g.ui.snap.live = [session('s-a', 'Local question?'), { ...session('s-away', 'Other question?'), project_id: 'p2' }];
+  inboxStore.set({ selectedId: 's-away' });
+  const h = harness(Inbox); h.draw();
+  assert.equal(h.one(label('Answer')).props.isDisabled, true);
+  h.one(label('Answer')).props.onChange('do not send to p1'); h.draw();
+  assert.equal(h.one(label('Send')).props.isDisabled, true);
+  const beforeAway = calls.length;
+  await h.one(label('Send')).props.onClick();
+  await h.one(label('Answer')).props.onEnter();
+  assert.deepEqual(calls.slice(beforeAway), []);
+  assert.equal(g.ui.projectId, 'p1');
+  h.one(row('s-a')).props.onClick(event()); h.draw();
+  assert.equal(h.one(label('Answer')).props.isDisabled, false);
+  h.one(label('Answer')).props.onChange('use the local feature branch'); h.draw();
+  const beforeLocal = calls.length;
+  await h.one(label('Send')).props.onClick();
+  assert.deepEqual(calls.slice(beforeLocal), [['termInput', 's-a', 'use the local feature branch\r']]);
+  h.draw(); assert.equal(h.one(label('Answer')).props.value, '');
+});
+
+test('3796944f opening another project agent switches project before picking the agent', async (t) => {
+  g.ui.snap.projects.push({ id: 'p2', name: 'Other project' });
+  g.ui.snap.live = [{ ...session('s-away', 'Other question?'), project_id: 'p2' }];
+  const switchSource = reviewApp.match(/function switchProject\(id\) \{[^]*?\r?\n\}/)![0];
+  const realSwitch = new Function('return (' + switchSource + ')')();
+  reviewGlobals(t, {
+    save: (...args: any[]) => calls.push(['save', ...args]),
+    setView: () => calls.push(['setView', g.ui.projectId, g.ui.pendingPick]),
+    switchProject: realSwitch,
+    pick: async (id: string) => calls.push(['pick', id, g.ui.projectId]),
+  });
+  const h = harness(Inbox); h.draw();
+  const before = calls.length;
+  h.one((n: any) => n.props['aria-label'] === 'Open on Wall').props.onClick(event());
+  assert.deepEqual(calls.slice(before), [['view', 'wall'], ['save', 'projectId', 'p2'], ['setView', 'p2', 's-away']]);
+  assert.equal(g.ui.projectId, 'p2'); assert.equal(g.ui.pendingPick, 's-away');
+  const pendingSource = reviewApp.match(/  if \(ui\.pendingPick && s\.sessions\.some[^]*?\r?\n  \}/)![0];
+  const receive = new AsyncFunction('s', pendingSource);
+  await receive({ sessions: [session('s-a', 'Local question?')] });
+  assert.deepEqual(calls.filter(c => c[0] === 'pick'), []);
+  await receive({ sessions: [{ id: 's-away', project_id: 'p2' }] });
+  assert.deepEqual(calls.slice(before), [['view', 'wall'], ['save', 'projectId', 'p2'], ['setView', 'p2', 's-away'], ['pick', 's-away', 'p2']]);
+  assert.equal(g.ui.pendingPick, null);
+});
+
+test('3796944f selecting another agent starts a fresh keyed answer draft in both directions', () => {
+  asks(); const h = keyedInboxHarness(); h.draw();
+  assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-a');
+  h.one(label('Answer')).props.onChange('alpha draft'); h.draw();
+  assert.equal(h.one(label('Answer')).props.value, 'alpha draft');
+  h.one(row('s-b')).props.onClick(event()); h.draw();
+  assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-b');
+  assert.equal(h.one(label('Answer')).props.value, '');
+  h.one(label('Answer')).props.onChange('beta draft'); h.draw();
+  assert.equal(h.one(label('Answer')).props.value, 'beta draft');
+  h.one(row('s-a')).props.onClick(event()); h.draw();
+  assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-a');
+  assert.equal(h.one(label('Answer')).props.value, '');
+  assert.deepEqual(calls.filter(c => c[0] === 'termInput'), []);
+});
+
+test('3796944f notice Open follows its target and targetless notices have no Open button', { todo: 'DetailNotice always renders Open, including notices with no navigable target' }, async (t) => {
+  const openSource = reviewApp.match(/async function openNeedsYou\(id, fallback = true\) \{[^]*?\r?\n\}/)![0];
+  reviewGlobals(t, {
+    openNeedsYou: new Function('return (' + openSource + ')')(),
+    openTab: async (tab: string) => calls.push(['openTab', tab]),
+  });
+  g.ui.snap.needs_you = [note('n-done', 'done'), { ...note('n-failed', 'failed'), ref: 's-b' }, { ...note('n-git', 'uncommitted'), ref: null }, { ...note('n-empty', 'other'), ref: null }];
+  inboxStore.set({ selectedId: 'n-done' });
+  const h = harness(Inbox); h.draw();
+  assert.equal(h.all(label('Open')).length, 1);
+  h.one(label('Open')).props.onClick(); await flush();
+  assert.deepEqual(calls, [['view', 'wall'], ['pick', 's-a']]);
+  g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-failed' }); h.draw(); calls.length = 0;
+  h.one(label('Open')).props.onClick(); await flush();
+  assert.deepEqual(calls, [['view', 'wall'], ['pick', 's-b']]);
+  g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-git' }); h.draw(); calls.length = 0;
+  h.one(label('Open')).props.onClick(); await flush();
+  assert.deepEqual(calls, [['view', 'wall'], ['rpc', 'needs_you.mark-read', { id: 'n-git' }, true], ['openTab', 'git']]);
+  g.ui.view = 'inbox'; inboxStore.set({ selectedId: 'n-empty' }); h.draw(); calls.length = 0;
+  assert.equal(h.all(label('Open')).length, 0);
+  assert.deepEqual(calls, []);
+});
+
+test('3796944f hiding a project drops its IDE tabs and dirty state while retaining other project tabs', async (t) => {
+  const { openAt, dirtyIn, dropProject, unsavedSummary } = reviewPanes;
+  const mainSource = readFileSync(join(wb, 'ui/src/main.jsx'), 'utf8');
+  const bridgeSource = mainSource.match(/globalThis\.ideView = \{[^;]+;/)![0];
+  const priorBridge = g.ideView;
+  new Function('drawIde', 'ideShown', 'openAt', 'dirtyIn', 'dropProject', bridgeSource)(drawIde, ideShown, openAt, dirtyIn, dropProject);
+  t.after(() => { g.ideView = priorBridge; dropProject('review-hide'); dropProject('review-keep'); });
+  reviewGlobals(t, { confirm: (message: string) => { calls.push(['confirm', message]); return true; } });
+  g.ui.view = 'ide';
+  g.ui.snap.projects = [{ id: 'review-hide', name: 'Hide project' }, { id: 'review-keep', name: 'Keep project' }];
+  g.api.fsRead = async () => ({ text: 'original file', mtimeMs: 1 });
+  const h = harness(Ide);
+  const changeSource = readFileSync(join(wb, 'ui/src/ide.jsx'), 'utf8').match(/const onFor = \(st, ref\) => \{[^]*?\r?\n\};/)![0];
+  const change = new Function('bump', changeSource + '\nreturn onFor;')(() => {});
+  for (const [pid, path] of [['review-hide', 'hidden.ts'], ['review-keep', 'kept.ts']]) {
+    g.ui.projectId = pid; await openAt(path); h.draw();
+    const host = h.one((n: any) => n.type?.name === 'EditorHost' && n.props.tab.path === path);
+    change(host.props.st, host.props.tab).change();
+  }
+  g.ui.projectId = 'review-hide'; await openAt('clean.ts'); h.draw();
+  assert.deepEqual(h.all((n: any) => n.type?.name === 'Tab' && n.props.title).map((n: any) => n.props.value), ['hidden.ts', 'clean.ts']);
+  assert.deepEqual(dirtyIn('review-hide'), ['hidden.ts']); assert.deepEqual(dirtyIn('review-keep'), ['kept.ts']);
+  const hideSource = reviewApp.match(/    case 'project-hide': \{[^]*?\r?\n    \}/)![0];
+  const hide = new AsyncFunction('id', 'el', "switch ('project-hide') {\n" + hideSource + '\n}');
+  const group = { querySelector: () => ({}), remove() {} };
+  const hiddenRow = { parentElement: group, remove: () => calls.push(['row.remove']) };
+  calls.length = 0;
+  await hide('review-hide', { closest: () => hiddenRow });
+  assert.deepEqual(calls, [['confirm', '1 unsaved file in this project: hidden.ts. Hide it and lose them?'], ['rpc', 'project.hide', { project_id: 'review-hide' }], ['row.remove']]);
+  assert.deepEqual(dirtyIn('review-hide'), []); assert.deepEqual(dirtyIn('review-keep'), ['kept.ts']);
+  assert.equal(unsavedSummary(), 'Keep project: kept.ts');
+  await drawIde(); h.draw();
+  assert.deepEqual(h.all((n: any) => n.type?.name === 'Tab' && n.props.title).map((n: any) => n.props.value), []);
+  g.ui.projectId = 'review-keep'; await drawIde(); h.draw();
+  assert.deepEqual(h.all((n: any) => n.type?.name === 'Tab' && n.props.title).map((n: any) => n.props.value), ['kept.ts']);
+  assert.deepEqual(dirtyIn('review-keep'), ['kept.ts']);
+});
