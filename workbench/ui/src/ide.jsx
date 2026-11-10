@@ -15,6 +15,7 @@ import { TreeList } from '@astryxdesign/core/TreeList';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { editorState, openEditor } from './editor.js';
+import { Preview, isMd } from './preview.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 const bump = () => ideStore.set({ tick: ideStore.get().tick + 1 });
@@ -30,6 +31,7 @@ const folder = (p) => p.split('/').slice(0, -1).join('/');
 const tabOf = (st, path) => st.tabs.find((x) => x.path === path);
 const canWrite = () => typeof api.fsWrite === 'function';
 const canSearch = () => typeof api.fsSearch === 'function';
+const inPreview = (t) => t.mode === 'preview' && isMd(t.path);
 
 export const ideShown = () => ui.view === 'ide' && Boolean(project());
 
@@ -172,7 +174,7 @@ function goto(t) {
 
 async function openFile(st, path, { owner, changes, line } = {}) {
   let t = tabOf(st, path);
-  if (!t) { t = { path, mode: 'file', dirty: false }; st.tabs.push(t); }
+  if (!t) { t = { path, mode: isMd(path) ? 'preview' : 'file', dirty: false }; st.tabs.push(t); }
   st.active = path;
   if (owner) t.owner = owner;
   if (line) { t.gotoLine = line; t.mode = 'file'; }
@@ -260,6 +262,18 @@ function showFile(st, path) {
   if (!t) return;
   t.mode = 'file';
   bump();
+}
+
+function showPreview(st, path) {
+  const t = tabOf(st, path);
+  if (!t) return;
+  t.mode = 'preview';
+  bump();
+}
+
+function showSource(st, path) {
+  flushSync(() => showFile(st, path));
+  tabOf(st, path)?.view?.focus();
 }
 
 async function saveTab(st, path, force = false) {
@@ -373,6 +387,12 @@ export const ideKeys = {
   palette: (open) => bridge.setPalette?.(open),
   paletteOpen: () => Boolean(bridge.palette),
   closeTab: () => { if (cur && cur.active) closeTab(cur, cur.active); },
+  preview: () => {
+    const t = cur && cur.active ? tabOf(cur, cur.active) : null;
+    if (!t || !isMd(t.path)) return false;
+    if (inPreview(t)) showSource(cur, t.path); else showPreview(cur, t.path);
+    return true;
+  },
 };
 
 const svg = (d, size = 14) => <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
@@ -677,7 +697,8 @@ function DiffView({ tab }) {
 
 function Crumb({ st, tab, changed }) {
   const isChanged = tab && changed.has(tab.path);
-  const mode = isChanged ? tab.mode : 'file';
+  const md = Boolean(tab) && isMd(tab.path);
+  const mode = isChanged && tab.mode === 'changes' ? 'changes' : tab && inPreview(tab) ? 'preview' : 'file';
   const parts = tab ? tab.path.split('/') : [];
   const lines = mode === 'changes' && tab.diff ? diffLines(tab.diff) : [];
   const ok = canWrite();
@@ -687,10 +708,11 @@ function Crumb({ st, tab, changed }) {
       <span className="ou-ide-crumbr">
         <Button size="sm" variant="ghost" label="Open in VS Code" onClick={() => void openInVsCode(st, tab?.path)} />
         {mode === 'changes' ? <><span className="ou-ide-add">+{lines.filter((l) => l.kind === 'add').length}</span><span className="ou-ide-del">-{lines.filter((l) => l.kind === 'del').length}</span></> : null}
-        {isChanged ? (
-          <SegmentedControl label="View" size="sm" value={mode} onChange={(v) => (v === 'changes' ? void showChanges(st, tab.path) : showFile(st, tab.path))}>
+        {isChanged || md ? (
+          <SegmentedControl label="View" size="sm" value={mode} onChange={(v) => (v === 'changes' ? void showChanges(st, tab.path) : v === 'preview' ? showPreview(st, tab.path) : showFile(st, tab.path))}>
+            {md ? <SegmentedControlItem value="preview" label="Preview" /> : null}
             <SegmentedControlItem value="file" label="File" />
-            <SegmentedControlItem value="changes" label="Changes" />
+            {isChanged ? <SegmentedControlItem value="changes" label="Changes" /> : null}
           </SegmentedControl>
         ) : null}
         {!tab || tab.error ? null : (
@@ -841,6 +863,7 @@ export function Ide() {
       out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
       out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
       if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
+      if (t && isMd(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => showPreview(st, t.path)));
       if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
       if (st.tabs.length) out.push(cmd('IDE', 'Close all tabs', () => closeAll(st)));
       out.push(cmd('IDE', 'Show or hide the agents panel', () => setPanel((v) => !v)));
@@ -904,11 +927,12 @@ export function Ide() {
         </div>
         <Crumb st={st} tab={active} changed={changed} />
         <div className="ou-ide-view">
-          {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || (changed.has(t.path) && t.mode === 'changes')} />)}
+          {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || (changed.has(t.path) && t.mode === 'changes') || inPreview(t)} />)}
           {!active ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
             : changed.has(active.path) && active.mode === 'changes' ? <DiffView tab={active} />
               : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
-                : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p> : null}
+                : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
+                  : inPreview(active) ? <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} /> : null}
         </div>
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
