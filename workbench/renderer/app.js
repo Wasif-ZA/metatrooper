@@ -289,7 +289,7 @@ function renderCompare(pane) {
     </div>`).join('')}`;
 }
 
-const PANE_OVERLAYS = '#toasts > *, #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #addons:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
+const PANE_OVERLAYS = '#toasts > *, #cmdk dialog[open], #palette:not([hidden]), #inbox:not([hidden]), #sinks:not([hidden]), #settings:not([hidden]), #home:not([hidden]), #needsview:not([hidden]), #ide:not([hidden]), #addons:not([hidden]), #menu:not([hidden]), #usage.open, #sheet.up';
 function reportPaneBounds() {
   const host = ui.tab === 'browser' && ui.split && !ui.comment && ui.browserMode === 'live' && (ui.picking || !document.querySelector(PANE_OVERLAYS)) ? document.getElementById('pane-host') : null;
   const r = host ? host.getBoundingClientRect() : null;
@@ -1026,7 +1026,7 @@ function hideMenu() {
 /** True while Esc has something to close, so a focused tile keeps Esc from its agent. */
 function overlayOpen() {
   return ['palette', 'inbox', 'sinks', 'menu'].some((id) => !document.getElementById(id).hidden) || Boolean(globalThis.settingsView?.isOpen()) || document.getElementById('usage').classList.contains('open')
-    || wall.sheetOpen() || wall.listOpen();
+    || wall.sheetOpen() || wall.listOpen() || Boolean(globalThis.paletteView?.isOpen());
 }
 
 async function runPalette(i, enter = false) {
@@ -1424,7 +1424,7 @@ async function onClick(e) {
       render();
       return;
     case 'palette':
-      openPalette();
+      if (globalThis.paletteView) paletteView.open(); else openPalette();
       return;
     case 'view': homeView.set(el.dataset.view); break;
     case 'settings': if (!settingsView.close()) void settingsView.open(); break;
@@ -1914,7 +1914,7 @@ document.addEventListener('drop', async (e) => {
 });
 document.addEventListener('keydown', (e) => {
   const palette = !document.getElementById('palette').hidden;
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if (palette) closePalette(); else openPalette(); return; }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if (globalThis.paletteView) paletteView.toggle(); else if (palette) closePalette(); else openPalette(); return; }
   if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g') { e.preventDefault(); setMode(ui.mode === 'grid' ? 'single' : 'grid'); return; }
   if (palette) {
     if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
@@ -1980,7 +1980,7 @@ document.addEventListener('change', onInput);
 document.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT') onInput(e); });
 observeLongTasks();
 setInterval(tickAges, 5000);
-document.getElementById('palette-input').addEventListener('focus', openPalette);
+document.getElementById('palette-input').addEventListener('focus', (e) => { if (globalThis.paletteView) { e.target.blur(); paletteView.open(); } else openPalette(); });
 if (DEMO) document.body.classList.add('demo');
 if (load('ind') === 'eq') { document.body.classList.remove('ind-spark'); document.body.classList.add('ind-eq'); }
 const fontsLoaded = Promise.all(['13px "Geist Mono"', '12px "Space Mono"', '12px "Geist"', '10px "Silkscreen"'].map((f) => document.fonts.load(f))).catch(() => {});
