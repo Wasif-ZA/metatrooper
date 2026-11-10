@@ -95,8 +95,8 @@ const termView = (() => {
     for (const type of ['mousedown', 'mouseup']) body.addEventListener(type, (e) => { if (e.button === 2) e.stopPropagation(); }, true);
     body.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); void paste(); });
     term.attachCustomKeyEventHandler((e) => {
-      if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !el.classList.contains('shell')) {
-        if (e.type === 'keydown') send(shiftEnter(t.engine) === 'alt-enter' ? '\x1b\r' : '\x1b[200~\n\x1b[201~');
+      if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (e.type === 'keydown') send(el.classList.contains('shell') || shiftEnter(t.engine) === 'alt-enter' ? '\x1b\r' : '\x1b[200~\n\x1b[201~');
         e.preventDefault();
         return false;
       }
