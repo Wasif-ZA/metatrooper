@@ -57,7 +57,7 @@ async function hardeningContract() {
     const projectId = (await pipe.request('project.open', { path: project })).result.project_id as string;
     const session = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: engineFile });
     const sid = session.result.session_id as string;
-    const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sid, url: `http://127.0.0.1:${server.port}/cookie` });
+    const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sid, agent: true, url: `http://127.0.0.1:${server.port}/cookie` });
     const userPaneId = pane.result.pane_id as string;
     assert.equal((await pipe.request('pane.open', { project_id: projectId, agent: true })).error?.code, -32602);
     pipe.close();

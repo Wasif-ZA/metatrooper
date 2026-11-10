@@ -77,7 +77,7 @@ test('M6-11 browser tools version 2 e2e contract', { skip: !runnable }, async ()
     const projectId = (await pipe.request('project.open', { path: project })).result.project_id as string;
     const session = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: engineFile });
     const sid = session.result.session_id as string;
-    const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sid, url: page1Url });
+    const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sid, agent: true, url: page1Url });
     const userPaneId = pane.result.pane_id as string;
     pipe.close();
 

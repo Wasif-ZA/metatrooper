@@ -113,6 +113,7 @@ async function paneApprovalsE2e() {
     const pane = await initPipe.request('pane.open', {
       project_id: projectId,
       session_id: sessionId,
+      agent: true,
       url: `http://127.0.0.1:${fixtureServer.port}/fixture`,
     });
     const paneId = pane.result.pane_id as string;

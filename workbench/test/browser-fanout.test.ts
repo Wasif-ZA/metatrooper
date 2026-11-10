@@ -53,7 +53,7 @@ async function snapshotFiltering() {
     const projectId = (await pipe.request('project.open', { path: project })).result.project_id as string;
     const launched = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake-a', prompt: join(workbench, 'test', 'fixtures', 'browser-engine.cjs') });
     const sessionId = launched.result.session_id as string;
-    const opened = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, url: `http://127.0.0.1:${site.port}/` });
+    const opened = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, agent: true, url: `http://127.0.0.1:${site.port}/` });
     const paneId = opened.result.pane_id as string;
     pipe.close();
     wb = spawn(process.platform === 'win32' ? electron : 'xvfb-run', process.platform === 'win32'
@@ -124,7 +124,7 @@ async function sessionFanout() {
     for (const [i, engine] of ['fake-a', 'fake-b', 'fake-c'].entries()) {
       const launched = await pipe.request('session.launch', { project_id: projectId, engine_id: engine, prompt: join(workbench, 'test', 'fixtures', 'browser-engine.cjs') });
       sessions.push(launched.result.session_id);
-      const pane = await pipe.request('pane.open', { project_id: projectId, session_id: launched.result.session_id, url: `http://127.0.0.1:${sites[i].port}/` });
+      const pane = await pipe.request('pane.open', { project_id: projectId, session_id: launched.result.session_id, agent: true, url: `http://127.0.0.1:${sites[i].port}/` });
       panes.push(pane.result.pane_id);
     }
     pipe.close();

@@ -46,7 +46,7 @@ async function openSession(iso: Iso, paneUrls: string[], devPort?: number) {
   }
   const paneIds: string[] = [];
   for (const url of paneUrls) {
-    paneIds.push((await pipe.request('pane.open', { project_id: projectId, session_id: sid, url })).result.pane_id as string);
+    paneIds.push((await pipe.request('pane.open', { project_id: projectId, session_id: sid, agent: true, url })).result.pane_id as string);
   }
   pipe.close();
   await until(() => {

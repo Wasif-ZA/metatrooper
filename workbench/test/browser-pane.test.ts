@@ -87,7 +87,7 @@ async function paneScriptsAndCapture() {
     const projectId = opened.result.project_id as string;
     const launched = await pipe.request('session.launch', { project_id: projectId, engine_id: 'fake', prompt: join(workbench, 'test', 'fixtures', 'browser-engine.cjs') });
     const sessionId = launched.result.session_id as string;
-    const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, url: `http://127.0.0.1:${owned.port}/scripts` });
+    const pane = await pipe.request('pane.open', { project_id: projectId, session_id: sessionId, agent: true, url: `http://127.0.0.1:${owned.port}/scripts` });
     const paneId = pane.result.pane_id as string;
     pipe.close();
     const db = new DatabaseSync(join(iso.home, 'troop.db'));

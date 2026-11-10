@@ -248,7 +248,7 @@ test('Add-ons renders readiness fallbacks, installs, provenance and plugin permi
   ];
   addonsStore.set({ rows: [{ id: 'reader', description: 'Reads fixtures', permissions: ['Read synthetic files'], enabled: true, version: '1.2' }, { id: 'off', description: '', permissions: [], enabled: false, version: '5.0' }] });
   const h = harness(Addons); const html = h.html();
-  for (const text of ['Repair binary', 'Missing binary', 'Not ready', 'install fix', 'install detail', 'install fallback', 'Ready · 3.2.1', 'Ready · 4.0.0', 'from synthetic.plugin', 'Reads fixtures', '1.2', 'Read synthetic files', 'Asks for no permissions', 'No description', '5.0 · off']) assert.ok(html.includes(text), text);
+  for (const text of ['Repair binary', 'Missing binary', 'Not ready', 'install fix', 'install detail', 'install fallback', 'v3.2.1', 'v4.0.0', 'from synthetic.plugin', 'Reads fixtures', 'v1.2', 'Read synthetic files', 'No permissions', 'No description', 'v5.0']) assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /Wrong detail|wrong install/); assert.equal(h.one(label('Check agents again')).props['data-action'], 'check-engines'); assert.match(html, /data-action="check-engines"/);
 });
 
@@ -256,7 +256,7 @@ test('Add-ons loads once, clears on leave, reloads and ignores a stale response'
   g.ui.view = 'addons'; let release: any; let requests = 0;
   g.api.addons = () => { requests++; return requests === 1 ? new Promise(r => release = r) : Promise.resolve([]); };
   const first = drawAddons(); await drawAddons(); assert.equal(requests, 1);
-  const h = harness(Addons); assert.match(h.html(), /Loading\./);
+  const h = harness(Addons); assert.match(h.html(), /Loading plugins\./);
   g.ui.view = 'wall'; await drawAddons(); assert.equal(h.html(), '');
   g.ui.view = 'addons'; await drawAddons(); assert.equal(requests, 2); assert.match(h.html(), /No plugins installed\./);
   release([{ id: 'stale', permissions: [], enabled: true }]); await first;
@@ -542,7 +542,9 @@ test('Home Ctrl+Enter launches the current draft and selected engine like Start'
 test('Add-ons has a scoped root and plain page and section headings', () => {
   g.ui.view = 'addons'; const h = harness(Addons); const html = h.html();
   assert.equal(h.one(hasClass('ou-addons')).type, 'div'); assert.match(html, /<h1>Add-ons<\/h1>/);
-  assert.deepEqual(h.all((n: any) => n.type === 'h2').map(textContent), ['Agents', 'Plugins']);
+  assert.deepEqual(h.all((n: any) => n.type === 'h3').map(textContent), ['Kind', 'State']);
+  assert.equal(h.one(label('Check agents again')).props['data-action'], 'check-engines');
+  assert.match(html, /data-action="check-engines"/);
 });
 
 async function keyboardHarness() {

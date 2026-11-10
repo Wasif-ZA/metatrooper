@@ -152,7 +152,7 @@ async function boot() {
         db.close();
       }
     }
-    const opened = await pipe.request('pane.open', { project_id: projectId, session_id: sid, url });
+    const opened = await pipe.request('pane.open', { project_id: projectId, session_id: sid, agent: true, url });
     assert.ok(opened.result?.pane_id, JSON.stringify(opened));
     const pane = opened.result.pane_id as string;
     return { sid, pane, job: (steps: Step[]) => runJob(sid, steps) };
