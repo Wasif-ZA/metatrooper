@@ -4,6 +4,7 @@ import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
 import { CommandPalette } from '@astryxdesign/core/CommandPalette';
+import { ContextMenu } from '@astryxdesign/core/ContextMenu';
 import { Dialog } from '@astryxdesign/core/Dialog';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -24,7 +25,7 @@ const states = new Map();
 let cur = null;
 const bridge = {};
 
-const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', q: '', hits: [], sq: '', sres: null, searching: false, ask: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
+const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', q: '', hits: [], sq: '', sres: null, searching: false, ask: null, renaming: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
 const slashed = (f) => String(f).replace(/\\/g, '/');
 const base = (p) => p.split('/').pop();
 const folder = (p) => p.split('/').slice(0, -1).join('/');
@@ -150,18 +151,22 @@ async function openGitDiff(st, path, staged) {
   }
 }
 
-const onFor = (st, path) => ({
-  change() { const t = tabOf(st, path); if (t && !t.dirty) { t.dirty = true; bump(); } },
-  save() { void saveTab(st, path); },
-  selection({ line, col }) {
-    const t = tabOf(st, path);
-    if (t && (t.line !== line || t.col !== col)) {
-      t.line = line;
-      t.col = col;
-      bump();
-    }
-  },
-});
+// ref is a tab or a path; a tab keeps working after a rename
+const onFor = (st, ref) => {
+  const tab = () => (typeof ref === 'string' ? tabOf(st, ref) : ref);
+  return {
+    change() { const t = tab(); if (t && !t.dirty) { t.dirty = true; bump(); } },
+    save() { const t = tab(); if (t) void saveTab(st, t.path); },
+    selection({ line, col }) {
+      const t = tab();
+      if (t && (t.line !== line || t.col !== col)) {
+        t.line = line;
+        t.col = col;
+        bump();
+      }
+    },
+  };
+};
 
 function goto(t) {
   if (!t.view || !t.gotoLine) return;
@@ -200,8 +205,8 @@ async function newFile(st, ask) {
   ask.busy = true;
   bump();
   try {
-    const rel = slashed(ask.path);
-    const parts = folder(rel).split('/');
+    const rel = ask.folder ? slashed(ask.path).replace(/\/+$/, '') : slashed(ask.path);
+    const parts = (ask.folder ? rel : folder(rel)).split('/');
     let created = null;
     for (let i = 1; i <= parts.length; i++) {
       const prefix = parts.slice(0, i).join('/');
@@ -211,13 +216,17 @@ async function newFile(st, ask) {
       if (!r || r.error) { toast((r && r.error) || 'Could not create the folder.', true); return; }
       if (created === null) created = prefix;
     }
-    const r = await api.fsCreate(st.pid, rel, 'file');
-    if (!r || r.error) { toast((r && r.error) || 'Could not create the file.', true); return; }
+    if (ask.folder) {
+      if (created === null) { toast('Nothing created: that folder already exists or the name is not allowed.', true); return; }
+    } else {
+      const r = await api.fsCreate(st.pid, rel, 'file');
+      if (!r || r.error) { toast((r && r.error) || 'Could not create the file.', true); return; }
+    }
     if (st.ask === ask) st.ask = null;
-    const refresh = new Set([folder(rel)]);
+    const refresh = new Set(ask.folder ? [] : [folder(rel)]);
     if (created !== null) refresh.add(folder(created));
     for (const path of refresh) st.dirs.delete(path);
-    await openFile(st, rel);
+    if (!ask.folder) await openFile(st, rel);
     for (const path of refresh) await loadDir(st, path);
     if (st.git) await loadGitStatus(st);
   } catch (e) {
@@ -226,6 +235,54 @@ async function newFile(st, ask) {
     ask.busy = false;
     bump();
   }
+}
+
+function startNew(st, dir, isFolder) {
+  st.ask = { kind: 'new', path: dir ? `${dir}/` : '', ...(isFolder ? { folder: true } : {}) };
+  bump();
+}
+
+const focusRow = (path) => setTimeout(() => document.querySelector(`#ide-tree-menu [data-tree-id="${CSS.escape(path)}"]`)?.focus(), 0);
+
+function endRename(st, path) {
+  if (st.renaming !== path) return;
+  st.renaming = null;
+  bump();
+}
+
+async function renameEntry(st, from, name) {
+  const dir = folder(from);
+  const to = dir ? `${dir}/${name}` : name;
+  if (!name || to === from) { endRename(st, from); focusRow(from); return; }
+  if (/[\\/]/.test(name)) { toast('A name cannot contain a slash.', true); return; }
+  if ((st.dirs.get(dir) || []).some((e) => e.name === name)) { toast(`${name} already exists here.`, true); return; }
+  if (st.tabs.some((t) => t.path === to || t.path.startsWith(`${to}/`))) { toast(`Close the open tab for ${name} first.`, true); return; }
+  endRename(st, from);
+  try {
+    const r = await api.fsRename(st.pid, from, to);
+    if (!r || r.error) { toast((r && r.error) || 'Could not rename.', true); return; }
+    const moved = (p) => (p === from ? to : p.startsWith(`${from}/`) ? to + p.slice(from.length) : p);
+    // ponytail: a tab keeps its old language colours after an extension change, until it is reopened
+    for (const t of st.tabs) t.path = moved(t.path);
+    if (st.active) st.active = moved(st.active);
+    for (const k of [...st.dirs.keys()]) if (k === from || k.startsWith(`${from}/`)) st.dirs.delete(k);
+    bump();
+    st.dirs.set(dir, (await api.fsList(st.pid, dir || '.')) || []);
+    bump();
+    focusRow(to);
+    if (st.git) await loadGitStatus(st);
+  } catch (e) {
+    toast(String(e), true);
+  }
+}
+
+async function copyPath(rel, absolute) {
+  const root = project()?.path || '';
+  const sep = root.includes('\\') ? '\\' : '/';
+  try {
+    await api.copyText(absolute ? `${root.replace(/[\\/]+$/, '')}${sep}${rel.split('/').join(sep)}` : rel);
+    toast('Path copied');
+  } catch (e) { toast(String(e), true); }
 }
 
 async function openOutside(st, path) {
@@ -304,7 +361,7 @@ async function reloadTab(st, path) {
   t.mtimeMs = r.mtimeMs;
   t.error = undefined;
   t.dirty = false;
-  if (t.view) t.view.setState(editorState(r.text, path, onFor(st, path)));
+  if (t.view) t.view.setState(editorState(r.text, path, onFor(st, t)));
   else { t.text = r.text; t.state = null; }
   bump();
 }
@@ -510,9 +567,40 @@ function LoadDir({ st, rel }) {
   return 'Loading.';
 }
 
+function RenameInput({ st, path }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    const dot = el.value.lastIndexOf('.');
+    el.focus();
+    el.setSelectionRange(0, dot > 0 ? dot : el.value.length);
+  }, []);
+  return (
+    <input ref={ref} className="ou-ide-input ou-ide-rename" defaultValue={base(path)} aria-label={`Rename ${base(path)}`} autoComplete="off" spellCheck="false"
+      onClick={(e) => e.stopPropagation()}
+      onBlur={() => endRename(st, path)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); void renameEntry(st, path, e.target.value.trim()); }
+        else if (e.key === 'Escape') { e.preventDefault(); endRename(st, path); focusRow(path); }
+      }} />
+  );
+}
+
+function rowTarget(st, el) {
+  const id = el.closest?.('[data-tree-id]')?.dataset.treeId;
+  if (!id) return null;
+  const path = id.split('//')[0];
+  return { path, dir: id !== path || Boolean((st.dirs.get(folder(path)) || []).find((e) => e.name === base(path))?.dir) };
+}
+
 function treeItems(st, rel, changed) {
   return (st.dirs.get(rel) || []).map((e) => {
     const path = rel ? `${rel}/${e.name}` : e.name;
+    if (st.renaming === path) {
+      const children = e.dir ? (st.dirs.get(path)?.length ? treeItems(st, path, changed) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }]) : undefined;
+      return { id: path, label: <RenameInput st={st} path={path} />, children, startContent: <FileIcon path={path} isDir={e.dir} /> };
+    }
     if (e.dir) {
       const kids = st.dirs.get(path);
       const children = !kids ? [{ id: `${path}//loading`, label: <LoadDir st={st} rel={path} />, isDisabled: true }]
@@ -534,6 +622,24 @@ const NotBuilt = () => <Badge label="Not built yet" />;
 
 function Files({ st, changed }) {
   const p = project();
+  const [target, setTarget] = useState(null);
+  const pending = useRef(null);
+  const later = (run) => () => { pending.current = run; };
+  const here = target ? (target.dir ? target.path : folder(target.path)) : '';
+  const create = [
+    { label: 'New file here', onClick: later(() => startNew(st, here, false)) },
+    { label: 'New folder here', onClick: later(() => startNew(st, here, true)) },
+  ];
+  const items = !target ? create : [
+    { label: 'Rename', endContent: <span className="ou-ide-key">F2</span>, onClick: later(() => { st.renaming = target.path; bump(); }) },
+    { type: 'divider' },
+    ...create,
+    { type: 'divider' },
+    { label: 'Copy path', onClick: () => void copyPath(target.path, true) },
+    { label: 'Copy relative path', onClick: () => void copyPath(target.path, false) },
+    { type: 'divider' },
+    { label: 'Delete', isDisabled: true, endContent: <NotBuilt /> },
+  ];
   return (
     <>
       <div className="ou-ide-findrow">
@@ -550,7 +656,15 @@ function Files({ st, changed }) {
             <FileIcon path={h} /><span className="ou-ide-name">{base(h)}</span><span className="ou-ide-dir">{folder(h)}</span><TreeDecorations st={st} path={h} isChanged={changed.has(h)} />
           </button>
         )) : <p className="ou-ide-muted">No file matches.</p>) : (
-          <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<span className="ou-ide-root">{p.name}</span>} items={treeItems(st, '', changed)} />
+          <ContextMenu id="ide-tree-menu" size="sm" label="File actions" items={items}
+            onContextMenu={(e) => setTarget(rowTarget(st, e.target))}
+            onOpenChange={(open) => { const run = pending.current; pending.current = null; if (!open && run) setTimeout(run, 0); }}>
+            <TreeList key={ui.projectId} density="compact" aria-label={`${p.name} files`} header={<span className="ou-ide-root">{p.name}</span>} items={treeItems(st, '', changed)}
+              onKeyDown={(e) => {
+                const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
+                if (t) { e.preventDefault(); st.renaming = t.path; bump(); }
+              }} />
+          </ContextMenu>
         )}
       </div>
     </>
@@ -664,7 +778,7 @@ function EditorHost({ st, tab, hidden }) {
   const ready = tab.text !== undefined;
   useEffect(() => {
     if (!ready) return undefined;
-    const view = openEditor(ref.current, tab.state || tab.text, tab.path, onFor(st, tab.path));
+    const view = openEditor(ref.current, tab.state || tab.text, tab.path, onFor(st, tab));
     tab.view = view;
     tab.state = null;
     const head = view.state.selection.main.head;
@@ -818,11 +932,11 @@ function Asks({ st }) {
   const cancel = () => { st.closeAll = false; st.ask = null; bump(); };
   if (a.kind === 'new') {
     return (
-      <Dialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} width={420} purpose="form" aria-label="New file">
+      <Dialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} width={420} purpose="form" aria-label={a.folder ? 'New folder' : 'New file'}>
         <form onSubmit={(e) => { e.preventDefault(); void newFile(st, a); }}>
           <Layout
-            content={<LayoutContent><Heading level={2}>New file</Heading><TextInput label="Path inside the project" placeholder="notes/todo.md" value={a.path} onChange={(path) => { a.path = path; bump(); }} hasAutoFocus isDisabled={a.busy} /></LayoutContent>}
-            footer={<LayoutFooter><span className="ou-ide-askrow"><Button variant="ghost" label="Cancel" onClick={cancel} /><Button type="submit" label="Create file" isDisabled={!a.path.trim() || a.busy} /></span></LayoutFooter>}
+            content={<LayoutContent><Heading level={2}>{a.folder ? 'New folder' : 'New file'}</Heading><TextInput label="Path inside the project" placeholder={a.folder ? 'notes/drafts' : 'notes/todo.md'} value={a.path} onChange={(path) => { a.path = path; bump(); }} hasAutoFocus isDisabled={a.busy} /></LayoutContent>}
+            footer={<LayoutFooter><span className="ou-ide-askrow"><Button variant="ghost" label="Cancel" onClick={cancel} /><Button type="submit" label={a.folder ? 'Create folder' : 'Create file'} isDisabled={!a.path.trim() || a.busy} /></span></LayoutFooter>}
           />
         </form>
       </Dialog>
