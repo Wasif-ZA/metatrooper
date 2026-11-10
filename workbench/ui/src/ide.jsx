@@ -487,6 +487,7 @@ export const ideKeys = {
   palette: (open) => bridge.setPalette?.(open),
   paletteOpen: () => Boolean(bridge.palette),
   closeTab: () => { if (cur && cur.active) closeTab(cur, cur.active); },
+  asking: () => Boolean(cur && cur.ask),
   preview: () => {
     const t = cur && cur.active ? tabOf(cur, cur.active) : null;
     if (!t || !isMd(t.path)) return false;

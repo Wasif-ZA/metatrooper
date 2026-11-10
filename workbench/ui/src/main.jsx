@@ -72,7 +72,7 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'f' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.search(); }
   else if (k === 'g' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.changes(); }
   else if (k === 'p' && e.shiftKey) { e.preventDefault(); ideKeys.palette(!ideKeys.paletteOpen() && !overlayOpen()); }
-  else if (k === 'w' && !e.shiftKey) { e.preventDefault(); ideKeys.closeTab(); }
+  else if (k === 'w' && !e.shiftKey) { e.preventDefault(); if (overlayOpen() || ideKeys.asking()) return; ideKeys.closeTab(); }
   else if (k === 'v' && e.shiftKey) { if (overlayOpen()) return; if (ideKeys.preview()) e.preventDefault(); }
 });
 
