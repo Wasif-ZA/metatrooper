@@ -114,6 +114,7 @@ export function Home() {
   const working = mine.filter((x) => x.state === 'working' || x.state === 'starting');
   const done = mine.filter((x) => x.state === 'done');
   const files = mine.reduce((n, x) => n + changedFiles(x.id).length, 0);
+  const changed = mine.flatMap((x) => changedFiles(x.id).map((path) => ({ path, x })));
   const alerts = s.needs_you.filter((n) => !n.read_at && !isInfo(n));
   const recent = s.needs_you.filter((n) => n.kind === 'done' || n.kind === 'failed').slice(0, 6);
   const approvals = s.approvals || [];
@@ -129,15 +130,27 @@ export function Home() {
         <p>{mine.length ? `${mine.length} ${mine.length === 1 ? 'agent' : 'agents'} in ${name}` : `No agents running in ${name}`}</p>
       </header>
       {ready.length ? <StartBox ready={ready} /> : null}
+      <h2>Agents</h2>
+      {mine.length ? <div className="ou-cards">{mine.map((x) => <AgentCard key={x.id} x={x} />)}</div> : <EmptyState title="No agents yet" description="Start one with the box above." isCompact />}
       <div className="ou-tiles">
         <Tile icon="needs" label="Needs you" n={needs} sub={needs ? 'waiting on an answer' : 'nothing waiting'} hot={needs > 0} />
         <Tile icon="working" label="Working" n={working.length} sub={working.length ? 'running now' : 'none running'} />
         <Tile icon="done" label="Finished" n={done.length} sub={done.length ? 'ready to review' : 'nothing to review'} />
         <Tile icon="files" label="Changed files" n={files} sub={files ? 'not handed back yet' : 'no changes'} />
       </div>
-      <h2>Agents</h2>
-      {mine.length ? <div className="ou-cards">{mine.map((x) => <AgentCard key={x.id} x={x} />)}</div> : <EmptyState title="No agents yet" description="Start one with the box above." isCompact />}
-      <div className={asks && recent.length ? 'ou-two' : undefined}>
+      <div className="ou-two ou-fill">
+        <section>
+          <h2>Changed files</h2>
+          {changed.length ? (
+            <ul className="ou-list">
+              {changed.slice(0, 8).map((c) => (
+                <li key={`${c.x.id}:${c.path}`} className="ou-irow" role="button" tabIndex={0} onClick={() => { homeView.set('ide'); void ideView.open(c.path); }}>
+                  <span className="ou-ititle ou-value">{c.path}</span><span className="ou-imeta">{c.x.engine_id}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="ou-empty">No agent has changed a file yet.</p>}
+        </section>
         {asks ? (
           <section>
             <h2>Waiting on you</h2>

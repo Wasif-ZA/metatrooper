@@ -149,11 +149,14 @@ html { font-size: 16px; }
 
 /* Round after the two-engine critique: edge-aligned panes, columns in rows, one orange signal per item, quiet buttons. */
 .ou-col { max-width: 1280px; margin: 0; padding: 24px 24px 56px; }
-.ou-home { padding-top: 20px; }
+.ou-home { padding-top: 20px; max-width: none; }
+.ou-home .ou-agent { min-height: 240px; border-radius: 0; }
+.ou-fill { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.ou-empty { margin: 0; color: var(--mute); }
 .ou-hero { display: flex; align-items: baseline; gap: 12px; }
 .ou-hero p { margin: 0; }
 .ou-composer textarea { min-height: 36px; }
-.ou-cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.ou-cards { grid-template-columns: repeat(auto-fill, minmax(276px, 1fr)); gap: 16px; }
 .ou-chip { display: inline-block; max-width: 100%; padding: 0 7px; border: 1px solid var(--hairline-strong); border-radius: 4px; font: 11.5px/18px var(--mono); color: var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .ou-irow { min-height: 36px; }
 .ou-iwho { flex: none; width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px var(--mono); color: var(--mute); }
