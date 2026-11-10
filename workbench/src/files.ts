@@ -175,6 +175,14 @@ export function renameEntry(root: string, from: unknown, to: unknown): { ok: tru
   }
 }
 
+/** The real path of one entry a delete may name: inside the root, not the root, not .git, not a link or junction. */
+export function deleteTarget(root: string, rel: unknown): string | null {
+  if (!writable(rel)) return null;
+  try { if (fs.lstatSync(path.resolve(root, rel)).isSymbolicLink()) return null; } catch { return null; }
+  const full = inside(root, rel);
+  return full && full !== fs.realpathSync(root) ? full : null;
+}
+
 export interface SearchHit { path: string; line: number; text: string }
 const MAX_HITS = 200;
 const cut = (s: string) => s.trim().slice(0, 240);

@@ -1,4 +1,4 @@
-import { createEntry, inside as fsInside, listDir, openOutside, rankFiles, readText, renameEntry, searchText, writeText } from './files.ts';
+import { createEntry, deleteTarget, inside as fsInside, listDir, openOutside, rankFiles, readText, renameEntry, searchText, writeText } from './files.ts';
 import { describePermission } from '../../core/src/plugins/manifest.ts';
 import { alive, demo, DEMO_TAKEOVER_KEY, DEMO_TITLE, removeWhenGone, stopPid } from './demo.ts';
 import fs from 'node:fs';
@@ -549,6 +549,14 @@ function handlers(): void {
   });
   on('fsCreate', (projectId: unknown, rel: unknown, kind: unknown) => { const root = projectRoot(projectId); return root ? createEntry(root, rel, kind) : { error: 'pick a project first' }; });
   on('fsRename', (projectId: unknown, from: unknown, to: unknown) => { const root = projectRoot(projectId); return root ? renameEntry(root, from, to) : { error: 'pick a project first' }; });
+  on('fsDelete', async (projectId: unknown, rel: unknown) => {
+    const root = projectRoot(projectId);
+    const full = root ? deleteTarget(root, rel) : null;
+    if (!full) return { error: 'cannot delete that' };
+    try { await shell.trashItem(full); } catch (e) { return { error: `could not move it to the Recycle Bin: ${(e as Error).message.split(String.fromCharCode(10))[0]}` }; }
+    console.log(`fsDelete ${String(projectId).slice(0, 40)} ${String(rel).slice(0, 300)}`);
+    return { ok: true };
+  });
   on('fsSearch', (projectId: unknown, query: unknown) => { const root = projectRoot(projectId); return root ? searchText(root, query).catch(() => ({ hits: [], more: false })) : { hits: [], more: false }; });
   on('fsOpenOutside', async (projectId: unknown, rel: unknown) => {
     const root = projectRoot(projectId);

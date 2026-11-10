@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('troop', {
   fsWrite: (projectId, rel, text, baseMtimeMs) => ipcRenderer.invoke('fsWrite', projectId, rel, text, baseMtimeMs),
   fsCreate: (projectId, rel, kind) => ipcRenderer.invoke('fsCreate', projectId, rel, kind),
   fsRename: (projectId, from, to) => ipcRenderer.invoke('fsRename', projectId, from, to),
+  fsDelete: (projectId, rel) => ipcRenderer.invoke('fsDelete', projectId, rel),
   fsSearch: (projectId, query) => ipcRenderer.invoke('fsSearch', projectId, query),
   fsOpenOutside: (projectId, rel) => ipcRenderer.invoke('fsOpenOutside', projectId, rel),
   openInVsCode: (projectId, rel) => ipcRenderer.invoke('openInVsCode', projectId, rel),
