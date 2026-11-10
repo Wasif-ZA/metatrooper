@@ -664,8 +664,9 @@ export class PaneManager {
         if (pane.handoff === null) break;
         pane.handoff = null;
         pane.handedBack = true;
-        // what the page logged while the user had it is not the agent's to read
+        // what the page logged or requested while the user had it is not the agent's to read
         pane.console = [];
+        pane.network.clear();
         pane.handBackNext = wc.isLoadingMainFrame();
         break;
       default: return;
