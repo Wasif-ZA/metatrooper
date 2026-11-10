@@ -118,7 +118,7 @@ html { font-size: 16px; }
 .ou-composer > :first-child { padding: 4px 4px 0; }
 .ou-composer > :first-child * { border-color: transparent !important; background: none !important; box-shadow: none !important; }
 .ou-composerfoot { display: flex; align-items: center; gap: 8px; padding: 6px 8px 8px; }
-.ou-composerhint { margin-left: auto; opacity: .7; }
+.ou-composerfoot > :last-child { margin-left: auto; }
 .ou-tiles { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
 .ou-tile { position: relative; display: grid; gap: 4px; padding: 18px 20px; }
 .ou-tile + .ou-tile { border-left: 1px solid var(--hairline); }
