@@ -348,7 +348,7 @@ export function Inbox() {
     const folder = refSession?.cwd ? (refSession.cwd.split(/[/\\]/).filter(Boolean).pop() || '') : '';
     const branchOrFolder = refSession?.branch || folder;
     const proj = (s.projects || []).find((p) => p.id === (refSession?.project_id || item.project_id))?.name || '';
-    const workspaceText = proj && branchOrFolder ? `${proj} / ${branchOrFolder}` : proj || branchOrFolder || '-';
+    const workspaceText = proj && branchOrFolder && branchOrFolder !== proj ? `${proj} / ${branchOrFolder}` : proj || branchOrFolder || '-';
     const timeText = isSession ? ago(item.state_at || item.started_at) : ago(item.at);
 
     return (
