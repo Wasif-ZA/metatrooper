@@ -104,7 +104,7 @@ export function parseStatusV2(out: string): Status {
 
 /** Repo-relative paths a stage or unstage may name: plain strings, never the whole tree. */
 export function namedPaths(rels: unknown): string[] | null {
-  if (!Array.isArray(rels) || !rels.length || rels.length > 1000) return null;
+  if (!Array.isArray(rels) || !rels.length || rels.length > 20000) return null;
   const whole = (r: string) => { const n = posix.normalize(r.replace(/\\/g, '/')).replace(/\/+$/, ''); return !n || n === '.' || n === '..' || n.startsWith('../') || n.startsWith('/') || /^[A-Za-z]:/.test(n); };
   const gitDir = (r: string) => r.split(/[\\/]/).some((s) => s.replace(/[. ]+$/, '').toLowerCase() === '.git');
   return rels.every((r) => typeof r === 'string' && r && !r.includes('\0') && r.length < 4096 && !whole(r) && !gitDir(r)) ? rels as string[] : null;
@@ -115,7 +115,12 @@ export async function gitAct(git: Run, op: string, arg: unknown): Promise<void> 
   const path = typeof arg === 'string' ? arg : '';
   const named = (verb: string[]) => { const list = namedPaths(arg); if (!list) throw new Error('name the files'); return git(['--literal-pathspecs', ...verb, '--', ...list]); };
   switch (op) {
-    case 'stage-paths': await named(['add']); return;
+    case 'stage-paths': {
+      const list = namedPaths(arg);
+      if (!list) throw new Error('name the files');
+      await git(['--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul'], list.join('\0'));
+      return;
+    }
     case 'unstage-paths': await named(['restore', '--staged']); return;
     case 'stage': await git(['add', '--', path || '.']); return;
     case 'stage-group': {

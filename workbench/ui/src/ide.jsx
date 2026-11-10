@@ -91,6 +91,7 @@ function gitFiles(st) {
   const staged = [];
   const unstaged = [];
   for (const f of st.git.files) {
+    if (f.conflict) { unstaged.push({ path: f.path, from: f.from, letter: 'C', conflict: true }); continue; }
     if (f.index !== '.' && f.index !== '?') staged.push({ path: f.path, from: f.from, letter: statusLetter(f.index, f.worktree, true) });
     if (f.worktree !== '.') unstaged.push({ path: f.path, from: f.from, letter: statusLetter(f.index, f.worktree, false) });
   }
@@ -770,7 +771,7 @@ function SourceControl({ st }) {
             <div className="ou-ide-schead">
               <span>Changes</span><span className="ou-ide-count">{unstaged.length}</span>
               {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={svg(PLUS, 12)}
-                onClick={() => void gitStage(st, unstaged.map((f) => f.path))} /> : null}
+                onClick={() => void gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
             </div>
             {unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
             {!unstaged.length ? <p className="ou-ide-muted">No changes.</p> : null}
