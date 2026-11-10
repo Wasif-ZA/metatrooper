@@ -724,7 +724,7 @@ function createWindow(): void {
   win.webContents.on('will-prevent-unload', (e) => {
     if (closing) { e.preventDefault(); return; }
     if (!win || win.isDestroyed()) return;
-    if (dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: 'Some files in the IDE have unsaved changes.' }) === 0) e.preventDefault();
+    if (dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Close without saving', 'Cancel'], defaultId: 1, cancelId: 1, message: unsavedMessage() }) === 0) e.preventDefault();
   });
   let reloadedAt = -Infinity;
   win.webContents.on('render-process-gone', (_e, d) => {
