@@ -397,7 +397,8 @@ html { font-size: 16px; }
   .ou-facetrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
   .ou-facetcount { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--mute); }
   .ou-facetrow-zero { color: var(--mute); opacity: .6; }
-  .ou-results { display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .ou-results { display: grid; gap: 12px; align-content: start; min-width: 0; max-width: 880px; }
+  .ou-addons-count { font-size: 11px; color: var(--mute); margin: 0 0 8px; }
   .ou-acard { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 8px; padding: 16px; border: 1px solid var(--hairline); background: var(--canvas); }
   .ou-acard-tile { display: grid; place-items: center; width: 40px; height: 40px; box-sizing: border-box; border: 1px solid var(--hairline-strong); color: var(--mute); }
   .ou-acard-name { display: grid; align-content: start; gap: 2px; min-width: 0; }

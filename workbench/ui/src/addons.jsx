@@ -114,7 +114,7 @@ export function Addons() {
       <div className="ou-addons-body">
         <aside className="ou-facets" aria-label="Filters">{facet('Kind', KIND)}{facet('State', STATE)}</aside>
         <div className="ou-results">
-          <Text color="secondary" size="sm">{shown.length} result(s)</Text>
+          <div className="ou-addons-count">{shown.length} result(s)</div>
           {shown.map((it) => card(it, it.kind === 'plugin' && open.includes(it.id), toggle, setGoing))}
           {!engines.length && !filtered ? <EmptyState title="No agents found." isCompact actions={<Button label="Check agents again" data-action="check-engines" />} /> : null}
           {wantPlugins && rows === null ? <Text color="secondary">Loading plugins.</Text> : null}
