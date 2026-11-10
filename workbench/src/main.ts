@@ -273,7 +273,7 @@ function appendLine(envName: string, value: unknown): void {
 }
 
 /** The settings the Settings page may write. */
-const PAGE_KEYS = new Set(['sessions.approval', 'sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback']);
+const PAGE_KEYS = new Set(['sessions.metarouter', 'desktop.watch_pause', 'agent_cursor.show_caption', 'savers.shrink_shell', 'savers.lean_handoffs', 'savers.small_screenshots', 'savers.cheap_model', 'worktree.npm_ci', 'worktree.stale_days', 'terminal.font_size', 'terminal.scrollback']);
 
 /** Asks the core, the only writer of settings.json, to set one key; returns the core's error message, if any. */
 async function writeSetting(key: string, value: unknown): Promise<string | null> {

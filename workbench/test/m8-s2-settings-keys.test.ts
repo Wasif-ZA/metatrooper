@@ -43,10 +43,30 @@ test('setSetting IPC writes only PAGE_KEYS without importing main', async () => 
     PAGE_KEYS: new Set(pageKeys),
     writeSetting: async (key: string, value: unknown) => { writes.push([key, value]); return null; },
   });
-  for (const key of [undefined, null, 42, {}, ['terminal.font_size'], '', 'terminal.shells', 'browser.allow_origins', 'ui.themes', '__proto__.polluted', 'sessions.approval.extra']) {
+  for (const key of [undefined, null, 42, {}, ['terminal.font_size'], 'sessions.approval', '', 'terminal.shells', 'browser.allow_origins', 'ui.themes', '__proto__.polluted', 'sessions.approval.extra']) {
     assert.equal((await handler(key, 'synthetic')).error, 'not a Settings page key');
   }
   assert.deepEqual(writes, []);
   for (const key of pageKeys) assert.equal((await handler(key, 'synthetic')).ok, true);
   assert.deepEqual(writes, pageKeys.map((key) => [key, 'synthetic']));
+});
+
+test('sessions.approval is excluded from PAGE_KEYS', () => {
+  assert.equal(pageKeys.includes('sessions.approval'), false);
+});
+
+test('setApproval accepts exactly ask and contained without importing main', async () => {
+  const match = /on\('setApproval', (async \([\s\S]*?\n  \})\);/.exec(main);
+  assert.ok(match, 'setApproval handler found');
+  const writes: unknown[] = [];
+  const handler = runInNewContext(stripTypeScriptTypes('(' + match[1] + ')'), {
+    writeSetting: async (key: string, value: unknown) => { writes.push([key, value]); return null; },
+  });
+  for (const value of [undefined, null, true, false, 0, 1, {}, [], ['ask'], '', 'ASK', 'ask ', ' contained', 'auto', 'never', 'always']) {
+    assert.equal((await handler(value)).error, 'approval must be ask or contained');
+  }
+  assert.deepEqual(writes, []);
+  assert.equal((await handler('ask')).ok, true);
+  assert.equal((await handler('contained')).ok, true);
+  assert.deepEqual(writes, [['sessions.approval', 'ask'], ['sessions.approval', 'contained']]);
 });

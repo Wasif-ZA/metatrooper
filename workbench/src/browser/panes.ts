@@ -713,6 +713,7 @@ export class PaneManager {
       if (params.type === 'Document') {
         pane.docs.set(params.response.url, { status: params.response.status, headers: params.response.headers ?? {} });
         if (pane.docs.size > 16) pane.docs.delete(pane.docs.keys().next().value as string);
+        if (params.response.url === pane.view.webContents.getURL()) this.humanCheck(pane, { url: params.response.url, status: params.response.status, headers: params.response.headers ?? {}, main: true });
       }
       const r = pane.network.get(params.requestId);
       if (r) r.status = params.response.status;

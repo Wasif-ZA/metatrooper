@@ -27,8 +27,9 @@ function harness(sessionId: string | null = 'session-1') {
     paneEvent: (event: Record<string, any>) => events.push(event), openPane() {},
   } as never);
   const internal = pm as any;
+  let currentURL = 'https://before.example/';
   const wc = Object.assign(new EventEmitter(), {
-    getURL: () => 'https://shop.example/', getTitle: () => 'synthetic', isDestroyed: () => false,
+    getURL: () => currentURL, getTitle: () => 'synthetic', isDestroyed: () => false,
     isLoading: () => false, isLoadingMainFrame: () => false, getZoomFactor: () => 1,
     navigationHistory: { canGoBack: () => false, canGoForward: () => false },
     setWindowOpenHandler() {},
@@ -47,7 +48,10 @@ function harness(sessionId: string | null = 'session-1') {
   internal.wireContents(pane);
   const cdp = (method: string, params: Record<string, unknown>) => internal.onDebuggerEvent(pane, method, params);
   const response = (url: string, status: number, headers: Record<string, string>, type = 'Document') => cdp('Network.responseReceived', { requestId: 'synthetic', type, response: { url, status, headers } });
-  const commit = (url = 'https://shop.example/', status = 403) => wc.emit('did-navigate', {}, url, status);
+  const commit = (url = 'https://shop.example/', status = 403) => {
+    currentURL = url;
+    return wc.emit('did-navigate', {}, url, status);
+  };
   const frame = (url: string, urlFragment = '') => cdp('Page.frameNavigated', { frame: { id: 'child', parentId: 'main', url, urlFragment } });
   return { pm, internal, pane, events, commands, response, commit, frame };
 }
@@ -56,20 +60,85 @@ function assertHandoff(h: ReturnType<typeof harness>, vendor: string) {
   assert.equal(typeof h.pane.handoff, 'string');
   assert.ok(h.pane.handoff!.includes(vendor));
   assert.ok(h.pane.handoff!.includes('checking for a human'));
-  assert.deepEqual(h.events.filter((event) => event.kind === 'handoff'), [{ kind: 'handoff', pane_id: 'bp_agent_test', reason: h.pane.handoff }]);
+  const handoffs = h.events.filter((event) => event.kind === 'handoff');
+  assert.equal(handoffs.length, 1);
+  assert.equal(handoffs[0].pane_id, 'bp_agent_test');
+  assert.equal(typeof handoffs[0].reason, 'string');
+  assert.ok(handoffs[0].reason.includes(vendor));
+  assert.ok(handoffs[0].reason.includes('checking for a human'));
+}
+
+function assertNoHandoff(h: ReturnType<typeof harness>) {
+  assert.equal(h.pane.handoff, null);
+  assert.deepEqual(h.events.filter((event) => event.kind === 'handoff'), []);
 }
 
 for (const [status, headers, vendor] of [
-  [200, { 'CF-MITIGATED': 'challenge' }, 'Cloudflare'],
   [403, { Server: 'AkamaiGHost' }, 'Akamai'],
-  [429, { 'X-DaTaDoMe': 'synthetic' }, 'DataDome'],
+  [200, { 'cf-mitigated': 'challenge' }, 'Cloudflare'],
+  [403, { 'x-datadome': '1' }, 'DataDome'],
 ] as const) {
-  test('main navigation hands off ' + vendor, async () => {
+  test('main navigation hands off ' + vendor + ' in both event orders with the same reason', async () => {
+    const responseFirst = harness();
+    await responseFirst.response('https://shop.example/', status, headers);
+    assertNoHandoff(responseFirst);
+    responseFirst.commit('https://shop.example/', status);
+    assertHandoff(responseFirst, vendor);
+
+    const commitFirst = harness();
+    commitFirst.commit('https://shop.example/', status);
+    assertNoHandoff(commitFirst);
+    await commitFirst.response('https://shop.example/', status, headers);
+    assertHandoff(commitFirst, vendor);
+    assert.equal(commitFirst.pane.handoff, responseFirst.pane.handoff);
+    assert.equal(commitFirst.events.find((event) => event.kind === 'handoff')!.reason,
+      responseFirst.events.find((event) => event.kind === 'handoff')!.reason);
+
+    responseFirst.commit('https://shop.example/', status);
+    await commitFirst.response('https://shop.example/', status, headers);
+    assertHandoff(responseFirst, vendor);
+    assertHandoff(commitFirst, vendor);
+  });
+
+  for (const order of ['response first', 'commit first']) {
+    test('user pane ignores ' + vendor + ' with ' + order, async () => {
+      const h = harness(null);
+      if (order === 'response first') {
+        await h.response('https://shop.example/', status, headers);
+        assertNoHandoff(h);
+        h.commit('https://shop.example/', status);
+      } else {
+        h.commit('https://shop.example/', status);
+        assertNoHandoff(h);
+        await h.response('https://shop.example/', status, headers);
+      }
+      assertNoHandoff(h);
+    });
+  }
+
+  test('late ' + vendor + ' subframe Document response does not hand off', async () => {
     const h = harness();
-    await h.response('https://shop.example/', status, headers);
-    assert.equal(h.pane.handoff, null);
     h.commit('https://shop.example/', status);
-    assertHandoff(h, vendor);
+    assertNoHandoff(h);
+    await h.response('https://child.example/', status, headers);
+    assertNoHandoff(h);
+  });
+
+  test('late ' + vendor + ' response for a page navigated away from does not hand off', async () => {
+    const h = harness();
+    h.commit('https://shop.example/', status);
+    assertNoHandoff(h);
+    h.commit('https://away.example/', 200);
+    assertNoHandoff(h);
+    await h.response('https://shop.example/', status, headers);
+    assertNoHandoff(h);
+  });
+
+  test('late ' + vendor + ' non-Document response does not hand off', async () => {
+    const h = harness();
+    h.commit('https://shop.example/', status);
+    await h.response('https://shop.example/', status, headers, 'XHR');
+    assertNoHandoff(h);
   });
 }
 
