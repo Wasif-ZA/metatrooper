@@ -138,3 +138,23 @@ test('29f34ba5 Needs you empty detail pane explains what will show up there', ()
   assert.match(markup, />Nothing is waiting on you\.</);
   assert.match(markup, />Questions from agents and finished work show up here\.</);
 });
+
+test('2b8ac71a Add-ons cards prefix only bare numeric versions and omit the trailing period', () => {
+  // Render agent and plugin version lines with numeric, prefixed, named and punctuated versions.
+  g.ui.view = 'addons';
+  const versions = ['1.2.3', 'v2.0', 'nightly', '1.2.3.'];
+  g.ui.snap.engines = versions.map((version, i) => ({ id: 'agent-' + i, light: 'green', version }));
+  addonsStore.set({ rows: versions.map((version, i) => ({ id: 'plugin-' + i, enabled: true, permissions: [], version })) });
+  const cards = descendants(screen(Addons)).filter(n => hasClass(n, 'ou-acard'));
+  const lines = cards.map(card => children(oneClass(card, 'ou-acard-name'))[1]);
+  assert.deepEqual(lines.map(line => renderToStaticMarkup(line)), [
+    '<span>Agent · v1.2.3</span>',
+    '<span>Agent · v2.0</span>',
+    '<span>Agent · nightly</span>',
+    '<span>Agent · v1.2.3</span>',
+    '<span>Plugin · v1.2.3</span>',
+    '<span>Plugin · v2.0</span>',
+    '<span>Plugin · nightly</span>',
+    '<span>Plugin · v1.2.3</span>',
+  ]);
+});
