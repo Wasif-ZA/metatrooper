@@ -121,7 +121,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'pane.close', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id}', result: '{}' },
   { name: 'pane.url', needsUi: true, params: '{pane_id, url}', result: '{}; the workbench reports each navigation' },
   { name: 'lend.ask', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, origin}', result: "{}; raises one Needs you row asking the user to lend their sign-in on `origin` (http or https) to agents in the session's project; one open row per project and origin" },
-  { name: 'lend.set', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, origin, on}', result: '{sites}; adds or removes `origin` in the UI-only `browser.lent` setting for the project and resolves its open ask. A lent agent pane uses the project kept browser profile and may only load lent origins in a frame' },
+  { name: 'lend.set', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, origin, on}', result: '{sites}; adds or removes `origin` in the UI-only `browser.lent` setting for the project and resolves its open ask; removing one closes the project open lent panes. A lent agent pane uses the project kept browser profile and may only load lent origins in a frame' },
   { name: 'pane.assign', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, session_id?}', result: '{}; sets or clears the one session allowed to drive the pane' },
   { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
   { name: 'approval.check', params: '{session_id, surface, target, action, args, control, password?, hidden?, file_dialog?, action_hash?}', result: '{decision, reason?, approval_id?, instruction?}; a `rejected` carries the instruction text of the user when they gave one; never queued; waits until a person decides; no timer (`contracts/approvals.md`)' },
@@ -726,6 +726,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const all: Record<string, string[]> = { ...settings().browser.lent, [projectId]: sites };
       if (!sites.length) delete all[projectId];
       setSetting('browser', 'lent', all);
+      if (!p.on) db.prepare('UPDATE browser_pane SET open = 0 WHERE lent = 1 AND open = 1 AND project_id = ?').run(projectId);
       db.prepare("UPDATE needs_you SET resolved_at = ? WHERE ref = ? AND kind = 'other' AND resolved_at IS NULL").run(nowIso(), lendRef(projectId, origin));
       return { sites };
     },

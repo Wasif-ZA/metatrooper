@@ -28,7 +28,7 @@ const SECTIONS = [
   ] },
   { id: 'reliability', label: 'Reliability', note: 'These run in the background. There is no screen to watch. You hear from them only when a person has to decide.', rows: [
     { key: 'reliability.done_needs_check', label: 'Say done only when a check passed', hint: 'A finished agent with no passing check reads "needs your review".' },
-    { check: true, label: 'Check command for this project', hint: 'Runs in the folder the agent worked in when it finishes. Empty means every finish needs your review.' },
+    { check: true, label: 'Check command for this project', hint: 'Runs where the agent worked, when it finishes. Empty: every finish needs your review.' },
     { soon: true, label: 'Fix failing checks, up to 3 tries', hint: 'Each try starts from clean files. Tests and check settings are protected from edits.' },
     { key: 'reliability.loop_alarm', label: 'Loop alarm', hint: 'Claude agents only. Watches for the same call giving the same result.' },
     { key: 'reliability.loop_nudge_at', label: 'Ask me after', unit: 'identical calls', min: 2, max: 20 },
@@ -84,7 +84,7 @@ function CheckCommand({ row, data }) {
     if (r && r.error) toast(r.error, true);
     await reload();
   };
-  return <span onBlur={save}><TextInput label={row.label} isLabelHidden value={text} onChange={setText} onEnter={save} placeholder="npm test" isDisabled={!ui.projectId} width={240} /></span>;
+  return <span onBlur={save}><TextInput label={row.label} isLabelHidden value={text} onChange={setText} onEnter={save} placeholder="npm test" isDisabled={!ui.projectId} width={200} /></span>;
 }
 
 function Control({ row, data }) {

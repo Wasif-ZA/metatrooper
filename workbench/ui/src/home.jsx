@@ -20,7 +20,7 @@ function greeting() {
 
 function Tile({ label, n, sub, hot }) {
   return (
-    <Card padding={4}>
+    <Card padding={4} className={hot ? 'ou-hotcard' : undefined}>
       <div className={hot ? 'ou-tile ou-hot' : 'ou-tile'}>
         <Text color="secondary" size="sm">{label}</Text>
         <Text size="2xl" weight="bold">{String(n)}</Text>
@@ -33,13 +33,14 @@ function Tile({ label, n, sub, hot }) {
 function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
+  const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
   const start = async () => {
     const text = task.trim();
-    const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: engine, ...(text ? { prompt: text } : {}) });
+    const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: chosen, ...(text ? { prompt: text } : {}) });
     if (!r.result) return;
     delete ui.drafts['home-task'];
     setTask('');
-    save('engine', engine);
+    save('engine', chosen);
     homeView.set('wall');
     await pick(r.result.session_id);
   };
@@ -47,7 +48,7 @@ function StartBox({ ready }) {
     <Card padding={3}>
       <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
       <div className="ou-startrow">
-        <Selector label="Agent" isLabelHidden size="sm" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={ready.some((e) => e.id === engine) ? engine : ready[0].id} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
+        <Selector label="Agent" isLabelHidden size="sm" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
         <Button variant="primary" label="Start" onClick={start} />
       </div>
     </Card>
@@ -90,17 +91,17 @@ export function Home() {
           <Heading level={2}>Waiting on you</Heading>
           <Card padding={0}><List hasDividers>
             {waiting.map((x) => (
-              <ListItem key={x.id} label={taskOf(x)} description={`${away(x)}${x.engine_id}${x.last_line ? ` · ${x.last_line}` : ''}`}
+              <ListItem key={x.id} data-action="pick" data-id={x.id} label={taskOf(x)} description={`${away(x)}${x.engine_id}${x.last_line ? ` · ${x.last_line}` : ''}`}
                 startContent={<StatusDot variant="warning" label="Needs you" />}
                 endContent={<span className="ou-actions"><span className="ou-wait">Needs you</span><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} /></span>} />
             ))}
             {approvals.length ? (
-              <ListItem label={`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`} description="Allow or refuse each one"
+              <ListItem data-action="sheet" label={`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`} description="Allow or refuse each one"
                 startContent={<StatusDot variant="warning" label="Needs you" />}
                 endContent={<Button size="sm" variant="primary" label="Review" data-action="sheet" />} />
             ) : null}
             {alerts.map((n) => (
-              <ListItem key={n.id} label={n.text} description={`${n.kind} · ${ago(n.at)}`}
+              <ListItem key={n.id} data-action="inbox-open" data-id={n.id} label={n.text} description={`${n.kind} · ${ago(n.at)}`}
                 startContent={<StatusDot variant="warning" label="Needs you" />}
                 endContent={<Button size="sm" label="Open" data-action="inbox-open" data-id={n.id} />} />
             ))}
@@ -126,7 +127,7 @@ export function Home() {
           <Heading level={2}>Recent</Heading>
           <Card padding={0}><List hasDividers>
             {recent.map((n) => (
-              <ListItem key={n.id} label={n.text} startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : 'neutral'} label={n.kind === 'failed' ? 'Failed' : 'Finished'} />}
+              <ListItem key={n.id} data-action="inbox-open" data-id={n.id} label={n.text} startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : 'neutral'} label={n.kind === 'failed' ? 'Failed' : 'Finished'} />}
                 endContent={<span className="ou-actions"><Text color="secondary" size="sm">{ago(n.at)}</Text><Button size="sm" variant="ghost" label="Open" data-action="inbox-open" data-id={n.id} /></span>} />
             ))}
           </List></Card>

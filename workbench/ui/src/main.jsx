@@ -51,6 +51,15 @@ globalThis.inboxView = {
   },
 };
 
+// j and k move between rows on Needs you, as the old screen did.
+document.addEventListener('keydown', (e) => {
+  if (ui.view !== 'inbox' || (e.key !== 'j' && e.key !== 'k') || e.ctrlKey || e.altKey || e.metaKey || e.target.closest?.('input, textarea, select')) return;
+  const rows = [...el('needsview').querySelectorAll('li')].map((li) => li.querySelector('button, [tabindex], a') || li);
+  const at = rows.findIndex((r) => r === document.activeElement || r.closest('li')?.contains(document.activeElement));
+  const next = rows[at + (e.key === 'j' ? 1 : -1)] || rows[e.key === 'j' ? 0 : rows.length - 1];
+  if (next) { e.preventDefault(); next.focus(); }
+});
+
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
 
 // home.js stays loaded for homeView.set and shown; only its drawing is replaced.

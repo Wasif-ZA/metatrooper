@@ -45,18 +45,18 @@ export function Inbox() {
         <Text as="p" color="secondary">{count.needs ? `${count.needs} waiting on you` : 'Nothing is waiting on you'}</Text>
       </header>
       <SegmentedControl label="Filter" value={filter} onChange={(v) => inboxStore.set({ filter: v })}>
-        {FILTERS.map(([id, label]) => <SegmentedControlItem key={id} value={id} label={`${label} ${count[id]}`} />)}
+        {FILTERS.map(([id, label]) => <SegmentedControlItem key={id} value={id} label={`${label} · ${count[id]}`} />)}
       </SegmentedControl>
       {approvals.length ? <><Heading level={2}>Agent actions waiting for a yes</Heading><div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} /></> : null}
       {asks.length || notes.length ? (
         <Card padding={0}><List hasDividers>
           {asks.map((x) => (
-            <ListItem key={x.id} label={taskOf(x)} description={`${away(x.project_id)}${x.engine_id} is asking${x.last_line ? ` · ${x.last_line}` : ''}`}
+            <ListItem key={x.id} data-action="pick" data-id={x.id} onClick={open} label={taskOf(x)} description={`${away(x.project_id)}${x.engine_id} is asking${x.last_line ? ` · ${x.last_line}` : ''}`}
               startContent={<StatusDot variant="warning" label="Waiting for you" />}
               endContent={<Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} onClick={open} />} />
           ))}
           {notes.map((n) => (
-            <ListItem key={n.id} label={n.text} description={n.kind}
+            <ListItem key={n.id} data-action="inbox-open" data-id={n.id} onClick={open} label={n.text} description={n.kind}
               startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : n.read_at || isInfo(n) ? 'neutral' : 'warning'} label={n.kind === 'failed' ? 'Failed' : n.read_at || isInfo(n) ? 'For your information' : 'Needs you'} />}
               endContent={<NoteActions n={n} />} />
           ))}

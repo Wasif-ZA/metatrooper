@@ -350,7 +350,8 @@ export class PaneManager {
       const pane = this.byContents(details.webContents) ?? (agent ? this.panes.get(row.id) : undefined);
       const frame = details.resourceType === 'mainFrame' || details.resourceType === 'subFrame';
       // A frame request on the kept profile that names no pane is held to the lent sites while a lent pane is open.
-      const fenced = frame && (pane ? !!pane.row.lent : !agent && [...this.panes.values()].some((p) => p.row.lent && p.row.project_id === row.project_id));
+      const owner = pane ?? [...this.panes.values()].find((p) => [...p.popups].some((w) => !w.isDestroyed() && w.webContents === details.webContents));
+      const fenced = frame && (owner ? !!owner.row.lent : !agent && [...this.panes.values()].some((p) => p.row.lent && p.row.project_id === row.project_id));
       if (fenced && (/^https?:/.test(details.url) ? !this.lentTo(row.project_id, details.url) : details.resourceType === 'subFrame' && details.url.startsWith('data:'))) return cb({ cancel: true });
       if (/^(data|blob|devtools):/.test(details.url) || details.url === 'about:blank') return cb({});
       if (!/^(https?|wss?):/.test(details.url)) return cb({ cancel: true });
