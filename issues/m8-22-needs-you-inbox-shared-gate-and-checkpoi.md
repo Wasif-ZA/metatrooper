@@ -14,9 +14,9 @@ Status in scratch: approved (F1-F3, G1-G3).
 - Inbox plus toast (claude-code #57230, #29438). One shared gate across IDE and wall with an age timer: solid orange after 2 minutes, one OS toast. No "Allow all N".
 - Gate detail lists files with +/- and Allow / Show diff / No, Y/N keys. Trust rules and Tab-to-type are deferred.
 - A new rule shows a one-line reason plus Undo.
-- Checkpoint rewind (F3) with Ctrl Z and a pointer to the checkpoint in the log; M8-F2 draws the preview.
+- Checkpoint rewind (F3) with Ctrl Z and a pointer to the checkpoint in the log; M8-F2 draws the preview sheet.
 - The inbox lists agent, request and age; the status bar shows the first waiting request.
-- 2026-11-05: the list across projects is M8-F16. New rewind screen: see M8-F2.
+- 2026-11-05: the list across projects is M8-F16. New rewind sheet: see M8-F2.
 
 ## Blocked on
 

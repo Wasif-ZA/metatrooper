@@ -39,9 +39,9 @@ Not sized until M8-0.
 - [ ] M8-45a. The read of each named tool is recorded in this file.
 - [ ] M8-45b. A fixture of run records produces the expected table.
 - [ ] M8-45c. A fixture where one engine's pass rate falls raises the flag on that engine only.
-- [ ] M8-45d. Below a run count fixed at build and written here, the page says "not enough runs" and ranks nothing.
+- [ ] M8-45d. Below a run count fixed at build and written here, the Settings table (Settings > Activity > Agent scorecard) says "not enough runs" and ranks nothing.
 - [ ] M8-45e. Each row shows its run count, so tasks that differ are not read as a fair test.
-- [ ] M8-45f. The page makes no network call.
+- [ ] M8-45f. The Settings table makes no network call.
 
 ## Rules that bind every child
 

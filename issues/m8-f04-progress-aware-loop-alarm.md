@@ -1,6 +1,6 @@
 # M8-F4: Progress-aware loop alarm
 
-Part of Ouros, Milestone 8, feature 4 of 12. Rides on: M8-13. Screen: `kit/specs/f-loop.json`.
+Part of Ouros, Milestone 8, feature 4 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Watching. The nudge card in Needs you stays.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -28,7 +28,7 @@ Corrected 2026-11-05: loop alarms are table stakes. Cline, Gemini CLI and OpenHa
 - [ ] M8-F4b. stop at 5.
 - [ ] M8-F4c. declared polling of a long run is exempt.
 - [ ] M8-F4d. false alarms are counted.
-- [ ] M8-F4e. The shipped screen matches `f-loop.json` and passes validate.mjs.
+- [ ] M8-F4e. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 

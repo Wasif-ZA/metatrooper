@@ -11,7 +11,7 @@ Status in scratch: later; keep/change/drop pending.
 
 ## What was designed
 
-- Drawn and held: lessons with proposals (f-lessons, after loops 1 and 2 are measured) and design revision compare (f-designdiff, a plugin capability).
+- Drawn and held: lessons with proposals (listed in Settings > Learning, after loops 1 and 2 are measured) and design revision compare (f-designdiff, a plugin capability).
 - Not drawn: memory settings (location 24, worktree sharing 19, off switch 6 reactions), run with parameters (157), plain-text notebooks that diff in git (143), anchored comments that survive PDF export (88), edit a past message and fork with code rewound (codex#2948, 85), per-project interpreter (27).
 - Plugins, not core: measure in the 3D view, read-only schematic and board viewer, simulation from the design tool.
 - Left out for good: unit-aware calculation, real-time collaboration.
@@ -22,7 +22,7 @@ Status in scratch: later; keep/change/drop pending.
 
 ## Acceptance criteria
 
-- [ ] M8-29a. f-lessons shows replay results and an "Auto-propose lessons" off switch.
+- [ ] M8-29a. Settings > Learning shows replay results and an "Auto-propose lessons" off switch.
 - [ ] M8-29b. Memory settings work without lessons.
 - [ ] M8-29c. Each held item stays out of the build until his keep and a measurement say so.
 

@@ -12,7 +12,7 @@ Part of Ouros, Milestone 8. Build step G5. Priority: Critical. Effort: not sized
 
 Only Ouros draws the needs-you colour or a real gate. An agent-drawn gate is a grey "<agent> asks you, not a gate" card. A real gate is answered with a single-use token for one exact action and hash.
 
-Feature screens folded in (kit/specs): `f-intent.json`.
+No screen: a decision card in Needs you, with toggles in Settings > Reliability > Asking.
 
 ## Blocked on
 
@@ -23,7 +23,7 @@ Feature screens folded in (kit/specs): `f-intent.json`.
 - [ ] M8-05a. An agent-drawn gate cannot resolve a real gate (test).
 - [ ] M8-05b. An event named "approve" from an agent surface reaches that agent as plain text only.
 - [ ] M8-05c. On agent surfaces the asker's name is the real agent, never the `from` it sends (spoofed-name test).
-- [ ] M8-05d. Clarify inside the plan gate (`f-intent`): only when the ambiguity changes what gets done, the plan gate offers two readings and lists the files it plans to touch; an edit outside that list is flagged.
+- [ ] M8-05d. Clarify inside the plan gate: only when the ambiguity changes what gets done, the plan gate offers two readings and lists the files it plans to touch; an edit outside that list is flagged.
 
 ## Rules that bind every child
 

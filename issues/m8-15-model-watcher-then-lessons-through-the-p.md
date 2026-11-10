@@ -12,7 +12,7 @@ Part of Ouros, Milestone 8. Build step G15. Priority: Low. Effort: not sized (si
 
 Last, because no study has tested lessons on one person's project over weeks. Read first: the replay gate in 2609.24130 and the skillbook in kayba-ai/agentic-context-engine (Apache-2.0).
 
-Feature screens folded in (kit/specs): `f-lessons.json`.
+No screen (decided 2026-11-10, D83). Lessons are listed in Settings > Learning.
 
 ## Blocked on
 
@@ -24,7 +24,7 @@ Feature screens folded in (kit/specs): `f-lessons.json`.
 - [ ] M8-15b. A lesson becomes active only after replay and his yes; replay re-runs the agent, never scores a cached transcript.
 - [ ] M8-15c. Removing a bad lesson by replay retires it and any lesson made from it.
 - [ ] M8-15d. A lesson that changes no step is dropped; a corrupt store stays untouched and goes read-only.
-- [ ] M8-15e. Lessons with proposals (`f-lessons`, held for later in FEATURE-LIST B) is drawn from this step's store.
+- [ ] M8-15e. Lessons with proposals (held for later in FEATURE-LIST B) are listed in Settings > Learning, read from this step's store.
 
 ## Rules that bind every child
 

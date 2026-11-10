@@ -37,7 +37,7 @@ The list below is kept as history:
 5. Only Ouros itself can draw orange or a real gate. An agent that tries gets a grey "asks you" card with its name on it.
 6. (Narrowed 2026-11-05, see above.) It is for anyone, not only developers. For any request (a trip, a shop's week, exam revision, a pull request) a screen maker researches how good apps show that kind of task, then builds the screen from the catalogue (section 6b).
 7. The main product is that Ouros grows with you (Wasif, 2026-10-30): it ships starting blocks, not finished apps, and gives you the ability to shape them to your own workflow. It changes slowly, in small steps you can undo (section 6d). The engines behind the blocks (section 5c) are plumbing.
-8. (Narrowed 2026-11-05, see above.) Scope cut (Wasif, 2026-10-30): building every engine and pipeline "may not be worth it". Built in: the most common workflows of engineers in general, and three loops by which agents fix their own mistakes. Everything else is an open-source plugin the user explores (section 6e).
+8. (Narrowed 2026-11-05, see above.) Scope cut (Wasif, 2026-10-30): building every engine and pipeline "may not be worth it". Built in: the most common workflows of engineers in general, and three loops by which agents fix their own mistakes (the loops run under the UI; their controls live in Settings, decided 2026-11-10). Everything else is an open-source plugin the user explores (section 6e).
 
 ## 1. The idea, and what Ouros copies
 
@@ -247,7 +247,7 @@ Three layers, applied in this order.
 
 - `density` changes spacing everywhere. `theme` picks one of the five themes. `hide` drops parts you never open. `reading` (plain or technical) tells screen makers which words to use. In the prototype, host.html applies density and theme, kit.js applies hide, and reading is not built.
 - `hide` can never remove gates, questions, hand-back lists, the pipeline bar or layout parts (tested).
-- Ouros may learn these from what you do: which parts you open, fold or scroll past; which density you set by hand. Each learned change is listed on the Learned page (round 4) with Undo, and is re-tested on past runs before it is kept (replay before keep).
+- Ouros may learn these from what you do: which parts you open, fold or scroll past; which density you set by hand. Each learned change is listed in Settings > Learning with Undo, and is re-tested on past runs before it is kept (replay before keep).
 - Ouros never learns away, on its own: the stop list, real gates, the needs-you colour, core chrome (explorer, editor, terminal, wall). This covers unasked profile learning only. A layout you asked for may hide core panes (section 6c), and so may a named layout learned from your requests.
 - How many observations it takes to learn a change, and what the replay must show, are set in G7. Until then every learned change is applied with Undo and dropped if the replay breaks a past run.
 
@@ -378,7 +378,7 @@ of task again opens your capability, not the starter.
   say yes.
 - At most one proposal is pending at a time, so the workspace never jumps.
 - Before a learned change is kept it is replayed on your past runs (6, replay before keep). It is listed on the
-  Learned page with Undo.
+  Settings > Learning with Undo.
 - What counts as "better" is only what you show: you kept it or undid it, you corrected it or not, the task finished.
   Measured on this machine; nothing is sent anywhere.
 
@@ -550,23 +550,26 @@ Model provider failures sit under all three loops:
 Checkpoints under all three: every agent turn is a checkpoint (private git refs, untracked files included; restore
 never deletes your ignored files), so any fix can be rewound. A checkpoint cannot undo what happened outside the
 workspace (a sent message, a deploy, a paid call). Tools are marked safe or unsafe to repeat; after a rewind or a
-crash, a long run resumes from its last step (f-runs) but never re-runs an unsafe tool call without asking you
+crash, a long run resumes from its last step (see Settings > Reliability > Long runs) but never re-runs an unsafe tool call without asking you
 (ACRFence: a retry after a restore can send a slightly different request and double a payment).
 
 **Order of build.** The budget, loop 1, the hash watcher and checkpoints first: cheap, and each can be measured on
 its own. The model watcher next, only if its logged nudges beat its cost. Loop 3 last, because no study has tested
 lessons on one person's project over weeks, which is exactly Ouros's setting.
 
-### Features that make the loops visible (2026-10-30)
+### Features that make the loops visible, and where they now live (2026-10-30, updated 2026-11-10)
 
-Twelve screens, drawn with the kit (specs/f-*.json, board ../NEWFEATURES.html, evidence in
-../../ouros-startpoint-2026-10-30/features/FEATURE-LIST.md, checked by Codex and by Gemini's eye):
-Done means proven (f-done), rewind preview and redo (f-rewind), repair ladder with a protected judge (f-ladder),
-progress-aware loop alarm (f-loop), clarify inside the plan gate (f-intent), your rules as checks (f-rules), find
-project information and revisions (f-find), long runs that survive (f-runs), live variables and DataFrames (f-data),
-plugin grants, updates and revocation (f-plugin), remembered, scoped tool access (f-toolaccess), outline for
-notebooks and reports (f-outline). Held for later: lessons with proposals (f-lessons) and design revision compare
-(f-designdiff).
+Twelve features were drawn with the kit (specs/f-*.json, board ../NEWFEATURES.html, evidence in
+../../ouros-startpoint-2026-10-30/features/FEATURE-LIST.md, checked by Codex and by Gemini's eye). Decided 2026-11-10:
+reliability features keep their behaviour and lose their screens.
+
+- Stays as a surface: find project information and revisions (f-find), live variables and DataFrames (f-data), outline
+  for notebooks and reports (f-outline), plugin grants, updates and revocation (f-plugin, as an install dialog).
+- Settings only, no screen: Done means proven (f-done), rewind preview and redo (f-rewind, a sheet from Undo), repair
+  ladder with a protected judge (f-ladder), progress-aware loop alarm (f-loop), clarify inside the plan gate (f-intent,
+  a decision card in Needs you), your rules as checks (f-rules), long runs that survive (f-runs), remembered, scoped
+  tool access (f-toolaccess), lessons with proposals (f-lessons).
+- Held for later: design revision compare (f-designdiff).
 
 ### Plugins: everything else
 
@@ -674,15 +677,15 @@ Host first: the kit is plain HTML and CSS, so it runs in a VSCodium webview or i
 | G4 | Panel, tile, inbox, status and phone zones | a zone matrix lists which parts each zone accepts (status: text, kbd, time; inbox: one line plus one action); a part a zone cannot hold folds to its first line with "open"; long tables, lists and queues show 50 rows with a "more" event; phone folds columns |
 | G5 | Source tagging tied to the real gate system | an agent-drawn gate cannot resolve a real gate (test) |
 | G6 | Templates mined from transcripts | 3 templates proposed from his own transcripts, each kept only after replay on past runs |
-| G7 | Learned profile | hide and density changes appear on the Learned page with Undo |
+| G7 | Learned profile | hide and density changes appear in Settings > Learning with Undo |
 | G8 | Streaming and data updates (A2UI style) | the binding from a `data` path to a part's prop is chosen and written here with one meter example; a half-sent screen draws; a token counter updates without resending parts |
 | G9 | Screen maker role + asset store | a non-developer request produces a validated screen with cited sources in under 15 minutes; a repeat request uses its template and skips research |
 | G10 | Catalogue proposals | a part wanted by 3 screens appears as a proposal with its props and the screens that asked; it ships only with tests in check.mjs |
 | G11 | `ouros_workspace` tool | each of the four example requests produces its layout; Undo restores the layout before the change and My usual restores your default, each in one key; a refused layout leaves the old one and names the reason; a waiting gate still shows while the agent panel is hidden |
 | G12 | Plugin runner + `ouros_engine` tool (sections 5c, 6e) | whisper captions fill a screening surface through `binds` with no agent re-send; a publish action stops at a real gate; a missing engine shows its install card |
-| G13 | Budget, loop 1, hash watcher, checkpoints (6e) | a failing test sends the agent back with the output; an edit to a protected test changes nothing; a retry rewinds files first; a run with no acceptance check ends as "needs your review"; every nudge is logged; a missing test runner is not a pass; a faked provider outage cools down, probes, and asks before any fallback; injected faults (timeout, malformed call, loop, crash mid-run) each end in the loop meant for them. Read first: cline checkpoints and loop-detection.ts (Apache-2.0), OpenHands stuck_detector.py (MIT), opencode tool-input-repair.ts and doom_loop (MIT) |
+| G13 | Budget, loop 1, hash watcher, checkpoints (6e) | a failing test sends the agent back with the output; an edit to a protected test changes nothing; a retry rewinds files first; a run with no acceptance check ends as "needs your review"; every nudge is logged; a missing test runner is not a pass; a faked provider outage cools down, probes, and asks before any fallback; injected faults (timeout, malformed call, loop, crash mid-run) each end in the loop meant for them; each control is a Settings entry. Read first: cline checkpoints and loop-detection.ts (Apache-2.0), OpenHands stuck_detector.py (MIT), opencode tool-input-repair.ts and doom_loop (MIT) |
 | G14 | Plugins: manifest, sandbox, Explore screen, index (6e) | an undeclared file or network access from a cli plugin is refused by the OS sandbox; a changed artifact hash asks you; a remote block disables a plugin and says why |
-| G15 | Model watcher, then lessons through the proposal flow (6e, 6d) | the model watcher stays only if its logged nudges beat its cost; a lesson becomes active only after replay and your yes; removing a bad lesson by replay retires it; a lesson that changes no step is dropped; a corrupt store stays untouched. Read first: the replay gate in 2609.24130 and the skillbook in kayba-ai/agentic-context-engine (Apache-2.0) |
+| G15 | Model watcher, then lessons through the proposal flow (6e, 6d) | the model watcher stays only if its logged nudges beat its cost; a lesson becomes active only after replay and your yes; removing a bad lesson by replay retires it; a lesson that changes no step is dropped; a corrupt store stays untouched; lessons are listed in Settings > Learning. Read first: the replay gate in 2609.24130 and the skillbook in kayba-ai/agentic-context-engine (Apache-2.0) |
 
 Tests per step: unit (check.mjs grows with every part), spec (validate.mjs over every saved screen), screenshot (shoot.mjs renders, compared by eye, then by snapshot). Rollback: every step is behind one setting; turning it off falls back to plain text in the panel.
 
@@ -713,3 +716,175 @@ Tests per step: unit (check.mjs grows with every part), spec (validate.mjs over 
 | ws.js, workspace.html, workspaces/*.json | the workspace as data: checker, layout drawer, four example layouts and five refusal cases |
 | gen_catalogue.mjs | writes CATALOGUE.md from kit.js |
 | host.html, spec-phone.html, gallery.html, shoot.mjs, board5.py | renders, shots, the board |
+
+
+## Core screens and Settings (2026-11-10)
+
+Decision D83 (spec.md): reliability features run under the UI. Each keeps its behaviour and acceptance criteria. It has a Settings entry and a log line, and a Needs-you item only when a person must act. Source: D-screens.md.
+
+### Core screens
+
+1. Home: say what you want, pick agent, project, branch, approval. Folds in the start box and the Today digest.
+2. IDE: editor, explorer, terminal, the agent panel with the nested reviewer.
+3. Wall: every agent on one screen, who needs you, across projects.
+4. Review: changed files, line comments, commit, push, open PR.
+5. Browser: agent browser with holder, Stop and Take over, point at an element, dev-server tab.
+6. Needs you: gates, decisions, digest. The one place self-healing may call the person.
+7. Plain job view: the same run as steps with no code, "Show the code".
+8. Add-ons: browse, install, update, revoke plugins, skills, MCP.
+9. Settings: every moved reliability feature, plus appearance, keys and History.
+10. Tasks (his call): GitHub issues with a Start button.
+
+Chrome that stays: title bar, status bar (carries "N healed"), command palette, agent list drawer, Usage popover, menus, toasts.
+
+### Settings tree
+
+General
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Ask before each tool call | select: Ask / Auto mode in Ouros worktrees | Ask (recommended) | settings.sessions.approval |
+| Always ask for these paths | list of paths | empty | settings.sessions.ask_paths |
+| Use the metarouter | toggle | on | settings.sessions.metarouter |
+| Default project | folder | none | settings.projects.default |
+| Start on | select: Home / IDE / Wall | open call | M8-F13 |
+
+Appearance and keys
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Theme | select (7 themes) | Dither | settings.ui.theme; M7-15 |
+| Working indicator | select: Sparkline / Equaliser | Sparkline | palette item |
+| Tile header colour | select | current | M7-16 |
+| Density | select | Default | M8-7 |
+| Customize Look presets | select: Quiet / Default; reset; import from VS Code, Zed, JetBrains | Default | M8-19, M8-20 |
+| Terminal font size, scrollback | number | 13, 10000 | settings.terminal.* |
+| Keybindings | table | defaults | M7-12 |
+
+Reliability
+
+| Subsection | Label | Control | Default | From |
+|---|---|---|---|---|
+| Finishing | Say "done" only when a check passed | toggle (fail closed) | on | M8-F1 |
+| Finishing | Wording of the result | select: "Agreed checks passed" / "Done" | open call | M8-F1 |
+| Finishing | Acceptance check command (per project) | text | none = "Needs your review" | M8-13d |
+| Finishing | Show what was not checked | toggle | on | spec.md open call |
+| Repair | Fix failing checks automatically | toggle | on | M8-F3 |
+| Repair | Most tries | number | 3 | section 6e (Aider cap) |
+| Repair | Last try uses a stronger model | toggle, model select | on | section 6e |
+| Repair | Protect tests, check configs and logging from agent edits | toggle | on | M8-13b |
+| Repair | Rewind files before each retry | toggle | on | M8-13c |
+| Watching | Loop alarm | toggle | on | M8-F4 |
+| Watching | Nudge after N identical calls | number | 3 | M8-F4a |
+| Watching | Stop after N identical calls | number | 5 | M8-F4b |
+| Watching | Treat declared polling as progress | toggle | on | M8-F4c |
+| Watching | Send a recovery message before stopping | toggle | on | section 6e |
+| Watching | Model watcher (small second model) | toggle, model select | off until logged nudges beat its cost | M8-15a |
+| Watching | False alarms so far | read-only count | 0 | M8-F4d |
+| Budgets | Time limit per run | number, minutes | set at build | section 6e |
+| Budgets | Token limit per run | number | set at build (demo used 200k) | M8-13, M8-23 |
+| Budgets | Timeout per check | number, seconds | set at build | section 6e |
+| Budgets | Note at this share of budget | number % | 80 | M8-23e |
+| Budgets | At 100% | fixed: ask me | ask (gate) | M8-23e |
+| Provider errors | Retries before giving up | number | 5 | M8-23 |
+| Provider errors | Ask before switching to another model | toggle, locked on | on | section 6e |
+| Provider errors | Pause a failing provider (cooldown) | number, seconds | set at build | section 6e |
+| Checks | Run checks after every edit | toggle | on | section 6e |
+| Checks | Repair malformed tool calls and show each repair | toggle | on | section 6e |
+| Checks | Warn before compacting or switching model (cache re-bill) | toggle | on | section 6e |
+| Checks | Force compaction | none: never forced | n/a | M8-23f |
+| Asking | Ask when a request can mean two things | toggle | on | M8-F5a |
+| Asking | Flag edits outside the planned files | toggle | on | M8-F5b |
+| Long runs | Keep runs going when Ouros closes | toggle | on | M8-F8a |
+| Long runs | Resume after a crash or close | toggle | on | M8-23c |
+| Long runs | Ask before re-running sends and deploys | toggle, locked on | on | M8-23d |
+| Long runs | At a usage limit reset, carry on | toggle | off | M6-24 |
+| Long runs | Tell me when a long run finishes | toggle | on | M8-F8b |
+| Undo and checkpoints | Checkpoint | select: every turn / every run | every turn per 6e; open call | M8-F2 |
+| Undo and checkpoints | Keep checkpoints for | number, days | set at build | M8-F2 |
+| Your rules | Rules list with what enforces each and caught counts | list | empty | M8-F6 |
+| Visibility | Show what Ouros fixed on its own | toggle | on | M8-23 |
+| Visibility | "N healed" in the status bar | toggle | on | M8-23 |
+
+Learning
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Learn from my corrections | toggle | off until measured (proposed) | M8-15 |
+| Auto-propose lessons | toggle | off | M8-29a |
+| Replay a lesson on how many past runs | number | 5 | section 6d |
+| Learn my layout and density | toggle | on, one pending proposal at a time | M8-7c |
+| Let Ouros adapt the layout | toggle (confidence floor) | on | M8-35 |
+| What Ouros learned | list with Undo per row | empty | M8-7a |
+| Export lessons to AGENTS.md | button | n/a | section 6d |
+| Lesson store state | read-only status | ok | section 6d |
+
+Savings
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Shrink shell output | toggle | off | settings.savers.shrink_shell |
+| Lean handoffs | toggle | off | settings.savers.lean_handoffs |
+| Smaller screenshots | toggle | off | settings.savers.small_screenshots |
+| Cheapest model per step | toggle | off | settings.savers.cheap_model |
+| Show repeat-read note on Usage | toggle | on | M8-24c |
+
+Safety and permissions
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Gate list (A1-A9) | read-only list | fixed | M8-21 |
+| Suggest demoting a gate I always allow | toggle | off, open call | M8-21 |
+| Hold edits to hooks, task files and agent configs for approval | toggle | on | M8-13g |
+| Tool access per tool, per project, subagents column | table (allow / ask / deny) | ask | M8-F11 |
+| Allowed browser origins | list | empty | settings.browser.allow_origins |
+| Take-over key | key | Control+Alt+Q | settings.desktop.takeover_key |
+| Pause when I touch the desktop | toggle | on | settings.desktop.watch_pause |
+| Never repeat an unverified desktop action | toggle, locked on | on | M8-40 |
+
+Add-ons
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Ask before every plugin update | toggle, locked on | on | M8-F10c |
+| Remote block list | toggle | on | M8-14c |
+| Second-model review before hand-back | toggle, model select | off, cost shown first | M8-F17 |
+
+Notifications
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Sinks (Slack, ntfy, webhook) | list | empty | M5-15 |
+| Events sent | multi-select of 12 kinds | gate, handoff, run-failed, budget, missing-secret, approval | M5-15 |
+| Push to my phone | select: needs-you only / plus finished | open call | M8-F23 |
+
+Activity
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Audit trail (who did what and why) | read-only list | n/a | M8-F21 |
+| Agent scorecard | read-only table | "not enough runs" under 5 | M8-45d |
+| Open logs folder | button | n/a | palette item |
+
+Advanced
+
+| Label | Control | Default | From |
+|---|---|---|---|
+| Pin the Ouros prompts and loop settings; show a diff on update | toggle | proposed on | section 6e |
+| Restart core / Stop core | buttons with confirm | n/a | palette items |
+| Worktree: run npm ci, stale days | toggle, number | on, 7 | settings.worktree.* |
+
+### Open calls (his)
+
+- Rewind: keep a small restore preview sheet, or no preview at all (the file list becomes a log entry).
+- Rewind checkpoint: a snapshot per run or per turn (spec.md open call).
+- Tool access, audit trail, scorecard, notification sinks, phone push: confirm he counts them as Settings tables.
+- Learned page: profile and lessons shown as one list in Settings > Learning, or two.
+- Usage: stays a title-bar popover, or becomes a full page.
+- Home, Today, Start screen and New agent: merged into one Home. M8-F13 line 18 says Today is separate.
+- Tasks (n11): built in, or a plugin. Without it the core list is nine.
+- Runs by itself (n13) and Notch: post-launch, or fold n13 into the Wall.
+- History panel: folded into the agent list drawer, or a separate panel as M7-12 specs.
+- Report verify (verify.json): classed as an add-on, his look.
+- Spec conflict: M8-17 line 17 says wall tile footers never show cost; M8-23 line 16 shows "164k of 200k tokens" in the tile footer.
+- Spec conflict: M8-F13 line 18 says Home is not the Today screen, while Home and Today overlap.

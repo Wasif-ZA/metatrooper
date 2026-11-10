@@ -1,4 +1,4 @@
-# M8-7: Learned profile and the "What Ouros learned" page
+# M8-7: Learned profile and its "What Ouros learned" list in Settings > Learning
 
 Part of Ouros, Milestone 8. Build step G7. Priority: Medium. Effort: not sized (sized after M8-0). Depends on: M8-6.
 **Start on or after 2026-11-09.**
@@ -14,7 +14,7 @@ Density, theme and parts he never opens. Every learned change has Undo and is re
 
 ## Acceptance criteria
 
-- [ ] M8-07a. Hide and density changes appear on the Learned page with Undo.
+- [ ] M8-07a. Hide and density changes appear in Settings > Learning with Undo.
 - [ ] M8-07b. A profile cannot hide gate, choice, handback, pipe or layout parts (hidden-gate test).
 - [ ] M8-07c. One pending proposal at a time; nothing changes without his yes.
 

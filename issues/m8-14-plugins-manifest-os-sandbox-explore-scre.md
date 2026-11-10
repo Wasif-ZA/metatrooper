@@ -12,7 +12,7 @@ Part of Ouros, Milestone 8. Build step G14. Priority: High. Effort: not sized (s
 
 Installed means off. cli and mcp plugins run in an OS sandbox from their declared capabilities; wasm plugins in a WebAssembly host. Every new artifact hash is an update you approve.
 
-Feature screens folded in (kit/specs): `f-plugin.json`, `f-toolaccess.json`.
+Feature screens folded in (kit/specs): `f-plugin.json` (install dialog). Tool access has no screen: it is a table in Settings > Safety.
 
 2026-11-05: new list and detail screen `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n08-plugins.json`. This also owns the board rows "Skills and MCP connections" and, with M8-12, "Website builder, video cutter, spreadsheet, part designer and others".
 
@@ -27,7 +27,7 @@ Feature screens folded in (kit/specs): `f-plugin.json`, `f-toolaccess.json`.
 - [ ] M8-14c. A remote block disables a plugin and says why.
 - [ ] M8-14d. Ouros runs the approved binary by hash, never by a PATH lookup.
 - [ ] M8-14e. Plugin grants, updates and revocation (`f-plugin`): the install sheet shows enforced grants and the text a plugin adds.
-- [ ] M8-14f. Remembered, scoped tool access (`f-toolaccess`): allow, ask or deny per tool, per project, with a separate subagent column; the stop list still asks every time.
+- [ ] M8-14f. Remembered, scoped tool access (a table in Settings > Safety): allow, ask or deny per tool, per project, with a separate subagent column; the stop list still asks every time.
 
 ## Rules that bind every child
 

@@ -1,6 +1,6 @@
 # M8-F5: Clarify inside the plan gate
 
-Part of Ouros, Milestone 8, feature 5 of 12. Rides on: M8-5. Screen: `kit/specs/f-intent.json`.
+Part of Ouros, Milestone 8, feature 5 of 12. Rides on: M8-5. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Asking. The decision card in Needs you stays.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -24,7 +24,7 @@ misread intent 26.95% of validated pushback episodes; agents ask in about 3% of 
 
 - [ ] M8-F5a. Only when the ambiguity changes what gets done: the plan offers two readings and lists the files it plans to touch.
 - [ ] M8-F5b. edits outside are flagged.
-- [ ] M8-F5c. The shipped screen matches `f-intent.json` and passes validate.mjs.
+- [ ] M8-F5c. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 

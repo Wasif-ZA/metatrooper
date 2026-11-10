@@ -1,6 +1,6 @@
 # M8-F2: Rewind preview and redo
 
-Part of Ouros, Milestone 8, feature 2 of 12. Rides on: M8-13. Screen: `kit/specs/f-rewind.json`.
+Part of Ouros, Milestone 8, feature 2 of 12. Rides on: M8-13. Screen: a sheet from Undo, no screen (decided 2026-11-10, D83). Checkpoint policy is in Settings > Undo and checkpoints.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -18,7 +18,7 @@ Codex /undo 541 reactions, /rewind 231; Claude Code undo 178; /rewind silently f
 
 Rewind with files is matched by rivals: opencode, Gemini CLI, Cline, Conductor and Replit have it (RIVALS.md row 3). It is expected, not a difference.
 
-New screen, 2026-11-05: `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n23-rewind.json`, shot `proto/shots/r-rewind.png`. It follows Google Docs version history, and Restore and Show changes follow Google Slides history. It replaces `f-rewind.json` as the layout. Also in the wip repo at `ouros/direction`.
+New sheet layout, 2026-11-05: `~/.cache/claude-scratch/ouros-direction-2026-11-05/proto/kit/workspaces/n23-rewind.json`, shot `proto/shots/r-rewind.png`. It follows Google Docs version history, and Restore and Show changes follow Google Slides history. It replaces `f-rewind.json` as the layout. Also in the wip repo at `ouros/direction`.
 
 ## Blocked on
 
@@ -31,7 +31,7 @@ New screen, 2026-11-05: `~/.cache/claude-scratch/ouros-direction-2026-11-05/prot
 - [ ] M8-F2b. stops on files changed since the checkpoint.
 - [ ] M8-F2c. lessons and exported instructions from the run are rolled back in the same step.
 - [ ] M8-F2d. redo until your next message.
-- [ ] M8-F2e. The shipped screen matches `f-rewind.json` and passes validate.mjs.
+- [ ] M8-F2e. The restore preview sheet matches `n23-rewind.json` and passes validate.mjs.
 
 ## Rules that bind every child
 

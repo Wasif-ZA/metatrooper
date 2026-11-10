@@ -114,6 +114,7 @@ for the free app), M5-D29 (sandbox runs code, not agents). M5-D24 (Hyper-V VM) i
 | D80 | CodeMirror 6 star-gate waiver | Wasif, 2026-10-12: CodeMirror 6 is the editor for M7-9 although `codemirror/dev` has 7.8k stars against the 25k gate; the project's `codemirror5` repo has 27.2k and the licence is MIT. It needs no web workers, so the renderer CSP stays as it is, and it is vendored as one committed esbuild bundle like `vendor/gsap.min.js`. Monaco (46.9k, about 1.4 MB gz, needs workers) is the fallback. This is a dependency line D77 left unspecced, added here by Wasif's explicit choice |
 | D81 | Wall repairs before the freeze | Wasif, 2026-10-12, in a /spec session from the UI research (`~/.cache/claude-scratch/metatrooper-ui-research-2026-10-12/report.html`): repairs to existing UI go in Milestone 6; the new History and Settings panels go to M7. Undo for hide is a 7 s delay in the renderer, with no `session.unhide` in the core. The tile x never shows on a live agent (M6-27, Critical, never slips). The other repairs are one child, M6-26, High, first on the slip list because the 81-day plan has no slack |
 | D82 | Session launcher in Rust | Wasif, 2026-10-12, after a memory check (19.6 GB in use, about 8.3 GB of it Codex processes left by closed sessions): `launch.js` becomes a Rust binary on Windows that puts each session in a job object ending every descendant on close (M7-10). It is the only Rust in the product; D10 stands for the core and the workbench. A Rust core was weighed and dropped: 8,987 lines at about 250 lines per CC day is 25 to 40 CC days for about 137 MB. The new binary joins the M5-2 signing step. If the M7-10 spike shows a detached broker survives the job, the folder sweep in `issues/m7-10-session-launcher.md` replaces it. |
+| D83 | Reliability features have no screens | Wasif, 2026-11-10: "Proven until done ... yes that is a feature that I do want, but it doesn't need to have a screen for it. So for all the self-healing things, remove those and just put them underneath the UI so that you can still see it in the options and in the settings, but you don't actually need to see those screens." Every self-healing and reliability feature keeps its behaviour, spec row and acceptance criteria. Its screen goes. It gets a Settings entry, a log line, and a Needs-you item only when a person must act. Drawback: less visible proof of what Ouros fixed, mitigated by the "N healed" status item and the log. |
 
 ## Current state, verified 2026-10-10
 
@@ -1481,8 +1482,9 @@ Checks:
 Specced 2026-10-31 from the scratch design rounds of 2026-10-30. Ouros is MetaTrooper's second release: an IDE that
 looks like VS Code, adapts to the user's old IDE, and morphs on request from a fixed catalogue of 124 parts. The
 binding spec is `ouros-spec.md`; each child below is one build step (G0 to G15 in its section 9) plus M8-16, added
-because no G step owned the workflow screens for rows 2, 7 and 8. Feature screens (`kit/specs/f-*.json`) are folded
-into the step that builds them. Effort is not sized until M8-0 picks the host. Nothing here starts before 2026-11-09.
+because no G step owned the workflow screens for rows 2, 7 and 8. Reliability features (f-done, f-rewind, f-ladder, f-loop, f-intent, f-rules, f-runs, f-lessons, f-toolaccess) have
+no screen: each keeps its behaviour and is a Settings entry (decided 2026-11-10, D83). Only f-find, f-data, f-outline
+and f-plugin keep a surface. Effort is not sized until M8-0 picks the host. Nothing here starts before 2026-11-09.
 
 ### Direction, 2026-11-05 (Wasif, approving the screens)
 
@@ -1520,9 +1522,9 @@ Screens he approved: scratch `~/.cache/claude-scratch/ouros-direction-2026-11-05
 | M8-10 | Catalogue proposals | G10 | Low | M8-9 | - |
 | M8-11 | ouros_workspace tool: the agent reshapes the IDE | G11 | High | M8-4 | - |
 | M8-12 | Plugin runner and the ouros_engine tool | G12 | Medium | M8-14 | - |
-| M8-13 | Run budget, loop 1, hash watcher and checkpoints | G13 | Critical | M8-3 | f-done, f-rewind, f-ladder, f-loop, f-rules, f-runs |
-| M8-14 | Plugins: manifest, OS sandbox, Explore screen, index | G14 | High | M8-13 | f-plugin, f-toolaccess |
-| M8-15 | Model watcher, then lessons through the proposal flow | G15 | Low | M8-13, M8-7 | f-lessons |
+| M8-13 | Run budget, loop 1, hash watcher and checkpoints | G13 | Critical | M8-3 | - (Settings entries, no screens) |
+| M8-14 | Plugins: manifest, OS sandbox, Explore screen, index | G14 | High | M8-13 | f-plugin (install dialog; tool access is in Settings > Safety) |
+| M8-15 | Model watcher, then lessons through the proposal flow | G15 | Low | M8-13, M8-7 | - (Settings > Learning) |
 | M8-16 | Built-in workflows: find, live data, outline | added | Medium | M8-4 | f-find, f-data, f-outline |
 | M8-17 | Core IDE shell: Void layout, IDE \| WALL switch, status bar | IDE | Critical | M8-0 | - |
 | M8-18 | Editor and navigation that know about agents | IDE | High | M8-17 | - |
@@ -1530,13 +1532,13 @@ Screens he approved: scratch `~/.cache/claude-scratch/ouros-direction-2026-11-05
 | M8-20 | Adapt to your old IDE: settings, keymap, layout, instructions, run configs | IDE | High | M8-17, M8-7 | - |
 | M8-21 | Gate policy: true gates, decisions and log lines | IDE | Critical | none | - |
 | M8-22 | Needs-you inbox, shared gate and checkpoint rewind | IDE | High | M8-21, M8-17 | - |
-| M8-23 | Self-healing, resume and run health on screen | IDE | High | M8-13 | - |
-| M8-24 | Usage page and token savers | IDE | Medium | M8-17 | - |
+| M8-23 | Self-healing, resume and run health, shown in the thread, status bar and Settings | IDE | High | M8-13 | - |
+| M8-24 | Usage popover and token savers (in Settings) | IDE | Medium | M8-17 | - |
 | M8-25 | Parallel agents: worktree per agent and collision warnings | IDE | High | M8-17 | - |
 | M8-26 | Agent workflow additions from the top-12 research | IDE | Medium | M8-17, M8-3 | - |
 | M8-27 | Phone app (after desktop Ouros) | phone | Low | M8-4, M8-22 | - |
 | M8-28 | Built-in workflow screens: fix, build, git and hand-back, refactor, tests and docs | kit | High | M8-2, M8-4 | p-*.json |
-| M8-29 | Smaller and later features (feature list section B) | later | Low | M8-15 | f-lessons, f-designdiff |
+| M8-29 | Smaller and later features (feature list section B) | later | Low | M8-15 | f-designdiff |
 | M8-30 | Della: one local index, find by meaning | Della | Medium | M8-1 | - |
 | M8-31 | Della: tidy with link fixing, one journal, honest undo | Della | Medium | M8-30 | - |
 | M8-32 | Della standalone window: browse, find, start panel, rendered preview | Della | Low | M8-30 | - |
@@ -1552,7 +1554,7 @@ Screens he approved: scratch `~/.cache/claude-scratch/ouros-direction-2026-11-05
 | M8-42 | Browser engines: one default per job, and a headless tier | browser use | Medium | M8-14, M8-41 | - |
 | M8-43 | Model defaults for computer use and browser use | models | Low | M8-38 | - |
 | M8-44 | One-step Windows installer for Ouros (points at M5-1) | core | High | M8-0, M8-37, M5-1 | - |
-| M8-45 | Agent scorecard | core | Medium | M8-13, M8-F1, M8-24 | - |
+| M8-45 | Agent scorecard (a Settings > Activity table, not a page) | core | Medium | M8-13, M8-F1, M8-24 | - |
 | M8-46 | Design system: ds.css tokens, and the library choice | kit | High | M8-0, M8-1 | - |
 | M8-47 | CLI agents can drive | core | Medium | M8-37, M6-17 | - |
 | M8-48 | Parked board rows: on the list, not built | later | Low | none | - |
@@ -1566,25 +1568,25 @@ M8-13 (the product core) with M8-22 and M8-23, then M8-18 to M8-20, M8-11 and M8
 
 Order note, 2026-11-05: core services first, as he said. The order above stands, and this only says which work wins a tie.
 
-- Core services: run any agent (built), safe browser and desktop (built, Windows), one-step install (M8-44), agreed checks (M8-13, M8-F1, M8-F3), cost per task (M8-13, M8-24).
-- Then the IDE and what builds on it: the IDE (M8-0, M8-17), undo a run (M8-22, M8-F2), plain view (M8-F15), optional second model (M8-F17), scorecard (M8-45).
+- Core services: run any agent (built), safe browser and desktop (built, Windows), one-step install (M8-44), agreed checks (M8-13, M8-F1, M8-F3), cost per task (M8-13, M8-24). These run under the UI and have settings only.
+- Then the IDE and what builds on it: the IDE (M8-0, M8-17), undo a run (M8-22, M8-F2; undo stays an action and its preview is a sheet), plain view (M8-F15), optional second model (M8-F17), scorecard (M8-45).
 - After launch: M8-J1 to M8-J8, M8-48.
 
 ### Features (one issue each, built inside the step they ride on)
 
 | # | Feature | Rides on | Screen |
 |---|---|---|---|
-| M8-F1 | Done means proven | M8-13 | `f-done` |
-| M8-F2 | Rewind preview and redo | M8-13 | `f-rewind` |
-| M8-F3 | Repair ladder with a protected judge | M8-13 | `f-ladder` |
-| M8-F4 | Progress-aware loop alarm | M8-13 | `f-loop` |
-| M8-F5 | Clarify inside the plan gate | M8-5 | `f-intent` |
-| M8-F6 | Your rules as checks | M8-13 | `f-rules` |
+| M8-F1 | Done means proven | M8-13 | none (Settings > Reliability > Finishing) |
+| M8-F2 | Rewind preview and redo | M8-13 | sheet from Undo (Settings > Undo and checkpoints) |
+| M8-F3 | Repair ladder with a protected judge | M8-13 | none (Settings > Reliability > Repair) |
+| M8-F4 | Progress-aware loop alarm | M8-13 | none (Settings > Reliability > Watching) |
+| M8-F5 | Clarify inside the plan gate | M8-5 | decision card in Needs you (Settings > Reliability > Asking) |
+| M8-F6 | Your rules as checks | M8-13 | Settings > Reliability > Your rules |
 | M8-F7 | Find project information and revisions | M8-16 | `f-find` |
-| M8-F8 | Long runs that survive | M8-13 | `f-runs` |
+| M8-F8 | Long runs that survive | M8-13 | none (Settings > Reliability > Long runs) |
 | M8-F9 | Live variables and DataFrames | M8-16 | `f-data` |
-| M8-F10 | Plugin grants, updates and revocation | M8-14 | `f-plugin` |
-| M8-F11 | Remembered, scoped tool access | M8-14 | `f-toolaccess` |
+| M8-F10 | Plugin grants, updates and revocation | M8-14 | install dialog in Add-ons |
+| M8-F11 | Remembered, scoped tool access | M8-14 | Settings > Safety > Tool access |
 | M8-F12 | Outline for notebooks and reports | M8-16 | `f-outline` |
 | M8-F13 | Home mode, starter tasks, and the Home, IDE, Wall switch | M8-17 | `n01-home-anyone` |
 | M8-F14 | Start box with choice chips | M8-17, M8-25 | `n02-start-dev` |
@@ -1622,8 +1624,8 @@ His words, 2026-11-05: job screens "will come after post launch". Each is a draw
   watcher): M8-11, M8-16, M8-14, M8-15.
 - ENGINES.html 5 calls (linked libs failing the gate, bundle vs user-install, FreeCAD vs build123d, cross-origin
   isolation, social posting): M8-12.
-- NEWFEATURES.html keep/change/drop on the 12 drawn features: M8-5, M8-13, M8-14, M8-16.
-- Deep-dive calls (provider fallback, honest abort, fresh reviewer, pinned defaults): M8-13.
+- NEWFEATURES.html keep/change/drop on the 12 drawn features: M8-5, M8-13, M8-14, M8-16. Decided 2026-11-10: nine of the twelve lose their screen.
+- Deep-dive calls (provider fallback, honest abort, fresh reviewer, pinned defaults): M8-13. Each becomes a Settings default.
 - PHONE.html round 2 verdict and its 3 calls: the phone zone in M8-4, and M8-27.
 - STATE.html gate-demotion call (may an always-allowed gate become a log line?): M8-21, M8-22, M8-5.
 - Della calls C1 to C6 and F1-F14 / N1-N4 yes/no (ouros-explorer BOARD.html): M8-30 to M8-34.
@@ -1636,9 +1638,9 @@ Added 2026-11-05. These are his calls, not new work. The first four come from RI
 - A sandbox for agents' code. Claude Code, Codex and Antigravity have one. Ouros sandboxes plugins only.
 - macOS. Conductor, Orca, T3, Paradev, Nimbalyst, Claude and Codex run there. Ouros does not.
 - ACP support. Zed, Air and Devin Desktop have it. RIVALS.md found no mention, but M8-26 already lists "add any ACP agent". He decides if that stays.
-- Wording: "Agreed checks passed" plus a list of what was not checked, in place of "Done" or "proven" (CORE.html, Codex's point): M8-F1.
+- Wording: "Agreed checks passed" plus a list of what was not checked, in place of "Done" or "proven" (CORE.html, Codex's point): M8-F1. It is now a Settings select, "Wording of the result".
 - Reshape by asking: CORE.html lists it after launch, and M8-11 is High in the order above. The order stands until he says: M8-11.
-- Undo: a snapshot per run first (CORE.html), or every turn (6e): M8-F2, M8-13.
+- Undo: a snapshot per run first (CORE.html), or every turn (6e): M8-F2, M8-13. It is now a Settings select, "Checkpoint".
 - Installer against D72 and D50, which hold it for real users and forbid an unsigned public one: M8-44.
 - Publish and deploy, built in or a plugin. 6e leaves deploy out: M8-F15, M8-F18.
 - `ds.css` tokens and 12 px cards against M8-34's values and its "no 8px rounded cards": M8-46.

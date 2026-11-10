@@ -1,6 +1,6 @@
 # M8-F6: Your rules as checks
 
-Part of Ouros, Milestone 8, feature 6 of 12. Rides on: M8-13. Screen: `kit/specs/f-rules.json`.
+Part of Ouros, Milestone 8, feature 6 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Your rules.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -24,7 +24,7 @@ constraint violation 38.33% of validated pushback episodes, 73.68% of those inst
 
 - [ ] M8-F6a. Each rule shows what enforces it (hook, lint, lockfile diff) or that it is only read.
 - [ ] M8-F6b. caught counts.
-- [ ] M8-F6c. The shipped screen matches `f-rules.json` and passes validate.mjs.
+- [ ] M8-F6c. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 

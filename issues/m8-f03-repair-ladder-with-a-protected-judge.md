@@ -1,6 +1,6 @@
 # M8-F3: Repair ladder with a protected judge
 
-Part of Ouros, Milestone 8, feature 3 of 12. Rides on: M8-13. Screen: `kit/specs/f-ladder.json`.
+Part of Ouros, Milestone 8, feature 3 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Repair.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -25,7 +25,7 @@ Tries 1 to 3, each after a rewind and a fresh start, the last on a stronger mode
 - [ ] M8-F3a. Tries 1 to 3, each after a rewind and a fresh start, the last on a stronger model.
 - [ ] M8-F3b. tests, check configs and logging are protected.
 - [ ] M8-F3c. a wanted test change goes to its own review.
-- [ ] M8-F3d. The shipped screen matches `f-ladder.json` and passes validate.mjs.
+- [ ] M8-F3d. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 

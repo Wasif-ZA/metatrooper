@@ -28,7 +28,7 @@ Status in scratch: approved in principle (FEATURES.md #12); mechanics new here.
 - [ ] M8-20b. Unmapped keys are listed as skipped.
 - [ ] M8-20c. A chord bound only in the old IDE shows exactly one toast.
 - [ ] M8-20d. tasks.json entries appear as agent verbs behind a gate.
-- [ ] M8-20e. Every import can be undone from the Learned page.
+- [ ] M8-20e. Every import can be undone from Settings > Learning.
 
 ## Rules that bind every child
 

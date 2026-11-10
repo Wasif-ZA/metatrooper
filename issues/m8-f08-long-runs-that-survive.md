@@ -1,6 +1,6 @@
 # M8-F8: Long runs that survive
 
-Part of Ouros, Milestone 8, feature 8 of 12. Rides on: M8-13. Screen: `kit/specs/f-runs.json`.
+Part of Ouros, Milestone 8, feature 8 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). Settings > Reliability > Long runs.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -25,7 +25,7 @@ persistent kernels 408 (top vscode-jupyter issue); reconnect 250 and 121; keep r
 - [ ] M8-F8a. Runs keep going when Ouros closes.
 - [ ] M8-F8b. reattach, stop queued, notify.
 - [ ] M8-F8c. output kept.
-- [ ] M8-F8d. The shipped screen matches `f-runs.json` and passes validate.mjs.
+- [ ] M8-F8d. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 

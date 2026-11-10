@@ -12,7 +12,7 @@ Part of Ouros, Milestone 8. Build step G13. Priority: Critical. Effort: not size
 
 The product core: agents fix their own mistakes. Built first because each part is cheap and measurable alone. Read first: cline checkpoints and loop-detection.ts (Apache-2.0), OpenHands stuck_detector.py (MIT), opencode tool-input-repair.ts and doom_loop (MIT).
 
-Feature screens folded in (kit/specs): `f-done.json`, `f-rewind.json`, `f-ladder.json`, `f-loop.json`, `f-rules.json`, `f-runs.json`.
+No screens (decided 2026-11-10, D83). Settings entries: see ouros-spec.md, Settings tree, Reliability.
 
 ## Blocked on
 
@@ -27,12 +27,12 @@ Feature screens folded in (kit/specs): `f-done.json`, `f-rewind.json`, `f-ladder
 - [ ] M8-13e. Every nudge is logged; a faked provider outage cools down, probes, and asks before any fallback.
 - [ ] M8-13f. Injected faults (timeout, malformed call, loop, crash mid-run) each end in the loop meant for them.
 - [ ] M8-13g. An agent write to a file another tool executes (hooks, .vscode/tasks.json, MCP configs) stays inactive until approved.
-- [ ] M8-13h. Done means proven (`f-done`): a run ends as Done, Checks passed or Needs your review; Done is bound to revision, command, environment and the acceptance check, and cleared by any later edit.
-- [ ] M8-13i. Rewind preview and redo (`f-rewind`): each file listed as reverted, skipped or unknown; stops on files changed since the checkpoint; redo until the next message.
-- [ ] M8-13j. Repair ladder (`f-ladder`): tries 1 to 3, each after a rewind; the last may use a stronger model; a wanted test change goes to its own review.
-- [ ] M8-13k. Progress-aware loop alarm (`f-loop`): nudge at 3 identical calls with no new output, stop at 5; declared polling exempt; false alarms counted.
-- [ ] M8-13l. Your rules as checks (`f-rules`): each rule shows what enforces it or that it is only read, with a caught count.
-- [ ] M8-13m. Long runs that survive (`f-runs`): runs keep going when Ouros closes; reattach; never re-run an unsafe tool call without asking.
+- [ ] M8-13h. Done means proven: a run ends as Done, Checks passed or Needs your review; Done is bound to revision, command, environment and the acceptance check, and cleared by any later edit. The toggle and the acceptance command are in Settings > Reliability > Finishing.
+- [ ] M8-13i. Rewind preview and redo (a sheet from Undo, not a screen): each file listed as reverted, skipped or unknown; stops on files changed since the checkpoint; redo until the next message.
+- [ ] M8-13j. Repair ladder: tries 1 to 3, each after a rewind; the last may use a stronger model; a wanted test change goes to its own review. Settings > Reliability > Repair.
+- [ ] M8-13k. Progress-aware loop alarm: nudge at 3 identical calls with no new output, stop at 5; declared polling exempt; false alarms counted. The thresholds are in Settings > Reliability > Watching.
+- [ ] M8-13l. Your rules as checks: each rule is listed in Settings > Reliability > Your rules with what enforces it or that it is only read, and a caught count.
+- [ ] M8-13m. Long runs that survive: runs keep going when Ouros closes; reattach; never re-run an unsafe tool call without asking.
 
 ## Rules that bind every child
 

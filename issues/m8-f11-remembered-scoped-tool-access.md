@@ -1,6 +1,6 @@
 # M8-F11: Remembered, scoped tool access
 
-Part of Ouros, Milestone 8, feature 11 of 12. Rides on: M8-14. Screen: `kit/specs/f-toolaccess.json`.
+Part of Ouros, Milestone 8, feature 11 of 12. Rides on: M8-14. Screen: none (decided 2026-11-10, D83). Settings > Safety > Tool access.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -24,7 +24,7 @@ subagent-only MCP 377 reactions; per-tool filtering 225; excessive approval prom
 
 - [ ] M8-F11a. Allow, ask or deny per tool, per project, with a separate column for subagents.
 - [ ] M8-F11b. the stop list still asks every time.
-- [ ] M8-F11c. The shipped screen matches `f-toolaccess.json` and passes validate.mjs.
+- [ ] M8-F11c. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 

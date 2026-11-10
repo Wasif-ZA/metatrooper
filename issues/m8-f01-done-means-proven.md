@@ -1,6 +1,6 @@
 # M8-F1: Done means proven
 
-Part of Ouros, Milestone 8, feature 1 of 12. Rides on: M8-13. Screen: `kit/specs/f-done.json`.
+Part of Ouros, Milestone 8, feature 1 of 12. Rides on: M8-13. Screen: none (decided 2026-11-10, D83). The toggle, wording and acceptance command are in Settings > Reliability > Finishing.
 **Start on or after 2026-11-09.**
 
 ## Source of truth
@@ -28,7 +28,7 @@ Corrected 2026-11-05: that last claim is too strong. Claude Code `/goal` and Sto
 - [ ] M8-F1a. A run ends as Done, Checks passed or Needs your review.
 - [ ] M8-F1b. Done is bound to the revision, command, environment and the task's acceptance check, and is cleared by any later edit.
 - [ ] M8-F1c. A claim with no matching run is marked unverified.
-- [ ] M8-F1d. The shipped screen matches `f-done.json` and passes validate.mjs.
+- [ ] M8-F1d. The Settings entries exist and default as listed in ouros-spec.md, Settings tree.
 
 ## Rules that bind every child
 
