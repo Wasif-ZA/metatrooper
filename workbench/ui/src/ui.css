@@ -391,7 +391,7 @@ html { font-size: 16px; }
   .ou-acard-slot { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 96px; }
   .ou-acard-ready { font-size: 13px; color: var(--mute); }
   .ou-notready { border: 1px solid color-mix(in srgb, var(--del) 45%, transparent); background: transparent; color: var(--del); }
-  .ou-acard-desc { grid-column: 2 / -1; margin: 0; font-size: 13px; line-height: 20px; color: var(--body-strong); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ou-acard-desc { grid-column: 2 / -1; margin: 0; font-size: 13px; line-height: 20px; color: var(--body-strong); display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   .ou-acard-open .ou-acard-desc { display: block; }
   .ou-tags { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
   .ou-tag { display: inline-flex; align-items: center; height: 22px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--hairline-strong); font-size: 12px; color: var(--body); white-space: nowrap; }

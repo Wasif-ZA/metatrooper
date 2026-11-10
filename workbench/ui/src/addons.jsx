@@ -104,7 +104,7 @@ export function Addons() {
           <p className="ou-addons-scope">Changes apply to new sessions only.</p>
         </div>
         <span className="ou-actions">
-          <Button label="Check agents again" data-action="check-engines" />
+          <Button label="Check agents again" variant="ghost" data-action="check-engines" />
           <Button label="Add add-on" variant="secondary" data-action="addon-add" onClick={() => setAdding(true)} />
         </span>
       </header>
