@@ -917,7 +917,7 @@ function Crumb({ st, tab, changed }) {
         {!tab || tab.error ? null : (
           <>
             <IconButton size="sm" variant="ghost" label="Reload from disk" tooltip="Reload from disk" icon={svg(RELOAD)} onClick={() => askReload(st, tab.path)} />
-            <Button size="sm" label="Save" tooltip="Save (Ctrl+S)" isDisabled={!ok || !tab.dirty} onClick={() => void saveTab(st, tab.path)} />
+            <Button size="sm" variant="ghost" className="ou-ide-save" label="Save" tooltip="Save (Ctrl+S)" isDisabled={!ok || !tab.dirty} onClick={() => void saveTab(st, tab.path)} />
             {ok ? null : <NotBuilt />}
           </>
         )}
