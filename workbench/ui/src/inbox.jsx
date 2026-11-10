@@ -102,6 +102,113 @@ function TerminalPreview({ sessionId, stamp }) {
   return <pre className="ou-ipane-pre">{state.lines}</pre>;
 }
 
+function formatTokens(n) {
+  const num = Number(n) || 0;
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+  return String(num);
+}
+
+function formatCost(usd, usdEstimated, unpriced) {
+  const val = Number(usd) || 0;
+  if (val === 0 && unpriced > 0) {
+    return 'not priced';
+  }
+  const formatted = '$' + val.toFixed(2);
+  return usdEstimated ? '~' + formatted : formatted;
+}
+
+function RunLedger({ sessionId }) {
+  const [state, setState] = useState({ loading: Boolean(sessionId), data: null, error: false });
+
+  useEffect(() => {
+    if (!sessionId) {
+      setState({ loading: false, data: null, error: false });
+      return;
+    }
+    let active = true;
+    setState({ loading: true, data: null, error: false });
+    rpc('usage.session', { session_id: sessionId }, true)
+      .then((res) => {
+        if (!active) return;
+        if (res && res.result) {
+          setState({ loading: false, data: res.result, error: false });
+        } else {
+          setState({ loading: false, data: null, error: true });
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setState({ loading: false, data: null, error: true });
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  if (!sessionId) {
+    return (
+      <div className="ou-ny-slot" data-slot="run-ledger">
+        <div className="ou-ny-slot-title">Run ledger</div>
+        <div className="ou-ny-slot-body">No usage recorded for this session yet.</div>
+      </div>
+    );
+  }
+
+  if (state.loading) {
+    return (
+      <div className="ou-ny-slot" data-slot="run-ledger">
+        <div className="ou-ny-slot-title">Run ledger</div>
+        <div className="ou-ny-slot-body">Loading usage.</div>
+      </div>
+    );
+  }
+
+  const data = state.data;
+  const totalTokens = data ? ((Number(data.tokens_in) || 0) + (Number(data.tokens_out) || 0)) : 0;
+
+  if (state.error || !data || totalTokens === 0) {
+    return (
+      <div className="ou-ny-slot" data-slot="run-ledger">
+        <div className="ou-ny-slot-title">Run ledger</div>
+        <div className="ou-ny-slot-body">No usage recorded for this session yet.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ou-ny-slot ou-ny-ledger" data-slot="run-ledger">
+      <div className="ou-ny-ledger-head">
+        <div className="ou-ny-slot-title">Run ledger</div>
+        <div className="ou-ny-ledger-cost">{formatCost(data.usd, data.usd_estimated, data.unpriced)}</div>
+      </div>
+      <div className="ou-ny-ledger-summary">
+        {formatTokens(data.tokens_in)} in {'·'} {formatTokens(data.tokens_out)} out
+      </div>
+      <table className="ou-ny-ledger-table">
+        <thead>
+          <tr>
+            <th className="ou-ny-ledger-model">MODEL</th>
+            <th className="ou-ny-ledger-th-in">IN</th>
+            <th className="ou-ny-ledger-th-out">OUT</th>
+            <th className="ou-ny-ledger-th-cost">COST</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(data.by_model || []).map((row, idx) => (
+            <tr key={row.model || idx}>
+              <td className="ou-ny-ledger-model" title={row.model}>{row.model}</td>
+              <td>{formatTokens(row.tokens_in)}</td>
+              <td>{formatTokens(row.tokens_out)}</td>
+              <td>{formatCost(row.usd)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function DetailAsk({ x }) {
   const [answer, setAnswer] = useState('');
   const here = !x.project_id || x.project_id === ui.projectId;
@@ -227,6 +334,7 @@ export function Inbox() {
   const needsYou = s.needs_you || [];
   const approvals = s.approvals || [];
 
+  const branchOf = (x) => (x ? x.branch || sessions.find((y) => y.id === x.id)?.branch || null : null);
   const kindOf = (n) => (n.kind === 'failed' ? 'failed' : n.kind === 'done' ? 'done' : isInfo(n) ? 'info' : 'needs');
 
   const waitingSessions = waitingAll();
@@ -317,6 +425,7 @@ export function Inbox() {
   let propFolder = null;
   let propStarted = null;
   let propUpdated = null;
+  let ledgerSessionId = null;
 
   if (activeRow) {
     const isSession = activeRow.type === 'ask' || activeRow.type === 'working';
@@ -325,10 +434,13 @@ export function Inbox() {
     activeTitle = isSession ? taskOf(item) : item.text;
 
     const refSession = isSession ? item : [...live, ...sessions].find((x) => x.id === item.ref);
+    ledgerSessionId = isSession
+      ? activeRow.id
+      : (item.ref && [...live, ...sessions].some((x) => x.id === item.ref) ? item.ref : null);
     propEngine = refSession?.engine_id || null;
     const propProjectId = refSession?.project_id || (!isSession ? item.project_id : null);
     propProject = propProjectId ? (s.projects || []).find((p) => p.id === propProjectId)?.name || propProjectId : null;
-    propBranch = refSession?.branch || null;
+    propBranch = branchOf(refSession);
     propFolder = refSession?.cwd || null;
     propStarted = isSession
       ? (item.started_at ? ago(item.started_at) : (item.state_at ? ago(item.state_at) : null))
@@ -346,7 +458,7 @@ export function Inbox() {
     const refSession = isSession ? item : [...live, ...sessions].find((x) => x.id === item.ref);
     const engineId = refSession?.engine_id || null;
     const folder = refSession?.cwd ? (refSession.cwd.split(/[/\\]/).filter(Boolean).pop() || '') : '';
-    const branchOrFolder = refSession?.branch || folder;
+    const branchOrFolder = branchOf(refSession) || folder;
     const proj = (s.projects || []).find((p) => p.id === (refSession?.project_id || item.project_id))?.name || '';
     const workspaceText = proj && branchOrFolder && branchOrFolder !== proj ? `${proj} / ${branchOrFolder}` : proj || branchOrFolder || '-';
     const timeText = isSession ? ago(item.state_at || item.started_at) : ago(item.at);
@@ -651,10 +763,7 @@ export function Inbox() {
             ) : (
               <DetailNotice key={activeRow.item.id} n={activeRow.item} kindOf={kindOf} />
             )}
-            <div className="ou-ny-slot" data-slot="run-ledger">
-              <div className="ou-ny-slot-title">Run ledger</div>
-              <div className="ou-ny-slot-body">Runs and cost for this session show here once the core records them.</div>
-            </div>
+            <RunLedger key={ledgerSessionId || activeRow.id} sessionId={ledgerSessionId} />
             <div className="ou-ny-slot" data-slot="handoff">
               <div className="ou-ny-slot-title">Handoff</div>
               <div className="ou-ny-slot-body">The handoff note shows here once the core records it.</div>

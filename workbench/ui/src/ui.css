@@ -495,3 +495,72 @@ html { font-size: 16px; }
 #home, #needsview, #addons, .ou-col, .ou-sbody, .ou-snav, .ou-ide-tree, .ou-ide-diff, .ou-md, [role="listbox"] { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
 #home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
+
+.ou-ny-ledger {
+  border: 1px solid var(--hairline);
+  gap: 8px;
+}
+.ou-ny-ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ou-ny-ledger-cost {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--body);
+}
+.ou-ny-ledger-summary {
+  font-size: 12px;
+  color: var(--mute);
+  line-height: 1.4;
+}
+.ou-ny-ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  table-layout: fixed;
+}
+.ou-ny-ledger-table tr {
+  height: 22px;
+}
+.ou-ny-ledger-table tr + tr,
+.ou-ny-ledger-table tbody tr {
+  border-top: 1px solid var(--hairline);
+}
+.ou-ny-ledger-table thead th {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--mute);
+  letter-spacing: .06em;
+}
+.ou-ny-ledger-table th,
+.ou-ny-ledger-table td {
+  text-align: right;
+  padding: 0 4px;
+  color: var(--body);
+}
+.ou-ny-ledger-table th:first-child,
+.ou-ny-ledger-table td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+.ou-ny-ledger-table th:last-child,
+.ou-ny-ledger-table td:last-child {
+  padding-right: 0;
+}
+.ou-ny-ledger-th-in,
+.ou-ny-ledger-th-out {
+  width: 40px;
+}
+.ou-ny-ledger-th-cost {
+  width: 56px;
+}
+.ou-ny-ledger-model {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
