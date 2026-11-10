@@ -121,6 +121,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'pane.close', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id}', result: '{}' },
   { name: 'pane.url', needsUi: true, params: '{pane_id, url}', result: '{}; the workbench reports each navigation' },
   { name: 'lend.ask', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, origin}', result: "{}; raises one Needs you row asking the user to lend their sign-in on `origin` (http or https) to agents in the session's project; one open row per project and origin" },
+  { name: 'pane.note', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, text}', result: '{}; raises one Needs you row about the pane; one open row per pane' },
   { name: 'lend.set', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{project_id, origin, on}', result: '{sites}; adds or removes `origin` in the UI-only `browser.lent` setting for the project and resolves its open ask; removing one closes the project open lent panes. A lent agent pane uses the project kept browser profile and may only load lent origins in a frame' },
   { name: 'pane.assign', needsUi: true, errors: [E.NOT_FOUND], params: '{pane_id, session_id?}', result: '{}; sets or clears the one session allowed to drive the pane' },
   { name: 'pane.capture', needsUi: true, errors: [E.INVALID_PARAMS], params: '{pane_id, label}', result: '{snapshot_id}; the core calls `browser.capture` on the browser pipe and writes the `snapshot` row' },
@@ -711,6 +712,17 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const ref = lendRef(s.project_id, origin);
       db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, 'other', ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = 'other' AND resolved_at IS NULL)")
         .run(ulid(), nowIso(), ref, `${s.engine_id} wants to use your sign-in on ${origin}`, ref);
+      return {};
+    },
+  });
+
+  m.set('pane.note', {
+    needsUi: true,
+    handler: (p) => {
+      const id = str(p, 'pane_id');
+      if (!db.prepare('SELECT 1 FROM browser_pane WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'pane not found');
+      db.prepare("INSERT INTO needs_you (id, at, kind, ref, text) SELECT ?, ?, 'other', ?, ? WHERE NOT EXISTS (SELECT 1 FROM needs_you WHERE ref = ? AND kind = 'other' AND resolved_at IS NULL)")
+        .run(ulid(), nowIso(), id, str(p, 'text'), id);
       return {};
     },
   });

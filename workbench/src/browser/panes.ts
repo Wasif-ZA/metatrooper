@@ -216,6 +216,7 @@ export interface Hooks {
   commentPicked: (info: { pane_id: string; url: string; depth: number; selector: string; html: string; crop: string }) => void;
   /** Sends a `pane-event` to the workbench UI: state, found, key, download, permission. */
   paneEvent: (ev: Record<string, unknown>) => void;
+  note?: (paneId: string, text: string) => void;
   /** Opens a user pane in the project at this URL. */
   openPane: (projectId: string, url: string) => void;
   /** How a session's agent cursor looks and moves (agent_cursor settings, its colour and chip). */
@@ -680,7 +681,10 @@ export class PaneManager {
     const vendor = challengeOf(doc);
     if (!vendor) return;
     // a listener the agent added could read what the user types; a fresh document has none
-    if (pane.scripted) return this.log(pane, 'blocked', `the site is checking for a human (${vendor}), but evaluate ran on this page; navigate to load it again, then the pane goes to the user`);
+    if (pane.scripted) {
+      this.hooks.note?.(pane.row.id, `An agent's browser pane hit a human check (${vendor}), but the agent ran a script on that page. It must reload the page before it can hand it to you.`);
+      return this.log(pane, 'blocked', `the site is checking for a human (${vendor}), but evaluate ran on this page; navigate to load it again, then the pane goes to the user`);
+    }
     pane.handoff = `the site is checking for a human (${vendor}); solve it in the pane, then give it back`;
     this.log(pane, 'blocked', pane.handoff);
     this.emitState(pane);

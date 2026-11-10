@@ -751,6 +751,7 @@ function createWindow(): void {
     urlChanged: (paneId, url) => { void call('pane.url', { pane_id: paneId, url }, { ui: true }); },
     commentPicked: (info) => win?.webContents.send('comment-picked', info),
     paneEvent: (ev) => { if (win && !win.isDestroyed()) win.webContents.send('pane-event', ev); },
+    note: (paneId, text) => { void call('pane.note', { pane_id: paneId, text }, { ui: true }).then(() => schedulePush()); },
     cursor: cursorLook,
     openPane: (projectId, url) => {
       void call('pane.open', { project_id: projectId, url }, { ui: true }).then((out) => {
