@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { schemaFile } from '../../core/src/paths.ts';
-import { settings, setSetting } from '../../core/src/settings.ts';
+import { settings, setSetting, DEFAULTS } from '../../core/src/settings.ts';
 
 const source = (name: string) => readFileSync(new URL('../renderer/' + name, import.meta.url), 'utf8');
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
@@ -127,12 +127,13 @@ function safe(html: string) {
 
 
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+const PAGE_KEYS = new Set<string>(vm.runInNewContext(/const PAGE_KEYS = new Set\((\[[\s\S]*?\])\)/.exec(main)![1]));
 const plain = (value: any) => JSON.parse(JSON.stringify(value));
 function handler(name: string, globals: any) {
   const start = main.indexOf("on('" + name + "', ");
   assert.ok(start >= 0, name + ' IPC exists');
   const body = main.slice(start + name.length + 7).split('\n  });')[0];
-  return vm.runInNewContext(stripTypeScriptTypes('(' + body + '\n  })'), globals);
+  return vm.runInNewContext(stripTypeScriptTypes('(' + body + '\n  })'), { PAGE_KEYS, DEFAULTS, ...globals });
 }
 function ipcFixture(t: any) {
   const home = mkdtempSync(join(tmpdir(), 'rel-settings-'));
@@ -141,7 +142,7 @@ function ipcFixture(t: any) {
   setSetting('reliability', 'checks', { p2: 'keep this command' });
   const db = new DatabaseSync(':memory:'); db.exec(readFileSync(schemaFile, 'utf8'));
   const writes: any[] = [];
-  const globals = { settings, db: () => db, projectRoot: (id: string) => id === 'p1' || id === 'p2' ? home : null,
+  const globals = { settings, DEFAULTS, PAGE_KEYS, db: () => db, projectRoot: (id: string) => id === 'p1' || id === 'p2' ? home : null,
     writeSetting: async (key: string, value: any) => { writes.push([key, plain(value)]); const [section, name] = key.split('.'); setSetting(section, name, plain(value)); return null; } };
   t.after(() => { db.close(); if (previous === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = previous; rmSync(home, { recursive: true, force: true }); });
   return { db, writes, globals };

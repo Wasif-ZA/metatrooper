@@ -54,9 +54,15 @@ test('readText reads UTF-8, empty files and normalized paths within the project'
   mkdirSync(path.join(root, 'folder'));
   writeFileSync(path.join(root, 'hello.txt'), 'hello café 🌿\nsecond\n');
   writeFileSync(path.join(root, 'empty.txt'), '');
-  assert.deepEqual(readText(root, 'hello.txt'), { text: 'hello café 🌿\nsecond\n' });
-  assert.deepEqual(readText(root, 'folder/../hello.txt'), { text: 'hello café 🌿\nsecond\n' });
-  assert.deepEqual(readText(root, 'empty.txt'), { text: '' });
+  const r1 = readText(root, 'hello.txt') as { text: string; mtimeMs: number };
+  assert.equal(r1.text, 'hello café 🌿\nsecond\n');
+  assert.equal(typeof r1.mtimeMs, 'number');
+  const r2 = readText(root, 'folder/../hello.txt') as { text: string; mtimeMs: number };
+  assert.equal(r2.text, 'hello café 🌿\nsecond\n');
+  assert.equal(typeof r2.mtimeMs, 'number');
+  const r3 = readText(root, 'empty.txt') as { text: string; mtimeMs: number };
+  assert.equal(r3.text, '');
+  assert.equal(typeof r3.mtimeMs, 'number');
 });
 
 test('readText rejects folders, missing paths and nonexistent roots', (t) => {
@@ -90,7 +96,9 @@ test('readText accepts exactly 512 KiB and rejects larger files with literal siz
   writeFileSync(path.join(root, 'boundary.txt'), 'x'.repeat(524288));
   writeFileSync(path.join(root, 'one-over.txt'), 'y'.repeat(524289));
   writeFileSync(path.join(root, 'large.txt'), 'z'.repeat(614400));
-  assert.deepEqual(readText(root, 'boundary.txt'), { text: 'x'.repeat(524288) });
+  const r = readText(root, 'boundary.txt') as { text: string; mtimeMs: number };
+  assert.equal(r.text, 'x'.repeat(524288));
+  assert.equal(typeof r.mtimeMs, 'number');
   assert.deepEqual(readText(root, 'one-over.txt'), { error: 'too large to show (512 KiB)' });
   assert.deepEqual(readText(root, 'large.txt'), { error: 'too large to show (600 KiB)' });
 });
@@ -114,6 +122,8 @@ test('readText applies the limit to UTF-8 bytes rather than character count', (t
   const { root } = fixture(t);
   writeFileSync(path.join(root, 'utf8-boundary.txt'), 'é'.repeat(262144));
   writeFileSync(path.join(root, 'utf8-over.txt'), 'é'.repeat(262145));
-  assert.deepEqual(readText(root, 'utf8-boundary.txt'), { text: 'é'.repeat(262144) });
+  const r = readText(root, 'utf8-boundary.txt') as { text: string; mtimeMs: number };
+  assert.equal(r.text, 'é'.repeat(262144));
+  assert.equal(typeof r.mtimeMs, 'number');
   assert.deepEqual(readText(root, 'utf8-over.txt'), { error: 'too large to show (512 KiB)' });
 });

@@ -115,7 +115,7 @@ beforeEach(async () => {
     load: () => null, save: (...args: any[]) => calls.push(['save', ...args]), pick: async (id: string) => calls.push(['pick', id]),
     changedFiles: (id: string) => id === 'working' ? ['a', 'b'] : id === 'done' ? ['c'] : [],
     STATE_ORDER: ['waiting_for_you', 'working', 'starting', 'done', 'failed', 'exited'], STATE_WORDS: {},
-    document: { getElementById: () => ({ hidden: false }) },
+    document: { documentElement: { style: {} }, getElementById: () => ({ hidden: false }) },
   });
   g.needsCount = () => g.waitingAll().length + g.ui.snap.approvals.length + g.ui.snap.needs_you.filter((n: any) => !n.read_at && !g.isInfo(n)).length;
   settingsStore.set({ data, section: 'general' }); inboxStore.set({ filter: 'all' });
@@ -338,14 +338,14 @@ test('main mounts screens and preserves global visibility and Home navigation co
   const elements = new Map<string, any>(); const ready: any[] = []; const mounted: any[] = [];
   const el = (id: string) => { if (!elements.has(id)) elements.set(id, { id, hidden: true, focus: () => calls.push(['focus', id]), replaceChildren: () => calls.push(['clear', id]) }); return elements.get(id); };
   const segments = ['home', 'inbox', 'wall'].map(view => ({ dataset: { view }, pressed: '', setAttribute(name: string, value: string) { assert.equal(name, 'aria-pressed'); this.pressed = value; } }));
-  g.document = { readyState: 'loading', getElementById: el, querySelectorAll: (selector: string) => { assert.equal(selector, '.vseg button'); return segments; }, addEventListener: (event: string, fn: any) => { if (event === 'DOMContentLoaded') ready.push(fn); } };
+  g.document = { documentElement: { style: {} }, readyState: 'loading', getElementById: el, querySelectorAll: (selector: string) => { assert.equal(selector, '.vseg button'); return segments; }, addEventListener: (event: string, fn: any) => { if (event === 'DOMContentLoaded') ready.push(fn); } };
   const originalSet = g.homeView.set; const originalShown = g.homeView.shown;
   g.__axCreateRoot = (element: any) => ({ render: (tree: any) => mounted.push([element.id, tree.props.children.type.name]) });
   try {
     await bundle("import './src/main.jsx'; export { settingsStore } from './src/settings.jsx'; export { inboxStore } from './src/inbox.jsx'; export { homeStore } from './src/home.jsx';", 'main.mjs');
     const live = await import(pathToFileURL(join(temp, 'main.mjs')).href);
     assert.equal(mounted.length, 0); assert.equal(ready.length, 1); ready[0]();
-    assert.deepEqual(mounted, [['settings', 'Settings'], ['needsview', 'Inbox'], ['addons', 'Addons'], ['home', 'Home']]);
+    assert.deepEqual(mounted, [['settings', 'Settings'], ['needsview', 'Inbox'], ['addons', 'Addons'], ['ide', 'Ide'], ['home', 'Home']]);
     assert.ok(calls.some(c => c[0] === 'clear' && c[1] === 'home'));
     assert.deepEqual(Object.keys(g.settingsView).sort(), ['close', 'isOpen', 'open']);
     assert.deepEqual(Object.keys(g.inboxView).sort(), ['draw', 'shown']); assert.deepEqual(Object.keys(g.addonsView).sort(), ['draw', 'shown']);
@@ -554,7 +554,7 @@ async function keyboardHarness() {
     return r;
   };
   const rows = [row('first'), row('middle'), row('last')]; const head = row('header', 'ou-ihead'); const card = row('agent', 'ou-agent');
-  g.document = { readyState: 'loading', activeElement: null,
+  g.document = { documentElement: { style: {} }, readyState: 'loading', activeElement: null,
     addEventListener: (name: string, fn: any) => { if (name === 'keydown') listeners.push(fn); },
     getElementById: (id: string) => { assert.equal(id, 'needsview'); return { querySelectorAll: (selector: string) => { assert.equal(selector, '.ou-irow'); return rows; } }; },
   };
@@ -562,7 +562,7 @@ async function keyboardHarness() {
   try {
     const name = 'keyboard-' + keyboardSequence++ + '.mjs'; await bundle("import './src/main.jsx';", name); await import(pathToFileURL(join(temp, name)).href);
   } finally { delete g.__axCreateRoot; }
-  assert.equal(listeners.length, 2);
+  assert.equal(listeners.length, 3);
   return { rows, head, card, focused, clicked, get prevented() { return prevented; },
     clear() { focused.length = 0; clicked.length = 0; prevented = 0; },
     press(key: string, extra: any = {}) { const e = { key, ctrlKey: false, altKey: false, metaKey: false, target: { closest: () => null }, preventDefault: () => prevented++, ...extra }; for (const listener of listeners) listener(e); },
