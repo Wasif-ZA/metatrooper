@@ -280,6 +280,16 @@ test('night-210 C1 Delete calls fsDelete only after confirmation', async () => {
   assert.deepEqual(openPaths(), []);
 });
 
+test('night-210 C2 delete dialog focuses Cancel by default and never the destructive button', async () => {
+  const h = await explorer(); await open(h, 'outside.ts'); await askDelete(h, 'outside.ts');
+  const cancel = h.one(label('Cancel'));
+  const remove = h.one(label('Move to Recycle Bin'));
+  assert.equal(cancel.props.autoFocus, true);
+  assert.equal(cancel.props['data-autofocus'], true);
+  assert.equal(remove.props.autoFocus, undefined);
+  assert.equal(remove.props['data-autofocus'], undefined);
+});
+
 test('night-210 C2 Cancel makes no calls and preserves the tab', async () => {
   const h = await explorer(); await open(h, 'outside.ts'); await askDelete(h, 'outside.ts');
   assert.deepEqual(recorded('fsDelete'), []);
