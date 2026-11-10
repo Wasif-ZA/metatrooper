@@ -176,14 +176,13 @@ export async function searchText(root: string, query: unknown): Promise<{ hits: 
 function rgSearch(root: string, query: string): Promise<{ hits: SearchHit[]; more: boolean }> {
   return new Promise((resolve, reject) => {
     const args = ['--json', '--no-config', '-F', '-i', '--hidden', '-g', '!.git', '--max-count', '50', '--max-filesize', '2M', '--path-separator', '/', '-e', query];
-    const rg = spawn('rg', args, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    const rg = spawn('rg', args, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).on('error', (e) => { clearTimeout(timer); if (!started) reject(e); else resolve({ hits, more }); });
     const hits: SearchHit[] = [];
     let more = false;
     let rest = '';
     let started = false;
     const timer = setTimeout(() => { more = true; rg.kill(); }, 10_000);
     rg.on('spawn', () => { started = true; });
-    rg.on('error', (e) => { clearTimeout(timer); if (!started) reject(e); else resolve({ hits, more }); });
     rg.stdout.setEncoding('utf8');
     rg.stdout.on('data', (chunk: string) => {
       const lines = (rest + chunk).split('\n');
