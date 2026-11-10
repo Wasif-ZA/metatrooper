@@ -65,7 +65,7 @@
 :root:not([data-look="dither"]) .ph :is(button, .tx):focus-visible, :root:not([data-look="dither"]) .strip :is(button, .link):focus-visible, :root:not([data-look="dither"]) .sheet :is(button, input, .tab):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* footer strip */
-:root:not([data-look="dither"]) .strip { height: 44px; padding: 0 8px 0 14px; gap: 8px; border-radius: 12px; border-color: var(--hairline); background: var(--canvas); color: var(--mute); font-size: 12.5px; }
+:root:not([data-look="dither"]) .strip { height: 44px; padding: 0 8px 0 14px; gap: 8px; border-radius: 0; border: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--mute); font-size: 12.5px; }
 :root:not([data-look="dither"]) :is(.strip .stab, .strip .link) { height: 22px; padding: 0 8px; border: 0; border-radius: 4px; color: var(--body); font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; gap: 4px; }
 :root:not([data-look="dither"]) :is(.strip .stab, .strip .link):hover { background: var(--canvas-soft); color: var(--ink); }
 :root:not([data-look="dither"]) .strip .task { color: var(--mute); font-size: 12px; }
