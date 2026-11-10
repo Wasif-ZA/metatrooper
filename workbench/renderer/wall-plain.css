@@ -43,7 +43,7 @@
 :root:not([data-look="dither"]) .shim { display: none; }
 :root:not([data-look="dither"]) .tile-body { border-radius: 0; }
 :root:not([data-look="dither"]) .tile .ph { border-bottom: 1px solid var(--hairline); border-radius: 0; }
-:root:not([data-look="dither"]) .ph .r1 { height: 28px; padding: 0 6px 0 12px; gap: 8px; }
+:root:not([data-look="dither"]) .ph .r1 { height: 28px; padding: 0 8px 0 12px; gap: 8px; }
 :root:not([data-look="dither"]) .ph .r2 { height: 20px; line-height: 20px; min-height: 0; padding: 0 12px 0 27px; font-size: 11px; color: var(--mute); border-bottom: 0; }
 :root:not([data-look="dither"]) .ph .r2:empty, :root:not([data-look="dither"]) .ph .r2:has(.tile-info:empty), :root:not([data-look="dither"]) .ph .r2[hidden], :root:not([data-look="dither"]) .tile.shell .ph .r2 { height: 0; min-height: 0; padding: 0; border: 0; }
 :root:not([data-look="dither"]) .ph .fl, :root:not([data-look="dither"]) .ph .meta { color: var(--mute); }
