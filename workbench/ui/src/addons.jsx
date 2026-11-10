@@ -1,5 +1,6 @@
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import { Code } from '@astryxdesign/core/Code';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -25,7 +26,7 @@ export function Addons() {
       </header>
       <Heading level={2}>Agents</Heading>
       {engines.length ? (
-        <List hasDividers>
+        <Card padding={0}><List hasDividers>
           {engines.map((e) => {
             const bad = e.light === 'red';
             return (
@@ -34,18 +35,18 @@ export function Addons() {
                 endContent={<span className="ou-actions">{bad && e.install ? <Code>{e.install}</Code> : null}{e.plugin_id ? <Badge label={`from ${e.plugin_id}`} /> : null}</span>} />
             );
           })}
-        </List>
+        </List></Card>
       ) : <EmptyState title="No agents found." isCompact />}
       <Heading level={2}>Plugins</Heading>
       {rows === null ? <Text color="secondary">Loading.</Text> : rows.length ? (
-        <List hasDividers>
+        <Card padding={0}><List hasDividers>
           {rows.map((p) => (
             <ListItem key={p.id} align="start" label={p.id}
               description={<>{p.description || 'No description'}{p.permissions.length ? <ul className="ou-perms">{p.permissions.map((t) => <li key={t}>{t}</li>)}</ul> : <><br />Asks for no permissions</>}</>}
               startContent={<StatusDot variant={p.enabled ? 'success' : 'neutral'} label={p.enabled ? 'On' : 'Off'} />}
               endContent={<Text color="secondary" size="sm">{p.version}{p.enabled ? '' : ' · off'}</Text>} />
           ))}
-        </List>
+        </List></Card>
       ) : <EmptyState title="No plugins installed." isCompact />}
       <Text as="p" color="secondary">Install or remove a plugin from a terminal: <Code>troop plugin install &lt;folder or URL&gt;</Code>, <Code>troop plugin remove &lt;id&gt;</Code>. Ouros shows what a plugin may do before it installs.</Text>
     </div>

@@ -5,7 +5,7 @@
 .ou-settings-col > header { display: flex; align-items: center; justify-content: space-between; }
 .ou-lent { display: grid; gap: 6px; justify-items: end; }
 .ou-lent > span { display: inline-flex; gap: 8px; align-items: center; }
-.ou-col { max-width: 880px; margin: 0 auto; padding: 24px 24px 48px; display: grid; gap: 16px; }
+.ou-col { max-width: 960px; margin: 0 auto; padding: 24px 24px 48px; display: grid; gap: 16px; }
 .ou-split { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .ou-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .ou-perms { margin: 4px 0 0; padding-left: 18px; }
@@ -16,3 +16,41 @@ html { font-size: 16px; }
 .ou-cards > div { cursor: pointer; }
 .ou-startrow { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; }
 .ou-tile { display: grid; gap: 6px; }
+
+/* The Ouros look, set through astryx's own theme tokens. */
+.ou-settings, .ou-col {
+  --color-background-body: var(--canvas-deep);
+  --color-background-surface: var(--canvas-deep);
+  --color-background-card: var(--canvas);
+  --color-background-muted: var(--canvas-soft);
+  --color-border: var(--hairline);
+  --color-border-emphasized: var(--hairline-strong);
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--mute);
+  --color-warning: var(--wait);
+  --color-icon-warning: var(--wait);
+  --color-icon-success: var(--ink);
+  --color-icon-error: var(--del);
+  --font-family-body: 'Geist', 'Segoe UI', sans-serif;
+  --font-family-heading: 'Geist', 'Segoe UI', sans-serif;
+  --font-family-code: var(--mono);
+  --radius-container: 12px;
+  --radius-element: 6px;
+  --text-body-size: 13.5px;
+  --text-label-size: 13.5px;
+  --text-supporting-size: 12.5px;
+  --text-heading-1-size: 22px;
+  --text-heading-1-weight: 600;
+  font-family: 'Geist', 'Segoe UI', sans-serif;
+  font-size: 13.5px;
+  color: var(--body-strong);
+}
+.ou-col h1, .ou-settings h1 { letter-spacing: -.01em; }
+.ou-col h2 { margin: 12px 0 -8px; font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0; text-transform: none; color: var(--mute); }
+.ou-settings > :first-child { border-right: 1px solid var(--hairline); }
+.ou-hot > :nth-child(2) { color: var(--wait); }
+.ou-wait { padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--wait); background: color-mix(in srgb, var(--wait) 12%, transparent); }
+.ou-tile > :nth-child(2) { font-variant-numeric: tabular-nums; line-height: 1; }
+.ou-cards > div:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 12px; }
+.ou-col li, .ou-settings-col li { padding-inline: 14px; }
+.ou-perms { list-style: disc; color: var(--mute); }

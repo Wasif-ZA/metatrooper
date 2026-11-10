@@ -1,4 +1,5 @@
 import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
 import { List, ListItem } from '@astryxdesign/core/List';
@@ -48,7 +49,7 @@ export function Inbox() {
       </SegmentedControl>
       {approvals.length ? <><Heading level={2}>Agent actions waiting for a yes</Heading><div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} /></> : null}
       {asks.length || notes.length ? (
-        <List hasDividers>
+        <Card padding={0}><List hasDividers>
           {asks.map((x) => (
             <ListItem key={x.id} label={taskOf(x)} description={`${away(x.project_id)}${x.engine_id} is asking${x.last_line ? ` · ${x.last_line}` : ''}`}
               startContent={<StatusDot variant="warning" label="Waiting for you" />}
@@ -59,7 +60,7 @@ export function Inbox() {
               startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : n.read_at || isInfo(n) ? 'neutral' : 'warning'} label={n.kind === 'failed' ? 'Failed' : n.read_at || isInfo(n) ? 'For your information' : 'Needs you'} />}
               endContent={<NoteActions n={n} />} />
           ))}
-        </List>
+        </List></Card>
       ) : approvals.length ? null : <EmptyState title="Nothing here." isCompact />}
     </div>
   );

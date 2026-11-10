@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
 import { Heading } from '@astryxdesign/core/Heading';
 import { IconButton } from '@astryxdesign/core/IconButton';
-import { Item } from '@astryxdesign/core/Item';
-import { List } from '@astryxdesign/core/List';
+import { List, ListItem } from '@astryxdesign/core/List';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
 import { Selector } from '@astryxdesign/core/Selector';
 import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav';
@@ -123,9 +123,9 @@ export function Settings() {
             <IconButton label="Close settings" tooltip="Close (Esc)" variant="ghost" onClick={() => settingsView.close()} icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M3 3l8 8M11 3l-8 8" /></svg>} />
           </header>
           {sec.note ? <Text as="p" color="secondary">{sec.note}</Text> : null}
-          <List hasDividers>
-            {sec.rows.map((row) => <Item key={row.label} as="li" label={row.label} description={row.hint} endContent={<Control row={row} data={data} />} />)}
-          </List>
+          <Card padding={0}><List hasDividers>
+            {sec.rows.map((row) => <ListItem key={row.label} label={row.label} description={row.hint} endContent={<Control row={row} data={data} />} />)}
+          </List></Card>
         </div>
       </div>
     </div>

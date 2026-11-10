@@ -20,8 +20,8 @@ function greeting() {
 
 function Tile({ label, n, sub, hot }) {
   return (
-    <Card padding={4} variant={hot ? 'orange' : 'default'}>
-      <div className="ou-tile">
+    <Card padding={4}>
+      <div className={hot ? 'ou-tile ou-hot' : 'ou-tile'}>
         <Text color="secondary" size="sm">{label}</Text>
         <Text size="2xl" weight="bold">{String(n)}</Text>
         <Text color="secondary" size="sm">{sub}</Text>
@@ -88,11 +88,11 @@ export function Home() {
       {waiting.length || approvals.length || alerts.length ? (
         <>
           <Heading level={2}>Waiting on you</Heading>
-          <List hasDividers>
+          <Card padding={0}><List hasDividers>
             {waiting.map((x) => (
               <ListItem key={x.id} label={taskOf(x)} description={`${away(x)}${x.engine_id}${x.last_line ? ` · ${x.last_line}` : ''}`}
                 startContent={<StatusDot variant="warning" label="Needs you" />}
-                endContent={<span className="ou-actions"><Badge variant="orange" label="Needs you" /><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} /></span>} />
+                endContent={<span className="ou-actions"><span className="ou-wait">Needs you</span><Button size="sm" variant="primary" label="Answer" data-action="pick" data-id={x.id} /></span>} />
             ))}
             {approvals.length ? (
               <ListItem label={`${approvals.length} agent ${approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes`} description="Allow or refuse each one"
@@ -104,7 +104,7 @@ export function Home() {
                 startContent={<StatusDot variant="warning" label="Needs you" />}
                 endContent={<Button size="sm" label="Open" data-action="inbox-open" data-id={n.id} />} />
             ))}
-          </List>
+          </List></Card>
         </>
       ) : null}
       <Heading level={2}>Agents</Heading>
@@ -124,12 +124,12 @@ export function Home() {
       {recent.length ? (
         <>
           <Heading level={2}>Recent</Heading>
-          <List hasDividers>
+          <Card padding={0}><List hasDividers>
             {recent.map((n) => (
               <ListItem key={n.id} label={n.text} startContent={<StatusDot variant={n.kind === 'failed' ? 'error' : 'neutral'} label={n.kind === 'failed' ? 'Failed' : 'Finished'} />}
                 endContent={<span className="ou-actions"><Text color="secondary" size="sm">{ago(n.at)}</Text><Button size="sm" variant="ghost" label="Open" data-action="inbox-open" data-id={n.id} /></span>} />
             ))}
-          </List>
+          </List></Card>
         </>
       ) : null}
     </div>
