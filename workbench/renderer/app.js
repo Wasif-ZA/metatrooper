@@ -127,7 +127,7 @@ async function rpc(method, params, quiet = false) {
 async function rpcOnce(method, params, quiet) {
   const out = await api.call(method, params);
   if (out.kind === 'offline') {
-    toast('The core is offline.', true);
+    if (ui.coreSeen || performance.now() > 10000) toast('The core is offline.', true);
     return { error: { message: 'core offline' } };
   }
   const r = out.reply;
@@ -1839,6 +1839,7 @@ api.onOpenNeedsYou((id) => {
 
 api.onSnapshot(async (s) => {
   ui.snap = s;
+  if (s.core.online) ui.coreSeen = true;
   for (const id of ui.hideDone) {
     const x = s.sessions.find((y) => y.id === id);
     if (!x || LIVE_STATES.includes(x.state)) { ui.hideDone.delete(id); ui.pendingHide.delete(id); }
