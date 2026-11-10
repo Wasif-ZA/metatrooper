@@ -378,7 +378,10 @@ async function saveTab(st, path, force = false) {
   if (!t || !t.dirty) return false;
   const state = t.view ? t.view.state : t.state;
   if (!state) return false;
-  const r = await api.fsWrite(st.pid, path, state.sliceDoc(), force ? null : (t.mtimeMs ?? null));
+  if (t.saving) return false;
+  t.saving = true;
+  let r;
+  try { r = await api.fsWrite(st.pid, path, state.sliceDoc(), force ? null : (t.mtimeMs ?? null)); } finally { t.saving = false; }
   if (r && r.ok) {
     t.mtimeMs = r.mtimeMs;
     const now = t.view ? t.view.state : t.state;
