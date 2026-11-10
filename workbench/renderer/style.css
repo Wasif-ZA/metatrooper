@@ -76,7 +76,6 @@ body { position: relative; }
 .step-err { margin: 0 0 4px 15px; padding: 4px 8px; border-left: 2px solid var(--del); color: var(--del); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
 
 /* strip under the big pane */
-.strip .link { cursor: pointer; color: var(--faint); }
 .strip .btn.on { background: var(--canvas-soft); color: var(--ink); border-color: var(--body); }
 .strip .btn .n { color: var(--ink); }
 
@@ -313,9 +312,9 @@ h4[class^="sev-"] { text-transform: capitalize; }
 .title .branch:empty { display: none; }
 .menu .mh { padding: 8px 14px 4px; color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
 .menu summary.mh { cursor: pointer; }
-.strip .stab { all: unset; cursor: pointer; padding: 0 8px; height: 26px; display: inline-flex; align-items: center; gap: 5px; color: var(--mute); font-size: 11.5px; border-bottom: 2px solid transparent; flex: none; }
-.strip .stab:hover { color: var(--body-strong); }
-.strip .stab.on { color: var(--ink); border-bottom-color: var(--ink); }
+.strip .stab, .strip .link { all: unset; cursor: pointer; height: 22px; padding: 0 8px; border-radius: 4px; font-size: 11px; color: var(--body); display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.strip .stab:hover, .strip .link:hover { background: var(--canvas-soft); color: var(--ink); }
+.strip .stab.on { background: var(--canvas-soft); color: var(--ink); }
 .strip .stab:focus-visible, .title .kpick:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .git-sync { border: 1px var(--bstyle, dotted) var(--hairline-strong); border-radius: var(--r); padding: 10px 12px; margin-bottom: 12px; }
 .git-sync .actions { margin-top: 8px; }
