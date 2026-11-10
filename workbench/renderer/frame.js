@@ -22,9 +22,9 @@ globalThis.frameView = (() => {
 
   function draw() {
     const view = globalThis.settingsView?.isOpen() ? 'settings' : ui.view || 'wall';
-    const isSettings = view === 'settings';
-    if (root.classList.contains('side-auto') !== isSettings) {
-      if (isSettings) root.classList.add('side-auto'); else root.classList.remove('side-auto');
+    const narrow = view === 'settings' || view === 'ide';
+    if (root.classList.contains('side-auto') !== narrow) {
+      if (narrow) root.classList.add('side-auto'); else root.classList.remove('side-auto');
       dispatchEvent(new Event('resize'));
     }
     [...document.querySelectorAll('#frame [data-action="view"]'), ...document.querySelectorAll('#frame [data-action="settings"]')].forEach((b) => {
