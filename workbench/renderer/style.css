@@ -156,9 +156,11 @@ button:disabled { opacity: 0.5; cursor: default; }
 button.danger { color: var(--del); }
 button.link { background: none; border: none; padding: 0; color: var(--body-strong); cursor: pointer; }
 :where(.view, .start, .inbox) :is(input, select, textarea) { background: var(--canvas-deep); border: 1px solid var(--hairline-strong); border-radius: 2px; padding: 4px 8px; min-width: 0; color: var(--ink); font: inherit; }
+@layer app {
 textarea { width: 100%; resize: vertical; font-family: var(--mono); font-size: 12px; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mute); margin: 0 0 8px; }
 h3 { font-size: 13px; margin: 0 0 8px; }
+}
 h4 { margin: 12px 0 6px; }
 .view p, .view ul, .view ol { margin: 0 0 8px; }
 .view ul, .view ol { padding-left: 18px; }

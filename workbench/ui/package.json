@@ -1,0 +1,20 @@
+{
+  "name": "@metatrooper/workbench-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "build": "esbuild src/main.jsx --bundle --format=iife --jsx=automatic --minify --loader:.css=css --outfile=../renderer/ui.bundle.js"
+  },
+  "dependencies": {
+    "@astryxdesign/core": "0.7.11",
+    "@astryxdesign/theme-neutral": "0.7.11",
+    "@stylexjs/stylex": "^0.19.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
