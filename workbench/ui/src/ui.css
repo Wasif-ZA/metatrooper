@@ -125,9 +125,6 @@ html { font-size: 16px; }
 .ou-lent { display: grid; gap: 6px; justify-items: end; }
 .ou-lent > span { display: inline-flex; gap: 8px; align-items: center; }
 
-/* Add-ons */
-.ou-perms { margin: 4px 0 0; padding-left: 18px; list-style: disc; color: var(--mute); }
-.ou-addons li { padding-inline: 12px; }
 
 @media (prefers-reduced-motion: reduce) { .ou-settings *, .ou-col * { transition: none !important; } }
 
@@ -156,6 +153,8 @@ html { font-size: 16px; }
 .ou-navgroup + .ou-navgroup { margin-top: 4px; }
 .ou-agent header > * { white-space: nowrap; }
 .ou-agent header b { overflow: hidden; text-overflow: ellipsis; }
+/* Add-ons root stays unlayered: it must beat the unlayered .ou-col width, gap and radius tokens above. */
+.ou-col.ou-addons { max-width: 1040px; gap: 0; --radius-container: 0; --radius-element: 0; --radius-inner: 0; --radius-full: 0; }
 
 /* IDE: Herdr's code layout. Full-height explorer, tabs over breadcrumb over editor, agents side by side in a bottom panel. */
 .ide { position: absolute; inset: var(--top) 0 0 var(--side); z-index: 35; display: grid; grid-template-columns: 240px 1fr; background: var(--canvas-deep); font-family: 'Geist', 'Segoe UI', sans-serif; font-size: 13px; color: var(--body-strong); }
@@ -243,4 +242,41 @@ html { font-size: 16px; }
   .ou-ide-scrow:hover { background: var(--canvas); }
   .ou-ide-scrow:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
   .ou-ide-scletter { flex: none; width: 16px; font-family: var(--mono); font-size: 11px; text-align: center; color: var(--mute); }
+
+  /* Add-ons: OpenHands Customize > Skills frame (header, full-width search, facet rail, card list); Orca's switch in the action slot. */
+  .ou-addons { container-type: inline-size; }
+  .ou-addons-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  .ou-addons-head .ou-actions { flex-wrap: wrap; }
+  .ou-pagehead .ou-addons-scope { font-size: 12px; }
+  .ou-addons-search { margin-bottom: 20px; }
+  .ou-addons-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; margin-bottom: 24px; }
+  .ou-facets { display: grid; gap: 20px; align-content: start; }
+  .ou-facetrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+  .ou-facetcount { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--mute); }
+  .ou-facetrow-zero { color: var(--mute); opacity: .6; }
+  .ou-results { display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .ou-acard { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 8px; padding: 16px; border: 1px solid var(--hairline); background: var(--canvas); }
+  .ou-acard-tile { display: grid; place-items: center; width: 40px; height: 40px; box-sizing: border-box; border: 1px solid var(--hairline-strong); color: var(--mute); }
+  .ou-acard-name { display: grid; align-content: start; gap: 2px; min-width: 0; }
+  .ou-acard-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--ink); }
+  .ou-acard-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--mute); }
+  .ou-acard-slot { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 96px; }
+  .ou-acard-ready { font-size: 13px; color: var(--mute); }
+  .ou-notready { border: 1px solid color-mix(in srgb, var(--del) 45%, transparent); background: transparent; color: var(--del); }
+  .ou-acard-desc { grid-column: 2 / -1; margin: 0; font-size: 13.5px; line-height: 20px; color: var(--body-strong); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ou-acard-open .ou-acard-desc { display: block; }
+  .ou-tags { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+  .ou-tag { display: inline-flex; align-items: center; height: 22px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--hairline-strong); font-size: 12px; color: var(--body); white-space: nowrap; }
+  .ou-tag-quiet { border-color: var(--hairline); color: var(--mute); }
+  .ou-tag-more { background: var(--canvas-soft); color: var(--mute); font: inherit; font-size: 12px; cursor: pointer; }
+  .ou-tag-more:hover { color: var(--ink); }
+  .ou-tag-more:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .ou-addons-err { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--hairline); color: var(--body-strong); }
+  @container (max-width: 719px) {
+    .ou-addons-head { flex-wrap: wrap; }
+    .ou-addons-body { grid-template-columns: minmax(0, 1fr); }
+    .ou-facets { grid-template-columns: 1fr 1fr; gap: 16px; }
+    .ou-facetrows { display: flex; flex-wrap: wrap; column-gap: 16px; }
+    .ou-facetrow { justify-content: flex-start; }
+  }
 }
