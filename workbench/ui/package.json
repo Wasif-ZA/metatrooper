@@ -24,6 +24,7 @@
     "@codemirror/view": "6.43.15",
     "@lezer/highlight": "1.2.5",
     "@stylexjs/stylex": "^0.19.0",
+    "marked": "18.1.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
