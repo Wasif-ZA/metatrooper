@@ -44,7 +44,7 @@ export function unsavedSummary() {
   return parts.join('; ');
 }
 
-const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', q: '', hits: [], sq: '', sres: null, searching: false, ask: null, renaming: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
+const fresh = (pid) => ({ pid, dirs: new Map(), listing: new Set(), tabs: [], active: null, side: 'files', findOpen: false, q: '', hits: [], sq: '', sres: null, searching: false, ask: null, renaming: null, closeAll: false, git: null, gitSeq: 0, commitMsg: '' });
 const slashed = (f) => String(f).replace(/\\/g, '/');
 const base = (p) => p.split('/').pop();
 const folder = (p) => p.split('/').slice(0, -1).join('/');
@@ -511,7 +511,7 @@ function focusInput(side, id) {
 export const dirtyIn = (pid) => (states.get(pid)?.tabs || []).filter((x) => x.dirty).map((x) => x.path);
 
 export const ideKeys = {
-  find: () => focusInput('files', 'ide-find'),
+  find: () => { if (cur) cur.findOpen = true; focusInput('files', 'ide-find'); },
   search: () => focusInput('search', 'ide-search'),
   changes: () => { if (!cur) return; cur.side = 'changes'; bump(); void loadGitStatus(cur); },
   palette: (open) => (open === undefined ? paletteView.toggle() : open ? paletteView.open() : paletteView.close()),
@@ -545,6 +545,7 @@ const UNFOLD = 'M3.5 8.5L7 5l3.5 3.5';
 const PLUS = 'M7 3v8M3 7h8';
 const MINUS = 'M3 7h8';
 const BRANCH = 'M3.5 2a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm0 3v4m0 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm0 1.5c1.5 0 3.5 0 5-1.5s1.5-2 1.5-3.5m0 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z';
+const MAGNIFIER = 'M5.5 2a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM8 8l4 4';
 const CHECK_CIRCLE = 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
 
 const LANGS = {
@@ -717,14 +718,22 @@ function Files({ st, changed }) {
   ];
   return (
     <>
-      <div className="ou-ide-findrow">
-        <input id="ide-find" className="ou-ide-input" value={st.q} placeholder="Find a file (Ctrl+P)" aria-label="Find a file by name" autoComplete="off" spellCheck="false"
-          onChange={(e) => void runFind(st, e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && st.hits.length) { e.preventDefault(); void openFile(st, st.hits[0]); }
-            else if (e.key === 'Escape' && st.q) { e.preventDefault(); e.stopPropagation(); st.q = ''; st.hits = []; bump(); }
-          }} />
-      </div>
+      {(st.q || st.findOpen) ? (
+        <div className="ou-ide-findrow">
+          <input id="ide-find" className="ou-ide-input" value={st.q} placeholder="Find a file (Ctrl+P)" aria-label="Find a file by name" autoComplete="off" spellCheck="false"
+            onChange={(e) => void runFind(st, e.target.value)}
+            onBlur={() => { if (!st.q) { st.findOpen = false; bump(); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && st.hits.length) { e.preventDefault(); void openFile(st, st.hits[0]); }
+              else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (st.q) { st.q = ''; st.hits = []; bump(); }
+                else { st.findOpen = false; bump(); }
+              }
+            }} />
+        </div>
+      ) : null}
       <div className="ou-ide-tree">
         {st.q.trim() ? (st.hits.length ? st.hits.map((h) => (
           <button key={h} className={st.active === h ? 'ou-ide-hit ou-ide-cur' : 'ou-ide-hit'} title={h} onClick={() => void openFile(st, h)}>
@@ -1088,12 +1097,13 @@ export function Ide() {
     <div className="ou-ide" key={st.pid}>
       <aside className="ou-ide-side">
         <div className="ou-ide-head">
-          <SegmentedControl label="Explorer" size="sm" value={st.side} onChange={(v) => { st.side = v; bump(); if (v === 'changes') void loadGitStatus(st); }}>
-            <SegmentedControlItem value="files" label="Files" />
-            <SegmentedControlItem value="search" label="Search" />
-            <SegmentedControlItem value="changes" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} />
-          </SegmentedControl>
-          <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={svg(CMD)} onClick={() => paletteView.open()} />
+          <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? (gitCount !== null ? `Changes ${gitCount}` : 'Changes') : 'Explorer'}</span>
+          <span className="ou-ide-head-actions">
+            <IconButton size="sm" variant="ghost" label="Files" aria-pressed={st.side === 'files'} icon={svg(FILE)} onClick={() => { st.side = 'files'; bump(); }} />
+            <IconButton size="sm" variant="ghost" label="Search" aria-pressed={st.side === 'search'} icon={svg(MAGNIFIER)} onClick={() => { st.side = 'search'; bump(); }} />
+            <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} aria-pressed={st.side === 'changes'} icon={svg(BRANCH)} onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
+            <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={svg(CMD)} onClick={() => paletteView.open()} />
+          </span>
         </div>
         {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
       </aside>
