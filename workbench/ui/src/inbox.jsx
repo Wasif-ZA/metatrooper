@@ -183,7 +183,7 @@ function RunLedger({ sessionId }) {
         <div className="ou-ny-ledger-cost">{formatCost(data.usd, data.usd_estimated, data.unpriced)}</div>
       </div>
       <div className="ou-ny-ledger-summary">
-        {formatTokens(data.tokens_in)} in {'·'} {formatTokens(data.tokens_out)} out
+        {formatTokens(data.tokens_in)} in {'\u00B7'} {formatTokens(data.tokens_out)} out
       </div>
       <table className="ou-ny-ledger-table">
         <thead>
