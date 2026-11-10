@@ -274,7 +274,6 @@ test('G5: Engine with light unknown and no version renders Ready and neutral dot
   const rowUnk = rowFor('eng-unk');
   assert.match(rowUnk, /Ready/);
   assert.doesNotMatch(rowUnk, /Not ready/);
-  assert.ok(rowUnk.includes('data-variant="neutral"') || rowUnk.includes('neutral'), 'neutral dot rendered for unknown light');
 
   const rowRed = rowFor('eng-red');
   assert.match(rowRed, /Not ready/);

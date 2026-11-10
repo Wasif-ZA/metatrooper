@@ -272,8 +272,11 @@ test('New file dialog creates file on submit and opens the tab', async () => {
   // Form submit simulating Enter in text input
   const form = h.one((n: any) => typeof n.props?.onSubmit === 'function');
   let prevented = false;
-  await form.props.onSubmit({ preventDefault() { prevented = true; } });
+  const ask = cur.ask;
+  form.props.onSubmit({ preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
+  for (let i = 0; ask.busy && i < 200; i++) await new Promise((r) => setTimeout(r, 5));
+  assert.equal(ask.busy, false, 'newFile settled');
 
   // Checks folder creation and file creation
   assert.deepEqual(createCalls, [

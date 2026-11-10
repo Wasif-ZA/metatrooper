@@ -209,6 +209,7 @@ test('fsOpenOutside turns non-empty shell.openPath return or throw into { error 
   assert.deepStrictEqual(JSON.parse(JSON.stringify(await handler('p1', 123 as any))), { error: 'pick a project first' });
 
   // Refused file returns openOutside error
+  fs.writeFileSync(path.join(root, 'secret.txt'), 'text');
   const refusedRes = await handler('p1', 'secret.txt');
   assert.deepStrictEqual(JSON.parse(JSON.stringify(refusedRes)), { error: 'this file type cannot be opened outside' });
 });
