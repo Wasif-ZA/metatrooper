@@ -72,7 +72,8 @@ CREATE TABLE session (
   wait_reason   TEXT,                          -- why a waiting_for_you session waits, when the core knows ('stopped: rate_limit', 'permission'); null otherwise (M6-23)
   browser_grant TEXT,                          -- the browser tool preset (look, act or debug) the session may use; null: every tool (M7-1)
   started_at    TEXT NOT NULL,
-  ended_at      TEXT
+  ended_at      TEXT,
+  outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')) -- set when the session exits
 );
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
