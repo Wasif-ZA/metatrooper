@@ -1,6 +1,8 @@
 import { useEffect, useState, Fragment } from 'react';
+import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
+import { Selector } from '@astryxdesign/core/Selector';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 
@@ -8,18 +10,18 @@ export const inboxStore = createStore({ tick: 0, filter: 'all', collapsed: [], s
 
 const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way'], ['not-a-loop', 'Not a loop']];
 
-function StatusRing({ status }) {
-  const p = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 };
+function StatusRing({ status, size = 14 }) {
+  const p = { width: size, height: size, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 };
   if (status === 'needs') {
     return (
-      <svg {...p} className="ou-ny-ring ou-ny-ring-needs" aria-label="Needs you">
+      <svg {...p} className={`ou-ny-ring ou-ny-ring-needs ${size === 12 ? 'ou-ny-ring-12' : ''}`} aria-label="Needs you">
         <circle cx="7" cy="7" r="5.25" />
       </svg>
     );
   }
   if (status === 'working') {
     return (
-      <svg {...p} className="ou-ny-ring ou-ny-ring-working" aria-label="Working">
+      <svg {...p} className={`ou-ny-ring ou-ny-ring-working ${size === 12 ? 'ou-ny-ring-12' : ''}`} aria-label="Working">
         <circle cx="7" cy="7" r="5.25" strokeOpacity="0.25" />
         <path d="M7 1.75 A5.25 5.25 0 0 1 12.25 7" strokeLinecap="round" />
       </svg>
@@ -27,21 +29,21 @@ function StatusRing({ status }) {
   }
   if (status === 'review') {
     return (
-      <svg {...p} className="ou-ny-ring ou-ny-ring-review" aria-label="In review">
+      <svg {...p} className={`ou-ny-ring ou-ny-ring-review ${size === 12 ? 'ou-ny-ring-12' : ''}`} aria-label="In review">
         <circle cx="7" cy="7" r="5.25" />
       </svg>
     );
   }
   if (status === 'failed') {
     return (
-      <svg {...p} strokeLinecap="round" strokeLinejoin="round" className="ou-ny-ring ou-ny-ring-failed" aria-label="Failed">
+      <svg {...p} strokeLinecap="round" strokeLinejoin="round" className={`ou-ny-ring ou-ny-ring-failed ${size === 12 ? 'ou-ny-ring-12' : ''}`} aria-label="Failed">
         <circle cx="7" cy="7" r="5.25" />
         <path d="M5 5l4 4M9 5l-4 4" />
       </svg>
     );
   }
   return (
-    <svg {...p} strokeLinecap="round" strokeLinejoin="round" className="ou-ny-ring ou-ny-ring-done" aria-label="Finished">
+    <svg {...p} strokeLinecap="round" strokeLinejoin="round" className={`ou-ny-ring ou-ny-ring-done ${size === 12 ? 'ou-ny-ring-12' : ''}`} aria-label="Finished">
       <circle cx="7" cy="7" r="5.25" />
       <path d="M4.5 7.2l1.8 1.8 3.2-3.6" />
     </svg>
@@ -67,41 +69,61 @@ function NoteActions({ n }) {
   );
 }
 
-function TerminalPreview({ sessionId, stamp }) {
-  const [state, setState] = useState({ lines: null, error: false });
+function useSessionText(sessionId, stamp) {
+  const [state, setState] = useState({ text: null, error: false });
 
   useEffect(() => {
+    if (!sessionId) {
+      setState({ text: null, error: false });
+      return;
+    }
     let active = true;
-    rpc('session.read', { session_id: sessionId, lines: 20 }, true)
+    rpc('session.read', { session_id: sessionId, lines: 200 }, true)
       .then((res) => {
         if (!active) return;
         if (res && res.result && res.result.lines != null) {
           const text = Array.isArray(res.result.lines) ? res.result.lines.join('\n') : String(res.result.lines);
           if (text.length > 0) {
-            setState({ lines: text, error: false });
+            setState({ text, error: false });
           } else {
-            setState({ lines: null, error: true });
+            setState({ text: null, error: true });
           }
         } else {
-          setState({ lines: null, error: true });
+          setState({ text: null, error: true });
         }
       })
       .catch(() => {
         if (!active) return;
-        setState({ lines: null, error: true });
+        setState({ text: null, error: true });
       });
     return () => {
       active = false;
     };
   }, [sessionId, stamp]);
 
+  return state;
+}
+
+function findServiceUrl(text) {
+  if (!text) return null;
+  const match = text.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):\d+[^\s'"<>)]*/);
+  if (!match) return null;
+  return match[0].replace('0.0.0.0', 'localhost');
+}
+
+function TerminalPreview({ text, error, sessionId, stamp }) {
+  const fetched = useSessionText(text === undefined ? sessionId : null, stamp);
+  const actualText = text !== undefined ? text : fetched.text;
+  const actualError = error !== undefined ? error : fetched.error;
+  const lines20 = actualText ? actualText.split('\n').slice(-20).join('\n') : null;
+
   return (
     <div className="ou-ny-terminal-block">
       <div className="ou-ny-section-label">Last output</div>
-      {state.error || state.lines === null ? (
+      {actualError || !lines20 ? (
         <div className="ou-ipane-muted">No terminal text to show yet. Open it on the Wall.</div>
       ) : (
-        <pre className="ou-ipane-pre">{state.lines}</pre>
+        <pre className="ou-ipane-pre">{lines20}</pre>
       )}
     </div>
   );
@@ -214,17 +236,17 @@ function RunLedger({ sessionId }) {
   );
 }
 
-function DetailAsk({ x }) {
+function DetailAsk({ x, text, error }) {
   const [answer, setAnswer] = useState('');
   const here = !x.project_id || x.project_id === ui.projectId;
   const projectName = ui.snap?.projects?.find((p) => p.id === x.project_id)?.name || 'another project';
 
   const send = async () => {
     if (!here) return;
-    const text = answer.trim();
-    if (!text) return;
+    const textToSend = answer.trim();
+    if (!textToSend) return;
     try {
-      await troop.termInput(x.id, text + '\r');
+      await troop.termInput(x.id, textToSend + '\r');
       setAnswer('');
       toast(`Sent to ${x.engine_id}`);
     } catch (err) {
@@ -239,7 +261,7 @@ function DetailAsk({ x }) {
         <div className="ou-ipane-task">{taskOf(x)}</div>
         {x.last_line ? <div className="ou-ipane-lastline">{x.last_line}</div> : null}
       </div>
-      <TerminalPreview key={x.id} sessionId={x.id} stamp={x.last_line} />
+      <TerminalPreview text={text} error={error} sessionId={x.id} stamp={x.last_line} />
       <div className="ou-ipane-answer">
         <div className="ou-ny-section-label">Answer</div>
         <TextInput
@@ -316,15 +338,37 @@ function statusInfo(item, isSession, kindOf) {
   return { status: 'done', word: item.kind || 'Info' };
 }
 
+function autoKindOf(status) {
+  if (status === 'needs') return 'question';
+  return status;
+}
+
 export function Inbox() {
   const { collapsed = [], selectedId } = inboxStore.use();
-  if (ui.view !== 'inbox') return null;
+  const [addingLabel, setAddingLabel] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [handoverTarget, setHandoverTarget] = useState(null);
 
-  const s = ui.snap;
+  useEffect(() => {
+    setAddingLabel(false);
+    setNewLabel('');
+    setHandoverTarget(null);
+  }, [selectedId]);
+
+  const s = ui.snap || {};
   const live = s.live || [];
   const sessions = s.sessions || [];
   const needsYou = s.needs_you || [];
   const approvals = s.approvals || [];
+
+  const selectedNotice = selectedId ? needsYou.find((n) => n.id === selectedId) : null;
+  const targetSessionId = selectedNotice ? selectedNotice.ref : selectedId;
+  const targetSession = targetSessionId ? [...live, ...sessions].find((x) => x.id === targetSessionId) : null;
+  const terminalStamp = targetSession?.last_line || null;
+
+  const { text: sessionText, error: sessionTextError } = useSessionText(ui.view === 'inbox' ? targetSessionId : null, terminalStamp);
+
+  if (ui.view !== 'inbox') return null;
 
   const branchOf = (x) => (x ? x.branch || sessions.find((y) => y.id === x.id)?.branch || null : null);
   const kindOf = (n) => (n.kind === 'failed' ? 'failed' : n.kind === 'done' ? 'done' : isInfo(n) ? 'info' : 'needs');
@@ -420,6 +464,8 @@ export function Inbox() {
   let propStarted = null;
   let propUpdated = null;
   let ledgerSessionId = null;
+  let refSession = null;
+  let sessionObj = null;
 
   if (activeRow) {
     activeIsSession = activeRow.type === 'ask' || activeRow.type === 'working';
@@ -429,7 +475,8 @@ export function Inbox() {
     activeStatus = statusInfo(item, isSession, kindOf);
     activeTitle = isSession ? taskOf(item) : item.text;
 
-    const refSession = isSession ? item : [...live, ...sessions].find((x) => x.id === item.ref);
+    refSession = isSession ? item : [...live, ...sessions].find((x) => x.id === item.ref);
+    sessionObj = isSession ? item : refSession;
     ledgerSessionId = isSession
       ? activeRow.id
       : (item.ref && [...live, ...sessions].some((x) => x.id === item.ref) ? item.ref : null);
@@ -443,6 +490,52 @@ export function Inbox() {
       : (refSession?.started_at ? ago(refSession.started_at) : null);
     propUpdated = isSession ? ago(item.state_at || item.started_at) : ago(item.at);
   }
+
+  const serviceUrl = findServiceUrl(sessionText);
+  const hasLabelsArray = Boolean(sessionObj && Array.isArray(sessionObj.labels));
+  const userLabels = hasLabelsArray ? sessionObj.labels : [];
+  const autoKind = activeStatus ? autoKindOf(activeStatus.status) : null;
+  const autoLabels = [propEngine, autoKind].filter(Boolean);
+
+  const handleAddLabel = async () => {
+    const val = newLabel.trim();
+    if (!val) {
+      setAddingLabel(false);
+      setNewLabel('');
+      return;
+    }
+    const trimmed = val.slice(0, 32);
+    const current = Array.isArray(sessionObj?.labels) ? sessionObj.labels : [];
+    if (current.length >= 8 || current.includes(trimmed)) {
+      setAddingLabel(false);
+      setNewLabel('');
+      return;
+    }
+    const updated = [...current, trimmed];
+    if (sessionObj) sessionObj.labels = updated;
+    setAddingLabel(false);
+    setNewLabel('');
+    inboxStore.set({ tick: inboxStore.get().tick + 1 });
+    if (sessionObj?.id) {
+      await rpc('session.labels-set', { session_id: sessionObj.id, labels: updated });
+    }
+  };
+
+  const handleRemoveLabel = async (lbl) => {
+    const current = Array.isArray(sessionObj?.labels) ? sessionObj.labels : [];
+    const updated = current.filter((l) => l !== lbl);
+    if (sessionObj) sessionObj.labels = updated;
+    inboxStore.set({ tick: inboxStore.get().tick + 1 });
+    if (sessionObj?.id) {
+      await rpc('session.labels-set', { session_id: sessionObj.id, labels: updated });
+    }
+  };
+
+  const handEngines = (s.engines || []).filter((e) => e.light !== 'red' && e.id !== propEngine);
+  const handOptions = [
+    { value: '', label: 'Hand to...' },
+    ...handEngines.map((e) => ({ value: e.id, label: e.id })),
+  ];
 
   const renderRow = (item, isSession, groupKey) => {
     const isSelected = activeId === item.id;
@@ -458,6 +551,8 @@ export function Inbox() {
     const proj = (s.projects || []).find((p) => p.id === (refSession?.project_id || item.project_id))?.name || '';
     const workspaceText = proj && branchOrFolder && branchOrFolder !== proj ? `${proj} / ${branchOrFolder}` : proj || branchOrFolder || '-';
     const timeText = isSession ? ago(item.state_at || item.started_at) : ago(item.at);
+    const rowLabels = Array.isArray(item.labels) ? item.labels : (Array.isArray(refSession?.labels) ? refSession.labels : []);
+    const userRowLabels = rowLabels.slice(0, 2);
 
     return (
       <li
@@ -515,6 +610,11 @@ export function Inbox() {
         <div className="ou-ny-cell-item">
           <StatusRing status={status} />
           <span className="ou-ititle">{titleText}</span>
+          {userRowLabels.map((lbl) => (
+            <span key={lbl} className="ou-ny-list-chip" title={lbl}>
+              {lbl}
+            </span>
+          ))}
         </div>
         <div className="ou-ny-cell-agent">
           {engineId ? (
@@ -714,6 +814,26 @@ export function Inbox() {
             </div>
           </div>
           <div className="ou-ny-side-body">
+            <div className="ou-ny-top-chips">
+              <div className={`ou-ny-top-chip ou-ny-top-chip-status ou-ny-top-chip-${activeStatus.status}`}>
+                <StatusRing status={activeStatus.status} size={12} />
+                <span>{activeStatus.word}</span>
+              </div>
+              <div className="ou-ny-top-chip">
+                <span className="ou-ny-dot-sq" />
+                <span>{propProject || '-'}</span>
+              </div>
+              <div className="ou-ny-top-chip">
+                {propEngine ? (
+                  <>
+                    <span className="ou-ny-avatar ou-ny-avatar-16">{propEngine[0].toUpperCase()}</span>
+                    <span>{propEngine}</span>
+                  </>
+                ) : (
+                  <span>Unassigned</span>
+                )}
+              </div>
+            </div>
             <div className="ou-ny-side-title">{activeTitle}</div>
             <div className="ou-ny-grid">
               <div className="ou-ny-grid-row">
@@ -721,19 +841,118 @@ export function Inbox() {
                 <div className="ou-ny-grid-val">{activeStatus.word}</div>
               </div>
               <div className="ou-ny-grid-row">
-                <div className="ou-ny-grid-label">Agent</div>
-                <div className="ou-ny-grid-val">
-                  {propEngine ? (
-                    <span className="ou-ny-prop-agent">
-                      <span className="ou-ny-avatar">{propEngine[0].toUpperCase()}</span>
-                      <span>{propEngine}</span>
+                <div className="ou-ny-grid-label">Labels</div>
+                <div className="ou-ny-grid-val ou-ny-prop-labels">
+                  {userLabels.map((lbl) => (
+                    <span key={lbl} className="ou-ny-chip">
+                      <span>{lbl}</span>
+                      <button
+                        type="button"
+                        className="ou-ny-chip-remove"
+                        aria-label={`Remove label ${lbl}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveLabel(lbl);
+                        }}
+                      >
+                        <svg width="8" height="8" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M2 2l10 10M12 2L2 12" />
+                        </svg>
+                      </button>
                     </span>
-                  ) : '-'}
+                  ))}
+                  {autoLabels.map((lbl) => (
+                    <span key={`auto-${lbl}`} className="ou-ny-chip ou-ny-chip-muted">
+                      {lbl}
+                    </span>
+                  ))}
+                  {addingLabel ? (
+                    <TextInput
+                      size="sm"
+                      placeholder="Label, Enter adds"
+                      value={newLabel}
+                      onChange={setNewLabel}
+                      onEnter={handleAddLabel}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setAddingLabel(false);
+                          setNewLabel('');
+                        }
+                      }}
+                      hasAutoFocus
+                      width={140}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="ou-ny-label-add"
+                      aria-label="Add label"
+                      disabled={!hasLabelsArray}
+                      title={!hasLabelsArray ? 'Labels need a core update' : undefined}
+                      onClick={() => setAddingLabel(true)}
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="ou-ny-grid-row">
+                <div className="ou-ny-grid-label">Assignee</div>
+                <div className="ou-ny-grid-val ou-ny-prop-assignee">
+                  {sessionObj ? (
+                    <>
+                      {propEngine ? (
+                        <span className="ou-ny-prop-agent">
+                          <span className="ou-ny-avatar ou-ny-avatar-16">{propEngine[0].toUpperCase()}</span>
+                          <span>{propEngine}</span>
+                        </span>
+                      ) : (
+                        <span className="ou-ny-none">Unassigned</span>
+                      )}
+                      <Selector
+                        size="sm"
+                        variant="ghost"
+                        label="Hand to another agent"
+                        isLabelHidden
+                        options={handOptions}
+                        value=""
+                        onChange={(val) => {
+                          if (val) setHandoverTarget(val);
+                        }}
+                      />
+                    </>
+                  ) : (
+                    propEngine || '-'
+                  )}
                 </div>
               </div>
               <div className="ou-ny-grid-row">
                 <div className="ou-ny-grid-label">Project</div>
-                <div className="ou-ny-grid-val">{propProject || '-'}</div>
+                <div className="ou-ny-grid-val ou-ny-prop-project">
+                  <span className="ou-ny-dot-sq" />
+                  <span>{propProject || '-'}</span>
+                </div>
+              </div>
+              <div className="ou-ny-grid-row">
+                <div className="ou-ny-grid-label">Service</div>
+                <div className="ou-ny-grid-val">
+                  {serviceUrl ? (
+                    <button
+                      type="button"
+                      className="ou-ny-service-link"
+                      onClick={() => openTermLink(serviceUrl)}
+                    >
+                      <span>{serviceUrl}</span>
+                      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 2.5H3a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V8M8 2.5h3.5v3.5M6.5 7.5L11.5 2.5" />
+                      </svg>
+                    </button>
+                  ) : (
+                    '-'
+                  )}
+                </div>
               </div>
               <div className="ou-ny-grid-row">
                 <div className="ou-ny-grid-label">Branch</div>
@@ -753,10 +972,10 @@ export function Inbox() {
               </div>
             </div>
             {activeRow.type === 'ask' ? (
-              <DetailAsk key={activeRow.item.id} x={activeRow.item} />
+              <DetailAsk key={activeRow.item.id} x={activeRow.item} text={sessionText} error={sessionTextError} />
             ) : activeRow.type === 'working' ? (
               <div className="ou-ny-ask">
-                <TerminalPreview key={activeRow.item.id} sessionId={activeRow.item.id} stamp={activeRow.item.last_line} />
+                <TerminalPreview text={sessionText} error={sessionTextError} />
               </div>
             ) : (
               <DetailNotice key={activeRow.item.id} n={activeRow.item} kindOf={kindOf} />
@@ -767,6 +986,33 @@ export function Inbox() {
               <div className="ou-ny-slot-body">The handoff note shows here once the core records it.</div>
             </div>
           </div>
+          {handoverTarget && sessionObj ? (
+            <AlertDialog
+              isOpen={Boolean(handoverTarget)}
+              onOpenChange={(open) => {
+                if (!open) setHandoverTarget(null);
+              }}
+              title={`Hand this task to ${handoverTarget}?`}
+              description={`A new ${handoverTarget} agent starts in ${propProject || sessionObj.project_id || ui.projectId || ''} with the same task. The current agent keeps running until you stop it.`}
+              actionLabel="Hand over"
+              onAction={async () => {
+                const chosen = handoverTarget;
+                setHandoverTarget(null);
+                const r = await rpc('session.launch', {
+                  project_id: sessionObj.project_id || ui.projectId,
+                  engine_id: chosen,
+                  prompt: taskOf(sessionObj),
+                });
+                if (r && r.result) {
+                  toast(`Handed to ${chosen}`);
+                  inboxStore.set({ selectedId: r.result.session_id });
+                } else {
+                  const errText = (r && r.error && (r.error.message || r.error)) || 'Failed to hand over';
+                  toast(errText, true);
+                }
+              }}
+            />
+          ) : null}
         </div>
       ) : null}
     </div>

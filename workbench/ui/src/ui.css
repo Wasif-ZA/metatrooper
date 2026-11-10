@@ -148,6 +148,7 @@ html { font-size: 16px; }
 .ou-ny-act:hover { color: var(--ink); background: var(--canvas); }
 .ou-ny-act:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
 .ou-ny-ring { flex: none; width: 14px; height: 14px; }
+.ou-ny-ring-12, .ou-ny-top-chip .ou-ny-ring { width: 12px; height: 12px; }
 .ou-ny-ring-needs { color: var(--st-wait); }
 .ou-ny-ring-working { color: var(--st-run); }
 .ou-ny-ring-review { color: #a78bfa; }
@@ -162,13 +163,36 @@ html { font-size: 16px; }
 .ou-ny-close:hover { color: var(--ink); background: var(--canvas); }
 .ou-ny-close:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
 .ou-ny-side-body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; }
+.ou-ny-top-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ou-ny-top-chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 0; font-size: 12px; line-height: 1; color: var(--body); background: var(--canvas-deep); box-sizing: border-box; white-space: nowrap; }
+.ou-ny-top-chip-needs { color: var(--st-wait); }
+.ou-ny-top-chip-working { color: var(--st-run); }
+.ou-ny-top-chip-review { color: #a78bfa; }
+.ou-ny-top-chip-failed { color: var(--st-bad); }
+.ou-ny-top-chip-done { color: var(--st-ok); }
+.ou-ny-dot-sq { width: 8px; height: 8px; flex: none; background: var(--st-run); border-radius: 0; }
+.ou-ny-avatar-16 { width: 16px; height: 16px; font-size: 9px; border-radius: 0; }
 .ou-ny-side-title { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.35; margin-bottom: 4px; word-break: break-word; }
 .ou-ny-grid { display: flex; flex-direction: column; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
-.ou-ny-grid-row { display: flex; align-items: baseline; min-height: 28px; padding: 4px 0; box-sizing: border-box; font-size: 12px; }
+.ou-ny-grid-row { display: flex; align-items: center; min-height: 28px; padding: 4px 0; box-sizing: border-box; font-size: 12px; }
 .ou-ny-grid-row + .ou-ny-grid-row { border-top: 1px solid var(--hairline); }
 .ou-ny-grid-label { width: 88px; flex: none; color: var(--mute); }
 .ou-ny-grid-val { flex: 1; min-width: 0; color: var(--ink); font-size: 13px; }
 .ou-ny-prop-agent { display: inline-flex; align-items: center; gap: 6px; }
+.ou-ny-prop-assignee { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ou-ny-prop-project { display: inline-flex; align-items: center; gap: 6px; }
+.ou-ny-prop-labels { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ou-ny-chip { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border: 1px solid var(--hairline); border-radius: 0; font-size: 11px; line-height: 1; color: var(--body); background: var(--canvas-deep); box-sizing: border-box; white-space: nowrap; }
+.ou-ny-chip-muted { color: var(--mute); border-color: var(--hairline); }
+.ou-ny-chip-remove { display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; margin-left: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--mute); cursor: pointer; line-height: 1; }
+.ou-ny-chip-remove:hover { color: var(--ink); }
+.ou-ny-label-add { width: 20px; height: 20px; min-width: 20px; min-height: 20px; padding: 0; border: 1px solid var(--hairline); border-radius: 0; background: transparent; color: var(--mute); font-size: 13px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.ou-ny-label-add:hover:not(:disabled) { color: var(--ink); background: var(--canvas-soft); }
+.ou-ny-label-add:disabled { opacity: 0.4; cursor: not-allowed; }
+.ou-ny-service-link { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; font-family: var(--mono); font-size: 12px; color: var(--st-ok); cursor: pointer; line-height: 1.4; word-break: break-all; }
+.ou-ny-service-link:hover { text-decoration: underline; }
+.ou-ny-service-link svg { flex: none; width: 12px; height: 12px; }
+.ou-ny-list-chip { flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border: 1px solid var(--hairline); border-radius: 0; font-size: 11px; line-height: 1; color: var(--body); background: transparent; box-sizing: border-box; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-ny-prop-branch { font-family: var(--mono); font-size: 12px; color: var(--body); }
 .ou-ny-prop-folder { font-family: var(--mono); font-size: 12px; color: var(--body); word-break: break-all; }
 .ou-ny-ask { display: flex; flex-direction: column; gap: 16px; }
