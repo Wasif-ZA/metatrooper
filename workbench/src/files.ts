@@ -60,6 +60,7 @@ export function listDir(root: string, rel: string): Array<{ name: string; dir: b
 }
 
 export function openOutside(root: string, rel: string): string | { error: string } {
+  if (typeof rel !== 'string' || path.isAbsolute(rel)) return NOT_FILE;
   const full = inside(root, rel);
   if (!full) return NOT_FILE;
   if (!/^(pdf|png|jpg|jpeg|gif|webp|svg|html|htm)$/i.test(path.extname(full).slice(1))) return { error: 'this file type cannot be opened outside' };
@@ -186,7 +187,7 @@ export async function searchText(root: string, query: unknown): Promise<{ hits: 
 
 function rgSearch(root: string, query: string): Promise<{ hits: SearchHit[]; more: boolean }> {
   return new Promise((resolve, reject) => {
-    const args = ['--json', '--no-config', '-F', '-i', '--hidden', '-g', '!.git', '--max-count', '50', '--max-filesize', '2M', '--path-separator', '/', '-e', query];
+    const args = ['--json', '--no-config', '-F', '-i', '--hidden', '-g', '!.git', '--max-filesize', '2M', '--path-separator', '/', '-e', query];
     const rg = spawn('rg', args, { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).on('error', (e) => { clearTimeout(timer); if (!started) reject(e); else resolve({ hits, more }); });
     const hits: SearchHit[] = [];
     let more = false;

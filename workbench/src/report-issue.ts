@@ -3,12 +3,12 @@ export const MAX_URL = 7500;
 
 export type IssueFacts = { version: string; commit: string; view: string; project: string; os: string; time: string; errors: string[] };
 
-const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(/[\r\n]+/g, ' ').slice(0, max) : '');
+const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(/[\r\n]+/g, ' ').trim().slice(0, max) : '');
 
 /** Keeps only the renderer fields the report may carry; the project is reduced to its last path segment. */
 export function cleanReport(raw: unknown): { view: string; project: string; errors: string[] } {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const project = str(r.project, 200).split(/[\\/]/).filter(Boolean).pop() || '';
+  const project = str(r.project, 200).split(/[\\/]/).map((s) => s.trim()).filter(Boolean).pop() || '';
   const errors = Array.isArray(r.errors) ? r.errors.slice(-20).map((x) => str(x, 300)).filter(Boolean) : [];
   return { view: str(r.view, 40) || 'unknown', project, errors };
 }
