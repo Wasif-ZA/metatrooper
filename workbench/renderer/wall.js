@@ -118,7 +118,7 @@ const wall = (() => {
     placed = true;
   }
 
-  const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : Math.max((W - 32) / 3.3 * 1.3, Math.min(460, W * 0.5)));
+  const colW = (W) => (BIG.length > 1 ? (W - 32) * 0.625 : (W - 16 - G) / 2);
   function rects() {
     const st = $('#stage'), W = st?.clientWidth || innerWidth, H = (st?.clientHeight || innerHeight) - TOP - 60;
     const R = {};

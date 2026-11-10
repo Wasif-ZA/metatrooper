@@ -86,7 +86,6 @@ body { position: relative; }
 .sheet .tab .btn { height: 26px; }
 .gate .ga input { width: 120px; height: 28px; background: var(--canvas-deep); border: 1px solid var(--hairline-strong); border-radius: 2px; padding: 0 8px; color: var(--ink); }
 .gate .ga .btn.acc kbd, .sheet .tab .btn.acc kbd { background: #dcdcdc; color: var(--on-primary); border-color: #b8b8b8; }
-.verdict { transform: rotate(-2deg); }
 
 /* agent list extras */
 .alist .lbody { overflow: auto; }
