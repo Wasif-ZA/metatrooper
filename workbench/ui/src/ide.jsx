@@ -64,8 +64,9 @@ export async function drawIde() {
   if (!ideShown()) return;
   if (cur && cur.pid === ui.projectId) {
     const sig = JSON.stringify(ui.snap.git || {});
-    if (cur.sig !== undefined && cur.sig !== sig) void refresh(cur);
+    if (cur.sig !== undefined && cur.sig !== sig) void refresh(cur, cur.gitSnap, ui.snap.git || {});
     cur.sig = sig;
+    cur.gitSnap = ui.snap.git || {};
     bump();
     return;
   }
@@ -95,12 +96,15 @@ async function loadDir(st, rel) {
   bump();
 }
 
-// ponytail: re-lists every open folder on each git snapshot change; watch single folders if this gets slow
-async function refresh(st) {
+async function refresh(st, before, after) {
   if (st.refreshing) return;
   st.refreshing = true;
   try {
+    const parents = before && after
+      ? new Set([...Object.values(before), ...Object.values(after)].flatMap((x) => (x?.changed || []).map((p) => folder(slashed(p)))))
+      : null;
     for (const rel of [...st.dirs.keys()]) {
+      if (parents && !parents.has(rel)) continue;
       const list = await api.fsList(st.pid, rel || '.');
       if (list) st.dirs.set(rel, list); else if (rel) st.dirs.delete(rel);
     }
