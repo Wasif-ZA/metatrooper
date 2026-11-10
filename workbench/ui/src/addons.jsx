@@ -20,6 +20,7 @@ const SEARCH = 'M7 2.5a4.5 4.5 0 110 9 4.5 4.5 0 010-9zM10.3 10.3l3.2 3.2';
 const KIND = [['agent', 'Agents'], ['plugin', 'Plugins']];
 const STATE = [['on', 'On'], ['off', 'Off'], ['bad', 'Not ready']];
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const ver = (v) => { const s = String(v || '').trim().replace(/\.$/, ''); return s && (/^\d/.test(s) ? `v${s}` : s); };
 
 function items(engines, rows) {
   const agents = [...engines].sort((a, b) => (a.light === 'red') === (b.light === 'red') ? byId(a, b) : a.light === 'red' ? -1 : 1).map((e) => ({
@@ -35,7 +36,7 @@ function items(engines, rows) {
 
 function card(it, open, toggle, remove) {
   const { e, p } = it;
-  const source = (p ? ['Plugin', p.version && `v${p.version}`] : ['Agent', e.version && `v${e.version}`, e.plugin_id && `from ${e.plugin_id}`]).filter(Boolean).join(' · ');
+  const source = (p ? ['Plugin', ver(p.version)] : ['Agent', ver(e.version), e.plugin_id && `from ${e.plugin_id}`]).filter(Boolean).join(' · ');
   const perms = p ? p.permissions || [] : [];
   const shown = open ? perms : perms.slice(0, 3);
   return (
