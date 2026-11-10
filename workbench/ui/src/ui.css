@@ -63,11 +63,12 @@ html { font-size: 16px; }
 .ou-ah-acts :is(button, .btn, .astryx-button):is(.tx, [data-action="hide"]) { width: 24px; min-width: 24px; padding: 0; color: var(--mute); }
 
 /* Lists: full-width hairline rows, 40px, title weight says unread, fixed time column (Paperclip inbox, bb task list). */
-.ou-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas); overflow: hidden; }
-.ou-irow { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 12px; cursor: pointer; color: var(--mute); }
+.ou-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-deep); overflow: hidden; }
+.ou-irow { display: flex; align-items: center; gap: 10px; height: 34px; min-height: 34px; padding: 0 12px; cursor: pointer; color: var(--mute); background: var(--canvas-deep); box-sizing: border-box; }
 .ou-irow > .ou-ah { width: 100%; }
 .ou-irow + .ou-irow { border-top: 1px solid var(--hairline); }
 .ou-irow:hover { background: var(--canvas-soft); }
+.ou-irow.ou-irow-selected, .ou-irow.sel, .ou-irow[aria-selected="true"] { background: var(--canvas-soft); }
 .ou-irow:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .ou-ititle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--body); }
 .ou-unread .ou-ititle { font-weight: 600; color: var(--ink); }
@@ -79,7 +80,29 @@ html { font-size: 16px; }
 .ou-g-bad { color: var(--del); }
 .ou-hoveronly { visibility: hidden; }
 .ou-irow:hover .ou-hoveronly, .ou-irow:focus-within .ou-hoveronly { visibility: visible; }
-.ou-keys { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mute); }
+.ou-keys { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--mute); margin-top: auto; padding-top: 8px; }
+
+.ou-inbox { display: grid; grid-template-columns: 480px 1fr; height: 100%; max-width: none !important; margin: 0; padding: 0 !important; overflow: hidden; box-sizing: border-box; }
+.ou-inbox-list { display: flex; flex-direction: column; width: 480px; height: 100%; min-height: 0; box-sizing: border-box; padding: 16px 24px; border-right: 1px solid var(--hairline); overflow-y: auto; gap: 16px; }
+.ou-inbox-head { display: flex; align-items: center; height: 40px; min-height: 40px; font-size: 13px; font-weight: 600; color: var(--ink); flex: none; }
+.ou-ifilters { display: flex; align-items: center; height: 36px; min-height: 36px; gap: 8px; flex: none; }
+.ou-ifilters-chip { height: 24px; border: 1px solid var(--hairline); border-radius: 4px; font-size: 12px; padding: 0 8px; background: transparent; color: var(--mute); display: inline-flex; align-items: center; cursor: pointer; line-height: 1; box-sizing: border-box; }
+.ou-ifilters-chip:hover { color: var(--ink); }
+.ou-ifilters-chip.ou-ifilters-selected { background: var(--canvas-soft); color: var(--ink); }
+.ou-ipane { flex: 1; display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; box-sizing: border-box; padding: 16px 24px; overflow-y: auto; gap: 16px; }
+.ou-ipane-empty { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+.ou-ipane-btn { width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--mute); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.ou-ipane-btn:hover { background: var(--canvas-soft); color: var(--ink); }
+.ou-ipane-question { display: flex; flex-direction: column; gap: 4px; }
+.ou-ipane-task { font-size: 14px; color: var(--ink); font-weight: 500; line-height: 1.4; }
+.ou-ipane-lastline { font-family: var(--mono); font-size: 12px; color: var(--body); line-height: 1.4; }
+.ou-ipane-pre { font-family: var(--mono); font-size: 12px; color: var(--body); background: var(--canvas-soft); border: 1px solid var(--hairline); padding: 10px 12px; max-height: 50%; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-all; box-sizing: border-box; }
+.ou-ipane-muted { font-size: 12px; color: var(--mute); line-height: 1.4; }
+.ou-ipane-answer { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.ou-ipane-answer-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.ou-ipane-notice { display: flex; flex-direction: column; gap: 12px; }
+.ou-ipane-noticehead { display: flex; align-items: center; gap: 8px; }
+.ou-ipane-noticetext { font-size: 14px; color: var(--ink); font-weight: 500; }
 
 /* Home: start box (OpenHands hero, bb composer anatomy), borderless tiles and agent cards (Paperclip dashboard). */
 .ou-home { padding-top: 24px; }
@@ -158,7 +181,8 @@ html { font-size: 16px; }
 .ou-composer textarea { min-height: 36px; }
 .ou-cards { grid-template-columns: repeat(auto-fill, minmax(276px, 1fr)); gap: 16px; }
 .ou-chip { display: inline-block; max-width: 100%; padding: 0 7px; border: 1px solid var(--hairline-strong); border-radius: 4px; font: 11.5px/18px var(--mono); color: var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
-.ou-irow { min-height: 36px; }
+.ou-irow { height: 34px; min-height: 34px; background: var(--canvas-deep); }
+.ou-irow.ou-irow-selected, .ou-irow.sel, .ou-irow[aria-selected="true"] { background: var(--canvas-soft); }
 .ou-iwho { flex: none; width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px var(--mono); color: var(--mute); }
 .ou-iwho:empty { display: none; }
 .ou-imeta { display: flex; align-items: center; gap: 8px; }

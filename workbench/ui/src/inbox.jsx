@@ -1,16 +1,16 @@
+import { useEffect, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Kbd } from '@astryxdesign/core/Kbd';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AgentHead } from './agenthead.jsx';
 
-export const inboxStore = createStore({ tick: 0, filter: 'all' });
+export const inboxStore = createStore({ tick: 0, filter: 'all', selectedId: null });
 
 const FILTERS = [['all', 'All'], ['needs', 'Needs you'], ['done', 'Finished'], ['failed', 'Failed']];
 const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way'], ['not-a-loop', 'Not a loop']];
 
-// Shape carries the state, as in Herdr: filled dot needs you, check finished, cross failed, hollow dot for information.
 function Glyph({ kind }) {
   const p = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
   if (kind === 'needs') return <svg {...p} className="ou-g ou-g-needs" aria-label="Needs you"><circle cx="7" cy="7" r="3.5" fill="currentColor" stroke="none" /></svg>;
@@ -32,9 +32,118 @@ function NoteActions({ n }) {
   );
 }
 
-// Row anatomy follows Paperclip's inbox: 44px rows, state glyph, title whose weight says unread, quiet meta, a fixed time column.
+function TerminalPreview({ sessionId }) {
+  const [state, setState] = useState({ lines: null, error: false });
+
+  useEffect(() => {
+    let active = true;
+    setState({ lines: null, error: false });
+    rpc('session.read', { session_id: sessionId, lines: 20 })
+      .then((res) => {
+        if (!active) return;
+        if (res && res.result && res.result.lines != null) {
+          const text = Array.isArray(res.result.lines) ? res.result.lines.join('\n') : String(res.result.lines);
+          if (text.length > 0) {
+            setState({ lines: text, error: false });
+          } else {
+            setState({ lines: null, error: true });
+          }
+        } else {
+          setState({ lines: null, error: true });
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setState({ lines: null, error: true });
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
+  if (state.error || state.lines === null) {
+    return <div className="ou-ipane-muted">Terminal preview needs session.read; open it on the Wall.</div>;
+  }
+
+  return <pre className="ou-ipane-pre">{state.lines}</pre>;
+}
+
+function DetailAsk({ x }) {
+  const [answer, setAnswer] = useState('');
+
+  const send = () => {
+    const text = answer.trim();
+    if (!text) return;
+    troop.termInput(x.id, text + '\r');
+    setAnswer('');
+    toast(`Sent to ${x.engine_id}`);
+  };
+
+  return (
+    <>
+      <AgentHead x={x}>
+        <button
+          type="button"
+          className="ou-ipane-btn"
+          data-action="pick"
+          data-id={x.id}
+          aria-label="Open on Wall"
+          title="Open on Wall"
+          onClick={() => homeView.set('wall')}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" />
+            <path d="M5.5 1.5v11M1.5 5.5h4" />
+          </svg>
+        </button>
+      </AgentHead>
+      <div className="ou-ipane-question">
+        <div className="ou-ipane-task">{taskOf(x)}</div>
+        {x.last_line ? <div className="ou-ipane-lastline">{x.last_line}</div> : null}
+      </div>
+      <TerminalPreview sessionId={x.id} />
+      <div className="ou-ipane-answer">
+        <TextInput
+          label="Answer"
+          placeholder="Type your answer, Enter sends"
+          value={answer}
+          onChange={setAnswer}
+          onEnter={send}
+          width="100%"
+        />
+        <div className="ou-ipane-answer-row">
+          <Button
+            variant="primary"
+            label="Send"
+            isDisabled={!answer.trim()}
+            onClick={send}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DetailNotice({ n, kindOf }) {
+  const kind = kindOf(n);
+  const time = ago(n.at);
+  const meta = time ? `${n.kind} · ${time}` : n.kind;
+  return (
+    <div className="ou-ipane-notice">
+      <div className="ou-ipane-noticehead">
+        <Glyph kind={kind} />
+        <span className="ou-ipane-noticetext">{n.text}</span>
+      </div>
+      <div className="ou-ipane-muted">{meta}</div>
+      <NoteActions n={n} />
+    </div>
+  );
+}
+
+const openOnWall = (id) => { homeView.set('wall'); void pick(id); };
+
 export function Inbox() {
-  const { filter } = inboxStore.use();
+  const { filter, selectedId } = inboxStore.use();
   if (ui.view !== 'inbox') return null;
   const s = ui.snap;
   const away = (pid) => (pid === ui.projectId ? '' : `${(s.projects.find((p) => p.id === pid) || {}).name || 'other project'} · `);
@@ -45,45 +154,132 @@ export function Inbox() {
   const rank = { needs: 0, failed: 1, done: 2, info: 3 };
   const notes = s.needs_you.filter((n) => (filter === 'all' ? true : filter === 'needs' ? !isInfo(n) : n.kind === filter))
     .slice().sort((a, b) => (Boolean(a.read_at) - Boolean(b.read_at)) || (rank[kindOf(a)] - rank[kindOf(b)]));
-  const count = { all: waitingAll().length + (s.approvals || []).length + s.needs_you.length, needs: needsCount(), done: s.needs_you.filter((n) => n.kind === 'done').length, failed: s.needs_you.filter((n) => n.kind === 'failed').length };
-  const open = () => homeView.set('wall');
+  const count = {
+    all: waitingAll().length + (s.approvals || []).length + s.needs_you.length,
+    needs: needsCount(),
+    done: s.needs_you.filter((n) => n.kind === 'done').length,
+    failed: s.needs_you.filter((n) => n.kind === 'failed').length,
+  };
+
+  const allRows = [
+    ...asks.map((x) => ({ type: 'ask', id: x.id, item: x })),
+    ...notes.map((n) => ({ type: 'note', id: n.id, item: n })),
+  ];
+  const activeRow = allRows.find((r) => r.id === selectedId) || allRows[0] || null;
+  const activeId = activeRow ? activeRow.id : null;
+
   return (
-    <div className="ou-col ou-inbox">
-      <header className="ou-split ou-pagehead">
-        <div>
-          <h1>Needs you</h1>
-          <p>{count.needs ? `${count.needs} waiting on you` : 'Nothing is waiting on you'}</p>
+    <div className="ou-inbox">
+      <div className="ou-inbox-list">
+        <header className="ou-inbox-head">Needs you</header>
+        <div className="ou-ifilters">
+          {FILTERS.map(([id, label]) => {
+            const isSelected = filter === id;
+            if (count[id] === 0 && !isSelected) return null;
+            return (
+              <button
+                key={id}
+                type="button"
+                className={isSelected ? 'ou-ifilters-chip ou-ifilters-selected' : 'ou-ifilters-chip'}
+                onClick={() => inboxStore.set({ filter: id })}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
-        <SegmentedControl label="Filter" size="sm" value={filter} onChange={(v) => inboxStore.set({ filter: v })}>
-          {FILTERS.map(([id, label]) => <SegmentedControlItem key={id} value={id} label={`${label} · ${count[id]}`} />)}
-        </SegmentedControl>
-      </header>
-      {approvals.length ? <><h2>Agent actions waiting for a yes</h2><div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} /></> : null}
-      {asks.length || notes.length ? (
-        <ul className="ou-list">
-          {asks.length ? <li className="ou-ihead">Needs your answer<i>{asks.length}</i></li> : null}
-          {asks.map((x) => (
-            <li key={x.id} className="ou-irow ou-unread" data-action="pick" data-id={x.id} onClick={open} tabIndex={0} role="button">
-              <AgentHead x={x}>
-                {away(x.project_id) ? <span className="ou-imeta">{away(x.project_id).replace(/ · $/, '')}</span> : null}
-                <Button size="sm" label="Answer" data-action="pick" data-id={x.id} onClick={open} />
-              </AgentHead>
-            </li>
-          ))}
-          {notes.length ? <li className="ou-ihead">Notices<i>{notes.length}</i></li> : null}
-          {notes.map((n) => (
-            <li key={n.id} className={n.read_at ? 'ou-irow' : 'ou-irow ou-unread'} data-action="inbox-open" data-id={n.id} onClick={open} tabIndex={0} role="button">
-              <Glyph kind={kindOf(n)} />
-              <span className="ou-iwho" />
-              <span className="ou-ititle">{n.text}</span>
-              <span className="ou-imeta"><span className="ou-chip">{n.kind}</span></span>
-              <NoteActions n={n} />
-              <span className="ou-itime">{ago(n.at)}</span>
-            </li>
-          ))}
-        </ul>
-      ) : approvals.length ? null : <EmptyState title="Nothing here." description="Agents that ask, finish or fail show up in this list." isCompact />}
-      <footer className="ou-keys"><Kbd keys="J" /><Kbd keys="K" /> move <Kbd keys="Enter" /> open</footer>
+        {approvals.length ? (
+          <>
+            <h2>Agent actions waiting for a yes</h2>
+            <div className="igates" dangerouslySetInnerHTML={{ __html: approvals.map(approvalCard).join('') }} />
+          </>
+        ) : null}
+        {asks.length || notes.length ? (
+          <ul className="ou-list">
+            {asks.length ? <li className="ou-ihead">Needs your answer <i>{asks.length}</i></li> : null}
+            {asks.map((x) => {
+              const isSelected = activeId === x.id;
+              return (
+                <li
+                  key={x.id}
+                  className={isSelected ? 'ou-irow ou-irow-selected ou-unread' : 'ou-irow ou-unread'}
+                  data-action="pick"
+                  data-id={x.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.currentTarget.focus();
+                    inboxStore.set({ selectedId: x.id });
+                  }}
+                  onFocus={() => {
+                    if (inboxStore.get().selectedId !== x.id) {
+                      inboxStore.set({ selectedId: x.id });
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); openOnWall(x.id); }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-selected={isSelected}
+                >
+                  <AgentHead x={x}>
+                    {away(x.project_id) ? <span className="ou-imeta">{away(x.project_id).replace(/ · $/, '')}</span> : null}
+                  </AgentHead>
+                </li>
+              );
+            })}
+            {notes.length ? <li className="ou-ihead">Notices <i>{notes.length}</i></li> : null}
+            {notes.map((n) => {
+              const isSelected = activeId === n.id;
+              return (
+                <li
+                  key={n.id}
+                  className={isSelected ? (n.read_at ? 'ou-irow ou-irow-selected' : 'ou-irow ou-irow-selected ou-unread') : (n.read_at ? 'ou-irow' : 'ou-irow ou-unread')}
+                  data-action="inbox-open"
+                  data-id={n.id}
+                  onClick={(e) => {
+                    if (e.target.closest('button, .astryx-button')) return;
+                    e.stopPropagation();
+                    e.currentTarget.focus();
+                    inboxStore.set({ selectedId: n.id });
+                  }}
+                  onFocus={() => {
+                    if (inboxStore.get().selectedId !== n.id) {
+                      inboxStore.set({ selectedId: n.id });
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-selected={isSelected}
+                >
+                  <Glyph kind={kindOf(n)} />
+                  <span className="ou-iwho" />
+                  <span className="ou-ititle">{n.text}</span>
+                  <span className="ou-imeta"><span className="ou-chip">{n.kind}</span></span>
+                  <NoteActions n={n} />
+                  <span className="ou-itime">{ago(n.at)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : approvals.length ? null : (
+          <EmptyState title="Nothing here." description="Agents that ask, finish or fail show up in this list." isCompact />
+        )}
+        <footer className="ou-keys">
+          <Kbd keys="J" /><Kbd keys="K" /> move <Kbd keys="Enter" /> open
+        </footer>
+      </div>
+      <div className="ou-ipane">
+        {!activeRow ? (
+          <div className="ou-ipane-empty">
+            <EmptyState title="Nothing is waiting on you." isCompact />
+          </div>
+        ) : activeRow.type === 'ask' ? (
+          <DetailAsk x={activeRow.item} />
+        ) : (
+          <DetailNotice n={activeRow.item} kindOf={kindOf} />
+        )}
+      </div>
     </div>
   );
 }
