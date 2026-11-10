@@ -42,6 +42,15 @@ export function usageSummary(db: DatabaseSync, o: UsageOpts) {
   return { window: o.window, total, in: t.i, out: t.o, cache_read: t.cr, cache_write: t.cw, usd: d.usd, usd_estimated: !!d.e, parts, by_agent, estimate: true };
 }
 
+/** All-time usage totals and model breakdown for a session. */
+export function sessionUsage(db: DatabaseSync, sessionId: string) {
+  const session = db.prepare('SELECT engine_id FROM session WHERE id = ?').get(sessionId) as { engine_id: string } | undefined;
+  if (!session) return undefined;
+  const totals = db.prepare(`SELECT COALESCE(SUM(tokens_in), 0) AS tokens_in, COALESCE(SUM(tokens_out), 0) AS tokens_out, COALESCE(SUM(cache_read), 0) AS cache_read, COALESCE(SUM(cache_write), 0) AS cache_write, COALESCE(SUM(usd), 0) AS usd, COALESCE(MAX(CASE WHEN usd IS NOT NULL THEN usd_estimated ELSE 0 END), 0) AS usd_estimated, COUNT(*) - COUNT(usd) AS unpriced FROM usage WHERE session_id = ?`).get(sessionId) as { tokens_in: number; tokens_out: number; cache_read: number; cache_write: number; usd: number; usd_estimated: number; unpriced: number };
+  const by_model = db.prepare(`SELECT model, COALESCE(SUM(tokens_in), 0) AS tokens_in, COALESCE(SUM(tokens_out), 0) AS tokens_out, COALESCE(SUM(usd), 0) AS usd FROM usage WHERE session_id = ? GROUP BY model ORDER BY usd DESC, SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0) + COALESCE(cache_read, 0) + COALESCE(cache_write, 0)) DESC`).all(sessionId) as { model: string | null; tokens_in: number; tokens_out: number; usd: number }[];
+  return { session_id: sessionId, engine_id: session.engine_id, ...totals, usd_estimated: !!totals.usd_estimated, by_model };
+}
+
 /** Files read more than once per session in the window; a pure query that never touches Read. */
 export function repeatReads(db: DatabaseSync, o: UsageOpts) {
   const w = scope(o);

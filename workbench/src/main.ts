@@ -60,7 +60,7 @@ export const UI_METHODS = new Set([
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
-  'done.result', 'usage.summary', 'session.owners', 'audit.list', 'worktree.create',
+  'done.result', 'usage.summary', 'usage.session', 'session.owners', 'audit.list', 'worktree.create',
   'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove',
 ]);
 

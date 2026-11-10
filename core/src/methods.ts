@@ -9,7 +9,7 @@ import { scrub } from './redact.ts';
 import type { MethodSpec } from './pipe/commands.ts';
 import { isPreset } from './browser/grants.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
-import { repeatReads, saverReport, usageSummary } from './usage.ts';
+import { repeatReads, saverReport, sessionUsage, usageSummary } from './usage.ts';
 import { nowIso, ulid } from './time.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
@@ -86,6 +86,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.hide', errors: [E.NOT_FOUND], params: '{session_id}', result: '{}' },
   { name: 'session.limit-resume', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, on: bool}', result: '{}; sets the tile\'s "go on at a usage limit reset" toggle (`session.limit_resume`, M6-24). -32602 when `on` is not a boolean' },
   { name: 'usage.summary', errors: [E.INVALID_PARAMS], params: '{window: today|week|run, run_id?}', result: '{window, total, in, out, cache_read, cache_write, usd, usd_estimated, parts: [{kind, tokens}], by_agent: [{session_id, engine_id, tokens, usd, usd_estimated}], estimate: true, repeat_reads: [{session_id, file_path, count}], savers: [{id, on, saving}]}; token use for the window (run needs run_id), the parts sum to total; -32602 on a bad window or a run without run_id' },
+  { name: 'usage.session', errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id}', result: '{session_id, engine_id, tokens_in, tokens_out, cache_read, cache_write, usd, usd_estimated, unpriced, by_model: [{model, tokens_in, tokens_out, usd}]}; all-time session usage, models ordered by usd then total tokens descending; usd sums priced rows (0 when none), usd_estimated is true when any priced row is estimated, unpriced counts rows with null usd; -32002 session not found' },
   { name: 'loop.choose', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, choice}', result: '{false_alarms}; answers a loop alarm nudge: `pause` interrupts the agent, `try-another-way` tells it to change approach, `not-a-loop` resets the count and is counted as a false alarm; `rewind` is refused until file restore exists. Resolves the nudge row' },
   { name: 'done.check', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, command, acceptance?}', result: 'the stored done_proof row: runs `command` in the session folder, keeps the output tail, the folder tree and the exit code' },
   { name: 'done.result', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{result: done | checks_passed | needs_review, unverified, proof, current}: the latest check on the folder as it is now' },
@@ -378,6 +379,14 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       if (p.window === 'run' && typeof p.run_id !== 'string') throw new RpcError(E.INVALID_PARAMS, 'run_id is required for the run window');
       const o = { window: p.window, run_id: p.run_id as string | undefined };
       return { ...usageSummary(db, o), repeat_reads: repeatReads(db, o), savers: saverReport() };
+    },
+  });
+
+  m.set('usage.session', {
+    handler: (p) => {
+      const usage = sessionUsage(db, str(p, 'session_id'));
+      if (!usage) throw new RpcError(E.NOT_FOUND, 'session not found');
+      return usage;
     },
   });
 
