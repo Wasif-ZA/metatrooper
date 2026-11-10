@@ -137,6 +137,9 @@ async function openGitDiff(st, path, staged) {
     st.tabs.push(t);
   }
   st.active = path;
+  t.gitDiff = true;
+  t.staged = Boolean(staged);
+  if (isDeleted && t.text === undefined) t.error = 'This file was deleted. Changes shows what was removed.';
   t.mode = 'changes';
   t.diff = undefined;
   const seq = (t.diffSeq || 0) + 1;
@@ -186,7 +189,7 @@ async function openFile(st, path, { owner, changes, line } = {}) {
   let t = tabOf(st, path);
   if (!t) { t = { path, mode: isMd(path) ? 'preview' : 'file', dirty: false }; st.tabs.push(t); }
   st.active = path;
-  if (owner) t.owner = owner;
+  if (owner) { t.owner = owner; t.gitDiff = false; }
   if (line) { t.gotoLine = line; t.mode = 'file'; }
   bump();
   if (changes) void showChanges(st, path);
@@ -313,7 +316,7 @@ async function showChanges(st, path) {
   t.diffSeq = seq;
   bump();
   const owner = ownerOf(path, t.owner);
-  const text = owner ? await api.sessionDiffFile(owner, path, 'uncommitted') : null;
+  const text = t.gitDiff ? await api.git(st.pid, t.staged ? 'diff-staged' : 'diff', path) : owner ? await api.sessionDiffFile(owner, path, 'uncommitted') : null;
   if (t.diffSeq !== seq) return;
   t.diff = text || '';
   bump();
@@ -815,7 +818,7 @@ function DiffView({ tab }) {
 }
 
 function Crumb({ st, tab, changed }) {
-  const isChanged = tab && changed.has(tab.path);
+  const isChanged = tab && (changed.has(tab.path) || Boolean(tab.gitDiff));
   const md = Boolean(tab) && isMd(tab.path);
   const mode = isChanged && tab.mode === 'changes' ? 'changes' : tab && inPreview(tab) ? 'preview' : 'file';
   const parts = tab ? tab.path.split('/') : [];
@@ -1046,9 +1049,9 @@ export function Ide() {
         </div>
         <Crumb st={st} tab={active} changed={changed} />
         <div className="ou-ide-view">
-          {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || (changed.has(t.path) && t.mode === 'changes') || inPreview(t)} />)}
+          {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
           {!active ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
-            : changed.has(active.path) && active.mode === 'changes' ? <DiffView tab={active} />
+            : (changed.has(active.path) || active.gitDiff) && active.mode === 'changes' ? <DiffView tab={active} />
               : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
                 : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
                   : inPreview(active) ? <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} /> : null}
