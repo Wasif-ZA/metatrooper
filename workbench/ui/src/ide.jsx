@@ -211,14 +211,7 @@ async function openGitDiff(st, path, staged) {
   if (t.diffSeq !== seq) return;
   t.diff = typeof text === 'string' ? text : '';
   bump();
-  if (!isDeleted && t.text === undefined && !t.error && !t.reading) {
-    t.reading = true;
-    const r = await api.fsRead(st.pid, path);
-    t.reading = false;
-    if (!r || r.error) t.error = (r && r.error) || 'Could not read the file.';
-    else { t.text = r.text; t.mtimeMs = r.mtimeMs; }
-    bump();
-  }
+  if (!isDeleted) await readTab(st, t, path);
 }
 
 // ref is a tab or a path; a tab keeps working after a rename
@@ -247,14 +240,7 @@ function goto(t) {
   t.view.focus();
 }
 
-async function openFile(st, path, { owner, changes, line } = {}) {
-  let t = tabOf(st, path);
-  if (!t) { t = { path, mode: isMd(path) ? 'preview' : 'file', dirty: false }; st.tabs.push(t); }
-  st.active = path;
-  if (owner) { t.owner = owner; t.gitDiff = false; }
-  if (line) { t.gotoLine = line; t.mode = 'file'; }
-  bump();
-  if (changes) void showChanges(st, path);
+async function readTab(st, t, path) {
   if (t.text === undefined && !t.image && !t.error && !t.reading) {
     t.reading = true;
     if (isPic(path)) {
@@ -270,7 +256,19 @@ async function openFile(st, path, { owner, changes, line } = {}) {
       else { t.text = r.text; t.mtimeMs = r.mtimeMs; }
       bump();
     }
-  } else setTimeout(() => goto(t), 0);
+  }
+}
+
+async function openFile(st, path, { owner, changes, line } = {}) {
+  let t = tabOf(st, path);
+  if (!t) { t = { path, mode: isMd(path) ? 'preview' : 'file', dirty: false }; st.tabs.push(t); }
+  st.active = path;
+  if (owner) { t.owner = owner; t.gitDiff = false; }
+  if (line) { t.gotoLine = line; t.mode = 'file'; }
+  bump();
+  if (changes) void showChanges(st, path);
+  if (t.text === undefined && !t.image && !t.error && !t.reading) await readTab(st, t, path);
+  else setTimeout(() => goto(t), 0);
 }
 
 export async function openAt(rel, line) {
