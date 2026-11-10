@@ -2,7 +2,7 @@
 html { font-size: 16px; }
 
 /* The Ouros look, set through astryx's own theme tokens. Flat, square and hairline, as in Paperclip's dark UI. */
-.ou-settings, .ou-col, .ou-ide {
+.ou-settings, .ou-col, .ou-ide, #cmdk {
   --color-background-body: var(--canvas-deep);
   --color-background-surface: var(--canvas-deep);
   --color-background-card: var(--canvas);

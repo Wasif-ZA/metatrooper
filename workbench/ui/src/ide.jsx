@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
-import { CommandPalette } from '@astryxdesign/core/CommandPalette';
 import { ContextMenu } from '@astryxdesign/core/ContextMenu';
 import { Dialog } from '@astryxdesign/core/Dialog';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
@@ -18,6 +17,7 @@ import { createStore } from './store.js';
 import { editorState, openEditor } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 import { AgentHead } from './agenthead.jsx';
+import { paletteView } from './palette.jsx';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -514,8 +514,8 @@ export const ideKeys = {
   find: () => focusInput('files', 'ide-find'),
   search: () => focusInput('search', 'ide-search'),
   changes: () => { if (!cur) return; cur.side = 'changes'; bump(); void loadGitStatus(cur); },
-  palette: (open) => bridge.setPalette?.(open),
-  paletteOpen: () => Boolean(bridge.palette),
+  palette: (open) => (open === undefined ? paletteView.toggle() : open ? paletteView.open() : paletteView.close()),
+  paletteOpen: () => paletteView.isOpen(),
   closeTab: () => { if (cur && cur.active) closeTab(cur, cur.active); },
   save: () => { if (cur && cur.active && tabOf(cur, cur.active)?.dirty) void saveTab(cur, cur.active); },
   asking: () => Boolean(cur && cur.ask),
@@ -1039,52 +1039,43 @@ function Asks({ st }) {
   ]} />;
 }
 
+export function openPath(rel) {
+  if (cur) void openFile(cur, rel);
+}
+
+const defaultCmd = (group, label, run) => ({ id: `cmd:${group}:${label}`, label, auxiliaryData: { group }, run });
+
+export function ideCommands(cmd = defaultCmd) {
+  if (!ideShown()) return [];
+  const st = cur;
+  if (!st) return [];
+  const out = [];
+  const t = st.active ? tabOf(st, st.active) : null;
+  if (t) out.push(cmd('IDE', 'Save', () => void saveTab(st, t.path)));
+  out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
+  out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
+  if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
+  if (t && isMd(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => showPreview(st, t.path)));
+  if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
+  if (st.tabs.length) out.push(cmd('IDE', 'Close all tabs', () => closeAll(st)));
+  out.push(cmd('IDE', 'Show or hide the agents panel', () => bridge.togglePanel?.()));
+  return out;
+}
+
+const defaultFile = (path, group) => ({ id: path, label: path, auxiliaryData: { group } });
+
+export function ideFiles(file = defaultFile) {
+  if (!ideShown() || !cur) return [];
+  const open = cur.tabs.map((t) => file(t.path, 'Open files'));
+  const changed = [...changedSet()].filter((p) => !tabOf(cur, p)).map((p) => file(p, 'Changed by agents'));
+  return [...open, ...changed];
+}
+
 export function Ide() {
   ideStore.use();
-  const [palette, setPalette] = useState(false);
   const [panel, setPanel] = useState(true);
   const [bottom, setBottom] = useState('agents');
-  const runs = useRef(new Map());
-  bridge.palette = palette;
-  bridge.setPalette = setPalette;
-
-  const source = useMemo(() => {
-    const cmd = (group, label, run) => { const id = `cmd:${group}:${label}`; runs.current.set(id, run); return { id, label, auxiliaryData: { group } }; };
-    const commands = () => {
-      const st = cur;
-      if (!st) return [];
-      const out = [];
-      const t = st.active ? tabOf(st, st.active) : null;
-      if (t) out.push(cmd('IDE', 'Save', () => void saveTab(st, t.path)));
-      out.push(cmd('IDE', 'New file', () => { st.ask = { kind: 'new', path: '' }; bump(); }), cmd('IDE', 'Open in VS Code', () => void openInVsCode(st, t?.path)));
-      out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
-      if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
-      if (t && isMd(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => showPreview(st, t.path)));
-      if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
-      if (st.tabs.length) out.push(cmd('IDE', 'Close all tabs', () => closeAll(st)));
-      out.push(cmd('IDE', 'Show or hide the agents panel', () => setPanel((v) => !v)));
-      const seen = new Set(out.map((x) => x.id));
-      for (const x of paletteItems().filter((y) => !y.confirm && !y.stay)) {
-        const item = cmd(x.group, x.label, x.run);
-        if (!seen.has(item.id)) { seen.add(item.id); out.push(item); }
-      }
-      return out;
-    };
-    const file = (path, group) => ({ id: path, label: path, auxiliaryData: { group } });
-    return {
-      bootstrap() {
-        if (!cur) return [];
-        const open = cur.tabs.map((t) => file(t.path, 'Open files'));
-        const changed = [...changedSet()].filter((p) => !tabOf(cur, p)).map((p) => file(p, 'Changed by agents'));
-        return [...open, ...changed, ...commands()];
-      },
-      async search(q) {
-        const files = [...new Set(((await api.fsFind(ui.projectId, q)) || []).map(slashed))].slice(0, 20).map((p) => file(p, 'Files'));
-        const lq = q.toLowerCase();
-        return [...files, ...commands().filter((c) => c.label.toLowerCase().includes(lq))];
-      },
-    };
-  }, []);
+  bridge.togglePanel = () => setPanel((v) => !v);
 
   const st = cur;
   if (!st || !project()) return null;
@@ -1102,7 +1093,7 @@ export function Ide() {
             <SegmentedControlItem value="search" label="Search" />
             <SegmentedControlItem value="changes" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} />
           </SegmentedControl>
-          <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={svg(CMD)} onClick={() => setPalette(true)} />
+          <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={svg(CMD)} onClick={() => paletteView.open()} />
         </div>
         {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
       </aside>
@@ -1145,8 +1136,6 @@ export function Ide() {
       </section>
       <StatusBar st={st} active={active} agentCount={agentCount} />
       <Asks st={st} />
-      <CommandPalette isOpen={palette} onOpenChange={setPalette} searchSource={source} label="IDE commands" emptySearchText="Nothing matches."
-        onValueChange={(id) => setTimeout(() => (runs.current.get(id) ?? (() => void openFile(cur, id)))(), 0)} />
     </div>
   );
 }

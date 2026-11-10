@@ -10,6 +10,7 @@ import { Inbox, inboxStore } from './inbox.jsx';
 import { Addons, drawAddons } from './addons.jsx';
 import { Home, homeStore } from './home.jsx';
 import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn } from './ide.jsx';
+import { Palette, paletteView } from './palette.jsx';
 
 const el = (id) => document.getElementById(id);
 
@@ -26,6 +27,10 @@ const start = () => {
   mount('ide', Ide);
   el('home').replaceChildren();
   mount('home', Home);
+  const cmdk = document.createElement('div');
+  cmdk.id = 'cmdk';
+  document.body.appendChild(cmdk);
+  mount('cmdk', Palette);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
@@ -64,6 +69,20 @@ document.addEventListener('keydown', (e) => {
 
 globalThis.addonsView = { shown: () => ui.view === 'addons', draw: drawAddons };
 globalThis.ideView = { draw: drawIde, shown: ideShown, open: openAt, dirtyIn };
+globalThis.paletteView = paletteView;
+
+document.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if (e.ctrlKey && e.shiftKey && !e.altKey && key === 'p') {
+    if (paletteView.isOpen()) {
+      e.preventDefault();
+      paletteView.close();
+    } else if (!overlayOpen()) {
+      e.preventDefault();
+      paletteView.open();
+    }
+  }
+});
 
 document.addEventListener('keydown', (e) => {
   if (!ideView.shown() || !e.ctrlKey || e.altKey) return;
@@ -71,7 +90,6 @@ document.addEventListener('keydown', (e) => {
   if (k === 'p' && !e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.find(); }
   else if (k === 'f' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.search(); }
   else if (k === 'g' && e.shiftKey) { if (overlayOpen()) return; e.preventDefault(); ideKeys.changes(); }
-  else if (k === 'p' && e.shiftKey) { e.preventDefault(); ideKeys.palette(!ideKeys.paletteOpen() && !overlayOpen()); }
   else if (k === 's' && !e.shiftKey) { if (e.defaultPrevented || overlayOpen() || ideKeys.asking()) return; e.preventDefault(); ideKeys.save(); }
   else if (k === 'w' && !e.shiftKey) { e.preventDefault(); if (overlayOpen() || ideKeys.asking()) return; ideKeys.closeTab(); }
   else if (k === 'v' && e.shiftKey) { if (overlayOpen()) return; if (ideKeys.preview()) e.preventDefault(); }
