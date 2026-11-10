@@ -8,6 +8,8 @@ import { Switch } from '@astryxdesign/core/Switch';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import { AlertDialog } from '@astryxdesign/core/AlertDialog';
+import { PluginInstall } from './plugin-install.jsx';
 
 export const addonsStore = createStore({ tick: 0, rows: null });
 
@@ -31,7 +33,7 @@ function items(engines, rows) {
   return [...agents, ...plugins];
 }
 
-function card(it, open, toggle) {
+function card(it, open, toggle, remove) {
   const { e, p } = it;
   const source = (p ? ['Plugin', p.version && `v${p.version}`] : ['Agent', e.version && `v${e.version}`, e.plugin_id && `from ${e.plugin_id}`]).filter(Boolean).join(' · ');
   const perms = p ? p.permissions || [] : [];
@@ -41,7 +43,7 @@ function card(it, open, toggle) {
       <span className="ou-acard-tile">{svg(p ? PLUGIN : AGENT)}</span>
       <div className="ou-acard-name"><b>{it.id}</b><span>{source}</span></div>
       <div className="ou-acard-slot">
-        {p ? <><Switch size="sm" label={p.enabled ? 'On' : 'Off'} isLabelHidden value={!!p.enabled} isDisabled data-action="addon-toggle" data-id={p.id} /><Badge label="Not built yet" /></>
+        {p ? <><Switch size="sm" label={p.enabled ? 'On' : 'Off'} isLabelHidden value={!!p.enabled} isDisabled data-action="addon-toggle" data-id={p.id} /><Badge label="Not built yet" /><Button size="sm" variant="ghost" label="Remove" onClick={() => remove(p.id)} /></>
           : it.state === 'bad' ? <><Badge label="Not ready" className="ou-notready" /><Button size="sm" label="Check again" data-action="check-engines" /></>
           : <span className="ou-acard-ready">Ready</span>}
       </div>
@@ -63,6 +65,8 @@ export function Addons() {
   const [query, setQuery] = useState('');
   const [ticked, setTicked] = useState([]);
   const [open, setOpen] = useState([]);
+  const [adding, setAdding] = useState(false);
+  const [going, setGoing] = useState(null);
   if (ui.view !== 'addons') return null;
   const engines = ui.snap.engines;
   const loaded = Array.isArray(rows);
@@ -101,8 +105,7 @@ export function Addons() {
         </div>
         <span className="ou-actions">
           <Button label="Check agents again" data-action="check-engines" />
-          <Button label="Add add-on" variant="secondary" isDisabled data-action="addon-add" />
-          <Badge label="Not built yet" />
+          <Button label="Add add-on" variant="secondary" data-action="addon-add" onClick={() => setAdding(true)} />
         </span>
       </header>
       <div className="ou-addons-search">
@@ -112,7 +115,7 @@ export function Addons() {
         <aside className="ou-facets" aria-label="Filters">{facet('Kind', KIND)}{facet('State', STATE)}</aside>
         <div className="ou-results">
           <Text color="secondary" size="sm">{shown.length} result(s)</Text>
-          {shown.map((it) => card(it, it.kind === 'plugin' && open.includes(it.id), toggle))}
+          {shown.map((it) => card(it, it.kind === 'plugin' && open.includes(it.id), toggle, setGoing))}
           {!engines.length && !filtered ? <EmptyState title="No agents found." isCompact actions={<Button label="Check agents again" data-action="check-engines" />} /> : null}
           {wantPlugins && rows === null ? <Text color="secondary">Loading plugins.</Text> : null}
           {wantPlugins && rows === 'error' ? (
@@ -122,6 +125,9 @@ export function Addons() {
           {filtered && !shown.length ? <EmptyState title="No add-ons match." isCompact actions={<Button label="Clear filters" data-action="addon-clear" onClick={clear} />} /> : null}
         </div>
       </div>
+      {adding ? <PluginInstall onClose={(done) => { setAdding(false); if (done) retry(); }} /> : null}
+      <AlertDialog isOpen={going !== null} onOpenChange={(isOpen) => { if (!isOpen) setGoing(null); }} title={`Remove ${going || 'this plugin'}?`} description="Its tools stop for new sessions. Open sessions keep what they started with." actionLabel="Remove" actionVariant="destructive"
+        onAction={async () => { const id = going; setGoing(null); const r = await rpc('plugin.remove', { plugin_id: id }); if (r.result) { toast(`Removed ${id}`); retry(); } }} />
       <Text as="p" color="secondary">Install or remove a plugin from a terminal: <Code>troop plugin install &lt;folder or URL&gt;</Code>, <Code>troop plugin remove &lt;id&gt;</Code>. Ouros shows what a plugin may do before it installs.</Text>
     </div>
   );
