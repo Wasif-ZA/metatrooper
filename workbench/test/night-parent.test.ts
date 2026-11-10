@@ -27,6 +27,16 @@ function legacyFixture() {
   return { dir, db, close: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
+// Legacy database fixture helper without outcome column.
+function legacyOutcomeFixture() {
+  const dir = mkdtempSync(join(tmpdir(), 'wb-night-outcome-legacy-'));
+  const db = new DatabaseSync(join(dir, 'troop.db'));
+  const legacySchema = schema.replace(/,\r?\n\s*outcome\s+TEXT[^\r\n]*/, '');
+  db.exec(legacySchema);
+  db.exec('PRAGMA foreign_keys = ON');
+  return { dir, db, close: () => { db.close(); rmSync(dir, { recursive: true, force: true }); } };
+}
+
 test('child session has parent_id and parent session has null parent_id', () => {
   // Create database fixture.
   const f = fixture();
@@ -185,7 +195,7 @@ test('every session row has parent_id key and null when unset', () => {
   }
 });
 
-test.todo('old database without parent_id column returns sessions with parent_id null: snapshot throws because parent_id lacks PRAGMA table_info check', () => {
+test('old database without parent_id column returns sessions with parent_id null', () => {
   // Create legacy database fixture without parent_id column.
   const f = legacyFixture();
   try {
@@ -210,6 +220,40 @@ test.todo('old database without parent_id column returns sessions with parent_id
 
     // Assert parent_id is null on legacy database.
     assert.equal(session.parent_id, null);
+  } finally {
+    f.close();
+  }
+});
+
+test('old database without outcome column returns sessions with outcome null on every row', () => {
+  // Create legacy database fixture without outcome column.
+  const f = legacyOutcomeFixture();
+  try {
+    // Verify session table schema lacks outcome.
+    const cols = (f.db.prepare('PRAGMA table_info(session)').all() as Array<{ name: string }>).map((c) => c.name);
+    assert.equal(cols.includes('outcome'), false);
+
+    // Insert project and engine rows.
+    const now = '2026-11-09T00:00:00Z';
+    f.db.prepare("INSERT INTO project (id, path, name, opened_at, last_opened) VALUES ('p1', '/path/p1', 'p1', ?, ?)").run(now, now);
+    f.db.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('codex', '{}', 1)").run();
+
+    // Insert multiple sessions into legacy table.
+    const insertSession = f.db.prepare(
+      "INSERT INTO session (id, project_id, engine_id, host, state, state_at, started_at) VALUES (?, 'p1', 'codex', 'pty', 'working', ?, ?)",
+    );
+    insertSession.run('s1', now, '2026-11-09T00:00:00Z');
+    insertSession.run('s2', now, '2026-11-09T00:01:00Z');
+
+    // Query snapshot sessions on legacy database.
+    const snap = snapshot(f.db, 'p1');
+    const rows = JSON.parse(JSON.stringify(snap.sessions));
+    assert.equal(rows.length, 2);
+
+    // Assert outcome is null on every row.
+    for (const row of rows) {
+      assert.equal(row.outcome, null);
+    }
   } finally {
     f.close();
   }
