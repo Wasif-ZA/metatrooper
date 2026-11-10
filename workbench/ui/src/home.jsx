@@ -4,6 +4,7 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Kbd } from '@astryxdesign/core/Kbd';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
+import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { Verdict } from './verdict.jsx';
 
@@ -39,14 +40,28 @@ function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
   const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
+  const [more, setMore] = useState(false);
+  const [branch, setBranch] = useState('');
+  const [model, setModel] = useState('');
+  const [approval, setApproval] = useState('default');
   const start = async () => {
     const text = task.trim();
-    const r = await rpc('session.launch', { project_id: ui.projectId, engine_id: chosen, ...(text ? { prompt: text } : {}) });
+    let target = ui.projectId;
+    if (branch.trim()) {
+      const wt = await rpc('worktree.create', { project_id: ui.projectId, branch: branch.trim() });
+      if (!wt.result) return;
+      const opened = await rpc('project.open', { path: wt.result.path });
+      if (!opened.result) return;
+      target = opened.result.project_id;
+    }
+    const r = await rpc('session.launch', { project_id: target, engine_id: chosen, ...(text ? { prompt: text } : {}), ...(model.trim() ? { model: model.trim() } : {}), ...(approval !== 'default' ? { approval } : {}) });
     if (!r.result) return;
     delete ui.drafts['home-task'];
     setTask('');
     save('engine', chosen);
     homeView.set('wall');
+    setBranch('');
+    if (target !== ui.projectId) { ui.pendingPick = r.result.session_id; switchProject(target); return; }
     await pick(r.result.session_id);
   };
   return (
@@ -54,9 +69,22 @@ function StartBox({ ready }) {
       <TextArea label="Task for a new agent" isLabelHidden rows={1} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
       <div className="ou-composerfoot">
         <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
+        <Button variant="ghost" size="sm" label={more ? 'Fewer options' : 'Options'} aria-expanded={more} onClick={() => setMore(!more)} />
         <span className="ou-composerhint"><Kbd keys="Ctrl+Enter" /></span>
         <Button variant="primary" size="sm" label="Start" onClick={start} />
       </div>
+      {more ? (
+        <div className="ou-composerfoot">
+          <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
+          <TextInput size="sm" width={180} label="Model" isLabelHidden placeholder="Model (agent default)" value={model} onChange={setModel} />
+          <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
+            { value: 'default', label: 'Approval: as in Settings' },
+            { value: 'ask', label: 'Approval: ask before each tool call' },
+            { value: 'edits', label: 'Approval: file edits allowed' },
+            { value: 'contained', label: 'Approval: auto' },
+          ]} />
+        </div>
+      ) : null}
     </div>
   );
 }
