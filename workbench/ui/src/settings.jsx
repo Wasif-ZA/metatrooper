@@ -26,10 +26,15 @@ const SECTIONS = [
   { id: 'general', label: 'General', groups: [{ rows: [
     { key: 'sessions.approval', label: 'Before each tool call', hint: 'Ask shows every command for a yes. Auto lets agents run inside their own Ouros worktree.', select: [['ask', 'Ask me'], ['contained', 'Auto in Ouros worktrees']] },
     { key: 'sessions.metarouter', label: 'Route shell commands through metarouter', hint: 'Shorter command output for agents.' },
+    { key: 'ui.toast_ms', label: 'Keep a message on screen for', hint: 'The small notes at the corner of the window.', unit: 'ms', min: 1000, max: 60000, step: 500 },
+    { key: 'ui.error_toast_ms', label: 'Keep an error message on screen for', unit: 'ms', min: 1000, max: 60000, step: 500 },
   ] }] },
   { id: 'look', label: 'Appearance', groups: [{ rows: [
     { theme: true, label: 'Theme' },
     { key: 'agent_cursor.show_caption', label: 'Caption beside the agent cursor', hint: 'Says what the agent is about to click.' },
+    { key: 'agent_cursor.mode', label: 'Agent cursor movement', hint: 'How the agent cursor travels to its next click.', select: [['off', 'Off'], ['instant', 'Instant'], ['snappy', 'Snappy'], ['human', 'Human']] },
+    { key: 'agent_cursor.idle_fade_ms', label: 'Fade the idle agent cursor after', unit: 'ms', min: 0, max: 60000, step: 500 },
+    { key: 'agent_cursor.show_in_recordings', label: 'Show the agent cursor in recordings' },
   ] }, { title: 'Terminal', rows: [
     { key: 'terminal.font_size', label: 'Font size', min: 8, max: 28 },
     { key: 'terminal.scrollback', label: 'Scrollback', hint: 'Lines kept per terminal.', min: 1000, max: 200000, step: 1000 },
@@ -91,7 +96,7 @@ const valueOf = (data, key) => key.split('.').reduce((o, k) => (o ? o[k] : undef
 async function write(key, value) {
   const r = key === 'sessions.approval' ? await api.setApproval(value) : await api.setSetting(key, value);
   if (r && r.error) toast(r.error, true);
-  else if (key.startsWith('terminal.')) { ui.settingsLook = { ...(await api.uiSettings()), firstRun: false }; applyLook(ui.settingsLook); render(); }
+  else if (key.startsWith('terminal.') || key.startsWith('ui.')) { ui.settingsLook = { ...(await api.uiSettings()), firstRun: false }; applyLook(ui.settingsLook); render(); }
   await reload();
 }
 
