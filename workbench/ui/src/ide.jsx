@@ -133,6 +133,11 @@ async function loadGitStatus(st) {
   const r = await api.git(st.pid, 'status');
   if (st.gitSeq !== seq) return;
   st.git = r && !r.error ? r : (r && r.error ? { error: r.error } : { error: 'Could not read git status.' });
+  if (typeof rpc === 'function') void rpc('session.owners', { project_id: st.pid }, true).then((o) => {
+    if (st.gitSeq !== seq || !o.result) return;
+    st.owners = new Map(o.result.paths.filter((p) => p.owners.length).map((p) => [p.path, p.owners.map((w) => w.title).join(', ')]));
+    bump();
+  });
   bump();
 }
 
@@ -767,6 +772,7 @@ function ScRow({ st, file, staged }) {
       <span className="ou-ide-scletter">{file.letter}</span>
       <span className="ou-ide-name">{base(file.path)}</span>
       <span className="ou-ide-dir">{folder(file.path)}</span>
+      {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
       <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={svg(staged ? MINUS : PLUS, 12)}
         onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path]) : gitStage(st, [file.path])); }} />
     </div>
