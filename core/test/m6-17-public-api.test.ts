@@ -124,6 +124,7 @@ const EXPECTED_MOVED = [
 // Literal set of methods requiring trusted UI connection.
 const EXPECTED_NEEDS_UI = new Set([
   'loop.choose',
+  'worktree.create',
   'audit.list',
   'automation.set',
   'automation.enable',

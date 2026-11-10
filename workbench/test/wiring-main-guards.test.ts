@@ -10,7 +10,7 @@ function closeHarness(responses: number[], ownCore = true, dirty = true, busy = 
   const events: string[] = [];
   const listeners: Record<string, Function> = {};
   let unloads = 0;
-  const c: any = vm.createContext({ ownCore, dirtyFiles: dirty, closing: false, demo: false,
+  const c: any = vm.createContext({ ownCore, dirtyFiles: dirty, dirtySummary: '', closing: false, demo: false,
     busy: () => busy, detachAll() {},
     dialog: {
       showMessageBox: async (_w: unknown, options: any) => { events.push(options.message); assert.ok(responses.length, 'unexpected dialog'); return { response: responses.shift() }; },
@@ -22,6 +22,7 @@ function closeHarness(responses: number[], ownCore = true, dirty = true, busy = 
       close: () => { events.push('close'); listeners['will-prevent-unload']({ preventDefault() {} }); } },
   });
   const code = [
+    extract(/^const unsavedMessage[^\n]+/m),
     extract(/^async function onClose\([^]*?^}/m),
     extract(/  win\.on\('close', \(e\) => \{[^]*?\n  \}\);/),
     extract(/  win\.webContents\.on\('will-prevent-unload', \(e\) => \{[^]*?\n  \}\);/),
@@ -77,10 +78,10 @@ const expected = [
   'session.search', 'session.list', 'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check',
   'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove', 'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
-  'done.result', 'usage.summary', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove',
+  'done.result', 'usage.summary', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'session.read',
 ];
 // Protects main.ts:57-65, :309-310: exact capability set and the actual IPC gate.
-test('wire-00 exact 49 IPC methods pass with UI authentication; other methods are refused', async () => {
+test('wire-00 exact 50 IPC methods pass with UI authentication; other methods are refused', async () => {
   const calls: any[] = []; let handler: Function = () => {};
   const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
     call: async (...args: any[]) => { calls.push(args); return { kind: 'reply', reply: { result: {} } }; }, schedulePush() {} });
