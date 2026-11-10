@@ -1200,7 +1200,7 @@ export function Ide() {
           <div className="ou-ide-phead">
             <TabList size="sm" value={bottom} onChange={setBottom}>
               <Tab value="agents" label={`Agents ${agentCount}`} />
-              <Tab value="terminal" label="Terminal" endContent={<NotBuilt />} />
+              <Tab value="terminal" label="Terminal" endContent={<span className="ou-soontag">Not built yet</span>} />
             </TabList>
             <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={svg(panel ? FOLD : UNFOLD)} onClick={() => setPanel(!panel)} />
           </div>
