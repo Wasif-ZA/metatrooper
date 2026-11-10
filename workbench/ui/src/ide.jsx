@@ -388,6 +388,7 @@ async function saveTab(st, path, force = false) {
     return true;
   }
   if (r && r.conflict) { st.ask = { kind: 'conflict', path }; bump(); return false; }
+  if (r && r.missing) { st.ask = { kind: 'gone', path }; bump(); return false; }
   toast((r && r.error) || 'Could not save the file.', true);
   return false;
 }
@@ -983,6 +984,18 @@ function Asks({ st }) {
   }
   if (a.kind === 'discard') {
     return <AlertDialog isOpen onOpenChange={(open) => { if (!open) cancel(); }} title={`Discard your changes to ${name}?`} description="The file is read again from disk." actionLabel="Discard" onAction={() => { st.ask = null; bump(); void reloadTab(st, a.path); }} />;
+  }
+  if (a.kind === 'gone') {
+    return <Ask3 title={`${name} is no longer on disk.`} onCancel={cancel} actions={[
+      { label: 'Save as a new file', variant: 'primary', run: async () => {
+        st.ask = null;
+        bump();
+        const c = await api.fsCreate(st.pid, a.path, 'file');
+        if (!c || c.error) { toast(c && c.error === 'cannot create that here' ? 'Its folder is gone too. Make the file again with New file, then save.' : (c && c.error) || 'Could not create the file.', true); return; }
+        st.dirs.delete(folder(a.path));
+        if (await saveTab(st, a.path, true)) await loadDir(st, folder(a.path));
+      } },
+    ]} />;
   }
   if (a.kind === 'conflict') {
     return <Ask3 title={`${name} changed on disk since you opened it.`} onCancel={cancel} actions={[

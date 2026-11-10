@@ -107,12 +107,14 @@ function keepStyle(old: Buffer, text: string): string {
 }
 
 /** Saves `text` over an existing file through one checked handle; `baseMtimeMs` null skips the changed-on-disk check. */
-export function writeText(root: string, rel: unknown, text: unknown, baseMtimeMs: unknown): { ok: true; mtimeMs: number } | { error: string; conflict?: true } {
+export function writeText(root: string, rel: unknown, text: unknown, baseMtimeMs: unknown): { ok: true; mtimeMs: number } | { error: string; conflict?: true; missing?: true } {
   if (typeof rel !== 'string' || typeof text !== 'string' || rel.includes('\0') || text.includes('\0')) return { error: 'bad file or text' };
   if (Buffer.byteLength(text, 'utf8') > MAX_FILE_BYTES) return { error: `too large to save (over ${MAX_FILE_BYTES / 1024} KiB)` };
   if (touchesGit(rel)) return { error: 'git internals cannot be edited' };
   if (!writable(rel)) return NOT_FILE;
   const h = openChecked(root, rel, 'r+');
+  if (!h && newEntry(root, rel)) return { error: 'the file is no longer on disk', missing: true };
+  if (!h && inside(root, rel)) return { error: 'could not open the file for writing; it may be read-only or locked' };
   if (!h) return NOT_FILE;
   try {
     if (typeof baseMtimeMs === 'number' && baseMtimeMs !== h.stat.mtimeMs) return { error: 'changed on disk', conflict: true };
