@@ -146,7 +146,7 @@ function DetailNotice({ n, kindOf }) {
         <span className="ou-ipane-noticetext">{n.text}</span>
       </div>
       <div className="ou-ipane-muted">{meta}</div>
-      <Button size="sm" variant="ghost" label="Open" onClick={() => { openNotice(n); }} />
+      {((n.kind === 'done' || n.kind === 'failed') && n.ref) || n.kind === 'uncommitted' ? <Button size="sm" variant="ghost" label="Open" onClick={() => { openNotice(n); }} /> : null}
       <NoteActions n={n} />
     </div>
   );
