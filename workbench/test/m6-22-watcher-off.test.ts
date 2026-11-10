@@ -43,7 +43,7 @@ test('M6-22b: with the helper blocked, every session holding a live grant is lis
   }
 });
 
-test('M6-22b: a tile listed as watcher off shows "input watcher off" in orange; shells never do', () => {
+test('M6-22b: a tile listed as watcher off shows "input watcher off" in grey; shells never do', () => {
   const line = appSource.match(/^ {2}for \(const x of shown\) x\.watchOff = .*$/m)![0];
   const shown = [{ id: 's1' }, { id: 's2' }, { id: 'sh1', shell: true }] as any[];
   new Function('shown', 'ui', line)(shown, { snap: { watcher_off: ['s1', 'sh1'] } });
@@ -53,6 +53,6 @@ test('M6-22b: a tile listed as watcher off shows "input watcher off" in orange; 
 
   assert.match(termSource, /<span class="tile-watch" hidden>input watcher off<\/span>/);
   assert.match(termSource, /t\.el\.querySelector\('\.tile-watch'\)\.hidden = !x\.watchOff;/);
-  assert.match(css, /\.ph \.tile-watch \{ color: var\(--wait\);/);
+  assert.match(css, /\.ph \.tile-watch \{ color: var\(--mute\);/);
   assert.match(css, /--wait: #ff7a1a;/, 'orange');
 });

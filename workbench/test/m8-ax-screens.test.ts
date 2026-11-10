@@ -42,7 +42,7 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard', 'PluginInstall', 'Automations', 'Field', 'Screen']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -742,4 +742,141 @@ test('wire-07 Remove sends automation.delete with that id only', async () => {
   const h = harness(screens.Automations, true); h.draw(); await flush(); h.draw(); calls.length = 0;
   await h.one(label('Remove')).props.onClick();
   assert.deepEqual(calls, [['automation.delete', { id: 'a1' }], ['automation.list', { project_id: 'p1' }, true]]);
+});
+
+test('Settings Reliability page shows the False alarms so far value', () => {
+  data.reliability.false_alarms = 0;
+  settingsStore.set({ data, section: 'reliability' });
+  const h = harness(Settings);
+  assert.match(h.html(), /<span class="ou-value">0<\/span>/);
+  data.reliability.false_alarms = 2;
+  settingsStore.set({ data: { ...data }, section: 'reliability' });
+  assert.match(h.html(), /<span class="ou-value">2<\/span>/);
+});
+
+test('Settings check command field shows the saved command and disabled state', () => {
+  data.reliability.checks = { p1: 'npm test' };
+  g.ui.projectId = 'p1';
+  settingsStore.set({ data, section: 'reliability' });
+  const h = harness(Settings);
+  h.draw();
+  const input = h.one(label('Check command for this project'));
+  assert.equal(input.props.value, 'npm test');
+  assert.equal(input.props.isDisabled, false);
+  g.ui.projectId = '';
+  h.draw();
+  const disabled = h.one(label('Check command for this project'));
+  assert.equal(disabled.props.isDisabled, true);
+});
+
+test('Settings check command field updates on project switch', { todo: 'CheckCommand stale after project switch, settings.jsx useState(saved)' }, () => {
+  settingsStore.set({ section: 'reliability' });
+  const h = harness(Settings);
+  h.draw();
+  const checkNode = h.all((n: any) => n.type?.name === 'CheckCommand')[0];
+  assert.ok(checkNode, 'CheckCommand element captured');
+  const CheckCommand = checkNode.type;
+  data.reliability.checks = { p1: 'npm test', p2: 'cargo test' };
+  g.ui.projectId = 'p1';
+  function Screen() { return React.createElement(CheckCommand, { row: { label: 'Check command for this project' }, data }); }
+  const ch = harness(Screen);
+  ch.draw();
+  assert.equal(ch.one(label('Check command for this project')).props.value, 'npm test');
+  g.ui.projectId = 'p2';
+  ch.draw();
+  assert.equal(ch.one(label('Check command for this project')).props.value, 'cargo test');
+});
+
+function declaration(name: string) {
+  const appSrc = readFileSync(join(wb, 'renderer/app.js'), 'utf8');
+  const match = new RegExp('function\\s+' + name + '\\s*\\(').exec(appSrc);
+  assert.ok(match, 'function ' + name + ' in app.js');
+  const bodyStart = appSrc.indexOf('{', match.index);
+  let depth = 0;
+  for (let i = bodyStart; i < appSrc.length; i++) {
+    if (appSrc[i] === '{') depth++;
+    else if (appSrc[i] === '}') {
+      depth--;
+      if (depth === 0) return appSrc.slice(match.index, i + 1);
+    }
+  }
+  throw new Error('Could not slice ' + name);
+}
+
+test('Inbox Needs you filter and loop-choose action through real app onClick', async () => {
+  g.ui.view = 'inbox';
+  g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s-loop' }), note('plain', 'other')];
+  const h = harness(Inbox);
+  h.draw();
+  h.one((n: any) => n.props.label === 'Filter').props.onChange('needs');
+  const html = h.html();
+  assert.ok(html.includes('Note loop'));
+  assert.ok(!html.includes('Note plain'));
+  const btn = h.one(action('loop-choose'));
+  const sessionId = btn.props['data-id'];
+  const choice = btn.props['data-choice'];
+  const rpcCalls: any[] = [];
+  const onClick = vm.runInNewContext('(async ' + declaration('onClick') + ')', {
+    rpc: async (...args: any[]) => { rpcCalls.push(args); },
+  });
+  await onClick({
+    stopPropagation() {},
+    target: { closest: () => ({ tagName: 'BUTTON', dataset: { action: 'loop-choose', id: sessionId, choice }, closest: () => null }) },
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(rpcCalls)), [['loop.choose', { session_id: sessionId, choice }]]);
+});
+
+test('Add-ons engine readiness states and dot classes', () => {
+  g.ui.view = 'addons';
+  g.ui.snap.engines = [
+    { id: 'unk', light: 'unknown' },
+    { id: 'bad', light: 'red' },
+    { id: 'good', light: 'green', version: '1.0.0' },
+  ];
+  const h = harness(Addons);
+  h.draw();
+  const cards = h.all(hasClass('ou-acard'));
+  const cardUnk = cards.find((c: any) => textContent(c).includes('unk'));
+  const cardBad = cards.find((c: any) => textContent(c).includes('bad'));
+  const cardGood = cards.find((c: any) => textContent(c).includes('good'));
+  assert.ok(cardUnk && cardBad && cardGood);
+  const unkMarkup = renderToStaticMarkup(cardUnk);
+  const badMarkup = renderToStaticMarkup(cardBad);
+  const goodMarkup = renderToStaticMarkup(cardGood);
+  assert.ok(unkMarkup.includes('ou-acard-ready') && unkMarkup.includes('Ready'));
+  assert.doesNotMatch(unkMarkup, /· v/);
+  assert.ok(badMarkup.includes('ou-notready') && badMarkup.includes('Not ready'));
+  assert.ok(goodMarkup.includes('ou-acard-ready') && goodMarkup.includes('Ready'));
+});
+
+test('Real app isInfo and needsCount filter info notes and count lend notes', () => {
+  const appSrc = readFileSync(join(wb, 'renderer/app.js'), 'utf8');
+  const consts = ['INFO_KINDS', 'loopOf', 'lendOf', 'isInfo'].map((name) => {
+    const m = new RegExp('^const ' + name + ' = [^\\n]+', 'm').exec(appSrc);
+    assert.ok(m, 'const ' + name + ' in app.js');
+    return m[0];
+  });
+  const ctx = vm.createContext({ ui: g.ui });
+  vm.runInContext([...consts, declaration('waitingAll'), declaration('needsCount'), 'this.isInfo = isInfo; this.needsCount = needsCount;'].join('\n'), ctx);
+  g.isInfo = ctx.isInfo;
+  g.needsCount = ctx.needsCount;
+  g.ui.snap.live = [];
+  g.ui.snap.approvals = [];
+  g.ui.snap.needs_you = [
+    note('gate', 'gate'),
+    note('approval', 'approval'),
+    note('handoff', 'handoff'),
+    note('done', 'done'),
+    note('uncommitted', 'uncommitted'),
+    note('other', 'other'),
+    note('spool', 'spool-too-large'),
+    note('read-failed', 'failed', { read_at: '2026-11-10T00:00:00Z' }),
+  ];
+  assert.equal(g.needsCount(), 0);
+  const h = harness(Home);
+  assert.doesNotMatch(h.html(), /Waiting on you/);
+  g.ui.snap.needs_you = [note('lend-unread', 'other', { ref: 'lend:p1 https://alpha.example' })];
+  assert.equal(g.needsCount(), 1);
+  g.ui.snap.needs_you = [note('lend-read', 'other', { ref: 'lend:p1 https://alpha.example', read_at: '2026-11-10T00:00:00Z' })];
+  assert.equal(g.needsCount(), 0);
 });

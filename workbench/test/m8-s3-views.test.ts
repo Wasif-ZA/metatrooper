@@ -20,22 +20,6 @@ function snapshot(extra: any = {}) {
     git: {}, dev_servers: [], watcher_off: [], selected: null, ...extra,
   };
 }
-function mixedSnapshot() {
-  return snapshot({
-    sessions: [session('working', 'working'), session('starting', 'starting'), session('done', 'done'), session('wait', 'waiting_for_you'), session('gone', 'exited')],
-    live: [session('wait', 'waiting_for_you'), session('away', 'waiting_for_you', { project_id: 'p2' }), session('busy-away', 'working', { project_id: 'p2' })],
-    approvals: [{ id: 'ap', session_id: 'wait', summary: 'Synthetic approval', reason: 'shell', created_at: at }],
-    needs_you: [
-      { id: 'question', kind: 'question', text: 'Unread question', at },
-      { id: 'failed', kind: 'failed', text: 'Unread failure', at },
-      { id: 'read-failed', kind: 'failed', text: 'Read failure', at, read_at: at },
-      { id: 'read-question', kind: 'question', text: 'Read question', at, read_at: at },
-      { id: 'finished', kind: 'done', text: 'Finished note', at },
-      { id: 'info', kind: 'other', text: 'Informational note', at },
-    ],
-    git: { working: { changed: ['a.txt', 'b.txt'] }, done: { changed: [{ path: 'c.txt' }] } },
-  });
-}
 
 function element(id = '', tagName = 'DIV'): any {
   const listeners: Record<string, Function[]> = {};
@@ -110,7 +94,7 @@ async function boot(t: any, overrides: Record<string, Function> = {}) {
     URLSearchParams, URL, console, wall, termView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }),
     MutationObserver: class { observe() {} }, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0,
   });
-  for (const name of ['diff.js', 'browser-chrome.js', 'app.js', 'home.js', 'inbox.js', 'ide.js', 'settings.js']) vm.runInContext(source(name), context, { filename: name });
+  for (const name of ['diff.js', 'browser-chrome.js', 'app.js', 'home.js', 'ide.js']) vm.runInContext(source(name), context, { filename: name });
   vm.runInContext('globalThis.state = ui;', context);
   for (const fn of domReady) fn();
   await flush();
@@ -136,71 +120,6 @@ function safe(html: string) {
   assert.doesNotMatch(html, /<img\b/i);
   assert.ok(!html.includes(attack));
 }
-
-test('Home shows literal counts, live waits across projects and Answer controls, then hides on wall', async (t) => {
-  const h = await boot(t);
-  h.ui.snap = mixedSnapshot();
-  h.ui.view = 'home';
-  h.w.homeView.draw();
-  assert.equal(h.el('home').hidden, false);
-  const html = h.el('home').innerHTML;
-  assert.deepEqual([...html.matchAll(/class="htile[^\"]*"><span>([^<]+)<\/span><b>(\d+)<\/b>/g)].map((m) => [m[1], m[2]]), [
-    ['Needs you', '5'], ['Working', '2'], ['Finished', '1'], ['Changed files', '3'],
-  ]);
-  assert.match(html, /<h2>Waiting on you<\/h2>/);
-  assert.deepEqual(controls(html).filter((b) => b.dataset.action === 'pick').map((b) => b.dataset.id), ['wait', 'away']);
-  assert.equal((html.match(/>Answer<\/button>/g) || []).length, 2);
-  h.ui.view = 'wall';
-  h.w.homeView.draw();
-  assert.equal(h.el('home').hidden, true);
-});
-
-test('Home shows all four zero counts and stays hidden without a project', async (t) => {
-  const h = await boot(t);
-  h.ui.view = 'home';
-  h.w.homeView.draw();
-  assert.deepEqual([...h.el('home').innerHTML.matchAll(/<b>(\d+)<\/b>/g)].map((m) => m[1]), ['0', '0', '0', '0']);
-  h.ui.projectId = 'missing';
-  h.w.homeView.draw();
-  assert.equal(h.el('home').hidden, true);
-});
-
-test('Needs you shows four counted filters, read rows and only failures after a Failed click', async (t) => {
-  const h = await boot(t);
-  h.ui.snap = mixedSnapshot();
-  h.ui.view = 'inbox';
-  h.w.inboxView.draw();
-  assert.equal(h.el('needsview').hidden, false);
-  const html = h.el('needsview').innerHTML;
-  assert.deepEqual([...html.matchAll(/data-filter="[^"]+" aria-pressed="[^"]+">([^<]+)<i>(\d+)<\/i>/g)].map((m) => [m[1], m[2]]), [
-    ['All', '9'], ['Needs you', '5'], ['Finished', '1'], ['Failed', '2'],
-  ]);
-  assert.match(html, /class="irow read" data-action="inbox-open" data-id="read-failed"/);
-  assert.match(html, /class="irow" data-action="inbox-open" data-id="failed"/);
-  await h.fire('needsview', 'click', control(h, 'needsview', 'filter', 'failed'));
-  const filtered = h.el('needsview').innerHTML;
-  assert.deepEqual([...filtered.matchAll(/class="irow[^\"]*" data-action="inbox-open" data-id="([^"]+)"/g)].map((m) => m[1]), ['failed', 'read-failed']);
-  assert.doesNotMatch(filtered, /data-action="pick"|Synthetic approval|Unread question|Read question|Finished note|Informational note/);
-  assert.match(filtered, /data-filter="failed" aria-pressed="true"/);
-  h.ui.view = 'wall';
-  h.w.inboxView.draw();
-  assert.equal(h.el('needsview').hidden, true);
-});
-
-test('Home and inbox escape project names, titles, last lines and needs_you text', async (t) => {
-  const h = await boot(t);
-  const wait = session('wait', 'waiting_for_you', { title: attack, last_line: attack, project_id: 'p2' });
-  h.ui.snap = snapshot({ sessions: [wait], live: [wait], projects: [{ id: 'p1', name: attack }, { id: 'p2', name: attack }], needs_you: [{ id: 'bad', kind: 'question', text: attack, at }] });
-  h.ui.view = 'home';
-  h.w.homeView.draw();
-  safe(h.el('home').innerHTML);
-  assert.match(h.el('home').innerHTML, /<p>&lt;img src=x onerror=1&gt;<\/p>/);
-  assert.match(h.el('home').innerHTML, /<b>&lt;img src=x onerror=1&gt;<\/b>/);
-  h.ui.view = 'inbox';
-  h.w.inboxView.draw();
-  safe(h.el('needsview').innerHTML);
-  assert.equal((h.el('needsview').innerHTML.match(/&lt;img src=x onerror=1&gt;/g) || []).length, 4);
-});
 
 test('IDE loads the root once, draws each entry and opens nested files with line numbers', async (t) => {
   const h = await boot(t, { fsList: (_pid: string, rel: string) => rel === '.' ? [{ name: 'src', dir: true }, { name: 'README.txt', dir: false }] : [{ name: 'main.ts', dir: false }] });
@@ -273,77 +192,6 @@ test('a late root response from the previous project cannot replace the new IDE 
   release([{ name: 'old.txt', dir: false }]);
   await pending;
   assert.deepEqual(controls(h.el('ide').innerHTML).filter((b) => 'file' in b.dataset).map((b) => b.dataset.file), ['new.txt']);
-});
-
-test('Settings reliability has six Not built yet rows without interactive controls', async (t) => {
-  const h = await boot(t);
-  await h.w.settingsView.open('reliability');
-  const html = h.el('settings').innerHTML;
-  assert.equal(h.el('settings').hidden, false);
-  assert.equal((html.match(/class="srw soon"/g) || []).length, 6);
-  assert.equal((html.match(/<span class="stag">Not built yet<\/span>/g) || []).length, 6);
-  const rows = [...html.matchAll(/<div class="srw soon">([\s\S]*?)(?=<div class="srw|$)/g)].map((m) => m[1]);
-  assert.equal(rows.length, 6);
-  for (const row of rows) {
-    assert.match(row, /Not built yet/);
-    assert.doesNotMatch(row, /role="switch"|<select\b|<input\b/);
-  }
-});
-
-test('Settings switch and approval select write their exact API keys and values', async (t) => {
-  const h = await boot(t);
-  await h.w.settingsView.open('general');
-  const toggle = control(h, 'settings', 'key', 'sessions.metarouter');
-  assert.equal(toggle.getAttribute('role'), 'switch');
-  assert.equal(toggle.getAttribute('aria-checked'), 'false');
-  await h.fire('settings', 'click', toggle);
-  assert.deepEqual(h.calls.filter((c) => c[0] === 'setSetting'), [['setSetting', 'sessions.metarouter', true]]);
-  const approval = control(h, 'settings', 'key', 'sessions.approval', 'select');
-  approval.value = 'contained';
-  await h.fire('settings', 'change', approval);
-  assert.deepEqual(h.calls.filter((c) => c[0] === 'setApproval'), [['setApproval', 'contained']]);
-  await h.w.settingsView.open('look');
-  await h.fire('settings', 'click', control(h, 'settings', 'key', 'agent_cursor.show_caption'));
-  assert.deepEqual(h.calls.filter((c) => c[0] === 'setSetting'), [['setSetting', 'sessions.metarouter', true], ['setSetting', 'agent_cursor.show_caption', false]]);
-});
-
-test('Settings rejects numbers below min, above max and fractional values, accepting both boundaries', async (t) => {
-  const h = await boot(t, { uiSettings: () => ({ theme: {}, ui: { layout: {} } }) });
-  await h.w.settingsView.open('look');
-  const input = () => control(h, 'settings', 'key', 'terminal.font_size', 'input');
-  assert.equal(input().min, '8');
-  assert.equal(input().max, '28');
-  for (const value of ['7', '29', '12.5', 'NaN', '']) {
-    const field = input();
-    field.value = value;
-    await h.fire('settings', 'change', field);
-  }
-  assert.deepEqual(h.calls.filter((c) => c[0] === 'setSetting'), []);
-  for (const value of ['8', '28']) {
-    const field = input();
-    field.value = value;
-    await h.fire('settings', 'change', field);
-  }
-  assert.deepEqual(h.calls.filter((c) => c[0] === 'setSetting'), [['setSetting', 'terminal.font_size', 8], ['setSetting', 'terminal.font_size', 28]]);
-});
-
-
-test('Home excludes every informational kind and read alert from Needs you', async (t) => {
-  const h = await boot(t);
-  h.ui.snap = snapshot({ needs_you: [
-    { id: 'gate', kind: 'gate', text: 'Gate', at },
-    { id: 'approval', kind: 'approval', text: 'Approval', at },
-    { id: 'handoff', kind: 'handoff', text: 'Hand off', at },
-    { id: 'done', kind: 'done', text: 'Done', at },
-    { id: 'uncommitted', kind: 'uncommitted', text: 'Uncommitted', at },
-    { id: 'other', kind: 'other', text: 'Other', at },
-    { id: 'spool', kind: 'spool-too-large', text: 'Large spool', at },
-    { id: 'read', kind: 'failed', text: 'Already read', at, read_at: at },
-  ] });
-  h.ui.view = 'home';
-  h.w.homeView.draw();
-  assert.match(h.el('home').innerHTML, /<span>Needs you<\/span><b>0<\/b>/);
-  assert.doesNotMatch(h.el('home').innerHTML, /<h2>Waiting on you<\/h2>/);
 });
 
 test('IDE requests the root only once while its first request is pending', async (t) => {

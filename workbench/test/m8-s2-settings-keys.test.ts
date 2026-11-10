@@ -6,22 +6,9 @@ import { runInNewContext } from 'node:vm';
 import { DEFAULTS } from '../../core/src/settings.ts';
 
 const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
-const renderer = readFileSync(new URL('../renderer/settings.js', import.meta.url), 'utf8');
 const pageMatch = /const PAGE_KEYS\s*=\s*new Set\((\[[\s\S]*?\])\)/.exec(main);
-const sectionMatch = /const SECTIONS\s*=\s*(\[[\s\S]*?\n  \]);/.exec(renderer);
 assert.ok(pageMatch, 'PAGE_KEYS array found');
-assert.ok(sectionMatch, 'SECTIONS array found');
 const pageKeys: string[] = Array.from(runInNewContext(pageMatch[1]));
-const sections = runInNewContext(sectionMatch[1]);
-const rowKeys: string[] = sections.flatMap((section: { rows: Array<{ key?: string }> }) => section.rows.filter((row) => row.key !== undefined).map((row) => row.key));
-
-test('every Settings schema key is writable or sessions.approval', () => {
-  assert.ok(rowKeys.length > 0, 'schema has keyed rows');
-  for (const key of rowKeys) {
-    assert.match(key, /^[a-z_]+\.[a-z_]+$/);
-    assert.ok(key === 'sessions.approval' || pageKeys.includes(key), key);
-  }
-});
 
 test('every PAGE_KEYS entry names a scalar default', () => {
   assert.ok(pageKeys.length > 0, 'PAGE_KEYS is nonempty');

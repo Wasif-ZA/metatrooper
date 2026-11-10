@@ -110,7 +110,7 @@ async function boot(t: any, overrides: Record<string, Function> = {}) {
     URLSearchParams, URL, console, wall, termView, CSS: { escape: (s: string) => s }, matchMedia: () => ({ matches: false }),
     MutationObserver: class { observe() {} }, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0,
   });
-  for (const name of ['diff.js', 'browser-chrome.js', 'app.js', 'home.js', 'inbox.js', 'ide.js', 'settings.js']) vm.runInContext(source(name), context, { filename: name });
+  for (const name of ['diff.js', 'browser-chrome.js', 'app.js', 'home.js', 'ide.js']) vm.runInContext(source(name), context, { filename: name });
   vm.runInContext('globalThis.state = ui;', context);
   for (const fn of domReady) fn();
   await flush();
