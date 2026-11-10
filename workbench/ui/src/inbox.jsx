@@ -289,11 +289,14 @@ export function Inbox() {
         ) : approvals.length ? null : (
           <EmptyState title="Nothing here." description="Agents that ask, finish or fail show up in this list." isCompact />
         )}
-        <footer className="ou-keys">
+        <footer className="ou-keys ou-inbox-footer">
           <Kbd keys="J" /><Kbd keys="K" /> move <Kbd keys="Enter" /> open
         </footer>
       </div>
       <div className="ou-ipane">
+        <div className="ou-inbox-detail-head">
+          {!activeRow ? 'Details' : activeRow.type === 'ask' ? 'Agent' : 'Notice'}
+        </div>
         {!activeRow ? (
           <div className="ou-ipane-empty">
             <EmptyState title="Nothing is waiting on you." isCompact />
