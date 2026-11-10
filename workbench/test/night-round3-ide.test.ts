@@ -186,8 +186,8 @@ test('ac1fa681 IDE explorer: the root row shows the project name exactly as type
   g.ui.snap.projects[0].name = 'myProjectName';
   const h = await explorer();
   const rootBtn = h.one(hasClass('ou-ide-root'));
-  assert.equal(rootBtn.props.children[1], 'myProjectName');
-  assert.notEqual(rootBtn.props.children[1], 'MYPROJECTNAME');
+  assert.equal(rootBtn.props.children.at(-1), 'myProjectName');
+  assert.notEqual(rootBtn.props.children.at(-1), 'MYPROJECTNAME');
   assert.equal(rootBtn.props['aria-expanded'], true);
   assert.equal(text(rootBtn.props.children[0]), '\u25be');
   const treeList = h.one((n: any) => n.props?.density === 'compact');
