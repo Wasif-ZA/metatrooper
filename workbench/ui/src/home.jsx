@@ -7,6 +7,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { Verdict } from './verdict.jsx';
+import { Usage } from './usage.jsx';
 
 export const homeStore = createStore({ tick: 0 });
 
@@ -170,6 +171,7 @@ export function Home() {
           </section>
         ) : null}
       </div>
+      <Usage />
     </div>
   );
 }
