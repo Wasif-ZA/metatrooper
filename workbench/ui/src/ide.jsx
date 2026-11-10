@@ -188,6 +188,11 @@ async function openFile(st, path, { owner, changes, line } = {}) {
   } else setTimeout(() => goto(t), 0);
 }
 
+export async function openAt(rel, line) {
+  await drawIde();
+  if (cur && cur.pid === ui.projectId) await openFile(cur, slashed(rel), { line });
+}
+
 async function newFile(st, ask) {
   if (!ask.path.trim() || ask.busy) return;
   ask.busy = true;
