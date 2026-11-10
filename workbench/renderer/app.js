@@ -8,8 +8,8 @@ const STATE_WORDS = { starting: 'starting', working: 'working', waiting_for_you:
 
 const recentErrors = [];
 const keepError = (text) => { recentErrors.push(`${new Date().toISOString()} ${text}`.slice(0, 300)); if (recentErrors.length > 20) recentErrors.shift(); };
-addEventListener('error', (e) => keepError(`${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno})`));
-addEventListener('unhandledrejection', (e) => keepError(`unhandled rejection: ${e.reason?.message ?? e.reason}`));
+globalThis.addEventListener?.('error', (e) => keepError(`${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno})`));
+globalThis.addEventListener?.('unhandledrejection', (e) => keepError(`unhandled rejection: ${e.reason?.message ?? e.reason}`));
 const VIEW_NAMES = { home: 'Home', ide: 'IDE', wall: 'Wall', inbox: 'Inbox', addons: 'Add-ons' };
 function reportIssue() {
   const view = globalThis.settingsView?.isOpen() ? 'Settings' : VIEW_NAMES[ui.view || 'wall'] || ui.view;
