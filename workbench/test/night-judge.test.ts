@@ -230,3 +230,48 @@ test('60704072 Needs you has exactly one empty message in the detail pane and no
   assert.equal((renderToStaticMarkup(tree).match(/Nothing is waiting on you\./g) || []).length, 1);
   assert.doesNotMatch(renderToStaticMarkup(list), /Nothing is waiting on you\.|Nothing here\./);
 });
+
+test('1720c8e3 Home agent header puts the state right after the project and ui.css draws a middle dot between them', (t) => {
+  // Render the real Home card header and check its literal project and state text.
+  g.ui.pendingHide = new Set();
+  g.ui.snap.sessions = [{ id: 'a', project_id: 'p1', engine_id: 'codex', state: 'working', task: 'Review changes' }];
+  for (const [key, value] of Object.entries({ STATE_WORDS: { working: 'Working' }, taskOf: (x: any) => x.task })) {
+    const previous = Object.getOwnPropertyDescriptor(g, key);
+    Object.defineProperty(g, key, { configurable: true, writable: true, value });
+    t.after(() => previous ? Object.defineProperty(g, key, previous) : delete g[key]);
+  }
+  const cards = children(oneClass(screen(Home), 'ou-cards'));
+  assert.equal(cards.length, 1);
+  const card = screen(cards[0].type, cards[0].props);
+  assert.equal(hasClass(card, 'ou-agent'), true);
+  const header = children(card)[0];
+  const html = renderToStaticMarkup(header);
+  assert.match(html, /<span class="ou-ah-proj">codex<\/span><span class="[^"]*\bou-ah-state\b[^"]*"[^>]*>Working<\/span>/);
+  assert.ok(readFileSync(join(wb, 'ui/src/ui.css'), 'utf8').includes('.ou-ah-proj + .ou-ah-state::before { content: "\\00B7";'));
+});
+
+test('e016fa92 Add-ons Check again renders as ghost and retains check-engines action', () => {
+  // Render the unavailable agent action with the real design system button.
+  g.ui.view = 'addons';
+  g.ui.snap.engines = [{ id: 'codex', light: 'red' }];
+  const tree = screen(Addons);
+  const buttons = descendants(tree).filter(n => n?.type === Button && n.props.label === 'Check again');
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].props.variant, 'ghost');
+  assert.equal(buttons[0].props['data-action'], 'check-engines');
+  const html = renderToStaticMarkup(buttons[0]);
+  assert.match(html, /^<button\b[^>]*data-variant="ghost"[^>]*data-action="check-engines"[^>]*>/);
+  assert.equal(html.replace(/<[^>]*>/g, ''), 'Check again');
+});
+
+test('5cf47ff1 Wall bottom strip spans the wall through its loaded stylesheet', () => {
+  // Check the loaded strip rule anchors both edges instead of using one column width.
+  const html = renderer('index.html');
+  assert.match(html, /<link\b[^>]*rel="stylesheet"[^>]*href="wall\.css"/);
+  assert.match(html, /<footer\b[^>]*id="strip"[^>]*class="strip"/);
+  const strip = cssBody(renderer('wall.css'), '.strip');
+  assert.match(strip, /(?:^|;)\s*position:\s*absolute\s*;/);
+  assert.match(strip, /(?:^|;)\s*left:\s*8px\s*;/);
+  assert.match(strip, /(?:^|;)\s*right:\s*8px\s*;/);
+  assert.doesNotMatch(strip, /(?:^|;)\s*width\s*:/);
+});
