@@ -1364,13 +1364,17 @@ async function onClick(e) {
     case 'launch-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
-      menu.innerHTML = `<div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" role="menuitem" tabindex="-1" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
+      menu.innerHTML = `<div class="item" role="menuitem" tabindex="-1" data-action="new-task">New task...</div><div class="mh">Agents</div>${ui.snap.engines.map((x) => `<div class="item" role="menuitem" tabindex="-1" data-action="launch" data-engine="${esc(x.id)}">${esc(x.id)}${x.light === 'red' ? ` <span class="meta">not ready: ${esc(x.fix || x.detail || 'check failed')}</span>` : ''}</div>`).join('')}`
         + (ui.shellKinds.length ? `<div class="mh">Terminals</div>${ui.shellKinds.map((k) => `<div class="item" role="menuitem" tabindex="-1" data-action="shell-open" data-kind="${esc(k.kind)}">${esc(k.label)}</div>`).join('')}` : '');
       menu.style.left = `${Math.max(8, r.right - 220)}px`;
       menu.style.top = `${r.bottom + 4}px`;
       showMenu(menu);
       return;
     }
+    case 'new-task':
+      hideMenu();
+      globalThis.newTask?.();
+      return;
     case 'project-menu': {
       const menu = document.getElementById('menu');
       const r = el.getBoundingClientRect();
