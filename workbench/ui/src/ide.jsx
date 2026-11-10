@@ -45,7 +45,13 @@ export async function drawIde() {
   const host = document.getElementById('ide');
   if (host) host.hidden = !ideShown();
   if (!ideShown()) return;
-  if (cur && cur.pid === ui.projectId) { bump(); return; }
+  if (cur && cur.pid === ui.projectId) {
+    const sig = JSON.stringify(ui.snap.git || {});
+    if (cur.sig !== undefined && cur.sig !== sig) void refresh(cur);
+    cur.sig = sig;
+    bump();
+    return;
+  }
   if (cur && !cur.tabs.some((x) => x.dirty)) states.delete(cur.pid);
   const st = states.get(ui.projectId) || fresh(ui.projectId);
   states.set(st.pid, st);
@@ -61,6 +67,30 @@ async function loadDir(st, rel) {
   st.listing.delete(rel);
   st.dirs.set(rel, list || []);
   bump();
+}
+
+// ponytail: re-lists every open folder on each git snapshot change; watch single folders if this gets slow
+async function refresh(st) {
+  if (st.refreshing) return;
+  st.refreshing = true;
+  try {
+    for (const rel of [...st.dirs.keys()]) {
+      const list = await api.fsList(st.pid, rel || '.');
+      if (list) st.dirs.set(rel, list); else if (rel) st.dirs.delete(rel);
+    }
+    for (const t of [...st.tabs]) {
+      if (t.dirty || t.text === undefined || t.reading) continue;
+      const r = await api.fsRead(st.pid, t.path);
+      if (!r || r.error || r.mtimeMs === t.mtimeMs || t.dirty || !st.tabs.includes(t)) continue;
+      t.mtimeMs = r.mtimeMs;
+      t.text = r.text;
+      if (t.view) t.view.setState(editorState(r.text, t.path, onFor(st, t))); else t.state = null;
+    }
+    if (st.git) await loadGitStatus(st);
+  } catch {} finally {
+    st.refreshing = false;
+    bump();
+  }
 }
 
 function changedSet() {
