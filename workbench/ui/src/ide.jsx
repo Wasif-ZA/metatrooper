@@ -265,7 +265,7 @@ async function newFile(st, ask) {
     const refresh = new Set(ask.folder ? [] : [folder(rel)]);
     if (created !== null) refresh.add(folder(created));
     for (const path of refresh) st.dirs.delete(path);
-    if (!ask.folder) await openFile(st, rel);
+    if (!ask.folder) await openFile(st, rel, { line: 1 });
     for (const path of refresh) await loadDir(st, path);
     if (st.git) await loadGitStatus(st);
   } catch (e) {
