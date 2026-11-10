@@ -38,6 +38,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   if (rows.length === 0) return 0;
   const getSession = db.prepare('SELECT host, state, engine_id, native_id, pid, run_id, state_at FROM session WHERE id = ?');
   const setState = db.prepare('UPDATE session SET state = ?, state_at = ?, wait_reason = ? WHERE id = ?');
+  const logState = db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)');
   const setReason = db.prepare('UPDATE session SET wait_reason = ? WHERE id = ?');
   const lastOpencodeSeq = db.prepare("SELECT count(*) AS c, max(json_extract(payload, '$.seq')) AS n FROM event WHERE session_id = ? AND kind = 'opencode.state' AND seq < ? AND json_extract(payload, '$.state') IN ('working', 'waiting', 'done')");
   const specs = new Map<string, { source?: string; plugin?: string }>();
@@ -139,7 +140,9 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         // A new cause for a wait already shown replaces its reason.
         if (s.state === 'waiting_for_you' && next === 'waiting_for_you') setReason.run(waitReason(ev.kind, payload), ev.session_id);
         if (next && next !== s.state) {
-          setState.run(next, next === 'waiting_for_you' ? writtenAt : nowIso(), next === 'waiting_for_you' ? waitReason(ev.kind, payload) : null, ev.session_id);
+          const at = next === 'waiting_for_you' ? writtenAt : nowIso();
+          setState.run(next, at, next === 'waiting_for_you' ? waitReason(ev.kind, payload) : null, ev.session_id);
+          logState.run(ev.session_id, at, next);
           changed.push([ev.session_id, next]);
           if (next === 'exited') {
             setEnded.run(nowIso(), ev.session_id);

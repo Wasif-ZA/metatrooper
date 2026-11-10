@@ -78,6 +78,13 @@ CREATE TABLE session (
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
 
+CREATE TABLE session_state_log (
+  session_id TEXT NOT NULL REFERENCES session(id),
+  at TEXT NOT NULL,
+  state TEXT NOT NULL
+);
+CREATE INDEX session_state_log_session ON session_state_log(session_id, at);
+
 CREATE TABLE handoff (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),

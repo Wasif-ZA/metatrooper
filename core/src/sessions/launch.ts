@@ -105,10 +105,12 @@ export function launchSession(
   const plan = { argv, promptDelivered };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
+  const startedAt = nowIso();
   db.prepare(
     `INSERT INTO session (id, project_id, engine_id, host, cwd, run_id, step_id, parent_id, browser_grant, state, state_at, started_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
-  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, nowIso(), nowIso());
+  ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, startedAt, startedAt);
+  db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)').run(id, startedAt, 'starting');
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {
