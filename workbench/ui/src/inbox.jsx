@@ -146,11 +146,18 @@ function DetailNotice({ n, kindOf }) {
         <span className="ou-ipane-noticetext">{n.text}</span>
       </div>
       <div className="ou-ipane-muted">{meta}</div>
-      <Button size="sm" variant="ghost" label="Open" onClick={() => { homeView.set('wall'); void openNeedsYou(n.id); }} />
+      <Button size="sm" variant="ghost" label="Open" onClick={() => { openNotice(n); }} />
       <NoteActions n={n} />
     </div>
   );
 }
+
+const openNotice = (n) => {
+  const s = [...(ui.snap.live || []), ...(ui.snap.sessions || [])].find((x) => x.id === n.ref);
+  homeView.set('wall');
+  if (s && s.project_id && s.project_id !== ui.projectId) { ui.pendingNeedsYou = n.id; switchProject(s.project_id); return; }
+  void openNeedsYou(n.id);
+};
 
 const openOnWall = (x) => {
   if (x.project_id && x.project_id !== ui.projectId) {
@@ -270,7 +277,7 @@ export function Inbox() {
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); homeView.set('wall'); void openNeedsYou(n.id); }
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); openNotice(n); }
                   }}
                   tabIndex={0}
                   role="button"
