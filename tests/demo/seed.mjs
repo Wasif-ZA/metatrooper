@@ -49,13 +49,18 @@ export async function launchDemo(request, project, roles = DEMO_ROLES) {
   const { project_id } = await request('project.open', { path: project });
   const sessions = {};
   for (const role of roles) sessions[role] = (await request('session.launch', { project_id, engine_id: DEMO_ENGINE, prompt: role })).session_id;
+  return { project_id, sessions };
+}
+
+/** After launchDemo: a second project and the seeded rows the Home screen and sidebar draw (seedFixtures). */
+export async function seedRows(request, project) {
+  const { project_id } = await request('project.open', { path: project });
   const home = path.resolve(project, '..', '..');
   const api = path.join(home, 'demo', 'api-server');
   gitRepo(api, { 'README.md': '# api-server\n\nOrders and payments API.\n' });
   const { project_id: api_id } = await request('project.open', { path: api });
   await request('project.open', { path: project });
   seedFixtures(home, { shop: { id: project_id, path: project }, api: { id: api_id, path: api } });
-  return { project_id, sessions };
 }
 
 function gitRepo(dir, files) {
