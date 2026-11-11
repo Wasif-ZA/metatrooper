@@ -14,6 +14,8 @@ import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { TreeList } from '@astryxdesign/core/TreeList';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import * as Ic from './icons/index.js';
+import * as Sc from './icons/screens.jsx';
 import { editorState, openEditor } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 import { AgentHead } from './agenthead.jsx';
@@ -564,27 +566,7 @@ export const ideKeys = {
   },
 };
 
-const svg = (d, size = 14) => <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
-const svg24 = (d) => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
-const FILE = 'M3.5 1.5h4.5l2.5 2.5v8.5h-7zM8 1.5V4h2.5';
-const CODE = 'M4.5 4.5L2 7l2.5 2.5M9.5 4.5L12 7l-2.5 2.5M8 3l-2 8';
-const JSON_ICON = 'M4.5 2.5a1 1 0 00-1 1v2a1 1 0 01-1 1 1 1 0 011 1v2a1 1 0 001 1M9.5 2.5a1 1 0 011 1v2a1 1 0 001 1 1 1 0 00-1 1v2a1 1 0 01-1 1';
-const MD_ICON = 'M2 3.5h10v7H2zM4 8.5V5.5l1.5 1.8 1.5-1.8v3M9.5 6.5v2m-1-1l1 1 1-1';
-const CSS_ICON = 'M4.5 2.5l-1 9M10.5 2.5l-1 9M2.5 5.5h9M1.5 8.5h9';
-const HTML_ICON = 'M4 4.5L1.5 7 4 9.5M10 4.5l2.5 2.5-2.5 2.5M8 3.5l-2 7';
-const IMG_ICON = 'M2 2.5h10v9H2zM2 9.5l3-3 2.5 2.5 2-2 2.5 2.5M5 5.5a1 1 0 100-2 1 1 0 000 2';
-const FOLDER_ICON = 'M1.5 3.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z';
-const CLOSE = 'M4 4l6 6M10 4l-6 6';
-const RELOAD = 'M11.5 7a4.5 4.5 0 11-1.3-3.2M11.5 2v2.5H9';
-const EXTERNAL_LINK = 'M8 2h4v4M12 2L6 8M6 2H2v10h10V8';
-const CMD = 'M2.5 4.5l3 2.5-3 2.5M7 10h4.5';
-const FOLD = 'M3.5 5.5L7 9l3.5-3.5';
-const UNFOLD = 'M3.5 8.5L7 5l3.5 3.5';
-const PLUS = 'M7 3v8M3 7h8';
-const MINUS = 'M3 7h8';
-const BRANCH = 'M3.5 2a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm0 3v4m0 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm0 1.5c1.5 0 3.5 0 5-1.5s1.5-2 1.5-3.5m0 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z';
-const MAGNIFIER = 'M5.5 2a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM8 8l4 4';
-const CHECK_CIRCLE = 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
+const FILE_ICON = { code: Ic.CodeIcon, html: Ic.CodeIcon, json: Sc.JsonIcon, markdown: Sc.MarkdownIcon, css: Sc.CssIcon, image: Sc.ImageIcon, folder: Ic.FolderIcon, file: Sc.FileIcon };
 
 const LANGS = {
   js: 'JavaScript', jsx: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript',
@@ -624,22 +606,12 @@ function fileShape(path, isDir) {
   return 'file';
 }
 
-function fileIconD(shape) {
-  if (shape === 'code') return CODE;
-  if (shape === 'json') return JSON_ICON;
-  if (shape === 'markdown') return MD_ICON;
-  if (shape === 'css') return CSS_ICON;
-  if (shape === 'html') return HTML_ICON;
-  if (shape === 'image') return IMG_ICON;
-  if (shape === 'folder') return FOLDER_ICON;
-  return FILE;
-}
-
 function FileIcon({ path, isDir }) {
   const shape = fileShape(path, isDir);
   const ext = path ? path.split('.').pop().toLowerCase() : '';
   const k = isDir ? 'type' : TINT[ext];
-  return <span className="ou-ide-ficon" style={{ color: k ? `var(--syn-${k})` : 'var(--mute)' }}>{svg(fileIconD(shape))}</span>;
+  const F = FILE_ICON[shape];
+  return <span className="ou-ide-ficon" style={{ color: k ? `var(--syn-${k})` : 'var(--mute)' }}><F size={14} /></span>;
 }
 
 const Ring = () => <span className="ou-ide-ring" title="Changed by an agent" />;
@@ -846,7 +818,7 @@ function ScRow({ st, file, staged }) {
       <span className="ou-ide-name">{base(file.path)}</span>
       <span className="ou-ide-dir">{folder(file.path)}</span>
       {st.owners && st.owners.get(file.path) ? <span className="ou-ide-engine" title={`Changed by ${st.owners.get(file.path)}`}>{st.owners.get(file.path)}</span> : null}
-      <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={svg(staged ? MINUS : PLUS, 12)}
+      <IconButton size="sm" variant="ghost" label={staged ? `Unstage ${file.path}` : `Stage ${file.path}`} icon={staged ? <Sc.MinusIcon size={12} /> : <Ic.PlusIcon size={12} />}
         onClick={(e) => { e.stopPropagation(); void (staged ? gitUnstage(st, [file.path, file.from].filter(Boolean)) : gitStage(st, [file.path])); }} />
     </div>
   );
@@ -871,7 +843,7 @@ function SourceControl({ st }) {
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); void gitCommit(st); } }} />
         <div className="ou-ide-scactions">
           <Button size="sm" label="Commit" isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
-          <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={svg(RELOAD)} onClick={() => void loadGitStatus(st)} />
+          <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} />
         </div>
       </div>
       <div className="ou-ide-tree">
@@ -884,7 +856,7 @@ function SourceControl({ st }) {
             {!staged.length ? <p className="ou-ide-muted">No staged files.</p> : null}
             <div className="ou-ide-schead">
               <span>Changes</span><span className="ou-ide-count">{unstaged.length}</span>
-              {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={svg(PLUS, 12)}
+              {unstaged.length ? <IconButton size="sm" variant="ghost" label="Stage all" tooltip="Stage all" icon={<Ic.PlusIcon size={12} />}
                 onClick={() => void gitStage(st, unstaged.filter((f) => !f.conflict).map((f) => f.path))} /> : null}
             </div>
             {unstaged.map((f) => <ScRow key={`u:${f.path}`} st={st} file={f} staged={false} />)}
@@ -933,7 +905,7 @@ function DiffView({ tab }) {
 }
 
 function OpenInVsCodeButton({ st, tab }) {
-  return <Button size="sm" variant="ghost" className="ou-ide-open-vscode" label="Open in VS Code" icon={svg(EXTERNAL_LINK, 12)} onClick={() => void openInVsCode(st, tab?.path)} />;
+  return <Button size="sm" variant="ghost" className="ou-ide-open-vscode" label="Open in VS Code" icon={<Sc.ExternalLinkIcon size={12} />} onClick={() => void openInVsCode(st, tab?.path)} />;
 }
 
 function Crumb({ st, tab, changed }) {
@@ -957,7 +929,7 @@ function Crumb({ st, tab, changed }) {
         ) : null}
         {!tab || tab.error || tab.image ? null : (
           <>
-            <IconButton size="sm" variant="ghost" label="Reload from disk" tooltip="Reload from disk" icon={svg(RELOAD)} onClick={() => askReload(st, tab.path)} />
+            <IconButton size="sm" variant="ghost" label="Reload from disk" tooltip="Reload from disk" icon={<Sc.ReloadIcon size={14} />} onClick={() => askReload(st, tab.path)} />
             <Button size="sm" variant="ghost" className="ou-ide-save" label="Save" tooltip="Save (Ctrl+S)" isDisabled={!ok || !tab.dirty} onClick={() => void saveTab(st, tab.path)} />
             {ok ? null : <NotBuilt />}
           </>
@@ -969,7 +941,7 @@ function Crumb({ st, tab, changed }) {
 
 function Agents({ st }) {
   const rows = ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  if (!rows.length) return <div id="ide-agents" className="ou-ide-agents"><CompactEmpty icon={svg24(CHECK_CIRCLE)} label="No agents running." /></div>;
+  if (!rows.length) return <div id="ide-agents" className="ou-ide-agents"><CompactEmpty icon={<Ic.Done size={24} />} label="No agents running." /></div>;
   return (
     <div id="ide-agents" className="ou-ide-agents">
       {rows.map((x) => {
@@ -982,7 +954,7 @@ function Agents({ st }) {
                 <button key={f} className="ou-ide-afile" title={f} onClick={() => void openFile(st, f, { owner: x.id, changes: true })}>
                   <span className="ou-ide-name">{base(f)}</span><span className="ou-ide-dir">{folder(f)}</span>
                 </button>
-              )) : <CompactEmpty icon={svg24(CHECK_CIRCLE)} label="No changes yet" />}
+              )) : <CompactEmpty icon={<Ic.Done size={24} />} label="No changes yet" />}
             </div>
           </section>
         );
@@ -1006,7 +978,7 @@ function StatusBar({ st, active, agentCount }) {
       <div className="ou-ide-status-left">
         {branch ? (
           <span className="ou-ide-status-item" title={`Branch: ${branch}`}>
-            {svg(BRANCH, 12)}
+            <Ic.Branch size={12} />
             <span>{branch}</span>
           </span>
         ) : null}
@@ -1164,10 +1136,10 @@ export function Ide() {
         <div className="ou-ide-head">
           <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? (gitCount !== null ? `Changes ${gitCount}` : 'Changes') : 'Explorer'}</span>
           <span className="ou-ide-head-actions">
-            <IconButton size="sm" variant="ghost" label="Files" aria-pressed={st.side === 'files'} icon={svg(FILE)} onClick={() => { st.side = 'files'; bump(); }} />
-            <IconButton size="sm" variant="ghost" label="Search" aria-pressed={st.side === 'search'} icon={svg(MAGNIFIER)} onClick={() => { st.side = 'search'; bump(); }} />
-            <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} aria-pressed={st.side === 'changes'} icon={svg(BRANCH)} onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
-            <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={svg(CMD)} onClick={() => paletteView.open()} />
+            <IconButton size="sm" variant="ghost" label="Files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={14} />} onClick={() => { st.side = 'files'; bump(); }} />
+            <IconButton size="sm" variant="ghost" label="Search" aria-pressed={st.side === 'search'} icon={<Ic.Search size={14} />} onClick={() => { st.side = 'search'; bump(); }} />
+            <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} aria-pressed={st.side === 'changes'} icon={<Ic.Branch size={14} />} onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
+            <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} />
           </span>
         </div>
         {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
@@ -1180,7 +1152,7 @@ export function Ide() {
                 <Tab key={t.path} value={t.path} label={base(t.path)} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
                   <span className="ou-ide-tabend">
                     {t.dirty ? <span className="ou-ide-dirty" title="Unsaved" /> : changed.has(t.path) ? <Ring /> : null}
-                    <IconButton size="sm" variant="ghost" label={`Close ${t.path}`} icon={svg(CLOSE, 12)} onClick={(e) => { e.stopPropagation(); closeTab(st, t.path); }} />
+                    <IconButton size="sm" variant="ghost" label={`Close ${t.path}`} icon={<Sc.CloseIcon size={12} />} onClick={(e) => { e.stopPropagation(); closeTab(st, t.path); }} />
                   </span>
                 )} />
               ))}
@@ -1204,7 +1176,7 @@ export function Ide() {
               <Tab value="agents" label={`Agents ${agentCount}`} />
               <Tab value="terminal" label="Terminal" endContent={<span className="ou-soontag">Not built yet</span>} />
             </TabList>
-            <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={svg(panel ? FOLD : UNFOLD)} onClick={() => setPanel(!panel)} />
+            <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={panel ? <Ic.ChevronDownIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setPanel(!panel)} />
           </div>
           {panel ? (bottom === 'agents' ? <Agents st={st} /> : (
             <div className="ou-ide-term"><EmptyState isCompact title="The terminal is not built into the IDE yet. Agent terminals are on the Wall." actions={<Button size="sm" label="Open the Wall" data-action="view" data-view="wall" />} /></div>

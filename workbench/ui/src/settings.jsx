@@ -9,6 +9,8 @@ import { Switch } from '@astryxdesign/core/Switch';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import * as Ic from './icons/index.js';
+import * as Sc from './icons/screens.jsx';
 import { Automations } from './automations.jsx';
 
 export const settingsStore = createStore({ data: null, section: 'general' });
@@ -99,20 +101,17 @@ async function write(key, value) {
   await reload();
 }
 
-const nav = (d, size = 16) => <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
 const NAV_ICON = {
-  general: 'M2.5 4.5h7M12 4.5h1.5M2.5 8h2M7 8h6.5M2.5 11.5h6M11 11.5h2.5M10.5 3v3M5.5 6.5v3M9.5 10v3',
-  reliability: 'M8 2l5 1.8v3.7c0 3-2 5.2-5 6.5-3-1.3-5-3.5-5-6.5V3.800zM5.8 8l1.6 1.6 2.9-3',
-  savings: 'M8 2.500v11M10.8 4.800c-.5-.8-1.5-1.3-2.8-1.3-1.7 0-2.9.8-2.9 2.1 0 3 6 1.4 6 4.4 0 1.3-1.3 2.2-3.1 2.2-1.4 0-2.6-.6-3.1-1.5',
-  safety: 'M4.5 7V5.500a3.5 3.5 0 017 0V7M3.5 7h9v6.500h-9zM8 9.800v1.4',
-  addons: 'M6 2.500h4v2.200a1.3 1.3 0 102.6 0h.9v4h-2.200a1.3 1.3 0 100 2.600h2.200v2.200h-4.400v-1a1.3 1.3 0 10-2.6 0v1H2.500V9.500h1a1.3 1.3 0 100-2.600h-1V4.700H6z',
-  notify: 'M8 2.500a4 4 0 00-4 4v2.200L2.8 11h10.400L12 8.700V6.500a4 4 0 00-4-4zM6.6 13a1.5 1.5 0 002.8 0',
-  advanced: 'M3 4.500l3 3-3 3M8 11h5',
-  automations: 'M8 4.5V8l2.5 1.5M8 2.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z',
+  general: Ic.OptionsIcon,
+  reliability: Ic.ApprovalIcon,
+  savings: Sc.SavingsIcon,
+  safety: Sc.LockIcon,
+  addons: Ic.AddOnsIcon,
+  notify: Sc.BellIcon,
+  advanced: Sc.TerminalIcon,
+  automations: Ic.ScheduleIcon,
 };
-const icon = (d) => <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
-const CLOSE = 'M3 3l8 8M11 3l-8 8';
-const UNDO = 'M3.5 5.5h5a2.5 2.5 0 010 5H5M3.5 5.5L5.7 3.3M3.5 5.5l2.2 2.2';
+const nav = (id, size = 16) => { const Nav = NAV_ICON[id]; return <Nav size={size} />; };
 
 function CheckCommand({ row, data }) {
   const id = ui.projectId;
@@ -155,7 +154,7 @@ function Row({ row, data }) {
   return (
     <div className={row.soon ? 'ou-row ou-soon' : 'ou-row'}>
       <div className="ou-rowtext">
-        <span className="ou-rowtitle">{row.label}{changed ? <IconButton size="sm" variant="ghost" label="Reset to default" tooltip={`Reset to ${def === true ? 'on' : def === false ? 'off' : def}`} icon={icon(UNDO)} onClick={() => write(row.key, def)} /> : null}</span>
+        <span className="ou-rowtitle">{row.label}{changed ? <IconButton size="sm" variant="ghost" label="Reset to default" tooltip={`Reset to ${def === true ? 'on' : def === false ? 'off' : def}`} icon={<Sc.UndoIcon size={14} />} onClick={() => write(row.key, def)} /> : null}</span>
         {row.hint ? <span className="ou-rowhint">{row.hint}</span> : null}
       </div>
       <Control row={row} data={data} />
@@ -200,20 +199,20 @@ export function Settings() {
         {NAV.map((g, i) => (
           <div key={i} className="ou-navgroup">
             {g.title ? <span className="ou-navhead">{g.title}</span> : null}
-            {g.ids.map((id) => { const s = SECTIONS.find((x) => x.id === id); return <SideNavItem key={id} icon={nav(NAV_ICON[id])} label={s.label} isSelected={!q && id === sec.id} onClick={() => { setQuery(''); settingsStore.set({ section: id }); }} />; })}
+            {g.ids.map((id) => { const s = SECTIONS.find((x) => x.id === id); return <SideNavItem key={id} icon={nav(id)} label={s.label} isSelected={!q && id === sec.id} onClick={() => { setQuery(''); settingsStore.set({ section: id }); }} />; })}
           </div>
         ))}
       </nav>
       <div className="ou-smain">
         <header className="ou-shead">
           <span className="ou-crumb">Settings<i>›</i><b>{hits ? 'Search' : sec.label}</b></span>
-          <IconButton label="Close settings" tooltip="Close (Esc)" variant="ghost" onClick={() => settingsView.close()} icon={icon(CLOSE)} />
+          <IconButton label="Close settings" tooltip="Close (Esc)" variant="ghost" onClick={() => settingsView.close()} icon={<Sc.CloseIcon size={14} />} />
         </header>
         <div className="ou-sbody">
           <div className="ou-scol">
             {hits ? (hits.length ? hits.map((g) => <Group key={g.title} group={g} data={data} />) : <Text color="secondary">No setting matches "{query}".</Text>) : (
               <>
-                <div className="ou-stitle"><h1>{nav(NAV_ICON[sec.id], 20)}{sec.label}</h1>{sec.note ? <p className="ou-note">{sec.note}</p> : null}</div>
+                <div className="ou-stitle"><h1>{nav(sec.id, 20)}{sec.label}</h1>{sec.note ? <p className="ou-note">{sec.note}</p> : null}</div>
                 {sec.groups.map((g, i) => <Group key={g.title || i} group={g} data={data} />)}
                 {sec.body ? <sec.body /> : null}
               </>

@@ -7,6 +7,8 @@ import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import * as Ic from './icons/index.js';
+import * as Sc from './icons/screens.jsx';
 
 export const inboxStore = createStore({ tick: 0, filter: 'all', collapsed: [], selectedId: null, props: true });
 
@@ -147,40 +149,30 @@ function Bar({ done, total }) {
   return <ProgressBar label="Sub-tasks done" isLabelHidden value={shown} max={Math.max(total, 1)} variant="success" className="ou-ny-progress" />;
 }
 
-const svg = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
 const I = {
-  up: <svg {...svg}><path d="M3.5 8.5L7 5l3.5 3.5" /></svg>,
-  down: <svg {...svg}><path d="M3.5 5.5L7 9l3.5-3.5" /></svg>,
-  close: <svg {...svg}><path d="M3 3l8 8M11 3l-8 8" /></svg>,
-  wall: <svg {...svg}><rect x="1.5" y="1.5" width="11" height="11" rx="2" /><path d="M5.5 1.5v11M1.5 5.5h4" /></svg>,
-  panel: <svg {...svg}><rect x="1.5" y="1.5" width="11" height="11" rx="2" /><path d="M8.5 1.5v11" /></svg>,
-  read: <svg {...svg}><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" /><path d="M1.5 4.5l5.5 3.5 5.5-3.5" /></svg>,
-  archive: <svg {...svg}><path d="M2.5 3.5h9M5 7h4M2 3.5l1 8h8l1-8" /></svg>,
-  open: <svg {...svg}><path d="M6 2.5H3a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V8M8 2.5h3.5v3.5M6.5 7.5L11.5 2.5" /></svg>,
-  plus: <svg {...svg}><path d="M7 3v8M3 7h8" /></svg>,
-  chev: <svg {...svg} width="12" height="12" className="ou-ny-gchev"><path d="M5 3.5L8.5 7 5 10.5" /></svg>,
-  branch: <svg {...svg} width="12" height="12"><circle cx="4" cy="3" r="1.5" /><circle cx="4" cy="11" r="1.5" /><circle cx="10" cy="5" r="1.5" /><path d="M4 4.5v5M10 6.5c0 2-6 1.5-6 3" /></svg>,
+  up: <Sc.ChevronUpIcon size={14} />,
+  down: <Ic.ChevronDownIcon size={14} />,
+  close: <Sc.CloseIcon size={14} />,
+  wall: <Ic.OpenOnWall size={14} />,
+  panel: <Ic.PanelToggle size={14} />,
+  read: <Sc.MailIcon size={14} />,
+  archive: <Sc.ArchiveIcon size={14} />,
+  open: <Sc.ExternalLinkIcon size={14} />,
+  plus: <Ic.NewSubTask size={14} />,
+  chev: <Ic.ChevronRightIcon size={12} className="ou-ny-gchev" />,
+  branch: <Ic.Branch size={12} />,
 };
 
+const RING = { needs: [Ic.NeedsYou, 'Needs you'], working: [Ic.Working, 'Working'], review: [Ic.InReview, 'In review'], blocked: [Ic.Blocked, 'Blocked'], failed: [Ic.Failed, 'Failed'] };
 function StatusRing({ status, size = 14 }) {
-  const p = { width: size, height: size, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
-  const cls = `ou-ny-ring ou-ny-ring-${status}`;
-  if (status === 'needs') return <svg {...p} className={cls} aria-label="Needs you"><circle cx="7" cy="7" r="5.25" /><circle cx="7" cy="7" r="1.6" fill="currentColor" stroke="none" /></svg>;
-  if (status === 'working') return <svg {...p} className={cls} aria-label="Working"><circle cx="7" cy="7" r="5.25" strokeOpacity="0.3" /><path d="M7 1.75A5.25 5.25 0 0 1 12.25 7" /></svg>;
-  if (status === 'review') return <svg {...p} className={cls} aria-label="In review"><circle cx="7" cy="7" r="5.25" /><path d="M7 1.75A5.25 5.25 0 0 1 7 12.25Z" fill="currentColor" stroke="none" /></svg>;
-  if (status === 'blocked') return <svg {...p} className={cls} aria-label="Blocked"><circle cx="7" cy="7" r="5.25" /><path d="M3.5 10.5l7-7" /></svg>;
-  if (status === 'failed') return <svg {...p} className={cls} aria-label="Failed"><circle cx="7" cy="7" r="5.25" /><path d="M5 5l4 4M9 5l-4 4" /></svg>;
-  return <svg {...p} className={cls} aria-label="Finished"><circle cx="7" cy="7" r="5.25" /><path d="M4.5 7.2l1.8 1.8 3.2-3.6" /></svg>;
+  const [Ring, label] = RING[status] || [Ic.Done, 'Finished'];
+  return <Ring size={size} className={`ou-ny-ring ou-ny-ring-${status}`} title={label} />;
 }
 
+const PRI = { none: Ic.None, low: Ic.Low, medium: Ic.Medium, high: Ic.High, urgent: Ic.Urgent };
 function PriorityIcon({ level }) {
-  if (level === 'urgent') return <svg {...svg} className="ou-ny-pri ou-ny-pri-urgent" aria-label="Urgent"><rect x="1.5" y="1.5" width="11" height="11" rx="2.5" fill="currentColor" stroke="none" /><path d="M7 4v3.5M7 9.6v.1" stroke="var(--canvas)" /></svg>;
-  const n = RANK[level] || 0;
-  return (
-    <svg {...svg} className={`ou-ny-pri ou-ny-pri-${level || 'none'}`} aria-label={PRIORITIES.find(([v]) => v === (level || 'none'))[1]}>
-      {n === 0 ? <path d="M3 7h1.5M6.25 7h1.5M9.5 7H11" /> : [0, 1, 2].map((i) => <rect key={i} x={2 + i * 3.75} y={10 - i * 3} width="2.5" height={2 + i * 3} rx="0.6" fill="currentColor" stroke="none" opacity={i < n ? 1 : 0.3} />)}
-    </svg>
-  );
+  const Pri = PRI[level] || Ic.None;
+  return <Pri size={14} className={`ou-ny-pri ou-ny-pri-${level || 'none'}`} title={PRIORITIES.find(([v]) => v === (level || 'none'))[1]} />;
 }
 
 function Avatar({ name }) {
