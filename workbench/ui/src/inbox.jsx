@@ -709,7 +709,7 @@ export function Inbox() {
     <div
       className="ou-inbox"
       onKeyDown={(e) => {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !e.target.closest?.('dialog, [role="dialog"], [role="alertdialog"], input, textarea, select, [contenteditable]')) {
           e.preventDefault();
           inboxStore.set({ selectedId: null });
         }

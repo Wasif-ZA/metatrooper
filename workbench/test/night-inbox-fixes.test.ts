@@ -144,3 +144,17 @@ test('label add and remove are undone when the core refuses them', async () => {
   assert.deepEqual(s1.labels, ['keep']);
   assert.equal(calls.filter((c) => c[0] === 'session.labels-set').length, 2);
 });
+
+test('Escape inside a dialog or text field does not clear the selection; elsewhere it does', () => {
+  g.ui.snap.live = [session()];
+  inboxStore.set({ selectedId: 's1' });
+  const h = harness(Inbox); h.draw();
+  const root = h.all((n: any) => n.props?.className === 'ou-inbox')[0];
+  const escape = (inside: string | null) => root.props.onKeyDown({ key: 'Escape', preventDefault() {}, target: { closest: (sel: string) => (inside && sel.includes(inside) ? {} : null) } });
+  for (const inside of ['[role="alertdialog"]', '[role="dialog"]', 'input', 'textarea']) {
+    escape(inside);
+    assert.equal(inboxStore.get().selectedId, 's1', inside);
+  }
+  escape(null);
+  assert.equal(inboxStore.get().selectedId, null);
+});
