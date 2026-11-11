@@ -89,11 +89,18 @@ globalThis.frameView = (() => {
     plus: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>',
   };
 
+  const GLYPH = {
+    wait: '<svg class="fgl wait" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="5" r="1.25" fill="currentColor"/></svg>',
+    work: '<svg class="fgl work" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.5A3.5 3.5 0 1 1 1.5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    done: '<svg class="fgl done" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="m3.5 5 1 1 2-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
   function agentHtml(x, depth) {
     const title = (x.title || '').trim();
     const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
     const words = STATE_WORDS[x.state] || x.state;
-    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}" data-action="pick" data-id="${esc(x.id)}" style="--depth:${Math.min(depth, 4)}" title="${esc(name)}" aria-label="${esc(name)}, ${esc(x.engine_id)}, ${esc(words)}"><span class="fsd ${rowDot(x)}"></span><span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(x.model || x.engine_id)} ${esc(age(x.started_at))}</span></button>`;
+    const tip = `${name}\n${x.model ? `${x.model} · ` : ''}${x.engine_id} · ${words}`;
+    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}" data-action="pick" data-id="${esc(x.id)}" style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${GLYPH[rowDot(x)]}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
   }
 
   function treeHtml(groups, rows) {
