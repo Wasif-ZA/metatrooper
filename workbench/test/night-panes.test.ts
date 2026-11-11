@@ -296,7 +296,7 @@ test('d9d885ca explorer has a 22px header and Files/Search/Changes icon buttons 
     const button = h.one(label(name)); assert.equal(button.type.name, 'IconButton'); assert.ok(React.isValidElement(button.props.icon));
     button.props.onClick(); await flush(); h.draw();
     assert.equal(h.one(label(name)).props['aria-pressed'], true);
-    assert.equal(text(h.one(hasClass('ou-ide-head-title'))), name === 'Files' ? 'Explorer' : name);
+    assert.equal(text(h.one(hasClass('ou-ide-head-title'))), name === 'Files' ? 'Explorer' : name === 'Search' ? 'Search' : 'SOURCE CONTROL');
     assert.equal(h.all((n: any) => n.props.id === 'ide-search').length, name === 'Search' ? 1 : 0);
     assert.equal(h.all((n: any) => n.type?.name === 'SourceControl').length, name === 'Changes 0' ? 1 : 0);
     assert.equal(h.all((n: any) => n.type?.name === 'Files').length, name === 'Files' ? 1 : 0);

@@ -226,12 +226,12 @@ for (const [reply, message] of [[{ commit: 'abc1234' }, 'Committed abc1234'], [{
       calls.push(['git', ...args]); return reply;
     };
     const h = await explorer(); h.one(label('Changes 1')).props.onClick(); h.draw(); await flush(); h.draw();
-    h.one(hasClass('ou-ide-scmsg')).props.onChange({ target: { value: '  Save work  ' } }); h.draw();
+    h.one((n: any) => n.props['aria-label'] === 'Commit message').props.onChange('  Save work  '); h.draw();
     assert.equal(h.one(label('Commit')).props.isDisabled, false);
     h.one(label('Commit')).props.onClick(); await flush(); h.draw();
     assert.deepEqual(recorded('git').filter(c => c[2] === 'commit'), [['git', g.ui.projectId, 'commit', 'Save work']]);
     assert.deepEqual(recorded('toast'), [['toast', message]]);
-    assert.equal(h.one(hasClass('ou-ide-scmsg')).props.value, '');
+    assert.equal(h.one((n: any) => n.props['aria-label'] === 'Commit message').props.value, '');
   });
 }
 
