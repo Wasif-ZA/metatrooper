@@ -80,10 +80,10 @@ const expected = [
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove', 'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'session.read', 'session.handoff',
   'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
-  'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
+  'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next', 'session.send',
 ];
 // Protects main.ts:57-66 and the call handler: exact capability set and the actual IPC gate.
-test('wire-00 exact 68 IPC methods pass with UI authentication; other methods are refused', async () => {
+test('wire-00 exact 69 IPC methods pass with UI authentication; other methods are refused', async () => {
   const calls: any[] = []; let handler: Function = () => {};
   const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
     call: async (...args: any[]) => { calls.push(args); return { kind: 'reply', reply: { result: {} } }; }, schedulePush() {} });
@@ -92,7 +92,7 @@ test('wire-00 exact 68 IPC methods pass with UI authentication; other methods ar
   assert.deepEqual(Array.from(vm.runInContext('[...UI_METHODS]', c)).sort(), [...expected].sort());
   for (const name of expected) await handler(name, { test: true });
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), expected.map(name => [name, { test: true }, { ui: true }]));
-  for (const name of ['core.stop', 'done.check', 'plugin.secret.set', 'hooks.install', 'session.send', '__proto__', 'plugin.install.extra', '', null, 3]) {
+  for (const name of ['core.stop', 'done.check', 'plugin.secret.set', 'hooks.install', '__proto__', 'plugin.install.extra', '', null, 3]) {
     const r = await handler(name, {}); assert.equal(r.reply.error.code, -32601, String(name));
   }
   assert.equal(calls.length, expected.length);
