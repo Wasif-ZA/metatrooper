@@ -913,7 +913,8 @@ async function seedDemoHome(): Promise<{ project: string; launch: () => Promise<
     if (out.kind !== 'reply' || out.reply.error) throw new Error(`${method}: ${out.kind === 'reply' ? out.reply.error?.message : 'the demo core is offline'}`);
     return out.reply.result;
   };
-  return { project, launch: () => seed.launchDemo(request, project) };
+  // The asker and preview fixture agents start only for the desktop self-test; the plain demo shows the seeded rows.
+  return { project, launch: async () => { await seed.launchDemo(request, project, process.env.METATROOPER_DEMO_FIXTURE_AGENTS === '1' ? undefined : []); await seed.seedRows(request, project); } };
 }
 
 function openNeedsYou(id: string | null): void {
