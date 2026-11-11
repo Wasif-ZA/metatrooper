@@ -185,7 +185,7 @@ export function mcpAttachArgs(db: DatabaseSync, engine: EngineSpec, sessionId: s
         : { command: node, args: s.args }]));
       writeSessionFile(db, sessionId, file, JSON.stringify({ mcpServers }, null, 2) + '\n');
       // One token: --mcp-config is variadic and would swallow a positional prompt that follows it.
-      return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`];
+      return [`--mcp-config=${file.split(String.fromCharCode(92)).join('/')}`, ...(servers.some((s) => s.name === 'ouros-steps') ? ['--allowedTools=mcp__ouros-steps__steps_set'] : [])];
     }
     case 'codex-config': {
       const file = codexConfigFile();

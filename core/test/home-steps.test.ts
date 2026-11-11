@@ -117,6 +117,21 @@ test('Codex update_plan replaces the list', async () => {
   });
 });
 
+test('ouros-steps attaches with steps_set allowed in every approval but isolated', async () => {
+  await fixture(async (db) => {
+    const { mcpAttachArgs } = await import('../src/plugins/mcp.ts');
+    const base = { command: 'x', version_cmd: ['x'], state_source: 'hooks' as const, roles: ['worker'], cost_rank: 1 };
+    const claude = { ...base, id: 'claude', mcp_attach: { kind: 'claude-mcp-config-flag' } };
+    const codex = { ...base, id: 'codex', mcp_attach: { kind: 'codex-config' } };
+    for (const approval of ['ask', 'edits', 'contained']) {
+      assert.equal(mcpAttachArgs(db, claude, 's1', false, { approval })[1], '--allowedTools=mcp__ouros-steps__steps_set');
+      assert.ok(mcpAttachArgs(db, codex, 's1', false, { approval }).some((a) => a.startsWith('mcp_servers.ouros-steps.')));
+    }
+    assert.deepEqual(mcpAttachArgs(db, claude, 's1', false, { approval: 'isolated' }), []);
+    assert.ok(!mcpAttachArgs(db, codex, 's1', false, { approval: 'isolated' }).some((a) => a.includes('ouros-steps')));
+  });
+});
+
 test('plan tool redaction keeps only step text and status, capped, and survives the sandbox re-check', () => {
   const todos = Array.from({ length: 40 }, (_, i) => ({ content: `step ${i} ${'y'.repeat(300)}`, status: 'pending', activeForm: 'secret form', id: 'x' }));
   todos[0].content = 'use ghp_abcdefghijklmnopqrstuvwxyz0123456789 here';
