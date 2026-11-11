@@ -14,7 +14,7 @@ const requireUI = createRequire(join(wb, 'ui/package.json'));
 const { build } = requireUI('esbuild');
 
 // Bundle real screen sources and retain installed React and library controls.
-const entry = "export * from './src/verdict.jsx'; export * from './src/ide.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';";
+const entry = "export * from './src/verdict.jsx'; export * from './src/ide.jsx'; export * from './src/ide-panel.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';";
 try { await build({
   absWorkingDir: join(wb, 'ui'), tsconfigRaw: {},
   stdin: { contents: entry, resolveDir: join(wb, 'ui'), loader: 'jsx' },
@@ -40,10 +40,10 @@ try { await build({
     child.on('error', reject); child.on('exit', code => code === 0 ? resolveBuild() : reject(new Error('esbuild exited ' + code)));
   });
 }
-const { React, renderToStaticMarkup, Ide, drawIde, ideKeys, dropProject } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
+const { React, renderToStaticMarkup, Ide, drawIde, ideKeys, dropProject, Problems } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
 const g: any = globalThis;
 const calls: any[] = [];
-const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'OpenInVsCodeButton', 'ScRow']);
+const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'OpenInVsCodeButton', 'ScRow', 'Problems']);
 
 // Expand app components with persistent hooks, dependency changes and effect cleanup.
 function harness(Screen: any, props: any = {}) {
@@ -169,16 +169,38 @@ test('fe1e04a8 IDE: Open in VS Code is a small ghost button with a link icon at 
   assert.deepEqual(recorded('openInVsCode'), [['openInVsCode', g.ui.projectId, 'outside.ts']]);
 });
 
-// Verify Terminal tab carries a separate Not built yet tag rather than text in its label.
-test('fbfde2cc IDE bottom panel: the Terminal tab carries a separate small "Not built yet" tag', async () => {
+test('IDE bottom panel: Problems and Terminal tabs, Terminal shown first, no Agents strip; the status bar count opens Problems', async () => {
   const h = await explorer();
-  const terminalTab = h.one((n: any) => n.props?.value === 'terminal');
-  assert.equal(terminalTab.props.label, 'Terminal');
-  const tag = terminalTab.props.endContent;
-  assert.ok(tag);
-  assert.equal(tag.type, 'span');
-  assert.equal(tag.props.className, 'ou-soontag');
-  assert.equal(text(tag), 'Not built yet');
+  const tabs = h.all((n: any) => typeof n.props?.label === 'string' && ['problems', 'terminal', 'agents'].includes(n.props.value));
+  assert.deepEqual(tabs.map((n: any) => n.props.label), ['Problems', 'Terminal']);
+  assert.equal(h.all(hasClass('ou-soontag')).length, 0);
+  assert.equal(h.all((n: any) => n.props?.id === 'ide-agents').length, 0);
+  const term = h.one((n: any) => n.type?.name === 'Terminal');
+  assert.equal(term.props.pid, g.ui.projectId);
+  const count = h.one(hasClass('ou-ip-sprob'));
+  assert.equal(count.props['aria-label'], '0 errors, 0 warnings. Show Problems');
+  count.props.onClick(); h.draw();
+  assert.equal(h.all((n: any) => n.type?.name === 'Terminal').length, 0);
+  assert.equal(text(h.one(hasClass('ou-ip-empty'))), 'No problems in open files.');
+});
+
+test('Problems groups markers by file, errors before warnings then by line, and a row opens the file at its line', () => {
+  const opened: any[] = [];
+  const FileIcon = ({ path }: any) => React.createElement('i', null, path);
+  const problems = [
+    { path: 'src/a.ts', line: 9, col: 2, severity: 'warning', message: 'unused x', source: 'ts' },
+    { path: 'src/b.css', line: 1, col: 1, severity: 'error', message: 'bad rule', source: 'css' },
+    { path: 'src/a.ts', line: 30, col: 4, severity: 'error', message: 'no such name', source: 'ts' },
+  ];
+  const h = harness(Problems, { problems, FileIcon, open: (path: string, line: number) => opened.push([path, line]) });
+  h.draw();
+  assert.deepEqual(h.all(hasClass('ou-ip-pname')).map(text), ['a.ts', 'b.css']);
+  assert.deepEqual(h.all(hasClass('ou-ip-pcount')).map(text), ['2', '1']);
+  const rows = h.all(hasClass('ou-ip-prow'));
+  assert.deepEqual(rows.map((r: any) => text(r.props.children[1])), ['no such name', 'unused x', 'bad rule']);
+  assert.equal(text(rows[0].props.children[3]), '[Ln 30, Col 4]');
+  rows[1].props.onClick();
+  assert.deepEqual(opened, [['src/a.ts', 9]]);
 });
 
 // Verify project name casing is preserved and chevron toggles tree folded and unfolded states.

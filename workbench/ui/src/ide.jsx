@@ -22,8 +22,9 @@ import { editorState, openEditor, openDiff, patchSides, preloadMonaco } from './
 import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
-import { AgentHead } from './agenthead.jsx';
 import { paletteView } from './palette.jsx';
+import { Terminal, Problems, closeShell, countProblems } from './ide-panel.jsx';
+import './ide-panel.css';
 
 export const ideStore = createStore({ tick: 0 });
 let sentSummary = '';
@@ -550,7 +551,7 @@ function focusInput(side, id) {
 }
 
 export const dirtyIn = (pid) => (states.get(pid)?.tabs || []).filter((x) => x.dirty).map((x) => x.path);
-export const dropProject = (pid) => { if (cur && cur.pid === pid) cur = null; if (states.delete(pid)) bump(); };
+export const dropProject = (pid) => { closeShell(pid); if (cur && cur.pid === pid) cur = null; if (states.delete(pid)) bump(); };
 
 export const ideKeys = {
   find: () => { if (cur) cur.findOpen = true; focusInput('files', 'ide-find'); },
@@ -639,15 +640,6 @@ function TreeDecorations({ st, path, isChanged }) {
       {gitLetter ? <span className={`ou-ide-gitletter ou-ide-git-${gitLetter.toLowerCase()}`} title={`Git: ${gitLetter}`}>{gitLetter}</span> : null}
       {isChanged ? <Ring /> : null}
     </span>
-  );
-}
-
-function CompactEmpty({ icon, label }) {
-  return (
-    <div className="ou-ide-empty">
-      {icon ? <span className="ou-ide-empty-icon">{icon}</span> : null}
-      <span className="ou-ide-empty-label">{label}</span>
-    </div>
   );
 }
 
@@ -1028,31 +1020,7 @@ function Crumb({ st, tab, changed }) {
   );
 }
 
-function Agents({ st }) {
-  const rows = ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  if (!rows.length) return <div id="ide-agents" className="ou-ide-agents"><CompactEmpty icon={<Ic.Done size={24} />} label="No agents running." /></div>;
-  return (
-    <div id="ide-agents" className="ou-ide-agents">
-      {rows.map((x) => {
-        const files = changedFiles(x.id).map(slashed);
-        return (
-          <section key={x.id} className="ou-ide-acol">
-            <AgentHead x={x} className="ou-ide-ahead" data-action="pick" data-id={x.id} role="button" tabIndex={0} />
-            <div className="ou-ide-afiles">
-              {files.length ? files.map((f) => (
-                <button key={f} className="ou-ide-afile" title={f} onClick={() => void openFile(st, f, { owner: x.id, changes: true })}>
-                  <span className="ou-ide-name">{base(f)}</span><span className="ou-ide-dir">{folder(f)}</span>
-                </button>
-              )) : <CompactEmpty icon={<Ic.Done size={24} />} label="No changes yet" />}
-            </div>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function StatusBar({ st, active, agentCount }) {
+function StatusBar({ st, active, problems, onProblems }) {
   useEffect(() => {
     if (st.git === null) void loadGitStatus(st);
   }, [st]);
@@ -1061,6 +1029,7 @@ function StatusBar({ st, active, agentCount }) {
   const line = active ? (active.line ?? 1) : null;
   const col = active ? (active.col ?? 1) : null;
   const lang = active ? langOf(active.path) : '';
+  const { errors, warnings } = countProblems(problems);
 
   return (
     <footer className="ou-ide-status">
@@ -1071,9 +1040,10 @@ function StatusBar({ st, active, agentCount }) {
             <span>{branch}</span>
           </span>
         ) : null}
-        <span className="ou-ide-status-item">
-          {agentCount} {agentCount === 1 ? 'agent working' : 'agents working'}
-        </span>
+        <button type="button" className="ou-ide-status-item ou-ip-sprob" title={`Errors: ${errors}, Warnings: ${warnings}`} aria-label={`${errors} errors, ${warnings} warnings. Show Problems`} onClick={onProblems}>
+          <Ic.Failed size={12} /><span>{errors}</span>
+          <Ic.Urgent size={12} /><span>{warnings}</span>
+        </button>
         {nc ? (
           <span className="ou-ide-status-item ou-ide-status-needs">
             <span className="ou-dot ou-dot-wait" />
@@ -1193,7 +1163,7 @@ export function ideCommands(cmd = defaultCmd) {
   if (t && isMd(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => showPreview(st, t.path)));
   if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
   if (st.tabs.length) out.push(cmd('IDE', 'Close all tabs', () => closeAll(st)));
-  out.push(cmd('IDE', 'Show or hide the agents panel', () => bridge.togglePanel?.()));
+  out.push(cmd('IDE', 'Show or hide the panel', () => bridge.togglePanel?.()), cmd('IDE', 'Restart the terminal', () => bridge.restartTerminal?.()));
   return out;
 }
 
@@ -1209,14 +1179,17 @@ export function ideFiles(file = defaultFile) {
 export function Ide() {
   ideStore.use();
   const [panel, setPanel] = useState(true);
-  const [bottom, setBottom] = useState('agents');
+  const [bottom, setBottom] = useState('terminal');
+  const [gen, setGen] = useState(0);
   bridge.togglePanel = () => setPanel((v) => !v);
+  bridge.restartTerminal = () => { if (cur) closeShell(cur.pid); setPanel(true); setBottom('terminal'); setGen((g) => g + 1); };
 
   const st = cur;
   if (!st || !project()) return null;
   const changed = changedSet();
   const active = st.active ? tabOf(st, st.active) : null;
-  const agentCount = ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).length;
+  const problems = st.problems || [];
+  const showProblems = () => { setPanel(true); setBottom('problems'); };
   const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
 
   return (
@@ -1261,18 +1234,21 @@ export function Ide() {
         </div>
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
-            <TabList size="sm" value={bottom} onChange={setBottom}>
-              <Tab value="agents" label={`Agents ${agentCount}`} />
-              <Tab value="terminal" label="Terminal" endContent={<span className="ou-soontag">Not built yet</span>} />
+            <TabList size="sm" value={bottom} onChange={(v) => { setBottom(v); setPanel(true); }}>
+              <Tab value="problems" label="Problems" endContent={problems.length ? <Badge label={String(problems.length)} /> : null} />
+              <Tab value="terminal" label="Terminal" />
             </TabList>
-            <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={panel ? <Ic.ChevronDownIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setPanel(!panel)} />
+            <span className="ou-ip-acts">
+              {bottom === 'terminal' ? <IconButton size="sm" variant="ghost" label="Restart the terminal" icon={<Sc.ReloadIcon size={14} />} onClick={() => bridge.restartTerminal()} /> : null}
+              <IconButton size="sm" variant="ghost" label={panel ? 'Hide the panel' : 'Show the panel'} aria-expanded={panel} icon={panel ? <Ic.ChevronDownIcon size={14} /> : <Sc.ChevronUpIcon size={14} />} onClick={() => setPanel(!panel)} />
+            </span>
           </div>
-          {panel ? (bottom === 'agents' ? <Agents st={st} /> : (
-            <div className="ou-ide-term"><EmptyState isCompact title="The terminal is not built into the IDE yet. Agent terminals are on the Wall." actions={<Button size="sm" label="Open the Wall" data-action="view" data-view="wall" />} /></div>
-          )) : null}
+          {panel ? (bottom === 'problems'
+            ? <Problems problems={problems} FileIcon={FileIcon} open={(path, line) => void openFile(st, path, { line })} />
+            : <Terminal key={`${st.pid}:${gen}`} pid={st.pid} />) : null}
         </div>
       </section>
-      <StatusBar st={st} active={active} agentCount={agentCount} />
+      <StatusBar st={st} active={active} problems={problems} onProblems={showProblems} />
       <Asks st={st} />
     </div>
   );

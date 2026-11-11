@@ -1,0 +1,28 @@
+.ou-ide-panel { height: 240px; }
+.ou-ide-phead { height: 35px; padding: 0 8px 0 12px; }
+.ou-ide-phead > :first-child, .ou-ide-phead > :first-child * { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.ou-ide-folded .ou-ide-panel { height: 35px; }
+.ou-ip-acts { display: flex; align-items: center; gap: 2px; }
+
+.ou-ip-term { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 0 0 12px; background: var(--term-bg, var(--pane)); overflow: hidden; }
+.ou-ip-xterm { flex: 1; min-height: 0; }
+
+.ou-ip-problems { flex: 1; min-height: 0; overflow: auto; padding: 2px 0; font-size: 13px; }
+.ou-ip-empty { margin: 0; padding: 6px 20px; color: var(--mute); font-size: 13px; }
+.ou-ip-pfile, .ou-ip-prow { display: flex; align-items: center; gap: 6px; width: 100%; height: 22px; box-sizing: border-box; white-space: nowrap; text-align: left; }
+.ou-ip-pfile { padding: 0 12px; color: var(--body-strong); }
+.ou-ip-pname { flex: none; }
+.ou-ip-pdir { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--mute); }
+.ou-ip-pcount { flex: none; min-width: 16px; padding: 0 5px; box-sizing: border-box; font: 11px/16px var(--mono); text-align: center; color: var(--ink); background: var(--canvas-soft); }
+.ou-ip-prow { padding: 0 12px 0 34px; color: var(--body); cursor: pointer; }
+.ou-ip-prow:hover { background: var(--canvas); }
+.ou-ip-prow:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
+.ou-ip-pmsg { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ou-ip-psrc, .ou-ip-ppos { flex: none; font-size: 12px; color: var(--mute); }
+.ou-ip-err { flex: none; color: var(--bad); }
+.ou-ip-warn { flex: none; color: var(--wait); }
+.ou-ip-info { flex: none; color: var(--mute); }
+
+.ou-ip-sprob { gap: 4px; padding: 0 4px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.ou-ip-sprob span + svg { margin-left: 6px; }
+.ou-ip-sprob:hover { color: var(--ink); background: var(--canvas); }
