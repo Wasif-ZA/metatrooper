@@ -359,7 +359,7 @@ test('Home task view: breadcrumb, worked line, a collapsed subagents trigger in 
   const view = () => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView'));
   const html = view();
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['<span class="ou-hm-crumbproj">Alpha</span>', '<span class="ou-hm-crumbtitle">Task lead</span>', 'Working for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
+  const order = ['<h1 class="ou-hm-tasktitle">Task lead</h1>', '<span class="ou-hm-crumbproj">Alpha</span>', 'Working for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
     '<span class="ou-hm-c-working">1 working</span>', '<span class="ou-hm-c-done">1 done</span>', '<span class="ou-hm-c-failed">1 failed</span>',
     '<p class="ou-hm-latest">Okay, splitting the checkout.</p>', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
   assert.doesNotMatch(html.slice(0, html.indexOf('ou-hm-subs')), /1\/2 steps/);

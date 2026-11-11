@@ -85,12 +85,12 @@ const nextWords = (iso) => {
 
 const listIcon = <ListView size={14} />;
 const boxIcon = <GridView size={14} />;
-const playIcon = <Run size={12} />;
+const playIcon = <Run size={16} />;
 const searchIcon = <Search size={14} />;
-const folderIcon = <Project size={12} />;
-const clockIcon = <Schedule size={12} />;
-const chevSmall = <ChevronRight size={12} />;
-const plusIcon = <Plus size={12} />;
+const folderIcon = <Project size={14} />;
+const clockIcon = <Schedule size={14} />;
+const chevSmall = <ChevronRight size={16} />;
+const plusIcon = <Plus size={16} />;
 const filterIcon = <Filter size={14} />;
 
 const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['custom', 'Custom']];
@@ -191,7 +191,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
             const c = colours[l];
             const on = form.labels.includes(l);
             return <button key={l} type="button" className={`ou-ap-chip ou-ap-label ou-ae-lab${on ? ' ou-on' : ''}`} aria-pressed={on} onClick={() => toggleLabel(l)}
-              style={c ? { color: c, borderColor: `color-mix(in srgb, ${c} ${on ? 70 : 35}%, transparent)`, background: on ? `color-mix(in srgb, ${c} 14%, transparent)` : 'none' } : undefined}><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{l}</button>;
+              ><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{l}</button>;
           })}
           <TextInput size="sm" label="New label" isLabelHidden placeholder="New label, Enter adds" value={newLabel} onChange={setNewLabel} width={170}
             onEnter={() => { const v = newLabel.trim().slice(0, 32); if (v && !form.labels.includes(v)) set('labels')([...form.labels, v]); setNewLabel(''); }} />
@@ -317,12 +317,12 @@ export function AutomationsPage() {
         </span>
         {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
         <span className="ou-ap-chips">
-          <span className="ou-ap-chip">{projIcon(a.project_id) ? <ProjectIcon icon={projIcon(a.project_id)} size={12} /> : folderIcon}{projName(a.project_id)}</span>
+          <span className="ou-ap-chip">{projIcon(a.project_id) ? <ProjectIcon icon={projIcon(a.project_id)} size={14} /> : folderIcon}{projName(a.project_id)}</span>
           <span className="ou-ap-chip">{clockIcon}{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</span>
-          <span className="ou-ap-chip"><EngineMark id={a.engine_id} size={12} title={a.engine_id} />{a.engine_id || 'agent'}</span>
+          <span className="ou-ap-chip"><EngineMark id={a.engine_id} size={14} title={a.engine_id} />{a.engine_id || 'agent'}</span>
           {(a.labels || []).map((l) => {
             const c = labelColour(l, colours);
-            return <span key={labelName(l)} className="ou-ap-chip ou-ap-label" style={c ? { color: c, borderColor: `color-mix(in srgb, ${c} 45%, transparent)` } : undefined}><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{labelName(l)}</span>;
+            return <span key={labelName(l)} className="ou-ap-chip ou-ap-label"><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{labelName(l)}</span>;
           })}
           <button type="button" className={`ou-ap-chip ou-ap-state${a.enabled ? ' ou-on' : ''}`} title={a.enabled ? 'Pause' : 'Resume'} onClick={() => flip(a)}>{a.enabled ? 'Active' : 'Paused'}</button>
         </span>

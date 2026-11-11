@@ -1152,3 +1152,45 @@ html { font-size: 16px; }
 .ou-hm-av.ou-hm-ringed > .ou-hm-avring { position: absolute; inset: 0; right: auto; bottom: auto; background: none; box-shadow: none; border-radius: 0; }
 .ou-hm-av.ou-hm-ringed > svg:last-child { position: relative; }
 .ou-ae-lab { cursor: pointer; }
+
+/* Review 3: card pinned full height, 16px icon column, ring beside the logo, 24px chips, 12px minimum type, equal-height automation cards. */
+.ou-home.ou-hm { align-items: stretch; }
+.ou-hm-rail { position: sticky; top: 0; align-self: stretch; height: 100%; min-height: 100%; padding: 0; }
+.ou-hm-card { height: 100%; min-height: 100%; border: 0; border-left: 1px solid var(--hm-line); border-radius: 0; background: color-mix(in srgb, var(--canvas-soft) 55%, var(--canvas-deep)); }
+.ou-hm-picon { width: 16px; justify-content: center; color: inherit; }
+.ou-hm-picon > svg { width: 16px; height: 16px; }
+.ou-hm-prow { color: color-mix(in srgb, var(--ink) 80%, transparent); }
+.ou-hm-bare { width: 16px; height: 16px; }
+
+.ou-hm-cbar { padding: 4px 10px 8px; gap: 2px; }
+.ou-hm-cbar > :first-child { margin-left: -4px; }
+
+.ou-hm-mark { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.ou-hm-mark > svg { flex: none; }
+.ou-hm-stack .ou-hm-av { width: 20px; height: 20px; }
+.ou-hm-stack .ou-hm-av > svg { width: 14px; height: 14px; }
+.ou-hm-worked > svg:first-child { width: 12px; height: 12px; }
+
+.ou-hm .ou-hm-tasktitle { margin: 0 0 6px; font-size: 20px; font-weight: 600; line-height: 1.3; color: var(--ink); text-transform: none; letter-spacing: -0.005em; }
+.ou-hm-crumb { margin-bottom: 26px; font-size: 12px; }
+.ou-hm-crumbbranch { margin-left: 0; }
+
+.ou-hm-more, .ou-hm-role, .ou-hm-pilltext span, .ou-hm-model, .ou-hm-tsum, .ou-hm-olabel, .ou-hm-oagents, .ou-hm .ou-hm-phase,
+.ou-hm-mdetail, .ou-hm .ou-hm-psech, .ou-hm-small, .ou-hm-slimsteps, .ou-hm-slim .ou-hm-role, .ou-ap-type, .ou-ap-label, .ou-hm-crumbbranch { font-size: 12px; }
+
+.ou-ap-chips { gap: 6px; }
+.ou-ap-chip { height: 24px; gap: 6px; padding: 0 8px; font-size: 12px; }
+.ou-ap-chip > svg { width: 14px; height: 14px; }
+.ou-ap-label, .ou-ap-chip.ou-ap-label { color: var(--body); border-color: var(--hairline-strong); background: none; }
+.ou-ap-ldot { width: 7px; height: 7px; }
+.ou-ae-lab.ou-on { color: var(--ink); border-color: var(--body); background: var(--canvas-soft); }
+
+.ou-ap-items.ou-ap-box { align-items: stretch; }
+.ou-ap-items.ou-ap-box > li { display: flex; }
+.ou-ap-items.ou-ap-box .ou-ap-item { flex: 1 1 auto; }
+.ou-ap-items.ou-ap-box .ou-ap-chips { margin-top: auto; padding-top: 6px; }
+.ou-home.ou-hm { margin: -32px -32px -64px; height: calc(100% + 96px); min-height: calc(100% + 96px); }
+.ou-hm-center { padding-top: 36px; }
+.ou-hm-dock { position: relative; bottom: auto; }
+.ou-hm-main { height: 100%; min-height: 0; }
+.ou-hm-center { min-height: 0; }
