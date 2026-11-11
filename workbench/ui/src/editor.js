@@ -75,21 +75,16 @@ function theme() {
   monaco.editor.defineTheme('cc', {
     base: dark ? 'vs-dark' : 'vs',
     inherit: true,
-    rules: [
-      { token: '', foreground: fg('body-strong') },
-      { token: 'keyword', foreground: fg('syn-keyword') },
-      { token: 'string', foreground: fg('syn-string') },
-      { token: 'regexp', foreground: fg('syn-string') },
-      { token: 'number', foreground: fg('syn-number') },
-      { token: 'tag', foreground: fg('syn-fn') },
-      { token: 'type', foreground: fg('syn-type') },
-      { token: 'attribute.name', foreground: fg('syn-type') },
-      { token: 'comment', foreground: fg('faint') },
-      { token: 'delimiter', foreground: fg('body') },
-      { token: 'operator', foreground: fg('body') },
-      { token: 'strong', fontStyle: 'bold' },
-      { token: 'emphasis', fontStyle: 'italic' },
-      { token: 'invalid', foreground: fg('del') },
+    rules: !dark ? [] : [
+      { token: 'keyword', foreground: '#569cd6' },
+      { token: 'keyword.control', foreground: '#c586c0' },
+      { token: 'string', foreground: '#ce9178' },
+      { token: 'number', foreground: '#b5cea8' },
+      { token: 'comment', foreground: '#6a9955' },
+      { token: 'function', foreground: '#dcdcaa' },
+      { token: 'type', foreground: '#4ec9b0' },
+      { token: 'variable', foreground: '#9cdcfe' },
+      { token: 'property', foreground: '#9cdcfe' },
     ],
     colors: {
       'editor.background': c.pane, 'editor.foreground': c['body-strong'], 'editorGutter.background': c.pane,
@@ -101,9 +96,9 @@ function theme() {
       'editor.findMatchBackground': '#00000000', 'editor.findMatchBorder': c['hairline-strong'], 'editor.findMatchHighlightBorder': c.hairline,
       'editorWidget.background': c.canvas, 'editorWidget.border': c.hairline, 'editorHoverWidget.background': c.canvas, 'editorHoverWidget.border': c.hairline,
       'input.background': c['canvas-deep'], 'input.foreground': c.ink, 'input.border': c.hairline, 'focusBorder': c['hairline-strong'],
-      'diffEditor.insertedLineBackground': c['add-bg'], 'diffEditor.removedLineBackground': c['del-bg'],
-      'diffEditor.insertedTextBackground': c['add-bg'], 'diffEditor.removedTextBackground': c['del-bg'],
-      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': c['add-bg'], 'diffEditorGutter.removedLineBackground': c['del-bg'],
+      'diffEditor.insertedLineBackground': '#9bb95533', 'diffEditor.removedLineBackground': '#ff000033',
+      'diffEditor.insertedTextBackground': '#9ccc2c66', 'diffEditor.removedTextBackground': '#ff000066',
+      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': '#9bb95533', 'diffEditorGutter.removedLineBackground': '#ff000033',
     },
   });
   monaco.editor.setTheme('cc');
@@ -111,7 +106,7 @@ function theme() {
 
 const options = (path) => ({
   theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], minimap: { enabled: false }, scrollBeyondLastLine: false, fixedOverflowWidgets: true,
-  fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace', fontSize: 13, lineHeight: 20,
+  fontFamily: "Consolas, 'Cascadia Mono', 'Courier New', monospace", fontSize: 14, lineHeight: 19, letterSpacing: 0,
   wordWrap: ['md', 'markdown', 'mdx', 'txt'].includes(ext(path)) ? 'on' : 'off',
 });
 
@@ -178,7 +173,7 @@ export function openDiff(parent, sides, path, hooks = {}) {
   loadMonaco().then((m) => {
     if (dead) return;
     models = [m.editor.createModel(sides.original, langOf(path)), m.editor.createModel(sides.modified, langOf(path))];
-    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false });
+    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false });
     ed.setModel({ original: models[0], modified: models[1] });
     for (const side of ['old', 'new']) {
       const e = sideOf(side);
