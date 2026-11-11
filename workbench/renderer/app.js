@@ -601,10 +601,11 @@ function renderTitle() {
     s.core_mismatch ? `<span class="badge offline">${esc(s.core_mismatch)}</span> <button class="link" data-action="restart-core" title="Loads new core code; open agents stop">${restartArmed() ? 'Click again to restart; open agents stop' : 'Restart core'}</button>` : '',
     s.core_log ? `<span class="badge offline" title="${esc(s.core_log.join('\n'))}">core stopped 3 times in 60 s; hover for the log</span> <button class="link" data-action="open-logs">Open logs</button>` : '',
   ].filter(Boolean).join(' ');
-  setHtml('core', (s.core.online ? '<span class="dot" style="background:var(--work)" title="Core online"></span>core online'
-    : `<span class="badge offline" title="${age !== null ? `last seen ${Math.round(age / 1000)}s ago` : ''}">core offline</span>`) + (warn ? ` ${warn}` : ''));
+  const icon = (n, size = 16) => globalThis.ourosIcon?.(n, size) || '';
+  setHtml('core', (warn ? `${warn} ` : '') + (s.core.online ? '<span class="tcore ok" role="img" title="Core online" aria-label="Core online"></span>'
+    : `<button class="tcore off" data-action="restart-core" title="Core offline${age !== null ? `, last seen ${Math.round(age / 1000)}s ago` : ''}. Click to restart it." aria-label="Core offline. Restart"></button>`));
   const cur = s.projects.find((p) => p.id === ui.projectId);
-  setHtml('project-pick', `${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}${cur ? `<span class="meta">${esc(liveCounts(cur.id).replace(/(, | \xb7 )\d+ waiting$/, ''))}</span>` : ''} <svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3.5L5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`);
+  setHtml('project-pick', `<span>${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}</span>${icon('chevronDown', 14)}`);
   const needs = needsCount();
   wall.roll(document.getElementById('needsN'), needs);
   const chip = document.getElementById('needs');
@@ -618,14 +619,9 @@ function renderTitle() {
     return `<span>${esc(u.provider)} <span class="mini"><i style="width:${Math.round(r.used_pct)}%"></i></span>${Math.round(r.used_pct)}%</span>`;
   }).join('')}</button>
     <div class="pop" role="tooltip"><h4><span>Usage</span><span>% used · resets in</span></h4>${limitRows('urow')}</div>` : '');
-  setHtml('newagent', project() ? '<button class="btn" data-action="launch-menu" title="Start an agent or a terminal">+ New</button>' : '');
+  setHtml('newagent', project() ? `<button class="btn tnew" data-action="launch-menu" title="Start an agent or a terminal">${icon('plus', 14)}New</button>` : '');
   const pg = ui.git && ui.git.project === ui.projectId ? ui.git : null;
   if (ui.projectId && !ui.gitBusy && (!pg || pg.at < Date.now() - 15000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
-  // On Home the chip follows the selected task's own checkout (a sub-agent falls back to its parent's).
-  const sel = ui.view === 'home' && ui.homeSel ? ui.homeSel : null;
-  const selGit = sel && (ui.snap.git?.[sel]?.branch ? ui.snap.git[sel] : ui.snap.git?.[ui.snap.tree_rows?.[sel]?.parent_id]);
-  const g = selGit?.branch ? { branch: selGit.branch } : pg;
-  setHtml('branch', g && g.branch ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
 }
 
 const INFO_KINDS = ['gate', 'approval', 'handoff', 'done', 'uncommitted', 'other', 'spool-too-large'];
