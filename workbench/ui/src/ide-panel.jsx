@@ -8,7 +8,7 @@ function look() {
   const l = ui.settingsLook || { terminal: {}, theme: {} };
   const t = l.theme || {};
   return {
-    fontFamily: "Consolas, 'Cascadia Mono', 'Courier New', monospace", fontSize: 14, letterSpacing: 0, lineHeight: 1.0,
+    fontFamily: "Consolas, 'Cascadia Mono', 'Courier New', monospace", fontSize: l.terminal?.font_size || 14, letterSpacing: 0, lineHeight: 1.0,
     theme: { background: t.term_bg, foreground: t.term_fg, cursor: t.accent, selectionBackground: t.accent ? `${t.accent}55` : undefined },
   };
 }
