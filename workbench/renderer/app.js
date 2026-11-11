@@ -619,8 +619,12 @@ function renderTitle() {
   }).join('')}</button>
     <div class="pop" role="tooltip"><h4><span>Usage</span><span>% used · resets in</span></h4>${limitRows('urow')}</div>` : '');
   setHtml('newagent', project() ? '<button class="btn" data-action="launch-menu" title="Start an agent or a terminal">+ New</button>' : '');
-  const g = ui.git && ui.git.project === ui.projectId ? ui.git : null;
-  if (ui.projectId && !ui.gitBusy && (!g || g.at < Date.now() - 15000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
+  const pg = ui.git && ui.git.project === ui.projectId ? ui.git : null;
+  if (ui.projectId && !ui.gitBusy && (!pg || pg.at < Date.now() - 15000)) { ui.gitBusy = 'view'; setTimeout(() => void gitDo('view')); }
+  // On Home the chip follows the selected task's own checkout (a sub-agent falls back to its parent's).
+  const sel = ui.view === 'home' && ui.homeSel ? ui.homeSel : null;
+  const selGit = sel && (ui.snap.git?.[sel]?.branch ? ui.snap.git[sel] : ui.snap.git?.[ui.snap.tree_rows?.[sel]?.parent_id]);
+  const g = selGit?.branch ? { branch: selGit.branch } : pg;
   setHtml('branch', g && g.branch ? `<span class="s">/</span><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="3" cy="2.5" r="1.4"/><circle cx="3" cy="9.5" r="1.4"/><circle cx="9" cy="4" r="1.4"/><path d="M3 4v4M9 5.4c0 2-6 1.5-6 2.7"/></svg> ${esc(g.branch)}${g.ahead ? ` <span class="meta">&#8593;${g.ahead}</span>` : ''}${g.behind ? ` <span class="meta">&#8595;${g.behind}</span>` : ''}` : '');
 }
 

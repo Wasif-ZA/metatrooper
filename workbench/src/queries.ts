@@ -314,10 +314,11 @@ export function dataVersion(db: DatabaseSync): number {
 
 export type LiveText = Record<string, { line?: string; title?: string; held?: boolean }>;
 
-/** Fills each session's last_line and title from the core's in-memory live text (session.live-text); the database never holds them. */
-export function withLiveText(s: Snapshot, live: LiveText): Snapshot {
-  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null, held: Boolean(live[x.id]?.held) });
-  const tree_rows = s.tree_rows && Object.fromEntries(Object.entries(s.tree_rows).map(([id, r]) => [id, { ...r, title: live[id]?.title ?? null }]));
+/** Fills each session's last_line and title from the core's in-memory live text (session.live-text); stale stored values are blanked, except in the demo (`keepStored`), whose seeded rows have no live text. */
+export function withLiveText(s: Snapshot, live: LiveText, keepStored = false): Snapshot {
+  const own = <V>(v: V) => (keepStored ? v ?? null : null);
+  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? own(x.title), last_line: live[x.id]?.line ?? own(x.last_line), held: Boolean(live[x.id]?.held) });
+  const tree_rows = s.tree_rows && Object.fromEntries(Object.entries(s.tree_rows).map(([id, r]) => [id, { ...r, title: live[id]?.title ?? own(r.title) }]));
   return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill), tree_rows };
 }
 

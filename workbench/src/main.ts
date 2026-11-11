@@ -110,7 +110,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    const s = withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText);
+    const s = withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText, demo);
     const git = rowGit();
     for (const x of s.sessions) x.branch = git[x.id]?.branch ?? null;
     lastGood = { ...s, sessions: s.sessions.map((x) => ({ ...x, colour: sessionColour(x.id) })), git, settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
