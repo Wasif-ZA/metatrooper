@@ -18,7 +18,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { editorState, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
+import { applyPatch, editorState, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
 import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
@@ -88,7 +88,7 @@ export async function drawIde() {
       toast(`Unsaved in ${projectName(cur.pid)}: ${names}. Switch back to save them.`);
     }
   }
-  if (cur && !cur.tabs.some((x) => x.dirty)) states.delete(cur.pid);
+  if (cur && !cur.tabs.some((x) => x.dirty) && states.delete(cur.pid)) forget(cur);
   const st = states.get(ui.projectId) || fresh(ui.projectId);
   states.set(st.pid, st);
   cur = st;
@@ -202,7 +202,7 @@ async function gitCommit(st) {
   await loadGitStatus(st);
 }
 
-async function openGitDiff(st, path, staged) {
+async function openGitDiff(st, path, staged, from) {
   let t = tabOf(st, path);
   const isDeleted = staged
     ? st.git.files.some((f) => f.path === path && f.index === 'D')
@@ -214,6 +214,7 @@ async function openGitDiff(st, path, staged) {
   st.active = path;
   t.gitDiff = true;
   t.staged = Boolean(staged);
+  t.from = staged && from ? from : undefined;
   if (isDeleted && t.text === undefined) t.error = 'This file was deleted. Changes shows what was removed.';
   t.mode = 'changes';
   t.diff = undefined;
@@ -586,7 +587,13 @@ function focusInput(side, id) {
 }
 
 export const dirtyIn = (pid) => (states.get(pid)?.tabs || []).filter((x) => x.dirty).map((x) => x.path);
-export const dropProject = (pid) => { closeShell(pid); if (cur && cur.pid === pid) cur = null; if (states.delete(pid)) bump(); };
+// Frees a dropped project's editor models: unmounted tabs now, mounted ones when their editor closes.
+function forget(st) {
+  st.dropped = true;
+  for (const t of st.tabs) if (!t.view) { t.state?.dispose(); t.state = null; }
+}
+
+export const dropProject = (pid) => { closeShell(pid); const st = states.get(pid); if (cur && cur.pid === pid) cur = null; if (states.delete(pid)) { forget(st); bump(); } };
 
 export const ideKeys = {
   find: () => { if (cur) cur.findOpen = true; focusInput('files', 'ide-find'); },
@@ -831,11 +838,11 @@ function Search({ st }) {
 function ScRow({ st, file, staged }) {
   return (
     <div className="ou-ide-scrow" role="button" tabIndex={0} title={file.path}
-      onClick={() => void openGitDiff(st, file.path, staged)}
+      onClick={() => void openGitDiff(st, file.path, staged, file.from)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          void openGitDiff(st, file.path, staged);
+          void openGitDiff(st, file.path, staged, file.from);
         }
       }}>
       <FileIcon path={file.path} />
@@ -913,7 +920,7 @@ function EditorHost({ st, tab, hidden }) {
     tab.col = p.col;
     goto(tab);
     bump();
-    return () => { tab.state = view.state; tab.view = null; view.destroy(); if (!st.tabs.includes(tab)) tab.state.dispose(); };
+    return () => { tab.state = view.state; tab.view = null; view.destroy(); if (st.dropped || !st.tabs.includes(tab)) { tab.state.dispose(); tab.state = null; } };
   }, [ready, st, tab]);
   return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
 }
@@ -921,12 +928,17 @@ function EditorHost({ st, tab, hidden }) {
 const crlf = (s) => (typeof s === 'string' ? s.replace(/\r\n?/g, '\n') : s);
 
 // Base from git: unstaged = index vs file, staged = HEAD vs index, agent = session base vs file; else rebuilt from the patch.
-async function diffSides(st, t) {
+export async function diffSides(st, t) {
   const show = (rev, extra) => Promise.resolve(api.git(st.pid, 'show', { path: t.path, rev, ...extra })).catch(() => null);
   const owner = t.gitDiff ? null : ownerOf(t.path, t.owner);
   let original = null, modified = null;
-  if (t.gitDiff && t.staged) [original, modified] = await Promise.all([show('HEAD'), show(':')]);
-  else if (t.gitDiff || owner) { original = await (t.gitDiff ? show(':') : show('base', { session_id: owner, scope: 'uncommitted' })); modified = t.text ?? ''; }
+  if (t.gitDiff && t.staged) [original, modified] = await Promise.all([show('HEAD', t.from ? { path: t.from } : {}), show(':')]);
+  else if (t.gitDiff) { original = await show(':'); modified = t.text ?? ''; }
+  else if (owner) {
+    // The session copy: the base in the session cwd with the session patch applied.
+    original = await show('base', { session_id: owner, scope: 'uncommitted' });
+    modified = typeof original === 'string' && t.diff ? applyPatch(crlf(original), t.diff) : null;
+  }
   [original, modified] = [crlf(original), crlf(modified)];
   if (typeof original === 'string' && typeof modified === 'string') return original === modified ? null : { original, modified };
   return patchSides(t.diff, t.text);

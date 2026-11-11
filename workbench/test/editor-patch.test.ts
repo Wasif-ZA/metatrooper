@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { patchSides } from '../ui/src/editor.js';
+import { applyPatch, patchSides, sameZone } from '../ui/src/editor.js';
 
 const before = 'a\nb\nc\nd\ne\nf\ng\nh\n';
 const after = 'a\nB\nc\nd\ne\nf\nh\nnew\n';
@@ -15,4 +15,25 @@ test('patchSides falls back to the hunks when the new file does not match', () =
   assert.deepEqual(patchSides(patch, 'unrelated\n'), { original: 'a\nb\nc\nf\ng\nh', modified: 'a\nB\nc\nf\nh\nnew' });
   assert.deepEqual(patchSides('@@ -0,0 +1,2 @@\n+x\n+y\n', 'x\ny\n'), { original: '', modified: 'x\ny\n' });
   assert.equal(patchSides('Binary files differ\n', 'x'), null);
+});
+
+test('applyPatch rebuilds the agent copy from the base and its patch', () => {
+  assert.equal(applyPatch(before, patch), after);
+  assert.equal(applyPatch(before.replace(/\n/g, '\r\n'), patch), after);
+  assert.equal(applyPatch('', '@@ -0,0 +1,2 @@\n+x\n+y\n'), 'x\ny\n');
+  assert.equal(applyPatch('', '@@ -0,0 +1,2 @@\n+x\n+y\n\\ No newline at end of file\n'), 'x\ny');
+  assert.equal(applyPatch('a\nb', '@@ -2 +2 @@\n-b\n\\ No newline at end of file\n+b2\n'), 'a\nb2\n');
+});
+
+test('applyPatch refuses a base the patch does not fit', () => {
+  assert.equal(applyPatch(before.replace('b', 'X'), patch), null);
+  assert.equal(applyPatch('a\n', 'Binary files differ\n'), null);
+});
+
+test('a view zone is kept only while key, height, side and line all match', () => {
+  const z = { height: 150, side: 'new', line: 4 };
+  assert.equal(sameZone('draft', z, { key: 'draft', height: 150, side: 'new', line: 4 }), true);
+  assert.equal(sameZone('draft', z, { key: 'draft', height: 150, side: 'new', line: 9 }), false);
+  assert.equal(sameZone('draft', z, { key: 'draft', height: 150, side: 'old', line: 4 }), false);
+  assert.equal(sameZone('draft', z, { key: 'draft', height: 26, side: 'new', line: 4 }), false);
 });

@@ -40,7 +40,7 @@ try { await build({
     child.on('error', reject); child.on('exit', code => code === 0 ? resolveBuild() : reject(new Error('esbuild exited ' + code)));
   });
 }
-const { React, renderToStaticMarkup, Ide, drawIde, ideKeys, dropProject, Problems } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
+const { React, renderToStaticMarkup, Ide, drawIde, ideKeys, dropProject, Problems, diffSides } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
 const g: any = globalThis;
 const calls: any[] = [];
 const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'OpenInVsCodeButton', 'ScRow', 'Problems']);
@@ -252,4 +252,17 @@ test('d9aa6ca1 IDE: a file opened from the Changes list is read the same way as 
   tsRow.props.onClick(event());
   await flush(); h.draw();
   assert.deepEqual(recorded('fsRead'), [['fsRead', g.ui.projectId, 'outside.ts']]);
+});
+
+// A staged rename reads its HEAD side at the old path and its index side at the new path.
+test('staged rename diff reads HEAD at the old path', async () => {
+  const shows: any[] = [];
+  g.api.git = async (_pid: string, op: string, arg: any) => {
+    if (op !== 'show') return '';
+    shows.push([arg.rev, arg.path]);
+    return arg.rev === 'HEAD' ? (arg.path === 'old.ts' ? 'a\nb\n' : '') : 'a\nB\n';
+  };
+  const sides = await diffSides({ pid: 'p1' }, { path: 'new.ts', from: 'old.ts', gitDiff: true, staged: true, diff: '' });
+  assert.deepEqual(shows.sort(), [[':', 'new.ts'], ['HEAD', 'old.ts']]);
+  assert.deepEqual(sides, { original: 'a\nb\n', modified: 'a\nB\n' });
 });
