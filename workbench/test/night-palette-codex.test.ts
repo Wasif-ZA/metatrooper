@@ -39,7 +39,7 @@ writeFileSync(entry, [
   asks, 'export { Asks };',
   'export function mountUI(document, createRoot) {',
   "const Theme = 'theme'; const neutralTheme = {};",
-  "const Settings = () => null, Inbox = Settings, Addons = Settings, Ide = Settings, Home = Settings;",
+  "const Settings = () => null, Inbox = Settings, Addons = Settings, Ide = Settings, Home = Settings, NewTask = Settings;",
   mounts, '}',
 ].join('\n'));
 const platform = process.platform === 'win32' ? 'win32-' + process.arch : process.platform + '-' + process.arch;
