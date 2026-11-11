@@ -167,25 +167,17 @@ test('cd33aaec Needs you puts the step and action bar first in the detail pane a
   }
 });
 
-test('2f5f7cb9 Home Open folder keeps its outline, folder icon and open-folder action', async (t) => {
-  // Render the real button and send its action through the real delegated click handler.
-  const ui = uiGlobals(t); ui.view = 'home';
-  const tree = screen(Home);
-  const buttons = descendants(tree).filter(n => n.props?.label === 'Open folder');
-  assert.equal(buttons.length, 1);
-  const button = buttons[0];
-  assert.equal(button.props.className, 'ou-btn-line'); assert.equal(button.props['data-action'], 'open-folder');
-  assert.equal(button.props.icon.type, 'svg'); assert.equal(button.props.icon.props.viewBox, '0 0 16 16');
-  assert.equal(button.props.icon.props.children.type, 'path');
-  assert.equal(button.props.icon.props.children.props.d, 'M2 3.5h4l1.5 2H14v7.5H2z');
-  const html = renderToStaticMarkup(button);
+test('2f5f7cb9 Home start page Import projects carries its folder icon and the open-folder action', async (t) => {
+  // Render the real start action and send its action through the real delegated click handler.
+  const ui = uiGlobals(t); ui.view = 'home'; (ui as any).homeSel = '';
+  const start = descendants(screen(Home)).find((n: any) => n?.type?.name === 'StartState');
+  assert.ok(start);
+  const html = renderToStaticMarkup(start);
   const rendered = html.match(/<button\b[^>]*data-action="open-folder"[^>]*>[^]*?<\/button>/);
-  assert.ok(rendered); assert.match(rendered[0], /class="[^"]*\bou-btn-line\b/);
-  assert.match(rendered[0], /<svg\b/); assert.match(rendered[0], /Open folder/);
-  assert.match(cssRule(readFileSync(join(wb, 'ui/src/ui.css'), 'utf8'), '.ou-btn-line'), /border:\s*1px solid var\(--hairline\);/);
+  assert.ok(rendered); assert.match(rendered[0], /<svg\b/); assert.match(rendered[0], /Import projects/);
   const calls: string[] = [];
   const onClick = new Function('hideMenu', 'openFolder', fn('onClick') + '\nreturn onClick;')(() => calls.push('hideMenu'), async () => { calls.push('openFolder'); });
-  const el = { tagName: 'BUTTON', dataset: { action: button.props['data-action'] }, closest: () => null };
+  const el = { tagName: 'BUTTON', dataset: { action: 'open-folder' }, closest: () => null };
   await onClick({ target: { closest: (selector: string) => { assert.equal(selector, '[data-action]'); return el; } }, stopPropagation() {} });
   assert.deepEqual(calls, ['hideMenu', 'openFolder']);
 });
