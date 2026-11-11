@@ -859,3 +859,37 @@ html { font-size: 16px; }
     animation: live-tool-shine 2.2s steps(30) infinite;
   }
 }
+
+/* Home agent list: one compact block per agent, detail opens in place. */
+.ou-hm-agent { border-radius: 0; border-bottom: 1px solid var(--hairline); background: none; }
+.ou-hm-agent + .ou-hm-agent { margin-top: 0; }
+.ou-hm-sel { background: none; }
+.ou-hm-block { display: flex; flex-direction: column; gap: 6px; padding: 12px 8px; border-radius: 8px; cursor: pointer; }
+.ou-hm-block:hover { background: var(--canvas-soft); }
+.ou-hm-sel > .ou-hm-block { background: var(--canvas-soft); }
+.ou-hm-block:focus-visible, .ou-hm-drow:focus-visible { outline: 1px solid var(--body); outline-offset: -1px; }
+.ou-hm-block .ou-hm-l1 { display: flex; align-items: baseline; gap: 12px; }
+.ou-hm-block .ou-hm-title { flex: 1 1 auto; min-width: 0; font-size: 15px; color: var(--ink); }
+.ou-hm-block .ou-hm-subrow { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; cursor: inherit; }
+.ou-hm-block .ou-hm-subtext { flex: 1 1 auto; }
+.ou-hm-block .ou-hm-subtext b { font-size: 13px; }
+.ou-hm-block .ou-hm-steps { font-family: var(--mono); font-size: 12px; color: var(--mute); }
+.ou-hm-tree { padding: 2px 0 10px; }
+.ou-hm-tree > li { height: auto; display: block; }
+.ou-hm-drow { display: grid; grid-template-columns: 16px minmax(0, 1fr) 84px 108px minmax(0, 180px) 40px 12px; align-items: center; column-gap: 10px; min-height: 32px; padding: 0 8px; border-radius: 6px; }
+.ou-hm-drow[role="button"] { cursor: pointer; }
+.ou-hm-drow[role="button"]:hover { background: var(--canvas-soft); }
+.ou-hm-tree .ou-hm-kid { padding-left: 20px; }
+.ou-hm-tree .ou-hm-kid::before { left: 15px; }
+.ou-hm-tree .ou-hm-kid::before { top: 0; height: 16px; bottom: auto; }
+.ou-hm-tree .ou-hm-kid + .ou-hm-kid::before { top: -16px; height: 32px; }
+.ou-hm-dname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ou-hm-lead .ou-hm-dname { font-weight: 600; }
+.ou-hm-model { font-family: var(--mono); font-size: 11px; color: var(--mute); white-space: nowrap; }
+.ou-hm-now { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--mute); }
+.ou-hm-chevpad { width: 12px; }
+.ou-hm-tree .ou-hm-drop { padding: 0 8px 6px 34px; }
+.ou-hm-kid .ou-hm-drop { padding-left: 34px; }
+.ou-hm-subtext b.ou-hm-pw-waiting { color: var(--pg-waiting); }
+.ou-hm-subtext b.ou-hm-pw-failed { color: var(--pg-failed); }
+.ou-hm-subtext b.ou-hm-pw-done { color: var(--pg-done); }

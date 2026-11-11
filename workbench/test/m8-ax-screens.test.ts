@@ -590,20 +590,28 @@ test('Home recent work shows the six newest sessions as pills with their latest 
   delete g.localStorage;
 });
 
-test('Home sub-agents stay folded to one summary line; opening shows the orchestrator first, then each sub-agent with its progress colour', () => {
+test('Home agent is one compact block: title and age, then a subagents line; opening shows the orchestrator first, each row with model, progress and what it is doing, and a row with steps opens to its checklist', () => {
   homeStore.set({ open: [], selected: null, usage: false });
-  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude' }), session('a', 'done', { parent_id: 'lead' }), session('b', 'working', { parent_id: 'lead' }),
-    session('c', 'exited', { parent_id: 'lead', outcome: 'failed' }), session('d', 'waiting_for_you', { parent_id: 'lead' })];
+  const steps = { done: 1, total: 2, items: [{ text: 'Plan', done: true }, { text: 'Build', done: false }] };
+  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', steps, last_line: 'reading checkout.ts' }), session('a', 'done', { parent_id: 'lead' }),
+    session('b', 'working', { parent_id: 'lead', model: 'gpt-5.4', last_line: 'running tests' }), session('c', 'exited', { parent_id: 'lead', outcome: 'failed' }), session('d', 'waiting_for_you', { parent_id: 'lead', reason: 'permission' }),
+    session('solo', 'waiting_for_you', { steps })];
   const h = harness(Home); h.draw();
-  const row = () => h.one((n: any) => n.type?.name === 'AgentRow' && n.props.x.id === 'lead');
-  const closed = renderToStaticMarkup(row());
-  assert.match(closed, /<b>4 sub-agents<\/b><span class="ou-hm-think">1 working<\/span>/);
-  assert.doesNotMatch(closed, /ou-hm-tree/);
-  homeStore.set({ open: ['sub:lead'] }); h.draw();
-  const html = renderToStaticMarkup(row());
+  const row = (id: string) => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'AgentRow' && n.props.x.id === id));
+  const closed = row('lead');
+  assert.match(closed, /<div class="ou-hm-l1"><span class="ou-hm-title">Task lead<\/span><span class="ou-hm-age">1m ago<\/span><\/div>/);
+  assert.match(closed, /<b>4 subagents<\/b><span class="ou-hm-think">1 working<\/span>/);
+  assert.doesNotMatch(closed, /ou-hm-tree|ou-hm-proj|ou-hm-branch|No steps reported|Open on Wall/);
+  assert.match(row('solo'), /<b class="ou-hm-pw-waiting">waiting<\/b><span class="ou-hm-steps">1\/2 steps<\/span>/);
+  homeStore.set({ open: ['lead'] }); h.draw();
+  const html = row('lead');
   assert.deepEqual([...html.matchAll(/<li class="ou-hm-(lead|kid)" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[1], m[2], m[3]]),
     [['lead', 'lead', 'working'], ['kid', 'a', 'done'], ['kid', 'b', 'working'], ['kid', 'c', 'failed'], ['kid', 'd', 'waiting']]);
-  assert.match(html, /orchestrator/);
+  assert.match(html, /<span class="ou-hm-model">gpt-5.4<\/span><span class="ou-hm-pword ou-hm-pw-working">.*?Working<\/span><span class="ou-hm-now">running tests<\/span>/);
+  assert.match(html, /Working 1\/2<\/span><span class="ou-hm-now">reading checkout.ts<\/span>/);
+  assert.doesNotMatch(html, /Build/);
+  homeStore.set({ open: ['lead', 'steps:lead'] }); h.draw();
+  assert.match(row('lead'), /Plan.*Build/);
 });
 
 test('Automation schedules read in words', () => {

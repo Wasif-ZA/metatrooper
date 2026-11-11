@@ -220,7 +220,7 @@ test('60704072 Needs you has exactly one empty message, in the list, and none in
   assert.equal((renderToStaticMarkup(tree).match(/Nothing is waiting on you\./g) || []).length, 1);
 });
 
-test('1720c8e3 Home agent row reads project, task, then branch or state, with the engine mark last', (t) => {
+test('1720c8e3 Home agent block reads the task and age, then its own engine mark and state word', (t) => {
   // Render the real Home session row and check its three lines in order.
   g.ui.pendingHide = new Set();
   g.ui.snap.sessions = [{ id: 'a', project_id: 'p1', engine_id: 'codex', state: 'working', task: 'Review changes' }];
@@ -232,7 +232,7 @@ test('1720c8e3 Home agent row reads project, task, then branch or state, with th
   const rows = descendants(screen(Home)).filter(n => n?.type?.name === 'AgentRow');
   assert.equal(rows.length, 1);
   const html = renderToStaticMarkup(rows[0]);
-  assert.match(html, /class="ou-hm-proj">.*?Test project<\/span><\/span>.*?<span class="ou-hm-title">Review changes<\/span>.*?<span class="ou-hm-mono ou-hm-branch">running<\/span>.*?<title>codex<\/title>/);
+  assert.match(html, /<span class="ou-hm-title">Review changes<\/span><span class="ou-hm-age">1m ago<\/span>.*?<title>codex<\/title>.*?<b class="ou-hm-pw-working">working<\/b>/);
 });
 
 test('e016fa92 Add-ons Check again renders as ghost and retains check-engines action', () => {

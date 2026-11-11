@@ -109,20 +109,6 @@ const hostIcon = <svg {...ic}><rect x="1.5" y="2" width="11" height="7.5" rx="1.
 const editorIcon = <svg {...ic}><path d="M6 2.5H3a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V8M8 2.5h3.5v3.5M6.5 7.5L11.5 2.5" /></svg>;
 const circle = <svg {...ic} className="ou-hm-cbox"><circle cx="7" cy="7" r="5" /></svg>;
 const circleDone = <svg {...ic} className="ou-hm-cbox ou-hm-cdone"><circle cx="7" cy="7" r="5" /><path d="M4.8 7.2l1.6 1.6 2.8-3.1" /></svg>;
-const spin = <svg {...ic} className="ou-hm-spin"><circle cx="7" cy="7" r="5" strokeDasharray="2 2.2" /></svg>;
-
-const TILE_COLOURS = ['#e5484d', '#3e63dd', '#f76b15', '#30a46c', '#8e4ec6', '#12a594', '#d6409f', '#ffc53d'];
-const tileOf = (name) => {
-  const n = String(name || '?');
-  const h = [...n].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
-  const parts = n.split(/[-_\s.]+/).filter(Boolean);
-  const letters = (parts.length > 1 ? parts[0][0] + parts[1][0] : n.slice(0, 2)).toUpperCase();
-  return { letters, colour: TILE_COLOURS[h % TILE_COLOURS.length] };
-};
-function ProjectChip({ name }) {
-  const t = tileOf(name);
-  return <span className="ou-hm-proj"><span className="ou-hm-tile" style={{ color: t.colour, background: `color-mix(in srgb, ${t.colour} 18%, transparent)` }}>{t.letters}</span><span>{name}</span></span>;
-}
 
 function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
@@ -200,85 +186,73 @@ export const progressOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
     : k.state === 'failed' || /fail/.test(String(k.outcome || '')) ? 'failed'
       : DONE_STATES.includes(k.state) ? 'done' : 'working');
 const PROGRESS_WORD = { done: 'Done', working: 'Working', failed: 'Failed', waiting: 'Waiting' };
+const since = (x) => String(ago(x.started_at || x.state_at) || '').replace(/ ago$/, '');
 
 function Dot({ k }) {
   const p = progressOf(k);
   return <span className={`ou-hm-dot ou-hm-dot-${p}`} role="img" aria-label={PROGRESS_WORD[p]} title={PROGRESS_WORD[p]} />;
 }
 
-function LineageRow({ k, lead }) {
+const press = (fn) => ({
+  role: 'button', tabIndex: 0,
+  onClick: (e) => { e.stopPropagation(); fn(); },
+  onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); fn(); } },
+});
+
+function DetailRow({ k, lead, openList, toggle }) {
   const p = progressOf(k);
+  const st = stepsOf(k);
+  const key = `steps:${k.id}`;
+  const open = Boolean(st) && openList.includes(key);
   return (
     <li className={lead ? 'ou-hm-lead' : 'ou-hm-kid'} data-id={k.id} data-progress={p}>
-      <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
-      <span className="ou-hm-name">{nameOf(k)}</span>
-      {lead ? <span className="ou-hm-role">orchestrator</span> : null}
-      <span className={`ou-hm-pword ou-hm-pw-${p}`}><Dot k={k} />{PROGRESS_WORD[p]}</span>
-      <span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span>
+      <div className="ou-hm-drow" aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
+        <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
+        <span className="ou-hm-dname">{nameOf(k)}</span>
+        {k.model ? <span className="ou-hm-model">{k.model}</span> : null}
+        <span className={`ou-hm-pword ou-hm-pw-${p}`}><Dot k={k} />{PROGRESS_WORD[p]}{st ? ` ${st.done}/${st.total}` : ''}</span>
+        <span className="ou-hm-now">{k.last_line || k.reason || ''}</span>
+        <span className="ou-hm-age">{since(k)}</span>
+        {st ? <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span> : <span className="ou-hm-chevpad" />}
+      </div>
+      {st ? (
+        <Drop open={open} className="ou-hm-drop">
+          <ol className="ou-hm-check">
+            {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
+          </ol>
+        </Drop>
+      ) : null}
     </li>
   );
 }
 
-function SubAgents({ x, kids, open, toggle }) {
-  const working = kids.filter(isWorking).length;
-  const newest = kids.map((k) => k.state_at || k.started_at || '').sort().pop();
-  const key = `sub:${x.id}`;
-  return (
-    <div className="ou-hm-subs">
-      <div className="ou-hm-subrow" role="button" tabIndex={0} aria-expanded={open} aria-label={`${kids.length} sub-agents, ${working} working`}
-        onClick={(e) => { e.stopPropagation(); toggle(key); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(key); } }}>
-        <Marks list={kids} />
-        <span className="ou-hm-subtext"><b>{kids.length} sub-{kids.length === 1 ? 'agent' : 'agents'}</b><span className={working ? 'ou-hm-think' : ''}>{working ? `${working} working` : 'all settled'}</span></span>
-        <span className="ou-hm-age">{ago(newest) || ''}</span>
-        <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
-      </div>
-      <Drop open={open} className="ou-hm-drop">
-        <ul className="ou-hm-lineage ou-hm-tree">
-          <LineageRow k={x} lead />
-          {kids.map((k) => <LineageRow key={k.id} k={k} />)}
-        </ul>
-      </Drop>
-    </div>
-  );
-}
-
 function AgentRow({ x, kids, openList, selected, toggle, select }) {
-  const st = stepsOf(x);
   const open = openList.includes(x.id);
-  const g = ui.snap?.git?.[x.id] || {};
-  const branch = g.branch || x.branch || null;
-  const proj = (ui.snap?.projects || []).find((p) => p.id === (x.project_id || ui.projectId))?.name || 'No project';
-  const waiting = x.state === 'waiting_for_you';
+  const st = stepsOf(x);
+  const p = progressOf(x);
+  const working = kids.filter(isWorking).length;
+  const flip = () => { select(x.id); toggle(x.id); };
   return (
     <li className={`ou-hm-agent${selected ? ' ou-hm-sel' : ''}`} data-id={x.id} data-state={x.state}>
-      <div className="ou-hm-arow" role="button" tabIndex={0} aria-expanded={open}
-        onClick={() => { select(x.id); toggle(x.id); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(x.id); toggle(x.id); } }}>
-        <div className="ou-hm-l1">
-          <ProjectChip name={proj} />
-          <span className="ou-hm-gap" />
-          {waiting ? <span className="ou-hm-wait">{spin}Waiting</span> : null}
-          <span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span>
-        </div>
-        <div className="ou-hm-l2"><span className="ou-hm-title">{nameOf(x)}</span></div>
-        <div className="ou-hm-l3">
-          <span className="ou-hm-mono ou-hm-branch">{branch || STATE_WORD[x.state] || x.state}</span>
-          <span className="ou-hm-gap" />
-          {st ? <span className="ou-hm-steps">{st.done}/{st.total}</span> : null}
-          <EngineMark id={x.engine_id} size={16} title={x.engine_id} />
+      <div className="ou-hm-block" aria-expanded={open} {...press(flip)}>
+        <div className="ou-hm-l1"><span className="ou-hm-title">{nameOf(x)}</span><span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span></div>
+        <div className="ou-hm-subrow">
+          <Marks list={kids.length ? kids : [x]} />
+          {kids.length ? (
+            <span className="ou-hm-subtext"><b>{kids.length} {kids.length === 1 ? 'subagent' : 'subagents'}</b><span className={working ? 'ou-hm-think' : ''}>{working ? `${working} working` : 'all settled'}</span></span>
+          ) : (
+            <span className="ou-hm-subtext"><b className={`ou-hm-pw-${p}`}>{PROGRESS_WORD[p].toLowerCase()}</b>{st ? <span className="ou-hm-steps">{st.done}/{st.total} steps</span> : null}</span>
+          )}
+          <span className="ou-hm-age">{since(x)}</span>
+          <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
         </div>
       </div>
       <Drop open={open} className="ou-hm-drop">
-        {st && st.items.length ? (
-          <ol className="ou-hm-check">
-            {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
-          </ol>
-        ) : <p className="ou-hm-muted">{kids.length ? 'No steps reported. Sub-agents are listed below.' : 'No steps reported yet.'}</p>}
-        {x.last_line ? <pre className="ou-hm-last">{x.last_line}</pre> : null}
-        <div className="ou-hm-dropacts"><Button size="sm" variant="ghost" label="Open on Wall" data-action="pick" data-id={x.id} /></div>
+        <ul className="ou-hm-tree">
+          <DetailRow k={x} lead openList={openList} toggle={toggle} />
+          {kids.map((k) => <DetailRow key={k.id} k={k} openList={openList} toggle={toggle} />)}
+        </ul>
       </Drop>
-      {kids.length ? <SubAgents x={x} kids={kids} open={openList.includes(`sub:${x.id}`)} toggle={toggle} /> : null}
     </li>
   );
 }
@@ -563,6 +537,8 @@ export function Home() {
   const [recentHidden, setRecentHidden] = useState(() => { try { return localStorage.getItem('ouros.home.recentHidden') === '1'; } catch { return false; } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  useEffect(() => { if (homeView.shown()) homeStore.set({ open: [] }); }, [homeView.shown()]);
 
   useEffect(() => {
     let active = true;
