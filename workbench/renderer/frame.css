@@ -173,3 +173,32 @@
 .ftree .fmeta { display: none; }
 .ftree:is(:hover, :focus-visible) .fmeta { display: inline; }
 .fuse .fbar { width: 18px; }
+
+/* cc wordmark in the sidebar head; project icons; the Change icon menu and panel. */
+.fhead .ccmark { font: 500 15px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: -0.01em; color: var(--body); }
+.picon { flex: none; display: inline-block; vertical-align: middle; }
+.ficonmenu { position: fixed; z-index: 60; padding: 4px; background: var(--canvas-deep); border: 1px solid var(--hairline); border-radius: 6px; }
+.ficonmenu button { display: block; height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--body); font-size: 13px; text-align: left; }
+.ficonmenu button:hover, .ficonmenu button:focus-visible { background: var(--canvas); color: var(--ink); }
+.ficonpick { position: fixed; z-index: 60; width: 288px; background: var(--canvas-deep); border: 1px solid var(--hairline); border-radius: 6px; font-size: 13px; color: var(--body); }
+.ficonpick .fghhead { height: 36px; }
+.ficonpick .fprev { display: inline-flex; }
+.ftabs { display: flex; gap: 2px; padding: 8px 8px 0; }
+.ftabs button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--mute); font-size: 12px; }
+.ftabs button[aria-selected="true"] { background: var(--canvas); color: var(--ink); }
+.fpickbody { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.flabel { display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: 12px; }
+.fletters { width: 56px; height: 28px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas); color: var(--ink); font: 600 13px var(--mono); text-transform: uppercase; }
+.fswatches { display: grid; grid-template-columns: repeat(9, 20px); gap: 6px; }
+.fswatch { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; }
+.fswatch.on { box-shadow: 0 0 0 2px var(--canvas-deep), 0 0 0 3.5px var(--ink); }
+.fgrid { display: grid; grid-template-columns: repeat(8, 28px); gap: 4px; }
+.fcell { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; font-size: 15px; color: var(--body); }
+.fcell:hover { background: var(--canvas); }
+.fcell.on { background: var(--canvas); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+.fpickfoot { display: flex; gap: 6px; padding: 8px 12px 12px; border-top: 1px solid var(--hairline); }
+.fpickfoot .sp { flex: 1; }
+.fpickfoot button { height: 28px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: none; color: var(--body); font-size: 12px; }
+.fpickfoot .fprimary { background: var(--ink); color: var(--canvas-deep); border-color: var(--ink); }
+:root:is(.side-rail, .side-auto) .fhead .ccmark { font-size: 13px; }
+.ficonmenu, .ficonmenu button, .ficonpick, .ficonpick button, .ficonpick .fghhead { font-family: 'Geist', 'Segoe UI', sans-serif; }

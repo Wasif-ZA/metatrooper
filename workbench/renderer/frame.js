@@ -144,7 +144,7 @@ globalThis.frameView = (() => {
 
   function treeHtml(groups, rows) {
     if (!groups.length) return '<p class="fempty">No agents running</p>';
-    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${I('folder')}</span><span class="fl">${esc(g.name)}</span></button>`
+    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${projIcon(g.project_id)}</span><span class="fl">${esc(g.name)}</span></button>`
       + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${ringOf(wt.state, wt.settled, wt.total, `${STATUS_LABEL[wt.state]}, ${wt.settled} of ${wt.total} settled`)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
         + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth, rows)).join('') + '</div>').join('')).join('');
   }
@@ -246,6 +246,80 @@ globalThis.frameView = (() => {
   }
 
   /** One compact icon row (views, Automations, Search, Tasks), the Projects header and the usage meters, added to the static sidebar markup once. */
+
+  const projIcon = (id, size = 14) => (globalThis.projectIconHtml ? globalThis.projectIconHtml((ui.snap.projects || []).find((p) => p.id === id)?.icon, size) : I('folder'));
+  // From t3code (MIT), apps/web/src/projectIconOptions.ts: the emoji offered for a project.
+  const PROJECT_EMOJIS = ['💻', '🛠️', '🚀', '🤖', '✨', '⚡', '🌐', '📱', '🖥️', '⌨️', '⚙️', '🗄️', '☁️', '📦', '📚', '🧪', '🔒', '🎮', '🎵', '🎬', '🖼️', '🛍️', '🔥', '💡'];
+
+  function closeIconUi() { document.getElementById('frameIconMenu')?.remove(); document.getElementById('frameIconPick')?.remove(); }
+
+  /** Right-click on a project row: a one-item menu, "Change icon". */
+  function iconMenu(projectId, x, y) {
+    closeIconUi();
+    const m = document.createElement('div');
+    m.id = 'frameIconMenu';
+    m.className = 'ficonmenu';
+    m.setAttribute('role', 'menu');
+    m.style.left = `${x}px`;
+    m.style.top = `${y}px`;
+    m.innerHTML = '<button role="menuitem">Change icon…</button>';
+    m.querySelector('button').addEventListener('click', () => iconPicker(projectId, x, y));
+    document.body.appendChild(m);
+    m.querySelector('button').focus();
+  }
+
+  /** The Change icon panel: a monogram (letters + colour), an emoji, or a line icon with a colour; Reset goes back to the favicon or default monogram. */
+  function iconPicker(projectId, x, y) {
+    closeIconUi();
+    const { PROJECT_COLOURS: colours, PICK_ICONS: names } = globalThis.projectIconChoices || { PROJECT_COLOURS: {}, PICK_ICONS: [] };
+    const p = (ui.snap.projects || []).find((q) => q.id === projectId);
+    const cur = p?.icon || {};
+    const st = {
+      tab: cur.kind === 'emoji' ? 'emoji' : cur.kind === 'icon' ? 'icon' : 'monogram',
+      text: cur.kind === 'monogram' ? cur.text : String(p?.name || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase(),
+      colour: cur.colour || 'blue', emoji: cur.emoji || PROJECT_EMOJIS[0], name: cur.name || names[0],
+    };
+    const box = document.createElement('div');
+    box.id = 'frameIconPick';
+    box.className = 'ficonpick';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-label', `Change icon for ${p?.name || 'project'}`);
+    box.style.left = `${Math.max(8, Math.min(x, innerWidth - 300))}px`;
+    box.style.top = `${Math.max(8, Math.min(y, innerHeight - 340))}px`;
+    const swatches = () => `<div class="fswatches">${Object.entries(colours).map(([k, v]) => `<button class="fswatch${st.colour === k ? ' on' : ''}" data-colour="${k}" title="${k}" aria-label="${k}" style="background:${v}"></button>`).join('')}</div>`;
+    const preview = () => (st.tab === 'emoji' ? { kind: 'emoji', emoji: st.emoji } : st.tab === 'icon' ? { kind: 'icon', name: st.name, colour: st.colour } : { kind: 'monogram', text: st.text || '?', colour: st.colour });
+    const render = () => {
+      const body = st.tab === 'monogram'
+        ? `<label class="flabel">Letters <input class="fletters" maxlength="2" value="${esc(st.text)}" aria-label="Letters"></label>${swatches()}`
+        : st.tab === 'emoji'
+          ? `<div class="fgrid">${PROJECT_EMOJIS.map((e) => `<button class="fcell${st.emoji === e ? ' on' : ''}" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('')}</div>`
+          : `<div class="fgrid">${names.map((n) => `<button class="fcell${st.name === n ? ' on' : ''}" data-icon-name="${n}" title="${n}" aria-label="${n}" style="color:${colours[st.colour]}">${I(n, 16)}</button>`).join('')}</div>${swatches()}`;
+      box.innerHTML = `<div class="fghhead"><span>Change icon</span><span class="fprev">${globalThis.projectIconHtml?.(preview(), 20) ?? ''}</span></div>`
+        + `<div class="ftabs" role="tablist">${['monogram', 'emoji', 'icon'].map((t) => `<button role="tab" aria-selected="${st.tab === t}" data-tab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`
+        + `<div class="fpickbody">${body}</div><div class="fpickfoot"><button data-act="reset">Reset</button><span class="sp"></span><button data-act="cancel">Cancel</button><button class="fprimary" data-act="save">Save</button></div>`;
+      box.querySelector('.fletters')?.addEventListener('input', (e) => { st.text = e.target.value.toUpperCase(); box.querySelector('.fprev').innerHTML = globalThis.projectIconHtml?.(preview(), 20) ?? ''; });
+    };
+    const save = async (icon) => {
+      const r = await troop.call('project.icon-set', { project_id: projectId, icon });
+      if (r?.reply?.error) { globalThis.toast?.(r.reply.error.message, true); return; }
+      closeIconUi();
+    };
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.tab) st.tab = b.dataset.tab;
+      else if (b.dataset.colour) st.colour = b.dataset.colour;
+      else if (b.dataset.emoji) st.emoji = b.dataset.emoji;
+      else if (b.dataset.iconName) st.name = b.dataset.iconName;
+      else if (b.dataset.act === 'cancel') return closeIconUi();
+      else if (b.dataset.act === 'reset') return void save(null);
+      else if (b.dataset.act === 'save') return void save(preview());
+      render();
+    });
+    render();
+    document.body.appendChild(box);
+  }
+
   function mount() {
     for (const el of document.querySelectorAll?.('[data-icon]') ?? []) el.innerHTML = I(el.dataset.icon, Number(el.dataset.size) || 16);
     const nav = document.querySelector?.('#frame .fnav');
@@ -274,8 +348,16 @@ globalThis.frameView = (() => {
       if (sel) { e.stopPropagation(); homeSelect(sel.dataset.id); return; }
       if (e.target.closest('[data-action="pick"]') && ui.view !== 'wall') homeView.set('wall');
     });
+    document.getElementById('frame-agents').addEventListener('contextmenu', (e) => {
+      const row = e.target.closest('.fproj');
+      if (!row) return;
+      e.preventDefault();
+      iconMenu(row.dataset.id, e.clientX, e.clientY);
+    });
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest?.('#frameIconMenu, #frameIconPick')) closeIconUi(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeIconUi(); });
     mount();
   });
 
-  return { draw, toggle, treeGroups, homeSelect };
+  return { draw, toggle, treeGroups, homeSelect, iconPicker };
 })();

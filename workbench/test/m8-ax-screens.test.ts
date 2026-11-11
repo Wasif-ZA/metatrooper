@@ -523,7 +523,7 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
   assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']);
   assert.equal(textContent(h.one(hasClass('ou-snav-title'))), 'Settings'); assert.equal(h.one(hasClass('ou-snav-back')).type, 'button');
-  assert.ok(navs.every(n => n.props.icon?.type === 'svg'));
+  assert.ok(navs.every(n => typeof n.props.icon?.type === 'function')); assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
   settingsStore.set({ section: 'safety' }); h.draw();
   assert.equal(h.one((n: any) => n.props.keys === 'Ctrl+Esc').type.name, 'Kbd');
