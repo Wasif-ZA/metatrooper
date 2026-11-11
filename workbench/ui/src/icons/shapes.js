@@ -37,11 +37,51 @@ export const SHAPES = {
   stepOpen: '<circle cx="8" cy="8" r="5.5"/>',
   stop: '<rect x="4" y="4" width="8" height="8" rx="1.5"/>',
   engine: '<path d="M8 2.5c.4 2.75 1.75 4.1 4.5 4.5-2.75.4-4.1 1.75-4.5 4.5-.4-2.75-1.75-4.1-4.5-4.5 2.75-.4 4.1-1.75 4.5-4.5zM12.5 11v2.5M11.25 12.25h2.5"/>',
-  // Ouros mark: the serpent spiral (mark1 = markC, outline), with its solid variant.
-  mark1: '<path d="M8.0 13.5A5.5 5.5 0 1 1 13.5 8a3 3 0 0 1-3 3 1.75 1.75 0 0 1-1.75-1.75"/><circle cx="8.75" cy="8.6" r="1.1" fill="currentColor" stroke="none"/>',
-  markC: '<path d="M8.0 13.5A5.5 5.5 0 1 1 13.5 8a3 3 0 0 1-3 3 1.75 1.75 0 0 1-1.75-1.75"/><circle cx="8.75" cy="8.6" r="1.1" fill="currentColor" stroke="none"/>',
-  markCFill: '<path d="M8.0 13.5A5.25 5.25 0 1 1 13.25 8a2.75 2.75 0 0 1-2.75 2.75 1.5 1.5 0 0 1-1.5-1.5" stroke-width="3"/>',
+  // Pickable project icons; the names follow Orca's repo icon picker (MIT), mobile/src/components/MobileRepoIcon.tsx, drawn in this set's style.
+  terminal: '<rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="m5 6.5 2 1.5-2 1.5M8.5 10h2.5"/>',
+  bot: '<rect x="3" y="5.5" width="10" height="7.5" rx="2"/><path d="M8 5.5V3M6 9v.5M10 9v.5M1.5 9v1.5M14.5 9v1.5"/><circle cx="8" cy="2.5" r=".5"/>',
+  package: '<path d="M8 2.5 13 5v6L8 13.5 3 11V5z"/><path d="M3 5l5 2.5L13 5M8 7.5v6M5.5 3.75l5 2.5"/>',
+  database: '<ellipse cx="8" cy="4" rx="5" ry="1.75"/><path d="M3 4v8c0 1 2.25 1.75 5 1.75S13 13 13 12V4M3 8c0 1 2.25 1.75 5 1.75S13 9 13 8"/>',
+  globe: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11"/><ellipse cx="8" cy="8" rx="2.5" ry="5.5"/>',
+  server: '<rect x="2.5" y="2.5" width="11" height="4.5" rx="1"/><rect x="2.5" y="9" width="11" height="4.5" rx="1"/><path d="M5 4.75h.5M5 11.25h.5"/>',
+  layers: '<path d="M8 2.5 13.5 5.5 8 8.5 2.5 5.5z"/><path d="m2.5 8.25 5.5 3 5.5-3M2.5 11 8 14l5.5-3"/>',
+  box: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/>',
+  braces: '<path d="M5.5 2.5c-1.5 0-2 .75-2 2v1.5c0 .75-.5 1.5-1.25 2 .75.5 1.25 1.25 1.25 2v1.5c0 1.25.5 2 2 2M10.5 2.5c1.5 0 2 .75 2 2v1.5c0 .75.5 1.5 1.25 2-.75.5-1.25 1.25-1.25 2v1.5c0 1.25-.5 2-2 2"/>',
+  briefcase: '<rect x="2.5" y="5" width="11" height="8.5" rx="1.5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V5M2.5 8.5h11"/>',
+  building: '<path d="M3.5 13.5v-10a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v10M10.5 7h1.5a1 1 0 0 1 1 1v5.5M2 13.5h12M6 5.5h1.5M6 8h1.5M6 10.5h1.5"/>',
+  cpu: '<rect x="4" y="4" width="8" height="8" rx="1.5"/><rect x="6.25" y="6.25" width="3.5" height="3.5" rx=".5"/><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2"/>',
+  gauge: '<path d="M2.75 11.5a5.25 5.25 0 1 1 10.5 0"/><path d="M8 11.5 10.5 7.5"/>',
+  palette: '<path d="M8 2.5a5.5 5.5 0 0 0 0 11c.9 0 1.25-.6 1.25-1.25 0-.9-.75-1.25-.75-2 0-.75.6-1.25 1.5-1.25h1.25A2.25 2.25 0 0 0 13.5 6.75C13.5 4.4 11.1 2.5 8 2.5z"/><circle cx="5.25" cy="7.25" r=".5"/><circle cx="7.25" cy="5" r=".5"/><circle cx="10.25" cy="5.5" r=".5"/>',
+  rocket: '<path d="M9.5 10.5 5.5 6.5C7 3.5 9.75 2.25 13.5 2.5c.25 3.75-1 6.5-4 8z"/><path d="M5.5 6.5H3l1.75-2.25H7.5M9.5 10.5V13l2.25-1.75V8.5M4.5 9.5c-1 .5-1.75 2.25-2 4 1.75-.25 3.5-1 4-2"/><circle cx="10.25" cy="5.75" r="1"/>',
+  shapes: '<circle cx="5" cy="5" r="2.5"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/><path d="M11.25 2.5 13.75 6.75h-5zM2.5 13.5 7 9"/>',
+  sparkles: '<path d="M8 2.5c.4 2.75 1.75 4.1 4.5 4.5-2.75.4-4.1 1.75-4.5 4.5-.4-2.75-1.75-4.1-4.5-4.5 2.75-.4 4.1-1.75 4.5-4.5zM12.5 11v2.5M11.25 12.25h2.5"/>',
+  wrench: '<path d="M10.5 2.75a3 3 0 0 0-3.25 4L2.75 11.25a1.25 1.25 0 0 0 1.75 1.75l4.5-4.5a3 3 0 0 0 4-3.25L11.25 7 9.5 6.5 9 4.75z"/>',
 };
+
+// Kept in step with workbench/src/projecticon.ts (PROJECT_COLOURS, PICK_ICONS); the main process validates against those.
+export const PROJECT_COLOURS = {
+  gray: '#9ca3af', red: '#f87171', orange: '#fb923c', amber: '#fbbf24', yellow: '#facc15', lime: '#a3e635',
+  green: '#4ade80', emerald: '#34d399', teal: '#2dd4bf', cyan: '#22d3ee', sky: '#38bdf8', blue: '#60a5fa',
+  indigo: '#818cf8', violet: '#a78bfa', purple: '#c084fc', fuchsia: '#e879f9', pink: '#f472b6', rose: '#fb7185',
+};
+export const PICK_ICONS = ['folder', 'code', 'terminal', 'bot', 'package', 'database', 'globe', 'server', 'layers', 'box', 'braces', 'briefcase', 'building', 'cpu', 'gauge', 'palette', 'rocket', 'shapes', 'sparkles', 'wrench'];
+
+/**
+ * A project's icon (snapshot projects[].icon) as markup: its favicon, an emoji, a line icon in its colour, or a monogram tile.
+ * The monogram follows t3code (MIT), apps/web/src/components/ProjectMonogram.tsx: a tinted rounded tile with 1-2 mono letters.
+ */
+export function projectIconHtml(icon, size = 14) {
+  const s = Number(size) || 14;
+  if (icon?.kind === 'image') return `<img class="picon" src="${esc(icon.src)}" width="${s}" height="${s}" alt="" style="border-radius:4px;object-fit:contain">`;
+  if (icon?.kind === 'emoji') return `<span class="picon" style="font-size:${Math.round(s * 0.9)}px;line-height:${s}px;width:${s}px;text-align:center" aria-hidden="true">${esc(icon.emoji)}</span>`;
+  if (icon?.kind === 'icon' && SHAPES[icon.name]) return `<span class="picon" style="color:${PROJECT_COLOURS[icon.colour] ?? 'currentColor'};display:inline-flex">${iconSvg(icon.name, s)}</span>`;
+  if (icon?.kind === 'monogram') {
+    const c = PROJECT_COLOURS[icon.colour] ?? PROJECT_COLOURS.gray;
+    const one = Array.from(icon.text).length === 1;
+    return `<svg class="picon" width="${s}" height="${s}" viewBox="0 0 16 16" aria-hidden="true" style="color:${c};border-radius:4px;background:color-mix(in srgb, currentColor 16%, transparent)"><text x="8" y="10.8" text-anchor="middle" fill="currentColor" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.25" font-weight="700" textLength="${one ? 6 : 12}" lengthAdjust="spacingAndGlyphs">${esc(icon.text)}</text></svg>`;
+  }
+  return iconSvg('folder', s);
+}
 
 const ATTRS = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
 const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
@@ -74,3 +114,5 @@ export function progressRingSvg({ state, done = 0, total = 0, size = 14, title =
 
 globalThis.ourosIcon = iconSvg;
 globalThis.progressRingSvg = progressRingSvg;
+globalThis.projectIconHtml = projectIconHtml;
+globalThis.projectIconChoices = { PROJECT_COLOURS, PICK_ICONS };

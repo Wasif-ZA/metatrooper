@@ -35,6 +35,7 @@ import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
+import { checkOverride, readOverrides, resolveProjectIcon, writeOverride, type IconOverride } from './projecticon.ts';
 import { ghIssues, ghPr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
 import { crashAction, freshNeeds, watchDb } from './queries.ts';
 
@@ -113,7 +114,9 @@ function read(): Snapshot {
     const s = withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText, demo);
     const git = rowGit();
     for (const x of s.sessions) x.branch = git[x.id]?.branch ?? null;
-    lastGood = { ...s, sessions: s.sessions.map((x) => ({ ...x, colour: sessionColour(x.id) })), git, settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
+    iconOverrides ??= readOverrides(iconFile());
+    const projects = s.projects.map((p) => ({ ...p, icon: resolveProjectIcon(p, iconOverrides![p.id]) }));
+    lastGood = { ...s, projects, sessions: s.sessions.map((x) => ({ ...x, colour: sessionColour(x.id) })), git, settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
     readFromDb = true;
     return lastGood;
   } catch {
@@ -289,6 +292,24 @@ async function writeSetting(key: string, value: unknown): Promise<string | null>
   return out.reply.error ? out.reply.error.message : null;
 }
 
+let iconOverrides: Record<string, IconOverride> | null = null;
+const iconFile = () => path.join(homeDir(), 'project-icons.json');
+
+/** project.icon-set {project_id, icon}: stores the user's icon for a project (null resets to favicon or monogram). */
+function setProjectIcon(params: unknown): { kind: 'reply'; reply: { id: null; result?: { ok: true }; error?: { code: number; message: string } } } {
+  const p = (params ?? {}) as { project_id?: unknown; icon?: unknown };
+  try {
+    const d = db();
+    if (typeof p.project_id !== 'string' || !d?.prepare('SELECT 1 FROM project WHERE id = ?').get(p.project_id)) throw new Error('unknown project');
+    writeOverride(iconFile(), p.project_id, checkOverride(p.icon ?? null));
+    iconOverrides = null;
+    schedulePush();
+    return { kind: 'reply', reply: { id: null, result: { ok: true } } };
+  } catch (e) {
+    return { kind: 'reply', reply: { id: null, error: { code: -32602, message: (e as Error).message } } };
+  }
+}
+
 /** The demo's stand-in for gh: `<home>/demo/github.json` holds `prs` by branch and `issues` by project name. */
 function demoGithub(): { prs?: Record<string, Pr>; issues?: Record<string, Issue[]> } {
   try { return JSON.parse(fs.readFileSync(path.join(homeDir(), 'demo', 'github.json'), 'utf8')); } catch { return {}; }
@@ -323,6 +344,7 @@ function handlers(): void {
   });
 
   on('call', async (method: unknown, params: unknown) => {
+    if (method === 'project.icon-set') return setProjectIcon(params);
     if (method === 'gh.issues') return { kind: 'reply', reply: { id: null, result: await issuesOf((params as { project_id?: unknown } | null)?.project_id) } };
     if (typeof method !== 'string' || !UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${String(method)}` } } };
     const out = await call(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>, { ui: true });
