@@ -25,6 +25,14 @@ export function OpenOnWall({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M8 2.5v11M2.5 8h11" /></Icon>;
 }
 
+export function Filter({ size = 16, className, title }) {
+  return <Icon {...{ size, className, title }}><path d="M2.5 4h11M4.5 8h7M6.5 12h3" /></Icon>;
+}
+
+export function Search({ size = 16, className, title }) {
+  return <Icon {...{ size, className, title }}><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></Icon>;
+}
+
 export function PanelToggle({ size = 16, className, title }) {
   return <Icon {...{ size, className, title }}><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M10 2.5v11" /></Icon>;
 }

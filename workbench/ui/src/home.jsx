@@ -1,119 +1,79 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
+import { IconButton } from '@astryxdesign/core/IconButton';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { createStore } from './store.js';
-import { Verdict } from './verdict.jsx';
-import { Usage } from './usage.jsx';
-import { Audit } from './audit.jsx';
-import { AgentHead } from './agenthead.jsx';
+import { AutomationsPage } from './automations.jsx';
+import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon } from './icons/index.js';
+import { canMove, conceal, crossfade, reveal } from './motion.js';
 
-export const homeStore = createStore({ tick: 0 });
-export const newTaskStore = createStore({ open: false });
-export const openNewTask = () => newTaskStore.set({ open: true });
+export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
-const svg = (d) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
-const ICONS = {
-  needs: 'M1.5 8.5l2-5.5h9l2 5.5v4.5h-13zM1.5 8.5h4l1 1.5h3l1-1.5h4',
-  working: 'M8 2v2.5M8 11.5V14M2 8h2.5M11.5 8H14M3.8 3.8l1.7 1.7M10.5 10.5l1.7 1.7M3.8 12.2l1.7-1.7M10.5 5.5l1.7-1.7',
-  done: 'M3 8.5l3.2 3.2L13 4.8',
-  files: 'M4 2.5h5l3 3v8H4zM9 2.5v3h3',
-  dollar: 'M8 2v12M11 4.5H6.5a2 2 0 000 4h3a2 2 0 010 4H5',
-  shield: 'M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z',
+export const openNewTask = () => {
+  ui.homeSel = '';
+  homeStore.set({ tick: homeStore.get().tick + 1 });
+  if (typeof homeView !== 'undefined' && !homeView.shown()) homeView.set('home');
+  const focus = () => document.querySelector('#home .ou-hm-task textarea')?.focus();
+  focus();
+  setTimeout(focus, 50);
 };
 
-const plusIcon = (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 3.5v9M3.5 8h9" />
-  </svg>
-);
-
-const warnIcon = (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="ou-dash-usagewarn-icon">
-    <path d="M8 2.5l6 11H2zM8 6.5v3.5M8 12v.5" />
-  </svg>
-);
-
-function formatTokens(n) {
-  const v = Number(n) || 0;
-  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`.replace('.0M', 'M');
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`.replace('.0k', 'k');
-  return String(v);
+function Drop({ open, className, children }) {
+  const ref = useRef(null);
+  const kept = useRef(children);
+  const first = useRef(true);
+  const [closing, setClosing] = useState(false);
+  if (open) kept.current = children;
+  useLayoutEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const el = ref.current;
+    if (!el) return;
+    if (open) { setClosing(false); reveal(el); } else { setClosing(true); conceal(el, () => setClosing(false)); }
+  }, [open]);
+  const shown = open ? children : closing ? kept.current : null;
+  return <div ref={ref} className={className} hidden={!shown}>{shown}</div>;
 }
 
-function formatDay(iso) {
-  if (!iso) return '';
-  const parts = String(iso).split('-');
-  if (parts.length >= 3) return `${parts[1]}/${parts[2]}`;
-  return String(iso);
+function Swap({ k, children }) {
+  const ref = useRef(null);
+  const prev = useRef(k);
+  const ghost = useRef(null);
+  if (ref.current && prev.current !== k && canMove(ref.current)) ghost.current = ref.current.cloneNode(true);
+  useLayoutEffect(() => {
+    if (prev.current === k) return;
+    prev.current = k;
+    if (ref.current) crossfade(ref.current, ghost.current);
+    ghost.current = null;
+  }, [k]);
+  return <div className="ou-hm-swap"><div ref={ref}>{children}</div></div>;
 }
 
-function formatUntil(resets_at) {
-  if (!resets_at) return '';
-  const diffMs = new Date(resets_at).getTime() - Date.now();
-  if (isNaN(diffMs) || diffMs <= 0) return 'in 0m';
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 60) return `in ${Math.max(1, mins)}m`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `in ${hours}h`;
-  const days = Math.round(hours / 24);
-  return `in ${days}d`;
-}
+const chev = <ChevronRight size={16} className="ou-hm-chev" />;
+const branchIcon = <Branch size={16} />;
+const commitIcon = <Commit size={16} />;
+const filesIcon = <Changes size={16} />;
+const prIcon = <PullRequest size={16} />;
 
-function activityText(r) {
-  const action = String(r?.action || '').replace(/[._]/g, ' ').trim();
-  const detail = r?.detail;
-  if (!detail) return action;
-  if (typeof detail === 'string') {
-    const trimmed = detail.trim();
-    if (trimmed.startsWith('{')) {
-      try {
-        const obj = JSON.parse(trimmed);
-        if (obj && typeof obj === 'object') {
-          const val = obj.engine || obj.engine_id || (obj.prompt ? String(obj.prompt).slice(0, 60) : '') || obj.path || obj.reason;
-          if (val) return action ? `${action} ${val}` : String(val);
-        }
-        return action;
-      } catch {
-        return action ? `${action} ${trimmed}` : trimmed;
-      }
-    }
-    return action ? `${action} ${detail}` : detail;
-  }
-  return action;
-}
+const projectOf = (x) => (ui.snap?.projects || []).find((p) => p.id === (x?.project_id || ui.projectId)) || null;
+const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
+const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
+const DONE_STATES = ['done', 'exited', 'idle'];
 
-function outcomeWord(state) {
-  if (state === 'done') return 'finished';
-  if (state === 'working' || state === 'starting') return 'running';
-  if (state === 'waiting_for_you') return 'waiting';
-  return state;
-}
+const attachIcon = <Attach size={16} />;
+const slidersIcon = <Options size={16} />;
+const sendIcon = <Send size={14} />;
+const hostIcon = <Workspace size={16} />;
+const editorIcon = <OpenOnWall size={16} />;
+const folderSmall = <Project size={16} />;
+const shieldSmall = <Approval size={16} />;
+const circle = <StepOpen size={14} className="ou-hm-cbox" />;
+const circleDone = <Done size={14} className="ou-hm-cbox ou-hm-cdone" />;
 
-function outcomeColor(state) {
-  if (state === 'done') return 'green';
-  if (state === 'working' || state === 'starting') return 'blue';
-  if (state === 'waiting_for_you') return 'amber';
-  return 'mute';
-}
-
-function UsageWarn({ limit }) {
-  if (!limit) return null;
-  const rel = formatUntil(limit.resets_at);
-  const resetPart = rel ? `, resets ${rel}` : '';
-  const text = `${limit.provider} has used ${Math.round(limit.used_pct)}% of its ${limit.window} window${resetPart}`;
-  return (
-    <div className="ou-dash-usagewarn">
-      {warnIcon}
-      <span>{text}</span>
-    </div>
-  );
-}
-
-function StartBox({ ready, open }) {
+function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
   const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
@@ -121,18 +81,7 @@ function StartBox({ ready, open }) {
   const [branch, setBranch] = useState('');
   const [model, setModel] = useState('');
   const [approval, setApproval] = useState('default');
-  const composerRef = useRef(null);
-
-  useEffect(() => {
-    if (open) {
-      const el = composerRef.current?.querySelector('textarea');
-      if (el) {
-        el.focus();
-        const t = setTimeout(() => el?.focus(), 50);
-        return () => clearTimeout(t);
-      }
-    }
-  }, [open]);
+  const ref = useRef(null);
 
   const start = async () => {
     const text = task.trim();
@@ -151,478 +100,376 @@ function StartBox({ ready, open }) {
     save('engine', chosen);
     homeView.set('wall');
     setBranch('');
-    newTaskStore.set({ open: false });
     if (target !== ui.projectId) { ui.pendingPick = r.result.session_id; switchProject(target); return; }
     await pick(r.result.session_id);
   };
+  const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   return (
-    <div ref={composerRef} className="ou-composer" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
-      <TextArea autoFocus label="Task for a new agent" isLabelHidden rows={1} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
-      <div className="ou-composerfoot">
-        <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
-        <Button variant="ghost" size="sm" label={more ? 'Fewer options' : 'Options'} aria-expanded={more} onClick={() => setMore(!more)} />
-        <Button variant="primary" size="sm" label="Start" tooltip="Start (Ctrl+Enter)" data-action="home-start" data-engine={chosen} onClick={start} />
-      </div>
+    <div className="ou-hm-composerwrap">
+    <div ref={ref} className="ou-composer ou-hm-task" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
+      <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Describe the task. @ files, / commands" onChange={edit} />
       {more ? (
-        <div className="ou-composerfoot">
+        <div className="ou-composerfoot ou-hm-opts">
           <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
           <TextInput size="sm" width={180} label="Model" isLabelHidden placeholder="Model (agent default)" value={model} onChange={setModel} />
-          <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
-            { value: 'default', label: 'Approval: as in Settings' },
-            { value: 'ask', label: 'Approval: ask before each tool call' },
-            { value: 'edits', label: 'Approval: file edits allowed' },
-            { value: 'contained', label: 'Approval: auto' },
-          ]} />
         </div>
       ) : null}
+      <div className="ou-hm-cbar">
+        <IconButton size="sm" variant="ghost" icon={attachIcon} label="Mention a file (@)" onClick={() => { edit(task + (task && !task.endsWith(' ') ? ' @' : '@')); ref.current?.querySelector('textarea')?.focus(); }} />
+        <IconButton size="sm" variant="ghost" icon={slidersIcon} label={more ? 'Fewer options' : 'Options'} aria-expanded={more} aria-pressed={more} onClick={() => setMore(!more)} />
+        <span className="ou-hm-cgap" />
+        <span className="ou-hm-engine"><EngineMark id={chosen} size={16} title={chosen} />
+          <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
+        </span>
+        <IconButton size="sm" variant="primary" icon={sendIcon} label="Start" tooltip="Start (Ctrl+Enter)" className="ou-hm-send" data-action="home-start" data-engine={chosen} onClick={start} />
+      </div>
+    </div>
+    <div className="ou-hm-chips">
+      <span className="ou-hm-chip">{projectOf({ project_id: ui.projectId })?.icon ? <ProjectIcon icon={projectOf({ project_id: ui.projectId }).icon} size={14} /> : folderSmall}<Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+        options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /></span>
+      <span className="ou-hm-chip">{shieldSmall}<Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
+        { value: 'default', label: 'Approval as in Settings' },
+        { value: 'ask', label: 'Ask first' },
+        { value: 'edits', label: 'Edits allowed' },
+        { value: 'contained', label: 'Auto' },
+      ]} /></span>
+    </div>
     </div>
   );
 }
 
-export function NewTask() {
-  const { open } = newTaskStore.use();
-  const ready = (ui.snap?.engines || []).filter((e) => e.light !== 'red');
-  return (
-    <Dialog isOpen={Boolean(open)} onOpenChange={(o) => newTaskStore.set({ open: Boolean(o) })} aria-label="New task" width={560}>
-      <DialogHeader title="New task" onOpenChange={(o) => newTaskStore.set({ open: Boolean(o) })} />
-      <div style={{ padding: '0 16px 16px' }}>
-        {ready.length ? <StartBox ready={ready} open={Boolean(open)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />}
-      </div>
-    </Dialog>
-  );
+const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
+const isWorking = (k) => k.state === 'working' || k.state === 'starting';
+
+const statusOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
+  : isWorking(k) ? 'running'
+    : k.state === 'failed' || /fail/.test(String(k.outcome || '')) ? 'failed'
+      : k.state === 'exited' && /cancel/.test(String(k.outcome || '')) ? 'stopped'
+        : DONE_STATES.includes(k.state) ? 'completed' : 'running');
+const STATUS_WORD = { running: 'Running', waiting: 'Waiting', completed: 'Completed', failed: 'Failed', stopped: 'Stopped' };
+export const progressOf = (k) => ({ running: 'working', waiting: 'waiting', completed: 'done', failed: 'failed', stopped: 'done' })[statusOf(k)];
+const settled = (k) => ['completed', 'failed', 'stopped'].includes(statusOf(k));
+
+// From t3code (MIT), apps/web/src/components/chat/AgentElapsed.tsx
+function formatElapsedSeconds(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  if (minutes === 0) return `${seconds}s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 0) return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`;
+  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
 
-function AgentCard({ x }) {
-  const files = changedFiles(x.id).length;
-  return (
-    <div className="ou-agent" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
-      <AgentHead x={x} />
-      {x.run_id ? (
-        <div className="ou-dash-lastrun">
-          <span className="ou-dash-chip">{x.run_id.slice(0, 8)}</span>
-          <span className={`ou-dash-outcome ou-dash-${outcomeColor(x.state)}`}>{outcomeWord(x.state)}</span>
-          <span className="ou-dash-runat">{ago(x.state_at)}</span>
-        </div>
-      ) : null}
-      <pre>{x.last_line || ' '}</pre>
-      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span><Verdict x={x} />{x.state === 'waiting_for_you' ? <Button size="sm" label="Answer" data-action="pick" data-id={x.id} /> : null}</footer>
-    </div>
-  );
-}
+const elapsedOf = (list) => {
+  const starts = list.map((k) => Date.parse(k.started_at || '')).filter((t) => !Number.isNaN(t));
+  if (!starts.length) return '';
+  const ends = list.every(settled) ? list.map((k) => Date.parse(k.state_at || '')).filter((t) => !Number.isNaN(t)) : [];
+  return formatElapsedSeconds(((ends.length ? Math.max(...ends) : Date.now()) - Math.min(...starts)) / 1000);
+};
 
-function DashTile({ icon, label, value, sub, hot }) {
-  return (
-    <div className={hot ? 'ou-dash-tile ou-hot' : 'ou-dash-tile'}>
-      <span className="ou-dash-tileicon">{svg(ICONS[icon])}</span>
-      <b>{value}</b>
-      <span className="ou-dash-tilelabel">{label}</span>
-      <span className="ou-dash-tilesub">{sub}</span>
-    </div>
-  );
-}
-
-function ChartBox({ title, sub, children }) {
-  return (
-    <div className="ou-dash-chart-box">
-      <div className="ou-dash-chart-head">
-        <span className="ou-dash-chart-title">{title}</span>
-        <span className="ou-dash-chart-sub">{sub}</span>
-      </div>
-      <div className="ou-dash-chart-body">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ChartDates({ days }) {
-  if (!days || !days.length) return <div className="ou-dash-chart-dates" aria-hidden="true"><span>&nbsp;</span></div>;
-  const first = days[0]?.day;
-  const mid = days[Math.floor(days.length / 2)]?.day;
-  const last = days[days.length - 1]?.day;
-  return (
-    <div className="ou-dash-chart-dates">
-      <span>{formatDay(first)}</span>
-      <span>{formatDay(mid)}</span>
-      <span>{formatDay(last)}</span>
-    </div>
-  );
-}
-
-function ChartRuns({ data, loading, error }) {
-  if (loading) return <ChartBox title="Runs by outcome" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Runs by outcome" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const days = data.days;
-  const max = Math.max(1, ...days.map((d) => (d.succeeded || 0) + (d.failed || 0) + (d.unchecked || 0)));
-  return (
-    <ChartBox title="Runs by outcome" sub="Last 14 days">
-      <div className="ou-dash-chart-bars">
-        {days.map((d, i) => {
-          const s = d.succeeded || 0;
-          const f = d.failed || 0;
-          const u = d.unchecked || 0;
-          const total = s + f + u;
-          const heightPct = Math.round((total / max) * 100);
-          if (total === 0) {
-            return (
-              <div key={d.day || i} className="ou-dash-chart-col">
-                <div className="ou-dash-bar-tick" />
-              </div>
-            );
-          }
-          const uPct = (u / total) * 100;
-          const fPct = (f / total) * 100;
-          const sPct = (s / total) * 100;
-          return (
-            <div key={d.day || i} className="ou-dash-chart-col">
-              <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                {u > 0 ? <rect x="0" y="0" width="10" height={uPct} fill="var(--st-other)" /> : null}
-                {f > 0 ? <rect x="0" y={uPct} width="10" height={fPct} fill="var(--st-bad)" /> : null}
-                {s > 0 ? <rect x="0" y={uPct + fPct} width="10" height={sPct} fill="var(--st-ok)" /> : null}
-              </svg>
-            </div>
-          );
-        })}
-      </div>
-      <ChartDates days={days} />
-      <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />Succeeded</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-bad)' }} />Failed</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-other)' }} />Unchecked</span>
-      </div>
-    </ChartBox>
-  );
-}
-
-const ENGINE_COLORS = ['var(--st-run)', 'var(--st-ok)', 'var(--st-wait)', 'var(--st-other)'];
-
-function ChartTokens({ data, loading, error }) {
-  if (loading) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const raw = data.by_agent || [];
-  const map = new Map();
-  for (const r of raw) {
-    const cur = map.get(r.engine_id) || { engine_id: r.engine_id, tokens: 0, usd: 0 };
-    cur.tokens += Number(r.tokens) || 0;
-    cur.usd += Number(r.usd) || 0;
-    map.set(r.engine_id, cur);
+// From t3code (MIT), packages/client-runtime/src/state/subagentDisplay.ts (waiting counted on its own)
+export function countSubagentStatuses(statuses) {
+  const counts = { working: 0, waiting: 0, done: 0, failed: 0, stopped: 0 };
+  for (const status of statuses) {
+    if (status === 'running') counts.working += 1;
+    else if (status === 'waiting') counts.waiting += 1;
+    else if (status === 'completed') counts.done += 1;
+    else if (status === 'failed') counts.failed += 1;
+    else counts.stopped += 1;
   }
-  const engines = Array.from(map.values());
-  if (!engines.length) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const max = Math.max(1, ...engines.map((e) => e.tokens));
+  return Object.keys(counts).filter((key) => counts[key] > 0).map((key) => [key, counts[key]]);
+}
+export const summarizeSubagentStatuses = (statuses) => countSubagentStatuses(statuses).map(([key, n]) => `${n} ${key}`).join(' · ');
+
+function StatusCounts({ statuses }) {
+  const parts = countSubagentStatuses(statuses);
+  return <span className="ou-hm-tsum">{parts.map(([key, n], i) => <span key={key}>{i ? ' · ' : ''}<span className={`ou-hm-c-${key}`}>{n} {key}</span></span>)}</span>;
+}
+
+const detailOf = (k) => String((settled(k) ? k.reason || k.last_line : k.last_line || k.reason) || '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
+const tipOf = (k) => [nameOf(k), [k.model || k.engine_id, STATUS_WORD[statusOf(k)], elapsedOf([k])].filter(Boolean).join(' · '), detailOf(k)].filter(Boolean).join('\n');
+
+const press = (fn) => ({
+  role: 'button', tabIndex: 0,
+  onClick: (e) => { e.stopPropagation(); fn(); },
+  onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); fn(); } },
+});
+
+function Avatar({ k, status = true }) {
+  if (!status) return <span className="ou-hm-av" aria-hidden="true"><EngineMark id={k.engine_id} size={14} title={k.engine_id} /></span>;
   return (
-    <ChartBox title="Tokens and cost by engine" sub="This week">
-      <div className="ou-dash-chart-bars">
-        {engines.map((e, idx) => {
-          const heightPct = e.tokens > 0 ? Math.max(4, Math.round((e.tokens / max) * 100)) : 0;
-          const color = ENGINE_COLORS[idx % ENGINE_COLORS.length];
-          return (
-            <div key={e.engine_id} className="ou-dash-chart-col" style={{ alignItems: 'center' }}>
-              <div className="ou-dash-engine-val">
-                <span>{formatTokens(e.tokens)}</span>
-                <span>${(e.usd || 0).toFixed(2)}</span>
-              </div>
-              <div style={{ width: '100%', height: '56px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                {e.tokens === 0 ? (
-                  <div className="ou-dash-bar-tick" />
-                ) : (
-                  <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                    <rect x="0" y="0" width="10" height="100" fill={color} />
-                  </svg>
-                )}
-              </div>
-              <span className="ou-dash-engine-label" title={e.engine_id}>{e.engine_id}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="ou-dash-chart-dates" aria-hidden="true"><span>&nbsp;</span></div>
-      <div className="ou-dash-legend" aria-hidden="true"><span>&nbsp;</span></div>
-    </ChartBox>
+    <span className="ou-hm-mark" aria-hidden="true">
+      <Ring k={k} size={12} />
+      <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
+    </span>
   );
 }
 
-function ChartSessions({ data, loading, error }) {
-  if (loading) return <ChartBox title="Sessions by state" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Sessions by state" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const days = data.days;
-  const parsed = days.map((d) => {
-    const st = d.started || {};
-    const w = st.working || 0;
-    const wait = st.waiting_for_you || 0;
-    const done = st.done || 0;
-    const other = Object.entries(st).reduce((n, [k, v]) => (['working', 'waiting_for_you', 'done'].includes(k) ? n : n + (v || 0)), 0);
-    const total = w + wait + done + other;
-    return { day: d.day, w, wait, done, other, total };
-  });
-  const max = Math.max(1, ...parsed.map((p) => p.total));
+function Ring({ k, size = 12, className }) {
+  const st = stepsOf(k);
+  const s = statusOf(k);
+  return <ProgressRing state={progressOf(k)} done={st?.done} total={st?.total} size={size} className={className} title={STATUS_WORD[s]} />;
+}
+const Dot = ({ k }) => <Ring k={k} size={12} className="ou-hm-dot" />;
+
+function Steps({ st }) {
   return (
-    <ChartBox title="Sessions by state" sub="Last 14 days">
-      <div className="ou-dash-chart-bars">
-        {parsed.map((p, i) => {
-          const heightPct = Math.round((p.total / max) * 100);
-          if (p.total === 0) {
-            return (
-              <div key={p.day || i} className="ou-dash-chart-col">
-                <div className="ou-dash-bar-tick" />
-              </div>
-            );
-          }
-          const otherPct = (p.other / p.total) * 100;
-          const donePct = (p.done / p.total) * 100;
-          const waitPct = (p.wait / p.total) * 100;
-          const wPct = (p.w / p.total) * 100;
-          return (
-            <div key={p.day || i} className="ou-dash-chart-col">
-              <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                {p.other > 0 ? <rect x="0" y="0" width="10" height={otherPct} fill="var(--st-other)" /> : null}
-                {p.done > 0 ? <rect x="0" y={otherPct} width="10" height={donePct} fill="var(--st-ok)" /> : null}
-                {p.wait > 0 ? <rect x="0" y={otherPct + donePct} width="10" height={waitPct} fill="var(--st-wait)" /> : null}
-                {p.w > 0 ? <rect x="0" y={otherPct + donePct + waitPct} width="10" height={wPct} fill="var(--st-run)" /> : null}
-              </svg>
-            </div>
-          );
-        })}
-      </div>
-      <ChartDates days={days} />
-      <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-run)' }} />Working</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-wait)' }} />Waiting</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />Done</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-other)' }} />Other</span>
-      </div>
-    </ChartBox>
+    <ol className="ou-hm-check">
+      {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
+    </ol>
   );
 }
 
-function ChartChecks({ data, loading, error }) {
-  if (loading) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const days = data.days;
-  const totalPassed = days.reduce((n, d) => n + (d.passed || 0), 0);
-  const totalRuns = days.reduce((n, d) => n + (d.runs || 0), 0);
+function SlimRow({ k, lead, openList, toggle }) {
+  const st = stepsOf(k);
+  const key = `steps:${k.id}`;
+  const open = Boolean(st) && openList.includes(key);
+  const doing = detailOf(k);
   return (
-    <ChartBox title="Done-check pass rate" sub="Last 14 days">
-      <div className="ou-dash-chart-bars">
-        {days.map((d, i) => {
-          if (d.rate == null || !d.runs) {
-            return (
-              <div key={d.day || i} className="ou-dash-chart-col">
-                <div className="ou-dash-bar-tick" />
-              </div>
-            );
-          }
-          const heightPct = Math.max(2, Math.round(d.rate * 100));
-          return (
-            <div key={d.day || i} className="ou-dash-chart-col">
-              <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                <rect x="0" y="0" width="10" height="100" fill="var(--st-ok)" />
-              </svg>
-            </div>
-          );
-        })}
-      </div>
-      <ChartDates days={days} />
-      <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item">
-          <span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />
-          {`${totalPassed} of ${totalRuns} passed`}
+    <li className={`ou-hm-slim${lead ? ' ou-hm-lead' : ''}`} data-id={k.id} data-progress={progressOf(k)}>
+      <div className="ou-hm-slimrow" title={tipOf(k)} aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
+        <Avatar k={k} />
+        <span className="ou-hm-slimtext">
+          <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st && lead ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
+          <span className="ou-hm-slimsub">{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
         </span>
       </div>
-    </ChartBox>
+      {st ? <Drop open={open} className="ou-hm-drop ou-hm-slimsteps-list"><Steps st={st} /></Drop> : null}
+    </li>
+  );
+}
+
+function Trigger({ x, kids, open, toggle }) {
+  const statuses = kids.map(statusOf);
+  const working = statuses.filter((s) => s === 'running' || s === 'waiting').length;
+  const label = `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}`;
+  const summary = summarizeSubagentStatuses(statuses);
+  return (
+    <div className="ou-hm-trigger" data-active={working || open ? 'true' : 'false'} aria-expanded={open} aria-label={label} aria-description={summary} {...press(() => toggle(x.id))}>
+      <span className="ou-hm-stack" aria-hidden="true">
+        {kids.slice(0, 3).map((k) => <Avatar key={k.id} k={k} status={false} />)}
+        {kids.length > 3 ? <span className="ou-hm-av ou-hm-more">+{kids.length - 3}</span> : null}
+      </span>
+      <span className="ou-hm-ttext">
+        <span className="ou-hm-tlabel">{label}</span>
+        <StatusCounts statuses={statuses} />
+      </span>
+      <span className="ou-hm-elapsed">{elapsedOf(kids)}</span>
+      <span className="ou-hm-chevdown" data-open={open ? 'true' : 'false'}>{chev}</span>
+    </div>
+  );
+}
+
+function TaskView({ x, kids, openList, toggle }) {
+  const [answer, setAnswer] = useState('');
+  const here = !x.project_id || x.project_id === ui.projectId;
+  const send = async () => {
+    const t = answer.trim();
+    if (!t || !here) return;
+    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${x.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
+  };
+  const open = openList.includes(x.id);
+  const st = stepsOf(x);
+  const workKey = `work:${x.id}`;
+  const workOpen = openList.includes(workKey);
+  const pending = kids.filter((k) => !settled(k));
+  const proj = (ui.snap?.projects || []).find((p) => p.id === (x.project_id || ui.projectId))?.name || 'No project';
+  const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
+  const s = statusOf(x);
+  const stop = async () => {
+    try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${x.engine_id} to stop`); } catch (err) { toast(String(err?.message || err), true); }
+  };
+  return (
+    <article className="ou-hm-taskview" data-id={x.id} data-state={x.state}>
+      <h1 className="ou-hm-tasktitle">{nameOf(x)}</h1>
+      <nav className="ou-hm-crumb" aria-label="Task">
+        <span className="ou-hm-crumbproj">{proj}</span>
+        {branch ? <><span className="ou-hm-crumbsep">/</span><span className="ou-hm-crumbbranch">{branchIcon}{branch}</span></> : null}
+      </nav>
+      <div className="ou-hm-thread">
+        <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
+          <Ring k={x} size={14} />
+          <span>{settled(x) ? 'Worked for' : s === 'waiting' ? 'Waiting for you after' : 'Working for'} {elapsedOf([x])}</span>
+          {st ? <span className="ou-hm-chevbox" data-open={workOpen ? 'true' : 'false'}>{chev}</span> : null}
+        </div>
+        {st ? <Drop open={workOpen} className="ou-hm-drop ou-hm-worklist"><Steps st={st} /></Drop> : null}
+        {kids.length ? (
+          <div className="ou-hm-subs">
+            <Trigger x={x} kids={kids} open={open} toggle={toggle} />
+            <Drop open={open} className="ou-hm-drop">
+              <ul className="ou-hm-slimlist">
+                <SlimRow k={x} lead openList={openList} toggle={toggle} />
+                {kids.map((k) => <SlimRow key={k.id} k={k} openList={openList} toggle={toggle} />)}
+              </ul>
+            </Drop>
+          </div>
+        ) : null}
+        {x.last_line || x.reason ? <p className="ou-hm-latest">{x.last_line || x.reason}</p> : null}
+        {s === 'waiting' ? (
+          <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(x)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
+        ) : null}
+        {pending.length ? (
+          <div className="ou-hm-waiton">
+            <span className="ou-hm-waitspin" aria-hidden="true" />
+            <span className="ou-hm-waitlabel">Waiting on {pending.length} {pending.length === 1 ? 'subagent' : 'subagents'}</span>
+            <span className="ou-hm-waitnames">{pending.map(nameOf).join(', ')}</span>
+            {isWorking(x) || pending.some(isWorking) ? <button type="button" className="ou-hm-stop" title="Interrupt the orchestrator (sends Esc)" onClick={stop}><Stop size={12} />Stop</button> : null}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+const startIcons = { folder: <FolderAdd size={18} />, clock: <Calendar size={18} />, wall: <Wall size={18} />, book: <Learn size={18} /> };
+
+function StartState({ composer }) {
+  const items = [
+    ['folder', 'Import projects', 'Add a folder from this computer', null, 'open-folder'],
+    ['clock', 'Automations', 'Agents that start on a schedule', () => homeView.set('automations')],
+    ['wall', 'Open the Wall', 'Every agent terminal side by side', () => homeView.set('wall')],
+    ['book', 'Learn cc', 'Shortcuts and commands', () => globalThis.paletteView?.open?.()],
+  ];
+  return (
+    <div className="ou-hm-start">
+      <h1 className="ou-hm-hello">Pick up where your agents left off</h1>
+      <ul className="ou-hm-startlist">
+        {items.map(([icon, title, sub, run, action]) => (
+          <li key={title}>
+            <button type="button" className="ou-hm-startitem" data-action={action} onClick={run || undefined}>
+              <span className="ou-hm-starticon">{startIcons[icon]}</span>
+              <span className="ou-hm-starttext"><b>{title}</b><span>{sub}</span></span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {composer}
+    </div>
+  );
+}
+
+const openOnWall = (x) => {
+  homeView.set('wall');
+  if (x.project_id && x.project_id !== ui.projectId) { ui.pendingPick = x.id; switchProject(x.project_id); return; }
+  void pick(x.id);
+};
+
+function PanelSection({ title, heading = false, children }) {
+  return (
+    <section className="ou-hm-psec" aria-label={title}>
+      {heading ? <h3 className="ou-hm-psech">{title}</h3> : null}
+      <div className="ou-hm-prows">{children}</div>
+    </section>
+  );
+}
+
+function PanelRow({ icon, label, value, onClick, chevron = false, mono = false, children }) {
+  return (
+    <div className={`ou-hm-prow${onClick ? ' ou-hm-pclick' : ''}`} {...(onClick ? press(onClick) : {})}>
+      <span className="ou-hm-picon">{icon}</span>
+      <span className={`ou-hm-plabel${mono ? ' ou-hm-mono' : ''}`}>{label}</span>
+      {value != null ? <span className="ou-hm-pvalue">{value}</span> : null}
+      {children}
+      {chevron ? <span className="ou-hm-picon">{chev}</span> : null}
+    </div>
+  );
+}
+
+function RailCard({ sel, kids }) {
+  const [merging, setMerging] = useState(false);
+  const g = (sel && ui.snap?.git?.[sel.id]) || {};
+  const branch = sel ? g.branch || sel.branch || null : null;
+  const pr = g.pr || null;
+  const host = sel ? ((g.root || sel.cwd) ? (g.root || sel.cwd).split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === sel.project_id)?.name || 'This computer') : '';
+  return (
+    <div className="ou-hm-card">
+      {sel ? (
+        <Swap k={sel.id}>
+          <PanelSection title="Workspace">
+            <PanelRow icon={projectOf(sel)?.icon ? <ProjectIcon icon={projectOf(sel).icon} size={16} /> : hostIcon} label={host} />
+            <PanelRow icon={editorIcon} label="Open on Wall" chevron onClick={() => openOnWall(sel)} />
+          </PanelSection>
+          {branch ? (
+            <PanelSection title="Version control">
+              <PanelRow icon={branchIcon} label={branch} mono />
+              {g.commit ? <PanelRow icon={commitIcon} label="Commit" value={<span className="ou-hm-mono">{g.commit}</span>} /> : null}
+              <PanelRow icon={filesIcon} label="Changes" value={<span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span>} />
+              {pr ? (
+                <PanelRow icon={prIcon} label={`PR #${pr.number}`} onClick={pr.url && typeof openTermLink === 'function' ? () => openTermLink(pr.url) : undefined}
+                  value={<span className={`ou-hm-checks ou-hm-ck-${pr.checks || 'none'}`}>{[pr.checks ? `checks ${pr.checks}` : null, String(pr.state || '').toLowerCase()].filter(Boolean).join(' · ')}</span>}>
+                  {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" variant="ghost" label="Merge" onClick={(e) => { e?.stopPropagation?.(); setMerging(true); }} /> : null}
+                </PanelRow>
+              ) : null}
+            </PanelSection>
+          ) : null}
+          {kids.length ? (
+            <PanelSection title={`Lineage · ${kids.length} ${kids.length === 1 ? 'agent' : 'agents'}`} heading>
+              <ul className="ou-hm-members ou-hm-lin">
+                {kids.map((k) => (
+                  <li key={k.id} className="ou-hm-prow ou-hm-pclick" data-progress={progressOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
+                    <span className="ou-hm-bare"><EngineMark id={k.engine_id} size={16} title={k.engine_id} /><span className={`ou-hm-avdot ou-hm-st-${statusOf(k)}`} /></span>
+                    <span className="ou-hm-plabel">{nameOf(k)}</span>
+                    <span className="ou-hm-pvalue ou-hm-small">{elapsedOf([k])}</span>
+                  </li>
+                ))}
+              </ul>
+            </PanelSection>
+          ) : null}
+        </Swap>
+      ) : null}
+      {merging && pr ? (
+        <AlertDialog isOpen onOpenChange={(o) => { if (!o) setMerging(false); }} title={`Merge PR #${pr.number}?`}
+          description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from cc.`} actionLabel="Merge"
+          onAction={async () => {
+            setMerging(false);
+            const r = await rpc('gh.merge', { session_id: sel.id });
+            if (r && r.result) toast(`Merged PR #${pr.number}`); else toast((r && r.error && (r.error.message || r.error)) || 'Could not merge', true);
+          }} />
+      ) : null}
+    </div>
   );
 }
 
 export function Home() {
-  homeStore.use();
-  const [statsSessions, setStatsSessions] = useState(null);
-  const [statsChecks, setStatsChecks] = useState(null);
-  const [usageWeek, setUsageWeek] = useState(null);
-  const [usageToday, setUsageToday] = useState(null);
-  const [auditRows, setAuditRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      if (!homeView.shown()) return;
-      try {
-        const [sessRes, checksRes, weekRes, todayRes, auditRes] = await Promise.all([
-          rpc('stats.sessions', { project_id: ui.projectId, days: 14 }, true),
-          rpc('stats.checks', { project_id: ui.projectId, days: 14 }, true),
-          rpc('usage.summary', { window: 'week' }, true),
-          rpc('usage.summary', { window: 'today' }, true),
-          rpc('audit.list', { project_id: ui.projectId, limit: 8 }, true),
-        ]);
-        if (!active) return;
-        setStatsSessions(sessRes?.result || null);
-        setStatsChecks(checksRes?.result || null);
-        setUsageWeek(weekRes?.result || null);
-        setUsageToday(todayRes?.result || null);
-        if (auditRes?.result?.rows) setAuditRows(auditRes.result.rows);
-        setLoading(false);
-      } catch {
-        if (!active) return;
-        setError(true);
-        setLoading(false);
-      }
-    };
-    setLoading(true);
-    setError(false);
-    void load();
-    const iv = setInterval(() => { void load(); }, 60000);
-    return () => {
-      active = false;
-      clearInterval(iv);
-    };
-  }, [ui.projectId, homeView.shown()]);
-
+  const { open = [] } = homeStore.use();
+  const selected = ui.homeSel;
+  useEffect(() => { if (homeView.shown()) homeStore.set({ open: [] }); }, [homeView.shown()]);
+  if (ui.view === 'automations' && project()) return <AutomationsPage />;
   if (!homeView.shown()) return null;
   const s = ui.snap || {};
-  const mine = (s.sessions || []).filter((x) => x.state !== 'exited' && !ui.pendingHide?.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  const waiting = waitingAll();
-  const working = mine.filter((x) => x.state === 'working' || x.state === 'starting');
-  const alerts = (s.needs_you || []).filter((n) => !n.read_at && !isInfo(n));
-  const approvals = s.approvals || [];
-  const needsCount = waiting.length + approvals.length + alerts.length;
-
-  const limits = s.limits || [];
-  const hot = limits.filter((l) => l.status === 'ok' && l.used_pct >= 80);
-  const highestLimit = hot.length ? hot.slice().sort((a, b) => (b.used_pct || 0) - (a.used_pct || 0))[0] : null;
-
-  const usdVal = Number(usageToday?.usd) || 0;
-  const usdEst = Boolean(usageToday?.usd_estimated);
-  const tokensVal = Number(usageToday?.total) || 0;
-
-  const recentSessions = (s.sessions || [])
-    .slice()
-    .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
-    .slice(0, 8);
-
-  const name = project()?.name || '';
-
+  const live = s.live || [];
+  const tree = s.tree_rows || {};
+  const known = [...live, ...(s.sessions || []).filter((x) => !live.some((l) => l.id === x.id))];
+  const all = [...known.map((x) => (tree[x.id] ? { ...tree[x.id], ...Object.fromEntries(Object.entries(x).filter(([, v]) => v != null)) } : x)),
+    ...Object.values(tree).filter((r) => !known.some((x) => x.id === r.id))].filter((x) => !ui.pendingHide?.has(x.id));
+  const byId = new Map(all.map((x) => [x.id, x]));
+  const kidsOf = (id) => all.filter((y) => y.parent_id === id);
+  const newest = (a, b) => String(b.state_at || b.started_at || '').localeCompare(String(a.state_at || a.started_at || ''));
+  const waiting = waitingAll().slice().sort((a, b) => String(a.state_at || '').localeCompare(String(b.state_at || '')));
+  const working = all.filter((x) => x.state !== 'exited' && isWorking(x)).sort(newest);
+  const fallback = selected === '' ? null : waiting[0]?.id || working[0]?.id || null;
+  const picked = (selected && byId.get(selected)) || (fallback && (byId.get(fallback) || waiting.find((w) => w.id === fallback))) || null;
+  const task = picked?.parent_id && byId.get(picked.parent_id) ? byId.get(picked.parent_id) : picked;
+  const openList = task && picked && task !== picked ? [...open, task.id] : open;
+  const toggle = (id) => {
+    const cur = homeStore.get().open || [];
+    homeStore.set({ open: cur.includes(id) ? cur.filter((k) => k !== id) : [...cur, id] });
+  };
+  if (task && !selected) ui.homeSel = task.id;
+  if (!task && selected !== '') ui.homeSel = '';
+  const ready = (s.engines || []).filter((e) => e.light !== 'red');
+  const composer = ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (
-    <div className="ou-col ou-home">
-      <header className="ou-dash-header">
-        <div className="ou-dash-head-left">
-          <span className="ou-dash-title">HOME</span>
-          <span className="ou-dash-proj">{name}</span>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={plusIcon}
-          label="New task"
-          tooltip="New task (Ctrl+N)"
-          onClick={openNewTask}
-        />
-      </header>
-
-      <UsageWarn limit={highestLimit} />
-
-      <section className="ou-dash-section">
-        <div className="ou-dash-section-label">AGENTS</div>
-        {mine.length ? (
-          <div className="ou-cards ou-dash-cards">
-            {mine.map((x) => <AgentCard key={x.id} x={x} />)}
-          </div>
-        ) : (
-          <EmptyState
-            title="No agents yet"
-            description="Start one with New task (Ctrl+N)."
-            isCompact
-          />
-        )}
-      </section>
-
-      <div className="ou-dash-tiles">
-        <DashTile
-          icon="needs"
-          label="Needs you"
-          value={needsCount}
-          sub={`${waiting.length} waiting, ${alerts.length} alerts`}
-          hot={needsCount > 0}
-        />
-        <DashTile
-          icon="working"
-          label="Working"
-          value={working.length}
-          sub={working.length ? `${working.length} running now` : 'none running'}
-        />
-        <DashTile
-          icon="dollar"
-          label="Today spend"
-          value={`${usdEst ? '~' : ''}$${usdVal.toFixed(2)}`}
-          sub={`${formatTokens(tokensVal)} tokens today`}
-        />
-        <DashTile
-          icon="shield"
-          label="Approvals"
-          value={approvals.length}
-          sub={approvals.length ? 'waiting for a yes' : 'none waiting'}
-        />
+    <div className={`ou-home ou-hm${task ? '' : ' ou-hm-solo'}`}>
+      <div className="ou-hm-main">
+        {task ? (
+          <>
+            <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
+            <div className="ou-hm-dock">{composer}</div>
+          </>
+        ) : <StartState composer={composer} />}
       </div>
-
-      <div className="ou-dash-charts">
-        <ChartRuns data={statsSessions} loading={loading} error={error} />
-        <ChartTokens data={usageWeek} loading={loading} error={error} />
-        <ChartSessions data={statsSessions} loading={loading} error={error} />
-        <ChartChecks data={statsChecks} loading={loading} error={error} />
-      </div>
-
-      <div className="ou-dash-split">
-        <section>
-          <div className="ou-dash-section-label">RECENT ACTIVITY</div>
-          {auditRows.length ? (
-            <div className="ou-dash-list">
-              {auditRows.map((r) => (
-                <div key={r.id || `${r.at}-${r.agent}`} className="ou-dash-row">
-                  <span className={`ou-dash-dot ${r.source === 'agent' ? 'ou-dash-dot-agent' : 'ou-dash-dot-system'}`} />
-                  <span className="ou-dash-agent-name">{r.agent}</span>
-                  <span className="ou-dash-row-text">{activityText(r)}</span>
-                  <span className="ou-dash-row-time">{ago(r.at)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="ou-dash-muted">No activity yet.</p>
-          )}
-        </section>
-        <section>
-          <div className="ou-dash-section-label">RECENT SESSIONS</div>
-          {recentSessions.length ? (
-            <div className="ou-dash-list">
-              {recentSessions.map((x) => (
-                <div
-                  key={x.id}
-                  className="ou-dash-row"
-                  data-action="pick"
-                  data-id={x.id}
-                  role="button"
-                  tabIndex={0}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <span className={`ou-dash-dot ou-dash-dot-${x.state}`} />
-                  <span
-                    className="ou-dash-row-text"
-                    style={{ fontWeight: x.state === 'waiting_for_you' ? 600 : 400, color: x.state === 'waiting_for_you' ? 'var(--ink)' : 'inherit' }}
-                  >
-                    {taskOf(x)}
-                  </span>
-                  <span className="ou-dash-chip-sm">{x.engine_id}</span>
-                  <span className="ou-dash-row-time">{ago(x.state_at)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="ou-dash-muted">No sessions yet.</p>
-          )}
-        </section>
-      </div>
-
-      <Usage />
-      <Audit />
+      {task ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
     </div>
   );
 }

@@ -2,11 +2,17 @@ import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 
-export interface RowGit { branch: string | null; added: number; deleted: number; changed: string[] }
+export type Pr = { number: number; state: string; url: string; checks: 'pass' | 'fail' | 'pending' | null };
+export interface RowGit { root: string | null; branch: string | null; added: number; deleted: number; changed: string[]; commit: string | null; pr: Pr | null }
+/** The pull request for `branch` of the repo at `top`, or null; called once per distinct repo and branch each refresh. */
+export type PrLookup = (top: string, branch: string) => Promise<Pr | null>;
+export const noPr: PrLookup = async () => null;
 
 export type OwnedPaths = Array<{ path: string; owners: Array<{ id: string }> }>;
 
 const cache = new Map<string, RowGit>();
+const PR_EVERY_MS = 60_000;
+const prCache = new Map<string, { at: number; by: PrLookup; pr: Promise<Pr | null> }>();
 const CACHE_MAX = 200;
 
 /** Session id to the paths it owns, from session.owners `paths`; a shared path counts for every owner. */
@@ -22,26 +28,71 @@ export async function ownedIn(db: DatabaseSync, cwds: Array<string | null>): Pro
   return ownedBy((await Promise.all([...repos].map((r) => ownersAsync(db, r)))).flat());
 }
 
-function git(cwd: string, args: string[]): Promise<string> {
+function run(cmd: string, cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve) => {
-    execFile('git', args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 5000, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }, (err, out) => resolve(err ? '' : out));
+    execFile(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 5000, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }, (err, out) => resolve(err ? '' : out));
   });
+}
+const git = (cwd: string, args: string[]) => run('git', cwd, args);
+
+/** One word for a statusCheckRollup: any failed check fails, all finished ok pass, else pending; no checks is null. */
+export function checksOf(rollup: Array<{ status?: string; conclusion?: string; state?: string }> | null | undefined): Pr['checks'] {
+  if (!rollup?.length) return null;
+  const word = (c: { status?: string; conclusion?: string; state?: string }) => String(c.conclusion || c.state || c.status || '').toUpperCase();
+  if (rollup.some((c) => ['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE'].includes(word(c)))) return 'fail';
+  return rollup.every((c) => ['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(word(c))) ? 'pass' : 'pending';
+}
+
+/** `gh pr view` for the branch; read-only, null when there is no PR or gh fails. */
+export const ghPr: PrLookup = async (top, branch) => {
+  try {
+    const p = JSON.parse(await run('gh', top, ['pr', 'view', branch, '--json', 'number,state,url,statusCheckRollup'])) as { number: number; state: string; url: string; statusCheckRollup?: Array<Record<string, string>> };
+    return { number: p.number, state: p.state, url: p.url, checks: checksOf(p.statusCheckRollup) };
+  } catch {
+    return null;
+  }
+};
+
+export type Issue = { number: number; title: string; labels: string[]; assignees: string[]; url: string };
+
+/** `gh issue list` of open issues for the repo at `cwd`; read-only, [] when gh fails. */
+export async function ghIssues(cwd: string): Promise<Issue[]> {
+  try {
+    const rows = JSON.parse(await run('gh', cwd, ['issue', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,labels,assignees,url'])) as Array<{ number: number; title: string; labels?: Array<{ name: string }>; assignees?: Array<{ login: string }>; url: string }>;
+    return rows.map((r) => ({ number: r.number, title: r.title, labels: (r.labels ?? []).map((l) => l.name), assignees: (r.assignees ?? []).map((a) => a.login), url: r.url }));
+  } catch {
+    return [];
+  }
 }
 
 /** Branch, lines added/removed against HEAD, and the uncommitted paths the session owns (`owned`, from session.owners); slow, so it runs on a timer, never per snapshot. */
-export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | null }>, owned: Record<string, string[]> = {}): Promise<boolean> {
+export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | null }>, owned: Record<string, string[]> = {}, prOf: PrLookup = noPr): Promise<boolean> {
   let changed = false;
+  const prs = new Map<string, Promise<Pr | null>>();
+  const reads = new Map<string, Promise<string[]>>();
   for (const s of sessions) {
     if (!s.cwd) continue;
-    const [branch, stat] = await Promise.all([git(s.cwd, ['rev-parse', '--abbrev-ref', 'HEAD']), git(s.cwd, ['diff', '--shortstat', 'HEAD'])]);
+    const cwd = s.cwd;
+    if (!reads.has(cwd)) reads.set(cwd, Promise.all([git(cwd, ['rev-parse', '--show-toplevel', '--abbrev-ref', 'HEAD']), git(cwd, ['rev-parse', '--short', 'HEAD']), git(cwd, ['diff', '--shortstat', 'HEAD'])]));
+    const [head, commit, stat] = await reads.get(cwd)!;
+    const [top = '', branch = ''] = head.trim().split(/\r?\n/);
+    const key = `${top}\n${branch}`;
+    if (top && branch && branch !== 'HEAD' && !prs.has(key)) {
+      const hit = prCache.get(key);
+      if (!hit || prOf !== hit.by || Date.now() - hit.at > PR_EVERY_MS) prCache.set(key, { at: Date.now(), by: prOf, pr: prOf(top, branch).catch(() => null) });
+      prs.set(key, prCache.get(key)!.pr);
+    }
     const next: RowGit = {
-      branch: branch.trim() || null,
+      root: top || null,
+      branch: branch || null,
       added: Number(/(\d+) insertion/.exec(stat)?.[1] ?? 0),
       deleted: Number(/(\d+) deletion/.exec(stat)?.[1] ?? 0),
       changed: owned[s.id] ?? [],
+      commit: commit.trim() || null,
+      pr: (await prs.get(key)) ?? null,
     };
     const prev = cache.get(s.id);
-    if (!prev || prev.branch !== next.branch || prev.added !== next.added || prev.deleted !== next.deleted || JSON.stringify(prev.changed) !== JSON.stringify(next.changed)) changed = true;
+    if (!prev || JSON.stringify(prev) !== JSON.stringify(next)) changed = true;
     cache.delete(s.id);
     cache.set(s.id, next);
   }
@@ -54,6 +105,7 @@ export async function refreshRowGit(sessions: Array<{ id: string; cwd: string | 
     changed = true;
   }
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
+  while (prCache.size > CACHE_MAX) prCache.delete(prCache.keys().next().value as string);
   return changed;
 }
 

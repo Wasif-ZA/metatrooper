@@ -50,6 +50,7 @@ function screen(Component: any, props: any = {}) {
     useSyncExternalStore: (_: any, get: any) => get(),
     useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}],
     useEffect: () => {},
+    useRef: (initial: any) => ({ current: initial }),
   };
   try { return Component(props); } finally { internals.H = previous; }
 }
@@ -75,23 +76,22 @@ beforeEach((t) => {
   addonsStore.set({ rows: [] });
 });
 
-test('9bbb9fc5 Home start box has no loose key chips and ends with Start carrying its shortcut tooltip', () => {
-  // Keep the shortcut on Start and Start last in the default composer controls.
-  const home = screen(Home);
-  const startBox = descendants(home).find(n => n?.type?.name === 'StartBox');
-  assert.ok(startBox);
+test('9bbb9fc5 Home composer has no loose key chips and its bar ends with Start carrying its shortcut tooltip', () => {
+  // Keep the shortcut on Start and Start last in the composer bar.
+  (g.ui as any).view = 'home'; (g.ui as any).homeSel = '';
+  const start = descendants(screen(Home)).find((n: any) => n?.type?.name === 'StartState');
+  assert.ok(start);
+  const startBox = start.props.composer;
+  assert.equal(startBox.type.name, 'StartBox');
   const box = screen(startBox.type, startBox.props);
   assert.equal(descendants(box).filter(n => n?.type === Kbd || n?.type === 'kbd' || hasClass(n, 'ou-composerhint')).length, 0);
-  const footer = oneClass(box, 'ou-composerfoot');
-  const controls = children(footer);
-  assert.deepEqual(controls.map(n => n.props.label), ['Agent', 'Options', 'Start']);
-  const start = controls[2];
-  assert.equal(start.type, Button);
-  assert.equal(start.props.tooltip ?? start.props.title, 'Start (Ctrl+Enter)');
-  assert.equal(start.props['data-action'], 'home-start');
+  const controls = children(oneClass(box, 'ou-hm-cbar'));
+  const last = controls[controls.length - 1];
+  assert.equal(last.props.label, 'Start');
+  assert.equal(last.props.tooltip ?? last.props.title, 'Start (Ctrl+Enter)');
+  assert.equal(last.props['data-action'], 'home-start');
   assert.equal(descendants(box).filter(n => n?.props?.label === 'Start').length, 1);
-  const css = readFileSync(join(wb, 'ui/src/ui.css'), 'utf8');
-  assert.match(css, /\.ou-composerfoot > :last-child\s*\{\s*margin-left: auto;\s*\}/);
+  assert.match(readFileSync(join(wb, 'ui/src/ui.css'), 'utf8'), /\.ou-hm-gap, \.ou-hm-cgap \{ flex: 1 1 auto; \}/);
 });
 
 test('32216b24 Add-ons Ready and Not ready use the same Badge component with their own labels', () => {

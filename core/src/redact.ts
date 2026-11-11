@@ -3,6 +3,8 @@ type Obj = Record<string, unknown>;
 const FILE_TOOLS = new Set(['Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const PATH_TOOLS = new Set(['Grep', 'Glob']);
+const PLAN_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'update_plan']);
+const STEP_STATUS = new Set(['pending', 'in_progress', 'completed', 'deleted']);
 
 function lengthOf(v: unknown): number {
   if (v === null || v === undefined) return 0;
@@ -45,9 +47,32 @@ function opencodeState(r: Obj): Obj {
   };
 }
 
+const stepText = (v: unknown) => (typeof v === 'string' ? redactCredentials(v).replace(/\s+/g, ' ').trim().slice(0, 200) : '');
+
+/** At most 30 `{text, status}` steps: text credential-scrubbed and capped at 200 characters, status from a fixed set (`done: true` reads as completed). */
+export function stepItems(v: unknown): Array<{ text: string; status: string }> {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, 30).map(asObject).map((t) => ({
+    text: stepText([t.text, t.content, t.step, t.subject].find((x) => typeof x === 'string')),
+    status: STEP_STATUS.has(t.status as string) ? (t.status as string) : t.done === true ? 'completed' : 'pending',
+  })).filter((t) => t.text);
+}
+
+/** A plan tool's input as its step items; TaskUpdate keeps only a 1-4 digit taskId, its status and its new subject. Applying it to its own output changes nothing. */
+function planInput(toolName: string, o: Obj): Obj {
+  if (toolName === 'TaskUpdate') {
+    const id = typeof o.taskId === 'number' || typeof o.taskId === 'string' ? String(o.taskId) : '';
+    const text = stepText(o.subject ?? o.text);
+    return { ...(/^\d{1,4}$/.test(id) ? { taskId: id } : {}), ...(STEP_STATUS.has(o.status as string) ? { status: o.status } : {}), ...(text ? { text } : {}) };
+  }
+  const list = Array.isArray(o.items) ? o.items : toolName === 'TaskCreate' ? [o] : toolName === 'TodoWrite' ? o.todos : o.plan;
+  return { items: stepItems(list) };
+}
+
 /** Redacts a Claude tool_input per the table in contracts/events-and-hooks.md. */
 export function redactToolInput(toolName: string, input: unknown): Obj {
   const o = asObject(input);
+  if (PLAN_TOOLS.has(toolName)) return planInput(toolName, o);
   if (SHELL_TOOLS.has(toolName)) {
     const cmd = typeof o.command === 'string' ? o.command : '';
     const words = cmd.trim().split(/\s+/).filter((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
@@ -92,9 +117,13 @@ export function buildPayload(kind: string, raw: object): Obj {
     case 'claude.PreToolUse':
     case 'claude.PermissionRequest':
     case 'claude.PostToolUseFailure':
+    case 'codex.PreToolUse':
+    case 'codex.PostToolUse':
       return tool();
     case 'claude.PostToolUse':
       return { ...tool(), response_length: lengthOf(r.tool_response) };
+    case 'core.steps':
+      return { items: stepItems(r.items) };
     case 'claude.UserPromptSubmit':
       return { ...strings(r, ['session_id', 'transcript_path', 'cwd']), prompt_length: lengthOf(r.prompt) };
     case 'claude.Notification': {
@@ -149,6 +178,7 @@ function redactedToolInput(toolName: string, input: unknown): Obj {
   const o = asObject(input);
   const s = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  if (PLAN_TOOLS.has(toolName)) return planInput(toolName, o);
   if (SHELL_TOOLS.has(toolName)) return { first_word: s(o.first_word, 200).split(/\s/)[0], length: n(o.length) };
   if (FILE_TOOLS.has(toolName)) return typeof o.file_path === 'string' ? { file_path: s(o.file_path, 4096) } : {};
   if (PATH_TOOLS.has(toolName)) return typeof o.path === 'string' ? { path: s(o.path, 4096) } : {};

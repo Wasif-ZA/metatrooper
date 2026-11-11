@@ -47,6 +47,8 @@ hook timeout is far longer); the budget exists so nothing the user sees slows do
 | `claude.SessionEnd` | claude-hook | `session_id`, `cwd`, `reason` |
 | `codex.turn` | codex-notify | `type`, `thread-id`, `turn-id`, `cwd`, `input_length`, `reply_length` |
 | `codex.SessionStart`, `codex.PermissionRequest`, `codex.Stop`, `codex.Interrupt` | codex-hook | `session_id`, `transcript_path`, `cwd`, `tool_name`, `notification_type`, `source` (whichever the hook input has). No prompt, reply or tool input is stored |
+| `codex.PreToolUse`, `codex.PostToolUse` | codex-hook | as `claude.PreToolUse`: `tool_input` redacted by the table below |
+| `core.steps` | core (the `ouros-steps` MCP server, `steps_set`) | `items`: at most 30 `{text, status}`, text capped at 200 characters with credentials replaced. The processor replaces `session_step` with it |
 | `gemini.SessionStart`, `gemini.BeforeAgent`, `gemini.AfterTool`, `gemini.Notification`, `gemini.AfterAgent` | gemini-hook | as the Codex hook kinds |
 | `term.bell` | core | `{}` (terminal bell, used only when the session has been silent 30 s) |
 | `term.output` | core | `{}` (first output after a counted bell) |
@@ -79,6 +81,8 @@ redacted before the insert:
 | `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | `{"file_path": str}` only |
 | `Grep`, `Glob` | `{"path": str}` only |
 | `WebFetch` | `{"host": str}`: the URL's host only |
+| `TodoWrite`, `TaskCreate`, Codex `update_plan` | `{"items": [{"text": str, "status": str}]}`: at most 30, text capped at 200 characters with credentials replaced, status one of pending, in_progress, completed, deleted. Written into `session_step` |
+| `TaskUpdate` | `{"taskId": str, "status": str, "text": str}`, each only when valid: taskId 1 to 4 digits, text from `subject` |
 | anything else, including MCP tools | a flat object mapping each input key to the length of its value, e.g. `{"query": 14, "count": 4}` (strings by character count, anything else by the length of its JSON) |
 
 This is what lets test M1-05 (a marker string typed into a session appears nowhere in MetaTrooper) pass.

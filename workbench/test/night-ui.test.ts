@@ -103,38 +103,9 @@ function twoAgents() {
   g.ui.snap.sessions = [session('a', 'working', { engine_id: 'claude' }), session('b', 'working', { engine_id: 'codex' })];
 }
 
-test('night-05 Home Changed files lists each path with its agent, at most 8 rows', () => {
-  twoAgents();
-  const h = harness(Home); h.draw();
-  assert.deepEqual(h.all(isFileRow).map(rowText), [['a0.ts', 'claude'], ['a1.ts', 'claude'], ['a2.ts', 'claude'], ['a3.ts', 'claude'], ['a4.ts', 'claude'], ['b0.ts', 'codex'], ['b1.ts', 'codex'], ['b2.ts', 'codex']]);
-  assert.match(h.html(), /<h2>Changed files<\/h2>/);
-});
 
-test('night-05 Home with no changed file says No agent has changed a file yet.', () => {
-  g.ui.snap.sessions = [session('a', 'working')];
-  const h = harness(Home); const html = h.html();
-  assert.match(html, /<p class="ou-empty">No agent has changed a file yet\.<\/p>/);
-  assert.equal(h.all(isFileRow).length, 0);
-});
 
-test('night-05 clicking a Changed files row opens the IDE view, then that file', async () => {
-  twoAgents();
-  const h = harness(Home); h.draw();
-  const row = h.all(isFileRow).find((n: any) => rowText(n)[0] === 'b1.ts');
-  await row.props.onClick();
-  assert.deepEqual(calls, [['view', 'ide'], ['ide.open', 'b1.ts']]);
-  assert.equal(row.props.role, 'button'); assert.equal(row.props.tabIndex, 0);
-});
 
-test('night-05 Home html puts Agents before the tiles and Changed files after them', () => {
-  twoAgents();
-  const html = harness(Home).html();
-  const at = (s: string) => html.indexOf(s);
-  assert.ok(at('<h2>Agents</h2>') >= 0);
-  assert.ok(at('<h2>Agents</h2>') < at('ou-tiles'));
-  assert.ok(at('ou-tiles') < at('<h2>Changed files</h2>'));
-  assert.ok(at('ou-cards') < at('ou-tiles'));
-});
 
 // The real click dispatcher from app.js, driven with the data attributes the screens render.
 function clickWith(el: any, hidden = { hidden: true }) {
@@ -146,19 +117,6 @@ function clickWith(el: any, hidden = { hidden: true }) {
 }
 const asEl = (props: any) => ({ tagName: 'DIV', dataset: { action: props['data-action'], view: props['data-view'] }, closest: () => null });
 
-test('night-06 Home approval row and Review button open Needs you', async () => {
-  g.ui.snap.approvals = [{ id: 'ap' }];
-  const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.type === 'li' && n.props.className === 'ou-irow ou-unread');
-  const review = h.one(label('Review'));
-  for (const props of [row.props, review.props]) {
-    assert.equal(props['data-action'], 'view'); assert.equal(props['data-view'], 'inbox');
-  }
-  g.ui.view = 'home'; await clickWith(asEl(row.props));
-  assert.equal(g.ui.view, 'inbox');
-  g.ui.view = 'home'; await clickWith(asEl(review.props));
-  assert.equal(g.ui.view, 'inbox');
-});
 
 test('night-06 action inbox switches to Needs you and leaves the old popover hidden', async () => {
   const popover = { hidden: true };

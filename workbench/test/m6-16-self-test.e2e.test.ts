@@ -55,7 +55,7 @@ test('M6-16a-f a scripted agent drives a --demo workbench through metatrooper-de
   }, 1000);
 
   const demo: ChildProcess = spawn(electron, [workbench, '--demo'], {
-    env: { ...process.env, METATROOPER_HOME: sentinel, METATROOPER_PIPE_PREFIX: `troop-test-${randomUUID().replaceAll('-', '')}`, DEMO_AGENT_LOG: agentLog },
+    env: { ...process.env, METATROOPER_HOME: sentinel, METATROOPER_PIPE_PREFIX: `troop-test-${randomUUID().replaceAll('-', '')}`, DEMO_AGENT_LOG: agentLog, METATROOPER_DEMO_FIXTURE_AGENTS: '1' },
     stdio: 'ignore',
   });
   const prefix = `metatrooper-demo-${demo.pid}`;
