@@ -17,6 +17,7 @@ const LOOP_CHOICES = [['pause', 'Pause'], ['try-another-way', 'Try another way']
 const PRIORITIES = [['none', 'No priority'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']];
 const RANK = { none: 0, low: 1, medium: 2, high: 3, urgent: 4 };
 const DONE_STATES = ['done', 'exited', 'idle'];
+const NOTICE_WORD = { done: 'Finished', failed: 'Failed', handoff: 'Handed back', uncommitted: 'Uncommitted changes', question: 'Question' };
 
 gsap.registerPlugin(Flip, useGSAP);
 let calm = true;
@@ -122,25 +123,14 @@ function Swap({ k, children }) {
 function Slide({ open, children }) {
   const ref = useRef(null);
   const first = useRef(true);
-  const kept = useRef(children);
-  const [closing, setClosing] = useState(false);
-  if (open) kept.current = children;
   useLayoutEffect(() => {
     if (first.current) { first.current = false; return; }
     const el = ref.current;
-    if (!el || !motionOn()) { setClosing(false); return; }
-    if (open) {
-      const tl = gsap.timeline();
-      tl.fromTo(el, { width: 0 }, { width: 264, duration: 0.25, ease: 'power2.out', clearProps: 'width' });
-      tl.fromTo(el.children, { opacity: 0 }, { opacity: 1, duration: 0.15, clearProps: 'opacity' }, '-=0.08');
-    } else {
-      setClosing(true);
-      gsap.to(el, { width: 0, duration: 0.25, ease: 'power2.inOut', onComplete: () => setClosing(false) });
-    }
+    if (!el || !motionOn()) return;
+    gsap.fromTo(el, { width: open ? 0 : 280 }, { width: open ? 280 : 0, duration: 0.25, ease: open ? 'power2.out' : 'power2.inOut', overwrite: true, clearProps: 'width' });
+    if (open) gsap.fromTo(el.children, { opacity: 0 }, { opacity: 1, duration: 0.15, delay: 0.1, overwrite: true, clearProps: 'opacity' });
   }, [open]);
-  const shown = open ? children : closing ? kept.current : null;
-  if (!shown) return null;
-  return <aside className="ou-ny-props" ref={ref}>{shown}</aside>;
+  return <aside className="ou-ny-props" ref={ref} data-open={open ? 'true' : 'false'} inert={!open}>{children}</aside>;
 }
 
 function Bar({ done, total }) {
@@ -325,7 +315,7 @@ function DetailNotice({ n }) {
   const time = ago(n.at);
   return (
     <div className="ou-ny-entry ou-ipane-notice">
-      <div className="ou-ny-entry-head"><span className="ou-ny-entry-who">{n.kind}</span>{time ? <span className="ou-ny-muted">{time}</span> : null}</div>
+      <div className="ou-ny-entry-head"><span className="ou-ny-entry-who">{NOTICE_WORD[n.kind] || 'Notice'}</span>{time ? <span className="ou-ny-muted">{time}</span> : null}</div>
       <div className="ou-ny-entry-body ou-ipane-noticetext">{n.text}</div>
       <div className="ou-ny-entry-acts">
         {((n.kind === 'done' || n.kind === 'failed') && n.ref) || n.kind === 'uncommitted' ? <Button size="sm" variant="ghost" label="Open" onClick={() => openNotice(n)} /> : null}
@@ -639,7 +629,7 @@ export function Inbox() {
           <span>{subActive} in progress</span>
           <span>{subBlocked} blocked</span>
         </div>
-        <Bar done={subDone} total={children.length} />
+        <Bar key={sessionObj.id} done={subDone} total={children.length} />
       </div>
       <div className="ou-ny-sub-tools">
         <Button size="sm" icon={I.plus} label="New sub-task" isDisabled={!sessionObj} onClick={() => setSubDraft('')} />
