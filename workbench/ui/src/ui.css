@@ -771,3 +771,34 @@ html { font-size: 16px; }
 .ou-hm-spin { color: var(--wait); }
 @media (max-width: 1100px) { .ou-home.ou-hm { grid-template-columns: minmax(0, 1fr); } .ou-hm-rail { position: static; padding: 0 32px 24px; } .ou-hm-split { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .ou-hm-chevbox { transition: none; } }
+
+/* Automation editor: name, prompt with engine and project, labels, frequency presets, cron preview, advanced check script. */
+.ou-ae { display: flex; flex-direction: column; gap: 12px; padding: 0 20px 20px; font-size: 13px; --radius-container: 6px; --radius-element: 6px; --radius-inner: 6px; }
+.ou-ae-row { display: flex; align-items: center; gap: 8px; }
+.ou-ae-label { font-size: 13px; color: var(--body); margin: 4px 0 -4px; white-space: nowrap; }
+.ou-ae-row .ou-ae-label { margin: 0; }
+.ou-ae-emoji { position: relative; flex: none; }
+.ou-ae-emojibtn { width: 36px; height: 32px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-soft); font-size: 16px; cursor: pointer; }
+.ou-ae-emojis { position: absolute; top: 36px; left: 0; z-index: 5; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--canvas-soft); }
+.ou-ae-emojis button { width: 32px; height: 32px; border: 0; border-radius: 6px; background: none; font-size: 16px; cursor: pointer; }
+.ou-ae-emojis button:hover, .ou-ae-emojis button[aria-selected="true"] { background: var(--canvas-deep); }
+.ou-ae-prompt { border: 1px solid var(--hairline); border-radius: 10px; background: var(--canvas-soft); }
+.ou-ae-prompt textarea { min-height: 96px; }
+.ou-ae-pfoot { display: flex; align-items: center; gap: 12px; padding: 4px 8px 8px; }
+.ou-ae-engine { display: inline-flex; align-items: center; gap: 2px; color: var(--body); }
+.ou-ae-lab { cursor: pointer; background: none; }
+.ou-ae-lab.ou-on { color: var(--ink); border-color: var(--hairline-strong); background: var(--canvas-soft); }
+.ou-ae-freq { margin-top: 8px; }
+.ou-ae-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--canvas-soft); }
+.ou-ae-seg button { height: 28px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--mute); font-size: 13px; cursor: pointer; }
+.ou-ae-seg button[aria-checked="true"] { color: var(--ink); border-color: var(--hairline-strong); background: var(--canvas-deep); }
+.ou-ae-when { min-height: 32px; }
+.ou-ae-time { height: 28px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas-soft); color: var(--ink); font: inherit; color-scheme: dark; }
+.ou-ae-preview { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-left: 2px solid var(--st-ok); background: var(--canvas-soft); border-radius: 0 6px 6px 0; color: var(--body); }
+.ou-ae-preview[data-valid="false"] { border-left-color: var(--st-bad); }
+.ou-ae-preview b { color: var(--ink); font-weight: 600; }
+.ou-ae-cron { font-family: var(--mono); font-size: 12px; color: var(--mute); }
+.ou-ae-adv { display: flex; flex-direction: column; gap: 8px; }
+.ou-ae-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.ou-hm-autoname.ou-hm-link { color: var(--ink); font-weight: 500; }
+.ou-home [aria-label="New automation"] h2, .ou-home [aria-label="Edit automation"] h2, [aria-label="New automation"] h2, [aria-label="Edit automation"] h2 { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
