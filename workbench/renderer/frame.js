@@ -105,7 +105,7 @@ globalThis.frameView = (() => {
     return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
   };
   const rowDot = (x) => (x.state === 'waiting_for_you' ? 'wait' : x.state === 'working' || x.state === 'starting' ? 'work' : x.outcome === 'failed' ? 'fail' : x.state === 'unknown' ? 'idle' : 'done');
-  const mark = (id) => (globalThis.engineMarkSvg ? globalThis.engineMarkSvg(id, 14) : `<span class="fmono">${esc(String(id || '').slice(0, 2).toUpperCase())}</span>`);
+  const mark = (id) => (globalThis.engineMarkSvg ? globalThis.engineMarkSvg(id, 16) : `<span class="fmono">${esc(String(id || '').slice(0, 2).toUpperCase())}</span>`);
   const I = (name, size = 16) => globalThis.ourosIcon?.(name, size) || '';
 
   const STATUS_LABEL = { wait: 'Waiting for you', work: 'Working', fail: 'Failed', done: 'Done', idle: 'Idle' };
@@ -130,7 +130,7 @@ globalThis.frameView = (() => {
 
   function ringOf(dot, done, total, title) {
     if (!globalThis.progressRingSvg) return statusHtml(dot);
-    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 14, title })}</span>`;
+    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 12, title })}</span>`;
   }
 
   function agentHtml(x, depth, rows = {}) {
@@ -144,7 +144,7 @@ globalThis.frameView = (() => {
 
   function treeHtml(groups, rows) {
     if (!groups.length) return '<p class="fempty">No agents running</p>';
-    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${projIcon(g.project_id)}</span><span class="fl">${esc(g.name)}</span></button>`
+    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${projIcon(g.project_id, 18)}</span><span class="fl">${esc(g.name)}</span></button>`
       + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${ringOf(wt.state, wt.settled, wt.total, `${STATUS_LABEL[wt.state]}, ${wt.settled} of ${wt.total} settled`)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
         + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth, rows)).join('') + '</div>').join('')).join('');
   }
@@ -293,7 +293,7 @@ globalThis.frameView = (() => {
         ? `<label class="flabel">Letters <input class="fletters" maxlength="2" value="${esc(st.text)}" aria-label="Letters"></label>${swatches()}`
         : st.tab === 'emoji'
           ? `<div class="fgrid">${PROJECT_EMOJIS.map((e) => `<button class="fcell${st.emoji === e ? ' on' : ''}" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('')}</div>`
-          : `<div class="fgrid">${names.map((n) => `<button class="fcell${st.name === n ? ' on' : ''}" data-icon-name="${n}" title="${n}" aria-label="${n}" style="color:${colours[st.colour]}">${I(n, 16)}</button>`).join('')}</div>${swatches()}`;
+          : `<div class="fgrid">${names.map((n) => `<button class="fcell${st.name === n ? ' on' : ''}" data-icon-name="${n}" title="${n}" aria-label="${n}"${st.name === n ? ` style="color:${colours[st.colour]}"` : ''}>${I(n, 16)}</button>`).join('')}</div>${swatches()}`;
       box.innerHTML = `<div class="fghhead"><span>Change icon</span><span class="fprev">${globalThis.projectIconHtml?.(preview(), 20) ?? ''}</span></div>`
         + `<div class="ftabs" role="tablist">${['monogram', 'emoji', 'icon'].map((t) => `<button role="tab" aria-selected="${st.tab === t}" data-tab="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>`
         + `<div class="fpickbody">${body}</div><div class="fpickfoot"><button data-act="reset">Reset</button><span class="sp"></span><button data-act="cancel">Cancel</button><button class="fprimary" data-act="save">Save</button></div>`;
@@ -329,7 +329,7 @@ globalThis.frameView = (() => {
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
       sec.classList.add('fprojects');
-      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 14)}<span class="fpill fghn" id="frameGhCount" hidden></span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 14)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 14)}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('plus', 14)}</button>`;
+      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 16)}</button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 16)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 16)}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('plus', 16)}</button>`;
       document.getElementById('frameGh').addEventListener('click', githubPanel);
       document.getElementById('frameDone').addEventListener('click', (e) => {
         view.done = !view.done;

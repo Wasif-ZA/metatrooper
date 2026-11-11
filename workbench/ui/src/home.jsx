@@ -52,24 +52,24 @@ function Swap({ k, children }) {
   return <div className="ou-hm-swap"><div ref={ref}>{children}</div></div>;
 }
 
-const chev = <ChevronRight size={12} className="ou-hm-chev" />;
-const branchIcon = <Branch size={12} />;
-const commitIcon = <Commit size={12} />;
-const filesIcon = <Changes size={12} />;
-const prIcon = <PullRequest size={12} />;
+const chev = <ChevronRight size={16} className="ou-hm-chev" />;
+const branchIcon = <Branch size={16} />;
+const commitIcon = <Commit size={16} />;
+const filesIcon = <Changes size={16} />;
+const prIcon = <PullRequest size={16} />;
 
 const projectOf = (x) => (ui.snap?.projects || []).find((p) => p.id === (x?.project_id || ui.projectId)) || null;
 const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
 
-const attachIcon = <Attach size={14} />;
-const slidersIcon = <Options size={14} />;
+const attachIcon = <Attach size={16} />;
+const slidersIcon = <Options size={16} />;
 const sendIcon = <Send size={14} />;
-const hostIcon = <Workspace size={14} />;
-const editorIcon = <OpenOnWall size={14} />;
-const folderSmall = <Project size={14} />;
-const shieldSmall = <Approval size={14} />;
+const hostIcon = <Workspace size={16} />;
+const editorIcon = <OpenOnWall size={16} />;
+const folderSmall = <Project size={16} />;
+const shieldSmall = <Approval size={16} />;
 const circle = <StepOpen size={14} className="ou-hm-cbox" />;
 const circleDone = <Done size={14} className="ou-hm-cbox ou-hm-cdone" />;
 
@@ -196,10 +196,11 @@ const press = (fn) => ({
 });
 
 function Avatar({ k, status = true }) {
+  if (!status) return <span className="ou-hm-av" aria-hidden="true"><EngineMark id={k.engine_id} size={14} title={k.engine_id} /></span>;
   return (
-    <span className={`ou-hm-av${status ? ' ou-hm-ringed' : ''}`} aria-hidden="true">
-      {status ? <Ring k={k} size={26} className="ou-hm-avring" /> : null}
-      <EngineMark id={k.engine_id} size={status ? 12 : 14} title={k.engine_id} />
+    <span className="ou-hm-mark" aria-hidden="true">
+      <Ring k={k} size={12} />
+      <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
     </span>
   );
 }
@@ -280,11 +281,10 @@ function TaskView({ x, kids, openList, toggle }) {
   };
   return (
     <article className="ou-hm-taskview" data-id={x.id} data-state={x.state}>
+      <h1 className="ou-hm-tasktitle">{nameOf(x)}</h1>
       <nav className="ou-hm-crumb" aria-label="Task">
         <span className="ou-hm-crumbproj">{proj}</span>
-        <span className="ou-hm-crumbsep">/</span>
-        <span className="ou-hm-crumbtitle">{nameOf(x)}</span>
-        {branch ? <span className="ou-hm-crumbbranch">{branchIcon}{branch}</span> : null}
+        {branch ? <><span className="ou-hm-crumbsep">/</span><span className="ou-hm-crumbbranch">{branchIcon}{branch}</span></> : null}
       </nav>
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>

@@ -220,7 +220,7 @@ test('60704072 Needs you has exactly one empty message, in the list, and none in
   assert.equal((renderToStaticMarkup(tree).match(/Nothing is waiting on you\./g) || []).length, 1);
 });
 
-test('1720c8e3 Home task view reads the project, then the task title, in its breadcrumb', (t) => {
+test('1720c8e3 Home task view reads the task title as its heading, then the project in its breadcrumb', (t) => {
   // Render the real Home task view for one working session and check its breadcrumb.
   g.ui.pendingHide = new Set();
   g.ui.snap.sessions = [{ id: 'a', project_id: 'p1', engine_id: 'codex', state: 'working', task: 'Review changes' }];
@@ -232,7 +232,7 @@ test('1720c8e3 Home task view reads the project, then the task title, in its bre
   const views = descendants(screen(Home)).filter(n => n?.type?.name === 'TaskView');
   assert.equal(views.length, 1);
   const html = renderToStaticMarkup(views[0]);
-  assert.match(html, /<span class="ou-hm-crumbproj">Test project<\/span><span class="ou-hm-crumbsep">\/<\/span><span class="ou-hm-crumbtitle">Review changes<\/span>/);
+  assert.match(html, /<h1 class="ou-hm-tasktitle">Review changes<\/h1><nav class="ou-hm-crumb" aria-label="Task"><span class="ou-hm-crumbproj">Test project<\/span>/);
 });
 
 test('e016fa92 Add-ons Check again renders as ghost and retains check-engines action', () => {

@@ -4,8 +4,8 @@ export const SHAPES = {
   home: '<path d="M2.5 7 8 2.5 13.5 7v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><path d="M6.5 13.5v-4h3v4"/>',
   code: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/>',
   wall: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M8 2.5v11M2.5 8h11"/>',
-  inbox: '<path d="M2.5 9.5 4.25 3.5h7.5l1.75 6v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z"/><path d="M2.5 9.5h3l1 1.5h3l1-1.5h3"/>',
-  calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3M8 8.5v2l1.25 1"/>',
+  inbox: '<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 9h3l1 1.5h3l1-1.5h3"/>',
+  calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 7h11M5.5 2v3M10.5 2v3"/>',
   search: '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>',
   filter: '<path d="M2.5 4h11M4.5 8h7M6.5 12h3"/>',
   folder: '<path d="M2.5 4.5a1 1 0 0 1 1-1h3l1.5 2h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-7.5z"/>',
@@ -77,8 +77,7 @@ export function projectIconHtml(icon, size = 14) {
   if (icon?.kind === 'icon' && SHAPES[icon.name]) return `<span class="picon" style="color:${PROJECT_COLOURS[icon.colour] ?? 'currentColor'};display:inline-flex">${iconSvg(icon.name, s)}</span>`;
   if (icon?.kind === 'monogram') {
     const c = PROJECT_COLOURS[icon.colour] ?? PROJECT_COLOURS.gray;
-    const one = Array.from(icon.text).length === 1;
-    return `<svg class="picon" width="${s}" height="${s}" viewBox="0 0 16 16" aria-hidden="true" style="color:${c};border-radius:4px;background:color-mix(in srgb, currentColor 16%, transparent)"><text x="8" y="10.8" text-anchor="middle" fill="currentColor" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.25" font-weight="700" textLength="${one ? 6 : 12}" lengthAdjust="spacingAndGlyphs">${esc(icon.text)}</text></svg>`;
+    return `<span class="picon pmono" aria-hidden="true" style="width:${s}px;height:${s}px;border-radius:4px;background:${c};color:#fff;font:600 ${Math.round(s * 0.5)}px/${s}px 'Geist', 'Segoe UI', system-ui, sans-serif;text-align:center;letter-spacing:0">${esc(icon.text)}</span>`;
   }
   return iconSvg('folder', s);
 }
@@ -93,26 +92,31 @@ export function iconSvg(name, size = 16, title = '') {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 16 16" ${ATTRS} ${title ? `role="img" aria-label="${esc(title)}"` : 'aria-hidden="true"'} focusable="false">${title ? `<title>${esc(title)}</title>` : ''}${inner}</svg>`;
 }
 
+// One status palette with Home (.ou-hm --hm-*): working yellow, waiting orange, done green, failed red.
+export const STATUS_COLOURS = { working: 'var(--hm-working, #e3b341)', waiting: 'var(--hm-waiting, var(--wait, #f97316))', done: 'var(--hm-done, #3fb950)', failed: 'var(--hm-failed, #f0524f)' };
+
 /**
- * A 14 px progress ring: arc = done/total; state picks the colour and ending (done = full ring with a check, failed = ring
- * with an x); working with no total = a short arc the stylesheet spins (`.ouros-ring-spin`, off for reduced motion).
+ * A progress ring (1.5 stroke): arc = done/total; state picks the colour and ending (done = full ring with a check, failed =
+ * ring with an x, waiting with no total = full ring); working with no total = a still quarter arc.
  */
 export function progressRingSvg({ state, done = 0, total = 0, size = 14, title = '' }) {
-  const colour = { working: '#eab308', waiting: '#f97316', done: '#10b981', failed: '#ef4444' }[state] ?? 'currentColor';
+  const colour = STATUS_COLOURS[state] ?? 'currentColor';
   const pct = total > 0 ? Math.max(0, Math.min(100, (done / total) * 100)) : 0;
   const track = '<circle cx="7" cy="7" r="5.25" stroke="currentColor" stroke-opacity=".22"/>';
-  const ring = (dash, cls = '') => `<circle${cls} cx="7" cy="7" r="5.25" stroke="${colour}" pathLength="100" stroke-dasharray="${dash} 100" transform="rotate(-90 7 7)"/>`;
+  const paint = `style="stroke:${colour}"`;
+  const ring = (dash) => `<circle cx="7" cy="7" r="5.25" ${paint} pathLength="100" stroke-dasharray="${dash} 100" transform="rotate(-90 7 7)"/>`;
   let body;
-  if (state === 'done') body = `${ring(100)}<path d="m4.75 7.1 1.5 1.5 3-3" stroke="${colour}"/>`;
-  else if (state === 'failed') body = `${ring(100)}<path d="m5.25 5.25 3.5 3.5m0-3.5-3.5 3.5" stroke="${colour}"/>`;
+  if (state === 'done') body = `${ring(100)}<path d="m4.75 7.1 1.5 1.5 3-3" ${paint}/>`;
+  else if (state === 'failed') body = `${ring(100)}<path d="m5.25 5.25 3.5 3.5m0-3.5-3.5 3.5" ${paint}/>`;
   else if (total > 0) body = track + (pct > 0 ? ring(pct) : '');
   else if (state === 'waiting') body = ring(100);
-  else body = track + ring(25, ' class="ouros-ring-spin"');
+  else body = track + ring(25);
   const label = title || `${state}${total > 0 ? `, ${done} of ${total}` : ''}`;
-  return `<svg class="ouros-ring" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${body}</svg>`;
+  return `<svg class="ouros-ring" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 14 14" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${body}</svg>`;
 }
 
 globalThis.ourosIcon = iconSvg;
 globalThis.progressRingSvg = progressRingSvg;
+globalThis.statusColours = STATUS_COLOURS;
 globalThis.projectIconHtml = projectIconHtml;
 globalThis.projectIconChoices = { PROJECT_COLOURS, PICK_ICONS };
