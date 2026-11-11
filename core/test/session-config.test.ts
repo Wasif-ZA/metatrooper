@@ -189,14 +189,17 @@ test('Codex gets MCP servers and the notify wrapper as -c overrides and config.t
   assert.deepEqual(hooked.filter((a) => a !== '-c').map((a) => a.split('=')[0]), ['hooks.Stop']);
   const db = openCoreDb();
   try {
-    assert.deepEqual(mcpAttachArgs(db, codex, 'C1', true), []);
+    const steps = mcpAttachArgs(db, codex, 'C2');
+    assert.equal(steps.length, 4);
+    assert.match(steps[1], /^mcp_servers\.ouros-steps\.command=".+"$/);
+    assert.match(steps[3], /^mcp_servers\.ouros-steps\.args=\[".+mcp-shim\.js","steps"\]$/);
+    assert.deepEqual(mcpAttachArgs(db, codex, 'C1', true), steps);
     fs.writeFileSync(config, '');
-    assert.deepEqual(mcpAttachArgs(db, codex, 'C2'), []);
-    assert.deepEqual(mcpAttachArgs(db, claude, 'K1'), []);
+    assert.deepEqual(mcpAttachArgs(db, claude, 'K1').slice(1), ['--allowedTools=mcp__ouros-steps__steps_set']);
     const args = mcpAttachArgs(db, codex, 'C2', true);
-    assert.equal(args.length, 4);
-    assert.match(args[1], /^mcp_servers\.metatrooper-browser\.command=".+"$/);
-    assert.match(args[3], /^mcp_servers\.metatrooper-browser\.args=\[".+metatrooper-browser\.js"\]$/);
+    assert.equal(args.length, 8);
+    assert.match(args[5], /^mcp_servers\.metatrooper-browser\.command=".+"$/);
+    assert.match(args[7], /^mcp_servers\.metatrooper-browser\.args=\[".+metatrooper-browser\.js"\]$/);
   } finally {
     db.close();
   }

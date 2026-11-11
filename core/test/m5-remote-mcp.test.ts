@@ -129,7 +129,7 @@ test('M5-12e pipeline step excludes http servers whose omitted writes means exte
   }
 });
 
-test('M5-12f STDIO external writer attaches only under ask approval', () => {
+test('M5-12f STDIO external writer attaches only under ask approval; ouros-steps always, except isolated', () => {
   const dir = mkdtempSync(join(tmpdir(), 'm5-remote-mcp-stdio-'));
   const db = new DatabaseSync(join(dir, 'troop.db'));
   const oldHome = process.env.METATROOPER_HOME;
@@ -140,11 +140,15 @@ test('M5-12f STDIO external writer attaches only under ask approval', () => {
     fixture(db, id, manifest(id, [{ id: 'writer', transport: 'stdio', command: 'node', args: ['writer.js'], writes: 'external', engines: ['claude'] }]));
     const server = { id: 'writer', transport: 'stdio', command: 'node', args: ['writer.js'], writes: 'external', engines: ['claude'] };
     const claude = engine('claude', 'claude-mcp-config-flag') as never;
-    for (const approval of ['contained', 'isolated']) {
-      assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval }), []);
-      assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { approval }), []);
+    const flags = ['--mcp-config=' + join(dir, 'mcp', 'test-session.json').replaceAll('\\', '/'), '--allowedTools=mcp__ouros-steps__steps_set'];
+    const attached = () => Object.keys(JSON.parse(readFileSync(join(dir, 'mcp', 'test-session.json'), 'utf8')).mcpServers);
+    for (const ctx of [{ pipelineStep: true, approval: 'isolated' }, { approval: 'isolated' }]) assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), []);
+    for (const ctx of [{ pipelineStep: true, approval: 'contained' }, { approval: 'contained' }]) {
+      assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, ctx), flags);
+      assert.deepEqual(attached(), ['ouros-steps']);
     }
-    assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval: 'ask' }), ['--mcp-config=' + join(dir, 'mcp', 'test-session.json').replaceAll('\\', '/')]);
+    assert.deepEqual(mcpAttachArgs(db, claude, 'test-session', false, { pipelineStep: true, approval: 'ask' }), flags);
+    assert.deepEqual(attached(), ['ouros-steps', 'stdio-writer-writer']);
   } finally {
     db.close();
     if (oldHome === undefined) delete process.env.METATROOPER_HOME; else process.env.METATROOPER_HOME = oldHome;
