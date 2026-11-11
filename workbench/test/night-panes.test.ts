@@ -102,6 +102,7 @@ function harness(Screen: any) {
 }
 const hasClass = (c: string) => (n: any) => typeof n.props.className === 'string' && n.props.className.split(' ').includes(c);
 const label = (s: string) => (n: any) => n.props.label === s;
+const answerField = (n: any) => n.props.label === 'Answer' && 'value' in n.props;
 const text = (n: any): string => n == null || typeof n === 'boolean' ? '' : Array.isArray(n) ? n.map(text).join('') : React.isValidElement(n) ? text(n.props.children) : String(n);
 const row = (id: string) => (n: any) => n.type === 'li' && n.props['data-id'] === id;
 const event = (extra: any = {}) => ({ key: '', ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, preventDefault() {}, stopPropagation() {}, target: { closest: () => null }, currentTarget: { focus() {} }, ...extra });
@@ -125,7 +126,7 @@ beforeEach(() => {
     taskOf: (s: any) => s.title, ago: () => '1m ago', approvalCard: () => '', changedFiles: () => [], STATE_WORDS: {}, STATE_ORDER: [],
     document: { getElementById: () => ({ hidden: false, focus() {}, select() {} }) },
   });
-  inboxStore.set({ filter: 'all', selectedId: null });
+  inboxStore.set({ filter: 'all', selectedId: null, collapsed: [] });
 });
 function asks() { g.ui.snap.live = [session('s-a', 'Which branch for alpha?'), session('s-b', 'Which branch for beta?')]; }
 
@@ -170,34 +171,33 @@ test('ad63319c Enter on a selected notice opens its referenced session on the Wa
   assert.deepEqual(calls.filter(c => c[0] === 'pick'), [['pick', 's-a']]);
 });
 
-test('ad63319c preview reads the selected session with a literal 20-line request', async () => {
+const reads = (list: any[]) => list.filter(c => c[1] === 'session.read');
+
+test('ad63319c preview reads the selected session with a literal 200-line request', async () => {
   asks(); inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw(); await flush();
-  assert.deepEqual(calls, [['rpc', 'session.read', { session_id: 's-b', lines: 20 }, true]]);
+  assert.deepEqual(reads(calls), [['rpc', 'session.read', { session_id: 's-b', lines: 200 }, true]]);
   h.html(); assert.equal(text(h.one(hasClass('ou-ipane-pre'))), 'synthetic terminal');
 });
 
-test('ad63319c preview requests 20 lines and displays the returned lines in order', async () => {
+test('ad63319c preview shows the last 20 returned lines in order', async () => {
   asks(); inboxStore.set({ selectedId: 's-b' });
   g.rpc = async (method: string, payload: any) => {
     calls.push(['rpc', method, payload]);
-    return { result: { lines: ['line-6', 'line-7', 'line-8', 'line-9', 'line-10', 'line-11', 'line-12', 'line-13', 'line-14', 'line-15', 'line-16', 'line-17', 'line-18', 'line-19', 'line-20', 'line-21', 'line-22', 'line-23', 'line-24', 'line-25'] } };
+    return { result: { lines: ['line-4', 'line-5', 'line-6', 'line-7', 'line-8', 'line-9', 'line-10', 'line-11', 'line-12', 'line-13', 'line-14', 'line-15', 'line-16', 'line-17', 'line-18', 'line-19', 'line-20', 'line-21', 'line-22', 'line-23', 'line-24', 'line-25'] } };
   };
   const h = harness(Inbox); h.draw(); await flush(); h.draw();
-  assert.deepEqual(calls, [['rpc', 'session.read', { session_id: 's-b', lines: 20 }]]);
+  assert.deepEqual(reads(calls), [['rpc', 'session.read', { session_id: 's-b', lines: 200 }]]);
   assert.equal(text(h.one(hasClass('ou-ipane-pre'))), 'line-6\nline-7\nline-8\nline-9\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25');
   assert.doesNotMatch(h.html(), /(?:>|\n)line-5(?:\n|<)/);
 });
 
 for (const failure of ['rejection', 'error response']) test('ad63319c session.read ' + failure + ' settles into the error fallback without terminal lines', async () => {
-  asks(); let rejectRead: any; let resolveRead: any;
-  g.rpc = () => new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; });
+  asks(); inboxStore.set({ selectedId: 's-a' }); let rejectRead: any; let resolveRead: any;
+  g.rpc = (method: string) => method === 'session.read' ? new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; }) : Promise.resolve({ result: {} });
   const h = harness(Inbox); h.draw();
-  assert.deepEqual(h.state('TerminalPreview', 0), { lines: null, error: false });
   if (failure === 'rejection') rejectRead(new Error('synthetic read failure'));
   else resolveRead({ error: { code: -1, message: 'synthetic read failure' } });
   await flush();
-  // Loading and error share markup, so verify the settled hook state too.
-  assert.deepEqual(h.state('TerminalPreview', 0), { lines: null, error: true });
   assert.doesNotThrow(() => h.html()); assert.equal(h.all(hasClass('ou-ipane-pre')).length, 0);
   assert.equal(text(h.one(hasClass('ou-ipane-lastline'))), 'Which branch for alpha?');
   assert.equal(text(h.one(hasClass('ou-ipane-muted'))), 'No terminal text to show yet. Open it on the Wall.');
@@ -208,45 +208,52 @@ for (const sendBy of ['button', 'Enter']) test('ad63319c answer via ' + sendBy +
   asks(); g.ui.snap.live[1].project_id = g.ui.projectId;
   inboxStore.set({ selectedId: 's-b' }); const h = harness(Inbox); h.draw(); await flush();
   assert.equal(h.one(label('Send')).props.isDisabled, true);
-  h.one(label('Answer')).props.onChange('  use the feature branch  '); h.draw();
+  h.one(answerField).props.onChange('  use the feature branch  '); h.draw();
   assert.equal(h.one(label('Send')).props.isDisabled, false);
   const beforeSend = calls.length;
-  if (sendBy === 'button') await h.one(label('Send')).props.onClick(); else await h.one(label('Answer')).props.onEnter();
+  if (sendBy === 'button') await h.one(label('Send')).props.onClick(); else await h.one(answerField).props.onEnter();
   await flush();
   assert.deepEqual(calls.slice(beforeSend), [['termInput', 's-b', 'use the feature branch\r']]);
-  h.draw(); assert.equal(h.one(label('Answer')).props.value, '');
+  h.draw(); assert.equal(h.one(answerField).props.value, '');
 });
 
 test('ad63319c a non-answerable notice has no answer box or Send control', () => {
   g.ui.snap.needs_you = [note('n-a', 'done')]; const h = harness(Inbox); const markup = h.html();
-  assert.equal(h.all(label('Answer')).length, 0); assert.equal(h.all(label('Send')).length, 0);
+  assert.equal(h.all(answerField).length, 0); assert.equal(h.all(label('Send')).length, 0);
   assert.doesNotMatch(markup, /<input|Type your answer/);
 });
 
 function filterFixture() { asks(); g.ui.snap.needs_you = [note('q', 'question'), note('d', 'done'), note('f', 'failed'), note('i', 'handoff')]; }
 const rowIds = (h: any) => h.all(hasClass('ou-irow')).map((n: any) => n.props['data-id']);
-for (const [chip, ids] of [
-  ['All', ['s-a', 's-b', 'q', 'f', 'd', 'i']],
-  ['Needs you', ['s-a', 's-b', 'q']],
-  ['Finished', ['d']],
-  ['Failed', ['f']],
-] as const) test('ad63319c ' + chip + ' chip narrows rows to its kind', () => {
+const head = (key: string) => (n: any) => hasClass('ou-ny-ghead')(n) && n.props['data-group'] === key;
+for (const [group, ids] of [
+  ['needs', ['i', 'f', 'd']],
+  ['in_review', ['s-a', 's-b', 'q', 'f', 'd']],
+  ['failed', ['s-a', 's-b', 'q', 'i', 'd']],
+  ['done', ['s-a', 's-b', 'q', 'i', 'f']],
+] as const) test('ad63319c folding ' + group + ' hides only its rows and unfolding brings them back', () => {
   filterFixture(); const h = harness(Inbox); h.draw();
-  h.one((n: any) => hasClass('ou-ifilters-chip')(n) && text(n) === chip).props.onClick(); h.draw();
+  assert.deepEqual(rowIds(h), ['s-a', 's-b', 'q', 'i', 'f', 'd']);
+  h.one(head(group)).props.onClick(); h.draw();
   assert.deepEqual(rowIds(h), ids);
+  assert.equal(h.one(head(group)).props['aria-expanded'], false);
+  h.one(head(group)).props.onClick(); h.draw();
+  assert.deepEqual(rowIds(h), ['s-a', 's-b', 'q', 'i', 'f', 'd']);
 });
 
-test('ad63319c counts appear in group heads and never on chips', () => {
+test('ad63319c group heads use sentence case and carry their counts; empty groups stay folded', () => {
   filterFixture(); const h = harness(Inbox); h.html();
-  assert.deepEqual(h.all(hasClass('ou-ifilters-chip')).map(text), ['All', 'Needs you', 'Finished', 'Failed']);
-  assert.deepEqual(h.all(hasClass('ou-ihead')).map(text), ['Needs your answer 2', 'Notices 4']);
+  assert.deepEqual(h.all(hasClass('ou-ny-ghead')).map(text), ['Needs your answer3', 'Working0', 'In review1', 'Failed1', 'Done1']);
+  assert.equal(h.one(head('working')).props['aria-expanded'], false);
+  h.one(head('working')).props.onClick(); h.draw();
+  assert.equal(h.one(head('working')).props['aria-expanded'], false);
 });
 
 test('ad63319c late first-session read cannot replace the second selection', async () => {
-  asks(); let first: any; let second: any;
-  g.rpc = (method: string, payload: any) => { calls.push(['rpc', method, payload]); return new Promise(resolve => { if (payload.session_id === 's-a') first = resolve; else second = resolve; }); };
+  asks(); inboxStore.set({ selectedId: 's-a' }); let first: any; let second: any;
+  g.rpc = (method: string, payload: any) => { calls.push(['rpc', method, payload]); return method !== 'session.read' ? Promise.resolve({ result: {} }) : new Promise(resolve => { if (payload.session_id === 's-a') first = resolve; else second = resolve; }); };
   const h = harness(Inbox); h.draw(); h.one(row('s-b')).props.onClick(event()); h.draw();
-  assert.deepEqual(calls, [['rpc', 'session.read', { session_id: 's-a', lines: 20 }], ['rpc', 'session.read', { session_id: 's-b', lines: 20 }]]);
+  assert.deepEqual(reads(calls), [['rpc', 'session.read', { session_id: 's-a', lines: 200 }], ['rpc', 'session.read', { session_id: 's-b', lines: 200 }]]);
   second({ result: { lines: ['second selected terminal'] } }); await flush(); h.draw();
   assert.equal(text(h.one(hasClass('ou-ipane-pre'))), 'second selected terminal');
   first({ result: { lines: ['stale first terminal'] } }); await flush(); const markup = h.html();
@@ -357,21 +364,21 @@ test('3796944f cross-project answers are blocked and local answers send typed te
   g.ui.snap.live = [session('s-a', 'Local question?'), { ...session('s-away', 'Other question?'), project_id: 'p2' }];
   inboxStore.set({ selectedId: 's-away' });
   const h = harness(Inbox); h.draw();
-  assert.equal(h.one(label('Answer')).props.isDisabled, true);
-  h.one(label('Answer')).props.onChange('do not send to p1'); h.draw();
+  assert.equal(h.one(answerField).props.isDisabled, true);
+  h.one(answerField).props.onChange('do not send to p1'); h.draw();
   assert.equal(h.one(label('Send')).props.isDisabled, true);
   const beforeAway = calls.length;
   await h.one(label('Send')).props.onClick();
-  await h.one(label('Answer')).props.onEnter();
+  await h.one(answerField).props.onEnter();
   assert.deepEqual(calls.slice(beforeAway), []);
   assert.equal(g.ui.projectId, 'p1');
   h.one(row('s-a')).props.onClick(event()); h.draw();
-  assert.equal(h.one(label('Answer')).props.isDisabled, false);
-  h.one(label('Answer')).props.onChange('use the local feature branch'); h.draw();
+  assert.equal(h.one(answerField).props.isDisabled, false);
+  h.one(answerField).props.onChange('use the local feature branch'); h.draw();
   const beforeLocal = calls.length;
   await h.one(label('Send')).props.onClick();
   assert.deepEqual(calls.slice(beforeLocal), [['termInput', 's-a', 'use the local feature branch\r']]);
-  h.draw(); assert.equal(h.one(label('Answer')).props.value, '');
+  h.draw(); assert.equal(h.one(answerField).props.value, '');
 });
 
 test('3796944f opening another project agent switches project before picking the agent', async (t) => {
@@ -385,9 +392,10 @@ test('3796944f opening another project agent switches project before picking the
     switchProject: realSwitch,
     pick: async (id: string) => calls.push(['pick', id, g.ui.projectId]),
   });
+  inboxStore.set({ selectedId: 's-away' });
   const h = harness(Inbox); h.draw();
   const before = calls.length;
-  h.one((n: any) => n.props['aria-label'] === 'Open on Wall').props.onClick(event());
+  h.one(label('Open on Wall')).props.onClick(event());
   assert.deepEqual(calls.slice(before), [['view', 'wall'], ['save', 'projectId', 'p2'], ['setView', 'p2', 's-away']]);
   assert.equal(g.ui.projectId, 'p2'); assert.equal(g.ui.pendingPick, 's-away');
   const pendingSource = reviewApp.match(/  if \(ui\.pendingPick && s\.sessions\.some[^]*?\r?\n  \}/)![0];
@@ -400,18 +408,18 @@ test('3796944f opening another project agent switches project before picking the
 });
 
 test('3796944f selecting another agent starts a fresh keyed answer draft in both directions', () => {
-  asks(); const h = keyedInboxHarness(); h.draw();
+  asks(); inboxStore.set({ selectedId: 's-a' }); const h = keyedInboxHarness(); h.draw();
   assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-a');
-  h.one(label('Answer')).props.onChange('alpha draft'); h.draw();
-  assert.equal(h.one(label('Answer')).props.value, 'alpha draft');
+  h.one(answerField).props.onChange('alpha draft'); h.draw();
+  assert.equal(h.one(answerField).props.value, 'alpha draft');
   h.one(row('s-b')).props.onClick(event()); h.draw();
   assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-b');
-  assert.equal(h.one(label('Answer')).props.value, '');
-  h.one(label('Answer')).props.onChange('beta draft'); h.draw();
-  assert.equal(h.one(label('Answer')).props.value, 'beta draft');
+  assert.equal(h.one(answerField).props.value, '');
+  h.one(answerField).props.onChange('beta draft'); h.draw();
+  assert.equal(h.one(answerField).props.value, 'beta draft');
   h.one(row('s-a')).props.onClick(event()); h.draw();
   assert.equal(h.one((n: any) => n.type?.name === 'DetailAsk').key, 's-a');
-  assert.equal(h.one(label('Answer')).props.value, '');
+  assert.equal(h.one(answerField).props.value, '');
   assert.deepEqual(calls.filter(c => c[0] === 'termInput'), []);
 });
 

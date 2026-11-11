@@ -49,6 +49,7 @@ function screen(Component: any, props: any = {}) {
   internals.H = {
     useSyncExternalStore: (_: any, get: any) => get(),
     useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}],
+    useEffect: () => {},
   };
   try { return Component(props); } finally { internals.H = previous; }
 }
@@ -108,35 +109,29 @@ test('32216b24 Add-ons Ready and Not ready use the same Badge component with the
   assert.match(renderToStaticMarkup(bad), />Not ready</);
 });
 
-test('0c16ec6c Needs you always renders four filter chips and dims only unselected empty chips', () => {
-  // Retain every chip at zero and update dimming as notices and selection change.
-  const chips = () => children(oneClass(screen(Inbox), 'ou-ifilters'));
-  const labels = () => chips().map(n => n.props.children);
-  assert.deepEqual(labels(), ['All', 'Needs you', 'Finished', 'Failed']);
-  assert.deepEqual(chips().map(n => n.props.className), ['ou-ifilters-chip ou-ifilters-selected', 'ou-ifilters-chip ou-ifilters-zero', 'ou-ifilters-chip ou-ifilters-zero', 'ou-ifilters-chip ou-ifilters-zero']);
-  g.ui.snap.needs_you = [{ id: 'done', kind: 'done' }];
-  assert.deepEqual(labels(), ['All', 'Needs you', 'Finished', 'Failed']);
-  assert.deepEqual(chips().map(n => n.props.className), ['ou-ifilters-chip ou-ifilters-selected', 'ou-ifilters-chip ou-ifilters-zero', 'ou-ifilters-chip', 'ou-ifilters-chip ou-ifilters-zero']);
-  chips()[3].props.onClick();
-  assert.equal(inboxStore.get().filter, 'failed');
-  assert.deepEqual(chips().map(n => n.props.className), ['ou-ifilters-chip', 'ou-ifilters-chip ou-ifilters-zero', 'ou-ifilters-chip', 'ou-ifilters-chip ou-ifilters-selected']);
+test('0c16ec6c Needs you renders five group heads and dims and folds only the empty ones', () => {
+  const heads = () => descendants(screen(Inbox)).filter(n => n?.type?.name === 'Fold').map(n => n.props.head);
+  g.ui.snap.needs_you = [{ id: 'done', kind: 'done', text: 'Finished' }];
+  inboxStore.set({ collapsed: [] });
+  assert.deepEqual(heads().map(n => n.props['data-group']), ['needs', 'working', 'in_review', 'failed', 'done']);
+  assert.deepEqual(heads().map(n => hasClass(n, 'ou-ny-gdim')), [true, true, true, true, false]);
+  assert.deepEqual(heads().map(n => n.props['aria-expanded']), [false, false, false, false, true]);
   const css = readFileSync(join(wb, 'ui/src/ui.css'), 'utf8');
-  assert.match(css, /\.ou-ifilters-zero\s*\{[^}]*opacity: \.7;/);
+  assert.match(css, /\.ou-ny-gdim\s*\{[^}]*opacity: \.55;/);
 });
 
-test('29f34ba5 Needs you empty detail pane explains what will show up there', () => {
-  // Pin the explanatory copy within the empty detail pane.
+test('29f34ba5 Needs you detail pane asks you to pick an item, and an empty list explains what will show up', () => {
+  g.ui.snap.needs_you = [{ id: 'done', kind: 'done', text: 'Finished' }];
   const pane = oneClass(screen(Inbox), 'ou-ipane');
-  const empty = oneClass(pane, 'ou-ipane-empty');
-  assert.equal(hasClass(empty, 'ou-inbox-detail-empty'), true);
-  const content = children(empty);
+  assert.equal(pane.props['data-state'], 'empty');
+  assert.deepEqual(children(oneClass(pane, 'ou-ny-pane-empty')), ['Pick an item on the left to open it here.']);
+  g.ui.snap.needs_you = [];
+  const content = children(oneClass(screen(Inbox), 'ou-ny-empty'));
   assert.equal(content.length, 1);
   assert.equal(content[0].props.title, 'Nothing is waiting on you.');
   assert.equal(content[0].props.description, 'Questions from agents and finished work show up here.');
   assert.equal(content[0].props.isCompact, true);
-  const markup = renderToStaticMarkup(pane);
-  assert.match(markup, />Nothing is waiting on you\.</);
-  assert.match(markup, />Questions from agents and finished work show up here\.</);
+  assert.match(renderToStaticMarkup(content[0]), />Questions from agents and finished work show up here\.</);
 });
 
 test('2b8ac71a Add-ons cards prefix only bare numeric versions and omit the trailing period', () => {
