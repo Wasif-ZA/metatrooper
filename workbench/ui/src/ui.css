@@ -120,7 +120,8 @@ html { font-size: 16px; }
 .ou-inbox .ou-irow:focus-visible { outline: none; }
 .ou-inbox .ou-irow:focus-visible:not(.ou-irow-selected) { box-shadow: inset 0 0 0 1px var(--hairline-strong); }
 .ou-ny-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.ou-inbox .ou-ititle { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--body); }
+.ou-inbox .ou-ititle { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--body); }
+.ou-ny-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-inbox .ou-unread .ou-ititle { color: var(--ink); }
 .ou-ny-row-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--mute); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ou-ny-row-sub > span:last-child { overflow: hidden; text-overflow: ellipsis; }

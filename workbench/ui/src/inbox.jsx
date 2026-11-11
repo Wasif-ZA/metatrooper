@@ -1,7 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { gsap } from 'gsap';
-import { Flip } from 'gsap/Flip';
-import { useGSAP } from '@gsap/react';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
 import { IconButton } from '@astryxdesign/core/IconButton';
@@ -19,14 +16,20 @@ const RANK = { none: 0, low: 1, medium: 2, high: 3, urgent: 4 };
 const DONE_STATES = ['done', 'exited', 'idle'];
 const NOTICE_WORD = { done: 'Finished', failed: 'Failed', handoff: 'Handed back', uncommitted: 'Uncommitted changes', question: 'Question' };
 
-gsap.registerPlugin(Flip, useGSAP);
+let gsap = null;
+let Flip = null;
 let calm = true;
-if (typeof window !== 'undefined' && window.matchMedia) {
-  gsap.matchMedia().add({ calm: '(prefers-reduced-motion: reduce)', move: '(prefers-reduced-motion: no-preference)' }, (ctx) => {
-    calm = Boolean(ctx.conditions.calm);
+// gsap reads document on import, so it loads only where a real DOM exists
+if (typeof Document === 'function' && typeof document !== 'undefined' && document instanceof Document && typeof window.matchMedia === 'function') {
+  Promise.all([import('gsap'), import('gsap/Flip')]).then(([core, flip]) => {
+    core.gsap.registerPlugin(flip.Flip);
+    core.gsap.matchMedia().add({ calm: '(prefers-reduced-motion: reduce)', move: '(prefers-reduced-motion: no-preference)' }, (ctx) => {
+      calm = Boolean(ctx.conditions.calm);
+    });
+    [gsap, Flip] = [core.gsap, flip.Flip];
   });
 }
-export const motionOn = () => !calm;
+export const motionOn = () => Boolean(gsap) && !calm;
 
 const rowEl = (id) => (typeof document === 'undefined' ? null : document.querySelector(`.ou-inbox .ou-irow[data-id="${CSS.escape(id)}"]`));
 
@@ -579,7 +582,7 @@ export function Inbox() {
         }}
       >
         <div className="ou-ny-row-main">
-          <span className="ou-ititle">{pri !== 'none' ? <PriorityIcon level={pri} /> : null}{isSession ? taskOf(row) : row.text}</span>
+          <span className="ou-ititle">{pri !== 'none' ? <PriorityIcon level={pri} /> : null}<span className="ou-ny-clip">{isSession ? taskOf(row) : row.text}</span></span>
           <span className="ou-ny-row-sub">{who ? <Avatar name={who} /> : null}<span>{who ? `${who} ${WHAT[st]}` : WHAT[st][0].toUpperCase() + WHAT[st].slice(1)}</span></span>
         </div>
         <div className="ou-ny-row-side">
