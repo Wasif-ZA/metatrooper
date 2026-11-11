@@ -60,10 +60,13 @@ const folder = (p) => p.split('/').slice(0, -1).join('/');
 const tabOf = (st, path) => st.tabs.find((x) => x.path === path);
 const PIC_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
 const isPic = (p) => PIC_EXTS.has(p ? p.split('.').pop().toLowerCase() : '');
+const isPdf = (p) => /\.pdf$/i.test(p);
+const isHtml = (p) => /\.html?$/i.test(p);
+const canPreview = (p) => isMd(p) || isHtml(p);
 const under = (p, root) => { const norm = root.endsWith('/') ? root.slice(0, -1) : root; return p === norm || p.startsWith(`${norm}/`); };
 const canWrite = () => typeof api.fsWrite === 'function';
 const canSearch = () => typeof api.fsSearch === 'function';
-const inPreview = (t) => t.mode === 'preview' && isMd(t.path);
+const inPreview = (t) => t.mode === 'preview' && canPreview(t.path);
 
 export const ideShown = () => ui.view === 'ide' && Boolean(project());
 
@@ -253,9 +256,13 @@ function goto(t) {
 }
 
 async function readTab(st, t, path) {
-  if (t.text === undefined && !t.image && !t.error && !t.reading) {
+  if (t.text === undefined && !t.image && !t.pdf && !t.error && !t.reading) {
     t.reading = true;
-    if (isPic(path)) {
+    if (isPdf(path)) {
+      t.pdf = true;
+      t.reading = false;
+      bump();
+    } else if (isPic(path)) {
       const r = typeof api.fsImage === 'function' ? await api.fsImage(st.pid, path) : null;
       t.reading = false;
       if (!r || r.error) t.error = (r && r.error) || 'Could not read the file.';
@@ -279,7 +286,7 @@ async function openFile(st, path, { owner, changes, line } = {}) {
   if (line) { t.gotoLine = line; t.mode = 'file'; }
   bump();
   if (changes) void showChanges(st, path);
-  if (t.text === undefined && !t.image && !t.error && !t.reading) await readTab(st, t, path);
+  if (t.text === undefined && !t.image && !t.pdf && !t.error && !t.reading) await readTab(st, t, path);
   else setTimeout(() => goto(t), 0);
 }
 
@@ -466,11 +473,21 @@ function showFile(st, path) {
   bump();
 }
 
-function showPreview(st, path) {
+async function showPreview(st, path) {
   const t = tabOf(st, path);
   if (!t) return;
   t.mode = 'preview';
+  t.previewUrl = null;
+  t.previewError = null;
   bump();
+  if (isHtml(path)) {
+    try {
+      const r = await api.fsFileUrl(st.pid, path);
+      if (!r || r.error) t.previewError = r?.error || 'Could not preview the file.';
+      else t.previewUrl = r.url;
+    } catch { t.previewError = 'Could not preview the file.'; }
+    bump();
+  }
 }
 
 function showSource(st, path) {
@@ -506,6 +523,12 @@ async function saveTab(st, path, force = false) {
 async function reloadTab(st, path) {
   const t = tabOf(st, path);
   if (!t) return;
+  if (isPdf(path)) {
+    t.pdf = undefined;
+    t.error = undefined;
+    await readTab(st, t, path);
+    return;
+  }
   const r = await api.fsRead(st.pid, path);
   if (!r || r.error) { toast((r && r.error) || 'Could not read the file.', true); return; }
   t.mtimeMs = r.mtimeMs;
@@ -523,6 +546,7 @@ function askReload(st, path) {
 }
 
 function dropTab(st, path) {
+  const t = tabOf(st, path);
   st.tabs = st.tabs.filter((x) => x.path !== path);
   if (st.active === path) st.active = st.tabs.length ? st.tabs[st.tabs.length - 1].path : null;
   bump();
@@ -607,7 +631,7 @@ export const ideKeys = {
   asking: () => Boolean(cur && cur.ask),
   preview: () => {
     const t = cur && cur.active ? tabOf(cur, cur.active) : null;
-    if (!t || !isMd(t.path)) return false;
+    if (!t || !canPreview(t.path)) return false;
     if (inPreview(t)) showSource(cur, t.path); else showPreview(cur, t.path);
     return true;
   },
@@ -1065,15 +1089,15 @@ function OpenInVsCodeButton({ st, tab }) {
 
 function TabActions({ st, tab, changed }) {
   const isChanged = tab && (changed.has(tab.path) || Boolean(tab.gitDiff));
-  const md = Boolean(tab) && isMd(tab.path);
+  const preview = Boolean(tab) && canPreview(tab.path);
   const mode = isChanged && tab.mode === 'changes' ? 'changes' : tab && inPreview(tab) ? 'preview' : 'file';
   const lines = mode === 'changes' && tab.diff ? diffLines(tab.diff) : [];
   const count = `+${lines.filter((l) => l.kind === 'add').length} -${lines.filter((l) => l.kind === 'del').length}`;
   return (
       <span className="ou-ide-tabactions">
-        {isChanged || md ? (
+        {isChanged || preview ? (
           <>
-            {md ? <IconButton size="sm" variant="ghost" label="Preview" tooltip="Preview" aria-pressed={mode === 'preview'} icon={<Sc.MarkdownIcon size={14} />} onClick={() => showPreview(st, tab.path)} /> : null}
+            {preview ? <IconButton size="sm" variant="ghost" label="Preview" tooltip="Preview" aria-pressed={mode === 'preview'} icon={<Sc.MarkdownIcon size={14} />} onClick={() => void showPreview(st, tab.path)} /> : null}
             <IconButton size="sm" variant="ghost" label="File" tooltip="File" aria-pressed={mode === 'file'} icon={<Sc.FileIcon size={14} />} onClick={() => showFile(st, tab.path)} />
             {isChanged ? <IconButton size="sm" variant="ghost" label="Changes" tooltip={mode === 'changes' ? `Changes (${count})` : 'Changes'} aria-pressed={mode === 'changes'} icon={<Sc.DiffIcon size={14} />} onClick={() => void showChanges(st, tab.path)} /> : null}
           </>
@@ -1240,7 +1264,7 @@ export function ideCommands(cmd = defaultCmd) {
   if (t) out.push(cmd('IDE', 'Delete file', () => { st.ask = { kind: 'delete', path: t.path }; bump(); }));
   out.push(cmd('IDE', 'Find a file', ideKeys.find), cmd('IDE', 'Search in files', ideKeys.search));
   if (t && changedSet().has(t.path)) out.push(t.mode === 'changes' ? cmd('IDE', 'Show file', () => showFile(st, t.path)) : cmd('IDE', 'Show changes', () => void showChanges(st, t.path)));
-  if (t && isMd(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => showPreview(st, t.path)));
+  if (t && canPreview(t.path)) out.push(inPreview(t) ? cmd('IDE', 'Show source', () => showSource(st, t.path)) : cmd('IDE', 'Show preview', () => void showPreview(st, t.path)));
   if (t) out.push(cmd('IDE', 'Reload file from disk', () => askReload(st, t.path)), cmd('IDE', 'Close tab', () => closeTab(st, t.path)));
   if (st.tabs.length) out.push(cmd('IDE', 'Close all tabs', () => closeAll(st)));
   out.push(cmd('IDE', 'Show or hide the panel', () => bridge.togglePanel?.()), cmd('IDE', 'Restart the terminal', () => bridge.restartTerminal?.()));
@@ -1353,8 +1377,13 @@ export function Ide() {
             : (changed.has(active.path) || active.gitDiff) && active.mode === 'changes' ? <DiffView st={st} tab={active} />
               : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
                 : active.image ? <div className="ou-ide-image"><img src={active.image} alt={active.path} /></div>
+                  : active.pdf ? <EmptyState title="PDF" description="PDFs open in your PDF reader." actions={<Button size="sm" variant="primary" label="Open outside" onClick={() => void openOutside(st, active.path)} />} />
                   : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>
-                    : inPreview(active) ? <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} /> : null}
+                    : inPreview(active) ? (isHtml(active.path)
+                      ? active.previewError ? <EmptyState isCompact title={active.previewError} />
+                        : active.previewUrl ? <iframe className="ou-ide-document-frame" src={active.previewUrl} title={`Preview ${active.path}`} sandbox="" />
+                          : <p className="ou-ide-muted ou-ide-pad">Loading.</p>
+                      : <Preview key={active.path} text={active.text} path={active.path} pid={st.pid} open={(rel) => void openFile(st, rel)} tab={active} />) : null}
         </div>
         <div className="ou-ide-panel">
           <div className="ou-ide-phead">
