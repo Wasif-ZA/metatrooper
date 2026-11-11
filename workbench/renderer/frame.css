@@ -113,7 +113,7 @@
 .ftree .ft { flex: 1; min-width: 0; }
 .ftree.fgone .ft { color: var(--mute); }
 .fmeta { flex: none; font: 11px var(--mono); color: var(--mute); }
-.fusage { flex: none; display: grid; grid-template-columns: 14px minmax(16px, 1fr) max-content max-content; align-items: center; gap: 4px 8px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--hairline); }
+.fusage { flex: none; display: grid; grid-template-columns: 14px 18px minmax(0, 1fr) 18px minmax(0, 1fr); align-items: center; gap: 4px 6px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--hairline); }
 .fusage[hidden] { display: none; }
 .fuse { display: contents; }
 .fuse > * { height: 18px; display: flex; align-items: center; }
@@ -168,3 +168,8 @@
 @keyframes ouros-ring-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
 @media (prefers-reduced-motion: reduce) { .ouros-ring-spin { animation: none; } }
 .search.icon-only:not(.open) { display: none; }
+
+/* Age shows on hover only, so titles use the full width. */
+.ftree .fmeta { display: none; }
+.ftree:is(:hover, :focus-visible) .fmeta { display: inline; }
+.fuse .fbar { width: 18px; }

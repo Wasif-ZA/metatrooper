@@ -37,12 +37,8 @@ export const SHAPES = {
   stepOpen: '<circle cx="8" cy="8" r="5.5"/>',
   stop: '<rect x="4" y="4" width="8" height="8" rx="1.5"/>',
   engine: '<path d="M8 2.5c.4 2.75 1.75 4.1 4.5 4.5-2.75.4-4.1 1.75-4.5 4.5-.4-2.75-1.75-4.1-4.5-4.5 2.75-.4 4.1-1.75 4.5-4.5zM12.5 11v2.5M11.25 12.25h2.5"/>',
-  // Ouros mark candidates (a loop that closes on itself); mark1 is the one in use, the *Fill variants are solid.
-  mark1: '<path d="M10.35 3.59A5 5 0 1 1 4.92 4.06"/><circle cx="6.13" cy="3.36" r="1.75" fill="currentColor"/>',
-  markA: '<path d="M10.35 3.59A5 5 0 1 1 4.92 4.06"/><circle cx="6.13" cy="3.36" r="1.75" fill="currentColor"/>',
-  markAFill: '<path d="M10.23 3.81A4.75 4.75 0 1 1 5.08 4.26" stroke-width="3"/><circle cx="6.13" cy="3.36" r="2.4" fill="currentColor" stroke="none"/>',
-  markB: '<path d="M10.62 3.45A5.25 5.25 0 1 1 6.64 2.93"/><path d="M6.44 0.83L8.54 2.93L6.44 5.03"/>',
-  markBFill: '<path d="M10.5 3.67A5 5 0 1 1 7.13 3.08" stroke-width="3"/><path d="M6.04 0.03L9.24 2.93L6.04 5.83z" fill="currentColor" stroke="none"/>',
+  // Ouros mark: the serpent spiral (mark1 = markC, outline), with its solid variant.
+  mark1: '<path d="M8.0 13.5A5.5 5.5 0 1 1 13.5 8a3 3 0 0 1-3 3 1.75 1.75 0 0 1-1.75-1.75"/><circle cx="8.75" cy="8.6" r="1.1" fill="currentColor" stroke="none"/>',
   markC: '<path d="M8.0 13.5A5.5 5.5 0 1 1 13.5 8a3 3 0 0 1-3 3 1.75 1.75 0 0 1-1.75-1.75"/><circle cx="8.75" cy="8.6" r="1.1" fill="currentColor" stroke="none"/>',
   markCFill: '<path d="M8.0 13.5A5.25 5.25 0 1 1 13.25 8a2.75 2.75 0 0 1-2.75 2.75 1.5 1.5 0 0 1-1.5-1.5" stroke-width="3"/>',
 };
