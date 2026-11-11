@@ -73,12 +73,14 @@ export function agentsMdArgs(engine: EngineSpec, dir: string): string[] {
 
 export function launchSession(
   db: DatabaseSync,
-  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; browserGrant?: string; host?: 'pty' | 'sandbox'; parentId?: string; model?: string },
+  opts: { projectId: string; projectPath: string; projectName: string; engine: EngineSpec; prompt?: string; cwd?: string; runId?: string; stepId?: string; approval?: string; extraArgs?: string[]; browser?: boolean; browserGrant?: string; host?: 'pty' | 'sandbox'; parentId?: string; model?: string; blockerIds?: string[] },
 ): { session_id: string; prompt_delivered: boolean; approval: string; setup?: string[] } {
   const dir = canonicalPath(opts.cwd ?? opts.projectPath);
   if (beingRemoved(dir)) throw new RpcError(E.VALIDATION, 'this worktree is being removed by the sweep; open another folder');
   const id = ulid();
   const host = opts.host ?? 'pty';
+  const blockers = opts.blockerIds ?? [];
+  const argvPrompt = blockers.length ? undefined : opts.prompt;
   const approval = folderApproval(dir, opts.approval, opts.engine);
   let setup: string[] | null = null;
   let argv: string[];
@@ -90,19 +92,19 @@ export function launchSession(
     const proxy = ensureProxy();
     if (proxy) throw new RpcError(E.VALIDATION, proxy);
     fs.mkdirSync(spoolDir(id), { recursive: true });
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sandboxHookArgs(opts.engine, id)], 'sandbox', opts.model);
+    const plan = planArgs(opts.engine, argvPrompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...sandboxHookArgs(opts.engine, id)], 'sandbox', opts.model);
     argv = dockerArgv(id, opts.engine, opts.cwd ?? opts.projectPath, layout, plan.argv);
     promptDelivered = plan.promptDelivered;
   } else {
     try { setup = ensureEngineSetup(opts.engine, nowIso()); } catch {}
     try { sweepSessionFiles(db); } catch {}
     const router = metarouterLaunch(opts.engine);
-    const plan = planArgs(opts.engine, opts.prompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id), db), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })], 'pty', opts.model);
+    const plan = planArgs(opts.engine, argvPrompt, approval, [...(opts.extraArgs ?? []), ...agentsMdArgs(opts.engine, dir), ...router.args, ...sessionHookArgs(opts.engine, id, engineVersion(db, opts.engine.id), db), ...mcpAttachArgs(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval })], 'pty', opts.model);
     argv = plan.argv;
     promptDelivered = plan.promptDelivered;
     env = { ...router.env, ...sessionHookEnv(opts.engine, id, db), ...mcpAttachEnv(db, opts.engine, id, opts.browser, { pipeline: Boolean(opts.runId), approval }), ...statePluginEnv(opts.engine) };
   }
-  const plan = { argv, promptDelivered };
+  const plan = { argv, promptDelivered: promptDelivered && !(blockers.length && opts.prompt) };
   const b64 = Buffer.from(JSON.stringify(plan.argv)).toString('base64');
   const launcher = path.join(coreDir, 'launch.js');
   const startedAt = nowIso();
@@ -111,6 +113,8 @@ export function launchSession(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?)`,
   ).run(id, opts.projectId, opts.engine.id, host, opts.cwd ?? opts.projectPath, opts.runId ?? null, opts.stepId ?? null, opts.parentId ?? null, opts.browserGrant ?? null, opts.prompt || null, startedAt, startedAt);
   db.prepare('INSERT INTO session_state_log (session_id, at, state) VALUES (?, ?, ?)').run(id, startedAt, 'starting');
+  const block = db.prepare('INSERT OR IGNORE INTO session_block (blocked_id, blocker_id) VALUES (?, ?)');
+  for (const b of blockers) block.run(id, b);
   db.prepare('UPDATE project SET hidden = 0 WHERE id = ?').run(opts.projectId);
   const cwd = opts.cwd ?? opts.projectPath;
   try {
@@ -134,12 +138,18 @@ export function writePrompt(db: DatabaseSync, sessionId: string): { written: boo
   return { written: true };
 }
 
-/** Every tick: a held prompt is typed when its session first reaches idle or waiting_for_you within terminal.prompt_wait_ms. */
+/** Ids of the sessions blocking `sessionId` that have not exited with outcome succeeded. */
+export function openBlockers(db: DatabaseSync, sessionId: string): string[] {
+  return (db.prepare("SELECT b.blocker_id AS id FROM session_block b JOIN session s ON s.id = b.blocker_id WHERE b.blocked_id = ? AND s.outcome IS NOT 'succeeded' ORDER BY b.blocker_id").all(sessionId) as Array<{ id: string }>).map((r) => r.id);
+}
+
+/** Every tick: a held prompt with no open blockers is typed when its session first reaches idle or waiting_for_you within terminal.prompt_wait_ms of its release. */
 export function deliverPrompts(db: DatabaseSync): void {
   const get = db.prepare('SELECT state FROM session WHERE id = ?');
   for (const [id, held] of pendingPrompts) {
     const s = get.get(id) as { state: string } | undefined;
     if (!s || s.state === 'exited') { pendingPrompts.delete(id); continue; }
+    if (openBlockers(db, id).length) { held.at = Date.now(); continue; }
     if (Date.now() - held.at > settings().terminal.prompt_wait_ms) continue;
     if (s.state === 'idle' || s.state === 'waiting_for_you') writePrompt(db, id);
   }

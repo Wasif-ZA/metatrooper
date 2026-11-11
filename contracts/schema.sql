@@ -74,10 +74,18 @@ CREATE TABLE session (
   started_at    TEXT NOT NULL,
   ended_at      TEXT,
   outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')), -- set when the session exits
-  prompt        TEXT
+  prompt        TEXT,
+  priority      TEXT NOT NULL DEFAULT 'none' CHECK (priority IN ('none','low','medium','high','urgent'))
 );
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);
+
+CREATE TABLE session_block (
+  blocked_id TEXT NOT NULL REFERENCES session(id),
+  blocker_id TEXT NOT NULL REFERENCES session(id),
+  PRIMARY KEY (blocked_id, blocker_id)
+);
+CREATE INDEX session_block_blocker ON session_block (blocker_id);
 
 CREATE TABLE session_label (
   session_id TEXT NOT NULL REFERENCES session(id),
