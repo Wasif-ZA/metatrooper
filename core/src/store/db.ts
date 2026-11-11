@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { coreDir, dbFile, homeDir, schemaFile } from '../paths.ts';
 import { nowIso } from '../time.ts';
+import { ensureLabels } from '../labels.ts';
 
 export type Db = DatabaseSync;
 
@@ -65,6 +66,12 @@ export function openCoreDb(): DatabaseSync {
     db.exec('CREATE INDEX IF NOT EXISTS approval_session_idx ON approval (session_id, status)');
   });
   migrate(db);
+  tx(db, () => {
+    for (const column of ['icon', 'cron']) {
+      if (!(db.prepare('PRAGMA table_info(automation)').all() as Array<{ name: string }>).some((c) => c.name === column)) db.exec(`ALTER TABLE automation ADD COLUMN ${column} TEXT`);
+    }
+    ensureLabels(db);
+  });
   db.exec('PRAGMA busy_timeout = 200');
   return db;
 }
