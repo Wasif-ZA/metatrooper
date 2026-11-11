@@ -8,7 +8,7 @@ import { buildMethods } from '../src/methods.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
 import { appendEvent } from '../src/events/append.ts';
 import { processEvents } from '../src/events/processor.ts';
-import { parseVerdict, reviewPrompt, reviewTick, type ReviewDeps } from '../src/reviews.ts';
+import { finishedOk, parseVerdict, reviewPrompt, reviewTick, type ReviewDeps } from '../src/reviews.ts';
 
 const ui = { ui: true, origin: 'test' };
 const AT = '2026-11-11T00:00:00.000Z';
@@ -210,4 +210,61 @@ test('parseVerdict takes the last verdict line and the prompt never matches it',
   assert.deepEqual(parseVerdict(['  ⏺ verdict: fail — no tests']), { passed: false, note: '— no tests' });
   assert.equal(parseVerdict(['VERDICT: MAYBE']), null);
   assert.ok(!reviewPrompt({ prompt: 'a\nb', started_at: AT }).includes('\n'));
+});
+
+const outcomeOf = (db: DatabaseSync, id: string) => (db.prepare('SELECT outcome FROM session WHERE id = ?').get(id) as { outcome: string }).outcome;
+
+test('done, card opened (idle), then exited counts as finished ok and launches the review', async () => {
+  await fixture(async (db, methods) => {
+    seed(db, 's1');
+    await methods.get('session.reviewers-set')!.handler({ session_id: 's1', reviewers: ['codex'], approvers: [] }, ui);
+    appendEvent('claude.Stop', 's1', {}, db);
+    processEvents(db);
+    await methods.get('session.seen')!.handler({ session_id: 's1' }, ui);
+    processEvents(db);
+    assert.equal((db.prepare('SELECT state FROM session WHERE id = ?').get('s1') as { state: string }).state, 'idle');
+    appendEvent('core.process-gone', 's1', { code: 0 }, db);
+    processEvents(db);
+    assert.equal(outcomeOf(db, 's1'), 'cancelled');
+    assert.equal(finishedOk(db, 's1'), true);
+    const { deps, launched } = fakeDeps(db);
+    await reviewTick(db, deps);
+    assert.deepEqual(launched.map((l) => [l.parent, l.engine]), [['s1', 'codex']]);
+  });
+});
+
+test('finishedOk is false for a failed exit, a kill before done, and work resumed after done', async () => {
+  await fixture(async (db, methods) => {
+    for (const id of ['f1', 'k1', 'r1']) {
+      seed(db, id);
+      await methods.get('session.reviewers-set')!.handler({ session_id: id, reviewers: ['codex'], approvers: [] }, ui);
+    }
+    appendEvent('claude.Stop', 'f1', {}, db);
+    appendEvent('core.process-gone', 'f1', { code: 1 }, db);
+    appendEvent('core.process-gone', 'k1', { code: 0 }, db);
+    appendEvent('claude.Stop', 'r1', {}, db);
+    appendEvent('claude.PostToolUse', 'r1', { tool_use_id: 't1' }, db);
+    appendEvent('core.interrupted', 'r1', {}, db);
+    appendEvent('core.process-gone', 'r1', { code: 0 }, db);
+    processEvents(db);
+    assert.deepEqual(['f1', 'k1', 'r1'].map((id) => [outcomeOf(db, id), finishedOk(db, id)]), [['failed', false], ['cancelled', false], ['cancelled', false]]);
+    const { deps, launched } = fakeDeps(db);
+    await reviewTick(db, deps);
+    assert.equal(launched.length, 0);
+  });
+});
+
+test('finishedOk on an older database without session_state_log takes succeeded only', async () => {
+  await fixture(async (db) => {
+    seed(db, 'ok1');
+    seed(db, 'c1');
+    db.prepare("INSERT INTO session_state_log (session_id, at, state) VALUES ('c1', ?, 'done')").run(AT);
+    db.prepare("UPDATE session SET state = 'exited', outcome = 'succeeded' WHERE id = 'ok1'").run();
+    db.prepare("UPDATE session SET state = 'exited', outcome = 'cancelled' WHERE id = 'c1'").run();
+    assert.equal(finishedOk(db, 'c1'), true);
+    db.exec('DROP TABLE session_state_log');
+    assert.equal(finishedOk(db, 'ok1'), true);
+    assert.equal(finishedOk(db, 'c1'), false);
+    assert.equal(finishedOk(db, 'missing'), false);
+  });
 });

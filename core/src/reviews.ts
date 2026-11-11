@@ -69,6 +69,15 @@ export function reviewPrompt(r: Pick<Reviewed, 'prompt' | 'started_at'>): string
   return `Review the work another agent did in this folder. Its task was: "${task}". It started at ${r.started_at}; see its changes with git status, git diff, and git log -p --since="${r.started_at}". Check the changes do the task, are correct, and break nothing else. Do not edit any files. End your reply with a final line made of the word VERDICT and a colon, then PASS or FAIL, then a one-sentence note.`;
 }
 
+/** Exited ok: outcome succeeded, or cancelled when its last state before exit, idle aside, was done (an opened card moves done to idle). */
+export function finishedOk(db: DatabaseSync, sessionId: string): boolean {
+  const outcome = (db.prepare('SELECT outcome FROM session WHERE id = ?').get(sessionId) as { outcome: string | null } | undefined)?.outcome;
+  if (outcome === 'succeeded') return true;
+  if (outcome !== 'cancelled' || !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_state_log'").get()) return false;
+  const last = db.prepare("SELECT state FROM session_state_log WHERE session_id = ? AND state NOT IN ('idle', 'exited') ORDER BY rowid DESC LIMIT 1").get(sessionId) as { state: string } | undefined;
+  return last?.state === 'done';
+}
+
 let busy = false;
 
 /** Launches a review child for each reviewer of a session that exited ok, and records each child's verdict once it has one or has exited. */
@@ -76,11 +85,11 @@ export async function reviewTick(db: DatabaseSync, deps: ReviewDeps): Promise<vo
   if (busy) return;
   busy = true;
   try {
-    const due = db.prepare(
+    const due = (db.prepare(
       `SELECT r.who, s.id AS session_id, s.project_id, s.cwd, s.prompt, s.started_at, p.path, p.name
        FROM session_review r JOIN session s ON s.id = r.session_id JOIN project p ON p.id = s.project_id
-       WHERE r.kind = 'reviewer' AND r.state = 'pending' AND r.review_session_id IS NULL AND s.state = 'exited' AND s.outcome = 'succeeded'`,
-    ).all() as Array<Reviewed & { who: string }>;
+       WHERE r.kind = 'reviewer' AND r.state = 'pending' AND r.review_session_id IS NULL AND s.state = 'exited' AND s.outcome IN ('succeeded', 'cancelled')`,
+    ).all() as Array<Reviewed & { who: string }>).filter((r) => finishedOk(db, r.session_id));
     for (const row of due) {
       try {
         const child = deps.launch(row, row.who, reviewPrompt(row));
