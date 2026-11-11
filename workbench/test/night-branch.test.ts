@@ -32,6 +32,10 @@ test('snapshot session rows populate branch from rowGit and retain git map', () 
   const contextObj = {
     readFromDb: false,
     demo: false,
+    iconOverrides: null,
+    readOverrides: () => ({}),
+    iconFile: () => '',
+    resolveProjectIcon: () => null,
     db: () => ({}),
     emptySnapshot: () => ({}),
     withLiveText: (s: any) => s,

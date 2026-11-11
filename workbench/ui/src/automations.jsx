@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji } from './icons/index.js';
+import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji, ProjectIcon } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
@@ -211,7 +211,7 @@ export function AutomationEditor({ initial, labelNames, colours = {}, onClose, o
         <div className="ou-ae-preview" data-valid={valid && !saveError ? 'true' : 'false'}>
           {preview === null ? <span>Reading the schedule.</span> : valid ? <><b>{preview.words}</b><span className="ou-ae-cron">{cron}</span><span>Next: {runs.map(runWords).join(' · ') || 'no run found'}</span></> : <b>{preview.error || 'Not a valid schedule. Five fields: minute hour day month weekday.'}</b>}
           {saveError ? <b className="ou-ae-error" role="alert">{saveError}</b> : null}
-          <span className="ou-hm-muted">Local time. Runs while Ouros is open.</span>
+          <span className="ou-hm-muted">Local time. Runs while cc is open.</span>
         </div>
         <button type="button" className="ou-hm-fold" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><span className="ou-hm-chevbox" data-open={advanced ? 'true' : 'false'}>{chevSmall}</span><span>Advanced: check script</span></button>
         {advanced ? (
@@ -280,6 +280,7 @@ export function AutomationsPage() {
   useEffect(() => { void refresh(); const t = setInterval(refresh, 60000); return () => clearInterval(t); }, []);
   const s = ui.snap || {};
   const projName = (pid) => (s.projects || []).find((p) => p.id === pid)?.name || pid;
+  const projIcon = (pid) => (s.projects || []).find((p) => p.id === pid)?.icon || null;
   const q = query.trim().toLowerCase();
   const order = {
     newest: (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')),
@@ -316,7 +317,7 @@ export function AutomationsPage() {
         </span>
         {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
         <span className="ou-ap-chips">
-          <span className="ou-ap-chip">{folderIcon}{projName(a.project_id)}</span>
+          <span className="ou-ap-chip">{projIcon(a.project_id) ? <ProjectIcon icon={projIcon(a.project_id)} size={12} /> : folderIcon}{projName(a.project_id)}</span>
           <span className="ou-ap-chip">{clockIcon}{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</span>
           <span className="ou-ap-chip"><EngineMark id={a.engine_id} size={12} title={a.engine_id} />{a.engine_id || 'agent'}</span>
           {(a.labels || []).map((l) => {
@@ -350,7 +351,7 @@ export function AutomationsPage() {
           <button type="button" aria-pressed={view === 'box'} title="Boxes" onClick={() => pickView('box')}>{boxIcon}</button>
         </span>
       </div>
-      <p className="ou-ap-note">Runs while Ouros is open.</p>
+      <p className="ou-ap-note">Runs while cc is open.</p>
       {tab === 'ideas' ? <TemplateCards onPick={(t) => setEditing(t)} /> : list === null ? <p className="ou-ap-note">Loading.</p> : !(list || []).length ? (
         <div className="ou-ap-empty">
           <span className="ou-ap-emptyicon">{clockBig}</span>
