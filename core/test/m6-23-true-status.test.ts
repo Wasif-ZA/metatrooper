@@ -1288,7 +1288,7 @@ test('M6-23 an engine with no idle pattern never arms interrupt detection', asyn
   }
 });
 
-test('M6-23 launch supplies plugin environment and opencode config without any MCP server', async () => {
+test('M6-23 launch supplies plugin environment and opencode config with no external MCP server; ouros-steps always', async () => {
   // protects=state plugin launch configuration fails_when=reporter env or plugin-only config is absent no_claim=live engine plugin loading
   const h = await memoryDb();
   try {
@@ -1303,13 +1303,17 @@ test('M6-23 launch supplies plugin environment and opencode config without any M
     assert.equal(h.db.prepare('SELECT count(*) AS n FROM plugin').get()!.n, 0);
     const env = mcpAttachEnv(h.db, engine, h.id);
     assert.deepEqual(Object.keys(env), ['OPENCODE_CONFIG_CONTENT']);
+    const steps = { type: 'local', command: [process.execPath.replaceAll('\\', '/'), join(ROOT, 'core/mcp-shim.js').replaceAll('\\', '/'), 'steps'], enabled: true };
     assert.deepEqual(JSON.parse(env.OPENCODE_CONFIG_CONTENT), {
-      mcp: {},
+      mcp: { 'ouros-steps': steps },
       plugin: [pathToFileURL(join(ROOT, 'engines/plugins/opencode-state.js')).href],
     });
-    assert.deepEqual(mcpAttachEnv(h.db, {
+    assert.deepEqual(Object.keys(JSON.parse(mcpAttachEnv(h.db, {
       ...engine, state_plugin: undefined,
-    }, h.id), {});
+    }, h.id).OPENCODE_CONFIG_CONTENT)), ['mcp']);
+    assert.deepEqual(mcpAttachEnv(h.db, engine, h.id, false, { approval: 'isolated' }), {
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: {}, plugin: [pathToFileURL(join(ROOT, 'engines/plugins/opencode-state.js')).href] }),
+    });
     assert.equal(existsSync(join(h.home, '.config/opencode/opencode.json')), false);
   } finally {
     await h.close();
