@@ -885,7 +885,8 @@ function SourceControl({ st }) {
   }
 
   const { staged, unstaged } = gitFiles(st);
-  const canCommit = st.commitMsg.trim().length > 0 && staged.length > 0;
+  const canCommit = staged.length > 0;
+  const commit = () => { if (st.commitMsg.trim()) void gitCommit(st); else message.current?.focus(); };
   const fold = st.scFold || (st.scFold = {});
   const toggle = (k) => { fold[k] = !fold[k]; bump(); };
 
@@ -894,10 +895,10 @@ function SourceControl({ st }) {
       <div className="ou-ide-sccommit">
         <TextArea ref={message} containerClassName={st.commitMsg.includes('\n') ? 'ou-ide-scmsg ou-ide-scmsg-multiline' : 'ou-ide-scmsg'} rows={1} aria-label="Commit message" placeholder="Message (Ctrl+Enter to commit)" value={st.commitMsg}
           onChange={(value) => { st.commitMsg = value; bump(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); void gitCommit(st); } }} />
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); commit(); } }} />
         <div className="ou-ide-scactions">
-          <Button size="sm" variant="primary" label="Commit" icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
-          <DropdownMenu size="sm" menuWidth={160} items={['Commit', 'Commit staged'].map((label) => ({ label, isDisabled: !canCommit, onClick: () => void gitCommit(st) }))}
+          <Button size="sm" variant="primary" label="Commit" icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={commit} />
+          <DropdownMenu size="sm" menuWidth={160} items={['Commit', 'Commit staged'].map((label) => ({ label, isDisabled: !canCommit, onClick: commit }))}
             renderTrigger={(props) => <IconButton {...props} className="ou-ide-scsplit" size="sm" variant="primary" label="Commit actions" icon={<Ic.ChevronDownIcon size={14} />} isDisabled={!canCommit} />} />
         </div>
       </div>

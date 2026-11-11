@@ -58,7 +58,7 @@
 .ou-ide-cur, .ou-ide-scrow:focus-visible { background: var(--row-selected); color: var(--ink); }
 .ou-ide-tree .astryx-tree-list { --tree-list-indent: 8px; --tree-list-row-gap: 0px; }
 .ou-ide-tree [role="group"] { margin: 0; padding: 0; border: 0; }
-.ou-ide-tree .astryx-tree-list > :has(> .ou-ide-root) { margin-bottom: 0; }
+.ou-ide-tree .astryx-tree-list > :has(.ou-ide-root) { margin-bottom: 0; padding-bottom: 0; }
 .ou-ide-tree .astryx-tree-list-item { height: 22px; min-height: 22px; line-height: 22px; padding: 0 8px; gap: 4px; }
 .ou-ide-tree .astryx-tree-list-item button { padding-block: 0; }
 .ou-ide-tree .astryx-tree-list-chevron { width: 16px; height: 16px; min-height: 16px; }
@@ -121,7 +121,7 @@
 .ou-ide-tabs nav, .ou-ide-tabs .astryx-tab-strip { height: 35px; gap: 0; background: var(--canvas-deep); }
 .ou-ide-tabs .astryx-tab { box-sizing: border-box; height: 35px; margin: 0; padding: 0 4px 0 10px; gap: 6px; border-top: 1px solid transparent; border-right: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--mute); box-shadow: none; font: 13px 'Geist', 'Segoe UI', sans-serif; }
 .ou-ide-tabs .astryx-tab:hover { background: var(--canvas-deep); color: var(--body-strong); }
-.ou-ide-tabs .astryx-tab[data-selected] { background: var(--pane); color: var(--ink); border-top-color: var(--ink); border-inline: 0; border-bottom: 0; box-shadow: none; outline: none; }
+.ou-ide-tabs .astryx-tab[data-selected] { background: var(--pane); color: var(--ink); border-top-color: var(--mute); border-left: 0; border-right: 1px solid var(--hairline); border-bottom: 0; box-shadow: none; outline: none; }
 .ou-ide-tabs .astryx-tab > span[aria-hidden="true"]:first-child { display: none; }
 .ou-ide-tabs .astryx-tab-indicator { display: none; }
 .ou-ide-tabend { position: relative; display: inline-flex; align-items: center; gap: 4px; }

@@ -7,3 +7,4 @@
 .ou-ide-chead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
 .ou-ide-cfoot { display: flex; justify-content: flex-end; gap: 6px; }
 .ou-ide-csent { display: flex; align-items: center; padding: 0 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 12px var(--mono); color: var(--mute); background: var(--canvas); border-left: 2px solid var(--hairline-strong); }
+.ou-ide .monaco-diff-editor .margin-view-overlays .line-numbers { padding-right: 6px; }
