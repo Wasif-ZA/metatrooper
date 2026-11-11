@@ -1,35 +1,71 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Button } from '@astryxdesign/core/Button';
+import { IconButton } from '@astryxdesign/core/IconButton';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { createStore } from './store.js';
-import { Verdict } from './verdict.jsx';
 import { Usage } from './usage.jsx';
 import { Audit } from './audit.jsx';
-import { AgentHead } from './agenthead.jsx';
+import { HomeAutomations } from './automations.jsx';
+import { EngineMark } from './icons/index.js';
 
-export const homeStore = createStore({ tick: 0 });
-export const newTaskStore = createStore({ open: false });
-export const openNewTask = () => newTaskStore.set({ open: true });
+export const homeStore = createStore({ tick: 0, open: [], selected: null, usage: false });
 
-const svg = (d) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
-const ICONS = {
-  needs: 'M1.5 8.5l2-5.5h9l2 5.5v4.5h-13zM1.5 8.5h4l1 1.5h3l1-1.5h4',
-  working: 'M8 2v2.5M8 11.5V14M2 8h2.5M11.5 8H14M3.8 3.8l1.7 1.7M10.5 10.5l1.7 1.7M3.8 12.2l1.7-1.7M10.5 5.5l1.7-1.7',
-  done: 'M3 8.5l3.2 3.2L13 4.8',
-  files: 'M4 2.5h5l3 3v8H4zM9 2.5v3h3',
-  dollar: 'M8 2v12M11 4.5H6.5a2 2 0 000 4h3a2 2 0 010 4H5',
-  shield: 'M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z',
+export const openNewTask = () => {
+  if (typeof homeView !== 'undefined' && !homeView.shown()) homeView.set('home');
+  const focus = () => document.querySelector('#home .ou-hm-task textarea')?.focus();
+  focus();
+  setTimeout(focus, 50);
 };
 
-const plusIcon = (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 3.5v9M3.5 8h9" />
-  </svg>
-);
+let gsap = null;
+let calm = true;
+// gsap reads document on import, so it loads only where a real DOM exists
+if (typeof Document === 'function' && typeof document !== 'undefined' && document instanceof Document && typeof window.matchMedia === 'function') {
+  import('gsap').then((core) => {
+    core.gsap.matchMedia().add({ calm: '(prefers-reduced-motion: reduce)', move: '(prefers-reduced-motion: no-preference)' }, (ctx) => { calm = Boolean(ctx.conditions.calm); });
+    gsap = core.gsap;
+  });
+}
+const motionOn = () => Boolean(gsap) && !calm;
+
+function Drop({ open, className, children }) {
+  const ref = useRef(null);
+  const kept = useRef(children);
+  const first = useRef(true);
+  const [closing, setClosing] = useState(false);
+  if (open) kept.current = children;
+  useLayoutEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const el = ref.current;
+    if (!el || !motionOn()) { setClosing(false); return; }
+    if (open) gsap.fromTo(el, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.2, ease: 'power2.out', overwrite: true, clearProps: 'height,opacity' });
+    else { setClosing(true); gsap.to(el, { height: 0, opacity: 0, duration: 0.18, ease: 'power2.in', overwrite: true, onComplete: () => setClosing(false) }); }
+  }, [open]);
+  const shown = open ? children : closing ? kept.current : null;
+  return <div ref={ref} className={className} hidden={!shown}>{shown}</div>;
+}
+
+function Swap({ k, children }) {
+  const ref = useRef(null);
+  const prev = useRef(k);
+  useLayoutEffect(() => {
+    if (prev.current === k) return;
+    prev.current = k;
+    if (ref.current && motionOn()) gsap.fromTo(ref.current, { opacity: 0, x: 6 }, { opacity: 1, x: 0, duration: 0.22, ease: 'power2.out', overwrite: true, clearProps: 'opacity,transform' });
+  }, [k]);
+  return <div ref={ref}>{children}</div>;
+}
+
+const chev = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="ou-hm-chev"><path d="M5 3.5L8.5 7 5 10.5" /></svg>;
+const tick = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 7.2l2.3 2.3 4.7-5" /></svg>;
+const branchIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="4" cy="3" r="1.5" /><circle cx="4" cy="11" r="1.5" /><circle cx="10" cy="5" r="1.5" /><path d="M4 4.5v5M10 6.5c0 2-6 1.5-6 3" /></svg>;
+const commitIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="2.2" /><path d="M1 7h3.8M9.2 7H13" /></svg>;
+const filesIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 1.5h4.5l2.5 2.5v8.5h-7zM5.5 7h3M7 5.5v3M5.5 10h3" /></svg>;
+const prIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="3.5" cy="3" r="1.5" /><circle cx="3.5" cy="11" r="1.5" /><circle cx="10.5" cy="11" r="1.5" /><path d="M3.5 4.5v5M10.5 9.5V5.5a1.5 1.5 0 0 0-1.5-1.5H7M8.5 2.5L7 4l1.5 1.5" /></svg>;
 
 const warnIcon = (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="ou-dash-usagewarn-icon">
@@ -59,8 +95,7 @@ function formatUntil(resets_at) {
   if (mins < 60) return `in ${Math.max(1, mins)}m`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return `in ${hours}h`;
-  const days = Math.round(hours / 24);
-  return `in ${days}d`;
+  return `in ${Math.round(hours / 24)}d`;
 }
 
 function activityText(r) {
@@ -86,34 +121,40 @@ function activityText(r) {
   return action;
 }
 
-function outcomeWord(state) {
-  if (state === 'done') return 'finished';
-  if (state === 'working' || state === 'starting') return 'running';
-  if (state === 'waiting_for_you') return 'waiting';
-  return state;
-}
-
-function outcomeColor(state) {
-  if (state === 'done') return 'green';
-  if (state === 'working' || state === 'starting') return 'blue';
-  if (state === 'waiting_for_you') return 'amber';
-  return 'mute';
-}
+const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
+const DONE_STATES = ['done', 'exited', 'idle'];
 
 function UsageWarn({ limit }) {
   if (!limit) return null;
   const rel = formatUntil(limit.resets_at);
-  const resetPart = rel ? `, resets ${rel}` : '';
-  const text = `${limit.provider} has used ${Math.round(limit.used_pct)}% of its ${limit.window} window${resetPart}`;
-  return (
-    <div className="ou-dash-usagewarn">
-      {warnIcon}
-      <span>{text}</span>
-    </div>
-  );
+  const text = `${limit.provider} has used ${Math.round(limit.used_pct)}% of its ${limit.window} window${rel ? `, resets ${rel}` : ''}`;
+  return <div className="ou-dash-usagewarn">{warnIcon}<span>{text}</span></div>;
 }
 
-function StartBox({ ready, open }) {
+const ic = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
+const attachIcon = <svg {...ic}><path d="M11.5 6.5l-4.6 4.6a2.5 2.5 0 0 1-3.5-3.5l5-5a1.6 1.6 0 0 1 2.3 2.3L5.9 9.7a.7.7 0 0 1-1-1l4.3-4.3" /></svg>;
+const slidersIcon = <svg {...ic}><path d="M2 4h6M10.5 4H12M2 10h1.5M6 10h6" /><circle cx="9" cy="4" r="1.4" /><circle cx="4.5" cy="10" r="1.4" /></svg>;
+const sendIcon = <svg {...ic}><path d="M7 11.5v-9M3.5 6L7 2.5 10.5 6" /></svg>;
+const hostIcon = <svg {...ic}><rect x="1.5" y="2" width="11" height="7.5" rx="1.2" /><path d="M5 12h4M7 9.5V12" /></svg>;
+const editorIcon = <svg {...ic}><path d="M6 2.5H3a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V8M8 2.5h3.5v3.5M6.5 7.5L11.5 2.5" /></svg>;
+const circle = <svg {...ic} className="ou-hm-cbox"><circle cx="7" cy="7" r="5" /></svg>;
+const circleDone = <svg {...ic} className="ou-hm-cbox ou-hm-cdone"><circle cx="7" cy="7" r="5" /><path d="M4.8 7.2l1.6 1.6 2.8-3.1" /></svg>;
+const spin = <svg {...ic} className="ou-hm-spin"><circle cx="7" cy="7" r="5" strokeDasharray="2 2.2" /></svg>;
+
+const TILE_COLOURS = ['#e5484d', '#3e63dd', '#f76b15', '#30a46c', '#8e4ec6', '#12a594', '#d6409f', '#ffc53d'];
+const tileOf = (name) => {
+  const n = String(name || '?');
+  const h = [...n].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const parts = n.split(/[-_\s.]+/).filter(Boolean);
+  const letters = (parts.length > 1 ? parts[0][0] + parts[1][0] : n.slice(0, 2)).toUpperCase();
+  return { letters, colour: TILE_COLOURS[h % TILE_COLOURS.length] };
+};
+function ProjectChip({ name }) {
+  const t = tileOf(name);
+  return <span className="ou-hm-proj"><span className="ou-hm-tile" style={{ color: t.colour, background: `color-mix(in srgb, ${t.colour} 18%, transparent)` }}>{t.letters}</span><span>{name}</span></span>;
+}
+
+function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
   const [engine, setEngine] = useState(ui.drafts['home-engine'] || load('engine') || ready[0].id);
   const chosen = ready.some((e) => e.id === engine) ? engine : ready[0].id;
@@ -121,18 +162,7 @@ function StartBox({ ready, open }) {
   const [branch, setBranch] = useState('');
   const [model, setModel] = useState('');
   const [approval, setApproval] = useState('default');
-  const composerRef = useRef(null);
-
-  useEffect(() => {
-    if (open) {
-      const el = composerRef.current?.querySelector('textarea');
-      if (el) {
-        el.focus();
-        const t = setTimeout(() => el?.focus(), 50);
-        return () => clearTimeout(t);
-      }
-    }
-  }, [open]);
+  const ref = useRef(null);
 
   const start = async () => {
     const text = task.trim();
@@ -151,20 +181,15 @@ function StartBox({ ready, open }) {
     save('engine', chosen);
     homeView.set('wall');
     setBranch('');
-    newTaskStore.set({ open: false });
     if (target !== ui.projectId) { ui.pendingPick = r.result.session_id; switchProject(target); return; }
     await pick(r.result.session_id);
   };
+  const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   return (
-    <div ref={composerRef} className="ou-composer" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
-      <TextArea autoFocus label="Task for a new agent" isLabelHidden rows={1} value={task} placeholder="What should an agent do? Leave it empty to just open one." onChange={(v) => { ui.drafts['home-task'] = v; setTask(v); }} />
-      <div className="ou-composerfoot">
-        <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
-        <Button variant="ghost" size="sm" label={more ? 'Fewer options' : 'Options'} aria-expanded={more} onClick={() => setMore(!more)} />
-        <Button variant="primary" size="sm" label="Start" tooltip="Start (Ctrl+Enter)" data-action="home-start" data-engine={chosen} onClick={start} />
-      </div>
+    <div ref={ref} className="ou-composer ou-hm-task" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
+      <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask anything. @ files, / commands" onChange={edit} />
       {more ? (
-        <div className="ou-composerfoot">
+        <div className="ou-composerfoot ou-hm-opts">
           <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
           <TextInput size="sm" width={180} label="Model" isLabelHidden placeholder="Model (agent default)" value={model} onChange={setModel} />
           <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
@@ -175,48 +200,149 @@ function StartBox({ ready, open }) {
           ]} />
         </div>
       ) : null}
+      <div className="ou-hm-cbar">
+        <IconButton size="sm" variant="ghost" icon={attachIcon} label="Mention a file (@)" onClick={() => { edit(task + (task && !task.endsWith(' ') ? ' @' : '@')); ref.current?.querySelector('textarea')?.focus(); }} />
+        <IconButton size="sm" variant="ghost" icon={slidersIcon} label={more ? 'Fewer options' : 'Options'} aria-expanded={more} aria-pressed={more} onClick={() => setMore(!more)} />
+        <span className="ou-hm-cgap" />
+        <span className="ou-hm-engine"><EngineMark id={chosen} size={16} title={chosen} />
+          <Selector label="Agent" isLabelHidden size="sm" variant="ghost" options={ready.map((e) => ({ value: e.id, label: e.id }))} value={chosen} onChange={(v) => { ui.drafts['home-engine'] = v; setEngine(v); }} />
+        </span>
+        <IconButton size="sm" variant="primary" icon={sendIcon} label="Start" tooltip="Start (Ctrl+Enter)" className="ou-hm-send" data-action="home-start" data-engine={chosen} onClick={start} />
+      </div>
     </div>
   );
 }
 
-export function NewTask() {
-  const { open } = newTaskStore.use();
-  const ready = (ui.snap?.engines || []).filter((e) => e.light !== 'red');
+const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
+const isWorking = (k) => k.state === 'working' || k.state === 'starting';
+
+function Marks({ list, size = 22 }) {
   return (
-    <Dialog isOpen={Boolean(open)} onOpenChange={(o) => newTaskStore.set({ open: Boolean(o) })} aria-label="New task" width={560}>
-      <DialogHeader title="New task" onOpenChange={(o) => newTaskStore.set({ open: Boolean(o) })} />
-      <div style={{ padding: '0 16px 16px' }}>
-        {ready.length ? <StartBox ready={ready} open={Boolean(open)} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />}
-      </div>
-    </Dialog>
+    <span className="ou-hm-marks">
+      {list.slice(0, 3).map((k) => <span key={k.id} className="ou-hm-mk" style={{ width: size, height: size }}><EngineMark id={k.engine_id} size={size - 6} title={k.engine_id} /></span>)}
+      {list.length > 3 ? <span className="ou-hm-mk ou-hm-more" style={{ width: size, height: size }}>+{list.length - 3}</span> : null}
+    </span>
   );
 }
 
-function AgentCard({ x }) {
-  const files = changedFiles(x.id).length;
+function SubAgents({ x, kids, open, toggle }) {
+  const working = kids.filter(isWorking).length;
+  const newest = kids.map((k) => k.state_at || k.started_at || '').sort().pop();
+  const key = `sub:${x.id}`;
   return (
-    <div className="ou-agent" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
-      <AgentHead x={x} />
-      {x.run_id ? (
-        <div className="ou-dash-lastrun">
-          <span className="ou-dash-chip">{x.run_id.slice(0, 8)}</span>
-          <span className={`ou-dash-outcome ou-dash-${outcomeColor(x.state)}`}>{outcomeWord(x.state)}</span>
-          <span className="ou-dash-runat">{ago(x.state_at)}</span>
+    <div className="ou-hm-subs">
+      <div className="ou-hm-subrow" role="button" tabIndex={0} aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); toggle(key); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(key); } }}>
+        <Marks list={kids} />
+        <span className="ou-hm-subtext"><b>{kids.length} sub-{kids.length === 1 ? 'agent' : 'agents'}</b><span className={working ? 'ou-hm-acc' : ''}>{working ? `${working} working` : 'all settled'}</span></span>
+        <span className="ou-hm-age">{ago(newest) || ''}</span>
+        <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
+      </div>
+      <Drop open={open} className="ou-hm-drop">
+        <ul className="ou-hm-lineage">
+          {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{taskOf(k)}</span><span className={`ou-hm-state ou-hm-st-${k.state}`}>{STATE_WORD[k.state] || k.state}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
+        </ul>
+      </Drop>
+    </div>
+  );
+}
+
+function AgentRow({ x, kids, openList, selected, toggle, select }) {
+  const st = stepsOf(x);
+  const open = openList.includes(x.id);
+  const g = ui.snap?.git?.[x.id] || {};
+  const branch = g.branch || x.branch || null;
+  const proj = (ui.snap?.projects || []).find((p) => p.id === (x.project_id || ui.projectId))?.name || 'No project';
+  const waiting = x.state === 'waiting_for_you';
+  return (
+    <li className={`ou-hm-agent${selected ? ' ou-hm-sel' : ''}`} data-id={x.id} data-state={x.state}>
+      <div className="ou-hm-arow" role="button" tabIndex={0} aria-expanded={open}
+        onClick={() => { select(x.id); toggle(x.id); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(x.id); toggle(x.id); } }}>
+        <div className="ou-hm-l1">
+          <ProjectChip name={proj} />
+          <span className="ou-hm-gap" />
+          {waiting ? <span className="ou-hm-wait">{spin}Waiting</span> : null}
+          <span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span>
+        </div>
+        <div className="ou-hm-l2"><span className="ou-hm-title">{taskOf(x)}</span></div>
+        <div className="ou-hm-l3">
+          <span className="ou-hm-mono ou-hm-branch">{branch || STATE_WORD[x.state] || x.state}</span>
+          <span className="ou-hm-gap" />
+          {st ? <span className="ou-hm-steps">{st.done}/{st.total}</span> : null}
+          <EngineMark id={x.engine_id} size={16} title={x.engine_id} />
+        </div>
+      </div>
+      <Drop open={open} className="ou-hm-drop">
+        {st && st.items.length ? (
+          <ol className="ou-hm-check">
+            {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
+          </ol>
+        ) : <p className="ou-hm-muted">{kids.length ? 'No steps reported. Sub-agents are listed above.' : 'No steps reported yet.'}</p>}
+        {x.last_line ? <pre className="ou-hm-last">{x.last_line}</pre> : null}
+        <div className="ou-hm-dropacts"><Button size="sm" variant="ghost" label="Open on Wall" data-action="pick" data-id={x.id} /></div>
+      </Drop>
+      {kids.length ? <SubAgents x={x} kids={kids} open={openList.includes(`sub:${x.id}`)} toggle={toggle} /> : null}
+    </li>
+  );
+}
+
+function RailAgent({ x, kids }) {
+  const [answer, setAnswer] = useState('');
+  const [merging, setMerging] = useState(false);
+  const g = ui.snap?.git?.[x.id] || {};
+  const branch = g.branch || x.branch || null;
+  const pr = g.pr || null;
+  const here = !x.project_id || x.project_id === ui.projectId;
+  const host = x.cwd ? x.cwd.split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === x.project_id)?.name || 'This computer';
+  const send = async () => {
+    const t = answer.trim();
+    if (!t || !here) return;
+    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${x.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
+  };
+  const running = kids.filter(isWorking).length;
+  return (
+    <div className="ou-hm-panel">
+      {x.state === 'waiting_for_you' ? (
+        <div className="ou-hm-ask">
+          <p><b>{x.engine_id}</b> {x.reason || x.last_line || 'is waiting for you'}</p>
+          <TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? 'Answer, Enter sends' : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} />
         </div>
       ) : null}
-      <pre>{x.last_line || ' '}</pre>
-      <footer><span>{files ? `${files} changed ${files === 1 ? 'file' : 'files'}` : 'No changes yet'}</span><Verdict x={x} />{x.state === 'waiting_for_you' ? <Button size="sm" label="Answer" data-action="pick" data-id={x.id} /> : null}</footer>
-    </div>
-  );
-}
-
-function DashTile({ icon, label, value, sub, hot }) {
-  return (
-    <div className={hot ? 'ou-dash-tile ou-hot' : 'ou-dash-tile'}>
-      <span className="ou-dash-tileicon">{svg(ICONS[icon])}</span>
-      <b>{value}</b>
-      <span className="ou-dash-tilelabel">{label}</span>
-      <span className="ou-dash-tilesub">{sub}</span>
+      <ul className="ou-hm-props">
+        <li>{hostIcon}<span className="ou-hm-name">{host}</span></li>
+        <li role="button" tabIndex={0} className="ou-hm-click" data-action="pick" data-id={x.id}>{editorIcon}<span className="ou-hm-name">Open on Wall</span>{chev}</li>
+      </ul>
+      {branch ? (
+        <ul className="ou-hm-props">
+          <li>{branchIcon}<span className="ou-hm-name ou-hm-mono">{branch}</span></li>
+          {g.commit ? <li>{commitIcon}<span className="ou-hm-name">Commit</span><span className="ou-hm-mono">{g.commit}</span></li> : null}
+          <li>{filesIcon}<span className="ou-hm-name">Changes</span><span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span></li>
+          {pr ? (
+            <li>{prIcon}<span className="ou-hm-name">PR #{pr.number}</span><span className="ou-hm-prstate">{String(pr.state || '').toLowerCase()}</span>
+              {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" label="Merge" onClick={() => setMerging(true)} /> : null}
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {kids.length ? (
+        <div className="ou-hm-props">
+          <div className="ou-hm-rtitle">Lineage {'·'} {running} running</div>
+          <ul className="ou-hm-lineage">
+            {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{taskOf(k)}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
+          </ul>
+        </div>
+      ) : null}
+      {merging && pr ? (
+        <AlertDialog isOpen onOpenChange={(o) => { if (!o) setMerging(false); }} title={`Merge PR #${pr.number}?`}
+          description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from Ouros.`} actionLabel="Merge"
+          onAction={async () => {
+            setMerging(false);
+            const r = await rpc('gh.merge', { session_id: x.id });
+            if (r && r.result) toast(`Merged PR #${pr.number}`); else toast((r && r.error && (r.error.message || r.error)) || 'Could not merge', true);
+          }} />
+      ) : null}
     </div>
   );
 }
@@ -434,7 +560,7 @@ function ChartChecks({ data, loading, error }) {
 }
 
 export function Home() {
-  homeStore.use();
+  const { open = [], selected, usage: usageOpen } = homeStore.use();
   const [statsSessions, setStatsSessions] = useState(null);
   const [statsChecks, setStatsChecks] = useState(null);
   const [usageWeek, setUsageWeek] = useState(null);
@@ -445,7 +571,7 @@ export function Home() {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
+    const fetchAll = async () => {
       if (!homeView.shown()) return;
       try {
         const [sessRes, checksRes, weekRes, todayRes, auditRes] = await Promise.all([
@@ -470,159 +596,153 @@ export function Home() {
     };
     setLoading(true);
     setError(false);
-    void load();
-    const iv = setInterval(() => { void load(); }, 60000);
-    return () => {
-      active = false;
-      clearInterval(iv);
-    };
+    void fetchAll();
+    const iv = setInterval(() => { void fetchAll(); }, 60000);
+    return () => { active = false; clearInterval(iv); };
   }, [ui.projectId, homeView.shown()]);
 
   if (!homeView.shown()) return null;
   const s = ui.snap || {};
-  const mine = (s.sessions || []).filter((x) => x.state !== 'exited' && !ui.pendingHide?.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-  const waiting = waitingAll();
-  const working = mine.filter((x) => x.state === 'working' || x.state === 'starting');
+  const live = s.live || [];
+  const everyone = [...live, ...(s.sessions || []).filter((x) => !live.some((l) => l.id === x.id))]
+    .filter((x) => x.state !== 'exited' && !ui.pendingHide?.has(x.id));
+  const byId = new Map(everyone.map((x) => [x.id, x]));
+  const kidsOf = (id) => everyone.filter((y) => y.parent_id === id);
+  const tops = everyone.filter((x) => !x.parent_id || !byId.has(x.parent_id))
+    .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
+
+  const newest = (a, b) => String(b.state_at || b.started_at || '').localeCompare(String(a.state_at || a.started_at || ''));
+  const active = tops.filter((x) => !DONE_STATES.includes(x.state) && !isWorking(x));
+  const busy = tops.filter(isWorking).sort(newest);
+  const settledAll = [...tops.filter((x) => DONE_STATES.includes(x.state)), ...(s.sessions || []).filter((x) => x.state === 'exited' && !x.parent_id && !ui.pendingHide?.has(x.id))].sort(newest);
+  const settled = settledAll.slice(0, 20);
+
+  const waiting = waitingAll().slice().sort((a, b) => String(a.state_at || '').localeCompare(String(b.state_at || '')));
+  const working = everyone.filter((x) => x.state === 'working' || x.state === 'starting');
   const alerts = (s.needs_you || []).filter((n) => !n.read_at && !isInfo(n));
   const approvals = s.approvals || [];
-  const needsCount = waiting.length + approvals.length + alerts.length;
+  const needsCount = waiting.length + alerts.length;
+  const fallback = waiting[0]?.id || working.slice().sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')))[0]?.id || null;
+  const selId = selected && (byId.has(selected) || waiting.some((w) => w.id === selected)) ? selected : fallback;
+  const sel = selId ? byId.get(selId) || waiting.find((w) => w.id === selId) : null;
+
+  const toggle = (id) => {
+    const cur = homeStore.get().open || [];
+    homeStore.set({ open: cur.includes(id) ? cur.filter((k) => k !== id) : [...cur, id] });
+  };
+  const select = (id) => homeStore.set({ selected: id });
+  const row = (x) => <AgentRow key={x.id} x={x} kids={kidsOf(x.id)} openList={open} selected={x.id === selId} toggle={toggle} select={select} />;
 
   const limits = s.limits || [];
   const hot = limits.filter((l) => l.status === 'ok' && l.used_pct >= 80);
   const highestLimit = hot.length ? hot.slice().sort((a, b) => (b.used_pct || 0) - (a.used_pct || 0))[0] : null;
-
   const usdVal = Number(usageToday?.usd) || 0;
   const usdEst = Boolean(usageToday?.usd_estimated);
-  const tokensVal = Number(usageToday?.total) || 0;
+  const ready = (s.engines || []).filter((e) => e.light !== 'red');
 
-  const recentSessions = (s.sessions || [])
-    .slice()
-    .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
-    .slice(0, 8);
-
-  const name = project()?.name || '';
+  const recentSessions = (s.sessions || []).filter((x) => !ui.pendingHide?.has(x.id)).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || '')).slice(0, 8);
 
   return (
-    <div className="ou-col ou-home">
-      <header className="ou-dash-header">
-        <div className="ou-dash-head-left">
-          <span className="ou-dash-title">HOME</span>
-          <span className="ou-dash-proj">{name}</span>
+    <div className="ou-home ou-hm">
+      <div className="ou-hm-main">
+        {ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />}
+        <p className="ou-hm-summary">
+          <span className={needsCount ? 'ou-hm-hot' : ''}>{needsCount} need you</span>{' · '}
+          <span>{working.length} working</span>{' · '}
+          <span className={approvals.length ? 'ou-hm-hot' : ''}>{approvals.length} {approvals.length === 1 ? 'approval' : 'approvals'}</span>{' · '}
+          <span>{usdEst ? '~' : ''}${usdVal.toFixed(2)} today</span>
+        </p>
+        <UsageWarn limit={highestLimit} />
+
+        {tops.length || settled.length ? (
+          <section className="ou-hm-group">
+            {active.length ? <ul className="ou-hm-agents">{active.map(row)}</ul> : null}
+            {[['working', 'Working', busy, true], ['settled', 'Settled', settled, false]].map(([key, title, rows, byDefault]) => {
+              const isOpen = rows.length > 0 && (open.includes(`fold:${key}`) !== byDefault);
+              return (
+                <div key={key} className="ou-hm-fgroup">
+                  <button type="button" className="ou-hm-foot" aria-expanded={isOpen} disabled={!rows.length} onClick={() => toggle(`fold:${key}`)}>
+                    <span>{title}</span><span className="ou-hm-count">{key === 'settled' ? settledAll.length : rows.length}</span>
+                    <span className="ou-hm-chevbox" data-open={isOpen ? 'true' : 'false'}>{chev}</span>
+                  </button>
+                  <Drop open={isOpen} className="ou-hm-fbody"><ul className="ou-hm-agents">{rows.map(row)}</ul></Drop>
+                </div>
+              );
+            })}
+          </section>
+        ) : <EmptyState title="No agents yet" description="Start one with the task box above (Ctrl+N)." isCompact />}
+
+        <HomeAutomations />
+
+        <div className="ou-hm-split">
+          <section>
+            <h2 className="ou-hm-h">Recent activity</h2>
+            {auditRows.length ? (
+              <div className="ou-dash-list">
+                {auditRows.map((r) => (
+                  <div key={r.id || `${r.at}-${r.agent}`} className="ou-dash-row">
+                    <span className={`ou-dash-dot ${r.source === 'agent' ? 'ou-dash-dot-agent' : 'ou-dash-dot-system'}`} />
+                    <span className="ou-dash-agent-name">{r.agent}</span>
+                    <span className="ou-dash-row-text">{activityText(r)}</span>
+                    <span className="ou-dash-row-time">{ago(r.at)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="ou-hm-muted">No activity yet.</p>}
+          </section>
+          <section>
+            <h2 className="ou-hm-h">Recent sessions</h2>
+            {recentSessions.length ? (
+              <div className="ou-dash-list">
+                {recentSessions.map((x) => (
+                  <div key={x.id} className="ou-dash-row" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
+                    <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
+                    <span className="ou-dash-row-text">{taskOf(x)}</span>
+                    <span className={`ou-hm-state ou-hm-st-${x.state}`}>{STATE_WORD[x.state] || x.state}</span>
+                    <span className="ou-dash-row-time">{ago(x.state_at)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="ou-hm-muted">No sessions yet.</p>}
+          </section>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={plusIcon}
-          label="New task"
-          tooltip="New task (Ctrl+N)"
-          onClick={openNewTask}
-        />
-      </header>
 
-      <UsageWarn limit={highestLimit} />
-
-      <section className="ou-dash-section">
-        <div className="ou-dash-section-label">AGENTS</div>
-        {mine.length ? (
-          <div className="ou-cards ou-dash-cards">
-            {mine.map((x) => <AgentCard key={x.id} x={x} />)}
-          </div>
-        ) : (
-          <EmptyState
-            title="No agents yet"
-            description="Start one with New task (Ctrl+N)."
-            isCompact
-          />
-        )}
-      </section>
-
-      <div className="ou-dash-tiles">
-        <DashTile
-          icon="needs"
-          label="Needs you"
-          value={needsCount}
-          sub={`${waiting.length} waiting, ${alerts.length} alerts`}
-          hot={needsCount > 0}
-        />
-        <DashTile
-          icon="working"
-          label="Working"
-          value={working.length}
-          sub={working.length ? `${working.length} running now` : 'none running'}
-        />
-        <DashTile
-          icon="dollar"
-          label="Today spend"
-          value={`${usdEst ? '~' : ''}$${usdVal.toFixed(2)}`}
-          sub={`${formatTokens(tokensVal)} tokens today`}
-        />
-        <DashTile
-          icon="shield"
-          label="Approvals"
-          value={approvals.length}
-          sub={approvals.length ? 'waiting for a yes' : 'none waiting'}
-        />
-      </div>
-
-      <div className="ou-dash-charts">
-        <ChartRuns data={statsSessions} loading={loading} error={error} />
-        <ChartTokens data={usageWeek} loading={loading} error={error} />
-        <ChartSessions data={statsSessions} loading={loading} error={error} />
-        <ChartChecks data={statsChecks} loading={loading} error={error} />
-      </div>
-
-      <div className="ou-dash-split">
-        <section>
-          <div className="ou-dash-section-label">RECENT ACTIVITY</div>
-          {auditRows.length ? (
-            <div className="ou-dash-list">
-              {auditRows.map((r) => (
-                <div key={r.id || `${r.at}-${r.agent}`} className="ou-dash-row">
-                  <span className={`ou-dash-dot ${r.source === 'agent' ? 'ou-dash-dot-agent' : 'ou-dash-dot-system'}`} />
-                  <span className="ou-dash-agent-name">{r.agent}</span>
-                  <span className="ou-dash-row-text">{activityText(r)}</span>
-                  <span className="ou-dash-row-time">{ago(r.at)}</span>
-                </div>
-              ))}
+        <section className="ou-hm-usage">
+          <button type="button" className="ou-hm-fold" aria-expanded={Boolean(usageOpen)} onClick={() => homeStore.set({ usage: !usageOpen })}>
+            <span className="ou-hm-chevbox" data-open={usageOpen ? 'true' : 'false'}>{chev}</span><span>Usage and trends</span>
+          </button>
+          <Drop open={Boolean(usageOpen)} className="ou-hm-drop">
+            <div className="ou-dash-charts">
+              <ChartRuns data={statsSessions} loading={loading} error={error} />
+              <ChartTokens data={usageWeek} loading={loading} error={error} />
+              <ChartSessions data={statsSessions} loading={loading} error={error} />
+              <ChartChecks data={statsChecks} loading={loading} error={error} />
             </div>
-          ) : (
-            <p className="ou-dash-muted">No activity yet.</p>
-          )}
-        </section>
-        <section>
-          <div className="ou-dash-section-label">RECENT SESSIONS</div>
-          {recentSessions.length ? (
-            <div className="ou-dash-list">
-              {recentSessions.map((x) => (
-                <div
-                  key={x.id}
-                  className="ou-dash-row"
-                  data-action="pick"
-                  data-id={x.id}
-                  role="button"
-                  tabIndex={0}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <span className={`ou-dash-dot ou-dash-dot-${x.state}`} />
-                  <span
-                    className="ou-dash-row-text"
-                    style={{ fontWeight: x.state === 'waiting_for_you' ? 600 : 400, color: x.state === 'waiting_for_you' ? 'var(--ink)' : 'inherit' }}
-                  >
-                    {taskOf(x)}
-                  </span>
-                  <span className="ou-dash-chip-sm">{x.engine_id}</span>
-                  <span className="ou-dash-row-time">{ago(x.state_at)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="ou-dash-muted">No sessions yet.</p>
-          )}
+            <Usage />
+            <Audit />
+          </Drop>
         </section>
       </div>
 
-      <Usage />
-      <Audit />
+      <aside className="ou-hm-rail">
+        <section className="ou-hm-rq">
+          {needsCount + approvals.length ? <div className="ou-hm-rtitle">Needs you <span className="ou-hm-hot">{needsCount + approvals.length}</span></div> : null}
+          {waiting.length || approvals.length || alerts.length ? (
+            <ul className="ou-hm-queue">
+              {waiting.map((x) => (
+                <li key={x.id} className={x.id === selId ? 'ou-hm-sel' : ''} role="button" tabIndex={0} data-id={x.id}
+                  onClick={() => select(x.id)} onKeyDown={(e) => { if (e.key === 'Enter') select(x.id); }}>
+                  <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
+                  <span className="ou-hm-qtext"><b>{taskOf(x)}</b><span>{x.reason || x.last_line || 'asked a question'}</span></span>
+                </li>
+              ))}
+              {approvals.length ? <li role="button" tabIndex={0} data-action="sheet"><span className="ou-hm-qtext"><b>{approvals.length} {approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes</b><span>Review</span></span></li> : null}
+              {alerts.map((n) => <li key={n.id} role="button" tabIndex={0} data-action="inbox-open" data-id={n.id}><span className="ou-hm-qtext"><b>{n.text}</b><span>{n.kind} {'·'} {ago(n.at)}</span></span></li>)}
+            </ul>
+          ) : <p className="ou-hm-muted">Nothing needs you.</p>}
+        </section>
+        {sel ? <Swap k={sel.id}><RailAgent key={sel.id} x={sel} kids={kidsOf(sel.id)} /></Swap> : null}
+      </aside>
     </div>
   );
 }

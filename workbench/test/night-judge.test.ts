@@ -182,20 +182,14 @@ test('30f98498 Wall state text is unboxed in every state and only waiting has th
   }
 });
 
-test('d47bc079 Settings error note has its hint and Home Open folder is inside project actions', (t) => {
-  // Render the real settings row and project action wrapper with their literal copy.
+test('d47bc079 Settings error note has its hint', (t) => {
+  // Render the real settings row with its literal copy.
   settingsStore.set({ data: { sessions: {}, ui: { toast_ms: 3000, error_toast_ms: 8000 }, terminal: {}, agent_cursor: {} }, section: 'general' });
   const previousUse = settingsStore.use;
   t.after(() => { settingsStore.use = previousUse; });
   settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
   const html = renderToStaticMarkup(React.createElement(Settings));
   assert.match(html, /<span class="ou-rowtitle">Keep an error message on screen for<\/span><span class="ou-rowhint">Error notes stay longer so you can read them\.<\/span>/);
-  const actions = oneClass(screen(Home), 'ou-proj-actions');
-  assert.equal(actions.type, 'div');
-  const buttons = descendants(actions).filter(n => n?.props?.label === 'Open folder');
-  assert.equal(buttons.length, 1);
-  assert.equal(buttons[0].type, Button);
-  assert.equal(buttons[0].props['data-action'], 'open-folder');
 });
 
 test('f2d37124 Add-ons result count is quiet metadata inside the capped results column', () => {
@@ -226,23 +220,19 @@ test('60704072 Needs you has exactly one empty message, in the list, and none in
   assert.equal((renderToStaticMarkup(tree).match(/Nothing is waiting on you\./g) || []).length, 1);
 });
 
-test('1720c8e3 Home agent header puts the state right after the project and ui.css draws a middle dot between them', (t) => {
-  // Render the real Home card header and check its literal project and state text.
+test('1720c8e3 Home agent row reads project, task, then branch or state, with the engine mark last', (t) => {
+  // Render the real Home session row and check its three lines in order.
   g.ui.pendingHide = new Set();
   g.ui.snap.sessions = [{ id: 'a', project_id: 'p1', engine_id: 'codex', state: 'working', task: 'Review changes' }];
-  for (const [key, value] of Object.entries({ STATE_WORDS: { working: 'Working' }, taskOf: (x: any) => x.task })) {
+  for (const [key, value] of Object.entries({ taskOf: (x: any) => x.task })) {
     const previous = Object.getOwnPropertyDescriptor(g, key);
     Object.defineProperty(g, key, { configurable: true, writable: true, value });
     t.after(() => previous ? Object.defineProperty(g, key, previous) : delete g[key]);
   }
-  const cards = children(oneClass(screen(Home), 'ou-cards'));
-  assert.equal(cards.length, 1);
-  const card = screen(cards[0].type, cards[0].props);
-  assert.equal(hasClass(card, 'ou-agent'), true);
-  const header = children(card)[0];
-  const html = renderToStaticMarkup(header);
-  assert.match(html, /<span class="ou-ah-proj">codex<\/span><span class="[^"]*\bou-ah-state\b[^"]*"[^>]*>Working<\/span>/);
-  assert.ok(readFileSync(join(wb, 'ui/src/ui.css'), 'utf8').includes('.ou-ah-proj + .ou-ah-state::before { content: "\\00B7";'));
+  const rows = descendants(screen(Home)).filter(n => n?.type?.name === 'AgentRow');
+  assert.equal(rows.length, 1);
+  const html = renderToStaticMarkup(rows[0]);
+  assert.match(html, /class="ou-hm-proj">.*?Test project<\/span><\/span>.*?<span class="ou-hm-title">Review changes<\/span>.*?<span class="ou-hm-mono ou-hm-branch">running<\/span>.*?<title>codex<\/title>/);
 });
 
 test('e016fa92 Add-ons Check again renders as ghost and retains check-engines action', () => {

@@ -53,7 +53,7 @@ async function bundle(contents: string, output: string) {
 await bundle("export * from './src/plugin-install.jsx'; export * from './src/automations.jsx'; export * from './src/settings.jsx'; export * from './src/inbox.jsx'; export * from './src/addons.jsx'; export * from './src/home.jsx'; export * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';", 'screens.mjs');
 
 const screens = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
-const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home } = screens;
+const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore, Addons, addonsStore, drawAddons, Home, homeStore } = screens;
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
@@ -89,6 +89,8 @@ function harness(Screen: any, runEffects = false) {
       internals.H = {
         useEffect: (fn: any) => { if (runEffects) { const i = cursor++; if (!slots[i]) { slots[i] = true; queueMicrotask(fn); } } },
         useSyncExternalStore: (_subscribe: any, snapshot: any) => snapshot(),
+        useRef: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i]; },
+        useLayoutEffect: () => {},
         useState: (initial: any) => { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial; return [slots[i], (v: any) => { const next = typeof v === 'function' ? v(slots[i]) : v; if (!Object.is(next, slots[i])) { slots[i] = next; rerender = true; } }]; },
       };
       let output;
@@ -297,43 +299,43 @@ test('Add-ons loads once, clears on leave, reloads and ignores a stale response'
   assert.match(h.html(), /No plugins installed\./); assert.doesNotMatch(h.html(), />stale</);
 });
 
-for (const [hour, greeting] of [[0, 'Good morning'], [11, 'Good morning'], [12, 'Good afternoon'], [17, 'Good afternoon'], [18, 'Good evening'], [23, 'Good evening']] as const) test('Home greeting at hour ' + hour, () => {
-  const DateClass = Date; g.Date = class extends DateClass { getHours() { return hour; } };
-  try { assert.ok(harness(Home).html().includes(greeting)); } finally { g.Date = DateClass; }
-});
-
-test('Home counts cross-project waiting agents in tiles and excludes hidden and exited cards', () => {
+test('Home summary line counts need you, working, approvals and spend, with urgent counts in accent', () => {
   g.ui.snap.sessions = [session('working', 'working'), session('starting', 'starting'), session('done', 'done'), session('hidden', 'working'), session('gone', 'exited')];
   g.ui.pendingHide.add('hidden'); g.ui.snap.live = [session('wait', 'waiting_for_you', { project_id: 'p2' })];
   g.ui.snap.approvals = [{ id: 'ap' }];
   g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s1' }), note('lend', 'other', { ref: 'lend:p1 https://alpha.example' }), note('question', 'question'), note('read', 'question', { read_at: 'read' }), note('info', 'done')];
-  const h = harness(Home); const html = h.html();
-  assert.match(html, /3 agents in Alpha/);
-  const tiles = h.all((n: any) => n.type?.name === 'Tile');
-  assert.deepEqual(tiles.map(n => [n.props.label, n.props.n, n.props.sub]), [['Needs you', 5, 'waiting on an answer'], ['Working', 2, 'running now'], ['Finished', 1, 'ready to review'], ['Changed files', 3, 'not handed back yet']]);
-  assert.equal(h.all(label('Answer')).length, 0); assert.doesNotMatch(html, /Task wait/);
-  assert.equal(h.one(label('Review')).props['data-action'], 'view'); assert.equal(h.one(label('Review')).props['data-view'], 'inbox'); assert.match(html, /1 agent action waits for a yes/);
-  assert.deepEqual(h.all((n: any) => n.type === 'div' && n.props['data-action'] === 'pick').map(n => n.props['data-id']), ['working', 'starting', 'done']);
-  assert.doesNotMatch(html, /Task hidden|Task gone/);
-  g.ui.snap.approvals.push({ id: 'ap2' }); assert.match(h.html(), /2 agent actions wait for a yes/);
+  const h = harness(Home); h.draw();
+  const line = h.one(hasClass('ou-hm-summary'));
+  assert.equal(textContent(line), '4 need you · 2 working · 1 approval · $0.00 today');
+  assert.deepEqual(React.Children.toArray(line.props.children).filter((n: any) => React.isValidElement(n) && hasClass('ou-hm-hot')(n)).map(textContent), ['4 need you', '1 approval']);
+  g.ui.snap.live = []; g.ui.snap.sessions = []; g.ui.snap.approvals = []; g.ui.snap.needs_you = []; h.draw();
+  assert.equal(h.all(hasClass('ou-hm-hot')).length, 0);
 });
 
-test('Home zero tiles, singular agent, visibility and six recent notes', () => {
-  const h = harness(Home); assert.match(h.html(), /No agents running in Alpha/);
-  assert.deepEqual(h.all((n: any) => n.type?.name === 'Tile').map(n => [n.props.n, n.props.sub]), [[0, 'nothing waiting'], [0, 'none running'], [0, 'nothing to review'], [0, 'no changes']]);
-  g.ui.snap.sessions = [session('only', 'done')]; assert.match(h.html(), /1 agent in Alpha/);
-  g.ui.snap.needs_you = [note('q', 'question'), ...Array.from({ length: 8 }, (_, i) => note('r' + i, i % 2 ? 'failed' : 'done', { read_at: 'read' }))];
-  h.draw(); assert.deepEqual(h.all((n: any) => n.type === 'li' && n.props['data-action'] === 'inbox-open').map(n => n.props['data-id']), ['q', 'r0', 'r1', 'r2', 'r3', 'r4', 'r5']);
+test('Home lists each agent once, waiting first, then the Working fold open and the Settled fold closed', () => {
+  homeStore.set({ open: [], selected: null, usage: false });
+  g.ui.snap.sessions = [session('working', 'working'), session('starting', 'starting'), session('done', 'done'), session('hidden', 'working'), session('gone', 'exited'), session('kid', 'working', { parent_id: 'working' })];
+  g.ui.pendingHide.add('hidden'); g.ui.snap.live = [session('wait', 'waiting_for_you', { project_id: 'p2' })];
+  const h = harness(Home); const html = h.html();
+  assert.deepEqual(h.all((n: any) => n.type?.name === 'AgentRow').map((n: any) => [n.props.x.id, n.props.kids.map((k: any) => k.id)]), [['wait', []], ['working', ['kid']], ['starting', []], ['done', []], ['gone', []]]);
+  assert.deepEqual(h.all(hasClass('ou-hm-foot')).map((n: any) => [textContent(n.props.children[0]), n.props['aria-expanded']]), [['Working', true], ['Settled', false]]);
+  assert.doesNotMatch(html, /Task hidden/);
+});
+
+test('Home empty state, quiet rail and visibility', () => {
+  homeStore.set({ open: [], selected: null, usage: false });
+  const h = harness(Home); const html = h.html();
+  assert.match(html, /No agents yet/); assert.match(html, /Nothing needs you\./); assert.doesNotMatch(html, /ou-hm-panel/);
   g.ui.view = 'wall'; assert.equal(h.html(), ''); g.ui.view = 'home'; g.ui.projectId = 'missing'; assert.equal(h.html(), '');
 });
 
-test('Home start box appears only with a non-red engine', () => {
-  // Retain engine gating while pinning Start at the end with its shortcut tooltip.
+test('Home start box appears only with a non-red engine and ends with the Start arrow', () => {
   g.ui.snap.engines = [{ id: 'bad', light: 'red' }]; const h = harness(Home); h.draw(); assert.equal(h.all(label('Start')).length, 0);
   g.ui.snap.engines.push({ id: 'ready', light: 'yellow' }); h.draw(); assert.equal(h.all(label('Start')).length, 1);
   assert.deepEqual(h.one((n: any) => n.props.label === 'Agent').props.options, [{ value: 'ready', label: 'ready' }]);
   assert.equal(h.one(label('Start')).props.tooltip, 'Start (Ctrl+Enter)');
-  assert.deepEqual(React.Children.toArray(h.one(hasClass('ou-composerfoot')).props.children).map((n: any) => n.props.label), ['Agent', 'Options', 'Start']);
+  const bar = React.Children.toArray(h.one(hasClass('ou-hm-cbar')).props.children) as any[];
+  assert.deepEqual([bar[0].props.label, bar[1].props.label, bar[bar.length - 1].props.label], ['Mention a file (@)', 'Options', 'Start']);
   assert.equal(h.all((n: any) => n.props.keys === 'Ctrl+Enter').length, 0);
 });
 
@@ -357,12 +359,11 @@ test('Home launches the ready fallback when a saved engine is unavailable', asyn
 });
 
 
-test('Home approval row preserves whole-row activation', () => {
+test('Home approval row in the Needs you queue preserves whole-row activation', () => {
   g.ui.snap.approvals = [{ id: 'approve-row' }]; const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.type === 'li' && n.props['data-action'] === 'view' && n.props['data-view'] === 'inbox');
-  assert.equal(row.props.className, 'ou-irow ou-unread');
+  const row = h.one((n: any) => n.type === 'li' && n.props['data-action'] === 'sheet');
   assert.equal(row.props.role, 'button'); assert.equal(row.props.tabIndex, 0);
-  assert.match(renderToStaticMarkup(React.createElement(row.type, row.props)), /1 agent action waits for a yes/);
+  assert.match(renderToStaticMarkup(React.createElement(row.type, row.props)), /1 action waits for a yes/);
 });
 
 test('screen text is escaped by React', () => {
@@ -440,18 +441,17 @@ for (const [kind, id, rowLabel, rowAction] of [
   assert.equal(textContent(h.one(hasClass(kind === 'waiting' ? 'ou-ipane-task' : 'ou-ipane-noticetext'))), rowLabel);
 });
 
-for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test('Home ' + kind + ' note carries its action on the row', () => {
+for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test('Home ' + kind + ' note ' + (kind === 'done' || kind === 'failed' ? 'stays off the Needs you queue once read' : 'carries its action on the queue row'), () => {
   g.ui.snap.needs_you = [note('whole-row', kind === 'loop' || kind === 'lend' ? 'other' : kind,
     kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : { read_at: kind === 'done' || kind === 'failed' ? 'read' : null })];
   const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.type === 'li' && n.props['data-id'] === 'whole-row');
-  assert.equal(row.props['data-action'], 'inbox-open');
-  assert.equal(row.props['data-id'], 'whole-row');
-  const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(row.type, row.props)))?.[0];
+  const rows = h.all((n: any) => n.type === 'li' && n.props['data-id'] === 'whole-row');
+  if (kind === 'done' || kind === 'failed') { assert.equal(rows.length, 0); return; }
+  assert.equal(rows.length, 1);
+  const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(rows[0].type, rows[0].props)))?.[0];
   assert.ok(opening?.includes('data-action="inbox-open"'));
   assert.ok(opening?.includes('data-id="whole-row"'));
 });
-
 
 const hasClass = (name: string) => (n: any) => typeof n.props.className === 'string' && n.props.className.split(' ').includes(name);
 const textContent = (node: any): string => Array.isArray(node) ? node.map(textContent).join('') : React.isValidElement(node) ? textContent(node.props.children) : node == null ? '' : String(node);
@@ -541,43 +541,41 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
   g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ny-ghead')).length, 0);
 });
 
-test('Home puts Answer in the waiting agent card and renders literal card anatomy', () => {
-  g.ui.snap.sessions = [session('done', 'done', { last_line: 'All checks passed' }), session('working', 'working', { last_line: 'Editing fixtures' }), session('wait', 'waiting_for_you', { last_line: 'Choose a fixture', state_at: 'then' })];
-  g.ui.snap.live = [session('wait', 'waiting_for_you')]; g.STATE_WORDS = { waiting_for_you: 'Needs you', working: 'Working', done: 'Finished' };
-  const h = harness(Home); const html = h.html();
-  const cards = h.all(hasClass('ou-agent'));
-  assert.deepEqual(cards.map(n => n.props['data-id']), ['wait', 'working', 'done']);
-  assert.ok(cards.every(n => n.props.className === 'ou-agent' && n.props['data-action'] === 'pick' && n.props.tabIndex === 0 && n.props.role === 'button'));
-  const markup = cards.map(n => renderToStaticMarkup(n));
-  assert.match(markup[0], /<div class="ou-agent"[^>]*><div class="ou-ah" data-state="waiting_for_you"><span class="ou-ah-tile" data-mono="SY"><i class="ou-ah-pip"><\/i><\/span><span class="ou-ah-name">Task wait<\/span><span class="ou-ah-proj">synthetic<\/span><span class="ou-ah-state">Needs you · 1m ago<\/span><span class="ou-ah-acts"><\/span><\/div><pre>Choose a fixture<\/pre><footer><span>No changes yet<\/span><button[^>]*data-action="pick" data-id="wait"/);
-  assert.match(markup[1], /<pre>Editing fixtures<\/pre><footer><span>2 changed files<\/span>/);
-  assert.match(markup[2], /<pre>All checks passed<\/pre><footer><span>1 changed file<\/span>/);
-  assert.equal(h.all(label('Answer')).length, 1); assert.notEqual(h.one(label('Answer')).props.variant, 'primary');
-  const cardArea = harness(function Screen() { return h.one(hasClass('ou-cards')); }); cardArea.draw();
-  assert.equal(cardArea.all((n: any) => hasClass('ou-irow')(n) && n.props['data-action']).length, 0); assert.equal(h.all(hasClass('ou-irow')).length, 5);
-  assert.doesNotMatch(html, /Waiting on you|ou-agent-wait/);
-  const tiles = h.all(hasClass('ou-tile')); assert.equal(tiles.length, 4);
-  assert.deepEqual(tiles.map(n => hasClass('ou-hot')(n)), [true, false, false, false]);
-  assert.match(renderToStaticMarkup(tiles[0]), /<b>1<\/b><span class="ou-tilelabel">Needs you<\/span><span class="ou-tilesub">waiting on an answer<\/span>/);
+test('Home rail opens on the oldest waiting agent and shows its branch, commit, changes, PR and lineage', () => {
+  homeStore.set({ open: [], selected: null, usage: false });
+  const newer = session('newer', 'waiting_for_you', { state_at: '2026-11-10T02:00:00Z' });
+  const older = session('older', 'waiting_for_you', { state_at: '2026-11-10T01:00:00Z', reason: 'Keep the retry?' });
+  g.ui.snap.live = [newer, older]; g.ui.snap.sessions = [newer, older, session('kid', 'working', { parent_id: 'older' })];
+  g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: null } } };
+  const h = harness(Home); h.draw();
+  const rail = h.one((n: any) => n.type?.name === 'RailAgent');
+  assert.equal(rail.props.x.id, 'older');
+  const html = renderToStaticMarkup(rail);
+  for (const text of ['Keep the retry?', 'feat/x', 'abc1234', '+3', '-1', 'PR #7', 'Merge', 'Lineage · 1 running', 'Task kid']) assert.ok(html.includes(text), text);
+  assert.deepEqual(calls, []);
+  homeStore.set({ selected: 'newer' }); h.draw();
+  const plain = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailAgent'));
+  assert.doesNotMatch(plain, /Commit|Changes|PR #|Lineage/);
 });
 
-test('Home section order and Waiting on you contain only approvals and alerts', () => {
-  g.ui.snap.engines = [{ id: 'ready', light: 'green' }]; g.ui.snap.sessions = [session('wait', 'waiting_for_you')]; g.ui.snap.live = [session('wait', 'waiting_for_you')];
-  g.ui.snap.approvals = [{ id: 'a' }]; g.ui.snap.needs_you = [note('alert', 'question'), note('recent', 'done')];
+test('Home section order: task box, summary, agents, automations, recent rows, folded usage', () => {
+  homeStore.set({ open: [], selected: null, usage: false });
+  g.ui.snap.engines = [{ id: 'ready', light: 'green' }]; g.ui.snap.sessions = [session('working', 'working')];
   const h = harness(Home); const html = h.html();
-  assert.ok(html.indexOf('ou-composer') < html.indexOf('ou-tiles'));
-  assert.ok(html.indexOf('<h2>Agents</h2>') < html.indexOf('ou-tiles'));
-  assert.ok(html.indexOf('ou-composer') < html.indexOf('<h2>Agents</h2>'));
-  assert.ok(html.indexOf('ou-tiles') < html.indexOf('<h2>Changed files</h2>'));
-  assert.ok(html.indexOf('<h2>Changed files</h2>') < html.indexOf('<h2>Projects</h2>'));
-  assert.ok(html.indexOf('<h2>Projects</h2>') < html.indexOf('<h2>Waiting on you</h2>'));
-  assert.ok(html.indexOf('<h2>Waiting on you</h2>') < html.indexOf('<h2>Recent</h2>'));
-  assert.equal(h.one(label('Task for a new agent')).props.rows, 1);
-  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['project-go', 'p1'], ['project-go', 'p2'], ['view', undefined], ['inbox-open', 'alert'], ['inbox-open', 'recent']]);
-  const waiting = harness(function Screen() { return h.one((n: any) => n.type === 'section' && textContent(n.props.children[0]) === 'Waiting on you'); }); waiting.draw();
-  assert.deepEqual(waiting.all(hasClass('ou-irow')).map(n => [n.props['data-action'], n.props['data-id']]), [['view', undefined], ['inbox-open', 'alert']]);
-  g.ui.snap.approvals = []; g.ui.snap.needs_you = []; const quiet = h.html(); assert.doesNotMatch(quiet, /Waiting on you/);
-  g.ui.snap.live = []; g.ui.snap.sessions = []; h.draw(); assert.equal(h.all(hasClass('ou-hot')).length, 0);
+  const at = (s: string) => { const i = html.indexOf(s); assert.ok(i >= 0, s); return i; };
+  const order = ['ou-hm-task', 'ou-hm-summary', 'ou-hm-group', 'ou-hm-autos', 'Runs while Ouros is open.', 'Recent activity', 'Recent sessions', 'Usage and trends', 'ou-hm-rail'].map(at);
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  assert.doesNotMatch(html, /ou-dash-charts/);
+  homeStore.set({ usage: true }); assert.match(h.html(), /ou-dash-charts/);
+});
+
+test('Automation schedules read in words', () => {
+  const cases: [any, string][] = [
+    [{ cron: '0 10 * * 1-5' }, 'Weekdays at 10:00'], [{ cron: '30 2 * * *' }, 'Daily at 02:30'], [{ cron: '0 11 * * 5' }, 'Fridays at 11:00'],
+    [{ cron: '0 9 * * 0,6' }, 'Weekends at 09:00'], [{ cron: '*/15 * * * *' }, 'Every 15 min'], [{ cron: '5 * * * *' }, 'Hourly at :05'],
+    [{ cron: '0 9 1 * *' }, 'Cron 0 9 1 * *'], [{ cron: null, every_min: 360 }, 'Every 6 h'], [{ every_min: 1440 }, 'Daily'], [{ every_min: 45 }, 'Every 45 min'],
+  ];
+  for (const [a, words] of cases) assert.equal(screens.scheduleWords(a), words, JSON.stringify(a));
 });
 
 test('Home Ctrl+Enter launches the current draft and selected engine like Start', async () => {
@@ -618,7 +616,7 @@ async function keyboardHarness() {
   try {
     const name = 'keyboard-' + keyboardSequence++ + '.mjs'; await bundle("import './src/main.jsx';", name); await import(pathToFileURL(join(temp, name)).href);
   } finally { delete g.__axCreateRoot; }
-  assert.equal(listeners.length, 4);
+  assert.equal(listeners.length, 5);
   return { rows, head, card, ahead, focused, clicked, get prevented() { return prevented; },
     clear() { focused.length = 0; clicked.length = 0; prevented = 0; },
     press(key: string, extra: any = {}) { const e = { key, ctrlKey: false, altKey: false, metaKey: false, target: { closest: () => null }, preventDefault: () => prevented++, ...extra }; for (const listener of listeners) listener(e); },
