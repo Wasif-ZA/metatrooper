@@ -90,14 +90,21 @@ export function closeShell(pid) {
 export function Terminal({ pid }) {
   const host = useRef(null);
   useEffect(() => {
-    let t = shells.get(pid);
-    if (!t) { t = make(pid); shells.set(pid, t); }
-    host.current.append(t.el);
-    if (!t.opened) { t.opened = true; t.term.open(t.el); void connect(t); }
-    Object.assign(t.term.options, look());
-    const sizes = new ResizeObserver(() => refit(t));
-    sizes.observe(host.current);
-    return () => { sizes.disconnect(); t.el.remove(); };
+    let t = null, sizes = null, dead = false;
+    const start = () => {
+      if (dead || !host.current) return;
+      t = shells.get(pid);
+      if (!t) { t = make(pid); shells.set(pid, t); }
+      host.current.append(t.el);
+      if (!t.opened) { t.opened = true; t.term.open(t.el); void connect(t); }
+      Object.assign(t.term.options, look());
+      sizes = new ResizeObserver(() => refit(t));
+      sizes.observe(host.current);
+    };
+    // First open waits a frame so the Editor paints before xterm builds.
+    const later = !shells.has(pid) && typeof requestAnimationFrame === 'function';
+    const frame = later ? requestAnimationFrame(() => setTimeout(start)) : (start(), 0);
+    return () => { dead = true; if (later) cancelAnimationFrame(frame); sizes?.disconnect(); t?.el.remove(); };
   }, [pid]);
   return <div ref={host} className="ou-ip-term" />;
 }

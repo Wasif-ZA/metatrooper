@@ -203,10 +203,11 @@ export function clearSettingsTemps(): void {
   } catch {}
 }
 
-/** The active theme's values, falling back to the default theme for any missing key. */
+/** The active theme's values, falling back to the built-in theme of the same scheme for any missing key. */
 export function activeTheme(s = settings()): Record<string, string> {
-  const base = DEFAULTS.ui.themes[DEFAULTS.ui.theme];
-  return { ...base, ...(s.ui.themes[s.ui.theme] ?? {}), name: s.ui.themes[s.ui.theme] ? s.ui.theme : DEFAULTS.ui.theme };
+  const own = s.ui.themes[s.ui.theme];
+  const base = own?.scheme === 'light' ? DEFAULTS.ui.themes.light : DEFAULTS.ui.themes[DEFAULTS.ui.theme];
+  return { ...base, ...(own ?? {}), name: s.ui.themes[s.ui.theme] ? s.ui.theme : DEFAULTS.ui.theme };
 }
 
 function merge(base: Record<string, unknown>, over: unknown): Record<string, unknown> {
