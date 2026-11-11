@@ -1,6 +1,12 @@
 .ou-ide-panel { height: 240px; }
+.ou-ide-panel, .ou-ide-phead { background: var(--term-bg, var(--pane)); }
 .ou-ide-phead { height: 35px; padding: 0 8px 0 12px; }
-.ou-ide-phead > :first-child, .ou-ide-phead > :first-child * { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.ou-ide-phead .astryx-tab { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: uppercase; background: transparent; border-radius: 0; }
+.ou-ide-phead .astryx-tab-indicator { height: 1px; border-radius: 0; }
+.ou-ip-tabcount { font: inherit; background: transparent; }
+.ou-ip-body { display: flex; flex: 1; min-height: 0; }
+.ou-ip-body[hidden] { display: none; }
+.ou-ide-status { font: 12px/22px 'Geist', 'Segoe UI', sans-serif; letter-spacing: 0; }
 .ou-ide-folded .ou-ide-panel { height: 35px; }
 .ou-ip-acts { display: flex; align-items: center; gap: 2px; }
 
