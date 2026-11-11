@@ -127,13 +127,12 @@ test('checksOf reads a statusCheckRollup as fail, pass, pending or null', () => 
   assert.equal(checksOf([{ status: 'IN_PROGRESS' }, { conclusion: 'FAILURE' }]), 'fail');
 });
 
-test('engine marks: each named engine has its own shape and colour and is titled with its name', () => {
+test('engine marks: each named engine has its own mark and viewBox and is titled with its name', () => {
   const ids = ['claude', 'codex', 'agy', 'gemini', 'copilot', 'opencode', 'pi'];
   assert.deepEqual(Object.keys(ENGINE_MARKS).sort(), [...ids].sort());
-  const inner = ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].shape('#000'));
-  assert.equal(new Set(inner).size, ids.length, 'shapes differ');
-  assert.equal(new Set(ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].colour)).size, ids.length, 'colours differ');
-  assert.match(engineMarkSvg('codex'), /<title>Codex<\/title>/);
+  assert.equal(new Set(ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].inner)).size, ids.length, 'marks differ');
+  assert.match(engineMarkSvg('codex'), /viewBox="100 100 411 411".*<title>Codex<\/title>/);
+  assert.match(engineMarkSvg('CLAUDE '), /<title>Claude<\/title><path fill="#d97757"/);
   assert.match(engineMarkSvg('Some<Tool>'), /<title>Some&#60;Tool&#62;<\/title>.*>S<\/text>/);
   assert.equal(engineName(''), 'Unknown engine');
 });

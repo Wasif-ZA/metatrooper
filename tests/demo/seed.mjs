@@ -127,6 +127,8 @@ export function seedFixtures(home, { shop, api }) {
     auto.run(id, p.id, name, every, eng('claude'), `${name} for ${path.basename(p.path)}`, enabled, later(720), ago(1440), ...extra.map((c) => (c === 'icon' ? icon : cron)));
     if (has('automation_label')) for (const n of labels) db.prepare('INSERT OR IGNORE INTO automation_label (automation_id, name) VALUES (?, ?)').run(id, n);
   }
+  const limit = db.prepare("INSERT OR REPLACE INTO limit_reading (provider, account, window, used_pct, resets_at, read_at, status) VALUES (?, 'demo', ?, ?, ?, ?, 'ok')");
+  for (const [provider, window, pct, resetMin] of [['claude', '5h', 42, 168], ['claude', 'weekly', 59, 6120], ['codex', '5h', 48, 192], ['codex', 'weekly', 63, 2280], ['agy', 'daily', 24, 4560]]) limit.run(provider, window, pct, later(resetMin), ago(1));
   if (has('label')) for (const [name, colour] of [['triage', '#8A63D2'], ['tests', '#2F9E6E'], ['deps', '#D4A017'], ['checkout', '#3B7BE8'], ['cart', '#E8743B']]) db.prepare('INSERT OR IGNORE INTO label (name, colour) VALUES (?, ?)').run(name, colour);
   db.close();
 }
