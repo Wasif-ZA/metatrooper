@@ -127,3 +127,19 @@ def test_memory_arm_copies_recipes_hints_and_config_only(tmp_path, monkeypatch):
     assert got == ["hints.json", "recipes", "recipes/mine.json"]
     assert not any((run_b / "metarouter-home").iterdir())
     assert env_b["METAROUTER_HOOK"] == "off" and env_a.get("METAROUTER_HOOK") != "off"
+
+
+def test_arm_a_alone_loads_the_bash_hook_via_settings(tmp_path, monkeypatch):
+    monkeypatch.setenv("METAROUTER_HOME", str(tmp_path / "home"))
+    repo = make_repo(tmp_path)
+    fake = tmp_path / "argv_agent.py"
+    fake.write_text("import json, pathlib, sys\nargs = sys.argv[1:]\nhook = pathlib.Path(args[args.index('--settings') + 1]).read_text() if '--settings' in args else ''\n"
+                    "pathlib.Path('argv.txt').write_text(hook)\n")
+    seen = {}
+    for arm in ("A", "B"):
+        check = f'cp argv.txt "{(tmp_path / arm).as_posix()}"'
+        ab.one_run(repo, arm, "claude", [sys.executable, str(fake)], "t", check, cli.shell())
+        seen[arm] = (tmp_path / arm).read_text()
+    hook = json.loads(seen["A"])["hooks"]["PreToolUse"][0]
+    assert hook["matcher"] == "Bash" and hook["hooks"][0]["command"].endswith("-m metarouter.hook")
+    assert hook["hooks"][0]["timeout"] == 10 and seen["B"] == ""

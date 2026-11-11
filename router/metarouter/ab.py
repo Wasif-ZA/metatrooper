@@ -82,6 +82,8 @@ def parse_codex(stdout):
 
 
 MEMORY = ("recipes", "hints.json", "config.json")
+HOOK = {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "timeout": 10,
+        "command": "C:/Users/User/AppData/Local/Programs/Python/Python314/python.exe -m metarouter.hook"}]}]}}
 
 
 def agent_env(agent, run_dir, memory=False):
@@ -117,6 +119,10 @@ def one_run(repo, arm, agent, argv, task, check, shell):
         if made.returncode:
             raise RuntimeError(f"git worktree add failed: {made.stderr.strip()}")
         set_block(tree, AGENTS[agent][0], arm == "A")
+        if arm == "A" and agent == "claude":
+            hook = run_dir / "hook-settings.json"
+            hook.write_text(json.dumps(HOOK), encoding="utf-8")
+            argv = [*argv, "--settings", str(hook)]
         start = time.monotonic()
         try:
             proc = subprocess.run(argv, input=task, cwd=tree, env=agent_env(agent, run_dir, memory=arm == "A"), capture_output=True,
