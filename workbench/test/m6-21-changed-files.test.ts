@@ -67,7 +67,7 @@ test('M6-21a a session that edits 3 files shows "3 changed"; committing one show
     assert.equal(await refreshRowGit(live, ownedBy(owners(db, root))), false, 'no push when nothing moved');
 
     assert.equal(tileLabel({}, 's_none'), '');
-    assert.match(mainSource, /refreshRowGit\(live, d \? await ownedIn\(d, all\.map\(\(x\) => x\.cwd\)\) : \{\}\)/);
+    assert.match(mainSource, /refreshRowGit\(live, d \? await ownedIn\(d, all\.map\(\(x\) => x\.cwd\)\) : \{\}, prLookup\)/);
     assert.equal(isQueueable('session.owners'), false, 'a git-tick read is never spooled while the core is down');
     assert.match(termSource, /set\('\.tile-changed', x\.changed \? `\$\{x\.changed\} changed` : ''\)/);
     assert.match(termSource, /data-action="changed-menu"/);

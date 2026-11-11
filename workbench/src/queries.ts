@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { takeoverPaused } from '../../core/src/grants.ts';
+import type { Pr } from './rowgit.ts';
 
 export const OFFLINE_AFTER_MS = 6000;
 
@@ -24,13 +25,15 @@ export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 
 export type Monitor = { automation_id: string; name: string; last_outcome: 'ok' | 'fail' | null } | null;
 export type Review = { kind: 'reviewer' | 'approver'; who: string; state: 'pending' | 'passed' | 'failed'; note: string | null; review_session_id: string | null };
+export type Steps = { done: number; total: number; items: Array<{ text: string; done: boolean }> } | null;
+export type TreeRow = { id: string; project_id: string; engine_id: string; state: string; outcome: string | null; state_at: string; started_at: string; parent_id: string | null; title: string | null; prompt: string | null; cwd: string | null; step_id: string | null; model: string | null; steps: Steps };
 
 export interface Snapshot {
   at: number;
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
+  sessions: Array<{ id: string; project_id: string; steps: Steps; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
   /** Live desktop grants (M6-15). */
@@ -39,13 +42,17 @@ export interface Snapshot {
   paused?: string[];
   /** Sessions whose agent asked for a take-over (D62). */
   takeover_requests?: Record<string, { at: string; reason: string }>;
-  live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; prompt: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[] }>;
+  live: Array<{ id: string; project_id: string; parent_id: string | null; reason: string | null; steps: Steps; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; prompt: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; priority: Priority; blocked_by: string[]; blocking: string[] }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
   limits: Array<{ provider: string; account: string; window: string; used_pct: number | null; resets_at: string | null; read_at: string; status: string }>;
   selected: string | null;
-  git: Record<string, { branch: string | null; added: number; deleted: number; changed: string[] }>;
+  git: Record<string, { root?: string | null; branch: string | null; added: number; deleted: number; changed: string[]; commit?: string | null; pr?: Pr | null }>;
+  /** Every project with sessions: its open sessions and its last 10 exited, newest first (sidebar tree). */
+  tree?: Array<{ project_id: string; name: string; sessions: string[] }>;
+  /** The rows `tree` names, keyed by session id, so the tree draws sessions outside the open project. */
+  tree_rows?: Record<string, TreeRow>;
   settings_error?: string | null;
   core_mismatch?: string | null;
   core_log?: string[] | null;
@@ -157,17 +164,21 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     ? `(SELECT json_group_array(blocker_id) FROM (SELECT blocker_id FROM session_block b WHERE b.blocked_id = ${t}.id ORDER BY blocker_id)) AS blocked_by, (SELECT json_group_array(blocked_id) FROM (SELECT blocked_id FROM session_block b WHERE b.blocker_id = ${t}.id ORDER BY blocked_id)) AS blocking`
     : "'[]' AS blocked_by, '[]' AS blocking";
   const parseRow = <T extends { labels: string; blocked_by: string; blocking: string }>(row: T) => ({ ...row, labels: JSON.parse(row.labels) as string[], blocked_by: JSON.parse(row.blocked_by) as string[], blocking: JSON.parse(row.blocking) as string[] });
+  const hasSteps = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_step'").get());
+  const steps = (t: string) => hasSteps
+    ? `(SELECT CASE WHEN COUNT(*) > 0 THEN json_object('done', SUM(done != 0), 'total', COUNT(*), 'items', json_group_array(json_object('text', text, 'done', json(CASE WHEN done != 0 THEN 'true' ELSE 'false' END)))) END FROM (SELECT text, done FROM session_step st WHERE st.session_id = ${t}.id ORDER BY idx)) AS steps`
+    : 'NULL AS steps';
   const hasEst = (db.prepare('PRAGMA table_info(usage)').all() as Array<{ name: string }>).some((c) => c.name === 'usd_estimated');
   const est = hasEst ? '(SELECT COALESCE(MAX(usd_estimated), 0) FROM usage u WHERE u.session_id = s.id) AS usd_estimated' : '0 AS usd_estimated';
   const sessions = projectId
     ? (db.prepare(
-        `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, ${outcome}, ${prompt}, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${parent}, ${resume}, ${reason},
+        `SELECT s.id, s.project_id, ${steps('s')}, s.engine_id, ${driven}, s.host, s.state, ${outcome}, ${prompt}, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${parent}, ${resume}, ${reason},
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
            ${est}, ${labels}, ${priority('s')}, ${blocks('s')}, ${monitor('s.id')}, ${reviews('s')},
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
-      ).all(projectId) as Array<Omit<Snapshot['sessions'][number], 'labels' | 'monitor' | 'reviews' | 'blocked_by' | 'blocking'> & { labels: string; monitor: string | null; reviews: string; blocked_by: string; blocking: string }>).map((row) => ({ ...parseRow(row), monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[] }))
+      ).all(projectId) as Array<Omit<Snapshot['sessions'][number], 'labels' | 'monitor' | 'reviews' | 'blocked_by' | 'blocking' | 'steps'> & { labels: string; monitor: string | null; reviews: string; blocked_by: string; blocking: string; steps: string | null }>).map((row) => ({ ...parseRow(row), monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[], steps: JSON.parse(row.steps ?? 'null') as Steps }))
     : [];
 
   const panes = projectId
@@ -198,13 +209,16 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   try { takeover_requests = parse((db.prepare("SELECT value FROM meta WHERE key = 'takeover_requests'").get() as { value: string } | undefined)?.value ?? null, {}); } catch {}
   const paused = sessions.filter((s) => s.state !== 'exited' && takeoverPaused(db, s.id)).map((s) => s.id);
 
+  // Shown: the open project, else a row the core's sweep has not hidden whose checkout is still there.
+  const projects = ((hasSweepColumns(db)
+    ? db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId)
+    : db.prepare('SELECT id, name, path, last_opened, 0 AS older FROM project ORDER BY julianday(last_opened) DESC').all()) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path));
+  const { tree, tree_rows } = treeOf(db, projects, `s.project_id, ${steps('s')}, ${outcome}, ${prompt}, ${parent}`);
+
   return {
     at: now,
     core: { online: age !== null && age < OFFLINE_AFTER_MS, pid: meta.core_pid ? Number(meta.core_pid) : null, heartbeat_age_ms: age },
-    // Shown: the open project, else a row the core's sweep has not hidden whose checkout is still there.
-    projects: ((hasSweepColumns(db)
-      ? db.prepare('SELECT id, name, path, last_opened, older FROM project WHERE hidden = 0 OR id = ? ORDER BY julianday(last_opened) DESC').all(projectId)
-      : db.prepare('SELECT id, name, path, last_opened, 0 AS older FROM project ORDER BY julianday(last_opened) DESC').all()) as Snapshot['projects']).filter((p) => p.id === projectId || !goneCheckout(p.path)),
+    projects,
     engines,
     sessions,
     needs_you,
@@ -212,7 +226,9 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     grants,
     paused,
     takeover_requests,
-    live: (db.prepare(`SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line, ${cols.has('prompt') ? 'prompt' : 'NULL AS prompt'}, ${hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = session.id ORDER BY name))' : "'[]'"} AS labels, ${priority('session')}, ${blocks('session')}, ${monitor('session.id')}, ${reviews('session')} FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC`).all() as Array<Omit<Snapshot['live'][number], 'labels' | 'monitor' | 'reviews' | 'blocked_by' | 'blocking'> & { labels: string; monitor: string | null; reviews: string; blocked_by: string; blocking: string }>).map((row) => ({ ...parseRow(row), monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[] })),
+    live: (db.prepare(`SELECT id, project_id, ${cols.has('parent_id') ? 'parent_id' : 'NULL AS parent_id'}, ${cols.has('wait_reason') ? 'wait_reason AS reason' : 'NULL AS reason'}, ${steps('session')}, engine_id, state, state_at, title, cwd, step_id, started_at, last_line, ${cols.has('prompt') ? 'prompt' : 'NULL AS prompt'}, ${hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = session.id ORDER BY name))' : "'[]'"} AS labels, ${priority('session')}, ${blocks('session')}, ${monitor('session.id')}, ${reviews('session')} FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC`).all() as Array<Omit<Snapshot['live'][number], 'labels' | 'monitor' | 'reviews' | 'blocked_by' | 'blocking' | 'steps'> & { labels: string; monitor: string | null; reviews: string; blocked_by: string; blocking: string; steps: string | null }>).map((row) => ({ ...parseRow(row), monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[], steps: JSON.parse(row.steps ?? 'null') as Steps })),
+    tree,
+    tree_rows,
     panes,
     dev_servers,
     snapshots,
@@ -221,6 +237,26 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     limits: db.prepare('SELECT provider, account, window, used_pct, resets_at, read_at, status FROM limit_reading ORDER BY provider, window').all() as Snapshot['limits'],
     watcher_off: watcherOff(db),
   };
+}
+
+/** Groups each shown project's open sessions and its last 10 exited ones, newest first; `cols` is the guarded column list for the session columns that older databases lack. */
+function treeOf(db: DatabaseSync, projects: Snapshot['projects'], cols: string): { tree: NonNullable<Snapshot['tree']>; tree_rows: NonNullable<Snapshot['tree_rows']> } {
+  const rows = (db.prepare(
+    `SELECT s.id, ${cols}, s.engine_id, s.state, s.state_at, s.started_at, s.title, s.cwd, s.step_id,
+       (SELECT u.model FROM usage u WHERE u.session_id = s.id AND u.model IS NOT NULL ORDER BY u.rowid DESC LIMIT 1) AS model
+     FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project_id, state = 'exited' ORDER BY julianday(state_at) DESC, id DESC) AS n FROM session WHERE hidden = 0) s
+     WHERE s.state != 'exited' OR s.n <= 10 ORDER BY julianday(s.started_at) DESC, s.id DESC`,
+  ).all() as Array<Omit<TreeRow, 'steps'> & { steps: string | null }>).map((r) => ({ ...r, steps: JSON.parse(r.steps ?? 'null') as Steps }));
+  const tree_rows: Record<string, TreeRow> = {};
+  const byProject = new Map<string, string[]>();
+  for (const r of rows) {
+    tree_rows[r.id] = r;
+    (byProject.get(r.project_id) ?? byProject.set(r.project_id, []).get(r.project_id)!).push(r.id);
+  }
+  const tree = projects.filter((p) => byProject.has(p.id)).map((p) => ({ project_id: p.id, name: p.name, sessions: byProject.get(p.id)! }));
+  const shown = new Set(tree.map((g) => g.project_id));
+  for (const r of rows) if (!shown.has(r.project_id)) delete tree_rows[r.id];
+  return { tree, tree_rows };
 }
 
 /** Sessions with a live grant when `meta.input_watcher` is 'off'; none before the grant table exists. */
@@ -278,10 +314,12 @@ export function dataVersion(db: DatabaseSync): number {
 
 export type LiveText = Record<string, { line?: string; title?: string; held?: boolean }>;
 
-/** Fills each session's last_line and title from the core's in-memory live text (session.live-text); the database never holds them. */
-export function withLiveText(s: Snapshot, live: LiveText): Snapshot {
-  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? null, last_line: live[x.id]?.line ?? null, held: Boolean(live[x.id]?.held) });
-  return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill) };
+/** Fills each session's last_line and title from the core's in-memory live text (session.live-text); stale stored values are blanked, except in the demo (`keepStored`), whose seeded rows have no live text. */
+export function withLiveText(s: Snapshot, live: LiveText, keepStored = false): Snapshot {
+  const own = <V>(v: V) => (keepStored ? v ?? null : null);
+  const fill = <T extends { id: string; title: string | null; last_line: string | null }>(x: T): T => ({ ...x, title: live[x.id]?.title ?? own(x.title), last_line: live[x.id]?.line ?? own(x.last_line), held: Boolean(live[x.id]?.held) });
+  const tree_rows = s.tree_rows && Object.fromEntries(Object.entries(s.tree_rows).map(([id, r]) => [id, { ...r, title: live[id]?.title ?? own(r.title) }]));
+  return { ...s, sessions: s.sessions.map(fill), live: s.live?.map(fill), tree_rows };
 }
 
 /** A pane's `browser.tool` audit rows, newest first, at most 200. */

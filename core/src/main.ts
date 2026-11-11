@@ -17,7 +17,7 @@ import { startPipeServer, type PipeReady } from './pipe/server.ts';
 import { PipeClient } from './pipe/client.ts';
 import { automationTick, realDeps } from './automations.ts';
 import { realReviewDeps, reviewTick } from './reviews.ts';
-import { buildMethods } from './methods.ts';
+import { buildMethods, type CoreControl } from './methods.ts';
 import { activeEngines, getEngine, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { pruneBrowserAudit } from './events/append.ts';
@@ -105,7 +105,8 @@ async function main(): Promise<void> {
   const uiKey = rotateUiKey();
   endAllGrants(db);
   const desktop = new Desktop(db, { demo: process.argv.includes('--demo') });
-  const methods = buildMethods(db, { engines: () => activeEngines(db), stop, uiKey, desktop });
+  const ctl: CoreControl = { engines: () => activeEngines(db), stop, uiKey, desktop };
+  const methods = buildMethods(db, ctl);
   const commands = new CommandRunner(db, methods);
   const home = settings().projects.default;
   if (home) try { methods.get('project.open')!.handler({ path: home }); } catch (e) { console.error(`projects.default not opened: ${(e as Error).message}`); }
@@ -161,6 +162,7 @@ async function main(): Promise<void> {
       return launchSession(db, { projectId: a.project_id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd ?? project.path, parentId: a.parent_id, prompt: a.prompt, approval: 'ask' });
     },
   };
+  ctl.automationDeps = autoDeps;
   every(15_000, () => automationTick(db, autoDeps));
   const reviewDeps = realReviewDeps(db);
   every(2000, () => reviewTick(db, reviewDeps));

@@ -67,6 +67,67 @@
 }
 .fdot.wait::after { background: var(--wait); }
 .fdot.work::after { background: var(--ink); }
+
+:root:not(.side-rail):not(.side-auto) .fnew { display: none; }
+.fhead [data-action="palette"] { display: none; }
+:root:not(.side-rail):not(.side-auto) .fnav.ficons { flex-direction: row; flex-wrap: wrap; gap: 2px; padding: 8px 8px 4px; }
+:root:not(.side-rail):not(.side-auto) .fnav.ficons button { width: 28px; height: 28px; margin: 0; padding: 0; justify-content: center; }
+:root:not(.side-rail):not(.side-auto) .fnav.ficons .fl { display: none; }
+:root:not(.side-rail):not(.side-auto) .fnav.ficons .fpill { position: absolute; top: 1px; right: 0; height: 14px; min-width: 14px; padding: 0 3px; font-size: 9.5px; line-height: 14px; }
+.fagents { scrollbar-gutter: stable; }
+.fagents::-webkit-scrollbar { width: 6px; }
+.fagents::-webkit-scrollbar-button { display: none; height: 0; }
+.fagents::-webkit-scrollbar-track { background: transparent; }
+.fagents::-webkit-scrollbar-thumb { border-radius: 3px; background: var(--hairline); }
+.fagents:hover::-webkit-scrollbar-thumb { background: var(--hairline-strong); }
+.fsrc { flex: none; display: grid; place-items: center; color: var(--mute); }
+.fsec.fprojects { display: flex; align-items: center; gap: 2px; padding: 12px 4px 4px 10px; font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.fic { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 6px; color: var(--mute); }
+.fic:hover, .fic[aria-pressed="true"] { background: var(--canvas); color: var(--ink); }
+.fproj { flex: none; display: flex; align-items: center; gap: 8px; height: 28px; margin: 4px 8px 0; padding: 0 8px; border-radius: 6px; font-size: 13.5px; font-weight: 600; color: var(--ink); text-align: left; }
+.fproj .fi { color: var(--mute); }
+.fproj:hover { background: var(--canvas); }
+.fwt { flex: none; display: flex; flex-direction: column; margin: 2px 8px; padding: 4px 0; border-radius: 6px; }
+.ftree.sel { background: var(--canvas); }
+.ftree.sel .ft { color: var(--ink); }
+.fwthead { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 16px; font-size: 13.5px; color: var(--ink); }
+.fwtn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fwtb { padding: 0 8px 2px 32px; font: 12px var(--mono); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fsd { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--hairline-strong); }
+.fsd.wait { background: var(--wait); }
+.fsd.work { background: var(--ink); }
+.fsd.done { background: none; box-shadow: inset 0 0 0 1.5px var(--done); }
+.ftree { height: 28px; margin: 0; padding: 0 6px 0 calc(14px + var(--depth, 0) * 14px); gap: 4px; }
+.ftree .fmeta { margin-left: 2px; }
+.ftree .ft { font-size: 12.5px; }
+.fst { --st: var(--mute); width: 14px; height: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.fst > span { width: 9px; height: 9px; border-radius: 50%; background: var(--st); }
+.fwthead .fst > span { width: 8px; height: 8px; }
+.fst.done { --st: #10b981; }
+.fst.work { --st: #eab308; }
+.fst.fail { --st: #ef4444; }
+.fst.wait { --st: #f97316; }
+.fst > span { opacity: 1; }
+.fmk { width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
+.fmono { font: 600 8px/1 var(--mono); color: var(--mute); }
+.ftree .ft { flex: 1; min-width: 0; }
+.ftree.fgone .ft { color: var(--mute); }
+.fmeta { flex: none; font: 11px var(--mono); color: var(--mute); }
+.fusage { flex: none; display: grid; grid-template-columns: 14px minmax(16px, 1fr) max-content max-content; align-items: center; gap: 4px 8px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--hairline); }
+.fusage[hidden] { display: none; }
+.fuse { display: contents; }
+.fuse > * { height: 18px; display: flex; align-items: center; }
+.fslot { justify-content: flex-start; white-space: nowrap; font-size: 10.5px; }
+.fslot b { font-weight: 500; color: var(--body); margin-right: 3px; }
+.fbar { height: 4px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+.fic { position: relative; }
+.fprojects .fpill { position: absolute; top: 1px; right: 0; height: 14px; min-width: 14px; padding: 0 3px; font-size: 9.5px; line-height: 14px; }
+.fbar i { display: block; height: 100%; background: var(--mute); }
+.fghpanel { position: fixed; z-index: 40; left: calc(var(--side) + 8px); top: calc(var(--top) + 8px); width: 360px; max-height: 60vh; overflow-y: auto; padding: 4px 0; background: var(--canvas-deep); border: 1px solid var(--hairline); border-radius: 6px; font-size: 13px; color: var(--body); }
+.fghhead { display: flex; justify-content: space-between; align-items: center; height: 28px; padding: 0 12px; font-weight: 600; border-bottom: 1px solid var(--hairline); }
+.fghrow { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 12px; border-bottom: 1px solid var(--hairline); }
+.fghrow .ft { flex: 1; min-width: 0; }
+.fchip { flex: none; height: 18px; padding: 0 6px; border-radius: 6px; background: var(--canvas); font-size: 11px; line-height: 18px; color: var(--mute); }
 .ftx { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
 .ft { font-size: 13px; color: var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fe { font: 11px var(--mono); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -74,9 +135,36 @@
 
 :root:is(.side-rail, .side-auto) .fhead { height: auto; flex-direction: column; justify-content: flex-start; gap: 6px; padding: 10px 0 4px; }
 :root:is(.side-rail, .side-auto) .frame .brand { padding: 0; }
-:root:is(.side-rail, .side-auto) .frame :is(.brand b, .fl, .ftx, .ft, .fe, .fempty) { display: none; }
+:root:is(.side-rail, .side-auto) .frame :is(.brand b, .fl, .ftx, .ft, .fe, .fempty, .fmeta, .fsrc, .fwthead, .fwtb, .fic, .fusage) { display: none; }
+:root:is(.side-rail, .side-auto) .fwt { margin: 0; padding: 0; background: none; }
+:root:is(.side-rail, .side-auto) .fproj { height: 1px; margin: 6px 12px; padding: 0; background: var(--hairline); }
+:root:is(.side-rail, .side-auto) .ftree { gap: 0; }
+:root:is(.side-rail, .side-auto) .ftree .fst { position: absolute; right: 8px; top: 2px; }
 :root:is(.side-rail, .side-auto) :is(.fnav, .ffoot, .fnew) button, :root:is(.side-rail, .side-auto) .fagent { justify-content: center; padding: 0; }
 :root:is(.side-rail, .side-auto) .fagent { height: 32px; }
 :root:is(.side-rail, .side-auto) .fagent::before { left: 50%; transform: translate(-50%, -50%); }
 :root:is(.side-rail, .side-auto) .fsec { padding: 8px 0 0; font-size: 0; }
 :root:is(.side-rail, .side-auto) .fpill { position: absolute; top: 6px; right: 10px; width: 6px; height: 6px; min-width: 6px; padding: 0; font-size: 0; overflow: hidden; }
+
+/* Top bar: mark in the sidebar head; project switcher left; search, core dot and New right. */
+:root { --top: 48px; }
+.fhead .brand { display: flex; align-items: center; color: var(--ink); }
+:root:not([data-look="dither"]) header.title { gap: 6px; padding: 0 12px 0 12px; }
+.title .kpick#project-pick { height: 28px; gap: 4px; padding: 0 8px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.title .kpick#project-pick svg { color: var(--mute); }
+.title .needs, .title .usage, .title .branch, .title [hidden] { display: none !important; }
+:root:not([data-view="wall"]) #listBtn { display: none; }
+.title .ib { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--mute); }
+.title .ib:hover { background: var(--canvas); color: var(--ink); }
+.title .core { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 0; }
+.tcore { width: 8px; height: 8px; flex: none; display: inline-block; margin: 0 6px; padding: 0; border: 0; border-radius: 50%; }
+.tcore.ok { background: #10b981; }
+.tcore.off { background: #ef4444; cursor: pointer; }
+.title .tnew { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: 6px; font-size: 13px; }
+
+/* Progress ring per agent row; the spinning arc is static (a quarter) under reduced motion. */
+.fring { width: 14px; height: 14px; flex: none; display: inline-flex; color: var(--mute); }
+.ouros-ring-spin { transform-box: view-box; transform-origin: 7px 7px; animation: ouros-ring-spin 1.1s linear infinite; }
+@keyframes ouros-ring-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+@media (prefers-reduced-motion: reduce) { .ouros-ring-spin { animation: none; } }
+.search.icon-only:not(.open) { display: none; }

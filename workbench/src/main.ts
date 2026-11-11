@@ -35,7 +35,7 @@ import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
-import { ownedIn, refreshRowGit, rowGit } from './rowgit.ts';
+import { ghIssues, ghPr, ownedIn, refreshRowGit, rowGit, type Issue, type Pr, type PrLookup } from './rowgit.ts';
 import { crashAction, freshNeeds, watchDb } from './queries.ts';
 
 captureProcessLog('workbench', false);
@@ -62,6 +62,7 @@ export const UI_METHODS = new Set([
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
   'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove',
+  'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ]);
 
 let win: BrowserWindow | null = null;
@@ -109,7 +110,7 @@ function read(): Snapshot {
   const d = db();
   if (!d) return emptySnapshot();
   try {
-    const s = withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText);
+    const s = withLiveText(withContext(snapshot(d, view.projectId), path.join(homeDir(), 'claude-context')), liveText, demo);
     const git = rowGit();
     for (const x of s.sessions) x.branch = git[x.id]?.branch ?? null;
     lastGood = { ...s, sessions: s.sessions.map((x) => ({ ...x, colour: sessionColour(x.id) })), git, settings_error: settingsError(), core_mismatch: coreMismatch, core_log: coreLog };
@@ -288,6 +289,20 @@ async function writeSetting(key: string, value: unknown): Promise<string | null>
   return out.reply.error ? out.reply.error.message : null;
 }
 
+/** The demo's stand-in for gh: `<home>/demo/github.json` holds `prs` by branch and `issues` by project name. */
+function demoGithub(): { prs?: Record<string, Pr>; issues?: Record<string, Issue[]> } {
+  try { return JSON.parse(fs.readFileSync(path.join(homeDir(), 'demo', 'github.json'), 'utf8')); } catch { return {}; }
+}
+const prLookup: PrLookup = demo ? async (_top, branch) => demoGithub().prs?.[branch] ?? null : ghPr;
+
+/** gh.issues: a project's open issues, read-only; [] for an unknown project or when gh fails. */
+async function issuesOf(projectId: unknown): Promise<Issue[]> {
+  const d = db();
+  const p = d && typeof projectId === 'string' ? (d.prepare('SELECT path, name FROM project WHERE id = ?').get(projectId) as { path: string; name: string } | undefined) : undefined;
+  if (!p) return [];
+  return demo ? demoGithub().issues?.[p.name] ?? [] : ghIssues(p.path);
+}
+
 function handlers(): void {
   const on = (channel: string, fn: (...args: any[]) => unknown) => {
     ipcMain.handle(channel, async (e, ...args) => {
@@ -308,6 +323,7 @@ function handlers(): void {
   });
 
   on('call', async (method: unknown, params: unknown) => {
+    if (method === 'gh.issues') return { kind: 'reply', reply: { id: null, result: await issuesOf((params as { project_id?: unknown } | null)?.project_id) } };
     if (typeof method !== 'string' || !UI_METHODS.has(method)) return { kind: 'reply', reply: { id: null, error: { code: -32601, message: `the workbench does not call ${String(method)}` } } };
     const out = await call(method, (params && typeof params === 'object' ? params : {}) as Record<string, unknown>, { ui: true });
     schedulePush();
@@ -897,7 +913,8 @@ async function seedDemoHome(): Promise<{ project: string; launch: () => Promise<
     if (out.kind !== 'reply' || out.reply.error) throw new Error(`${method}: ${out.kind === 'reply' ? out.reply.error?.message : 'the demo core is offline'}`);
     return out.reply.result;
   };
-  return { project, launch: () => seed.launchDemo(request, project) };
+  // The asker and preview fixture agents start only for the desktop self-test; the plain demo shows the seeded rows.
+  return { project, launch: async () => { await seed.launchDemo(request, project, process.env.METATROOPER_DEMO_FIXTURE_AGENTS === '1' ? undefined : []); await seed.seedRows(request, project); } };
 }
 
 function openNeedsYou(id: string | null): void {
@@ -1009,9 +1026,10 @@ if (!app.requestSingleInstanceLock()) {
     const gitTick = async () => {
       try {
         const all = lastGood?.sessions ?? [];
-        const live = all.filter((x) => x.state !== 'exited').map((x) => ({ id: x.id, cwd: x.cwd }));
+        const tree = Object.values(lastGood?.tree_rows ?? {});
+        const live = [...all.filter((x) => x.state !== 'exited' && !lastGood?.tree_rows?.[x.id]), ...tree].map((x) => ({ id: x.id, cwd: x.cwd }));
         const d = db();
-        if (await refreshRowGit(live, d ? await ownedIn(d, all.map((x) => x.cwd)) : {})) push();
+        if (await refreshRowGit(live, d ? await ownedIn(d, all.map((x) => x.cwd)) : {}, prLookup)) push();
       } catch {}
       setTimeout(gitTick, settings().terminal.git_every_ms);
     };
