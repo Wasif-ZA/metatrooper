@@ -801,4 +801,4 @@ html { font-size: 16px; }
 .ou-ae-adv { display: flex; flex-direction: column; gap: 8px; }
 .ou-ae-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .ou-hm-autoname.ou-hm-link { color: var(--ink); font-weight: 500; }
-.ou-home [aria-label="New automation"] h2, .ou-home [aria-label="Edit automation"] h2, [aria-label="New automation"] h2, [aria-label="Edit automation"] h2 { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.ou-home [aria-label="New automation"] h2, .ou-home [aria-label="Edit automation"] h2, [aria-label="New automation"] h2, [aria-label="Edit automation"] h2 { outline: none; box-shadow: none; text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 600; color: var(--ink); }

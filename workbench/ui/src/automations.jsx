@@ -225,7 +225,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
             <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon}</button>
             {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); setPicking(false); }}>{e}</button>)}</span> : null}
           </span>
-          <TextInput label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
+          <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
         </div>
         <label className="ou-ae-label">Prompt</label>
         <div className="ou-composer ou-ae-prompt">
