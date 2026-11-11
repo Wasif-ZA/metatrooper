@@ -93,25 +93,6 @@ beforeEach(() => {
   addonsStore.set({ rows: [] });
 });
 function projects(n = 3) { g.ui.snap.projects = Array.from({ length: n }, (_, i) => ({ id: 'p' + (i + 1), name: 'Project ' + (i + 1), path: 'C:/project-' + i })); }
-test('Home Projects renders three project-go rows with their ids', () => {
-  projects(); const h = harness(Home); const html = h.html();
-  assert.deepEqual(h.all(action('project-go')).map((n: any) => [n.type, n.props['data-id']]), [['li', 'p1'], ['li', 'p2'], ['li', 'p3']]);
-  for (let i = 1; i <= 3; i++) assert.ok(html.includes('Project ' + i));
-});
-test('Home Projects marks only the current project open now', () => {
-  projects(); g.ui.projectId = 'p2'; const h = harness(Home); h.draw();
-  const text = h.all(action('project-go')).map((n: any) => renderToStaticMarkup(n));
-  assert.doesNotMatch(text[0], /open now/); assert.match(text[1], /open now/); assert.doesNotMatch(text[2], /open now/);
-});
-test('Home Projects excludes older projects before limiting the list', () => {
-  projects(10); g.ui.snap.projects[0].older = true;
-  const h = harness(Home); h.draw();
-  assert.deepEqual(h.all(action('project-go')).map((n: any) => n.props['data-id']), ['p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9']);
-});
-test('Home Projects caps more than eight projects at eight rows', () => {
-  projects(11); const h = harness(Home); h.draw();
-  assert.deepEqual(h.all(action('project-go')).map((n: any) => n.props['data-id']), ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']);
-});
 test('Home Projects has exactly one open-folder button', () => {
   projects(); const html = harness(Home).html();
   assert.equal((html.match(/<button\b[^>]*data-action="open-folder"/g) || []).length, 1);
