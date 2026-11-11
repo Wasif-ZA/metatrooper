@@ -44,7 +44,7 @@ try { await build({
 const { React, renderToStaticMarkup, Verdict, Ide, drawIde, ideKeys, dirtyIn, ideFiles, ideCommands, dropProject } = await import(pathToFileURL(join(temp, 'panes.mjs')).href);
 const g: any = globalThis;
 const calls: any[] = [];
-const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict']);
+const own = new Set(['Ide', 'Files', 'Search', 'SourceControl', 'Crumb', 'Agents', 'StatusBar', 'Asks', 'Verdict', 'TabActions']);
 
 // Expand app components with persistent hooks, dependency changes and effect cleanup.
 function harness(Screen: any, props: any = {}) {
@@ -121,6 +121,7 @@ beforeEach(() => {
       fsFind: async (...args: any[]) => { calls.push(['fsFind', ...args]); return [args[1]]; },
       fsRead: async (...args: any[]) => { calls.push(['fsRead', ...args]); return { text: 'const original = 1;', mtimeMs: 42 }; },
       fsImage: async (...args: any[]) => { calls.push(['fsImage', ...args]); return { url: 'data:image/png;base64,iVBORw0KGgo=' }; },
+      fsFileUrl: async (...args: any[]) => { calls.push(['fsFileUrl', ...args]); return { url: args[1].endsWith('.pdf') ? 'data:application/pdf;base64,JVBERi0=' : 'data:text/html;base64,PGgxPkhlbGxvPC9oMT4=' }; },
       fsWrite: async (...args: any[]) => { calls.push(['fsWrite', ...args]); return { ok: true }; },
       fsDelete: async (...args: any[]) => { calls.push(['fsDelete', ...args]); return { ok: true }; },
       fsOpenOutside: async (...args: any[]) => { calls.push(['fsOpenOutside', ...args]); return { ok: true }; },
@@ -263,6 +264,42 @@ test('night-210 B a png error shows its text and Open outside', async () => {
   h.one(label('Open outside')).props.onClick(); await flush();
   assert.deepEqual(recorded('fsOpenOutside'), [['fsOpenOutside', g.ui.projectId, 'picture.png']]);
   assert.deepEqual(dirtyIn(g.ui.projectId), []);
+});
+
+test('PDF opens as an Open outside action without reading the file', async () => {
+  const h = await explorer(); await open(h, 'document.pdf');
+  assert.deepEqual(recorded('fsFileUrl'), []);
+  assert.deepEqual(recorded('fsRead'), []);
+  assert.equal(h.all((n: any) => n.type === 'embed').length, 0);
+  h.one(label('Open outside')).props.onClick(); await flush();
+  assert.deepEqual(recorded('fsOpenOutside'), [['fsOpenOutside', g.ui.projectId, 'document.pdf']]);
+  assert.deepEqual(dirtyIn(g.ui.projectId), []);
+});
+
+for (const ext of ['html', 'htm']) test(`${ext} keeps source mode and toggles a sandboxed URL preview`, async () => {
+  const h = await explorer(); await open(h, `page.${ext}`);
+  assert.deepEqual(recorded('fsRead'), [['fsRead', g.ui.projectId, `page.${ext}`]]);
+  assert.deepEqual(recorded('fsFileUrl'), []);
+  assert.equal(h.all((n: any) => n.type === 'iframe').length, 0);
+  await h.one(label('Preview')).props.onClick(); h.draw();
+  const frame = h.one((n: any) => n.type === 'iframe');
+  assert.equal(frame.props.sandbox, '');
+  assert.equal(frame.props.src, 'data:text/html;base64,PGgxPkhlbGxvPC9oMT4=');
+  assert.equal(frame.props.srcDoc, undefined);
+  h.one(label('File')).props.onClick(); h.draw();
+  assert.equal(h.all((n: any) => n.type === 'iframe').length, 0);
+  assert.equal(ideKeys.preview(), true); await flush(); h.draw();
+  assert.equal(h.all((n: any) => n.type === 'iframe').length, 1);
+});
+
+test('an HTML preview failure leaves source mode available', async () => {
+  const h = await explorer(); await open(h, 'page.html');
+  g.api.fsFileUrl = async () => ({ error: 'not a file in this project' });
+  await h.one(label('Preview')).props.onClick(); h.draw();
+  assert.ok(h.one((n: any) => n.props.title === 'not a file in this project'));
+  h.one(label('File')).props.onClick(); h.draw();
+  assert.equal(h.all((n: any) => n.type === 'iframe').length, 0);
+  assert.equal(h.one(label('File')).props['aria-pressed'], true);
 });
 
 test('night-210 C1 Delete calls fsDelete only after confirmation', async () => {

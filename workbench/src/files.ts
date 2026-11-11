@@ -61,6 +61,23 @@ export function listDir(root: string, rel: string): Array<{ name: string; dir: b
 
 const IMAGE_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const PREVIEW_MIME: Record<string, string> = { html: 'text/html;charset=utf-8', htm: 'text/html;charset=utf-8' };
+
+export function readFileUrl(root: string, rel: unknown): { url: string } | { error: string } {
+  if (typeof rel !== 'string' || path.isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) return NOT_FILE;
+  const ext = path.extname(rel).slice(1).toLowerCase();
+  if (!Object.hasOwn(PREVIEW_MIME, ext)) return { error: 'not a file this window can preview' };
+  const h = openChecked(root, rel, 'r');
+  if (!h) return NOT_FILE;
+  try {
+    if (h.stat.size > MAX_FILE_BYTES) return { error: 'too large to preview' };
+    return { url: `data:${PREVIEW_MIME[ext]};base64,${readAll(h.fd, h.stat.size).toString('base64')}` };
+  } catch {
+    return NOT_FILE;
+  } finally {
+    fs.closeSync(h.fd);
+  }
+}
 
 /** A png, jpg, gif or webp inside the root as a data URL, read through one checked handle. */
 export function readImage(root: string, rel: unknown): { url: string } | { error: string } {
