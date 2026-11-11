@@ -80,9 +80,10 @@ const expected = [
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove', 'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'session.read', 'session.handoff',
   'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
+  'label.list', 'label.set', 'automation.labels-set', 'automation.run',
 ];
-// Protects main.ts:57-65, :309-310: exact capability set and the actual IPC gate.
-test('wire-00 exact 63 IPC methods pass with UI authentication; other methods are refused', async () => {
+// Protects main.ts:57-66 and the call handler: exact capability set and the actual IPC gate.
+test('wire-00 exact 67 IPC methods pass with UI authentication; other methods are refused', async () => {
   const calls: any[] = []; let handler: Function = () => {};
   const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
     call: async (...args: any[]) => { calls.push(args); return { kind: 'reply', reply: { result: {} } }; }, schedulePush() {} });
