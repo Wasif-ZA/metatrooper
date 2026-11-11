@@ -32,11 +32,11 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["metarouter", "metarouter.recipes", "metarouter.browse"]
+packages = ["metarouter", "metarouter.recipes"]
 
 [tool.setuptools.package-data]
-metarouter = ["mcp_catalog.json", "filters/*.json", "packs/*.json"]
-"metarouter.recipes" = ["catalog.json"]
+metarouter = ["filters/*.json"]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

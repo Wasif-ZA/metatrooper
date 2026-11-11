@@ -32,22 +32,6 @@ test('troop route with no Python and no metarouter exits 127 and says what is mi
   assert.match(r.stderr, /Python 3\.11/);
 });
 
-test('the metarouter plugin action answers in the plugin contract shape', { skip: !hasPython && 'no Python 3.11+' }, () => {
-  const action = path.join(root, 'router', 'bin', 'troop-action.js');
-  const r = spawnSync(process.execPath, [action], { env: env(), input: JSON.stringify({ schema: 1, action: 'ingest', input: {} }), encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
-  const out = JSON.parse(r.stdout);
-  assert.equal(out.ok, true);
-  assert.equal(typeof out.outputs.shell_read_tokens, 'number');
-  assert.equal(typeof out.outputs.saved_tokens, 'number');
-});
-
-test('troop gate reads A-05 from the bundled metarouter', { skip: !hasPython && 'no Python 3.11+' }, () => {
-  const r = spawnSync(process.execPath, ['core/cli.ts', 'gate', '--json'], { cwd: root, env: env(), encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
-  assert.notEqual(JSON.parse(r.stdout).A05.reason, 'toolrouter not found');
-});
-
 test('sessions get the bundled metarouter first on PATH, and claude gets the metarouter block', async () => {
   const { metarouterLaunch, METAROUTER_BLOCK } = await import('../src/sessions/launch.ts');
   const { BUILT_IN } = await import('../src/engines/registry.ts');

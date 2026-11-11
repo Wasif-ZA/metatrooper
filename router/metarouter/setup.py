@@ -6,8 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from metarouter import log
-from metarouter.log import config, home, private
+from metarouter.log import config, home
 
 START, END = "<!-- metarouter:start -->", "<!-- metarouter:end -->"
 BLOCK = f"""{START}
@@ -32,8 +31,6 @@ AGENTS = {
     "junie": (None, ".junie/guidelines.md", ".junie"),
     "copilot": (None, ".github/copilot-instructions.md", ".copilot"),
 }
-SCAN_DAYS = 30
-SCAN_TOP = 10
 
 
 def repo_root():
@@ -153,47 +150,6 @@ def uninstall(args):
                   note=f"recipes, logs and config stay in {home().as_posix()}. To delete them: {rm}")
 
 
-def scan_marker():
-    return home() / "scan.json"
-
-
-def first_run_tip():
-    d = home() / "recipes"
-    if scan_marker().exists() or (d.is_dir() and any(d.glob("*.json"))):
-        return None
-    return "First time? metarouter learn --scan shows what your agent keeps rewriting"
-
-
-def scan(args):
-    import time
-    from metarouter import learn
-    from metarouter.cli import flag_value
-    from metarouter.result import Result
-    days = flag_value(args, "--days") or str(SCAN_DAYS)
-    if not days.isdigit():
-        return Result(ok=False, lane="learn", exit=2, note="--days needs a number")
-    from metarouter import transcripts
-    root = flag_value(args, "--root") or learn.TRANSCRIPTS
-    agents = None if "--root" in args else transcripts.parse_from(flag_value(args, "--from")) or transcripts.found()
-    n_sessions, n_cmds, groups, shapes, *_ = learn.mine(root, since=time.time() - int(days) * 86400, agents=agents)
-    counts = {s: v[0] for s, v in shapes.items() if learn.candidate_shape(s) and not private(s)}
-    counts.update({f"inline python: {g}": n for g, n in groups.items()})
-    top = sorted(((s, n) for s, n in counts.items() if n >= 2), key=lambda x: -x[1])[:SCAN_TOP]
-    total = sum(n for _, n in top)
-    card = "\n".join([f"metarouter scan, last {days} days",
-                      f"{n_sessions} sessions, {n_cmds} shell calls",
-                      f"{len(top)} repeated commands ran {total} times",
-                      *[f"{n}x  {s}" for s, n in top[:2]]])
-    scan_marker().parent.mkdir(parents=True, exist_ok=True)
-    scan_marker().write_text(json.dumps({"days": int(days), "sessions": n_sessions}), encoding="utf-8")
-    return Result(ok=True, lane="learn", note=log.no_private_warning(), out={
-        "total": f"your agent ran these {len(top)} commands {total} times in {days} days",
-        "top": [f"{n}x  {s}" for s, n in top],
-        "card": card,
-        "next": "metarouter learn, then metarouter learn --review",
-    })
-
-
 def check_lines():
     from metarouter import calls, cli
     lines = []
@@ -225,37 +181,10 @@ def check_lines():
     else:
         near = detected()
         line(False, f"no agent set up: run metarouter init {near[0] if near else '<agent>'}")
-    from metarouter.recipes import engines
-    names = list(config().get("engines") or {})
-    if not names:
-        lines.append('--   no engines configured (optional): "engines": {"gemini": "<script>"} in config.json')
-    for n in names:
-        try:
-            line(True, f"engine {n}: {engines.script(n)}")
-        except FileNotFoundError as e:
-            line(False, f"engine {n}: {e}")
-    try:
-        from metarouter.browse.cdp import find_chrome
-        line(True, f"chrome {find_chrome()}")
-    except FileNotFoundError as e:
-        line(False, str(e))
     try:
         line(True, f"call log readable, {len(calls.read())} calls")
     except (OSError, ValueError) as e:
         line(False, f"call log unreadable ({e}): move {home().as_posix()}/calls.jsonl aside")
-    try:
-        from metarouter.transcripts import adoption
-    except ImportError:
-        adoption = None
-    if adoption is None:
-        lines.append("--   adoption: not measured yet")
-    else:
-        try:
-            a = adoption(7)
-            lines.append(f"--   adoption, last 7 days: {a.get('share')} of {a.get('shell_calls')} shell calls "
-                         f"through metarouter" if isinstance(a, dict) else f"--   adoption: {a}")
-        except Exception as e:
-            lines.append(f"--   adoption: not measured ({type(e).__name__})")
     return lines
 
 

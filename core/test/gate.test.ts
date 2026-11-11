@@ -146,11 +146,8 @@ test('#13 gate: reports exact counts and raw values for all five metrics', t => 
   ];
   for (const run of agyRuns) writeAgyRun(f.home, run.id, run.lines);
 
-  const routerTotals = { ok: true, shell_read_tokens: 120, saved_tokens: 30 };
-  const routerFile = path.join(f.home, 'toolrouter-fixture.js');
-  fs.writeFileSync(routerFile, `process.stdout.write(${JSON.stringify(JSON.stringify(routerTotals))});\n`);
   const db = f.database([...tracked]);
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db, toolrouter: [process.execPath, routerFile] });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db });
 
   const inWindowPrompts = prompts.filter(prompt => prompt.timestamp >= SINCE.getTime() && prompt.timestamp < UNTIL.getTime());
   const promptSessions = new Set(inWindowPrompts.map(prompt => prompt.sessionId));
@@ -174,8 +171,7 @@ test('#13 gate: reports exact counts and raw values for all five metrics', t => 
     A01: metric(a01Num, promptSessions.size, '>= 70', value => value >= 70),
     A02: metric(a02Num, inWindowPrompts.length, '< 1', value => value < 1),
     A03: metric(a03Num, engineRuns.length, '< 3', value => value < 3),
-    A04: metric(a04Num, inWindowPrompts.length, '< 0.5', value => value < 0.5),
-    A05: metric(routerTotals.saved_tokens, routerTotals.shell_read_tokens + routerTotals.saved_tokens, '>= 20', value => value >= 20)
+    A04: metric(a04Num, inWindowPrompts.length, '< 0.5', value => value < 0.5)
   });
 });
 
@@ -193,7 +189,7 @@ test('#13 gate: excludes ask path Claude, Codex, and agy activity from every met
     type: 'USER_INPUT', content: 'ping', created_at: INSIDE,
     tool_calls: [{ name: 'Read', input: { path: path.join(askPath, 'x.csv').toLowerCase() } }]
   }]);
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(['claude-ask']), toolrouter: null, askPaths: [askPath] });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(['claude-ask']), askPaths: [askPath] });
 
   assert.deepEqual(report.counts, {
     prompts: 0,
@@ -215,7 +211,7 @@ test('#13 gate: counts a Claude prompt with no transcript only as unclassified',
   const f = fixture(t);
   const prompts = [{ sessionId: 'missing-transcript', display: 'status? [Image #1]', timestamp: Date.parse(INSIDE) }];
   writeHistory(f.home, prompts);
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(['missing-transcript']), toolrouter: null });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(['missing-transcript']) });
 
   assert.deepEqual(report.counts, {
     prompts: 0,
@@ -254,7 +250,7 @@ test('#13 gate: skips injected context before classifying the first Codex user m
     codexMeta(INSIDE, path.join(f.home, 'project')),
     ...userTexts.map(codexUser)
   ]);
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(), toolrouter: null });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database() });
 
   assert.equal(report.counts.engine_runs, 1);
   assert.deepEqual(report.A03, metric(userTexts.at(-1) === 'reply ok' ? 1 : 0, 1, '< 3', value => value < 3));
@@ -275,7 +271,7 @@ test('#13 gate: counts matching smoke messages only when they are under 80 chara
       writeAgyRun(f.home, run.id, [{ type: 'USER_INPUT', content: run.text, created_at: INSIDE }]);
     }
   }
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(), toolrouter: null });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database() });
   const smokePattern = /reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)/i;
   const expectedSmoke = runs.filter(run => run.text.length < 80 && smokePattern.test(run.text)).length;
 
@@ -300,7 +296,7 @@ test('#13 gate: extracts agy USER_REQUEST text before wrapper metadata', t => {
   for (const run of runs) {
     writeAgyRun(f.home, run.id, [{ type: 'USER_INPUT', content: run.content, created_at: INSIDE }]);
   }
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database(), toolrouter: null });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database() });
   const smokePattern = /reply (ready|ok)|name the model|which model|echo|ping|say ok|are you (there|working)/i;
   const expectedSmoke = runs.filter(run => run.request.length < 80 && smokePattern.test(run.request)).length;
 
@@ -317,31 +313,13 @@ test('#13 gate: includes prompts at since and excludes prompts at until', t => {
   ];
   writeHistory(f.home, boundaryPrompts);
   writeClaudeTranscript(f.home, sessionId, [{ cwd: path.join(f.home, 'project') }]);
-  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database([sessionId]), toolrouter: null });
+  const report = measureGate({ since: SINCE, until: UNTIL, home: f.home, db: f.database([sessionId]) });
   const expected = boundaryPrompts.filter(prompt => prompt.timestamp >= SINCE.getTime() && prompt.timestamp < UNTIL.getTime());
 
   assert.equal(report.counts.prompts, expected.length);
   assert.deepEqual(report.A01, metric(new Set(expected.map(prompt => prompt.sessionId)).size, new Set(expected.map(prompt => prompt.sessionId)).size, '>= 70', value => value >= 70));
   assert.equal(report.A02.den, expected.length);
   assert.equal(report.A04.den, expected.length);
-});
-
-test('#13 gate: reports missing toolrouter as a null A-05 metric and exits zero', async t => {
-  const f = fixture(t);
-  const result = await runNode([
-    'core/cli.ts', 'gate', '--since', SINCE_ARG, '--until', UNTIL_ARG, '--json'
-  ], cliEnv(f.home));
-
-  assert.equal(result.code, 0, result.stderr);
-  const report = JSON.parse(result.stdout);
-  assert.deepEqual(report.A05, {
-    num: null,
-    den: null,
-    value: null,
-    target: '>= 20',
-    pass: null,
-    reason: 'toolrouter not found'
-  });
 });
 
 test('#13 gate: rejects reversed, malformed, repeated, and unknown gate arguments', async t => {

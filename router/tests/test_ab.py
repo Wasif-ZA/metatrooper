@@ -126,3 +126,4 @@ def test_memory_arm_copies_recipes_hints_and_config_only(tmp_path, monkeypatch):
     got = sorted(p.relative_to(env_a["METAROUTER_HOME"]).as_posix() for p in (run_a / "metarouter-home").rglob("*"))
     assert got == ["hints.json", "recipes", "recipes/mine.json"]
     assert not any((run_b / "metarouter-home").iterdir())
+    assert env_b["METAROUTER_HOOK"] == "off" and env_a.get("METAROUTER_HOOK") != "off"

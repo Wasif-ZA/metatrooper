@@ -1,7 +1,7 @@
 import json
 import re
 
-SHORT = 2000
+SHORT = 10000
 CLIP = 300
 TAIL = 3
 HEAD_CHARS = 1200

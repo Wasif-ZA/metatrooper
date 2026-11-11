@@ -95,6 +95,8 @@ def agent_env(agent, run_dir, memory=False):
             elif src.is_file():
                 shutil.copy2(src, mhome / name)
     env = {**os.environ, "METAROUTER_HOME": str(mhome)}
+    if not memory:
+        env["METAROUTER_HOOK"] = "off"
     if agent == "codex":
         real = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
         home = run_dir / "codex-home"

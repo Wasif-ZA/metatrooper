@@ -19,28 +19,15 @@ def config():
 
 
 def private(text):
-    """True when text matches one of the config's "private" regexes."""
+    """True when text, as written or with backslashes as slashes, matches one of the config's "private" regexes."""
+    texts = {text or "", (text or "").replace("\\", "/")}
     for pat in config().get("private") or []:
         try:
-            if re.search(pat, text or "", re.I):
+            if any(re.search(pat, t, re.I) for t in texts):
                 return True
         except re.error:
             continue
     return False
-
-
-NO_PRIVATE = ("WARNING: no private patterns set, so every transcript is read. To skip folders or words, add "
-              "\"private\": [\"<regex>\"] to ~/.metarouter/config.json")
-
-
-def no_private_warning():
-    return None if config().get("private") else NO_PRIVATE
-
-
-def child_env():
-    """Environment for a detached `python -m metarouter...` child, able to import this copy of the package."""
-    pkg = str(Path(__file__).resolve().parents[1])
-    return {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [pkg, os.environ.get("PYTHONPATH")]))}
 
 
 def write(label, raw):
