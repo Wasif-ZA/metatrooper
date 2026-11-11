@@ -76,15 +76,18 @@ function theme() {
     base: dark ? 'vs-dark' : 'vs',
     inherit: true,
     rules: !dark ? [] : [
-      { token: 'keyword', foreground: '#569cd6' },
-      { token: 'keyword.control', foreground: '#c586c0' },
-      { token: 'string', foreground: '#ce9178' },
-      { token: 'number', foreground: '#b5cea8' },
-      { token: 'comment', foreground: '#6a9955' },
-      { token: 'function', foreground: '#dcdcaa' },
-      { token: 'type', foreground: '#4ec9b0' },
-      { token: 'variable', foreground: '#9cdcfe' },
-      { token: 'property', foreground: '#9cdcfe' },
+      { token: 'keyword', foreground: '569cd6' },
+      { token: 'keyword.control', foreground: 'c586c0' },
+      { token: 'string', foreground: 'ce9178' },
+      { token: 'number', foreground: 'b5cea8' },
+      { token: 'comment', foreground: '6a9955' },
+      { token: 'function', foreground: 'dcdcaa' },
+      { token: 'type', foreground: '4ec9b0' },
+      { token: 'variable', foreground: '9cdcfe' },
+      { token: 'property', foreground: '9cdcfe' },
+      { token: 'identifier', foreground: '9cdcfe' },
+      { token: 'type.identifier', foreground: '4ec9b0' },
+      { token: 'delimiter', foreground: 'd4d4d4' },
     ],
     colors: {
       'editor.background': c.pane, 'editor.foreground': c['body-strong'], 'editorGutter.background': c.pane,
@@ -99,6 +102,10 @@ function theme() {
       'diffEditor.insertedLineBackground': '#9bb95533', 'diffEditor.removedLineBackground': '#ff000033',
       'diffEditor.insertedTextBackground': '#9ccc2c66', 'diffEditor.removedTextBackground': '#ff000066',
       'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': '#9bb95533', 'diffEditorGutter.removedLineBackground': '#ff000033',
+      ...(dark ? {
+        'scrollbarSlider.background': '#79797933', 'scrollbarSlider.hoverBackground': '#64646459', 'scrollbarSlider.activeBackground': '#bfbfbf66',
+        'editorOverviewRuler.border': '#00000000', 'diffEditorOverview.insertedForeground': '#9bb95580', 'diffEditorOverview.removedForeground': '#ff000080',
+      } : {}),
     },
   });
   monaco.editor.setTheme('cc');
@@ -173,8 +180,9 @@ export function openDiff(parent, sides, path, hooks = {}) {
   loadMonaco().then((m) => {
     if (dead) return;
     models = [m.editor.createModel(sides.original, langOf(path)), m.editor.createModel(sides.modified, langOf(path))];
-    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false });
+    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, renderSideBySideInlineBreakpoint: 900, renderOverviewRuler: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false, renderIndicators: true, lineDecorationsWidth: 18, automaticLayout: true });
     ed.setModel({ original: models[0], modified: models[1] });
+    ed.getOriginalEditor().updateOptions({ scrollbar: { vertical: 'hidden', verticalScrollbarSize: 0 } });
     for (const side of ['old', 'new']) {
       const e = sideOf(side);
       const plus = e.createDecorationsCollection();
