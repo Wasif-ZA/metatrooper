@@ -8,7 +8,7 @@ import { neutralTheme } from '@astryxdesign/theme-neutral/built';
 import { Settings, settingsStore } from './settings.jsx';
 import { Inbox, inboxStore } from './inbox.jsx';
 import { Addons, drawAddons } from './addons.jsx';
-import { Home, homeStore, NewTask, openNewTask } from './home.jsx';
+import { Home, homeStore, openNewTask } from './home.jsx';
 import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn, dropProject } from './ide.jsx';
 import { Palette, paletteView } from './palette.jsx';
 
@@ -31,10 +31,6 @@ const start = () => {
   cmdk.id = 'cmdk';
   document.body.appendChild(cmdk);
   mount('cmdk', Palette);
-  const nt = document.createElement('div');
-  nt.id = 'newtask';
-  document.body.appendChild(nt);
-  mount('newtask', NewTask);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
@@ -101,12 +97,14 @@ document.addEventListener('keydown', (e) => {
 
 // home.js stays loaded for homeView.set and shown; only its drawing is replaced.
 homeView.draw = () => {
-  el('home').hidden = !homeView.shown();
+  el('home').hidden = !(homeView.shown() || (ui.view === 'automations' && Boolean(project())));
   document.querySelectorAll('.vseg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === (ui.view || 'wall'))));
   homeStore.set({ tick: homeStore.get().tick + 1 });
 };
 
 globalThis.newTask = openNewTask;
+
+globalThis.addEventListener?.('home-select', () => homeStore.set({ open: [], tick: homeStore.get().tick + 1 }));
 
 document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() !== 'n' || !e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
