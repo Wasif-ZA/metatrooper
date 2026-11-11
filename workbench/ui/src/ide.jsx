@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
@@ -325,6 +325,21 @@ function startNew(st, dir, isFolder) {
   bump();
 }
 
+// Files / Search / Git join cc's app rail under the Editor icon; without the frame they stay in the side
+function railHost() {
+  const ide = globalThis.document?.querySelector?.('#frame .fnav [data-view="ide"]');
+  if (!ide) return null;
+  let host = ide.nextElementSibling;
+  if (!host?.classList.contains('ou-ide-railviews')) {
+    host = document.createElement('div');
+    host.className = 'ou-ide-railviews';
+    host.setAttribute('role', 'group');
+    host.setAttribute('aria-label', 'Editor views');
+    ide.after(host);
+  }
+  return host;
+}
+
 const focusRow = (path) => setTimeout(() => document.querySelector(`#ide-tree-menu [data-tree-id="${CSS.escape(path)}"]`)?.focus(), 0);
 
 // TreeList keeps user toggles in internal state, so a reveal remounts it with the open folders as props
@@ -586,8 +601,6 @@ export const ideKeys = {
   },
 };
 
-const FILE_ICON = { code: Ic.CodeIcon, html: Ic.CodeIcon, json: Sc.JsonIcon, markdown: Sc.MarkdownIcon, css: Sc.CssIcon, image: Sc.ImageIcon, folder: Ic.FolderIcon, file: Sc.FileIcon };
-
 const LANGS = {
   js: 'JavaScript', jsx: 'JavaScript', mjs: 'JavaScript', cjs: 'JavaScript',
   ts: 'TypeScript', tsx: 'TypeScript', json: 'JSON',
@@ -601,37 +614,17 @@ const langOf = (path) => {
   return LANGS[ext] || ext.toUpperCase();
 };
 
-const CODE_EXTS = new Set(['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'py', 'sh', 'bash', 'zsh', 'rb', 'rs', 'go', 'c', 'cpp', 'h', 'java', 'astro', 'vue', 'svelte']);
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp', 'avif']);
-
-const TINT = {
-  js: 'fn', jsx: 'fn', ts: 'fn', tsx: 'fn', mjs: 'fn', cjs: 'fn',
-  json: 'type',
-  css: 'keyword', scss: 'keyword', less: 'keyword',
-  html: 'number', htm: 'number',
-  md: 'string', markdown: 'string',
-  png: 'type', jpg: 'type', jpeg: 'type', gif: 'type', svg: 'type', webp: 'type', ico: 'type',
-};
-
-function fileShape(path, isDir) {
-  if (isDir) return 'folder';
-  if (!path) return 'file';
-  const ext = path.split('.').pop().toLowerCase();
-  if (ext === 'json') return 'json';
-  if (ext === 'md' || ext === 'markdown') return 'markdown';
-  if (ext === 'css' || ext === 'scss' || ext === 'less') return 'css';
-  if (ext === 'html' || ext === 'htm') return 'html';
-  if (IMAGE_EXTS.has(ext)) return 'image';
-  if (CODE_EXTS.has(ext)) return 'code';
-  return 'file';
-}
+const KINDS = [
+  ['ts', Sc.TsIcon, 'ts tsx mts cts'], ['js', Sc.JsIcon, 'js jsx mjs cjs'], ['json', Sc.JsonIcon, 'json jsonc'],
+  ['md', Sc.MarkdownIcon, 'md markdown mdx'], ['css', Sc.CssIcon, 'css scss less'], ['html', Sc.HtmlIcon, 'html htm xml'],
+  ['py', Sc.PyIcon, 'py'], ['image', Sc.ImageIcon, 'png jpg jpeg gif svg webp ico bmp avif'], ['text', Sc.TextIcon, 'txt log csv'],
+  ['code', Ic.CodeIcon, 'sh bash zsh rb rs go c cpp h java astro vue svelte yml yaml toml'],
+];
+const KIND = new Map(KINDS.flatMap(([k, I, exts]) => exts.split(' ').map((e) => [e, [k, I]])));
 
 function FileIcon({ path, isDir }) {
-  const shape = fileShape(path, isDir);
-  const ext = path ? path.split('.').pop().toLowerCase() : '';
-  const k = isDir ? 'type' : TINT[ext];
-  const F = FILE_ICON[shape];
-  return <span className="ou-ide-ficon" style={{ color: k ? `var(--syn-${k})` : 'var(--mute)' }}><F size={14} /></span>;
+  const [k, F] = isDir ? ['folder', Ic.FolderIcon] : KIND.get(path ? path.split('.').pop().toLowerCase() : '') || ['file', Sc.FileIcon];
+  return <span className={`ou-ide-ficon ou-ide-lang-${k}`}><F size={16} /></span>;
 }
 
 const Ring = () => <span className="ou-ide-ring" title="Changed by an agent" />;
@@ -881,7 +874,7 @@ function SourceControl({ st }) {
           onChange={(e) => { st.commitMsg = e.target.value; bump(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); void gitCommit(st); } }} />
         <div className="ou-ide-scactions">
-          <Button size="sm" label="Commit" icon={<Ic.CommitIcon size={14} />} isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
+          <Button size="sm" variant="primary" label="Commit" icon={<Ic.CommitIcon size={14} />} isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
           <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} />
         </div>
       </div>
@@ -958,7 +951,6 @@ function Crumb({ st, tab, changed }) {
   const mode = isChanged && tab.mode === 'changes' ? 'changes' : tab && inPreview(tab) ? 'preview' : 'file';
   const parts = tab ? tab.path.split('/') : [];
   const lines = mode === 'changes' && tab.diff ? diffLines(tab.diff) : [];
-  const ok = canWrite();
   return (
     <div className="ou-ide-crumb">
       <nav className="ou-ide-path" aria-label="Breadcrumb">{parts.map((x, i) => (
@@ -978,13 +970,6 @@ function Crumb({ st, tab, changed }) {
             {isChanged ? <SegmentedControlItem value="changes" label="Changes" /> : null}
           </SegmentedControl>
         ) : null}
-        {!tab || tab.error || tab.image ? null : (
-          <>
-            <IconButton size="sm" variant="ghost" label="Reload from disk" tooltip="Reload from disk" icon={<Sc.ReloadIcon size={14} />} onClick={() => askReload(st, tab.path)} />
-            <Button size="sm" variant="ghost" className="ou-ide-save" label="Save" tooltip="Save (Ctrl+S)" isDisabled={!ok || !tab.dirty} onClick={() => void saveTab(st, tab.path)} />
-            {ok ? null : <NotBuilt />}
-          </>
-        )}
       </span>
     </div>
   );
@@ -1180,17 +1165,33 @@ export function Ide() {
   const active = st.active ? tabOf(st, st.active) : null;
   const agentCount = ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).length;
   const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
+  const views = (
+    <>
+      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={16} />} onClick={() => { st.side = 'files'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" aria-pressed={st.side === 'search'} icon={<Ic.Search size={16} />} onClick={() => { st.side = 'search'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" aria-pressed={st.side === 'changes'}
+        icon={<span className="ou-ide-railicon"><Ic.Branch size={16} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
+        onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
+    </>
+  );
+  const tp = st.tabMenu && tabOf(st, st.tabMenu) ? st.tabMenu : st.active;
+  const tt = tp ? tabOf(st, tp) : null;
+  const tabMenu = !tt ? [] : [
+    { label: 'Save', endContent: canWrite() ? <span className="ou-ide-key">Ctrl+S</span> : <NotBuilt />, isDisabled: !canWrite() || !tt.dirty, onClick: () => void saveTab(st, tp) },
+    { label: 'Reload from disk', isDisabled: Boolean(tt.error || tt.image), onClick: () => askReload(st, tp) },
+    { type: 'divider' },
+    { label: 'Close', endContent: <span className="ou-ide-key">Ctrl+W</span>, onClick: () => closeTab(st, tp) },
+    { label: 'Close all', onClick: () => closeAll(st) },
+    { type: 'divider' },
+    { label: 'Copy path', onClick: () => void copyPath(tp, true) },
+    { label: 'Copy relative path', onClick: () => void copyPath(tp, false) },
+    { label: 'Reveal in Files', onClick: () => void reveal(st, tp) },
+  ];
 
   return (
     <div className="ou-ide" key={st.pid}>
       <aside className="ou-ide-side">
-        <nav className="ou-ide-rail" aria-label="Side views">
-          <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={22} />} onClick={() => { st.side = 'files'; bump(); }} />
-          <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" aria-pressed={st.side === 'search'} icon={<Ic.Search size={22} />} onClick={() => { st.side = 'search'; bump(); }} />
-          <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" aria-pressed={st.side === 'changes'}
-            icon={<span className="ou-ide-railicon"><Ic.Branch size={22} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
-            onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
-        </nav>
+        {railHost() ? createPortal(<>{views}<span className="ou-ide-raildiv" aria-hidden="true" /></>, railHost()) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
         <div className="ou-ide-pane">
           <div className="ou-ide-head">
             <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? (gitCount !== null ? `Changes ${gitCount}` : 'Changes') : 'Explorer'}</span>
@@ -1209,6 +1210,8 @@ export function Ide() {
         </div>
       </aside>
       <section className={panel ? 'ou-ide-main' : 'ou-ide-main ou-ide-folded'}>
+        <ContextMenu id="ide-tab-menu" size="sm" label="Tab actions" items={tabMenu} isDisabled={!tt}
+          onContextMenu={(e) => { st.tabMenu = e.target.closest?.('[data-tab-value]')?.dataset.tabValue || null; bump(); }}>
         <div className="ou-ide-tabs">
           {st.tabs.length ? (
             <TabList size="sm" layout="hug" hasDivider overflow="auto" value={st.active || ''} onChange={(v) => { st.active = v; bump(); }}>
@@ -1224,6 +1227,7 @@ export function Ide() {
           ) : null}
           <OpenInVsCodeButton st={st} tab={active} />
         </div>
+        </ContextMenu>
         <Crumb st={st} tab={active} changed={changed} />
         <div className="ou-ide-view">
           {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}

@@ -18,6 +18,11 @@ export const FileIcon = draw(<path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h
 export const JsonIcon = draw(<path d="M5.5 3H5a1.5 1.5 0 0 0-1.5 1.5v1.75L2.5 8l1 1.75v1.75A1.5 1.5 0 0 0 5 13h.5M10.5 3h.5a1.5 1.5 0 0 1 1.5 1.5v1.75l1 1.75-1 1.75v1.75A1.5 1.5 0 0 1 11 13h-.5" />);
 export const MarkdownIcon = draw(<><rect x="1.5" y="3.5" width="13" height="9" rx="1.5" /><path d="M4 10V6l2 2.25L8 6v4M11.5 6v4M10 8.5l1.5 1.5L13 8.5" /></>);
 export const CssIcon = draw(<path d="M6.5 2.5 5 13.5M11 2.5 9.5 13.5M3 6h10.5M2.5 10H13" />);
+export const TsIcon = draw(<path d="M2 4.5h5M4.5 4.5v7.5M13.5 5.25c-.35-.5-1-.75-1.75-.75-1.1 0-1.9.6-1.9 1.5 0 2.1 3.9 1.1 3.9 3.3 0 1-.85 1.7-2.05 1.7-.9 0-1.7-.4-2.1-1" />);
+export const JsIcon = draw(<path d="M6.5 4.5v5.25a2 2 0 0 1-4 0M13.5 5.25c-.35-.5-1-.75-1.75-.75-1.1 0-1.9.6-1.9 1.5 0 2.1 3.9 1.1 3.9 3.3 0 1-.85 1.7-2.05 1.7-.9 0-1.7-.4-2.1-1" />);
+export const PyIcon = draw(<><path d="M2.5 12V4.5h2.25a2 2 0 0 1 0 4H2.5" /><path d="m8.5 4.5 2.5 4 2.5-4M11 8.5V12" stroke="var(--lang-py2, currentColor)" /></>);
+export const HtmlIcon = draw(<path d="M5 5 2 8l3 3M11 5l3 3-3 3M9.25 3.5l-2.5 9" />);
+export const TextIcon = draw(<path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-7zM9.5 2.5v3h3M5.75 8.5h4.5M5.75 11h3" />);
 export const ImageIcon = draw(<><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><circle cx="6" cy="6" r="1.25" /><path d="m13.5 10.5-3-3-7 6" /></>);
 export const SavingsIcon = draw(<path d="M8 2v12M11 5c-.5-.9-1.6-1.5-3-1.5-1.8 0-3 .9-3 2.25 0 3.25 6 1.5 6 4.5 0 1.4-1.3 2.25-3.2 2.25-1.5 0-2.7-.6-3.3-1.6" />);
 export const LockIcon = draw(<><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2M8 9.75v1.5" /></>);
