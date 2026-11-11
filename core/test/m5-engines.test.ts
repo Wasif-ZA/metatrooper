@@ -184,7 +184,7 @@ test('M5-14c env-json and config-dir expose shim commands only; launch leaves us
       ...opencode, id: 'args-template-fixture', mcp_attach: { kind: 'args-template', template: ['--mcp={node}:{shim}:{plugin}:{server}:{token}'] },
     };
     const args = mcpAttachArgs(db, argsEngine, 'args-session');
-    assert.deepEqual(args, [`--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:fixture-plugin:server:${shimToken('fixture-plugin')}`]);
+    assert.deepEqual(args, [`--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:steps::`, `--mcp=${process.execPath.replaceAll('\\', '/')}:${expectShim()}:fixture-plugin:server:${shimToken('fixture-plugin')}`]);
     assert.ok(!JSON.stringify(args).includes('FIXTURE_SECRET_VALUE'));
   } finally {
     db.close();

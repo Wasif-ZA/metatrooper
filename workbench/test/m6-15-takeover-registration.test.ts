@@ -47,7 +47,7 @@ async function startup(t: any, outcome: 'true' | 'false' | 'throw') {
     '../../core/src/sessions/owners.ts': 'export const ownersAsync = async () => ({}), repoOfAsync = async () => null;',
     './comments.ts': 'export const copied = () => false, diffLineBody = () => "", elementBody = () => "", filesBody = () => "";',
     '../../core/src/settings.ts': 'export const settings = () => ({ desktop: { takeover_key: "Control+Shift+F9" }, terminal: { git_every_ms: 10000 }, ui: {} }), activeTheme = () => ({ bg: "#000000" }), settingsError = () => null, settingsFile = () => globalThis.__takeoverTest.home + "/settings.json", DEFAULTS = { sessions: { approval: "ask", ask_paths: [], metarouter: true }, desktop: { takeover_key: "Control+Alt+Q", watch_pause: true }, browser: { allow_origins: [], lent: {} }, agent_cursor: { mode: "snappy", show_caption: true, idle_fade_ms: 5000, show_in_recordings: false }, savers: { shrink_shell: false, lean_handoffs: false, small_screenshots: false, cheap_model: false }, reliability: { loop_alarm: true, loop_nudge_at: 3, loop_stop_at: 5, token_limit: 0, done_needs_check: true, checks: {} }, worktree: { npm_ci: true, stale_days: 7 }, terminal: { cols: 120, rows: 30, scrollback: 10000, font_size: 13, git_every_ms: 10000 }, ui: { theme: "dither" } };',
-    './rowgit.ts': 'export const ownedIn = async () => ({}), refreshRowGit = async () => false, rowGit = () => ({});',
+    './rowgit.ts': 'export const ownedIn = async () => ({}), refreshRowGit = async () => false, rowGit = () => ({}), ghIssues = async () => [], ghPr = async () => null;',
   };
   const hooks = registerHooks({
     resolve(specifier, context, next) {
