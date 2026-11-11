@@ -73,8 +73,10 @@ test('the UI draws every kind, escapes its text, and lists the same icons and co
   assert.deepEqual(UI_PICK, [...PICK_ICONS]);
   assert.deepEqual(UI_COLOURS, PROJECT_COLOURS);
   for (const name of PICK_ICONS) assert.ok(SHAPES[name], name);
-  assert.match(projectIconHtml({ kind: 'monogram', text: 'SC', colour: 'blue' }, 14), /color:#60a5fa.*>SC<\/text>/);
-  assert.match(projectIconHtml({ kind: 'monogram', text: '<', colour: 'blue' }), /&#60;<\/text>/);
+  const tile = projectIconHtml({ kind: 'monogram', text: 'SC', colour: 'blue' }, 18);
+  assert.match(tile, /width:18px;height:18px;border-radius:4px;background:#60a5fa;color:#fff;font:600 9px\/18px/);
+  assert.ok(tile.endsWith('>SC</span>') && !tile.includes('textLength'), 'white letters on the colour, natural spacing');
+  assert.match(projectIconHtml({ kind: 'monogram', text: '<', colour: 'blue' }), /&#60;<\/span>/);
   assert.match(projectIconHtml({ kind: 'image', src: 'data:image/svg+xml;base64,AA==', file: 'favicon.svg' }), /<img class="picon" src="data:image\/svg\+xml;base64,AA=="/);
   assert.match(projectIconHtml({ kind: 'icon', name: 'rocket', colour: 'rose' }), /color:#fb7185/);
   assert.match(projectIconHtml(undefined), /<svg/);
