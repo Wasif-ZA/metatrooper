@@ -45,10 +45,10 @@ test('snapshot sessions and live rows carry the linked monitor with its last out
   }
 });
 
-test('a passing latest run reads ok', () => {
+test('a passing latest run reads ok, and a later missed slot does not change it', () => {
   const db = fixture(false);
   try {
-    db.prepare("INSERT INTO automation_run (id, automation_id, due_at, at, outcome) VALUES ('r4', 'a1', ?, '2026-11-10T00:04:00Z', 'skip')").run(now);
+    db.prepare("INSERT INTO automation_run (id, automation_id, due_at, at, outcome) VALUES ('r4', 'a1', ?, '2026-11-10T00:04:00Z', 'skip'), ('r5', 'a1', ?, '2026-11-10T00:05:00Z', 'missed')").run(now, now);
     assert.equal(snapshot(db, 'p1').sessions.find((s) => s.id === 's1')!.monitor!.last_outcome, 'ok');
   } finally {
     db.close();
