@@ -99,6 +99,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
   { name: 'session.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, labels: string[]}', result: '{labels}' },
   { name: 'labels.list', errors: [E.INVALID_PARAMS], params: '{project_id}', result: '{labels: [{name, count}]}' },
+  { name: 'session.monitor-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, automation_id | null}', result: '{ok: true}: links the automation check to the session (null unlinks); a failed run of it is sent into the session, or once the session has exited, starts one follow-up child session' },
   { name: 'session.send', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, text}', result: '{sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you`' },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
   { name: 'needs_you.mark-read', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
@@ -610,6 +611,22 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
     },
   });
 
+  m.set('session.monitor-set', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      const automation = p.automation_id;
+      if (automation !== null && (typeof automation !== 'string' || !automation)) throw new RpcError(E.INVALID_PARAMS, 'automation_id must be a string or null');
+      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (automation === null) {
+        db.prepare('DELETE FROM session_monitor WHERE session_id = ?').run(id);
+        return { ok: true };
+      }
+      if (!db.prepare('SELECT 1 FROM automation WHERE id = ?').get(automation)) throw new RpcError(E.NOT_FOUND, 'automation not found');
+      db.prepare('INSERT INTO session_monitor (session_id, automation_id) VALUES (?, ?) ON CONFLICT(session_id) DO UPDATE SET automation_id = excluded.automation_id').run(id, automation);
+      return { ok: true };
+    },
+  });
+
   m.set('session.send', {
     handler: (p) => {
       const id = str(p, 'session_id');
@@ -939,6 +956,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('automation.delete', {
     needsUi: true,
     handler: (p) => {
+      db.prepare('DELETE FROM session_monitor WHERE automation_id = ?').run(str(p, 'id'));
       db.prepare('DELETE FROM automation_run WHERE automation_id = ?').run(str(p, 'id'));
       db.prepare('DELETE FROM automation WHERE id = ?').run(str(p, 'id'));
       return {};

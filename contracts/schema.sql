@@ -479,3 +479,9 @@ CREATE TABLE automation_run (
   session_id TEXT
 );
 CREATE INDEX automation_run_idx ON automation_run(automation_id, at);
+
+CREATE TABLE session_monitor (
+  session_id TEXT PRIMARY KEY REFERENCES session(id),
+  automation_id TEXT NOT NULL REFERENCES automation(id),
+  last_run_id TEXT                 -- the newest failed run already delivered, so one run never fires twice
+);

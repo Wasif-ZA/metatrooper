@@ -9,7 +9,7 @@ import { wireTermEvents } from './terminal/events.ts';
 import * as term from './terminal/index.ts';
 import { checkBudgets, proveDone, watchRecord } from './reliability.ts';
 import { onStateChange } from './events/state.ts';
-import { deliverPrompts } from './sessions/launch.ts';
+import { deliverPrompts, launchSession } from './sessions/launch.ts';
 import { nowIso } from './time.ts';
 import { rotateUiKey } from './uikey.ts';
 import { CommandRunner } from './pipe/commands.ts';
@@ -17,7 +17,7 @@ import { startPipeServer, type PipeReady } from './pipe/server.ts';
 import { PipeClient } from './pipe/client.ts';
 import { automationTick, realDeps } from './automations.ts';
 import { buildMethods } from './methods.ts';
-import { activeEngines, loadEngines, syncEngines } from './engines/registry.ts';
+import { activeEngines, getEngine, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
 import { pruneBrowserAudit } from './events/append.ts';
 import { processEvents, resolveSpentNotices, resolveUncommitted, turnJobsIdle } from './events/processor.ts';
@@ -150,7 +150,16 @@ async function main(): Promise<void> {
   every(5000, () => resumeAtReset(db));
   every(2000, () => notifyTick(db));
   every(1000, () => watcher.tick());
-  const autoDeps = realDeps((a) => methods.get('session.launch')!.handler({ ...a, approval: 'ask' }, { ui: false, origin: 'automation' }) as { session_id: string });
+  const autoDeps = {
+    ...realDeps((a) => methods.get('session.launch')!.handler({ ...a, approval: 'ask' }, { ui: false, origin: 'automation' }) as { session_id: string }),
+    send: (session_id: string, text: string) => { methods.get('session.send')!.handler({ session_id, text }, { ui: false, origin: 'automation' }); },
+    followUp: (a: { project_id: string; engine_id: string; cwd: string | null; parent_id: string; prompt: string }) => {
+      const project = db.prepare('SELECT path, name FROM project WHERE id = ?').get(a.project_id) as { path: string; name: string };
+      const engine = getEngine(db, a.engine_id);
+      if (!engine) throw new Error(`engine ${a.engine_id} not found`);
+      return launchSession(db, { projectId: a.project_id, projectPath: project.path, projectName: project.name, engine, cwd: a.cwd ?? project.path, parentId: a.parent_id, prompt: a.prompt, approval: 'ask' });
+    },
+  };
   every(15_000, () => automationTick(db, autoDeps));
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));
