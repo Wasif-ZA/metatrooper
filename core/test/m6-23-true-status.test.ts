@@ -497,7 +497,7 @@ test('M6-23b wait_reason is added idempotently to an existing database', async (
       ).get(h.id)!.wait_reason, null);
       assert.deepEqual(upgraded.prepare(
         'SELECT id FROM schema_migration ORDER BY id',
-      ).all().map((r) => Number(r.id)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+      ).all().map((r) => Number(r.id)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17]);
     } finally {
       upgraded.close();
     }
