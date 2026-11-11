@@ -11,6 +11,7 @@ const langOf = (path) => LANG[ext(path)] || 'plaintext';
 
 let monaco = null;
 let loading = null;
+const waiting = [];
 let seq = 0;
 
 // A tab's text: plain until Monaco loads, then a model that keeps undo across remounts.
@@ -36,7 +37,7 @@ export function loadMonaco() {
     globalThis.MonacoEnvironment = { getWorker: (_, label) => new Worker(`monaco/${WORKERS[label] || 'editor'}.worker.js`, { name: label }) };
     const link = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: 'monaco/monaco.css' });
     const script = Object.assign(document.createElement('script'), { src: 'monaco/monaco.js' });
-    script.onload = () => resolve(setup(globalThis.ccMonaco));
+    script.onload = () => { resolve(setup(globalThis.ccMonaco)); for (const f of waiting.splice(0)) f(monaco); };
     script.onerror = () => { loading = null; reject(new Error('The editor did not load.')); };
     document.head.append(link, script);
   });
@@ -90,7 +91,7 @@ function theme() {
       { token: 'delimiter', foreground: 'd4d4d4' },
     ],
     colors: {
-      'editor.background': c.pane, 'editor.foreground': c['body-strong'], 'editorGutter.background': c.pane,
+      'editor.background': c.pane, 'editor.foreground': dark ? c['body-strong'] : c.ink, 'editorGutter.background': c.pane,
       'editorLineNumber.foreground': c.faint, 'editorLineNumber.activeForeground': c['body-strong'],
       'editor.lineHighlightBackground': c.canvas, 'editor.lineHighlightBorder': c.canvas,
       'editorCursor.foreground': c.ink, 'editor.selectionBackground': c['canvas-soft'], 'editor.inactiveSelectionBackground': c['canvas-soft'],
@@ -234,7 +235,8 @@ export function problems() {
 
 export function onProblems(fn) {
   let off = null, dead = false;
-  void loadMonaco().then((m) => { if (!dead) off = m.editor.onDidChangeMarkers(() => fn(problems())); }, () => {});
+  const sub = (m) => { if (!dead) off = m.editor.onDidChangeMarkers(() => fn(problems())); };
+  if (monaco) sub(monaco); else waiting.push(sub);
   return () => { dead = true; off?.dispose(); };
 }
 
