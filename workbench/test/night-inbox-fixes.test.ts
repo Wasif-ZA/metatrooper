@@ -123,3 +123,24 @@ test('Service link accepts only bare local hosts and takes the newest one', () =
   assert.equal(findServiceUrl('listening on http://0.0.0.0:8080'), 'http://localhost:8080/');
   assert.equal(findServiceUrl('no server here'), null);
 });
+
+test('label add and remove are undone when the core refuses them', async () => {
+  const s1 = session({ labels: ['keep'] });
+  g.ui.snap.live = [s1];
+  inboxStore.set({ selectedId: 's1' });
+  rpcReply = (m) => (m === 'session.labels-set' ? { error: { code: -32602, message: 'label refused' } } : { result: {} });
+  const h = harness(Inbox); h.draw();
+  h.all((n: any) => n.props?.['aria-label'] === 'Remove label keep')[0].props.onClick({ stopPropagation() {} });
+  assert.deepEqual(s1.labels, []);
+  await settle();
+  assert.deepEqual(s1.labels, ['keep']);
+  assert.ok(calls.some((c) => c[0] === 'toast' && c[1] === 'label refused'));
+  h.all((n: any) => n.props?.['aria-label'] === 'Add label')[0].props.onClick();
+  h.draw();
+  const input = h.all((n: any) => n.props?.placeholder === 'Label, Enter adds')[0];
+  input.props.onChange('new');
+  h.draw();
+  await h.all((n: any) => n.props?.placeholder === 'Label, Enter adds')[0].props.onEnter();
+  assert.deepEqual(s1.labels, ['keep']);
+  assert.equal(calls.filter((c) => c[0] === 'session.labels-set').length, 2);
+});

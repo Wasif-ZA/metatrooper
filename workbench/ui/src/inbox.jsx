@@ -506,6 +506,20 @@ export function Inbox() {
   const autoKind = activeStatus ? autoKindOf(activeStatus.status) : null;
   const autoLabels = [propEngine, autoKind].filter(Boolean);
 
+  const saveLabels = async (updated) => {
+    if (!sessionObj) return;
+    const before = sessionObj.labels;
+    sessionObj.labels = updated;
+    inboxStore.set({ tick: inboxStore.get().tick + 1 });
+    if (!sessionObj.id) return;
+    const r = await rpc('session.labels-set', { session_id: sessionObj.id, labels: updated });
+    if (r && r.error) {
+      sessionObj.labels = before;
+      inboxStore.set({ tick: inboxStore.get().tick + 1 });
+      toast(r.error.message || 'Could not save labels', true);
+    }
+  };
+
   const handleAddLabel = async () => {
     const val = newLabel.trim();
     if (!val) {
@@ -520,24 +534,14 @@ export function Inbox() {
       setNewLabel('');
       return;
     }
-    const updated = [...current, trimmed];
-    if (sessionObj) sessionObj.labels = updated;
     setAddingLabel(false);
     setNewLabel('');
-    inboxStore.set({ tick: inboxStore.get().tick + 1 });
-    if (sessionObj?.id) {
-      await rpc('session.labels-set', { session_id: sessionObj.id, labels: updated });
-    }
+    await saveLabels([...current, trimmed]);
   };
 
   const handleRemoveLabel = async (lbl) => {
     const current = Array.isArray(sessionObj?.labels) ? sessionObj.labels : [];
-    const updated = current.filter((l) => l !== lbl);
-    if (sessionObj) sessionObj.labels = updated;
-    inboxStore.set({ tick: inboxStore.get().tick + 1 });
-    if (sessionObj?.id) {
-      await rpc('session.labels-set', { session_id: sessionObj.id, labels: updated });
-    }
+    await saveLabels(current.filter((l) => l !== lbl));
   };
 
   const handEngines = (s.engines || []).filter((e) => e.light !== 'red' && e.id !== propEngine);
