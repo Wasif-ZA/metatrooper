@@ -100,16 +100,7 @@ globalThis.frameView = (() => {
   };
   const rowDot = (x) => (x.state === 'waiting_for_you' ? 'wait' : x.state === 'working' || x.state === 'starting' ? 'work' : x.outcome === 'failed' ? 'fail' : x.state === 'unknown' ? 'idle' : 'done');
   const mark = (id) => (globalThis.engineMarkSvg ? globalThis.engineMarkSvg(id, 14) : `<span class="fmono">${esc(String(id || '').slice(0, 2).toUpperCase())}</span>`);
-  const ICON = {
-    folder: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2 4.5c0-.6.4-1 1-1h3l1.5 1.5H13c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1z"/></svg>',
-    search: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>',
-    tasks: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 4h7.5M6 8h7.5M6 12h7.5"/><circle cx="3" cy="4" r=".6"/><circle cx="3" cy="8" r=".6"/><circle cx="3" cy="12" r=".6"/></svg>',
-    autos: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10.5" rx="1.5"/><path d="M2.5 6.5h11M5.5 1.5v3M10.5 1.5v3M8 8.5v2l1.5 1"/></svg>',
-    pr: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="4" cy="3.5" r="1.75"/><circle cx="4" cy="12.5" r="1.75"/><circle cx="12" cy="12.5" r="1.75"/><path d="M4 5.25v5.5M12 10.75V7a2.5 2.5 0 0 0-2.5-2.5H7"/></svg>',
-    filter: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4h11M4.5 8h7M6.5 12h3"/></svg>',
-    addFolder: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 4.5c0-.6.4-1 1-1h3l1.5 1.5H13c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1zM8 7.5v3.5M6.25 9.25h3.5"/></svg>',
-    plus: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>',
-  };
+  const I = (name, size = 16) => globalThis.ourosIcon?.(name, size) || '';
 
   const STATUS_LABEL = { wait: 'Waiting for you', work: 'Working', fail: 'Failed', done: 'Done', idle: 'Idle' };
   // From t3code (MIT), apps/web/src/components/ThreadStatusIndicators.tsx: a 9px status dot in a 14px slot, pulsing while active
@@ -118,20 +109,35 @@ globalThis.frameView = (() => {
   const selectedId = () => ui.homeSel ?? ui.snap.selected;
   let drawnSel;
 
-  function agentHtml(x, depth) {
+  const RING_STATE = { wait: 'waiting', work: 'working', done: 'done', fail: 'failed', idle: 'idle' };
+  /** The row's progress ring: steps done/total, else for a parent its sub-agents settled/total. */
+  function ringHtml(x, rows) {
+    let done = x.steps?.done ?? 0;
+    let total = x.steps?.total ?? 0;
+    if (!total) {
+      const kids = Object.values(rows).filter((r) => r.parent_id === x.id);
+      total = kids.length;
+      done = kids.filter((r) => r.state === 'exited' || r.state === 'done').length;
+    }
+    if (!globalThis.progressRingSvg) return statusHtml(rowDot(x));
+    const title = `${STATUS_LABEL[rowDot(x)]}${total ? `, ${done} of ${total}` : ''}`;
+    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[rowDot(x)], done, total, size: 14, title })}</span>`;
+  }
+
+  function agentHtml(x, depth, rows = {}) {
     const title = (x.title || '').trim();
     const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
     const words = STATE_WORDS[x.state] || x.state;
     const tip = `${name}\n${x.model ? `${x.model} · ` : ''}${x.engine_id} · ${words}`;
     const sel = x.id === selectedId();
-    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${statusHtml(rowDot(x))}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
+    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${ringHtml(x, rows)}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
   }
 
   function treeHtml(groups, rows) {
     if (!groups.length) return '<p class="fempty">No agents running</p>';
-    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${ICON.folder}</span><span class="fl">${esc(g.name)}</span></button>`
+    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${I('folder')}</span><span class="fl">${esc(g.name)}</span></button>`
       + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${statusHtml(wt.state)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
-        + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth)).join('') + '</div>').join('')).join('');
+        + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth, rows)).join('') + '</div>').join('')).join('');
   }
 
   const gh = { project: null, at: 0, issues: null };
@@ -184,6 +190,7 @@ globalThis.frameView = (() => {
   function draw() {
     const view_ = globalThis.settingsView?.isOpen() ? 'settings' : ui.view || 'wall';
     const narrow = view_ === 'settings' || view_ === 'ide';
+    if (root.dataset) root.dataset.view = view_;
     if (root.classList.contains('side-auto') !== narrow) {
       if (narrow) root.classList.add('side-auto'); else root.classList.remove('side-auto');
       dispatchEvent(new Event('resize'));
@@ -228,14 +235,15 @@ globalThis.frameView = (() => {
 
   /** One compact icon row (views, Automations, Search, Tasks), the Projects header and the usage meters, added to the static sidebar markup once. */
   function mount() {
+    for (const el of document.querySelectorAll?.('[data-icon]') ?? []) el.innerHTML = I(el.dataset.icon, Number(el.dataset.size) || 16);
     const nav = document.querySelector?.('#frame .fnav');
     if (!nav) return;
     nav.classList.add('ficons');
-    nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${ICON.autos}</span><span class="fl">Automations</span></button>`);
+    nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${I('calendar')}</span><span class="fl">Automations</span></button>`);
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
       sec.classList.add('fprojects');
-      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${ICON.pr}<span class="fpill fghn" id="frameGhCount" hidden></span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${ICON.filter}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${ICON.addFolder}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${ICON.plus}</button>`;
+      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${I('pullRequest', 14)}<span class="fpill fghn" id="frameGhCount" hidden></span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${I('filter', 14)}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${I('folderAdd', 14)}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${I('plus', 14)}</button>`;
       document.getElementById('frameGh').addEventListener('click', githubPanel);
       document.getElementById('frameDone').addEventListener('click', (e) => {
         view.done = !view.done;

@@ -140,7 +140,14 @@ export function seedFixtures(home, { shop, api }) {
     if (has('automation_label')) for (const n of labels) db.prepare('INSERT OR IGNORE INTO automation_label (automation_id, name) VALUES (?, ?)').run(id, n);
   }
   const limit = db.prepare("INSERT OR REPLACE INTO limit_reading (provider, account, window, used_pct, resets_at, read_at, status) VALUES (?, 'demo', ?, ?, ?, ?, 'ok')");
-  for (const [provider, window, pct, resetMin] of [['claude', '5h', 42, 168], ['claude', 'weekly', 59, 6120], ['codex', '5h', 48, 192], ['codex', 'weekly', 63, 2280], ['agy', 'daily', 24, 4560]]) limit.run(provider, window, pct, later(resetMin), ago(1));
+  limit.run('agy', 'daily', 24, later(4560), ago(1));
+  // The core rewrites claude and codex readings from these files each poll (core/src/limits.ts), so seed the sources.
+  const epoch = (min) => Math.round(Date.now() / 1000 + min * 60);
+  fs.writeFileSync(path.join(home, 'claude-limits.json'), JSON.stringify({ at: ago(1), rate_limits: { five_hour: { used_percentage: 42, resets_at: epoch(168) }, seven_day: { used_percentage: 59, resets_at: epoch(6120) } } }));
+  const day = new Date();
+  const sessions = path.join(home, '.codex', 'sessions', String(day.getFullYear()), String(day.getMonth() + 1).padStart(2, '0'), String(day.getDate()).padStart(2, '0'));
+  fs.mkdirSync(sessions, { recursive: true });
+  fs.writeFileSync(path.join(sessions, 'demo-limits.jsonl'), JSON.stringify({ timestamp: ago(1), payload: { type: 'token_count', rate_limits: { plan_type: 'plus', primary: { used_percent: 48, window_minutes: 300, resets_at: epoch(192) }, secondary: { used_percent: 63, window_minutes: 10080, resets_at: epoch(2280) } } } }) + '\n');
   if (has('label')) for (const [name, colour] of [['triage', '#8A63D2'], ['tests', '#2F9E6E'], ['deps', '#D4A017'], ['checkout', '#3B7BE8'], ['cart', '#E8743B']]) db.prepare('INSERT OR IGNORE INTO label (name, colour) VALUES (?, ?)').run(name, colour);
   db.close();
 }
