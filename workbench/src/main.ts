@@ -30,7 +30,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
-import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, type GitView } from './gitpane.ts';
+import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
@@ -58,7 +58,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'session.search', 'session.list', 'session.read', 'session.handoff', 'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check',
-  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
+  'needs.dismiss', 'session.paste-prompt', 'session.send', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
@@ -497,6 +497,13 @@ function handlers(): void {
         if (out || op === 'diff-staged' || !(await lit(['ls-files', '--others', '--exclude-standard', '--', rel]))) return out;
         try { return await lit(['diff', '--no-ext-diff', '--no-textconv', '--no-index', '--', '/dev/null', rel]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
       } catch { return null; }
+    }
+    if (op === 'show') {
+      const a = (arg && typeof arg === 'object' ? arg : {}) as { path?: unknown; rev?: unknown; session_id?: unknown; scope?: unknown };
+      const cwd = a.session_id === undefined ? project.path : cwdOf(a.session_id);
+      if (!cwd) return null;
+      const rev = a.rev === 'HEAD' || a.rev === ':' ? a.rev : a.rev === 'base' && a.session_id !== undefined ? await diffBase(a.session_id, a.scope, cwd).catch(() => null) : null;
+      return rev ? showAt(runIn(cwd), rev, a.path).catch(() => null) : null;
     }
     let error: string | undefined;
     let commit: string | undefined;

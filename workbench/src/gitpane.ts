@@ -110,6 +110,19 @@ export function namedPaths(rels: unknown): string[] | null {
   return rels.every((r) => typeof r === 'string' && r && !r.includes('\0') && r.length < 4096 && !whole(r) && !gitDir(r)) ? rels as string[] : null;
 }
 
+export const SHOW_MAX_BYTES = 512 * 1024;
+
+/** A file's text at HEAD, the index (':') or a full commit id, path relative to the git cwd; '' when the file is not there, null when binary, over SHOW_MAX_BYTES or not a plain repo path. */
+export async function showAt(git: Run, rev: string, rel: unknown): Promise<string | null> {
+  if (!namedPaths([rel]) || !/^(HEAD|:|[0-9a-f]{40}|[0-9a-f]{64})$/.test(rev)) return null;
+  const obj = `${rev === ':' ? ':0' : rev}:./${posix.normalize((rel as string).replace(/\\/g, '/'))}`;
+  let size: number;
+  try { size = Number((await git(['cat-file', '-s', obj])).trim()); } catch { return ''; }
+  if (!(size <= SHOW_MAX_BYTES)) return null;
+  const text = await git(['cat-file', '--filters', obj]);
+  return text.includes('\0') ? null : text;
+}
+
 /** One write from the Git tab. Paths go after `--`, the message goes on stdin, nothing passes through a shell. */
 export async function gitAct(git: Run, op: string, arg: unknown): Promise<string | void> {
   const path = typeof arg === 'string' ? arg : '';
