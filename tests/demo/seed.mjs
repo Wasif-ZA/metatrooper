@@ -76,6 +76,13 @@ function gitRepo(dir, files) {
 export function seedFixtures(home, { shop, api }) {
   const fix = path.join(home, 'demo', 'shop-cart-fix');
   execFileSync('git', ['worktree', 'add', '-q', fix, 'fix/cart-math'], { cwd: shop.path, stdio: 'pipe' });
+  // A real uncommitted diff of +48 -12 in the PR worktree, so its Changes count is true.
+  const gitFix = (...args) => execFileSync('git', ['-c', 'user.name=Demo', '-c', 'user.email=demo@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd: fix, stdio: 'pipe' });
+  const steps = (n, word) => Array.from({ length: n }, (_, i) => `export const ${word}${i + 1} = (cart) => cart;`).join('\n') + '\n';
+  fs.writeFileSync(path.join(fix, 'src', 'checkout.js'), steps(12, 'oldStep'));
+  gitFix('add', 'src/checkout.js');
+  gitFix('commit', '-q', '-m', 'Checkout as one flow');
+  fs.writeFileSync(path.join(fix, 'src', 'checkout.js'), steps(48, 'step'));
   fs.writeFileSync(path.join(home, 'demo', 'github.json'), JSON.stringify({
     prs: { 'fix/cart-math': { number: 12, state: 'OPEN', url: 'https://example.invalid/shop-cart/pull/12', checks: 'pass' } },
     issues: {
@@ -97,19 +104,19 @@ export function seedFixtures(home, { shop, api }) {
   const eng = (id) => (engines.has(id) ? id : DEMO_ENGINE);
   const ago = (min) => new Date(Date.now() - min * 60_000).toISOString();
   const later = (min) => new Date(Date.now() + min * 60_000).toISOString();
-  const add = db.prepare(`INSERT INTO session (id, project_id, engine_id, host, state, state_at, cwd, parent_id, started_at, ended_at, outcome, prompt, wait_reason)
-    VALUES (?, ?, ?, 'external', ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const add = db.prepare(`INSERT INTO session (id, project_id, engine_id, host, state, state_at, cwd, parent_id, started_at, ended_at, outcome, prompt, wait_reason, last_line)
+    VALUES (?, ?, ?, 'external', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const usage = db.prepare("INSERT INTO usage (at, session_id, engine_id, provider, model, source, dedupe_key) VALUES (?, ?, ?, 'local-cli', ?, 'unknown', ?)");
   const rows = [
-    ['demo-checkout', shop, 'claude', 'working', 12, fix, null, null, 'Split checkout into steps', null, 'opus-5.5'],
-    ['demo-tests', shop, 'claude', 'working', 4, fix, 'demo-checkout', null, 'Write cart total tests', null, 'sonnet-5.5'],
-    ['demo-rounding', shop, 'codex', 'exited', 9, fix, 'demo-checkout', 'succeeded', 'Check discount rounding', null, 'gpt-5.4'],
-    ['demo-pager', shop, 'agy', 'waiting_for_you', 3, fix, 'demo-checkout', null, 'Preview the pager fix', 'permission', 'flash-3.8'],
-    ['demo-limits', api, 'codex', 'working', 20, api.path, null, null, 'Add rate limits to orders', null, 'gpt-5.4'],
-    ['demo-docs', api, 'claude', 'exited', 60, api.path, null, 'succeeded', 'Update the API docs', null, 'haiku-5.5'],
+    ['demo-checkout', shop, 'claude', 'working', 12, fix, null, null, 'Split checkout into steps', null, 'opus-5.5', 'Split the address and payment steps; waiting on the pager preview and the cart total tests before wiring them together.'],
+    ['demo-tests', shop, 'claude', 'working', 4, fix, 'demo-checkout', null, 'Write cart total tests', null, 'sonnet-5.5', 'Running npm test -- cart/totals'],
+    ['demo-rounding', shop, 'codex', 'exited', 9, fix, 'demo-checkout', 'succeeded', 'Check discount rounding', null, 'gpt-5.4', 'Done: rounding fixed in discount.js, 3-for-2 now rounds half up.'],
+    ['demo-pager', shop, 'agy', 'waiting_for_you', 3, fix, 'demo-checkout', null, 'Preview the pager fix', 'permission', 'flash-3.8', 'Asked for permission to start the dev server on port 5173.'],
+    ['demo-limits', api, 'codex', 'working', 20, api.path, null, null, 'Add rate limits to orders', null, 'gpt-5.4', 'Adding a token bucket to POST /orders; 429 test written, implementation next.'],
+    ['demo-docs', api, 'claude', 'exited', 60, api.path, null, 'succeeded', 'Update the API docs', null, 'haiku-5.5', 'Done: README and OpenAPI file list the new orders fields.'],
   ];
-  for (const [id, p, engine, state, min, cwd, parent, outcome, prompt, reason, model] of rows) {
-    add.run(id, p.id, eng(engine), state, ago(state === 'exited' ? Math.max(1, min - 7) : min), cwd, parent, ago(min), state === 'exited' ? ago(Math.max(1, min - 7)) : null, outcome, prompt, reason);
+  for (const [id, p, engine, state, min, cwd, parent, outcome, prompt, reason, model, line] of rows) {
+    add.run(id, p.id, eng(engine), state, ago(state === 'exited' ? Math.max(1, min - 7) : min), cwd, parent, ago(min), state === 'exited' ? ago(Math.max(1, min - 7)) : null, outcome, prompt, reason, line);
     usage.run(ago(min), id, eng(engine), model, `demo:${id}`);
   }
   if (has('session_label')) for (const [id, name] of [['demo-checkout', 'checkout'], ['demo-pager', 'cart']]) db.prepare('INSERT OR IGNORE INTO session_label (session_id, name) VALUES (?, ?)').run(id, name);
@@ -121,15 +128,15 @@ export function seedFixtures(home, { shop, api }) {
   }
 
   const autos = [
-    ['demo-auto-triage', shop, 'Nightly triage', '\u{1F319}', '0 2 * * *', 1440, 1, ['triage']],
-    ['demo-auto-tests', shop, 'Test sweep', '\u{1F9EA}', '0 10 * * 1-5', 1440, 1, ['tests']],
-    ['demo-auto-deps', api, 'Dependency check', '\u{1F4E6}', '0 9 * * 1', 10080, 0, ['deps', 'triage']],
+    ['demo-auto-triage', shop, 'Nightly triage', '\u{1F319}', '0 2 * * *', 1440, 1, ['triage'], 'Read new GitHub issues, label them, and draft a fix for anything marked easy.'],
+    ['demo-auto-tests', shop, 'Test sweep', '\u{1F9EA}', '0 10 * * 1-5', 1440, 1, ['tests'], 'Run the full test suite and fix what fails, one cause per branch.'],
+    ['demo-auto-deps', api, 'Dependency check', '\u{1F4E6}', '0 9 * * 1', 10080, 0, ['deps', 'triage'], 'Check for outdated or vulnerable packages and open a branch with safe upgrades.'],
   ];
   const extra = ['icon', 'cron'].filter((c) => has('automation', c));
   const auto = db.prepare(`INSERT INTO automation (id, project_id, name, every_min, runner, script, script_sha256, engine_id, prompt, enabled, next_due, created_at${extra.map((c) => `, ${c}`).join('')})
     VALUES (?, ?, ?, ?, '["bash"]', '', '', ?, ?, ?, ?, ?${extra.map(() => ', ?').join('')})`);
-  for (const [id, p, name, icon, cron, every, enabled, labels] of autos) {
-    auto.run(id, p.id, name, every, eng('claude'), `${name} for ${path.basename(p.path)}`, enabled, later(720), ago(1440), ...extra.map((c) => (c === 'icon' ? icon : cron)));
+  for (const [id, p, name, icon, cron, every, enabled, labels, prompt] of autos) {
+    auto.run(id, p.id, name, every, eng('claude'), prompt, enabled, later(720), ago(1440), ...extra.map((c) => (c === 'icon' ? icon : cron)));
     if (has('automation_label')) for (const n of labels) db.prepare('INSERT OR IGNORE INTO automation_label (automation_id, name) VALUES (?, ?)').run(id, n);
   }
   const limit = db.prepare("INSERT OR REPLACE INTO limit_reading (provider, account, window, used_pct, resets_at, read_at, status) VALUES (?, 'demo', ?, ?, ?, ?, 'ok')");

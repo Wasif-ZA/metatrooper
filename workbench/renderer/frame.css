@@ -97,7 +97,8 @@
 .fsd.wait { background: var(--wait); }
 .fsd.work { background: var(--ink); }
 .fsd.done { background: none; box-shadow: inset 0 0 0 1.5px var(--done); }
-.ftree { height: 28px; margin: 0; padding: 0 8px 0 calc(20px + var(--depth, 0) * 26px); gap: 6px; }
+.ftree { height: 28px; margin: 0; padding: 0 6px 0 calc(14px + var(--depth, 0) * 14px); gap: 4px; }
+.ftree .fmeta { margin-left: 2px; }
 .ftree .ft { font-size: 12.5px; }
 .fst { --st: var(--mute); width: 14px; height: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
 .fst > span { width: 9px; height: 9px; border-radius: 50%; background: var(--st); }
@@ -106,18 +107,21 @@
 .fst.work { --st: #eab308; }
 .fst.fail { --st: #ef4444; }
 .fst.wait { --st: #f97316; }
-.fst.work > span, .fst.wait > span { animation: fstpulse 1.6s ease-in-out infinite; }
-@keyframes fstpulse { 50% { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { .fst > span { animation: none !important; } }
+.fst > span { opacity: 1; }
 .fmk { width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
 .fmono { font: 600 8px/1 var(--mono); color: var(--mute); }
 .ftree .ft { flex: 1; min-width: 0; }
 .ftree.fgone .ft { color: var(--mute); }
 .fmeta { flex: none; font: 11px var(--mono); color: var(--mute); }
-.fusage { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 16px; border-top: 1px solid var(--hairline); }
+.fusage { flex: none; display: grid; grid-template-columns: 14px minmax(16px, 1fr) max-content max-content; align-items: center; gap: 4px 8px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--hairline); }
 .fusage[hidden] { display: none; }
-.fuse { display: flex; align-items: center; gap: 8px; height: 18px; }
-.fbar { flex: 1; height: 4px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+.fuse { display: contents; }
+.fuse > * { height: 18px; display: flex; align-items: center; }
+.fslot { justify-content: flex-start; white-space: nowrap; font-size: 10.5px; }
+.fslot b { font-weight: 500; color: var(--body); margin-right: 3px; }
+.fbar { height: 4px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+.fic { position: relative; }
+.fprojects .fpill { position: absolute; top: 1px; right: 0; height: 14px; min-width: 14px; padding: 0 3px; font-size: 9.5px; line-height: 14px; }
 .fbar i { display: block; height: 100%; background: var(--mute); }
 .fghpanel { position: fixed; z-index: 40; left: calc(var(--side) + 8px); top: calc(var(--top) + 8px); width: 360px; max-height: 60vh; overflow-y: auto; padding: 4px 0; background: var(--canvas-deep); border: 1px solid var(--hairline); border-radius: 6px; font-size: 13px; color: var(--body); }
 .fghhead { display: flex; justify-content: space-between; align-items: center; height: 28px; padding: 0 12px; font-weight: 600; border-bottom: 1px solid var(--hairline); }

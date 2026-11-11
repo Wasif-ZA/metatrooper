@@ -115,12 +115,15 @@ globalThis.frameView = (() => {
   // From t3code (MIT), apps/web/src/components/ThreadStatusIndicators.tsx: a 9px status dot in a 14px slot, pulsing while active
   const statusHtml = (s) => `<span class="fst ${s}" role="img" aria-label="${STATUS_LABEL[s]}"><span></span></span>`;
 
+  const selectedId = () => ui.homeSel ?? ui.snap.selected;
+  let drawnSel;
+
   function agentHtml(x, depth) {
     const title = (x.title || '').trim();
     const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
     const words = STATE_WORDS[x.state] || x.state;
     const tip = `${name}\n${x.model ? `${x.model} · ` : ''}${x.engine_id} · ${words}`;
-    const sel = x.id === (ui.homeSel ?? ui.snap.selected);
+    const sel = x.id === selectedId();
     return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${statusHtml(rowDot(x))}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
   }
 
@@ -173,8 +176,8 @@ globalThis.frameView = (() => {
     };
     el.innerHTML = [...by.entries()].map(([provider, list]) => {
       const rows = list.slice().sort((a, b) => ORDER.indexOf(a.window) - ORDER.indexOf(b.window));
-      const words = rows.map((r) => `${pctOf(r)}% ${whenOf(r)}`.trim()).join(' · ');
-      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span><span class="fbar"><i style="width:${pctOf(rows[0])}%"></i></span><span class="fmeta">${esc(words)}</span></div>`;
+      const slot = (r) => `<span class="fmeta fslot">${r ? `<b>${pctOf(r)}%</b> ${esc(whenOf(r))}` : ''}</span>`;
+      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span><span class="fbar"><i style="width:${pctOf(rows[0])}%"></i></span>${slot(rows[0])}${slot(rows[1])}</div>`;
     }).join('');
   }
 
@@ -202,6 +205,9 @@ globalThis.frameView = (() => {
       const before = rowTops(list);
       setHtml('frame-agents', treeHtml(treeGroups(ui.snap.tree, rows, ui.snap.git || {}, ui.snap.projects || [], ui.pendingHide, ui.snap.selected), rows));
       animateRows(list, before);
+      drawnSel = selectedId();
+      // Home picks its default selection while rendering, after this draw; catch up once when it changed.
+      setTimeout(() => { if (selectedId() !== drawnSel) (typeof render === 'function' ? render : draw)(); }, 60);
       return;
     }
     const mine = project() ? ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state)) : [];
@@ -225,14 +231,12 @@ globalThis.frameView = (() => {
     const nav = document.querySelector?.('#frame .fnav');
     if (!nav) return;
     nav.classList.add('ficons');
-    nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${ICON.autos}</span><span class="fl">Automations</span></button>`
-      + `<button data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${ICON.search}</span><span class="fl">Search</span></button>`
-      + `<button id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks"><span class="fi">${ICON.pr}</span><span class="fl">Tasks</span><span class="fpill fghn" id="frameGhCount" hidden></span></button>`);
-    document.getElementById('frameGh').addEventListener('click', githubPanel);
+    nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${ICON.autos}</span><span class="fl">Automations</span></button>`);
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
       sec.classList.add('fprojects');
-      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${ICON.filter}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${ICON.addFolder}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${ICON.plus}</button>`;
+      sec.innerHTML = `<span class="fl">Projects</span><button class="fic" id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks">${ICON.pr}<span class="fpill fghn" id="frameGhCount" hidden></span></button><button class="fic" id="frameDone" title="Hide finished agents" aria-label="Hide finished agents" aria-pressed="false">${ICON.filter}</button><button class="fic" data-action="open-folder" title="Open folder" aria-label="Open folder">${ICON.addFolder}</button><button class="fic" data-action="launch-menu" title="Start an agent or a terminal" aria-label="New agent">${ICON.plus}</button>`;
+      document.getElementById('frameGh').addEventListener('click', githubPanel);
       document.getElementById('frameDone').addEventListener('click', (e) => {
         view.done = !view.done;
         e.currentTarget.setAttribute('aria-pressed', String(!view.done));
