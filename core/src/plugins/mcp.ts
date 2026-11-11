@@ -142,6 +142,7 @@ function attachServers(db: DatabaseSync, engine: EngineSpec, browser: boolean, c
   const node = process.execPath.split(String.fromCharCode(92)).join('/');
   const shim = shimPath().split(String.fromCharCode(92)).join('/');
   const servers: AttachServer[] = [
+    ...(ctx.approval === 'isolated' ? [] : [{ name: 'ouros-steps', args: [shim, 'steps'] }]),
     ...(browser ? [{ name: 'metatrooper-browser', args: [browserServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
     ...(wantsDesktop(db, ctx) ? [{ name: 'metatrooper-desktop', args: [desktopServerPath().split(String.fromCharCode(92)).join('/')] }] : []),
     ...entriesFor(db, engine.id, ctx).map((e) => ({ name: e.name, args: [shim, e.pluginId, e.serverId, shimToken(e.pluginId)], http: e.http })),

@@ -10,7 +10,7 @@ import { removeSessionFiles } from '../plugins/mcp.ts';
 import { claimTurn, gitAsync, labelOf, notice, ownersAsync, repoOfAsync, type OwnedPath } from '../sessions/owners.ts';
 import { liveText } from '../terminal/events.ts';
 import { limitHit } from '../sessions/limit-resume.ts';
-import { spoolKind, spoolKinds } from '../redact.ts';
+import { spoolKind, spoolKinds, stepItems } from '../redact.ts';
 
 interface EventRow {
   seq: number;
@@ -85,6 +85,34 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
     const id = (openToolId.get(sessionId, noteRow.seq, conv, null) as { id: unknown } | undefined)?.id;
     return typeof id === 'string' && !toolFinished.get(sessionId, id, noteRow.seq, seq, conv) ? id : null;
   };
+  const clearSteps = db.prepare('DELETE FROM session_step WHERE session_id = ?');
+  const putStep = db.prepare('INSERT OR REPLACE INTO session_step (session_id, idx, text, done) VALUES (?, ?, ?, ?)');
+  const nextStep = db.prepare('SELECT coalesce(max(idx) + 1, 0) AS n FROM session_step WHERE session_id = ?');
+  const markStep = db.prepare('UPDATE session_step SET done = coalesce(?, done), text = coalesce(?, text) WHERE session_id = ? AND idx = ?');
+  const dropStep = db.prepare('DELETE FROM session_step WHERE session_id = ? AND idx = ?');
+  /** Writes session_step from steps_set (core.steps) or a native plan tool: whole-list tools replace it, TaskCreate and TaskUpdate change one row once finished. */
+  const planSteps = (sessionId: string, kind: string, p: Record<string, unknown>) => {
+    const input = (kind === 'core.steps' ? p : p.tool_input ?? {}) as Record<string, unknown>;
+    const tool = kind === 'core.steps' ? 'steps_set' : p.tool_name;
+    const items = stepItems(input.items);
+    const done = (status: unknown) => (status === 'completed' ? 1 : 0);
+    if (tool === 'steps_set' || tool === 'TodoWrite' || tool === 'update_plan') {
+      clearSteps.run(sessionId);
+      items.forEach((t, i) => putStep.run(sessionId, i, t.text, done(t.status)));
+      return;
+    }
+    if (!kind.endsWith('.PostToolUse')) return;
+    // ponytail: row idx = Claude's sequential task id - 1; read the id from tool_response if ids stop being sequential
+    if (tool === 'TaskCreate' && items[0]) {
+      const n = Number((nextStep.get(sessionId) as { n: number }).n);
+      if (n < 30) putStep.run(sessionId, n, items[0].text, done(items[0].status));
+    }
+    if (tool === 'TaskUpdate' && typeof input.taskId === 'string' && /^\d{1,4}$/.test(input.taskId)) {
+      const idx = Number(input.taskId) - 1;
+      if (input.status === 'deleted') dropStep.run(sessionId, idx);
+      else markStep.run(typeof input.status === 'string' ? done(input.status) : null, stepItems([{ text: input.text }])[0]?.text ?? null, sessionId, idx);
+    }
+  };
   const turns: TurnJob[] = [];
   const changed: Array<[string, string]> = [];
   db.exec('BEGIN IMMEDIATE');
@@ -130,6 +158,7 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
         const ignored = ev.kind === 'core.title-state' ? specOf(s.engine_id).source !== 'process' || (Boolean(specOf(s.engine_id).plugin) && plugin!.c > 0) : ev.kind === 'opencode.state' && (!specOf(s.engine_id).plugin || !['working', 'waiting', 'done'].includes(payload.state as string) || staleSeq);
         // A hook event that happened before one already applied (it waited on the lock, or came through the spool) moves no state: state follows event time, not arrival (D16).
         const late = spoolKind(ev.kind) && Boolean(newerHook.get(ev.session_id, ev.seq, ev.at, ...hookKinds));
+        if (!foreign && !late && /^(claude|codex)\.(PreToolUse|PostToolUse)$|^core\.steps$/.test(ev.kind)) planSteps(ev.session_id, ev.kind, payload);
         const next = ev.kind === 'launch' || foreign || stale || ignored || late ? null : s.host === 'external' && ev.kind === 'claude.SessionEnd' ? 'exited' : nextState(s.state, { kind: ev.kind, payload }, waited);
         // A Stop held by background work ends the turn only when the session really reaches done.
         if (!foreign && !late && ((ev.kind === 'claude.Stop' && !holdsStop(payload)) || ev.kind === 'claude.SessionEnd' || (ev.kind === 'core.stop-fallback' && next === 'done'))) turns.push({ kind: 'end', id: ev.session_id, seq: ev.seq });
