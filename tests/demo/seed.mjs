@@ -7,6 +7,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { shippedEngines } from '../../core/src/engines/registry.ts';
+import { cronNext, nowIso } from '../../core/src/time.ts';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const DEMO_ENGINE = 'demo-fixture';
@@ -136,7 +137,7 @@ export function seedFixtures(home, { shop, api }) {
   const auto = db.prepare(`INSERT INTO automation (id, project_id, name, every_min, runner, script, script_sha256, engine_id, prompt, enabled, next_due, created_at${extra.map((c) => `, ${c}`).join('')})
     VALUES (?, ?, ?, ?, '["bash"]', '', '', ?, ?, ?, ?, ?${extra.map(() => ', ?').join('')})`);
   for (const [id, p, name, icon, cron, every, enabled, labels, prompt] of autos) {
-    auto.run(id, p.id, name, every, eng('claude'), prompt, enabled, later(720), ago(1440), ...extra.map((c) => (c === 'icon' ? icon : cron)));
+    auto.run(id, p.id, name, every, eng('claude'), prompt, enabled, nowIso(cronNext(cron, new Date()) ?? new Date(Date.now() + every * 60_000)), ago(1440), ...extra.map((c) => (c === 'icon' ? icon : cron)));
     if (has('automation_label')) for (const n of labels) db.prepare('INSERT OR IGNORE INTO automation_label (automation_id, name) VALUES (?, ?)').run(id, n);
   }
   const limit = db.prepare("INSERT OR REPLACE INTO limit_reading (provider, account, window, used_pct, resets_at, read_at, status) VALUES (?, 'demo', ?, ?, ?, ?, 'ok')");

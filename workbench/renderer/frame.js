@@ -86,17 +86,23 @@ globalThis.frameView = (() => {
       const worktrees = [...trees.values()].map((wt) => {
         const states = wt.lines.map((l) => rows[l.id].state);
         const branch = wt.lines.map((l) => git[l.id]?.branch).find(Boolean) || null;
-        return { ...wt, branch, state: dotOf(states), open: states.filter((s) => s !== 'exited').length, selected: wt.lines.some((l) => l.id === selected) };
+        const failed = wt.lines.some((l) => rows[l.id].outcome === 'failed');
+        const state = states.includes('waiting_for_you') ? 'wait' : failed ? 'fail' : dotOf(states);
+        const settled = states.filter((s) => s === 'exited' || s === 'done').length;
+        return { ...wt, branch, state, settled, total: states.length, open: states.length - settled, selected: wt.lines.some((l) => l.id === selected) };
       }).sort((a, b) => Number(b.primary) - Number(a.primary));
       out.push({ project_id: g.project_id, name: g.name, worktrees });
     }
     return out;
   }
 
-  const age = (iso) => {
-    const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  /** Shared rule with Home's lineage: started_at to now while running, started_at to state_at once settled. */
+  const elapsed = (x) => {
+    const settled = x.state === 'exited' || x.state === 'done' || x.state === 'idle';
+    const end = settled ? Date.parse(x.state_at) : Date.now();
+    const s = Math.max(0, Math.round((end - Date.parse(x.started_at)) / 1000));
     if (Number.isNaN(s)) return '';
-    return s < 60 ? 'now' : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
+    return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
   };
   const rowDot = (x) => (x.state === 'waiting_for_you' ? 'wait' : x.state === 'working' || x.state === 'starting' ? 'work' : x.outcome === 'failed' ? 'fail' : x.state === 'unknown' ? 'idle' : 'done');
   const mark = (id) => (globalThis.engineMarkSvg ? globalThis.engineMarkSvg(id, 14) : `<span class="fmono">${esc(String(id || '').slice(0, 2).toUpperCase())}</span>`);
@@ -119,9 +125,12 @@ globalThis.frameView = (() => {
       total = kids.length;
       done = kids.filter((r) => r.state === 'exited' || r.state === 'done').length;
     }
-    if (!globalThis.progressRingSvg) return statusHtml(rowDot(x));
-    const title = `${STATUS_LABEL[rowDot(x)]}${total ? `, ${done} of ${total}` : ''}`;
-    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[rowDot(x)], done, total, size: 14, title })}</span>`;
+    return ringOf(rowDot(x), done, total, `${STATUS_LABEL[rowDot(x)]}${total ? `, ${done} of ${total}` : ''}`);
+  }
+
+  function ringOf(dot, done, total, title) {
+    if (!globalThis.progressRingSvg) return statusHtml(dot);
+    return `<span class="fring">${globalThis.progressRingSvg({ state: RING_STATE[dot], done, total, size: 14, title })}</span>`;
   }
 
   function agentHtml(x, depth, rows = {}) {
@@ -130,13 +139,13 @@ globalThis.frameView = (() => {
     const words = STATE_WORDS[x.state] || x.state;
     const tip = `${name}\n${x.model ? `${x.model} · ` : ''}${x.engine_id} · ${words}`;
     const sel = x.id === selectedId();
-    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${ringHtml(x, rows)}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
+    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${ringHtml(x, rows)}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(elapsed(x))}</span></button>`;
   }
 
   function treeHtml(groups, rows) {
     if (!groups.length) return '<p class="fempty">No agents running</p>';
     return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${I('folder')}</span><span class="fl">${esc(g.name)}</span></button>`
-      + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${statusHtml(wt.state)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
+      + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${ringOf(wt.state, wt.settled, wt.total, `${STATUS_LABEL[wt.state]}, ${wt.settled} of ${wt.total} settled`)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
         + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth, rows)).join('') + '</div>').join('')).join('');
   }
 
@@ -144,7 +153,10 @@ globalThis.frameView = (() => {
   function drawGithub() {
     const pid = project()?.id ?? null;
     const pill = document.getElementById('frameGhCount');
-    if (pill) { pill.hidden = !gh.issues?.length || gh.project !== pid; pill.textContent = gh.issues?.length ? String(gh.issues.length) : ''; }
+    const n = gh.project === pid ? gh.issues?.length ?? 0 : 0;
+    if (pill) { pill.hidden = !n; pill.textContent = n ? String(n) : ''; }
+    const btn = document.getElementById('frameGh');
+    if (btn) btn.title = n ? `${n} open issue${n === 1 ? '' : 's'} (read-only list)` : 'Open issues (read-only list)';
     if (!pid || !globalThis.troop?.call || (gh.project === pid && Date.now() - gh.at < 300_000)) return;
     Object.assign(gh, { project: pid, at: Date.now(), issues: null });
     troop.call('gh.issues', { project_id: pid }).then((r) => {
@@ -182,8 +194,8 @@ globalThis.frameView = (() => {
     };
     el.innerHTML = [...by.entries()].map(([provider, list]) => {
       const rows = list.slice().sort((a, b) => ORDER.indexOf(a.window) - ORDER.indexOf(b.window));
-      const slot = (r) => `<span class="fmeta fslot">${r ? `<b>${pctOf(r)}%</b> ${esc(whenOf(r))}` : ''}</span>`;
-      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span><span class="fbar"><i style="width:${pctOf(rows[0])}%"></i></span>${slot(rows[0])}${slot(rows[1])}</div>`;
+      const slot = (r) => (r ? `<span class="fbar"><i style="width:${pctOf(r)}%"></i></span><span class="fmeta fslot"><b>${pctOf(r)}%</b> ${esc(whenOf(r))}</span>` : '<span></span><span></span>');
+      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span>${slot(rows[0])}${slot(rows[1])}</div>`;
     }).join('');
   }
 
