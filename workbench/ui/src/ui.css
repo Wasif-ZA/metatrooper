@@ -439,9 +439,9 @@ html { font-size: 16px; }
 .ou-ide-dirty { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
 .ou-ide-name { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; color: var(--body); }
 .ou-ide-dir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--mute); }
-.ou-ide-hit, .ou-ide-sfile, .ou-ide-afile { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0 10px; text-align: left; color: var(--body); white-space: nowrap; }
+.ou-ide-hit, .ou-ide-sfile { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0 10px; text-align: left; color: var(--body); white-space: nowrap; }
 .ou-ide-hit { height: 26px; }
-.ou-ide-hit:hover, .ou-ide-match:hover, .ou-ide-afile:hover, .ou-ide-ahead:hover { background: var(--canvas); }
+.ou-ide-hit:hover, .ou-ide-match:hover { background: var(--canvas); }
 .ou-ide-cur { background: var(--canvas-soft); color: var(--ink); }
 .ou-ide-cur .ou-ide-name { color: var(--ink); }
 .ou-ide-sfile { height: 26px; color: var(--body-strong); }
@@ -478,14 +478,7 @@ html { font-size: 16px; }
 .ou-ide-k-hunk .ou-ide-dt { color: var(--mute); }
 .ou-ide-panel { flex: none; height: 200px; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--hairline); }
 .ou-ide-phead { flex: none; display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 4px 0 8px; }
-.ou-ide-agents { flex: 1; min-height: 0; display: flex; overflow-x: auto; }
-.ou-ide-acol { flex: none; display: flex; flex-direction: column; width: 300px; min-height: 0; }
-.ou-ide-acol + .ou-ide-acol { border-left: 1px solid var(--hairline); }
 .ou-ide-engine { flex: none; font: 12px var(--mono); color: var(--mute); }
-.ou-ide-ahead { flex: none; height: 28px; padding: 0 12px; text-align: left; color: var(--body-strong); border-bottom: 1px solid var(--hairline); cursor: pointer; }
-.ou-ide-afiles { flex: 1; min-height: 0; overflow: auto; }
-.ou-ide-afile { height: 24px; font: 12px var(--mono); }
-.ou-ide-term { flex: 1; min-height: 0; overflow: auto; }
 .ou-ide-askrow { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
 .ou-ide dialog h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
 .ou-ide-image { display: grid; place-items: center; overflow: auto; height: 100%; }
@@ -560,12 +553,6 @@ html { font-size: 16px; }
   .ou-ide-git-a, .ou-ide-git-u { color: var(--syn-string); }
   .ou-ide-git-d { color: var(--del); }
 
-  .ou-ide-ahead { height: 28px; border-bottom: 1px solid var(--hairline); }
-
-  .ou-ide-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 20px 16px; text-align: center; color: var(--mute); }
-  .ou-ide-empty-icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--mute); opacity: 0.6; }
-  .ou-ide-empty-icon svg { width: 24px; height: 24px; }
-  .ou-ide-empty-label { font-size: 12px; line-height: 1.4; color: var(--mute); }
 
   .ou-ide-sccommit { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
   .ou-ide-scmsg { box-sizing: border-box; width: 100%; padding: 6px 8px; border: 1px solid var(--hairline); border-radius: 0; background: var(--canvas); color: var(--ink); font: inherit; resize: none; }
