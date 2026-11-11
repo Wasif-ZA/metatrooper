@@ -1107,3 +1107,9 @@ html { font-size: 16px; }
 .ou-hm-chip:hover, .ou-hm-chip:hover * { color: var(--ink); }
 .ou-ap-sel, .ou-ap-sel *, .ou-ap-foot button, .ou-ap-foot button * { font-weight: 400 !important; }
 .ou-ap-sel, .ou-ap-sel * { color: var(--mute); }
+.ou-ae-error { color: var(--st-bad); font-weight: 500; }
+.ou-ap-foot > :last-child { flex: none; }
+.ou-ap-foot > span:not(.ou-ap-gap) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ou-ap-foot > .ou-ap-gap { min-width: 8px; }
+.ou-ap-box .ou-ap-foot { flex-wrap: wrap; row-gap: 4px; white-space: normal; }
+.ou-ap-box .ou-ap-foot > span:not(.ou-ap-gap) { overflow: visible; white-space: nowrap; }

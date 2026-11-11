@@ -71,36 +71,7 @@ export function Automations() {
   );
 }
 
-const DAYS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
 const pad = (n) => String(n).padStart(2, '0');
-
-export function scheduleWords(a) {
-  const c = String(a.cron || '').trim().split(/\s+/);
-  if (c.length === 5) {
-    const [mi, h, dom, mon, dow] = c;
-    const at = /^\d+$/.test(mi) && /^\d+$/.test(h) ? `${pad(h)}:${pad(mi)}` : null;
-    if (at && dom === '*' && mon === '*') {
-      if (dow === '*') return `Daily at ${at}`;
-      if (dow === '1-5') return `Weekdays at ${at}`;
-      if (dow === '0,6' || dow === '6,0') return `Weekends at ${at}`;
-      if (/^[0-6]$/.test(dow)) return `${DAYS[Number(dow)]} at ${at}`;
-    }
-    const every = /^\*\/(\d+)$/.exec(mi);
-    if (every && h === '*' && dom === '*' && mon === '*' && dow === '*') return `Every ${every[1]} min`;
-    if (/^\d+$/.test(mi) && h === '*' && dom === '*' && mon === '*' && dow === '*') return `Hourly at :${pad(mi)}`;
-    const list = (v, names) => v.split(',').map((p) => p.replace(/^(\d+)-(\d+)$/, (_, a, b) => `${names ? names[a] : a} to ${names ? names[b] : b}`).replace(/^\d+$/, (n) => (names ? names[n] : n))).join(', ');
-    const parts = [at ? `At ${at}` : every ? `Every ${every[1]} min` : `At minute ${mi} of hour ${h}`];
-    if (dom !== '*') parts.push(`on day ${list(dom)} of the month`);
-    if (dow !== '*') parts.push(`on ${list(dow, ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])}`);
-    if (mon !== '*') parts.push(`in ${list(mon, ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])}`);
-    return parts.join(' ');
-  }
-  const m = Number(a.every_min) || 0;
-  if (!m) return 'On demand';
-  if (m % 1440 === 0) return m === 1440 ? 'Daily' : `Every ${m / 1440} days`;
-  if (m % 60 === 0) return m === 60 ? 'Hourly' : `Every ${m / 60} h`;
-  return `Every ${m} min`;
-}
 
 const nextWords = (iso) => {
   const t = Date.parse(iso || '');
@@ -121,45 +92,6 @@ const clockIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" st
 const chevSmall = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3.5L8.5 7 5 10.5" /></svg>;
 const plusIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 3v8M3 7h8" /></svg>;
 const filterIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3.5h10M4 7h6M6 10.5h2" /></svg>;
-
-const FIELDS = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
-
-function parseField(text, [lo, hi]) {
-  const out = new Set();
-  for (const part of String(text).split(',')) {
-    const m = /^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(part);
-    if (!m) return null;
-    const a = m[1] === '*' ? lo : Number(m[2]);
-    const b = m[1] === '*' ? hi : m[3] !== undefined ? Number(m[3]) : m[4] ? hi : a;
-    const step = m[4] ? Number(m[4]) : 1;
-    if (a < lo || b > hi || a > b || step < 1) return null;
-    for (let v = a; v <= b; v += step) out.add(v);
-  }
-  return out;
-}
-
-export function parseCron(cron) {
-  const parts = String(cron || '').trim().split(/\s+/);
-  if (parts.length !== 5) return null;
-  const sets = parts.map((p, i) => parseField(p, FIELDS[i]));
-  if (sets.some((x) => !x)) return null;
-  if (sets[4].has(7)) sets[4].add(0);
-  return { sets, anyDom: parts[2] === '*', anyDow: parts[4] === '*' };
-}
-
-// ponytail: minute-by-minute scan capped at a year; jump by day when the date cannot match if this is ever slow.
-export function nextRuns(cron, from = new Date(), count = 3) {
-  const c = parseCron(cron);
-  if (!c) return [];
-  const [mi, h, dom, mon, dow] = c.sets;
-  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate(), from.getHours(), from.getMinutes() + 1);
-  const out = [];
-  for (let i = 0; i < 527040 && out.length < count; i++, d.setMinutes(d.getMinutes() + 1)) {
-    const dayOk = c.anyDom || c.anyDow ? dom.has(d.getDate()) && dow.has(d.getDay()) : dom.has(d.getDate()) || dow.has(d.getDay());
-    if (mi.has(d.getMinutes()) && h.has(d.getHours()) && mon.has(d.getMonth() + 1) && dayOk) out.push(new Date(d));
-  }
-  return out;
-}
 
 const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['custom', 'Custom']];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -187,7 +119,7 @@ export function cronOf({ preset, minute, time, day, custom }) {
   return String(custom || '').trim();
 }
 
-const runWords = (d) => d.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const runWords = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const s = ui.snap || {};
@@ -203,8 +135,16 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const [newLabel, setNewLabel] = useState('');
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   const cron = cronOf(form);
-  const valid = Boolean(parseCron(cron));
-  const runs = valid ? nextRuns(cron) : [];
+  const [preview, setPreview] = useState(null);
+  const [saveError, setSaveError] = useState('');
+  useEffect(() => {
+    let live = true;
+    setSaveError('');
+    rpc('cron.next', { cron, n: 3 }, true).then((r) => { if (live) setPreview(r && r.result ? r.result : { ok: false, error: (r && r.error && r.error.message) || 'Could not read the schedule' }); });
+    return () => { live = false; };
+  }, [cron]);
+  const valid = Boolean(preview && preview.ok);
+  const runs = valid ? preview.runs || [] : [];
   const ready = valid && form.name.trim() && form.prompt.trim() && form.engine_id && form.project_id && (!form.script.trim() || form.runner.trim());
   const toggleLabel = (name) => set('labels')(form.labels.includes(name) ? form.labels.filter((l) => l !== name) : [...form.labels, name]);
   const save = async () => {
@@ -214,7 +154,10 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
       labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(),
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
-    if (r && r.result) { toast(initial?.id ? 'Automation saved' : 'Automation created'); onSaved(); } else toast((r && r.error && (r.error.message || r.error)) || 'Could not save the automation', true);
+    if (r && r.result) { toast(initial?.id ? 'Automation saved' : 'Automation created'); onSaved(); return; }
+    const why = String((r && r.error && (r.error.message || r.error)) || 'Could not save the automation');
+    setSaveError(why);
+    toast(why, true);
   };
   return (
     <section className="ou-ae-page" aria-label={initial?.id ? 'Edit automation' : 'New automation'}>
@@ -260,8 +203,9 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
           {['daily', 'weekdays', 'weekly'].includes(form.preset) ? <><span className="ou-ae-label">At</span><input type="time" className="ou-ae-time" aria-label="Time" value={form.time} onChange={(e) => set('time')(e.target.value)} /></> : null}
           {form.preset === 'custom' ? <><span className="ou-ae-label">Custom</span><TextInput label="Cron" isLabelHidden width={200} value={form.custom} onChange={set('custom')} placeholder="0 9 * * 1-5" /></> : null}
         </div>
-        <div className="ou-ae-preview" data-valid={valid ? 'true' : 'false'}>
-          {valid ? <><b>{scheduleWords({ cron })}</b><span className="ou-ae-cron">{cron}</span><span>Next: {runs.map(runWords).join(' · ') || 'not within a year'}</span></> : <b>Not a valid schedule. Five fields: minute hour day month weekday.</b>}
+        <div className="ou-ae-preview" data-valid={valid && !saveError ? 'true' : 'false'}>
+          {preview === null ? <span>Reading the schedule.</span> : valid ? <><b>{preview.words}</b><span className="ou-ae-cron">{cron}</span><span>Next: {runs.map(runWords).join(' · ') || 'no run found'}</span></> : <b>{preview.error || 'Not a valid schedule. Five fields: minute hour day month weekday.'}</b>}
+          {saveError ? <b className="ou-ae-error" role="alert">{saveError}</b> : null}
           <span className="ou-hm-muted">Local time. Runs while Ouros is open.</span>
         </div>
         <button type="button" className="ou-hm-fold" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><span className="ou-hm-chevbox" data-open={advanced ? 'true' : 'false'}>{chevSmall}</span><span>Advanced: check script</span></button>
@@ -398,7 +342,7 @@ export function AutomationsPage() {
                 <span className="ou-ap-foot">
                   <button type="button" className={`ou-ap-state${a.enabled ? ' ou-on' : ''}`} title={a.enabled ? 'Pause' : 'Resume'} onClick={() => flip(a)}>{a.enabled ? 'Active' : 'Paused'}</button>
                   <span>{'·'}</span>
-                  <span>{a.words || scheduleWords(a)}</span>
+                  <span>{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}</span>
                   {a.enabled && nextWords(a.next_due) ? <><span>{'·'}</span><span>{nextWords(a.next_due)}</span></> : null}
                   <span>{'·'}</span>
                   <span>{projName(a.project_id)}</span>

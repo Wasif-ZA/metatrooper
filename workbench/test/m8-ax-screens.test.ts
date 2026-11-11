@@ -57,7 +57,7 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'RailCard', 'AutomationsPage', 'TemplateCards', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'RailCard', 'AutomationsPage', 'TemplateCards', 'AutomationEditor', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -593,27 +593,32 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
 
 
 
-test('Automation schedules read in words', () => {
-  const cases: [any, string][] = [
-    [{ cron: '0 10 * * 1-5' }, 'Weekdays at 10:00'], [{ cron: '30 2 * * *' }, 'Daily at 02:30'], [{ cron: '0 11 * * 5' }, 'Fridays at 11:00'],
-    [{ cron: '0 9 * * 0,6' }, 'Weekends at 09:00'], [{ cron: '*/15 * * * *' }, 'Every 15 min'], [{ cron: '5 * * * *' }, 'Hourly at :05'],
-    [{ cron: '0 9 1 * *' }, 'At 09:00 on day 1 of the month'], [{ cron: '30 7 1,15 * *' }, 'At 07:30 on day 1, 15 of the month'], [{ cron: '0 18 * 12 1-3' }, 'At 18:00 on Mon to Wed in Dec'],
-    [{ cron: null, every_min: 360 }, 'Every 6 h'], [{ every_min: 1440 }, 'Daily'], [{ every_min: 45 }, 'Every 45 min'],
-  ];
-  for (const [a, words] of cases) assert.equal(screens.scheduleWords(a), words, JSON.stringify(a));
-});
 
-test('Automation editor finds the next three runs in local time and round-trips its presets', () => {
-  const from = new Date(2026, 10, 11, 9, 30);
-  const at = (d: Date) => [d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes()];
-  assert.deepEqual(screens.nextRuns('0 10 * * 1-5', from).map(at), [[2026, 11, 11, 10, 0], [2026, 11, 12, 10, 0], [2026, 11, 13, 10, 0]]);
-  assert.deepEqual(screens.nextRuns('30 7 1,15 * *', from).map(at), [[2026, 11, 15, 7, 30], [2026, 12, 1, 7, 30], [2026, 12, 15, 7, 30]]);
-  assert.deepEqual(screens.nextRuns('0 9 13 * 5', from).map(at), [[2026, 11, 13, 9, 0], [2026, 11, 20, 9, 0], [2026, 11, 27, 9, 0]]);
-  assert.deepEqual(screens.nextRuns('0 9 * * 7', from).map(at)[0], [2026, 11, 15, 9, 0]);
-  for (const bad of ['', '0 9 * *', '61 * * * *', '0 9 * * 8', 'a b c d e']) assert.deepEqual(screens.nextRuns(bad, from), [], bad);
+test('Automation editor presets round-trip to cron', () => {
   for (const cron of ['15 * * * *', '5 8 * * *', '0 9 * * 1-5', '45 17 * * 3']) assert.equal(screens.cronOf(screens.presetOf(cron)), cron, cron);
   assert.equal(screens.presetOf('30 7 1,15 * *').preset, 'custom');
   assert.equal(screens.cronOf({ preset: 'custom', custom: ' 30 7 1,15 * * ' }), '30 7 1,15 * *');
+});
+
+for (const [cron, reply, shows] of [
+  ['0 9 * * 1-5', { ok: true, runs: ['2026-11-12T09:00:00.000+11:00', '2026-11-13T09:00:00.000+11:00'], words: 'Weekdays at 09:00' }, 'Weekdays at 09:00'],
+  ['0 9 * *', { ok: false, error: 'cron needs five fields' }, 'cron needs five fields'],
+] as const) test('Automation editor preview comes from cron.next for ' + JSON.stringify(cron), async () => {
+  g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
+  const seen: any[] = [];
+  g.rpc = async (method: string, params: any) => { seen.push([method, params]); return method === 'cron.next' ? { result: reply } : { error: { message: 'cron never matches a date' } }; };
+  const initial = { name: 'Sweep', prompt: 'Run the tests.', cron, engine_id: 'ready', project_id: 'p1', icon: '\u{1F9EA}', labels: [{ name: 'tests', colour: '#30a46c' }] };
+  const h = harness(function Screen() { return React.createElement(screens.AutomationEditor, { initial, labelNames: [], onClose() {}, onSaved() {} }); }, true);
+  h.draw(); await flush(); h.draw();
+  assert.deepEqual(seen[0], ['cron.next', { cron, n: 3 }]);
+  const html = h.html();
+  assert.match(html, new RegExp(shows));
+  if (!reply.ok) { assert.equal(h.one(label('Create automation')).props.isDisabled, true); return; }
+  assert.match(html, /Next: .*12.*·.*13/);
+  await h.one(label('Create automation')).props.onClick(); await flush(); h.draw();
+  const set = seen.find((c) => c[0] === 'automation.set');
+  assert.equal(set[1].cron, cron); assert.equal(set[1].icon, '\u{1F9EA}'); assert.deepEqual(set[1].labels, ['tests']);
+  assert.match(h.html(), /<b class="ou-ae-error" role="alert">cron never matches a date<\/b>/);
 });
 
 test('Home Ctrl+Enter launches the current draft and selected engine like Start', async () => {
