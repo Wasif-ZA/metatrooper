@@ -93,10 +93,10 @@ export function processEvents(db: DatabaseSync, limit = 500): number {
   /** Writes session_step from steps_set (core.steps) or a native plan tool: whole-list tools replace it, TaskCreate and TaskUpdate change one row once finished. */
   const planSteps = (sessionId: string, kind: string, p: Record<string, unknown>) => {
     const input = (kind === 'core.steps' ? p : p.tool_input ?? {}) as Record<string, unknown>;
-    const tool = kind === 'core.steps' ? 'steps_set' : p.tool_name;
+    const tool = p.tool_name;
     const items = stepItems(input.items);
     const done = (status: unknown) => (status === 'completed' ? 1 : 0);
-    if (tool === 'steps_set' || tool === 'TodoWrite' || tool === 'update_plan') {
+    if (kind === 'core.steps' || tool === 'TodoWrite' || tool === 'update_plan') {
       clearSteps.run(sessionId);
       items.forEach((t, i) => putStep.run(sessionId, i, t.text, done(t.status)));
       return;

@@ -101,6 +101,15 @@ test('TaskCreate adds and TaskUpdate marks or drops one row, only once finished'
   });
 });
 
+test('a hook event for the steps_set tool itself leaves the list alone', async () => {
+  await fixture((db) => {
+    hook(db, 'claude.PostToolUse', 'TodoWrite', { todos: [{ content: 'kept', status: 'pending' }] });
+    hook(db, 'codex.PostToolUse', 'steps_set', { items: [{ text: 'x', done: true }] });
+    hook(db, 'claude.PostToolUse', 'mcp__ouros-steps__steps_set', { items: [] });
+    assert.deepEqual(steps(db), [{ idx: 0, text: 'kept', done: 0 }]);
+  });
+});
+
 test('Codex update_plan replaces the list', async () => {
   await fixture((db) => {
     hook(db, 'codex.PostToolUse', 'update_plan', { explanation: 'why it matters', plan: [{ step: 'scan', status: 'completed' }, { step: 'fix', status: 'in_progress' }] });
