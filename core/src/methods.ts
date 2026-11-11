@@ -16,6 +16,7 @@ import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
 import { beingRemoved } from './worktree.ts';
+import { tx } from './store/db.ts';
 import * as term from './terminal/index.ts';
 import { chooseLoop } from './reliability.ts';
 import { availableShells } from './terminal/shells.ts';
@@ -49,6 +50,8 @@ function str(p: Record<string, unknown>, key: string, required = true): string {
 
 export const PROTOCOL = 1;
 
+const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
+
 export const MOVED_METHODS = [
   'run.start', 'run.cancel', 'run.clear', 'run.resume', 'run.item-set', 'gate.resolve', 'schedule.set', 'pipeline.validate',
   'template.list', 'variant.pick', 'variant.discard', 'variant.combine', 'board.pin', 'board.remove',
@@ -75,7 +78,7 @@ export const METHODS: MethodDecl[] = [
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
   { name: 'project.clear', params: '{project_id}', result: "{}; hides the project's sessions that are not starting, working, waiting or unknown, and its runs that are not running or paused" },
   { name: 'project.hide', errors: [E.NOT_FOUND, E.VALIDATION], params: '{project_id}', result: '{}; drops the project from the project menu, files untouched; refused while one of its sessions is starting, working, waiting_for_you or unknown. `project.open` on its folder brings it back' },
-  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?}', result: '{session_id, prompt_delivered, model?}: `browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path. A `browser: true` launch on the claude engine without `model` uses the project\'s `.troop/config.json` `models.browser`, else `claude-sonnet-5-5` (M8-43); `model` in the result is the model passed to the engine.' },
+  { name: 'session.launch', stable: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS, E.ENGINE_UNAVAILABLE, E.CLOUD_UNAVAILABLE], params: '{project_id, engine_id, prompt?, model?, host?: "pty", browser?: boolean, browser_grant?: "look"|"act"|"debug", parent_id?, blocker_ids?: string[]}', result: '{session_id, prompt_delivered, model?}: with `blocker_ids` the prompt is held until every blocker exits with outcome succeeded.`browser: true` (a launch from the browser pane) attaches the `metatrooper-browser` MCP server; other sessions do not get it. `parent_id` (set by `troop launch` from its own `TROOP_SESSION_ID`) is stored as `session.parent_id`; when the child exits, the parent gets one `notice` naming the child, its claimed files and whether each is committed, its last line and transcript path. A `browser: true` launch on the claude engine without `model` uses the project\'s `.troop/config.json` `models.browser`, else `claude-sonnet-5-5` (M8-43); `model` in the result is the model passed to the engine.' },
   { name: 'session.list', stable: true, params: '{project_id?, all?: bool}', result: '{sessions: [{id, project_id, engine_id, host, state, state_at, parent_id}]}, newest first; hidden sessions only with `all: true`' },
   { name: 'audit.list', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{project_id, limit?, before?, before_id?}', result: "{rows: [{id, at, session_id, agent, action, detail, source}]}: newest first; source is system (gate decisions, core events) or agent (the agent's own call or words); next page: pass the last row's at and id as before and before_id; read only, secrets scrubbed (M8-F21)" },
   { name: 'session.wait', stable: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, states: [state, ...], timeout_ms, settle_ms?}', result: '{state, timed_out, wait_reason, waiting_on_person}: returns as soon as the session is in one of `states` (at once if already there), or with `timed_out: true` when `timeout_ms` passes. `settle_ms` (0 to 60000, default 0) makes it return only after the state held that long, going back to waiting if it leaves; on `timed_out: true` the state is whatever it was at the deadline, which can be one of `states`. `done` means the engine reported a turn end or its session file went quiet, so a session can go from `done` back to `working`. `states` must be non-empty and from `starting`, `working`, `waiting_for_you`, `done`, `idle`, `unknown`, `exited`; `timeout_ms` is 1 to 600000; `settle_ms` is 0 to 60000; -32602 otherwise. Not queued. A client passes a reply wait longer than `timeout_ms`' },
@@ -98,6 +101,9 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.read', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, lines?}', result: '{session_id, state, lines}: the last `lines` (1 to 500, default 50) non-empty rows of the session terminal, oldest first, with known secrets redacted' },
   { name: 'session.handoff', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} | null}: the latest handoff by at' },
   { name: 'session.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, labels: string[]}', result: '{labels}' },
+  { name: 'session.priority-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, priority: "none"|"low"|"medium"|"high"|"urgent"}', result: '{ok: true}' },
+  { name: 'session.block-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, blocker_ids: string[]}', result: '{ok: true}; replaces the session\'s blockers; a held prompt is delivered once every blocker exits with outcome succeeded; -32602 for itself, a cycle or more than 20' },
+  { name: 'session.block-clear', needsUi: true, errors: [E.NOT_FOUND], params: '{session_id}', result: '{ok: true}; removes every blocker of the session' },
   { name: 'labels.list', errors: [E.INVALID_PARAMS], params: '{project_id}', result: '{labels: [{name, count}]}' },
   { name: 'session.send', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, text}', result: '{sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you`' },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
@@ -186,6 +192,14 @@ function int(p: Record<string, unknown>, key: string): number {
 
 export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, MethodSpec> {
   const m = new Map<string, MethodSpec>();
+  const blockerList = (v: unknown): string[] => {
+    if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw new RpcError(E.INVALID_PARAMS, 'blocker_ids must be an array of strings');
+    const ids = [...new Set(v as string[])];
+    if (ids.length > 20) throw new RpcError(E.INVALID_PARAMS, 'at most 20 blockers');
+    const exists = db.prepare('SELECT 1 FROM session WHERE id = ?');
+    for (const b of ids) if (!exists.get(b)) throw new RpcError(E.NOT_FOUND, `blocker session ${b} not found`);
+    return ids;
+  };
 
   m.set('account.state', { handler: () => ({ state: 'signed_out' }) });
 
@@ -260,6 +274,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       }
       const parent = str(p, 'parent_id', false) || undefined;
       if (parent && !db.prepare('SELECT 1 FROM session WHERE id = ?').get(parent)) throw new RpcError(E.NOT_FOUND, 'parent session not found');
+      const blockerIds = p.blocker_ids === undefined || p.blocker_ids === null ? [] : blockerList(p.blocker_ids);
       if (host === 'sandbox') {
         const refusal = sandboxRefusal(engine, project.path);
         if (refusal) throw new RpcError(E.VALIDATION, refusal);
@@ -283,6 +298,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         browser: p.browser === true,
         parentId: parent,
         model,
+        blockerIds,
       }), ...(model ? { model } : {}) };
     },
   });
@@ -599,6 +615,41 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         throw e;
       }
       return { labels: (db.prepare('SELECT name FROM session_label WHERE session_id = ? ORDER BY name').all(id) as Array<{ name: string }>).map((row) => row.name) };
+    },
+  });
+
+  m.set('session.priority-set', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      if (!PRIORITIES.includes(p.priority as string)) throw new RpcError(E.INVALID_PARAMS, `priority must be one of ${PRIORITIES.join(', ')}`);
+      if (Number(db.prepare('UPDATE session SET priority = ? WHERE id = ?').run(p.priority as string, id).changes) === 0) throw new RpcError(E.NOT_FOUND, 'session not found');
+      return { ok: true };
+    },
+  });
+
+  m.set('session.block-set', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      const ids = blockerList(p.blocker_ids);
+      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      if (ids.includes(id)) throw new RpcError(E.INVALID_PARAMS, 'a session cannot block itself');
+      const upstream = db.prepare('WITH RECURSIVE up(id) AS (SELECT blocker_id FROM session_block WHERE blocked_id = ? UNION SELECT b.blocker_id FROM session_block b JOIN up ON b.blocked_id = up.id) SELECT 1 FROM up WHERE id = ?');
+      if (ids.some((b) => upstream.get(b, id))) throw new RpcError(E.INVALID_PARAMS, 'that would make a blocking cycle');
+      tx(db, () => {
+        db.prepare('DELETE FROM session_block WHERE blocked_id = ?').run(id);
+        const insert = db.prepare('INSERT INTO session_block (blocked_id, blocker_id) VALUES (?, ?)');
+        for (const b of ids) insert.run(id, b);
+      });
+      return { ok: true };
+    },
+  });
+
+  m.set('session.block-clear', {
+    handler: (p) => {
+      const id = str(p, 'session_id');
+      if (!db.prepare('SELECT 1 FROM session WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'session not found');
+      db.prepare('DELETE FROM session_block WHERE blocked_id = ?').run(id);
+      return { ok: true };
     },
   });
 

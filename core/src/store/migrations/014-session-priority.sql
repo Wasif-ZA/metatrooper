@@ -1,0 +1,1 @@
+-- 014: session.priority. The column is added by addColumn in db.ts (fresh databases get it from contracts/schema.sql), so this file only records the migration.
