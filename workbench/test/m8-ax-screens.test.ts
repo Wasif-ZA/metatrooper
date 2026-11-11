@@ -359,12 +359,15 @@ test('Home task view: breadcrumb, worked line, a collapsed subagents trigger in 
   const view = () => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView'));
   const html = view();
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['<span class="ou-hm-crumbproj">Alpha</span>', '<span class="ou-hm-crumbtitle">Task lead</span>', 'Working for 1m 0', '1/2 steps', '<span class="ou-hm-tlabel">3 subagents</span>',
-    '<span class="ou-hm-tsum ou-hm-workingtext">1 working · 1 done · 1 failed</span>', '<p class="ou-hm-latest">Okay, splitting the checkout.</p>', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
+  const order = ['<span class="ou-hm-crumbproj">Alpha</span>', '<span class="ou-hm-crumbtitle">Task lead</span>', 'Working for 1m 0', '<span class="ou-hm-tlabel">3 subagents</span>',
+    '<span class="ou-hm-c-working">1 working</span>', '<span class="ou-hm-c-done">1 done</span>', '<span class="ou-hm-c-failed">1 failed</span>',
+    '<p class="ou-hm-latest">Okay, splitting the checkout.</p>', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
+  assert.doesNotMatch(html.slice(0, html.indexOf('ou-hm-subs')), /1\/2 steps/);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /ou-hm-slimlist|Plan|Build/);
   homeStore.set({ open: ['lead'] }); h.draw();
   const open = view();
+  assert.ok(open.includes('<span class="ou-hm-slimsteps">1/2</span>'), 'orchestrator row keeps its step count');
   assert.deepEqual([...open.matchAll(/<li class="ou-hm-slim( ou-hm-lead)?" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[2], m[3]]), [['lead', 'working'], ['a', 'done'], ['b', 'working'], ['c', 'failed']]);
   assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
   assert.match(open, /<span class="ou-hm-bad">tests broke<\/span>/);
@@ -373,13 +376,13 @@ test('Home task view: breadcrumb, worked line, a collapsed subagents trigger in 
   assert.match(view(), /Plan.*Build/);
 });
 
-test('Home start state: a heading, the composer with project and approval chips, and four start actions; no details card', () => {
+test('Home start state: a heading, four start actions, then the composer with project and approval chips; no details card', () => {
   homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = ''; g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
   const h = harness(Home); const html = h.html();
-  assert.match(html, /<h1 class="ou-hm-hello">What should we build next\?<\/h1>/);
-  assert.ok(html.indexOf('ou-hm-hello') < html.indexOf('ou-hm-task') && html.indexOf('ou-hm-task') < html.indexOf('ou-hm-startlist'));
+  assert.match(html, /<h1 class="ou-hm-hello">Pick up where your agents left off<\/h1>/);
+  assert.ok(html.indexOf('ou-hm-hello') < html.indexOf('ou-hm-startlist') && html.indexOf('ou-hm-startlist') < html.indexOf('ou-hm-task'));
   assert.ok(h.all(label('Project')).length === 1 && h.all(label('Approval')).length === 1);
-  assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['New task', 'Import projects', 'Open the Wall', 'Learn Ouros']);
+  assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['Import projects', 'Automations', 'Open the Wall', 'Learn Ouros']);
   assert.match(html, /data-action="open-folder"/);
   assert.doesNotMatch(html, /ou-hm-card|ou-hm-rail/);
 });
@@ -399,21 +402,21 @@ test('Home details card for the task: workspace, version control with PR and Mer
   const h = harness(Home); h.draw();
   const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
   const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid'].map(at);
+  const order = ['Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 agent', 'Task kid'].map(at);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
   assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView')), /Keep the retry\?/);
   assert.deepEqual(calls, []);
 });
 
-test('Automations is its own page: Yours and Templates tabs, an empty list offers templates, and a template opens the editor page filled in', async () => {
+test('Automations is its own page: Mine and Ideas tabs, an empty list offers templates, and a template opens the editor page filled in', async () => {
   g.ui.view = 'automations';
   const realInterval = g.setInterval; g.setInterval = () => 0;
   g.rpc = async (...args: any[]) => { calls.push(['rpc', ...args]); return { result: args[0] === 'automation.list' ? { automations: [] } : { labels: [] } }; };
   const h = harness(Home, true); h.draw(); await flush(); h.draw();
   const html = h.html();
   assert.match(html, /<h1 class="ou-ap-title">Automations<\/h1>/);
-  assert.deepEqual(h.all((n: any) => n.props?.role === 'tab').map((n: any) => textContent(n.props.children)), ['Yours', 'Templates']);
+  assert.deepEqual(h.all((n: any) => n.props?.role === 'tab').map((n: any) => textContent(n.props.children)), ['Mine', 'Ideas']);
   assert.match(html, /Schedule a task/);
   const templates = h.all(hasClass('ou-ap-template'));
   assert.equal(templates.length, 5);

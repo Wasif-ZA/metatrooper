@@ -8,7 +8,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark } from './icons/index.js';
+import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop } from './icons/index.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
@@ -52,27 +52,25 @@ function Swap({ k, children }) {
   return <div className="ou-hm-swap"><div ref={ref}>{children}</div></div>;
 }
 
-const chev = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="ou-hm-chev"><path d="M5 3.5L8.5 7 5 10.5" /></svg>;
-const tick = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 7.2l2.3 2.3 4.7-5" /></svg>;
-const branchIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="4" cy="3" r="1.5" /><circle cx="4" cy="11" r="1.5" /><circle cx="10" cy="5" r="1.5" /><path d="M4 4.5v5M10 6.5c0 2-6 1.5-6 3" /></svg>;
-const commitIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="2.2" /><path d="M1 7h3.8M9.2 7H13" /></svg>;
-const filesIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 1.5h4.5l2.5 2.5v8.5h-7zM5.5 7h3M7 5.5v3M5.5 10h3" /></svg>;
-const prIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="3.5" cy="3" r="1.5" /><circle cx="3.5" cy="11" r="1.5" /><circle cx="10.5" cy="11" r="1.5" /><path d="M3.5 4.5v5M10.5 9.5V5.5a1.5 1.5 0 0 0-1.5-1.5H7M8.5 2.5L7 4l1.5 1.5" /></svg>;
+const chev = <ChevronRight size={12} className="ou-hm-chev" />;
+const branchIcon = <Branch size={12} />;
+const commitIcon = <Commit size={12} />;
+const filesIcon = <Changes size={12} />;
+const prIcon = <PullRequest size={12} />;
 
 const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
 
-const ic = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
-const attachIcon = <svg {...ic}><path d="M11.5 6.5l-4.6 4.6a2.5 2.5 0 0 1-3.5-3.5l5-5a1.6 1.6 0 0 1 2.3 2.3L5.9 9.7a.7.7 0 0 1-1-1l4.3-4.3" /></svg>;
-const slidersIcon = <svg {...ic}><path d="M2 4h6M10.5 4H12M2 10h1.5M6 10h6" /><circle cx="9" cy="4" r="1.4" /><circle cx="4.5" cy="10" r="1.4" /></svg>;
-const sendIcon = <svg {...ic}><path d="M7 11.5v-9M3.5 6L7 2.5 10.5 6" /></svg>;
-const hostIcon = <svg {...ic}><rect x="1.5" y="2" width="11" height="7.5" rx="1.2" /><path d="M5 12h4M7 9.5V12" /></svg>;
-const editorIcon = <svg {...ic}><path d="M6 2.5H3a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V8M8 2.5h3.5v3.5M6.5 7.5L11.5 2.5" /></svg>;
-const folderSmall = <svg {...ic}><path d="M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" /></svg>;
-const shieldSmall = <svg {...ic}><path d="M7 1.5l4.5 1.8v3.4c0 2.7-2 4.6-4.5 5.3-2.5-.7-4.5-2.6-4.5-5.3V3.3z" /></svg>;
-const circle = <svg {...ic} className="ou-hm-cbox"><circle cx="7" cy="7" r="5" /></svg>;
-const circleDone = <svg {...ic} className="ou-hm-cbox ou-hm-cdone"><circle cx="7" cy="7" r="5" /><path d="M4.8 7.2l1.6 1.6 2.8-3.1" /></svg>;
+const attachIcon = <Attach size={14} />;
+const slidersIcon = <Options size={14} />;
+const sendIcon = <Send size={14} />;
+const hostIcon = <Workspace size={14} />;
+const editorIcon = <OpenOnWall size={14} />;
+const folderSmall = <Project size={14} />;
+const shieldSmall = <Approval size={14} />;
+const circle = <StepOpen size={14} className="ou-hm-cbox" />;
+const circleDone = <Done size={14} className="ou-hm-cbox ou-hm-cdone" />;
 
 function StartBox({ ready }) {
   const [task, setTask] = useState(ui.drafts['home-task'] || '');
@@ -168,16 +166,23 @@ const elapsedOf = (list) => {
   return formatElapsedSeconds(((ends.length ? Math.max(...ends) : Date.now()) - Math.min(...starts)) / 1000);
 };
 
-// From t3code (MIT), packages/client-runtime/src/state/subagentDisplay.ts
-export function summarizeSubagentStatuses(statuses) {
-  const counts = { working: 0, done: 0, failed: 0, stopped: 0 };
+// From t3code (MIT), packages/client-runtime/src/state/subagentDisplay.ts (waiting counted on its own)
+export function countSubagentStatuses(statuses) {
+  const counts = { working: 0, waiting: 0, done: 0, failed: 0, stopped: 0 };
   for (const status of statuses) {
-    if (status === 'running' || status === 'waiting') counts.working += 1;
+    if (status === 'running') counts.working += 1;
+    else if (status === 'waiting') counts.waiting += 1;
     else if (status === 'completed') counts.done += 1;
     else if (status === 'failed') counts.failed += 1;
     else counts.stopped += 1;
   }
-  return Object.keys(counts).filter((key) => counts[key] > 0).map((key) => `${counts[key]} ${key}`).join(' · ');
+  return Object.keys(counts).filter((key) => counts[key] > 0).map((key) => [key, counts[key]]);
+}
+export const summarizeSubagentStatuses = (statuses) => countSubagentStatuses(statuses).map(([key, n]) => `${n} ${key}`).join(' · ');
+
+function StatusCounts({ statuses }) {
+  const parts = countSubagentStatuses(statuses);
+  return <span className="ou-hm-tsum">{parts.map(([key, n], i) => <span key={key}>{i ? ' · ' : ''}<span className={`ou-hm-c-${key}`}>{n} {key}</span></span>)}</span>;
 }
 
 const detailOf = (k) => String((settled(k) ? k.reason || k.last_line : k.last_line || k.reason) || '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
@@ -193,15 +198,17 @@ function Avatar({ k, status = true }) {
   return (
     <span className="ou-hm-av" aria-hidden="true">
       <EngineMark id={k.engine_id} size={14} title={k.engine_id} />
-      {status ? <span className={`ou-hm-avdot ou-hm-st-${statusOf(k)}`} /> : null}
+      {status ? <Ring k={k} size={10} className="ou-hm-avring" /> : null}
     </span>
   );
 }
 
-function Dot({ k }) {
+function Ring({ k, size = 12, className }) {
+  const st = stepsOf(k);
   const s = statusOf(k);
-  return <span className={`ou-hm-dot ou-hm-st-${s}`} role="img" aria-label={STATUS_WORD[s]} title={STATUS_WORD[s]} />;
+  return <ProgressRing state={progressOf(k)} done={st?.done} total={st?.total} size={size} className={className} title={STATUS_WORD[s]} />;
 }
+const Dot = ({ k }) => <Ring k={k} size={12} className="ou-hm-dot" />;
 
 function Steps({ st }) {
   return (
@@ -233,7 +240,6 @@ function SlimRow({ k, lead, openList, toggle }) {
 function Trigger({ x, kids, open, toggle }) {
   const statuses = kids.map(statusOf);
   const working = statuses.filter((s) => s === 'running' || s === 'waiting').length;
-  const failed = statuses.includes('failed');
   const label = `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}`;
   const summary = summarizeSubagentStatuses(statuses);
   return (
@@ -244,7 +250,7 @@ function Trigger({ x, kids, open, toggle }) {
       </span>
       <span className="ou-hm-ttext">
         <span className="ou-hm-tlabel">{label}</span>
-        <span className={`ou-hm-tsum${working ? ' ou-hm-workingtext' : failed ? ' ou-hm-bad' : ' ou-hm-donetext'}`}>{summary}</span>
+        <StatusCounts statuses={statuses} />
       </span>
       <span className="ou-hm-elapsed">{elapsedOf(kids)}</span>
       <span className="ou-hm-chevdown" data-open={open ? 'true' : 'false'}>{chev}</span>
@@ -266,6 +272,7 @@ function TaskView({ x, kids, openList, toggle }) {
   const workOpen = openList.includes(workKey);
   const pending = kids.filter((k) => !settled(k));
   const proj = (ui.snap?.projects || []).find((p) => p.id === (x.project_id || ui.projectId))?.name || 'No project';
+  const branch = ui.snap?.git?.[x.id]?.branch || x.branch || null;
   const s = statusOf(x);
   const stop = async () => {
     try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${x.engine_id} to stop`); } catch (err) { toast(String(err?.message || err), true); }
@@ -276,12 +283,12 @@ function TaskView({ x, kids, openList, toggle }) {
         <span className="ou-hm-crumbproj">{proj}</span>
         <span className="ou-hm-crumbsep">/</span>
         <span className="ou-hm-crumbtitle">{nameOf(x)}</span>
+        {branch ? <span className="ou-hm-crumbbranch">{branchIcon}{branch}</span> : null}
       </nav>
       <div className="ou-hm-thread">
         <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
-          <span className={`ou-hm-dot ou-hm-st-${s}`} />
+          <Ring k={x} size={14} />
           <span>{settled(x) ? 'Worked for' : s === 'waiting' ? 'Waiting for you after' : 'Working for'} {elapsedOf([x])}</span>
-          {st ? <span className="ou-hm-worksteps">{st.done}/{st.total} steps</span> : null}
           {st ? <span className="ou-hm-chevbox" data-open={workOpen ? 'true' : 'false'}>{chev}</span> : null}
         </div>
         {st ? <Drop open={workOpen} className="ou-hm-drop ou-hm-worklist"><Steps st={st} /></Drop> : null}
@@ -305,7 +312,7 @@ function TaskView({ x, kids, openList, toggle }) {
             <span className="ou-hm-waitspin" aria-hidden="true" />
             <span className="ou-hm-waitlabel">Waiting on {pending.length} {pending.length === 1 ? 'subagent' : 'subagents'}</span>
             <span className="ou-hm-waitnames">{pending.map(nameOf).join(', ')}</span>
-            {isWorking(x) || pending.some(isWorking) ? <button type="button" className="ou-hm-stop" title="Interrupt the orchestrator (sends Esc)" onClick={stop}>Stop</button> : null}
+            {isWorking(x) || pending.some(isWorking) ? <button type="button" className="ou-hm-stop" title="Interrupt the orchestrator (sends Esc)" onClick={stop}><Stop size={12} />Stop</button> : null}
           </div>
         ) : null}
       </div>
@@ -313,24 +320,18 @@ function TaskView({ x, kids, openList, toggle }) {
   );
 }
 
-const startIcons = {
-  task: <svg {...ic}><circle cx="7" cy="7" r="5.25" /><path d="M7 4.5v5M4.5 7h5" /></svg>,
-  folder: <svg {...ic}><path d="M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" /><path d="M7 6.5v3M5.5 8h3" /></svg>,
-  wall: <svg {...ic}><rect x="1.5" y="1.5" width="11" height="11" rx="2" /><path d="M7 1.5v11M1.5 7h11" /></svg>,
-  book: <svg {...ic}><path d="M2.5 2h6.5a2 2 0 0 1 2 2v8H4.5a2 2 0 0 1-2-2zM2.5 10a2 2 0 0 1 2-2H11M5 4.5h3.5" /></svg>,
-};
+const startIcons = { folder: <FolderAdd size={18} />, clock: <Schedule size={18} />, wall: <Wall size={18} />, book: <Learn size={18} /> };
 
 function StartState({ composer }) {
   const items = [
-    ['task', 'New task', 'Start an agent on something in this project', () => openNewTask()],
     ['folder', 'Import projects', 'Add a folder from this computer', null, 'open-folder'],
+    ['clock', 'Automations', 'Agents that start on a schedule', () => homeView.set('automations')],
     ['wall', 'Open the Wall', 'Every agent terminal side by side', () => homeView.set('wall')],
     ['book', 'Learn Ouros', 'Shortcuts and commands', () => globalThis.paletteView?.open?.()],
   ];
   return (
     <div className="ou-hm-start">
-      <h1 className="ou-hm-hello">What should we build next?</h1>
-      {composer}
+      <h1 className="ou-hm-hello">Pick up where your agents left off</h1>
       <ul className="ou-hm-startlist">
         {items.map(([icon, title, sub, run, action]) => (
           <li key={title}>
@@ -341,6 +342,7 @@ function StartState({ composer }) {
           </li>
         ))}
       </ul>
+      {composer}
     </div>
   );
 }
@@ -378,7 +380,6 @@ function RailCard({ sel, kids }) {
   const branch = sel ? g.branch || sel.branch || null : null;
   const pr = g.pr || null;
   const host = sel ? ((g.root || sel.cwd) ? (g.root || sel.cwd).split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === sel.project_id)?.name || 'This computer') : '';
-  const running = kids.filter((k) => !settled(k)).length;
   return (
     <div className="ou-hm-card">
       {sel ? (
@@ -401,7 +402,7 @@ function RailCard({ sel, kids }) {
             </PanelSection>
           ) : null}
           {kids.length ? (
-            <PanelSection title={`Lineage · ${running} running`} heading>
+            <PanelSection title={`Lineage · ${kids.length} ${kids.length === 1 ? 'agent' : 'agents'}`} heading>
               <ul className="ou-hm-members ou-hm-lin">
                 {kids.map((k) => (
                   <li key={k.id} className="ou-hm-prow ou-hm-pclick" data-progress={progressOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>

@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark } from './icons/index.js';
+import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EngineIcon as Engine, EmojiIcon as Emoji } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
@@ -83,15 +83,16 @@ const nextWords = (iso) => {
   return `next in ${Math.round(mins / 1440)} d`;
 };
 
-const listIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3.5h10M2 7h10M2 10.5h10" /></svg>;
-const boxIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1" /><rect x="8" y="1.5" width="4.5" height="4.5" rx="1" /><rect x="1.5" y="8" width="4.5" height="4.5" rx="1" /><rect x="8" y="8" width="4.5" height="4.5" rx="1" /></svg>;
-const playIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M4 2.5v9l7.5-4.5z" /></svg>;
-const searchIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="6" cy="6" r="4" /><path d="M9 9l3 3" /></svg>;
-const folderIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" /></svg>;
-const clockIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="5.25" /><path d="M7 4.2V7l1.8 1.2" /></svg>;
-const chevSmall = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3.5L8.5 7 5 10.5" /></svg>;
-const plusIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 3v8M3 7h8" /></svg>;
-const filterIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3.5h10M4 7h6M6 10.5h2" /></svg>;
+const listIcon = <ListView size={14} />;
+const boxIcon = <GridView size={14} />;
+const playIcon = <Run size={12} />;
+const searchIcon = <Search size={14} />;
+const folderIcon = <Project size={12} />;
+const engineIcon = <Engine size={12} />;
+const clockIcon = <Schedule size={12} />;
+const chevSmall = <ChevronRight size={12} />;
+const plusIcon = <Plus size={12} />;
+const filterIcon = <Filter size={14} />;
 
 const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['custom', 'Custom']];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -119,14 +120,14 @@ export function cronOf({ preset, minute, time, day, custom }) {
   return String(custom || '').trim();
 }
 
-const runWords = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const runWords = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const s = ui.snap || {};
   const engines = (s.engines || []).filter((e) => e.light !== 'red');
   const start = presetOf(initial?.cron);
   const [form, setForm] = useState({
-    icon: initial?.icon || EMOJI[0], name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
+    icon: initial?.icon || '', name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
     prompt: initial?.prompt || '', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
     ...start, custom: initial?.cron || '0 9 * * 1-5', runner: (initial?.runner || []).join(' '), script: initial?.script || '',
   });
@@ -150,7 +151,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const save = async () => {
     if (!ready) return;
     const r = await rpc('automation.set', {
-      ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), icon: form.icon, cron, every_min: 1440,
+      ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), cron, every_min: 1440,
       labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(),
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
@@ -172,7 +173,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
       <div className="ou-ae">
         <div className="ou-ae-row">
           <span className="ou-ae-emoji">
-            <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon}</button>
+            <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
             {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); setPicking(false); }}>{e}</button>)}</span> : null}
           </span>
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
@@ -200,7 +201,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
         <div className="ou-ae-row ou-ae-when">
           {form.preset === 'hourly' ? <><span className="ou-ae-label">At minute</span><NumberInput label="Minute" isLabelHidden width={110} value={form.minute} min={0} max={59} step={1} isIntegerOnly onChange={set('minute')} /></> : null}
           {form.preset === 'weekly' ? <><span className="ou-ae-label">On</span><Selector size="sm" label="Day" isLabelHidden value={String(form.day)} onChange={(v) => set('day')(Number(v))} options={WEEKDAYS.map((d, i) => ({ value: String(i), label: d }))} /></> : null}
-          {['daily', 'weekdays', 'weekly'].includes(form.preset) ? <><span className="ou-ae-label">At</span><input type="time" className="ou-ae-time" aria-label="Time" value={form.time} onChange={(e) => set('time')(e.target.value)} /></> : null}
+          {['daily', 'weekdays', 'weekly'].includes(form.preset) ? <><span className="ou-ae-label">At</span><TextInput size="sm" label="Time" isLabelHidden width={84} placeholder="09:00" value={form.time} onChange={(v) => set('time')(v.replace(/[^\d:]/g, '').slice(0, 5))} /></> : null}
           {form.preset === 'custom' ? <><span className="ou-ae-label">Custom</span><TextInput label="Cron" isLabelHidden width={200} value={form.custom} onChange={set('custom')} placeholder="0 9 * * 1-5" /></> : null}
         </div>
         <div className="ou-ae-preview" data-valid={valid && !saveError ? 'true' : 'false'}>
@@ -231,8 +232,8 @@ const TEMPLATES = [
   { icon: '\u{1F9F9}', name: 'Friday tidy-up', prompt: 'Remove dead code and stale TODOs. Keep each change small and explained.', cron: '0 16 * * 5' },
 ];
 
-const sortIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2.5v9M2 9.5l2 2 2-2M10 11.5v-9M8 4.5l2-2 2 2" /></svg>;
-const clockBig = <svg width="28" height="28" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><circle cx="7" cy="7" r="5.5" /><path d="M7 3.8V7l2 1.3" /></svg>;
+const sortIcon = <Sort size={14} />;
+const clockBig = <Schedule size={28} />;
 const labelName = (l) => (typeof l === 'string' ? l : l?.name || '');
 const labelColour = (l, colours) => (typeof l === 'string' ? colours[l] : l?.colour) || null;
 
@@ -254,9 +255,8 @@ function TemplateCards({ onPick }) {
 export function AutomationsPage() {
   const [list, setList] = useState(null);
   const [view, setView] = useState(() => { try { return load('auto-view') || 'box'; } catch { return 'box'; } });
-  const [tab, setTab] = useState('yours');
+  const [tab, setTab] = useState('mine');
   const [query, setQuery] = useState('');
-  const [searching, setSearching] = useState(false);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [colours, setColours] = useState({});
@@ -299,62 +299,67 @@ export function AutomationsPage() {
       </div>
     );
   }
+  const card = (a) => (
+    <li key={a.id} data-id={a.id}>
+      <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setEditing(a); }}>
+        <span className="ou-ap-itop">
+          <span className="ou-ap-emoji" aria-hidden="true">{a.icon || <Schedule size={16} />}</span>
+          <span className="ou-ap-name">{a.name}</span>
+          {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
+          <span className="ou-ap-gap" />
+          <Button size="sm" variant="ghost" icon={playIcon} label="Run now" onClick={() => runNow(a)} />
+        </span>
+        {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
+        <span className="ou-ap-chips">
+          <span className="ou-ap-chip">{folderIcon}{projName(a.project_id)}</span>
+          <span className="ou-ap-chip">{clockIcon}{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</span>
+          <span className="ou-ap-chip">{engineIcon}{a.engine_id || 'agent'}</span>
+          {(a.labels || []).map((l) => {
+            const c = labelColour(l, colours);
+            return <span key={labelName(l)} className="ou-ap-chip ou-ap-label" style={c ? { color: c, borderColor: `color-mix(in srgb, ${c} 45%, transparent)` } : undefined}><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{labelName(l)}</span>;
+          })}
+          <button type="button" className={`ou-ap-chip ou-ap-state${a.enabled ? ' ou-on' : ''}`} title={a.enabled ? 'Pause' : 'Resume'} onClick={() => flip(a)}>{a.enabled ? 'Active' : 'Paused'}</button>
+        </span>
+      </div>
+    </li>
+  );
+  const groups = [['Active', shown.filter((a) => a.enabled)], ['Paused', shown.filter((a) => !a.enabled)]].filter(([, rows]) => rows.length);
   return (
     <div className="ou-ap" ref={box}>
-      <h1 className="ou-ap-title">Automations</h1>
+      <div className="ou-ap-titlerow">
+        <h1 className="ou-ap-title">Automations</h1>
+        <span className="ou-ap-gap" />
+        <Button size="sm" variant="secondary" icon={plusIcon} label="New automation" onClick={() => setEditing({})} />
+      </div>
       <div className="ou-ap-bar">
         <span className="ou-ap-tabs" role="tablist" aria-label="Automations">
-          {[['yours', 'Yours'], ['templates', 'Templates']].map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
+          {[['mine', 'Mine'], ['ideas', 'Ideas']].map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
         </span>
-        <span className="ou-ap-gap" />
-        {searching ? <TextInput size="sm" hasAutoFocus label="Search automations" isLabelHidden placeholder="Search" value={query} onChange={setQuery} width={180}
-          onKeyDown={(e) => { if (e.key === 'Escape') { setQuery(''); setSearching(false); } }} /> : null}
-        <button type="button" className="ou-ap-icon" aria-label="Search" aria-pressed={searching} title="Search" onClick={() => setSearching(!searching)}>{searchIcon}</button>
+        <span className="ou-ap-search">{searchIcon}<TextInput size="sm" label="Search automations" isLabelHidden placeholder="Search" value={query} onChange={setQuery} width={160}
+          onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} /></span>
         <span className="ou-ap-sel" title="Filter">{filterIcon}<Selector size="sm" variant="ghost" label="Filter automations" isLabelHidden value={filter} onChange={(v) => setFilter(v || 'all')} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }]} /></span>
         <span className="ou-ap-sel" title="Sort">{sortIcon}<Selector size="sm" variant="ghost" label="Sort automations" isLabelHidden value={sort} onChange={(v) => setSort(v || 'newest')} options={[{ value: 'newest', label: 'Newest' }, { value: 'name', label: 'Name' }, { value: 'next', label: 'Next run' }]} /></span>
+        <span className="ou-ap-gap" />
         <span className="ou-hm-seg" role="group" aria-label="Layout">
           <button type="button" aria-pressed={view === 'list'} title="List" onClick={() => pickView('list')}>{listIcon}</button>
           <button type="button" aria-pressed={view === 'box'} title="Boxes" onClick={() => pickView('box')}>{boxIcon}</button>
         </span>
-        <Button size="sm" variant="primary" icon={plusIcon} label="New automation" onClick={() => setEditing({})} />
       </div>
       <p className="ou-ap-note">Runs while Ouros is open.</p>
-      {tab === 'templates' ? <TemplateCards onPick={(t) => setEditing(t)} /> : list === null ? <p className="ou-ap-note">Loading.</p> : !(list || []).length ? (
+      {tab === 'ideas' ? <TemplateCards onPick={(t) => setEditing(t)} /> : list === null ? <p className="ou-ap-note">Loading.</p> : !(list || []).length ? (
         <div className="ou-ap-empty">
           <span className="ou-ap-emptyicon">{clockBig}</span>
           <h2>Schedule a task</h2>
           <p>An agent starts on its own at the times you set. Pick one to begin, or write your own.</p>
           <TemplateCards onPick={(t) => setEditing(t)} />
         </div>
-      ) : !shown.length ? <p className="ou-ap-note">No automation matches.</p> : (
-        <ul className={`ou-ap-items ou-ap-${view}`}>
-          {shown.map((a) => (
-            <li key={a.id} data-id={a.id}>
-              <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setEditing(a); }}>
-                <span className="ou-ap-itop">
-                  <span className="ou-ap-emoji" aria-hidden="true">{a.icon || '⚙️'}</span>
-                  <span className="ou-ap-name">{a.name}</span>
-                  <span className="ou-ap-type">{a.engine_id || 'agent'}</span>
-                  {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
-                </span>
-                {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
-                <span className="ou-ap-foot">
-                  <button type="button" className={`ou-ap-state${a.enabled ? ' ou-on' : ''}`} title={a.enabled ? 'Pause' : 'Resume'} onClick={() => flip(a)}>{a.enabled ? 'Active' : 'Paused'}</button>
-                  <span>{'·'}</span>
-                  <span>{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}</span>
-                  {a.enabled && nextWords(a.next_due) ? <><span>{'·'}</span><span>{nextWords(a.next_due)}</span></> : null}
-                  <span>{'·'}</span>
-                  <span>{projName(a.project_id)}</span>
-                  {(a.labels || []).map((l) => <span key={labelName(l)} className="ou-ap-label" style={labelColour(l, colours) ? { color: labelColour(l, colours) } : undefined}>{labelName(l)}</span>)}
-                  <span className="ou-ap-gap" />
-                  <Button size="sm" variant="ghost" icon={playIcon} label="Run now" onClick={() => runNow(a)} />
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      ) : !shown.length ? <p className="ou-ap-note">No automation matches.</p> : groups.map(([title, rows]) => (
+        <section key={title} className="ou-ap-group" aria-label={title}>
+          <h2 className="ou-ap-gtitle">{title}<span className="ou-ap-gcount">{rows.length}</span></h2>
+          <ul className={`ou-ap-items ou-ap-${view}`}>{rows.map(card)}</ul>
+        </section>
+      ))}
     </div>
   );
 }
