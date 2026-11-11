@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { corePipe } from '../paths.ts';
 import { createDecoder, encode } from '../pipe/framing.ts';
 import { resolveCommand } from './resolve.ts';
+import type { ToolDef } from './mcp-stdio.ts';
 
 interface Resolved {
   command: string;
@@ -67,7 +68,41 @@ async function printHeaders(pluginId: string, serverId: string, token: string): 
   }
 }
 
+const STEPS_TOOL: ToolDef = {
+  name: 'steps_set',
+  description: 'Show your plan to the user as a checklist in Ouros. Call it once you have a plan of 2 or more steps, and again each time a step is done or the plan changes. Send the whole list every time; it replaces the last one. Short step text, up to 30 steps.',
+  inputSchema: {
+    type: 'object',
+    properties: { items: { type: 'array', maxItems: 30, items: { type: 'object', properties: { text: { type: 'string', maxLength: 200 }, done: { type: 'boolean' } }, required: ['text', 'done'] } } },
+    required: ['items'],
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false },
+};
+
+/** The `ouros-steps` MCP server: steps_set appends a core.steps event that the processor writes into session_step. */
+async function serveSteps(): Promise<void> {
+  const { serveMcp } = await import('./mcp-stdio.ts');
+  const { findSession } = await import('./workbench-pipe.ts');
+  const { buildPayload } = await import('../redact.ts');
+  const { appendEvent } = await import('../events/append.ts');
+  serveMcp('ouros-steps', [STEPS_TOOL], async (name, args) => {
+    const fail = (text: string) => ({ content: [{ type: 'text', text }], isError: true });
+    if (name !== 'steps_set') return fail(`unknown tool ${name}`);
+    if (!Array.isArray(args.items)) return fail('items must be an array of {text, done}');
+    const sessionId = process.env.TROOP_SESSION_ID || findSession();
+    if (!sessionId) return fail('this process is not inside an Ouros session');
+    const payload = buildPayload('core.steps', args) as { items: unknown[] };
+    try {
+      appendEvent('core.steps', sessionId, payload, undefined, 2000)?.close();
+    } catch (e) {
+      return fail(`steps not saved: ${(e as Error).message}`);
+    }
+    return { content: [{ type: 'text', text: `saved ${payload.items.length} steps` }] };
+  });
+}
+
 async function main(): Promise<void> {
+  if (process.argv[2] === 'steps') return serveSteps();
   if (process.argv[2] === 'headers') return printHeaders(process.argv[3] ?? '', process.argv[4] ?? '', process.argv[5] ?? '');
   const [pluginId, serverId, token = ''] = process.argv.slice(2);
   if (!pluginId || !serverId) return refuse('usage: mcp-shim.js <plugin id> <server id> <token>');

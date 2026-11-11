@@ -26,6 +26,28 @@ globalThis.frameView = (() => {
   const STATE_RANK = { waiting_for_you: 0, working: 1, starting: 2, unknown: 3, idle: 4, done: 5, exited: 6 };
   const rankOf = (x) => STATE_RANK[x.state] ?? 3;
   const dotOf = (states) => (states.includes('waiting_for_you') ? 'wait' : states.some((s) => s === 'working' || s === 'starting') ? 'work' : 'done');
+  // From t3code (MIT), apps/web/src/components/Sidebar.motion.ts: 150 ms ease-out row motion, adapted to rows keyed by id across redraws
+  const motionTiming = { duration: 150, easing: 'ease-out' };
+  const rowTravel = (height) => Math.min(height, 40);
+  const MAX_FADED_ROWS_PER_UPDATE = 40;
+  const rowsOf = (list) => [...list.querySelectorAll('[data-key]')];
+  function rowTops(list) {
+    if (!list?.getBoundingClientRect) return null;
+    const origin = list.getBoundingClientRect().top;
+    return new Map(rowsOf(list).map((n) => [n.dataset.key, n.getBoundingClientRect().top - origin]));
+  }
+  function animateRows(list, before) {
+    if (!before || !list?.getBoundingClientRect || globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const origin = list.getBoundingClientRect().top;
+    const rows = rowsOf(list).filter((n) => typeof n.animate === 'function');
+    if (rows.filter((n) => !before.has(n.dataset.key)).length > MAX_FADED_ROWS_PER_UPDATE) return;
+    for (const n of rows) {
+      const box = n.getBoundingClientRect();
+      const was = before.get(n.dataset.key);
+      if (was === undefined) n.animate([{ opacity: 0, transform: `translateY(${-rowTravel(box.height)}px)` }, { opacity: 1, transform: 'translateY(0px)' }], motionTiming);
+      else if (Math.abs(was - (box.top - origin)) > 0.5) n.animate([{ transform: `translateY(${was - (box.top - origin)}px)` }, { transform: 'translateY(0px)' }], motionTiming);
+    }
+  }
 
   /**
    * Groups snap.tree into projects > worktrees > agent lines. A root agent's worktree is its git root (else its cwd, else the
@@ -76,7 +98,7 @@ globalThis.frameView = (() => {
     if (Number.isNaN(s)) return '';
     return s < 60 ? 'now' : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
   };
-  const rowDot = (x) => (x.state === 'waiting_for_you' ? 'wait' : x.state === 'working' || x.state === 'starting' ? 'work' : 'done');
+  const rowDot = (x) => (x.state === 'waiting_for_you' ? 'wait' : x.state === 'working' || x.state === 'starting' ? 'work' : x.outcome === 'failed' ? 'fail' : x.state === 'unknown' ? 'idle' : 'done');
   const mark = (id) => (globalThis.engineMarkSvg ? globalThis.engineMarkSvg(id, 14) : `<span class="fmono">${esc(String(id || '').slice(0, 2).toUpperCase())}</span>`);
   const ICON = {
     folder: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2 4.5c0-.6.4-1 1-1h3l1.5 1.5H13c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1z"/></svg>',
@@ -89,24 +111,22 @@ globalThis.frameView = (() => {
     plus: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>',
   };
 
-  const GLYPH = {
-    wait: '<svg class="fgl wait" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="5" r="1.25" fill="currentColor"/></svg>',
-    work: '<svg class="fgl work" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.5A3.5 3.5 0 1 1 1.5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
-    done: '<svg class="fgl done" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="m3.5 5 1 1 2-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  };
+  const STATUS_LABEL = { wait: 'Waiting for you', work: 'Working', fail: 'Failed', done: 'Done', idle: 'Idle' };
+  // From t3code (MIT), apps/web/src/components/ThreadStatusIndicators.tsx: a 9px status dot in a 14px slot, pulsing while active
+  const statusHtml = (s) => `<span class="fst ${s}" role="img" aria-label="${STATUS_LABEL[s]}"><span></span></span>`;
 
   function agentHtml(x, depth) {
     const title = (x.title || '').trim();
     const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
     const words = STATE_WORDS[x.state] || x.state;
     const tip = `${name}\n${x.model ? `${x.model} · ` : ''}${x.engine_id} · ${words}`;
-    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}" data-action="pick" data-id="${esc(x.id)}" style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${GLYPH[rowDot(x)]}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
+    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}" data-action="pick" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}" style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${statusHtml(rowDot(x))}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
   }
 
   function treeHtml(groups, rows) {
     if (!groups.length) return '<p class="fempty">No agents running</p>';
-    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${ICON.folder}</span><span class="fl">${esc(g.name)}</span></button>`
-      + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" title="${esc(wt.path)}"><span class="fsd ${wt.state}"></span><span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
+    return groups.map((g) => `<button class="fproj" data-action="project" data-id="${esc(g.project_id)}" data-key="p:${esc(g.project_id)}" title="Open ${esc(g.name)}"><span class="fi">${ICON.folder}</span><span class="fl">${esc(g.name)}</span></button>`
+      + g.worktrees.map((wt) => `<div class="fwt${wt.selected ? ' sel' : ''}"><div class="fwthead" data-key="w:${esc(wt.key)}" title="${esc(wt.path)}">${statusHtml(wt.state)}<span class="fwtn">${esc(wt.title)}</span>${wt.primary ? '<span class="fchip">primary</span>' : ''}</div>${wt.branch ? `<div class="fwtb">${esc(wt.branch)}</div>` : ''}`
         + wt.lines.filter((l) => view.done || rows[l.id].state !== 'exited').map((l) => agentHtml(rows[l.id], l.depth)).join('') + '</div>').join('')).join('');
   }
 
@@ -141,14 +161,19 @@ globalThis.frameView = (() => {
   function drawUsage() {
     const el = document.getElementById('frameUsage');
     if (!el) return;
-    const best = new Map();
-    for (const r of ui.snap.limits || []) if (typeof r.used_pct === 'number' && (!best.has(r.provider) || r.used_pct > best.get(r.provider).used_pct)) best.set(r.provider, r);
-    el.hidden = !best.size;
-    el.innerHTML = [...best.values()].map((r) => {
+    const ORDER = ['5h', 'daily', 'weekly', 'weekly-model'];
+    const by = new Map();
+    for (const r of ui.snap.limits || []) if (r.status === 'ok' && typeof r.used_pct === 'number') by.set(r.provider, [...(by.get(r.provider) || []), r]);
+    el.hidden = !by.size;
+    const pctOf = (r) => Math.round(Math.min(100, Math.max(0, r.used_pct)));
+    const whenOf = (r) => {
       const left = r.resets_at ? Math.max(0, Date.parse(r.resets_at) - Date.now()) / 60000 : NaN;
-      const when = Number.isNaN(left) ? '' : left >= 1440 ? `${Math.floor(left / 1440)}d ${Math.floor((left % 1440) / 60)}h` : `${Math.floor(left / 60)}h ${Math.floor(left % 60)}m`;
-      const pct = Math.round(Math.min(100, Math.max(0, r.used_pct)));
-      return `<div class="fuse" title="${esc(r.provider)} ${esc(r.window)} limit"><span class="fmk">${mark(r.provider)}</span><span class="fbar"><i style="width:${pct}%"></i></span><span class="fmeta">${pct}% ${esc(when)}</span></div>`;
+      return Number.isNaN(left) ? '' : left >= 1440 ? `${Math.floor(left / 1440)}d ${Math.floor((left % 1440) / 60)}h` : `${Math.floor(left / 60)}h ${Math.floor(left % 60)}m`;
+    };
+    el.innerHTML = [...by.entries()].map(([provider, list]) => {
+      const rows = list.slice().sort((a, b) => ORDER.indexOf(a.window) - ORDER.indexOf(b.window));
+      const words = rows.map((r) => `${pctOf(r)}% ${whenOf(r)}`.trim()).join(' · ');
+      return `<div class="fuse" title="${esc(rows.map((r) => `${r.window}: ${pctOf(r)}% used, resets in ${whenOf(r) || 'unknown'}`).join('\n'))}"><span class="fmk">${mark(provider)}</span><span class="fbar"><i style="width:${pctOf(rows[0])}%"></i></span><span class="fmeta">${esc(words)}</span></div>`;
     }).join('');
   }
 
@@ -172,7 +197,10 @@ globalThis.frameView = (() => {
     drawUsage();
     if (ui.snap.tree) {
       const rows = ui.snap.tree_rows || {};
+      const list = document.getElementById('frame-agents');
+      const before = rowTops(list);
       setHtml('frame-agents', treeHtml(treeGroups(ui.snap.tree, rows, ui.snap.git || {}, ui.snap.projects || [], ui.pendingHide, ui.snap.selected), rows));
+      animateRows(list, before);
       return;
     }
     const mine = project() ? ui.snap.sessions.filter((x) => x.state !== 'exited' && !ui.pendingHide.has(x.id)).sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state)) : [];

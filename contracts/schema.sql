@@ -104,6 +104,14 @@ CREATE TABLE session_review (
   PRIMARY KEY (session_id, kind, who)
 );
 
+CREATE TABLE session_step (               -- a session's plan from steps_set or a native plan tool: text and done only
+  session_id TEXT NOT NULL REFERENCES session(id),
+  idx INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, idx)
+);
+
 CREATE TABLE session_state_log (
   session_id TEXT NOT NULL REFERENCES session(id),
   at TEXT NOT NULL,

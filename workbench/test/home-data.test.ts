@@ -18,7 +18,7 @@ function fixture(steps: boolean) {
   const dir = mkdtempSync(join(tmpdir(), 'wb-home-data-'));
   const db = new DatabaseSync(join(dir, 'troop.db'));
   db.exec(schema);
-  if (steps) db.exec('CREATE TABLE session_step (session_id TEXT REFERENCES session(id), idx INTEGER, text TEXT, done INTEGER, PRIMARY KEY (session_id, idx))');
+  if (!steps) db.exec('DROP TABLE session_step');
   for (const p of ['p1', 'p2', 'p3']) mkdirSync(join(dir, p));
   for (const p of ['p1', 'p2', 'p3']) db.prepare('INSERT INTO project (id, path, name, opened_at, last_opened) VALUES (?, ?, ?, ?, ?)').run(p, join(dir, p), p, T(0), T(p === 'p1' ? 9 : 1));
   db.prepare("INSERT INTO engine (id, spec_json, cost_rank) VALUES ('claude', '{}', 1), ('codex', '{}', 2)").run();
@@ -34,9 +34,9 @@ test('snapshot sessions and live carry project_id, parent_id, reason and steps; 
     for (let i = 0; i < 12; i++) f.add.run(`old${i}`, 'p1', 'claude', 'exited', T(10 + i), T(i), null, null, null);
     f.add.run('other', 'p2', 'codex', 'working', T(3), T(3), null, null, null);
     const step = f.db.prepare('INSERT INTO session_step (session_id, idx, text, done) VALUES (?, ?, ?, ?)');
-    step.run('parent', 1, 'second', 0);
+    step.run('parent', 4, 'second', 0);
     step.run('parent', 0, 'first', 1);
-    step.run('parent', 2, 'third', 1);
+    step.run('parent', 7, 'third', 1);
     f.db.prepare("INSERT INTO usage (at, session_id, engine_id, provider, model, source, dedupe_key) VALUES (?, 'kid', 'codex', 'local-cli', 'gpt-x', 'unknown', 'k1')").run(T(6));
     const snap = JSON.parse(JSON.stringify(snapshot(f.db, 'p1')));
     const want = { done: 2, total: 3, items: [{ text: 'first', done: true }, { text: 'second', done: false }, { text: 'third', done: true }] };
@@ -127,13 +127,12 @@ test('checksOf reads a statusCheckRollup as fail, pass, pending or null', () => 
   assert.equal(checksOf([{ status: 'IN_PROGRESS' }, { conclusion: 'FAILURE' }]), 'fail');
 });
 
-test('engine marks: each named engine has its own shape and colour and is titled with its name', () => {
+test('engine marks: each named engine has its own mark and viewBox and is titled with its name', () => {
   const ids = ['claude', 'codex', 'agy', 'gemini', 'copilot', 'opencode', 'pi'];
   assert.deepEqual(Object.keys(ENGINE_MARKS).sort(), [...ids].sort());
-  const inner = ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].shape('#000'));
-  assert.equal(new Set(inner).size, ids.length, 'shapes differ');
-  assert.equal(new Set(ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].colour)).size, ids.length, 'colours differ');
-  assert.match(engineMarkSvg('codex'), /<title>Codex<\/title>/);
+  assert.equal(new Set(ids.map((id) => ENGINE_MARKS[id as keyof typeof ENGINE_MARKS].inner)).size, ids.length, 'marks differ');
+  assert.match(engineMarkSvg('codex'), /viewBox="100 100 411 411".*<title>Codex<\/title>/);
+  assert.match(engineMarkSvg('CLAUDE '), /<title>Claude<\/title><path fill="#d97757"/);
   assert.match(engineMarkSvg('Some<Tool>'), /<title>Some&#60;Tool&#62;<\/title>.*>S<\/text>/);
   assert.equal(engineName(''), 'Unknown engine');
 });

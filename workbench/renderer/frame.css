@@ -91,9 +91,16 @@
 .fsd.done { background: none; box-shadow: inset 0 0 0 1.5px var(--done); }
 .ftree { height: 28px; margin: 0; padding: 0 8px 0 calc(20px + var(--depth, 0) * 26px); gap: 6px; }
 .ftree .ft { font-size: 12.5px; }
-.fgl { flex: none; color: var(--mute); }
-.fgl.wait { color: var(--wait); }
-.fgl.work { color: var(--ink); }
+.fst { --st: var(--mute); width: 14px; height: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.fst > span { width: 9px; height: 9px; border-radius: 50%; background: var(--st); }
+.fwthead .fst > span { width: 8px; height: 8px; }
+.fst.done { --st: #10b981; }
+.fst.work { --st: #eab308; }
+.fst.fail { --st: #ef4444; }
+.fst.wait { --st: #f97316; }
+.fst.work > span, .fst.wait > span { animation: fstpulse 1.6s ease-in-out infinite; }
+@keyframes fstpulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .fst > span { animation: none !important; } }
 .fmk { width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
 .fmono { font: 600 8px/1 var(--mono); color: var(--mute); }
 .ftree .ft { flex: 1; min-width: 0; }
@@ -120,7 +127,7 @@
 :root:is(.side-rail, .side-auto) .fwt { margin: 0; padding: 0; background: none; }
 :root:is(.side-rail, .side-auto) .fproj { height: 1px; margin: 6px 12px; padding: 0; background: var(--hairline); }
 :root:is(.side-rail, .side-auto) .ftree { gap: 0; }
-:root:is(.side-rail, .side-auto) .ftree .fgl { position: absolute; right: 10px; top: 4px; }
+:root:is(.side-rail, .side-auto) .ftree .fst { position: absolute; right: 8px; top: 2px; }
 :root:is(.side-rail, .side-auto) :is(.fnav, .ffoot, .fnew) button, :root:is(.side-rail, .side-auto) .fagent { justify-content: center; padding: 0; }
 :root:is(.side-rail, .side-auto) .fagent { height: 32px; }
 :root:is(.side-rail, .side-auto) .fagent::before { left: 50%; transform: translate(-50%, -50%); }
