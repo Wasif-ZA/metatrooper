@@ -56,6 +56,7 @@ The core's methods, generated from `core/src/methods.ts`. Stable ones keep their
   session.handoff         {session_id}
   session.labels-set      {session_id, labels: string[]}
   labels.list             {project_id}
+  session.monitor-set     {session_id, automation_id | null}
   session.send            {session_id, text}
   session.paste-prompt    {session_id}
   needs_you.mark-read     {id}
