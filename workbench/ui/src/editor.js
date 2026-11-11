@@ -113,7 +113,7 @@ function theme() {
 }
 
 const options = (path) => ({
-  theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], minimap: { enabled: false }, scrollBeyondLastLine: false, fixedOverflowWidgets: true,
+  theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], renderWhitespace: 'trailing', linkedEditing: true, minimap: { enabled: false }, scrollBeyondLastLine: false, fixedOverflowWidgets: true,
   fontFamily: "Consolas, 'Cascadia Mono', 'Courier New', monospace", fontSize: 14, lineHeight: 19, letterSpacing: 0,
   wordWrap: ['md', 'markdown', 'mdx', 'txt'].includes(ext(path)) ? 'on' : 'off',
 });
