@@ -69,6 +69,7 @@
 .fdot.work::after { background: var(--ink); }
 
 :root:not(.side-rail):not(.side-auto) .fnew { display: none; }
+.fhead [data-action="palette"] { display: none; }
 :root:not(.side-rail):not(.side-auto) .fnav.ficons { flex-direction: row; flex-wrap: wrap; gap: 2px; padding: 8px 8px 4px; }
 :root:not(.side-rail):not(.side-auto) .fnav.ficons button { width: 28px; height: 28px; margin: 0; padding: 0; justify-content: center; }
 :root:not(.side-rail):not(.side-auto) .fnav.ficons .fl { display: none; }
