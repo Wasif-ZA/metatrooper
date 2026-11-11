@@ -162,11 +162,8 @@
 .tcore.off { background: #ef4444; cursor: pointer; }
 .title .tnew { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: 6px; font-size: 13px; }
 
-/* Progress ring per agent row; the spinning arc is static (a quarter) under reduced motion. */
+/* Progress ring per agent row. */
 .fring { width: 14px; height: 14px; flex: none; display: inline-flex; color: var(--mute); }
-.ouros-ring-spin { transform-box: view-box; transform-origin: 7px 7px; animation: ouros-ring-spin 1.1s linear infinite; }
-@keyframes ouros-ring-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
-@media (prefers-reduced-motion: reduce) { .ouros-ring-spin { animation: none; } }
 .search.icon-only:not(.open) { display: none; }
 
 /* Age shows on hover only, so titles use the full width. */
@@ -202,3 +199,24 @@
 .fpickfoot .fprimary { background: var(--ink); color: var(--canvas-deep); border-color: var(--ink); }
 :root:is(.side-rail, .side-auto) .fhead .ccmark { font-size: 13px; }
 .ficonmenu, .ficonmenu button, .ficonpick, .ficonpick button, .ficonpick .fghhead { font-family: 'Geist', 'Segoe UI', sans-serif; }
+
+/* Review 3: one icon family. Wordmark, nav density, header icons, hierarchy, ring/logo spacing, neutral picker. */
+.fhead .ccmark { font: 600 18px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: -0.01em; color: var(--ink); }
+:root:not(.side-rail):not(.side-auto) .fnav.ficons .fi { width: 16px; }
+:root:not(.side-rail):not(.side-auto) .fnav.ficons .fpill { top: -3px; right: -5px; height: 14px; min-width: 8px; padding: 0 4px; font-size: 9.5px; line-height: 14px; box-shadow: 0 0 0 2px var(--canvas-deep); }
+.fsec.fprojects .fic { width: 28px; height: 28px; color: var(--mute); }
+.fproj { font-size: 13px; font-weight: 600; }
+.fproj .fi { width: 18px; }
+.fwt { margin: 2px 4px; }
+.fwthead { font-size: 13px; font-weight: 500; padding-left: 12px; gap: 8px; }
+.fwtb { padding-left: 32px; opacity: .7; }
+.ftree { gap: 8px; padding: 0 4px 0 calc(12px + var(--depth, 0) * 12px); }
+.ftree .ft { font-size: 13px; font-weight: 400; }
+.fring { width: 12px; height: 12px; }
+.ftree .fmk { width: 16px; height: 16px; }
+.fst.done { --st: var(--hm-done, #3fb950); }
+.fst.work { --st: var(--hm-working, #e3b341); }
+.fst.fail { --st: var(--hm-failed, #f0524f); }
+.fst.wait { --st: var(--hm-waiting, var(--wait)); }
+.fcell { color: var(--mute); }
+.fswatch.on { box-shadow: none; outline: 2px solid var(--ink); outline-offset: 1px; }
