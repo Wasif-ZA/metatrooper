@@ -50,6 +50,7 @@ function screen(Component: any, props: any = {}) {
   internals.H = {
     useSyncExternalStore: (_: any, get: any) => get(),
     useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}],
+    useEffect: () => {},
   };
   try { return Component(props); } finally { internals.H = previous; }
 }
@@ -214,21 +215,15 @@ test('f2d37124 Add-ons result count is quiet metadata inside the capped results 
   assert.equal(renderToStaticMarkup(oneClass(screen(Addons), 'ou-addons-count')), '<div class="ou-addons-count">0 result(s)</div>');
 });
 
-test('60704072 Needs you has exactly one empty message in the detail pane and none in the list', () => {
-  // Keep the single empty state and literal message in the detail pane.
+test('60704072 Needs you has exactly one empty message, in the list, and none in the detail pane', () => {
   const tree = screen(Inbox);
   const emptyStates = descendants(tree).filter(n => n?.props?.title === 'Nothing is waiting on you.');
   assert.equal(emptyStates.length, 1);
-  const empty = children(oneClass(tree, 'ou-ipane-empty'));
-  assert.equal(empty.length, 1);
-  assert.equal(empty[0], emptyStates[0]);
-  assert.equal(empty[0].props.description, 'Questions from agents and finished work show up here.');
-  const allEmptyStates = descendants(tree).filter(n => n?.type === empty[0].type);
-  assert.equal(allEmptyStates.length, 1);
+  assert.equal(emptyStates[0].props.description, 'Questions from agents and finished work show up here.');
   const list = oneClass(tree, 'ou-inbox-list');
-  assert.equal(descendants(list).filter(n => n?.type === empty[0].type).length, 0);
+  assert.ok(descendants(list).includes(emptyStates[0]));
+  assert.doesNotMatch(renderToStaticMarkup(oneClass(tree, 'ou-ipane')), /Nothing is waiting on you\./);
   assert.equal((renderToStaticMarkup(tree).match(/Nothing is waiting on you\./g) || []).length, 1);
-  assert.doesNotMatch(renderToStaticMarkup(list), /Nothing is waiting on you\.|Nothing here\./);
 });
 
 test('1720c8e3 Home agent header puts the state right after the project and ui.css draws a middle dot between them', (t) => {

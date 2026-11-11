@@ -140,7 +140,7 @@ beforeEach(async () => {
     document: { documentElement: { style: {} }, getElementById: () => ({ hidden: false }) },
   });
   g.needsCount = () => g.waitingAll().length + g.ui.snap.approvals.length + g.ui.snap.needs_you.filter((n: any) => !n.read_at && !g.isInfo(n)).length;
-  settingsStore.set({ data, section: 'general' }); inboxStore.set({ filter: 'all', selectedId: null });
+  settingsStore.set({ data, section: 'general' }); inboxStore.set({ filter: 'all', selectedId: null, collapsed: [] });
   g.ui.view = 'wall'; await drawAddons(); g.ui.view = 'home';
 });
 
@@ -234,45 +234,42 @@ test('lent sites belong only to the current project and Remove revokes that orig
   data.browser.lent.p1 = []; assert.match(h.html(), />None</); assert.equal(h.all(label('Remove')).length, 0);
 });
 
-test('Inbox renders filter chips, group counts, answer, loop, lending and read actions', () => {
+test('Inbox renders group heads, approvals, loop, lending and read actions', () => {
   g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2' })];
   g.ui.snap.approvals = [{ summary: 'Synthetic approval' }];
   g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s-loop' }), note('lend', 'other', { ref: 'lend:p1 https://alpha.example' }), note('done', 'done'), note('failed', 'failed', { read_at: 'read' })];
   const h = harness(Inbox); const html = h.html();
-  assert.deepEqual(h.all(hasClass('ou-ifilters-chip')).map(textContent), ['All', 'Needs you', 'Finished', 'Failed']);
-  assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Needs your answer 1', 'Notices 4']);
-  for (const text of ['Synthetic approval', 'Beta']) assert.ok(html.includes(text), text);
+  assert.deepEqual(h.all(hasClass('ou-ny-ghead')).map(textContent), ['Needs your answer4', 'Working0', 'In review0', 'Failed1', 'Done1']);
+  assert.ok(html.includes('Synthetic approval'));
   assert.match(html, /data-action="pick" data-id="ask"/);
-  const loops = h.all(action('loop-choose'));
-  assert.deepEqual(loops.map(n => [n.props['data-id'], n.props['data-choice']]), [['s-loop', 'pause'], ['s-loop', 'try-another-way'], ['s-loop', 'not-a-loop']]);
-  assert.equal(h.one(action('lend-set')).props['data-project'], 'p1'); assert.equal(h.one(action('lend-set')).props['data-origin'], 'https://alpha.example');
-  assert.equal(h.one(action('dismiss')).props['data-id'], 'lend');
   assert.deepEqual(h.all(action('inbox-read')).map(n => n.props['data-id']), ['loop', 'lend', 'done']);
   assert.equal(h.one(action('inbox-unread')).props['data-id'], 'failed');
-  for (const [name, count] of [['All', 6], ['Needs you', 4], ['Finished', 1], ['Failed', 1]] as const) {
-    h.one((n: any) => hasClass('ou-ifilters-chip')(n) && textContent(n) === name).props.onClick(); h.draw();
-    assert.equal(h.all(hasClass('ou-irow')).length + h.all(hasClass('igates')).length, count, name);
-  }
+  assert.equal(h.all(action('loop-choose')).length, 0);
+  inboxStore.set({ selectedId: 'loop' }); h.draw();
+  assert.deepEqual(h.all(action('loop-choose')).map(n => [n.props['data-id'], n.props['data-choice']]), [['s-loop', 'pause'], ['s-loop', 'try-another-way'], ['s-loop', 'not-a-loop']]);
+  inboxStore.set({ selectedId: 'lend' }); h.draw();
+  assert.equal(h.one(action('lend-set')).props['data-project'], 'p1'); assert.equal(h.one(action('lend-set')).props['data-origin'], 'https://alpha.example');
+  assert.equal(h.one((n: any) => action('dismiss')(n) && n.props.label === 'No').props['data-id'], 'lend');
+  inboxStore.set({ selectedId: 'ask' }); assert.ok(h.html().includes('Beta'));
+  h.one((n: any) => hasClass('ou-ny-ghead')(n) && n.props['data-group'] === 'needs').props.onClick(); h.draw();
+  assert.deepEqual(h.all(hasClass('ou-irow')).map(n => n.props['data-id']), ['failed', 'done']); assert.equal(h.all(hasClass('igates')).length, 0);
 });
 
-for (const [filter, visible, absent] of [['needs', 'Note question', 'Note done'], ['done', 'Note done', 'Note failed'], ['failed', 'Note failed', 'Note question']] as const) test('Inbox filter ' + filter + ' changes visible notes', () => {
+for (const [group, hidden, shown] of [['needs', 'Note question', 'Note done'], ['done', 'Note done', 'Note failed'], ['failed', 'Note failed', 'Note question']] as const) test('Inbox folding ' + group + ' hides only its notes', () => {
   g.ui.view = 'inbox'; g.ui.snap.needs_you = [note('question', 'question'), note('done', 'done'), note('failed', 'failed')];
-  const h = harness(Inbox); h.draw(); h.one((n: any) => hasClass('ou-ifilters-chip')(n) && textContent(n) === ({ needs: 'Needs you', done: 'Finished', failed: 'Failed' }[filter])).props.onClick();
-  const html = h.html(); assert.ok(html.includes(visible)); assert.ok(!html.includes(absent));
+  const h = harness(Inbox); h.draw(); h.one((n: any) => hasClass('ou-ny-ghead')(n) && n.props['data-group'] === group).props.onClick();
+  const html = h.html(); assert.ok(!html.includes(hidden)); assert.ok(html.includes(shown));
 });
 
-test('Inbox is empty when hidden and shows one empty message in the detail pane', () => {
-  // Keep one empty message in the detail pane and all four list filters available.
+test('Inbox is empty when hidden and shows one empty message in the list', () => {
   const h = harness(Inbox); assert.equal(h.html(), ''); g.ui.view = 'inbox';
   const html = h.html();
   assert.equal((html.match(/Nothing is waiting on you\./g) || []).length, 1);
   const empty = h.all((n: any) => n.props.title === 'Nothing is waiting on you.');
   assert.equal(empty.length, 1);
-  assert.equal(h.all((n: any) => n.type === empty[0].type).length, 1);
-  assert.match(renderToStaticMarkup(h.one(hasClass('ou-ipane-empty'))), /Nothing is waiting on you\./);
-  assert.doesNotMatch(renderToStaticMarkup(h.one(hasClass('ou-inbox-list'))), /Nothing is waiting on you\.|Nothing here\./);
-  assert.deepEqual(h.all(hasClass('ou-ifilters-chip')).map(textContent), ['All', 'Needs you', 'Finished', 'Failed']);
-  assert.deepEqual(h.all(hasClass('ou-ifilters-zero')).map(textContent), ['Needs you', 'Finished', 'Failed']);
+  assert.match(renderToStaticMarkup(h.one(hasClass('ou-inbox-list'))), /Nothing is waiting on you\./);
+  assert.equal(h.one(hasClass('ou-ipane')).props['data-state'], 'empty');
+  assert.equal(h.all(hasClass('ou-ny-ghead')).length, 0);
 });
 
 test('Add-ons renders readiness fallbacks, installs, provenance and plugin permissions', () => {
@@ -518,34 +515,30 @@ test('settingsPage returns every literal PAGE_KEYS default independently of curr
   assert.deepEqual(Object.keys(defaults).sort(), Array.from(pageKeys).sort());
 });
 
-test('Inbox groups, columns, chips, glyphs, unread state and notice order match the contract', () => {
+test('Inbox groups, two-line rows, state rings, unread state and notice order match the contract', () => {
   g.ui.view = 'inbox'; g.ui.snap.live = [session('ask', 'waiting_for_you', { project_id: 'p2', engine_id: 'engine-b', last_line: 'Choose a fixture' })];
   g.ui.snap.needs_you = [note('read-info', 'other', { read_at: 'read' }), note('unread-info', 'other'), note('read-needs', 'question', { read_at: 'read' }), note('unread-done', 'done'), note('unread-failed', 'failed'), note('unread-needs', 'question'), note('read-done', 'done', { read_at: 'read' }), note('read-failed', 'failed', { read_at: 'read' })];
   const h = harness(Inbox); const html = h.html();
-  assert.match(html, /<header class="ou-inbox-head">Needs you<\/header>/);
-  assert.equal(h.one(hasClass('ou-list')).type, 'ul');
-  assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Needs your answer 1', 'Notices 8']);
-  for (const head of h.all(hasClass('ou-ihead'))) {
-    assert.equal(head.type, 'li'); assert.equal(head.props['data-action'], undefined); assert.equal(head.props.tabIndex, undefined);
-    assert.match(renderToStaticMarkup(head), /<i>[18]<\/i>/);
-  }
+  assert.match(html, /<h1 class="ou-ny-title">Needs you<\/h1>/);
+  assert.deepEqual(h.all(hasClass('ou-ny-ghead')).map(textContent), ['Needs your answer3', 'Working0', 'In review0', 'Failed2', 'Done4']);
+  for (const head of h.all(hasClass('ou-ny-ghead'))) { assert.equal(head.props.role, 'button'); assert.equal(head.props['data-action'], undefined); }
   const rows = h.all(hasClass('ou-irow'));
-  assert.deepEqual(rows.map(n => n.props['data-id']), ['ask', 'unread-needs', 'unread-failed', 'unread-done', 'unread-info', 'read-needs', 'read-failed', 'read-done', 'read-info']);
-  assert.deepEqual(rows.map(n => hasClass('ou-unread')(n)), [true, true, true, true, true, false, false, false, false]);
+  assert.deepEqual(rows.map(n => n.props['data-id']), ['ask', 'unread-needs', 'read-needs', 'unread-failed', 'read-failed', 'unread-info', 'unread-done', 'read-info', 'read-done']);
+  assert.deepEqual(rows.map(n => hasClass('ou-unread')(n)), [true, true, false, true, false, true, true, false, false]);
   assert.ok(rows.every(n => n.type === 'li' && n.props.role === 'button' && n.props.tabIndex === 0));
-  assert.deepEqual(h.all((n: any) => n.type === 'svg' && n.props['aria-label']).map(n => n.props['aria-label']), ['Needs you', 'Failed', 'Finished', 'For your information', 'Needs you', 'Failed', 'Finished', 'For your information']);
-  assert.deepEqual(h.all(hasClass('ou-iwho')).map(textContent), ['', '', '', '', '', '', '', '']);
-  const list = harness(function Screen() { return h.one(hasClass('ou-inbox-list')); }); list.draw();
-  assert.deepEqual(list.all(hasClass('ou-ah-proj')).map(textContent), ['engine-b']); assert.deepEqual(list.all(hasClass('ou-ah-name')).map(textContent), ['Task ask']); assert.deepEqual(list.all(hasClass('ou-ah-state')).map(textContent), ['waiting_for_you']);
-  assert.equal(list.one(hasClass('ou-ah-tile')).props['data-mono'], 'EN'); assert.equal(list.one(hasClass('ou-ah')).props['data-state'], 'waiting_for_you');
-  assert.deepEqual(h.all(hasClass('ou-chip')).map(textContent), ['question', 'failed', 'done', 'other', 'question', 'failed', 'done', 'other']);
-  assert.equal(h.all(hasClass('ou-ititle')).length, 8); assert.equal(h.all(hasClass('ou-imeta')).length, 9);
-  assert.deepEqual(h.all(hasClass('ou-itime')).map(textContent), ['1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago', '1m ago']);
-  assert.equal(h.one(label('Answer')).props.placeholder, 'Type your answer, Enter sends');
-  assert.equal(h.one(label('Send')).props.variant, 'primary');
-  g.ui.snap.live = []; h.draw(); assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Notices 8']);
-  g.ui.snap.needs_you = []; g.ui.snap.live = [session('ask', 'waiting_for_you')]; h.draw(); assert.deepEqual(h.all(hasClass('ou-ihead')).map(textContent), ['Needs your answer 1']);
-  g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ihead')).length, 0);
+  assert.deepEqual(h.all((n: any) => n.type?.name === 'StatusRing').map(n => n.props.status), ['needs', 'needs', 'needs', 'failed', 'failed', 'done', 'done', 'done', 'done']);
+  assert.match(html, /aria-label="Needs you"[^]*aria-label="Failed"[^]*aria-label="Finished"/);
+  const subs = h.all(hasClass('ou-ny-row-sub')).map(textContent);
+  assert.equal(subs[0], 'engine-b asked a question'); assert.deepEqual(subs.slice(1, 4), ['Asked a question', 'Asked a question', 'Failed']);
+  assert.equal(h.all(hasClass('ou-ititle')).length, 9);
+  assert.deepEqual(h.all(hasClass('ou-ny-row-age')).map(textContent), Array(9).fill('1m ago'));
+  inboxStore.set({ selectedId: 'ask' }); h.draw();
+  const field = h.one((n: any) => n.props.label === 'Answer' && 'value' in n.props);
+  assert.equal(field.props.isDisabled, true); assert.equal(field.props.placeholder, 'Answer from its own project');
+  assert.equal(h.one(label('Send')).props.size, 'sm');
+  g.ui.snap.live = []; h.draw(); assert.deepEqual(h.all(hasClass('ou-ny-ghead')).map(textContent), ['Needs your answer2', 'Working0', 'In review0', 'Failed2', 'Done4']);
+  g.ui.snap.needs_you = []; g.ui.snap.live = [session('ask', 'waiting_for_you')]; h.draw(); assert.equal(textContent(h.all(hasClass('ou-ny-ghead'))[0]), 'Needs your answer1');
+  g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ny-ghead')).length, 0);
 });
 
 test('Home puts Answer in the waiting agent card and renders literal card anatomy', () => {
@@ -861,12 +854,13 @@ function declaration(name: string) {
   throw new Error('Could not slice ' + name);
 }
 
-test('Inbox Needs you filter and loop-choose action through real app onClick', async () => {
+test('Inbox keeps a loop note under Needs your answer and its loop-choose action works through real app onClick', async () => {
   g.ui.view = 'inbox';
   g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s-loop' }), note('plain', 'other')];
   const h = harness(Inbox);
   h.draw();
-  h.one((n: any) => hasClass('ou-ifilters-chip')(n) && textContent(n) === 'Needs you').props.onClick();
+  h.one((n: any) => hasClass('ou-ny-ghead')(n) && n.props['data-group'] === 'done').props.onClick();
+  inboxStore.set({ selectedId: 'loop' });
   const html = h.html();
   assert.ok(html.includes('Note loop'));
   assert.ok(!html.includes('Note plain'));

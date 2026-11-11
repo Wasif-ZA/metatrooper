@@ -59,7 +59,7 @@ const cssRule = (css: string, selector: string) => {
 function screen(Component: any) {
   const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
   const previous = internals.H;
-  internals.H = { useSyncExternalStore: (_: any, get: any) => get() };
+  internals.H = { useSyncExternalStore: (_: any, get: any) => get(), useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}], useEffect: () => {} };
   try { return Component(); } finally { internals.H = previous; }
 }
 const children = (node: any): any[] => [node?.props?.children].flat(Infinity).filter(n => n != null && typeof n !== 'boolean');
@@ -151,24 +151,19 @@ test('38dabe15 Wall strip tabs and links retain pill styling and data-action tar
   }
 });
 
-test('cd33aaec Needs you puts the detail header first and key hints in a footer below the rows', (t) => {
-  // Keep the detail heading and keyboard footer outside the list rows in every selection state.
+test('cd33aaec Needs you puts the step and action bar first in the detail pane and keeps the list free of footers', (t) => {
   const ui = uiGlobals(t);
-  for (const [kind, expected] of [['empty', 'Details'], ['ask', 'Agent'], ['notice', 'Notice']]) {
+  for (const kind of ['ask', 'notice']) {
     ui.snap.live = kind === 'ask' ? [{ id: 's1', project_id: 'p1', engine_id: 'claude', title: 'Question', state: 'waiting_for_you' }] : [];
     ui.snap.needs_you = kind === 'notice' ? [{ id: 'n1', kind: 'done', text: 'Finished' }] : [];
-    inboxStore.set({ filter: 'all', selectedId: null });
+    inboxStore.set({ filter: 'all', selectedId: kind === 'ask' ? 's1' : 'n1', collapsed: [] });
     const tree = screen(Inbox); const pane = oneClass(tree, 'ou-ipane');
-    const head = oneClass(tree, 'ou-inbox-detail-head');
-    assert.equal(children(pane)[0], head); assert.equal(head.props.children, expected);
-    const list = oneClass(tree, 'ou-inbox-list'); const footer = oneClass(tree, 'ou-inbox-footer');
-    assert.equal(footer.type, 'footer'); assert.equal(footer.props.className, 'ou-keys ou-inbox-footer');
-    assert.equal(children(list).at(-1), footer);
-    assert.deepEqual(children(footer).filter(n => React.isValidElement(n)).map(n => n.props.keys), ['J', 'K', 'Enter']);
-    assert.deepEqual(children(footer).filter(n => typeof n === 'string'), [' move ', ' open']);
-    const rows = descendants(list).filter(n => n.type === 'ul' || n.type === 'li');
-    assert.equal(rows.some(n => descendants(n).includes(footer)), false);
-    if (kind !== 'empty') assert.equal(rows.filter(n => hasClass(n, 'ou-irow')).length, 1);
+    const classed = descendants(pane).filter(n => typeof n?.props?.className === 'string');
+    assert.equal(classed[0], pane); assert.equal(hasClass(classed[1], 'ou-ny-bar'), true);
+    assert.deepEqual(children(classed[1]).slice(0, 2).map(n => n.props.label), ['Previous item', 'Next item']);
+    const list = oneClass(tree, 'ou-inbox-list');
+    assert.equal(descendants(list).filter(n => n.type === 'footer').length, 0);
+    assert.equal(descendants(list).filter(n => hasClass(n, 'ou-irow')).length, 1);
   }
 });
 

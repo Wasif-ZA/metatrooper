@@ -210,9 +210,9 @@ test('G1: Reliability page shows the False alarms so far value from data.reliabi
   assert.match(html, /False alarms so far[\s\S]*?<span class="ou-value">2<\/span>/);
 });
 
-test('G3: Inbox needs filter keeps loop note and hides ordinary other note, and onClick sends loop.choose', async () => {
+test('G3: Inbox keeps a loop note under Needs your answer, folding Done hides the ordinary other note, and onClick sends loop.choose', async () => {
   g.ui.view = 'inbox';
-  inboxStore.set({ filter: 'needs' });
+  inboxStore.set({ collapsed: ['done'], selectedId: null });
   g.ui.snap.needs_you = [
     { id: 'loop-1', kind: 'other', ref: 'loop:sess-1', text: 'Loop detected on session' },
     { id: 'other-1', kind: 'other', text: 'Ordinary informational other note' },
