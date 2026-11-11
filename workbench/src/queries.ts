@@ -22,13 +22,14 @@ export function withContext(snap: Snapshot, dir: string): Snapshot {
 export type Light = 'green' | 'grey' | 'red';
 
 export type Monitor = { automation_id: string; name: string; last_outcome: 'ok' | 'fail' | null } | null;
+export type Review = { kind: 'reviewer' | 'approver'; who: string; state: 'pending' | 'passed' | 'failed'; note: string | null; review_session_id: string | null };
 
 export interface Snapshot {
   at: number;
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; monitor: Monitor; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; monitor: Monitor; reviews: Review[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
   /** Live desktop grants (M6-15). */
@@ -37,7 +38,7 @@ export interface Snapshot {
   paused?: string[];
   /** Sessions whose agent asked for a take-over (D62). */
   takeover_requests?: Record<string, { at: string; reason: string }>;
-  live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; prompt: string | null; labels: string[]; monitor: Monitor }>;
+  live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; prompt: string | null; labels: string[]; monitor: Monitor; reviews: Review[] }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
@@ -145,6 +146,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const monitor = (ref: string) => hasMonitor
     ? `(SELECT json_object('automation_id', a.id, 'name', a.name, 'last_outcome', (SELECT CASE r.outcome WHEN 'skip' THEN 'ok' ELSE 'fail' END FROM automation_run r WHERE r.automation_id = a.id AND r.outcome != 'missed' ORDER BY julianday(r.at) DESC, r.id DESC LIMIT 1)) FROM session_monitor m JOIN automation a ON a.id = m.automation_id WHERE m.session_id = ${ref}) AS monitor`
     : 'NULL AS monitor';
+  const hasReviews = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_review'").get());
+  const reviews = (alias: string) => hasReviews
+    ? `(SELECT json_group_array(json_object('kind', r.kind, 'who', r.who, 'state', r.state, 'note', r.note, 'review_session_id', r.review_session_id)) FROM (SELECT * FROM session_review r WHERE r.session_id = ${alias}.id ORDER BY r.kind DESC, r.who) r) AS reviews`
+    : "'[]' AS reviews";
   const hasEst = (db.prepare('PRAGMA table_info(usage)').all() as Array<{ name: string }>).some((c) => c.name === 'usd_estimated');
   const est = hasEst ? '(SELECT COALESCE(MAX(usd_estimated), 0) FROM usage u WHERE u.session_id = s.id) AS usd_estimated' : '0 AS usd_estimated';
   const sessions = projectId
@@ -152,10 +157,10 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
         `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, ${outcome}, ${prompt}, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${parent}, ${resume}, ${reason},
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
-           ${est}, ${labels}, ${monitor('s.id')},
+           ${est}, ${labels}, ${monitor('s.id')}, ${reviews('s')},
            (SELECT json_extract(e.payload, '$.from') FROM event e WHERE e.session_id = s.id AND e.kind = 'core.resumed' LIMIT 1) AS resumed_from
          FROM session s WHERE s.project_id = ? AND s.hidden = 0 ORDER BY julianday(s.started_at) DESC LIMIT 50`,
-      ).all(projectId) as Array<Omit<Snapshot['sessions'][number], 'labels' | 'monitor'> & { labels: string; monitor: string | null }>).map((row) => ({ ...row, labels: JSON.parse(row.labels) as string[], monitor: JSON.parse(row.monitor ?? 'null') as Monitor }))
+      ).all(projectId) as Array<Omit<Snapshot['sessions'][number], 'labels' | 'monitor' | 'reviews'> & { labels: string; monitor: string | null; reviews: string }>).map((row) => ({ ...row, labels: JSON.parse(row.labels) as string[], monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[] }))
     : [];
 
   const panes = projectId
@@ -200,7 +205,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     grants,
     paused,
     takeover_requests,
-    live: (db.prepare(`SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line, ${cols.has('prompt') ? 'prompt' : 'NULL AS prompt'}, ${hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = session.id ORDER BY name))' : "'[]'"} AS labels, ${monitor('session.id')} FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC`).all() as Array<Omit<Snapshot['live'][number], 'labels' | 'monitor'> & { labels: string; monitor: string | null }>).map((row) => ({ ...row, labels: JSON.parse(row.labels) as string[], monitor: JSON.parse(row.monitor ?? 'null') as Monitor })),
+    live: (db.prepare(`SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line, ${cols.has('prompt') ? 'prompt' : 'NULL AS prompt'}, ${hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = session.id ORDER BY name))' : "'[]'"} AS labels, ${monitor('session.id')}, ${reviews('session')} FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC`).all() as Array<Omit<Snapshot['live'][number], 'labels' | 'monitor' | 'reviews'> & { labels: string; monitor: string | null; reviews: string }>).map((row) => ({ ...row, labels: JSON.parse(row.labels) as string[], monitor: JSON.parse(row.monitor ?? 'null') as Monitor, reviews: JSON.parse(row.reviews) as Review[] })),
     panes,
     dev_servers,
     snapshots,

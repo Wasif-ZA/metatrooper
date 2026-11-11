@@ -85,6 +85,17 @@ CREATE TABLE session_label (
   PRIMARY KEY (session_id, name)
 );
 
+CREATE TABLE session_review (
+  session_id TEXT NOT NULL REFERENCES session(id),
+  kind TEXT NOT NULL CHECK (kind IN ('reviewer','approver')),
+  who TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','passed','failed')),
+  note TEXT,
+  review_session_id TEXT REFERENCES session(id),
+  at TEXT NOT NULL,
+  PRIMARY KEY (session_id, kind, who)
+);
+
 CREATE TABLE session_state_log (
   session_id TEXT NOT NULL REFERENCES session(id),
   at TEXT NOT NULL,

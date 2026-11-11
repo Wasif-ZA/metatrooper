@@ -39,6 +39,7 @@ import { sha256File } from './automations.ts';
 import { Desktop } from './desktop/driver.ts';
 import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
+import { decide, setReviewers } from './reviews.ts';
 
 function str(p: Record<string, unknown>, key: string, required = true): string {
   const v = p[key];
@@ -100,6 +101,9 @@ export const METHODS: MethodDecl[] = [
   { name: 'session.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, labels: string[]}', result: '{labels}' },
   { name: 'labels.list', errors: [E.INVALID_PARAMS], params: '{project_id}', result: '{labels: [{name, count}]}' },
   { name: 'session.monitor-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, automation_id | null}', result: '{ok: true}: links the automation check to the session (null unlinks); a failed run of it is sent into the session, or once the session has exited, starts one follow-up child session' },
+  { name: 'session.reviewers-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, reviewers: string[], approvers: string[]}', result: '{ok: true}; reviewers are engine ids, the only approver is "you"; a reviewer or approver already set keeps its state. When the session exits ok, each reviewer engine reviews its changes in a child session (parent_id = the session, same folder) and its last line VERDICT: PASS or FAIL sets the review passed or failed with a note; a child that exits without one fails with note "no verdict"' },
+  { name: 'session.approve', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, note?}', result: '{ok: true}; marks the "you" approver passed; -32002 when the session has no approver' },
+  { name: 'session.reject', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{session_id, note}', result: '{ok: true}; marks the "you" approver failed with `note` (required) and raises a failed Needs you row; -32002 when the session has no approver' },
   { name: 'session.send', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id, text}', result: '{sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you`' },
   { name: 'session.paste-prompt', errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{session_id}', result: '{written, reason?}: types the held prompt once; refused for an `external` session' },
   { name: 'needs_you.mark-read', errors: [E.NOT_FOUND], params: '{id}', result: '{}' },
@@ -626,6 +630,9 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       return { ok: true };
     },
   });
+  m.set('session.reviewers-set', { handler: (p) => setReviewers(db, str(p, 'session_id'), p.reviewers, p.approvers) });
+  m.set('session.approve', { handler: (p) => decide(db, str(p, 'session_id'), true, p.note) });
+  m.set('session.reject', { handler: (p) => decide(db, str(p, 'session_id'), false, p.note) });
 
   m.set('session.send', {
     handler: (p) => {

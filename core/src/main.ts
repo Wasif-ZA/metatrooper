@@ -16,6 +16,7 @@ import { CommandRunner } from './pipe/commands.ts';
 import { startPipeServer, type PipeReady } from './pipe/server.ts';
 import { PipeClient } from './pipe/client.ts';
 import { automationTick, realDeps } from './automations.ts';
+import { realReviewDeps, reviewTick } from './reviews.ts';
 import { buildMethods } from './methods.ts';
 import { activeEngines, getEngine, loadEngines, syncEngines } from './engines/registry.ts';
 import { checkAll } from './engines/health.ts';
@@ -161,6 +162,8 @@ async function main(): Promise<void> {
     },
   };
   every(15_000, () => automationTick(db, autoDeps));
+  const reviewDeps = realReviewDeps(db);
+  every(2000, () => reviewTick(db, reviewDeps));
   every(5000, () => checkPids(db));
   every(5000, () => checkStalled(db));
   every(5000, () => checkHeldStops(db));
