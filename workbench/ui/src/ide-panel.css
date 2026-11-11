@@ -1,5 +1,6 @@
 .ou-ide-panel { height: 240px; }
 .ou-ide-phead { height: 35px; padding: 0 8px 0 12px; }
+.ou-ide-phead > :first-child, .ou-ide-phead > :first-child * { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
 .ou-ide-folded .ou-ide-panel { height: 35px; }
 .ou-ip-acts { display: flex; align-items: center; gap: 2px; }
 

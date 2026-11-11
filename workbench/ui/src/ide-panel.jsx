@@ -39,15 +39,17 @@ function make(pid) {
     if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
     const k = e.key.toLowerCase();
     if (k === 'c' && (e.shiftKey || term.hasSelection())) { void troop.copyText(term.getSelection()); term.clearSelection(); return false; }
-    if (k === 'v') { e.preventDefault(); void troop.readText().then((s) => { if (s) term.paste(s); }); return false; }
-    return true;
+    if (k === 'v' && !e.shiftKey) { e.preventDefault(); void troop.readText().then((s) => { if (s) term.paste(s); }); return false; }
+    // false lets the chord bubble to the app's own shortcuts instead of reaching the shell
+    return !(e.shiftKey ? 'pfgv'.includes(k) : 'pkgbsw,'.includes(k));
   });
   return t;
 }
 
 async function connect(t) {
   listen();
-  const kind = (ui.shellKinds || [])[0]?.kind;
+  if (!ui.shellKinds?.length) ui.shellKinds = (await rpc('shell.list', {}, true)).result?.shells || [];
+  const kind = ui.shellKinds[0]?.kind;
   const r = kind ? await rpc('shell.open', { project_id: t.pid, kind }, true) : null;
   if (!r?.result) {
     t.gone = true;
@@ -59,8 +61,11 @@ async function connect(t) {
   try { t.fit.fit(); } catch {}
   t.cols = t.term.cols;
   t.rows = t.term.rows;
-  void troop.termAttach(t.id, t.cols, t.rows);
+  const a = await troop.termAttach(t.id, t.cols, t.rows);
+  if (a?.windows_build) t.term.options.windowsPty = { backend: 'conpty', buildNumber: a.windows_build };
 }
+
+globalThis.addEventListener?.('beforeunload', () => { for (const pid of [...shells.keys()]) closeShell(pid); });
 
 function refit(t) {
   if (!t.el.isConnected || !t.el.offsetHeight) return;
