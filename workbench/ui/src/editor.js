@@ -22,6 +22,14 @@ class Doc {
 
 export const editorState = (text, path, on) => new Doc(text, path, on);
 
+let preloaded = false;
+// Once per session, after the Editor screen's next frame, when the renderer is idle.
+export function preloadMonaco() {
+  if (preloaded || loading || typeof requestIdleCallback !== 'function') return;
+  preloaded = true;
+  requestAnimationFrame(() => requestIdleCallback(() => { if (!loading) loadMonaco().catch(() => {}); }));
+}
+
 export function loadMonaco() {
   return loading ||= new Promise((resolve, reject) => {
     // getWorker, not getWorkerUrl: the URL path wraps workers in blob: URLs, which the page CSP refuses

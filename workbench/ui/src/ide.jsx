@@ -16,7 +16,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { editorState, openEditor, openDiff, patchSides } from './editor.js';
+import { editorState, openEditor, openDiff, patchSides, preloadMonaco } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 import { AgentHead } from './agenthead.jsx';
 import { paletteView } from './palette.jsx';
@@ -64,6 +64,7 @@ export async function drawIde() {
   const host = document.getElementById('ide');
   if (host) host.hidden = !ideShown();
   if (!ideShown()) return;
+  preloadMonaco();
   if (cur && cur.pid === ui.projectId) {
     const sig = JSON.stringify(ui.snap.git || {});
     if (cur.sig !== undefined && cur.sig !== sig) void refresh(cur, cur.gitSnap, ui.snap.git || {});
