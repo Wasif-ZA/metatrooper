@@ -73,7 +73,8 @@ CREATE TABLE session (
   browser_grant TEXT,                          -- the browser tool preset (look, act or debug) the session may use; null: every tool (M7-1)
   started_at    TEXT NOT NULL,
   ended_at      TEXT,
-  outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')) -- set when the session exits
+  outcome       TEXT CHECK (outcome IN ('succeeded','failed','cancelled')), -- set when the session exits
+  prompt        TEXT
 );
 CREATE INDEX session_project_idx ON session (project_id, started_at);
 CREATE INDEX session_native_idx  ON session (native_id);

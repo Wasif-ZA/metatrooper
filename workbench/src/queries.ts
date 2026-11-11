@@ -26,7 +26,7 @@ export interface Snapshot {
   core: { online: boolean; pid: number | null; heartbeat_age_ms: number | null };
   projects: Array<{ id: string; name: string; path: string; last_opened: string; older: number }>;
   engines: Array<{ id: string; light: Light; version: string | null; auth: string | null; checked_at: string | null; plugin_id: string | null; roles: string[]; resumable: boolean; detail: string | null; fix: string | null; install: string | null; login: string | null }>;
-  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
+  sessions: Array<{ id: string; engine_id: string; driven_engine: string | null; host: string; state: string; outcome: string | null; prompt: string | null; state_at: string; last_tool: string | null; cwd: string | null; title: string | null; last_line: string | null; native_id: string | null; run_id: string | null; step_id: string | null; started_at: string; limit_resume: number; reason: string | null; tokens: number | null; usd: number | null; usd_estimated: number; resumed_from: string | null; parent_id: string | null; labels: string[]; ctx_pct?: number | null; colour?: string; branch?: string | null }>;
   needs_you: Array<{ id: string; at: string; kind: string; ref: string | null; text: string; read_at: string | null }>;
   approvals: Array<{ id: string; session_id: string; summary: string; reason: string; created_at: string }>;
   /** Live desktop grants (M6-15). */
@@ -35,7 +35,7 @@ export interface Snapshot {
   paused?: string[];
   /** Sessions whose agent asked for a take-over (D62). */
   takeover_requests?: Record<string, { at: string; reason: string }>;
-  live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; labels: string[] }>;
+  live: Array<{ id: string; project_id: string; engine_id: string; state: string; state_at: string; title: string | null; cwd: string | null; step_id: string | null; started_at: string; last_line: string | null; prompt: string | null; labels: string[] }>;
   panes: Array<{ id: string; url: string | null; session_id: string | null; dev_port: number | null }>;
   dev_servers: Array<{ id: string; session_id: string; port: number; url: string; matched_by: string }>;
   snapshots: Array<{ id: string; pane_id: string; label: string; url: string; taken_at: string; w390_path: string | null; w1280_path: string | null }>;
@@ -135,6 +135,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const resume = cols.has('limit_resume') ? 's.limit_resume' : '1 AS limit_resume';
   const reason = cols.has('wait_reason') ? 's.wait_reason AS reason' : 'NULL AS reason';
   const outcome = cols.has('outcome') ? 's.outcome' : 'NULL AS outcome';
+  const prompt = cols.has('prompt') ? 's.prompt' : 'NULL AS prompt';
   const parent = cols.has('parent_id') ? 's.parent_id' : 'NULL AS parent_id';
   const hasLabels = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_label'").get());
   const labels = hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = s.id ORDER BY name)) AS labels' : "'[]' AS labels";
@@ -142,7 +143,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
   const est = hasEst ? '(SELECT COALESCE(MAX(usd_estimated), 0) FROM usage u WHERE u.session_id = s.id) AS usd_estimated' : '0 AS usd_estimated';
   const sessions = projectId
     ? (db.prepare(
-        `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, ${outcome}, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${parent}, ${resume}, ${reason},
+        `SELECT s.id, s.engine_id, ${driven}, s.host, s.state, ${outcome}, ${prompt}, s.state_at, s.last_tool, s.cwd, s.title, s.last_line, s.native_id, s.run_id, s.step_id, s.started_at, ${parent}, ${resume}, ${reason},
            (SELECT SUM(COALESCE(tokens_in,0) + COALESCE(tokens_out,0) + COALESCE(cache_read,0) + COALESCE(cache_write,0)) FROM usage u WHERE u.session_id = s.id) AS tokens,
            (SELECT CASE WHEN COUNT(*) = COUNT(usd) THEN SUM(usd) END FROM usage u WHERE u.session_id = s.id) AS usd,
            ${est}, ${labels},
@@ -193,7 +194,7 @@ export function snapshot(db: DatabaseSync, projectId: string | null, now = Date.
     grants,
     paused,
     takeover_requests,
-    live: (db.prepare(`SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line, ${hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = session.id ORDER BY name))' : "'[]'"} AS labels FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC`).all() as Array<Omit<Snapshot['live'][number], 'labels'> & { labels: string }>).map((row) => ({ ...row, labels: JSON.parse(row.labels) as string[] })),
+    live: (db.prepare(`SELECT id, project_id, engine_id, state, state_at, title, cwd, step_id, started_at, last_line, ${cols.has('prompt') ? 'prompt' : 'NULL AS prompt'}, ${hasLabels ? '(SELECT json_group_array(name) FROM (SELECT name FROM session_label l WHERE l.session_id = session.id ORDER BY name))' : "'[]'"} AS labels FROM session WHERE hidden = 0 AND state IN ('working', 'waiting_for_you') ORDER BY julianday(started_at) DESC`).all() as Array<Omit<Snapshot['live'][number], 'labels'> & { labels: string }>).map((row) => ({ ...row, labels: JSON.parse(row.labels) as string[] })),
     panes,
     dev_servers,
     snapshots,
