@@ -11,7 +11,8 @@ import { isPreset } from './browser/grants.ts';
 import { canonicalPath, projectId, resolveProjectPath } from './project.ts';
 import { repeatReads, saverReport, sessionUsage, usageSummary } from './usage.ts';
 import { checkStats, sessionStats } from './stats.ts';
-import { nowIso, ulid } from './time.ts';
+import { cronNext, cronWords, nowIso, ulid } from './time.ts';
+import { ensureLabels, labelList } from './labels.ts';
 import { getEngine, type EngineSpec } from './engines/registry.ts';
 import { checkAll, engineVersion } from './engines/health.ts';
 import { heldPrompts, launchSession, writePrompt } from './sessions/launch.ts';
@@ -36,7 +37,7 @@ import { sandboxRefusal } from './sandbox/checks.ts';
 import { owners, repoOf } from './sessions/owners.ts';
 import { Approvals } from './approvals.ts';
 import { auditRows } from './audit.ts';
-import { sha256File } from './automations.ts';
+import { nextDue, realDeps, runAutomationNow, sha256File, type AutomationDeps } from './automations.ts';
 import { Desktop } from './desktop/driver.ts';
 import { doneResult, runCheck } from './done-proof.ts';
 import { SESSION_STATES, onStateChange, stateChanged } from './events/state.ts';
@@ -70,10 +71,15 @@ export interface MethodDecl {
 export const METHODS: MethodDecl[] = [
   { name: 'core.ping', stable: true, params: '{}', result: '{ok: true, pid, version, protocol, schema_version, started_at}; `version` is the root `package.json` version, `protocol` is 1 (D63); never queued' },
   { name: 'settings.set', needsUi: true, errors: [E.INVALID_PARAMS, E.VALIDATION], params: '{key, value}', result: '{}. `key` is `<section>.<name>` of a known setting and `value` has its type (-32602 otherwise). The core is the only writer of `settings.json`: it writes `settings.json.tmp-<pid>`, flushes it and renames it over the file, and refuses with -32003 "settings.json does not parse, line N" when the file is not JSON. A leftover `.tmp-*` file is deleted on start (M6-4)' },
-  { name: 'automation.set', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, name, every_min, runner: string[], script, engine_id, prompt, timeout_ms?, id?}', result: '{id}; the check script (relative to the project folder) is hashed and pinned on every save, and the core runs it every `every_min` minutes and wakes the engine only when it exits 1' },
+  { name: 'automation.set', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION, E.INVALID_PARAMS], params: '{project_id, name, engine_id, prompt, every_min?, cron?, runner?: string[], script?, timeout_ms?, icon?, labels?: string[], id?}', result: '{id, next_due}; `cron` is a 5-field local-time cron that wins over `every_min` (default 60); a non-empty `script` (relative to the project folder) is hashed and pinned on every save, run on schedule, and wakes the engine only when it exits 1; an empty script launches the engine on schedule; unknown labels are created with a default colour' },
   { name: 'automation.enable', needsUi: true, errors: [E.NOT_FOUND, E.INVALID_PARAMS], params: '{id, enabled}', result: '{}; enabling restarts the schedule from now' },
   { name: 'automation.delete', needsUi: true, errors: [E.INVALID_PARAMS], params: '{id}', result: '{}; its runs go too' },
-  { name: 'automation.list', params: '{project_id?}', result: '{automations: [{id, project_id, name, every_min, runner, script, engine_id, prompt, timeout_ms, enabled, next_due, runs: [last 8, newest first: {id, due_at, at, outcome, exit_code, detail, session_id}]}]}' },
+  { name: 'automation.list', params: '{project_id?}', result: '{automations: [{id, project_id, name, icon, cron, words, every_min, runner, script, engine_id, prompt, timeout_ms, enabled, next_due, labels: [{name, colour}], runs: [last 8, newest first: {id, due_at, at, outcome, exit_code, detail, session_id}]}]}; `words` is the schedule in words' },
+  { name: 'automation.run', needsUi: true, errors: [E.NOT_FOUND, E.VALIDATION], params: '{id}', result: '{run_id, outcome, session_id}; runs it now (check script, then the engine on exit 1, or the engine straight away when it has no script) and records an automation_run; the schedule is unchanged; -32003 when it is already running' },
+  { name: 'automation.labels-set', needsUi: true, errors: [E.INVALID_PARAMS, E.NOT_FOUND], params: '{id, names: string[]}', result: '{labels: [{name, colour}]}; replaces its labels; unknown names are created with a default colour' },
+  { name: 'label.list', params: '{}', result: '{labels: [{name, colour, count}]}; every label across sessions and automations; `count` is how many use it' },
+  { name: 'label.set', needsUi: true, errors: [E.INVALID_PARAMS], params: '{name, colour}', result: '{name, colour}; creates the label or changes its `#rrggbb` colour' },
+  { name: 'cron.next', params: '{cron, n?}', result: '{ok: true, runs: [ISO local, up to n (1-5, default 3)], words} or {ok: false, error}; the scheduler uses the same matcher' },
   { name: 'core.stop', needsUi: true, params: '{}', result: '{}; the core exits a moment after replying' },
   { name: 'account.state', params: '{}', result: '{state: "signed_out"}: the only state until the cloud milestone; nothing prompts for sign-in' },
   { name: 'project.open', stable: true, errors: [E.NOT_FOUND], params: '{path}', result: '{project_id}; any folder opens (sessions in a `sessions.ask_paths` folder start in `ask`). `project_id` = sha1 hex of the canonical path: `fs.realpathSync.native`, then the git toplevel if inside a repo (also through `realpathSync.native`), backslashes turned into forward slashes, the drive letter lower-cased, no trailing slash. Example: `C:\\Users\\wasif\\proj\\` becomes `c:/Users/wasif/proj`' },
@@ -187,6 +193,7 @@ export interface CoreControl {
   uiKey: string;
   approvalTimeoutMs?: number;
   desktop?: Desktop;
+  automationDeps?: AutomationDeps;
 }
 
 function int(p: Record<string, unknown>, key: string): number {
@@ -614,6 +621,7 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
         db.prepare('DELETE FROM session_label WHERE session_id = ?').run(id);
         const insert = db.prepare('INSERT INTO session_label (session_id, name) VALUES (?, ?)');
         for (const label of labels) insert.run(id, label);
+        ensureLabels(db, labels);
         db.exec('COMMIT');
       } catch (e) {
         db.exec('ROLLBACK');
@@ -969,44 +977,69 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('approval.check', { handler: (p) => approvals.check(p) });
   m.set('approval.resolve', { needsUi: true, handler: (p) => approvals.resolve(p) });
 
+  const labelsOf = (id: string) => db.prepare('SELECT l.name, l.colour FROM automation_label a JOIN label l ON l.name = a.name WHERE a.automation_id = ? ORDER BY l.name').all(id) as Array<{ name: string; colour: string }>;
+  const setAutomationLabels = (id: string, raw: unknown) => {
+    let names: string[];
+    try { names = labelList(raw); } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); }
+    db.prepare('DELETE FROM automation_label WHERE automation_id = ?').run(id);
+    const insert = db.prepare('INSERT INTO automation_label (automation_id, name) VALUES (?, ?)');
+    for (const name of names) insert.run(id, name);
+    ensureLabels(db, names);
+  };
   m.set('automation.set', {
     needsUi: true,
     handler: (p) => {
       const project = db.prepare('SELECT path FROM project WHERE id = ?').get(str(p, 'project_id')) as { path: string } | undefined;
       if (!project) throw new RpcError(E.NOT_FOUND, 'project not found');
       if (!db.prepare('SELECT 1 FROM engine WHERE id = ?').get(str(p, 'engine_id'))) throw new RpcError(E.NOT_FOUND, 'engine not found');
-      const runner = p.runner;
-      if (!Array.isArray(runner) || !runner.length || runner.some((r) => typeof r !== 'string' || !r)) throw new RpcError(E.VALIDATION, 'runner must be a non-empty list of strings');
-      const every = p.every_min;
+      const cron = p.cron === undefined || p.cron === null || p.cron === '' ? null : p.cron;
+      if (cron !== null) {
+        if (typeof cron !== 'string') throw new RpcError(E.VALIDATION, 'cron must be a string');
+        let next: Date | null;
+        try { next = cronNext(cron, new Date()); } catch (e) { throw new RpcError(E.VALIDATION, (e as Error).message); }
+        if (!next) throw new RpcError(E.VALIDATION, 'cron never matches');
+      }
+      const every = p.every_min ?? (cron !== null ? 60 : undefined);
       if (typeof every !== 'number' || !Number.isInteger(every) || every < 1) throw new RpcError(E.VALIDATION, 'every_min must be a whole number of at least 1');
       const timeout = p.timeout_ms ?? 60000;
       if (typeof timeout !== 'number' || !Number.isInteger(timeout) || timeout < 1000 || timeout > 600000) throw new RpcError(E.VALIDATION, 'timeout_ms must be 1000 to 600000');
-      const script = str(p, 'script');
-      const abs = path.resolve(project.path, script);
-      const rel = path.relative(project.path, abs);
-      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new RpcError(E.VALIDATION, 'script must be inside the project folder');
-      let sha: string;
-      try { sha = sha256File(abs); } catch (e) { throw new RpcError(E.VALIDATION, `script not readable: ${(e as Error).message}`); }
-      const f = [str(p, 'project_id'), str(p, 'name'), every, JSON.stringify(runner), script, sha, timeout, str(p, 'engine_id'), str(p, 'prompt')];
-      if (p.id !== undefined) {
-        const id = str(p, 'id');
-        const r = db.prepare('UPDATE automation SET project_id = ?, name = ?, every_min = ?, runner = ?, script = ?, script_sha256 = ?, timeout_ms = ?, engine_id = ?, prompt = ? WHERE id = ?').run(...f, id);
-        if (!r.changes) throw new RpcError(E.NOT_FOUND, 'automation not found');
-        return { id };
+      const icon = p.icon ?? null;
+      if (icon !== null && (typeof icon !== 'string' || icon.length > 16)) throw new RpcError(E.VALIDATION, 'icon must be a short string');
+      const script = typeof p.script === 'string' ? p.script.trim() : '';
+      const runner = p.runner ?? [];
+      if (!Array.isArray(runner) || runner.some((r) => typeof r !== 'string' || !r)) throw new RpcError(E.VALIDATION, 'runner must be a list of strings');
+      let sha = '';
+      if (script) {
+        if (!runner.length) throw new RpcError(E.VALIDATION, 'runner must be a non-empty list of strings when there is a check script');
+        const abs = path.resolve(project.path, script);
+        const rel = path.relative(project.path, abs);
+        if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new RpcError(E.VALIDATION, 'script must be inside the project folder');
+        try { sha = sha256File(abs); } catch (e) { throw new RpcError(E.VALIDATION, `script not readable: ${(e as Error).message}`); }
       }
-      const id = ulid();
-      db.prepare('INSERT INTO automation (project_id, name, every_min, runner, script, script_sha256, timeout_ms, engine_id, prompt, id, next_due, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(...f, id, nowIso(new Date(Date.now() + every * 60000)), nowIso());
-      return { id };
+      const next_due = nowIso(new Date(nextDue({ cron: cron as string | null, every_min: every }, Date.now())));
+      const f = [str(p, 'project_id'), str(p, 'name'), every, JSON.stringify(script ? runner : []), script, sha, timeout, str(p, 'engine_id'), str(p, 'prompt'), icon as string | null, cron as string | null, next_due];
+      return tx(db, () => {
+        let id: string;
+        if (p.id !== undefined) {
+          id = str(p, 'id');
+          const r = db.prepare('UPDATE automation SET project_id = ?, name = ?, every_min = ?, runner = ?, script = ?, script_sha256 = ?, timeout_ms = ?, engine_id = ?, prompt = ?, icon = ?, cron = ?, next_due = ? WHERE id = ?').run(...f, id);
+          if (!r.changes) throw new RpcError(E.NOT_FOUND, 'automation not found');
+        } else {
+          id = ulid();
+          db.prepare('INSERT INTO automation (project_id, name, every_min, runner, script, script_sha256, timeout_ms, engine_id, prompt, icon, cron, next_due, id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(...f, id, nowIso());
+        }
+        if (p.labels !== undefined) setAutomationLabels(id, p.labels);
+        return { id, next_due };
+      });
     },
   });
   m.set('automation.enable', {
     needsUi: true,
     handler: (p) => {
       if (typeof p.enabled !== 'boolean') throw new RpcError(E.INVALID_PARAMS, 'enabled must be true or false');
-      const a = db.prepare('SELECT every_min FROM automation WHERE id = ?').get(str(p, 'id')) as { every_min: number } | undefined;
+      const a = db.prepare('SELECT every_min, cron FROM automation WHERE id = ?').get(str(p, 'id')) as { every_min: number; cron: string | null } | undefined;
       if (!a) throw new RpcError(E.NOT_FOUND, 'automation not found');
-      const next = p.enabled ? nowIso(new Date(Date.now() + a.every_min * 60000)) : null;
+      const next = p.enabled ? nowIso(new Date(nextDue(a, Date.now()))) : null;
       db.prepare('UPDATE automation SET enabled = ?, next_due = COALESCE(?, next_due) WHERE id = ?').run(p.enabled ? 1 : 0, next, str(p, 'id'));
       return {};
     },
@@ -1014,9 +1047,12 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
   m.set('automation.delete', {
     needsUi: true,
     handler: (p) => {
-      db.prepare('DELETE FROM session_monitor WHERE automation_id = ?').run(str(p, 'id'));
-      db.prepare('DELETE FROM automation_run WHERE automation_id = ?').run(str(p, 'id'));
-      db.prepare('DELETE FROM automation WHERE id = ?').run(str(p, 'id'));
+      tx(db, () => {
+        db.prepare('DELETE FROM session_monitor WHERE automation_id = ?').run(str(p, 'id'));
+        db.prepare('DELETE FROM automation_run WHERE automation_id = ?').run(str(p, 'id'));
+        db.prepare('DELETE FROM automation_label WHERE automation_id = ?').run(str(p, 'id'));
+        db.prepare('DELETE FROM automation WHERE id = ?').run(str(p, 'id'));
+      });
       return {};
     },
   });
@@ -1028,10 +1064,68 @@ export function buildMethods(db: DatabaseSync, ctl: CoreControl): Map<string, Me
       const runs = db.prepare('SELECT id, due_at, at, outcome, exit_code, detail, session_id FROM automation_run WHERE automation_id = ? ORDER BY julianday(at) DESC, id DESC LIMIT 8');
       return {
         automations: rows.map((a) => ({
-          id: a.id, project_id: a.project_id, name: a.name, every_min: a.every_min, runner: JSON.parse(a.runner as string), script: a.script,
-          engine_id: a.engine_id, prompt: a.prompt, timeout_ms: a.timeout_ms, enabled: a.enabled === 1, next_due: a.next_due, runs: runs.all(a.id as string),
+          id: a.id, project_id: a.project_id, name: a.name, icon: a.icon ?? null, cron: a.cron ?? null,
+          words: a.cron ? cronWords(a.cron as string) : `Every ${a.every_min} min`, every_min: a.every_min, runner: JSON.parse(a.runner as string), script: a.script,
+          engine_id: a.engine_id, prompt: a.prompt, timeout_ms: a.timeout_ms, enabled: a.enabled === 1, next_due: a.next_due, labels: labelsOf(a.id as string), runs: runs.all(a.id as string),
         })),
       };
+    },
+  });
+  m.set('automation.run', {
+    needsUi: true,
+    handler: async (p) => {
+      const id = str(p, 'id');
+      if (!db.prepare('SELECT 1 FROM automation WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'automation not found');
+      const deps = ctl.automationDeps ?? realDeps((a) => m.get('session.launch')!.handler({ ...a, approval: 'ask' }, { ui: false, origin: 'automation' }) as { session_id: string });
+      const r = await runAutomationNow(db, deps, id);
+      if (!r) throw new RpcError(E.VALIDATION, 'automation is already running');
+      return r;
+    },
+  });
+  m.set('automation.labels-set', {
+    needsUi: true,
+    handler: (p) => {
+      const id = str(p, 'id');
+      if (!db.prepare('SELECT 1 FROM automation WHERE id = ?').get(id)) throw new RpcError(E.NOT_FOUND, 'automation not found');
+      tx(db, () => setAutomationLabels(id, p.names));
+      return { labels: labelsOf(id) };
+    },
+  });
+  m.set('label.list', {
+    handler: () => {
+      ensureLabels(db);
+      const labels = db.prepare('SELECT l.name, l.colour, (SELECT COUNT(*) FROM session_label s WHERE s.name = l.name) + (SELECT COUNT(*) FROM automation_label a WHERE a.name = l.name) AS count FROM label l ORDER BY count DESC, l.name ASC').all();
+      return { labels };
+    },
+  });
+  m.set('label.set', {
+    needsUi: true,
+    handler: (p) => {
+      let name: string;
+      try { name = labelList([str(p, 'name')])[0]!; } catch (e) { throw new RpcError(E.INVALID_PARAMS, (e as Error).message); }
+      const colour = str(p, 'colour').toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(colour)) throw new RpcError(E.INVALID_PARAMS, 'colour must be #rrggbb');
+      db.prepare('INSERT INTO label (name, colour) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET colour = excluded.colour').run(name, colour);
+      return { name, colour };
+    },
+  });
+  m.set('cron.next', {
+    handler: (p) => {
+      const n = p.n ?? 3;
+      if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 5) return { ok: false, error: 'n must be 1 to 5' };
+      if (typeof p.cron !== 'string') return { ok: false, error: 'cron must be a string' };
+      const runs: string[] = [];
+      try {
+        let at = new Date();
+        for (let i = 0; i < n; i++) {
+          const next = cronNext(p.cron, at);
+          if (!next) break;
+          runs.push(nowIso(next));
+          at = next;
+        }
+      } catch (e) { return { ok: false, error: (e as Error).message }; }
+      if (!runs.length) return { ok: false, error: 'cron never matches' };
+      return { ok: true, runs, words: cronWords(p.cron) };
     },
   });
 

@@ -1,0 +1,1 @@
+-- 019: automation.icon and automation.cron. The columns are added by addColumn in db.ts after migrate (fresh databases get them from contracts/schema.sql), so this file only records the migration.

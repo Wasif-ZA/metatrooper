@@ -493,7 +493,9 @@ CREATE TABLE automation (
   prompt TEXT NOT NULL,
   enabled INTEGER NOT NULL DEFAULT 1,
   next_due TEXT NOT NULL,          -- ISO time (nowIso)
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  icon TEXT,                       -- one emoji
+  cron TEXT                        -- 5-field local-time cron; NULL runs every every_min minutes
 );
 CREATE TABLE automation_run (
   id TEXT PRIMARY KEY,
@@ -511,4 +513,14 @@ CREATE TABLE session_monitor (
   session_id TEXT PRIMARY KEY REFERENCES session(id),
   automation_id TEXT NOT NULL REFERENCES automation(id),
   last_run_id TEXT                 -- the newest failed run already delivered, so one run never fires twice
+);
+
+CREATE TABLE label (
+  name TEXT PRIMARY KEY,
+  colour TEXT NOT NULL             -- #rrggbb
+);
+CREATE TABLE automation_label (
+  automation_id TEXT NOT NULL REFERENCES automation(id),
+  name TEXT NOT NULL,
+  PRIMARY KEY (automation_id, name)
 );
