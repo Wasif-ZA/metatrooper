@@ -104,11 +104,20 @@ function useSessionText(sessionId, stamp) {
   return state;
 }
 
-function findServiceUrl(text) {
+export function findServiceUrl(text) {
   if (!text) return null;
-  const match = text.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):\d+[^\s'"<>)]*/);
-  if (!match) return null;
-  return match[0].replace('0.0.0.0', 'localhost');
+  const urls = (text.match(/https?:\/\/[^\s'"<>)]+/g) || []).filter((raw) => {
+    try {
+      const u = new URL(raw);
+      return ['localhost', '127.0.0.1', '0.0.0.0'].includes(u.hostname) && !u.username && !u.password;
+    } catch {
+      return false;
+    }
+  });
+  if (!urls.length) return null;
+  const u = new URL(urls[urls.length - 1]);
+  if (u.hostname === '0.0.0.0') u.hostname = 'localhost';
+  return u.href;
 }
 
 function TerminalPreview({ text, error, sessionId, stamp }) {

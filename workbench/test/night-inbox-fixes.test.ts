@@ -20,7 +20,7 @@ const binary = requireUI.resolve('@esbuild/' + platform + (process.platform === 
 const built = spawnSync(binary, [entry, '--bundle', '--platform=node', '--format=esm', '--jsx=automatic', '--packages=external', '--log-level=error', '--outfile=' + bundle], { stdio: 'inherit', windowsHide: true });
 assert.ifError(built.error); assert.equal(built.status, 0, 'screen bundle builds');
 writeFileSync(bundle, readFileSync(bundle, 'utf8').replace(/from "([^"\n]+)"/g, (all, specifier) => specifier.startsWith('.') || specifier.startsWith('node:') ? all : 'from ' + JSON.stringify(pathToFileURL(requireUI.resolve(specifier)).href)));
-const { React, renderToStaticMarkup, Inbox, inboxStore } = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
+const { React, renderToStaticMarkup, Inbox, inboxStore, findServiceUrl } = await import(pathToFileURL(join(temp, 'screens.mjs')).href);
 const g: any = globalThis;
 const calls: any[] = [];
 const own = new Set(['Inbox', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'NoteActions']);
@@ -113,4 +113,13 @@ test('hand-over launches with the stored prompt and keeps the details pane open'
   assert.equal(inboxStore.get().selectedId, 's1');
   h.draw();
   assert.equal(h.all((n: any) => n.props?.className === 'ou-ipane').length, 1);
+});
+
+test('Service link accepts only bare local hosts and takes the newest one', () => {
+  assert.equal(findServiceUrl('Local: http://localhost:3000@evil.example/x'), null);
+  assert.equal(findServiceUrl('http://user:pw@localhost:3000/'), null);
+  assert.equal(findServiceUrl('http://localhost.evil.example:3000/'), null);
+  assert.equal(findServiceUrl('old http://localhost:3000/ then new http://127.0.0.1:5173/app'), 'http://127.0.0.1:5173/app');
+  assert.equal(findServiceUrl('listening on http://0.0.0.0:8080'), 'http://localhost:8080/');
+  assert.equal(findServiceUrl('no server here'), null);
 });
