@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark } from './icons/index.js';
+import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EngineIcon as Engine, EmojiIcon as Emoji } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
@@ -83,18 +83,17 @@ const nextWords = (iso) => {
   return `next in ${Math.round(mins / 1440)} d`;
 };
 
-const listIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3.5h10M2 7h10M2 10.5h10" /></svg>;
-const boxIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1" /><rect x="8" y="1.5" width="4.5" height="4.5" rx="1" /><rect x="1.5" y="8" width="4.5" height="4.5" rx="1" /><rect x="8" y="8" width="4.5" height="4.5" rx="1" /></svg>;
-const playIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M4 2.5v9l7.5-4.5z" /></svg>;
-const searchIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="6" cy="6" r="4" /><path d="M9 9l3 3" /></svg>;
-const folderIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" /></svg>;
-const engineIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 1.5l1.3 3.2 3.2 1.3-3.2 1.3L7 10.5 5.7 7.3 2.5 6l3.2-1.3z" /></svg>;
-const clockIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="7" cy="7" r="5.25" /><path d="M7 4.2V7l1.8 1.2" /></svg>;
-const chevSmall = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 3.5L8.5 7 5 10.5" /></svg>;
-const plusIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 3v8M3 7h8" /></svg>;
-const filterIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3.5h10M4 7h6M6 10.5h2" /></svg>;
+const listIcon = <ListView size={14} />;
+const boxIcon = <GridView size={14} />;
+const playIcon = <Run size={12} />;
+const searchIcon = <Search size={14} />;
+const folderIcon = <Project size={12} />;
+const engineIcon = <Engine size={12} />;
+const clockIcon = <Schedule size={12} />;
+const chevSmall = <ChevronRight size={12} />;
+const plusIcon = <Plus size={12} />;
+const filterIcon = <Filter size={14} />;
 
-const DEFAULT_ICON = '\u{1F916}';
 const PRESETS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['custom', 'Custom']];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const EMOJI = ['⚙️', '\u{1F319}', '\u{1F9EA}', '\u{1F4DA}', '\u{1F50D}', '\u{1F41B}', '\u{1F9F9}', '\u{1F4E6}', '\u{1F512}', '\u{1F680}', '\u{1F4CA}', '\u{1F4DD}', '\u{1F514}', '\u{1F9ED}', '\u{1F527}', '✅'];
@@ -128,7 +127,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const engines = (s.engines || []).filter((e) => e.light !== 'red');
   const start = presetOf(initial?.cron);
   const [form, setForm] = useState({
-    icon: initial?.icon || DEFAULT_ICON, name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
+    icon: initial?.icon || '', name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
     prompt: initial?.prompt || '', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
     ...start, custom: initial?.cron || '0 9 * * 1-5', runner: (initial?.runner || []).join(' '), script: initial?.script || '',
   });
@@ -152,7 +151,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const save = async () => {
     if (!ready) return;
     const r = await rpc('automation.set', {
-      ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), icon: form.icon, cron, every_min: 1440,
+      ...(initial?.id ? { id: initial.id } : {}), project_id: form.project_id, name: form.name.trim(), ...(form.icon ? { icon: form.icon } : {}), cron, every_min: 1440,
       labels: form.labels, engine_id: form.engine_id, prompt: form.prompt.trim(),
       runner: form.script.trim() ? form.runner.trim().split(/\s+/) : [], script: form.script.trim(),
     });
@@ -174,7 +173,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
       <div className="ou-ae">
         <div className="ou-ae-row">
           <span className="ou-ae-emoji">
-            <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon}</button>
+            <button type="button" className="ou-ae-emojibtn" aria-label="Pick an emoji" aria-expanded={picking} onClick={() => setPicking(!picking)}>{form.icon || <Emoji size={16} />}</button>
             {picking ? <span className="ou-ae-emojis" role="listbox" aria-label="Emoji">{EMOJI.map((e) => <button key={e} type="button" role="option" aria-selected={e === form.icon} onClick={() => { set('icon')(e); setPicking(false); }}>{e}</button>)}</span> : null}
           </span>
           <TextInput hasAutoFocus label="Name" isLabelHidden placeholder="Name" value={form.name} onChange={set('name')} width="100%" />
@@ -233,8 +232,8 @@ const TEMPLATES = [
   { icon: '\u{1F9F9}', name: 'Friday tidy-up', prompt: 'Remove dead code and stale TODOs. Keep each change small and explained.', cron: '0 16 * * 5' },
 ];
 
-const sortIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2.5v9M2 9.5l2 2 2-2M10 11.5v-9M8 4.5l2-2 2 2" /></svg>;
-const clockBig = <svg width="28" height="28" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><circle cx="7" cy="7" r="5.5" /><path d="M7 3.8V7l2 1.3" /></svg>;
+const sortIcon = <Sort size={14} />;
+const clockBig = <Schedule size={28} />;
 const labelName = (l) => (typeof l === 'string' ? l : l?.name || '');
 const labelColour = (l, colours) => (typeof l === 'string' ? colours[l] : l?.colour) || null;
 
@@ -305,7 +304,7 @@ export function AutomationsPage() {
       <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
         onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setEditing(a); }}>
         <span className="ou-ap-itop">
-          <span className="ou-ap-emoji" aria-hidden="true">{a.icon || DEFAULT_ICON}</span>
+          <span className="ou-ap-emoji" aria-hidden="true">{a.icon || <Schedule size={16} />}</span>
           <span className="ou-ap-name">{a.name}</span>
           {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
           <span className="ou-ap-gap" />
