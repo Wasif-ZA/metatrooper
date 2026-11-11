@@ -8,7 +8,8 @@ import { buildMethods } from '../src/methods.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
 import { appendEvent } from '../src/events/append.ts';
 import { processEvents } from '../src/events/processor.ts';
-import { finishedOk, parseVerdict, reviewPrompt, reviewTick, type ReviewDeps } from '../src/reviews.ts';
+import { finishedOk } from '../src/sessions/finished.ts';
+import { parseVerdict, reviewPrompt, reviewTick, type ReviewDeps } from '../src/reviews.ts';
 
 const ui = { ui: true, origin: 'test' };
 const AT = '2026-11-11T00:00:00.000Z';

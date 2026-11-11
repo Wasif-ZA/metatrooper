@@ -3,6 +3,7 @@ import { nowIso, ulid } from './time.ts';
 import { E, RpcError } from './pipe/errors.ts';
 import { getEngine } from './engines/registry.ts';
 import { launchSession } from './sessions/launch.ts';
+import { finishedOk } from './sessions/finished.ts';
 import { settings } from './settings.ts';
 import { tx } from './store/db.ts';
 import * as term from './terminal/index.ts';
@@ -67,15 +68,6 @@ export function parseVerdict(lines: string[]): { passed: boolean; note: string |
 export function reviewPrompt(r: Pick<Reviewed, 'prompt' | 'started_at'>): string {
   const task = (r.prompt ?? 'not recorded').replace(/\s+/g, ' ').trim().slice(0, 1000);
   return `Review the work another agent did in this folder. Its task was: "${task}". It started at ${r.started_at}; see its changes with git status, git diff, and git log -p --since="${r.started_at}". Check the changes do the task, are correct, and break nothing else. Do not edit any files. End your reply with a final line made of the word VERDICT and a colon, then PASS or FAIL, then a one-sentence note.`;
-}
-
-/** Exited ok: outcome succeeded, or cancelled when its last state before exit, idle aside, was done (an opened card moves done to idle). */
-export function finishedOk(db: DatabaseSync, sessionId: string): boolean {
-  const outcome = (db.prepare('SELECT outcome FROM session WHERE id = ?').get(sessionId) as { outcome: string | null } | undefined)?.outcome;
-  if (outcome === 'succeeded') return true;
-  if (outcome !== 'cancelled' || !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_state_log'").get()) return false;
-  const last = db.prepare("SELECT state FROM session_state_log WHERE session_id = ? AND state NOT IN ('idle', 'exited') ORDER BY rowid DESC LIMIT 1").get(sessionId) as { state: string } | undefined;
-  return last?.state === 'done';
 }
 
 let busy = false;

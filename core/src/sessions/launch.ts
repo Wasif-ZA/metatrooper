@@ -15,6 +15,7 @@ import { dockerArgv, ensureProxy, gitLayout, sandboxHookArgs } from '../sandbox/
 import { spoolDir } from '../sandbox/spool.ts';
 import fs from 'node:fs';
 import { beingRemoved } from '../worktree.ts';
+import { finishedOk } from './finished.ts';
 
 export interface LaunchPlan {
   argv: string[];
@@ -138,9 +139,9 @@ export function writePrompt(db: DatabaseSync, sessionId: string): { written: boo
   return { written: true };
 }
 
-/** Ids of the sessions blocking `sessionId` that have not exited with outcome succeeded. */
+/** Ids of the sessions blocking `sessionId` that have not exited ok (finishedOk). */
 export function openBlockers(db: DatabaseSync, sessionId: string): string[] {
-  return (db.prepare("SELECT b.blocker_id AS id FROM session_block b JOIN session s ON s.id = b.blocker_id WHERE b.blocked_id = ? AND s.outcome IS NOT 'succeeded' ORDER BY b.blocker_id").all(sessionId) as Array<{ id: string }>).map((r) => r.id);
+  return (db.prepare('SELECT blocker_id AS id FROM session_block WHERE blocked_id = ? ORDER BY blocker_id').all(sessionId) as Array<{ id: string }>).map((r) => r.id).filter((id) => !finishedOk(db, id));
 }
 
 /** Every tick: a held prompt with no open blockers is typed when its session first reaches idle or waiting_for_you within terminal.prompt_wait_ms of its release. */

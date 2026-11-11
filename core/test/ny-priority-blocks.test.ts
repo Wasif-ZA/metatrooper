@@ -8,6 +8,8 @@ import { buildMethods } from '../src/methods.ts';
 import { CommandRunner } from '../src/pipe/commands.ts';
 import { deliverPrompts, heldPrompts, launchSession, openBlockers } from '../src/sessions/launch.ts';
 import { killAll } from '../src/terminal/index.ts';
+import { appendEvent } from '../src/events/append.ts';
+import { processEvents } from '../src/events/processor.ts';
 import { setSetting } from '../src/settings.ts';
 import { root, until } from './helpers.ts';
 
@@ -143,7 +145,7 @@ test('an older database gains session.priority and session_block on open', async
     try {
       assert.equal((db.prepare("SELECT priority FROM session WHERE id = 's_old'").get() as { priority: string }).priority, 'none');
       assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_block'").get());
-      assert.deepEqual((db.prepare('SELECT id FROM schema_migration WHERE id >= 14 ORDER BY id').all() as Array<{ id: number }>).map((r) => r.id), [14, 15]);
+      assert.deepEqual((db.prepare('SELECT id FROM schema_migration WHERE id >= 14 ORDER BY id').all() as Array<{ id: number }>).map((r) => r.id), [14, 15, 16, 17]);
       assert.throws(() => db.prepare("UPDATE session SET priority = 'p0' WHERE id = 's_old'").run(), /CHECK/);
     } finally { db.close(); }
   } finally {
@@ -253,5 +255,29 @@ test('a session launched without blockers still gets its prompt on the command l
     assert.equal(r.prompt_delivered, true);
     assert.ok((await argv()).includes('PROMPT-FREE-7'));
     assert.equal(heldPrompts().includes(r.session_id), false);
+  });
+});
+
+test('a blocker that went done, was seen (idle), then exited 0 releases the prompt; one that exited 1 keeps it held', async () => {
+  await ptyFixture(async ({ db, dir, engine, argv, stdin, written }) => {
+    const methods = buildMethods(db, { engines: () => [], stop: () => {}, uiKey: 'test_key' });
+    const okBlocked = launchSession(db, { projectId: 'p1', projectPath: dir, projectName: 'p1', engine, prompt: 'PROMPT-SEEN-3', blockerIds: ['a'] });
+    const failBlocked = launchSession(db, { projectId: 'p1', projectPath: dir, projectName: 'p1', engine, prompt: 'PROMPT-FAIL-4', blockerIds: ['b'] });
+    await argv();
+    for (const id of ['a', 'b']) appendEvent('claude.Stop', id, {}, db);
+    processEvents(db);
+    await call(methods, 'session.seen', { session_id: 'a' });
+    processEvents(db);
+    appendEvent('core.process-gone', 'a', { code: 0 }, db);
+    appendEvent('core.process-gone', 'b', { code: 1 }, db);
+    processEvents(db);
+    const outcome = (id: string) => (db.prepare('SELECT outcome FROM session WHERE id = ?').get(id) as { outcome: string }).outcome;
+    assert.deepEqual([outcome('a'), outcome('b')], ['cancelled', 'failed']);
+    for (const r of [okBlocked, failBlocked]) db.prepare("UPDATE session SET state = 'idle' WHERE id = ?").run(r.session_id);
+    deliverPrompts(db);
+    assert.equal(written(okBlocked.session_id), true);
+    assert.equal(written(failBlocked.session_id), false);
+    assert.ok(heldPrompts().includes(failBlocked.session_id));
+    await until(() => stdin().includes('PROMPT-SEEN-3') || undefined);
   });
 });
