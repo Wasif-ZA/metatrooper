@@ -383,7 +383,7 @@ test('Home start state: a heading, four start actions, then the composer with pr
   assert.match(html, /<h1 class="ou-hm-hello">Pick up where your agents left off<\/h1>/);
   assert.ok(html.indexOf('ou-hm-hello') < html.indexOf('ou-hm-startlist') && html.indexOf('ou-hm-startlist') < html.indexOf('ou-hm-task'));
   assert.ok(h.all(label('Project')).length === 1 && h.all(label('Approval')).length === 1);
-  assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['Import projects', 'Automations', 'Open the Wall', 'Learn Ouros']);
+  assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['Import projects', 'Automations', 'Open the Wall', 'Learn cc']);
   assert.match(html, /data-action="open-folder"/);
   assert.doesNotMatch(html, /ou-hm-card|ou-hm-rail/);
   delete g.ui.homeSel; h.draw(); assert.equal(g.ui.homeSel, '', 'the start page clears the selection so the sidebar highlights nothing');
@@ -407,6 +407,8 @@ test('Home details card for the task: workspace, version control with PR and Mer
   const order = ['Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 agent', 'Task kid'].map(at);
   assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.doesNotMatch(html, /Needs you|Keep the retry/);
+  g.ui.snap.projects[0].icon = { kind: 'monogram', text: 'QZ', colour: '#3366ff' }; h.draw();
+  assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard')), /QZ/, 'the workspace row draws the project icon');
   assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView')), /Keep the retry\?/);
   assert.deepEqual(calls, []);
 });

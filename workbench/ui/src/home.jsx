@@ -8,7 +8,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar } from './icons/index.js';
+import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar, ProjectIcon } from './icons/index.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
@@ -58,6 +58,7 @@ const commitIcon = <Commit size={12} />;
 const filesIcon = <Changes size={12} />;
 const prIcon = <PullRequest size={12} />;
 
+const projectOf = (x) => (ui.snap?.projects || []).find((p) => p.id === (x?.project_id || ui.projectId)) || null;
 const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
@@ -124,7 +125,7 @@ function StartBox({ ready }) {
       </div>
     </div>
     <div className="ou-hm-chips">
-      <span className="ou-hm-chip">{folderSmall}<Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+      <span className="ou-hm-chip">{projectOf({ project_id: ui.projectId })?.icon ? <ProjectIcon icon={projectOf({ project_id: ui.projectId }).icon} size={14} /> : folderSmall}<Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
         options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /></span>
       <span className="ou-hm-chip">{shieldSmall}<Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
         { value: 'default', label: 'Approval as in Settings' },
@@ -327,7 +328,7 @@ function StartState({ composer }) {
     ['folder', 'Import projects', 'Add a folder from this computer', null, 'open-folder'],
     ['clock', 'Automations', 'Agents that start on a schedule', () => homeView.set('automations')],
     ['wall', 'Open the Wall', 'Every agent terminal side by side', () => homeView.set('wall')],
-    ['book', 'Learn Ouros', 'Shortcuts and commands', () => globalThis.paletteView?.open?.()],
+    ['book', 'Learn cc', 'Shortcuts and commands', () => globalThis.paletteView?.open?.()],
   ];
   return (
     <div className="ou-hm-start">
@@ -385,7 +386,7 @@ function RailCard({ sel, kids }) {
       {sel ? (
         <Swap k={sel.id}>
           <PanelSection title="Workspace">
-            <PanelRow icon={hostIcon} label={host} />
+            <PanelRow icon={projectOf(sel)?.icon ? <ProjectIcon icon={projectOf(sel).icon} size={16} /> : hostIcon} label={host} />
             <PanelRow icon={editorIcon} label="Open on Wall" chevron onClick={() => openOnWall(sel)} />
           </PanelSection>
           {branch ? (
@@ -418,7 +419,7 @@ function RailCard({ sel, kids }) {
       ) : null}
       {merging && pr ? (
         <AlertDialog isOpen onOpenChange={(o) => { if (!o) setMerging(false); }} title={`Merge PR #${pr.number}?`}
-          description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from Ouros.`} actionLabel="Merge"
+          description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from cc.`} actionLabel="Merge"
           onAction={async () => {
             setMerging(false);
             const r = await rpc('gh.merge', { session_id: sel.id });
