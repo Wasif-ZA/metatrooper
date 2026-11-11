@@ -145,7 +145,7 @@ test('an older database gains session.priority and session_block on open', async
     try {
       assert.equal((db.prepare("SELECT priority FROM session WHERE id = 's_old'").get() as { priority: string }).priority, 'none');
       assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_block'").get());
-      assert.deepEqual((db.prepare('SELECT id FROM schema_migration WHERE id >= 14 ORDER BY id').all() as Array<{ id: number }>).map((r) => r.id), [14, 15, 16, 17]);
+      assert.deepEqual((db.prepare('SELECT id FROM schema_migration WHERE id >= 14 ORDER BY id').all() as Array<{ id: number }>).map((r) => r.id), [14, 15, 16, 17, 18, 19, 20]);
       assert.throws(() => db.prepare("UPDATE session SET priority = 'p0' WHERE id = 's_old'").run(), /CHECK/);
     } finally { db.close(); }
   } finally {
