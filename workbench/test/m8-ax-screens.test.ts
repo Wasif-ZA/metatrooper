@@ -368,6 +368,7 @@ test('Home task view: breadcrumb, worked line, a collapsed subagents trigger in 
   homeStore.set({ open: ['lead'] }); h.draw();
   const open = view();
   assert.ok(open.includes('<span class="ou-hm-slimsteps">1/2</span>'), 'orchestrator row keeps its step count');
+  assert.equal((open.match(/ou-hm-slimsteps"/g) || []).length, 1, 'only the orchestrator row shows a step count');
   assert.deepEqual([...open.matchAll(/<li class="ou-hm-slim( ou-hm-lead)?" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[2], m[3]]), [['lead', 'working'], ['a', 'done'], ['b', 'working'], ['c', 'failed']]);
   assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
   assert.match(open, /<span class="ou-hm-bad">tests broke<\/span>/);
@@ -385,6 +386,7 @@ test('Home start state: a heading, four start actions, then the composer with pr
   assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['Import projects', 'Automations', 'Open the Wall', 'Learn Ouros']);
   assert.match(html, /data-action="open-folder"/);
   assert.doesNotMatch(html, /ou-hm-card|ou-hm-rail/);
+  delete g.ui.homeSel; h.draw(); assert.equal(g.ui.homeSel, '', 'the start page clears the selection so the sidebar highlights nothing');
 });
 
 test('Home leaves Needs you notes and approvals to their own screen', () => {
@@ -521,7 +523,7 @@ test('Settings groups, heading, breadcrumb, navigation icons and take-over Kbd f
   const navs = h.all((n: any) => n.props.isSelected !== undefined && n.props.onClick);
   assert.deepEqual(navs.map(n => n.props.label), ['General', 'Reliability', 'Savings', 'Safety', 'Automations', 'Add-ons', 'Notifications', 'Advanced']);
   assert.equal(textContent(h.one(hasClass('ou-snav-title'))), 'Settings'); assert.equal(h.one(hasClass('ou-snav-back')).type, 'button');
-  assert.ok(navs.every(n => n.props.icon?.type === 'svg'));
+  assert.ok(navs.every(n => typeof n.props.icon?.type === 'function')); assert.equal(new Set(navs.map(n => n.props.icon.type)).size, navs.length);
   assert.deepEqual(navs.filter(n => n.props.isSelected).map(n => n.props.label), ['Reliability']);
   settingsStore.set({ section: 'safety' }); h.draw();
   assert.equal(h.one((n: any) => n.props.keys === 'Ctrl+Esc').type.name, 'Kbd');

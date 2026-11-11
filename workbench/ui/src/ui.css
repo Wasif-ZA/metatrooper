@@ -1148,3 +1148,7 @@ html { font-size: 16px; }
 .ou-hm-av .ou-hm-avring { position: absolute; right: -2px; bottom: -2px; border-radius: 50%; background: var(--canvas-deep); box-shadow: 0 0 0 1.5px var(--canvas-deep); }
 .ou-hm-stop { display: inline-flex; align-items: center; gap: 4px; }
 .ou-hm-worked > svg:first-child { flex: none; }
+.ou-hm-av.ou-hm-ringed { border: 0; background: none; box-shadow: none; width: 26px; height: 26px; }
+.ou-hm-av.ou-hm-ringed > .ou-hm-avring { position: absolute; inset: 0; right: auto; bottom: auto; background: none; box-shadow: none; border-radius: 0; }
+.ou-hm-av.ou-hm-ringed > svg:last-child { position: relative; }
+.ou-ae-lab { cursor: pointer; }

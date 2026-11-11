@@ -8,15 +8,13 @@ import { Switch } from '@astryxdesign/core/Switch';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
+import * as Ic from './icons/index.js';
+import * as Sc from './icons/screens.jsx';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { PluginInstall } from './plugin-install.jsx';
 
 export const addonsStore = createStore({ tick: 0, rows: null });
 
-const svg = (d, size = 18) => <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
-const AGENT = 'M2.5 3h11v10h-11zM5 6.5l2 1.5-2 1.5M8.5 10.5h3';
-const PLUGIN = 'M6 2.5h4v2.2a1.3 1.3 0 102.6 0h.9v4h-2.2a1.3 1.3 0 100 2.6h2.2v2.2H9.1v-1a1.3 1.3 0 10-2.6 0v1H2.5V9.5h1a1.3 1.3 0 100-2.6h-1V4.7H6z';
-const SEARCH = 'M7 2.5a4.5 4.5 0 110 9 4.5 4.5 0 010-9zM10.3 10.3l3.2 3.2';
 const KIND = [['agent', 'Agents'], ['plugin', 'Plugins']];
 const STATE = [['on', 'On'], ['off', 'Off'], ['bad', 'Not ready']];
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -41,7 +39,7 @@ function card(it, open, toggle, remove) {
   const shown = open ? perms : perms.slice(0, 3);
   return (
     <article key={`${it.kind}:${it.id}`} className={open ? 'ou-acard ou-acard-open' : 'ou-acard'}>
-      <span className="ou-acard-tile">{svg(p ? PLUGIN : AGENT)}</span>
+      <span className="ou-acard-tile">{p ? <Ic.AddOnsIcon size={18} /> : <Sc.TerminalIcon size={18} />}</span>
       <div className="ou-acard-name"><b>{it.id}</b><span>{source}</span></div>
       <div className="ou-acard-slot">
         {p ? <><Switch size="sm" label={p.enabled ? 'On' : 'Off'} isLabelHidden value={!!p.enabled} isDisabled data-action="addon-toggle" data-id={p.id} /><Badge label="Not built yet" /><Button size="sm" variant="ghost" label="Remove" onClick={() => remove(p.id)} /></>
@@ -110,7 +108,7 @@ export function Addons() {
         </span>
       </header>
       <div className="ou-addons-search">
-        <TextInput type="search" size="lg" width="100%" label="Search add-ons" isLabelHidden value={query} onChange={setQuery} placeholder="Search by name, description or permission" startIcon={svg(SEARCH, 14)} hasClear data-action="addon-search" />
+        <TextInput type="search" size="lg" width="100%" label="Search add-ons" isLabelHidden value={query} onChange={setQuery} placeholder="Search by name, description or permission" startIcon={<Ic.Search size={14} />} hasClear data-action="addon-search" />
       </div>
       <div className="ou-addons-body">
         <aside className="ou-facets" aria-label="Filters">{facet('Kind', KIND)}{facet('State', STATE)}</aside>

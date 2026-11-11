@@ -163,8 +163,8 @@ test('fe1e04a8 IDE: Open in VS Code is a small ghost button with a link icon at 
   assert.equal(btn.props.label, 'Open in VS Code');
   assert.equal(btn.props.size, 'sm');
   assert.equal(btn.props.variant, 'ghost');
-  const iconPath = btn.props.icon?.props?.children?.props?.d;
-  assert.equal(iconPath, 'M8 2h4v4M12 2L6 8M6 2H2v10h10V8');
+  const iconPath = btn.props.icon?.type?.(btn.props.icon.props)?.props?.children?.props?.d;
+  assert.equal(iconPath, 'M7 3.5H4.5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V9M9.5 3.5h3v3M12.5 3.5l-5 5');
   await btn.props.onClick(event());
   assert.deepEqual(recorded('openInVsCode'), [['openInVsCode', g.ui.projectId, 'outside.ts']]);
 });
