@@ -166,16 +166,55 @@ export function openEditor(parent, textOrState, path, on) {
   };
 }
 
-export function openDiff(parent, sides, path) {
+// hooks.onLine({ side, line, excerpt }) fires on a glyph-margin click; hooks.onMove fires when lines shift on screen.
+export function openDiff(parent, sides, path, hooks = {}) {
   let ed = null, dead = false, models = [];
+  const zones = new Map();
+  const sideOf = (side) => (side === 'old' ? ed.getOriginalEditor() : ed.getModifiedEditor());
   appKeys(parent);
   loadMonaco().then((m) => {
     if (dead) return;
     models = [m.editor.createModel(sides.original, langOf(path)), m.editor.createModel(sides.modified, langOf(path))];
-    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true });
+    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true, glyphMargin: Boolean(hooks.onLine), renderMarginRevertIcon: false });
     ed.setModel({ original: models[0], modified: models[1] });
+    for (const side of ['old', 'new']) {
+      const e = sideOf(side);
+      const plus = e.createDecorationsCollection();
+      if (hooks.onLine) {
+        e.onMouseMove((ev) => { const n = ev.target.position?.lineNumber; plus.set(n ? [{ range: new m.Range(n, 1, n, 1), options: { glyphMarginClassName: 'cc-line-plus' } }] : []); });
+        e.onMouseLeave(() => plus.clear());
+        e.onMouseDown((ev) => {
+          const n = ev.target.position?.lineNumber;
+          if (n && ev.target.type === m.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) hooks.onLine({ side, line: n, excerpt: e.getModel().getLineContent(n) });
+        });
+      }
+      e.onDidScrollChange(() => hooks.onMove?.());
+      e.onDidLayoutChange(() => hooks.onMove?.());
+    }
+    ed.onDidUpdateDiff(() => hooks.onMove?.());
+    hooks.onMove?.();
   }, () => {});
-  return () => { dead = true; ed?.dispose(); for (const x of models) x.dispose(); };
+  return {
+    // Reserves blank space under lines; returns key -> spacer node so the caller can lay its own UI over it.
+    zones(list) {
+      if (!ed) return new Map();
+      for (const [key, z] of zones) {
+        if (list.some((x) => x.key === key && x.height === z.height)) continue;
+        z.editor.changeViewZones((a) => a.removeZone(z.id));
+        zones.delete(key);
+      }
+      for (const x of list) {
+        if (zones.has(x.key)) continue;
+        const editor = sideOf(x.side);
+        const node = document.createElement('div');
+        let id;
+        editor.changeViewZones((a) => { id = a.addZone({ afterLineNumber: x.line, heightInPx: x.height, domNode: node }); });
+        zones.set(x.key, { id, editor, node, height: x.height });
+      }
+      return new Map([...zones].map(([k, z]) => [k, z.node]));
+    },
+    dispose() { dead = true; ed?.dispose(); for (const x of models) x.dispose(); },
+  };
 }
 
 // Markers for open file tabs, for the Problems panel; empty until Monaco has loaded.

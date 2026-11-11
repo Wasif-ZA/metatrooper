@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Badge } from '@astryxdesign/core/Badge';
@@ -13,10 +13,14 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { TreeList } from '@astryxdesign/core/TreeList';
 import { TextInput } from '@astryxdesign/core/TextInput';
+import { TextArea } from '@astryxdesign/core/TextArea';
+import { Selector } from '@astryxdesign/core/Selector';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
 import { editorState, openEditor, openDiff, patchSides, preloadMonaco } from './editor.js';
+import { sendComment } from './comment.js';
+import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
 import { AgentHead } from './agenthead.jsx';
 import { paletteView } from './palette.jsx';
@@ -885,14 +889,108 @@ function EditorHost({ st, tab, hidden }) {
   return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
 }
 
-function DiffView({ tab }) {
+const crlf = (s) => (typeof s === 'string' ? s.replace(/\r\n?/g, '\n') : s);
+
+// Base from git: unstaged = index vs file, staged = HEAD vs index, agent = session base vs file; else rebuilt from the patch.
+async function diffSides(st, t) {
+  const show = (rev, extra) => Promise.resolve(api.git(st.pid, 'show', { path: t.path, rev, ...extra })).catch(() => null);
+  const owner = t.gitDiff ? null : ownerOf(t.path, t.owner);
+  let original = null, modified = null;
+  if (t.gitDiff && t.staged) [original, modified] = await Promise.all([show('HEAD'), show(':')]);
+  else if (t.gitDiff || owner) { original = await (t.gitDiff ? show(':') : show('base', { session_id: owner, scope: 'uncommitted' })); modified = t.text ?? ''; }
+  [original, modified] = [crlf(original), crlf(modified)];
+  if (typeof original === 'string' && typeof modified === 'string') return original === modified ? null : { original, modified };
+  return patchSides(t.diff, t.text);
+}
+
+const agentsIn = (pid) => ui.snap.sessions.filter((x) => x.project_id === pid && x.state !== 'exited' && !ui.pendingHide.has(x.id))
+  .sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')));
+const agentName = (id) => ui.snap.sessions.find((x) => x.id === id)?.engine_id || 'the agent';
+
+function DiffView({ st, tab }) {
   const ref = useRef(null);
-  // no api returns the base file, so the old side is rebuilt from the patch and the file on disk
-  const sides = useMemo(() => (tab.diff ? patchSides(tab.diff, tab.text) : null), [tab.diff, tab.text]);
-  useEffect(() => (sides ? openDiff(ref.current, sides, tab.path) : undefined), [sides, tab.path]);
-  if (tab.diff === undefined) return <p className="ou-ide-muted ou-ide-pad">Loading.</p>;
+  const view = useRef(null);
+  const [sides, setSides] = useState(undefined);
+  const [draft, setDraft] = useState(null);
+  const [places, setPlaces] = useState(new Map());
+  const [moved, setMoved] = useState(0);
+  tab.sent ||= [];
+  const needsText = !(tab.gitDiff && tab.staged) && tab.text === undefined && !tab.error;
+  useEffect(() => {
+    let live = true;
+    setSides(undefined);
+    setDraft(null);
+    if (tab.diff === '') setSides(null);
+    else if (tab.diff !== undefined && !needsText) void diffSides(st, tab).then((s) => { if (live) setSides(s); });
+    return () => { live = false; };
+  }, [st, tab, tab.diff, tab.text, needsText]);
+  useEffect(() => {
+    if (!sides) return undefined;
+    const h = openDiff(ref.current, sides, tab.path, {
+      onLine: (at) => setDraft({ ...at, text: '', error: null, busy: false, to: (!tab.gitDiff && ownerOf(tab.path, tab.owner)) || ownerOf(tab.path) || agentsIn(st.pid)[0]?.id || null }),
+      onMove: () => setMoved((n) => n + 1),
+    });
+    view.current = h;
+    return () => { view.current = null; h.dispose(); };
+  }, [st, tab, sides]);
+  useLayoutEffect(() => {
+    if (!view.current || !ref.current) return;
+    const list = [...tab.sent.map((x) => ({ key: `sent:${x.side}:${x.line}`, side: x.side, line: x.line, height: 26 })), ...(draft ? [{ key: 'draft', side: draft.side, line: draft.line, height: 150 }] : [])];
+    const box = ref.current.getBoundingClientRect();
+    const next = new Map();
+    for (const [key, node] of view.current.zones(list)) {
+      const r = node.getBoundingClientRect();
+      if (r.height) next.set(key, { top: r.top - box.top, left: r.left - box.left, width: Math.min(r.width, box.right - r.left), height: r.height });
+    }
+    if (JSON.stringify([...next]) !== JSON.stringify([...places])) setPlaces(next);
+  });
+  if (tab.diff === undefined || sides === undefined) return <p className="ou-ide-muted ou-ide-pad">Loading.</p>;
   if (!sides) return <p className="ou-ide-muted ou-ide-pad">No changes to show for this file.</p>;
-  return <div ref={ref} className="ou-ide-mdiff" style={{ height: '100%' }} />;
+  const at = (key) => places.get(key);
+  async function send() {
+    const d = draft;
+    setDraft({ ...d, busy: true, error: null });
+    const r = d.to ? await sendComment(d.to, { path: tab.path, line: d.line, side: d.side, excerpt: d.excerpt, text: d.text }) : { ok: false, error: 'No running agent in this project.' };
+    if (!r.ok) { setDraft({ ...d, busy: false, error: r.error }); return; }
+    tab.sent.push({ side: d.side, line: d.line, agent: agentName(d.to), text: d.text.trim() });
+    setDraft(null);
+  }
+  return (
+    <div className="ou-ide-mdiffwrap" data-moved={moved}>
+      <div ref={ref} className="ou-ide-mdiff" />
+      {tab.sent.map((x) => {
+        const p = at(`sent:${x.side}:${x.line}`);
+        return p ? <div key={`${x.side}:${x.line}`} className="ou-ide-csent" style={p} title={x.text}>Sent to {x.agent}: {x.text}</div> : null;
+      })}
+      {draft && at('draft') ? <CommentBox st={st} tab={tab} draft={draft} setDraft={setDraft} place={at('draft')} send={send} /> : null}
+    </div>
+  );
+}
+
+function CommentBox({ st, tab, draft, setDraft, place, send }) {
+  const agents = agentsIn(st.pid);
+  const pick = !tab.owner || tab.gitDiff;
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); if (!draft.busy) void send(); }
+    else if (e.key === 'Escape') { e.preventDefault(); setDraft(null); }
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation();
+  };
+  return (
+    <div className="ou-ide-cbox" style={place} onKeyDown={onKeyDown}>
+      <div className="ou-ide-chead">
+        <span>Comment on line {draft.line} ({draft.side === 'old' ? 'before' : 'after'})</span>
+        {pick ? (agents.length
+          ? <Selector size="sm" variant="ghost" label="Send to" isLabelHidden value={draft.to || ''} onChange={(v) => setDraft({ ...draft, to: v })} options={agents.map((x) => ({ value: x.id, label: `${x.engine_id}: ${taskOf(x)}`.slice(0, 60) }))} />
+          : <span className="ou-ide-muted">No running agent in this project.</span>)
+          : <span className="ou-ide-muted">to {agentName(draft.to)}</span>}
+      </div>
+      <TextArea label="Comment" isLabelHidden rows={2} hasAutoFocus value={draft.text} placeholder="What should change here? Ctrl+Enter sends." onChange={(v) => setDraft({ ...draft, text: v })} status={draft.error ? { type: 'error', message: draft.error } : undefined} />
+      <div className="ou-ide-cfoot">
+        <Button size="sm" variant="ghost" label="Cancel" onClick={() => setDraft(null)} />
+        <Button size="sm" variant="primary" label={draft.busy ? 'Sending' : 'Send'} isDisabled={draft.busy || !draft.text.trim() || !draft.to} onClick={() => void send()} />
+      </div>
+    </div>
+  );
 }
 
 function OpenInVsCodeButton({ st, tab }) {
@@ -1155,7 +1253,7 @@ export function Ide() {
         <div className="ou-ide-view">
           {st.tabs.map((t) => <EditorHost key={`${st.pid}:${t.path}`} st={st} tab={t} hidden={t !== active || t.text === undefined || ((changed.has(t.path) || t.gitDiff) && t.mode === 'changes') || inPreview(t)} />)}
           {!active ? <EmptyState isCompact title="Pick a file on the left, or press Ctrl+P." />
-            : (changed.has(active.path) || active.gitDiff) && active.mode === 'changes' ? <DiffView tab={active} />
+            : (changed.has(active.path) || active.gitDiff) && active.mode === 'changes' ? <DiffView st={st} tab={active} />
               : active.error ? <EmptyState isCompact title={active.error} actions={<><Button size="sm" label="Open outside" onClick={() => void openOutside(st, active.path)} /><Button size="sm" variant="secondary" label="Open in VS Code" onClick={() => void openInVsCode(st, active.path)} /></>} />
                 : active.image ? <div className="ou-ide-image"><img src={active.image} alt={active.path} /></div>
                   : active.text === undefined ? <p className="ou-ide-muted ou-ide-pad">Loading.</p>

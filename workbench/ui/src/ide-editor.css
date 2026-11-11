@@ -1,0 +1,9 @@
+.ou-ide-mdiffwrap { position: relative; height: 100%; overflow: hidden; }
+.ou-ide-mdiff { height: 100%; }
+.cc-line-plus { cursor: pointer; }
+.cc-line-plus::before { content: '+'; display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin: 2px 0 0 2px; font: 600 13px/1 var(--mono); color: var(--ink); background: var(--canvas-soft); border: 1px solid var(--hairline-strong); }
+.ou-ide-cbox, .ou-ide-csent { position: absolute; z-index: 5; box-sizing: border-box; }
+.ou-ide-cbox { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; background: var(--canvas); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); font-size: 12px; color: var(--body-strong); }
+.ou-ide-chead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.ou-ide-cfoot { display: flex; justify-content: flex-end; gap: 6px; }
+.ou-ide-csent { display: flex; align-items: center; padding: 0 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 12px var(--mono); color: var(--mute); background: var(--canvas); border-left: 2px solid var(--hairline-strong); }
