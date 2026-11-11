@@ -39,8 +39,8 @@ export const SHAPES = {
   engine: '<path d="M8 2.5c.4 2.75 1.75 4.1 4.5 4.5-2.75.4-4.1 1.75-4.5 4.5-.4-2.75-1.75-4.1-4.5-4.5 2.75-.4 4.1-1.75 4.5-4.5zM12.5 11v2.5M11.25 12.25h2.5"/>',
   // Ouros mark candidates: a ring that takes its own tail, drawn as line icons.
   mark1: '<path d="M12.6 5.5A5.25 5.25 0 1 1 8 2.75"/><path d="M8 2.75h2.5M8 2.75 10 1.25"/><circle cx="11.6" cy="3.6" r=".75" fill="currentColor" stroke="none"/>',
-  mark2: '<path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5"/><path d="M13.5 8A3 3 0 1 0 8 5.5"/><circle cx="8" cy="2.5" r="1" fill="currentColor" stroke="none"/>',
-  mark3: '<rect x="2.5" y="2.5" width="11" height="11" rx="4"/><path d="M10 2.5H6.5"/><path d="M10.5 6.5 8 9 6.5 7.5"/>',
+  mark2: '<path d="M8 8C6.5 5.75 2.25 5.75 2.25 8S6.5 10.25 8 8s5.75-2.25 5.75 0S9.5 10.25 8 8z"/><circle cx="12" cy="6.4" r=".7" fill="currentColor" stroke="none"/>',
+  mark3: '<path d="M8 13.5A5.5 5.5 0 1 1 13.5 8 3.5 3.5 0 0 1 10 11.5 2 2 0 0 1 8 9.5V8"/>',
 };
 
 const ATTRS = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
