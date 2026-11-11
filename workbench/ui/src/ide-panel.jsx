@@ -35,7 +35,23 @@ function make(pid) {
   term.loadAddon(fit);
   const t = { pid, id: null, el, term, fit, cols: 0, rows: 0, opened: false, gone: false };
   term.onData((d) => { if (t.id && !t.gone) void troop.termInput(t.id, d); });
+  term.registerLinkProvider({
+    provideLinks(y, cb) {
+      const line = term.buffer.active.getLine(y - 1)?.translateToString(true) || '';
+      cb(termView.findLocalLinks(line).map((l) => ({
+        range: { start: { x: l.start + 1, y }, end: { x: l.end, y } },
+        text: l.url,
+        decorations: { underline: true, pointerCursor: true },
+        activate: () => { void rpc('pane.open', { project_id: t.pid, url: l.url }); },
+      })));
+    },
+  });
   term.attachCustomKeyEventHandler((e) => {
+    if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (e.type === 'keydown' && t.id && !t.gone) void troop.termInput(t.id, '\x1b\r');
+      e.preventDefault();
+      return false;
+    }
     if (e.type !== 'keydown' || !e.ctrlKey || e.altKey) return true;
     const k = e.key.toLowerCase();
     if (k === 'c' && (e.shiftKey || term.hasSelection())) { void troop.copyText(term.getSelection()); term.clearSelection(); return false; }
