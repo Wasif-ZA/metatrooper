@@ -11,13 +11,24 @@ import { Addons, drawAddons } from './addons.jsx';
 import { Home, homeStore, openNewTask } from './home.jsx';
 import { Ide, drawIde, ideShown, ideKeys, openAt, dirtyIn, dropProject } from './ide.jsx';
 import { Palette, paletteView } from './palette.jsx';
+import { createStore } from './store.js';
+
+// `ui` is app.js's top-level const: global, but not a globalThis property.
+const schemeOf = () => (typeof ui !== 'undefined' && ui.look?.theme?.scheme === 'light' ? 'light' : 'dark');
+const schemeStore = createStore({ scheme: schemeOf() });
+// renderer/app.js applyLook calls this after every look change.
+globalThis.setUiScheme = () => { if (schemeStore.get().scheme !== schemeOf()) schemeStore.set({ scheme: schemeOf() }); };
 
 const el = (id) => document.getElementById(id);
 
-/** Mounts one screen into its existing container; the screen re-renders when its store changes. */
+function LiveTheme({ children }) {
+  const { scheme } = schemeStore.use();
+  return <Theme theme={neutralTheme} mode={scheme}>{children}</Theme>;
+}
+
+/** Mounts one screen into its existing container; the screen re-renders when its store or the scheme changes. */
 function mount(id, Screen) {
-  const scheme = globalThis.ui?.look?.theme?.scheme === 'light' ? 'light' : 'dark';
-  createRoot(el(id)).render(<Theme theme={neutralTheme} mode={scheme}><Screen /></Theme>);
+  createRoot(el(id)).render(<LiveTheme><Screen /></LiveTheme>);
 }
 
 const start = () => {

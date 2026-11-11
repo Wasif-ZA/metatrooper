@@ -1,4 +1,6 @@
 /* IDE left side, tab bar and breadcrumb, laid out after the VS Code workbench. */
+:root { --ou-git-m: #e2c08d; --ou-git-a: #73c991; --ou-git-d: #f14c4c; }
+:root[data-theme='light'] { --ou-git-m: #895503; --ou-git-a: #587c0c; --ou-git-d: #ad0707; }
 .ou-ide {
   --lang-ts: #519aba; --lang-js: #cbcb41; --lang-json: #e5a443; --lang-md: #8fa4ad; --lang-css: #a074c4;
   --lang-html: #e37933; --lang-py: #519aba; --lang-py2: #cbcb41; --lang-image: #8dc149; --lang-code: #8fb4e8;
@@ -64,17 +66,17 @@
 .ou-ide-tree .astryx-tree-list-chevron { width: 16px; height: 16px; min-height: 16px; }
 .ou-ide-root .ou-ide-chev svg { width: 16px; height: 16px; }
 .ou-ide-folderdot { flex: none; width: 6px; height: 6px; margin: 0 4px 0 auto; border-radius: 50%; background: currentColor; opacity: .5; }
-.ou-ide .ou-ide-label-m { color: #e2c08d; }
-.ou-ide :is(.ou-ide-label-a, .ou-ide-label-u, .ou-ide-label-r) { color: #73c991; }
-.ou-ide :is(.ou-ide-label-d, .ou-ide-label-c, .ou-ide-label-error, .ou-ide-error-count) { color: #f14c4c; }
-.ou-ide .ou-ide-tabs .astryx-tab.ou-ide-label-m { color: #e2c08d; }
-.ou-ide .ou-ide-tabs .astryx-tab:is(.ou-ide-label-a, .ou-ide-label-u, .ou-ide-label-r) { color: #73c991; }
-.ou-ide .ou-ide-tabs .astryx-tab:is(.ou-ide-label-d, .ou-ide-label-c, .ou-ide-label-error) { color: #f14c4c; }
+.ou-ide .ou-ide-label-m { color: var(--ou-git-m); }
+.ou-ide :is(.ou-ide-label-a, .ou-ide-label-u, .ou-ide-label-r) { color: var(--ou-git-a); }
+.ou-ide :is(.ou-ide-label-d, .ou-ide-label-c, .ou-ide-label-error, .ou-ide-error-count) { color: var(--ou-git-d); }
+.ou-ide .ou-ide-tabs .astryx-tab.ou-ide-label-m { color: var(--ou-git-m); }
+.ou-ide .ou-ide-tabs .astryx-tab:is(.ou-ide-label-a, .ou-ide-label-u, .ou-ide-label-r) { color: var(--ou-git-a); }
+.ou-ide .ou-ide-tabs .astryx-tab:is(.ou-ide-label-d, .ou-ide-label-c, .ou-ide-label-error) { color: var(--ou-git-d); }
 .ou-ide-tree-decorations, .ou-ide-gitletter, .ou-ide-scletter, .ou-ide-engine, .ou-ide-count { font-family: inherit; }
 .ou-ide-gitletter { min-width: 14px; font-size: 12px; text-align: center; }
-.ou-ide-git-m { color: #e2c08d; }
-.ou-ide-git-a, .ou-ide-git-u, .ou-ide-git-r { color: #73c991; }
-.ou-ide-git-c, .ou-ide-git-d { color: #f14c4c; }
+.ou-ide-git-m { color: var(--ou-git-m); }
+.ou-ide-git-a, .ou-ide-git-u, .ou-ide-git-r { color: var(--ou-git-a); }
+.ou-ide-git-c, .ou-ide-git-d { color: var(--ou-git-d); }
 
 /* Search */
 .ou-ide-ssum { padding: 0 8px 6px; font-size: 12px; }
@@ -110,10 +112,10 @@
 .ou-ide-scrow > button { visibility: hidden; }
 .ou-ide-scrow:hover > button, .ou-ide-scrow:focus-within > button { visibility: visible; }
 .ou-ide-scletter { width: 14px; margin-left: 2px; font-size: 12px; font-weight: 500; }
-.ou-ide-scname-m { color: #e2c08d; }
-.ou-ide-scname-a, .ou-ide-scname-u, .ou-ide-scname-r { color: #73c991; }
-.ou-ide-scname-d { color: #f14c4c; text-decoration: line-through; }
-.ou-ide-scname-c { color: #f14c4c; }
+.ou-ide-scname-m { color: var(--ou-git-m); }
+.ou-ide-scname-a, .ou-ide-scname-u, .ou-ide-scname-r { color: var(--ou-git-a); }
+.ou-ide-scname-d { color: var(--ou-git-d); text-decoration: line-through; }
+.ou-ide-scname-c { color: var(--ou-git-d); }
 
 /* Tabs: 35px; dirty dot until hover, then close; close shows on the active tab */
 #ide-tab-menu { flex: none; display: block; min-width: 0; }

@@ -174,6 +174,7 @@
 /* cc wordmark in the sidebar head; project icons; the Change icon menu and panel. */
 .fhead .ccmark { font: 500 15px/1 'Geist', 'Segoe UI', sans-serif; letter-spacing: -0.01em; color: var(--body); }
 .picon { flex: none; display: inline-block; vertical-align: middle; }
+:root[data-theme='light'] .picon.pmono { color: var(--ink) !important; }
 .ficonmenu { position: fixed; z-index: 60; padding: 4px; background: var(--canvas-deep); border: 1px solid var(--hairline); border-radius: 6px; }
 .ficonmenu button { display: block; height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--body); font-size: 13px; text-align: left; }
 .ficonmenu button:hover, .ficonmenu button:focus-visible { background: var(--canvas); color: var(--ink); }
