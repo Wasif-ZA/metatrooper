@@ -34,9 +34,33 @@ const termView = (() => {
   const PATH_RE = /(?:[A-Za-z]:)?(?:[\\/]?[\w.@-]+[\\/])+[\w.@-]+\.\w{1,8}(?::\d+(?::\d+)?)?|[\w.@-]+\.\w{1,8}:\d+(?::\d+)?/g;
   const checked = new Map();
 
+  function findLocalLinks(line) {
+    return [...line.matchAll(URL_RE)].flatMap((m) => {
+      const url = m[0].replace(/[.,;!?]+$/, '');
+      return /^https?:\/\/(?:localhost|127\.0\.0\.1):\d+(?:[/?#]|$)/i.test(url) ? [{ start: m.index, end: m.index + url.length, url }] : [];
+    });
+  }
+
+  async function openLocalLink(url) {
+    const r = await rpc('pane.open', { project_id: ui.projectId, url });
+    if (!r?.result) return;
+    ui.paneId = r.result.pane_id;
+    ui.urlDraft = null;
+    ui.browserMode = 'live';
+    ui.tab = 'browser';
+    ui.split = true;
+    save('tab', 'browser');
+    save('split', '1');
+    render();
+  }
+
   /** URLs and existing file paths (with optional :line:col) in one row of text; paths are checked on disk by the main process. */
   function linksFor(sessionId, text) {
-    const urls = [...text.matchAll(URL_RE)].map((m) => ({ start: m.index, text: m[0], target: m[0], line: 1, col: 1 }));
+    const local = findLocalLinks(text);
+    const urls = [...text.matchAll(URL_RE)].map((m) => {
+      const url = local.find((l) => l.start === m.index)?.url || m[0];
+      return { start: m.index, text: url, target: url, line: 1, col: 1 };
+    });
     const inUrl = (i) => urls.some((u) => i >= u.start && i < u.start + u.text.length);
     const paths = [...text.matchAll(PATH_RE)].filter((m) => !inUrl(m.index)).map((m) => {
       const [, file, line, col] = m[0].match(/^(.*?)(?::(\d+))?(?::(\d+))?$/);
@@ -84,7 +108,11 @@ const termView = (() => {
         linksFor(sessionId, text).then((links) => cb(links.length ? links.map((l) => ({
           range: { start: { x: l.start + 1, y }, end: { x: l.start + l.text.length, y } },
           text: l.text,
-          activate: (e) => { if (e.ctrlKey || e.metaKey) void (typeof openTermLink === 'function' ? openTermLink(l.target, l.line, l.col) : troop.openLink(l.target, l.line, l.col)); },
+          decorations: { underline: true, pointerCursor: true },
+          activate: (e) => {
+            if (findLocalLinks(l.target).length) void openLocalLink(l.target);
+            else if (e.ctrlKey || e.metaKey) void (typeof openTermLink === 'function' ? openTermLink(l.target, l.line, l.col) : troop.openLink(l.target, l.line, l.col));
+          },
         })) : undefined), () => cb(undefined));
       },
     });
@@ -357,5 +385,5 @@ const termView = (() => {
     });
   }
 
-  return { show, setLook, type, state, timeEcho, reveal, tile, refit, links: linksFor, ids: () => [...terms.keys()] };
+  return { show, setLook, type, state, timeEcho, reveal, tile, refit, links: linksFor, findLocalLinks, ids: () => [...terms.keys()] };
 })();
