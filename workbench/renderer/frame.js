@@ -120,7 +120,8 @@ globalThis.frameView = (() => {
     const name = (title && !/[\\/]/.test(title) ? title : '') || (x.prompt || '').replace(/\s+/g, ' ').trim() || taskOf(x);
     const words = STATE_WORDS[x.state] || x.state;
     const tip = `${name}\n${x.model ? `${x.model} · ` : ''}${x.engine_id} · ${words}`;
-    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}" data-action="pick" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}" style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${statusHtml(rowDot(x))}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
+    const sel = x.id === (ui.homeSel ?? ui.snap.selected);
+    return `<button class="fagent ftree${x.state === 'exited' ? ' fgone' : ''}${sel ? ' sel' : ''}" data-action="home-select" data-id="${esc(x.id)}" data-key="s:${esc(x.id)}"${sel ? ' aria-current="true"' : ''} style="--depth:${Math.min(depth, 4)}" title="${esc(tip)}" aria-label="${esc(name)}, ${esc(x.model || x.engine_id)}, ${esc(words)}">${statusHtml(rowDot(x))}<span class="fmk">${mark(x.engine_id)}</span><span class="ft">${esc(name)}</span><span class="fmeta">${esc(age(x.started_at))}</span></button>`;
   }
 
   function treeHtml(groups, rows) {
@@ -209,18 +210,25 @@ globalThis.frameView = (() => {
     setHtml('frame-agents', mine.length ? mine.map((x) => `<button class="fagent" data-action="pick" data-id="${esc(x.id)}" data-mono="${mono(x)}" title="${esc(taskOf(x))}" aria-label="${esc(taskOf(x))}, ${esc(x.engine_id)}, ${esc(STATE_WORDS[x.state] || x.state)}"><span class="fdot ${dot(x)}"></span><span class="ftx"><span class="ft">${esc(taskOf(x))}</span><span class="fe">${esc(x.engine_id)}</span></span></button>`).join('') : '<p class="fempty">No agents running</p>');
   }
 
-  /** The nav block, the Projects header and the usage meters, added to the static sidebar markup once. */
+  /** Selects an agent for Home: `ui.homeSel` plus a `home-select` event ({detail: {id}}), switching project first when the agent is elsewhere. */
+  function homeSelect(id) {
+    const row = ui.snap.tree_rows?.[id];
+    if (row && row.project_id !== project()?.id && typeof switchProject === 'function') switchProject(row.project_id);
+    ui.homeSel = id;
+    globalThis.dispatchEvent?.(new CustomEvent('home-select', { detail: { id } }));
+    homeView.set('home');
+    draw();
+  }
+
+  /** One compact icon row (views, Automations, Search, Tasks), the Projects header and the usage meters, added to the static sidebar markup once. */
   function mount() {
     const nav = document.querySelector?.('#frame .fnav');
     if (!nav) return;
-    nav.insertAdjacentHTML('beforebegin', `<nav class="fnav ftop" aria-label="Find"><button data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${ICON.search}</span><span class="fl">Search</span></button>`
-      + `<button id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks"><span class="fi">${ICON.tasks}</span><span class="fl">Tasks</span><span class="fsrc" title="GitHub">${ICON.pr}</span><span class="fpill fghn" id="frameGhCount" hidden></span></button>`
-      + `<button id="frameAutos" title="Automations on Home" aria-label="Automations"><span class="fi">${ICON.autos}</span><span class="fl">Automations</span></button></nav>`);
+    nav.classList.add('ficons');
+    nav.insertAdjacentHTML('beforeend', `<button data-action="view" data-view="automations" title="Automations" aria-label="Automations"><span class="fi">${ICON.autos}</span><span class="fl">Automations</span></button>`
+      + `<button data-action="palette" title="Search (Ctrl+K)" aria-label="Search"><span class="fi">${ICON.search}</span><span class="fl">Search</span></button>`
+      + `<button id="frameGh" title="Tasks: open GitHub issues for this project (read-only)" aria-label="Tasks"><span class="fi">${ICON.pr}</span><span class="fl">Tasks</span><span class="fpill fghn" id="frameGhCount" hidden></span></button>`);
     document.getElementById('frameGh').addEventListener('click', githubPanel);
-    document.getElementById('frameAutos').addEventListener('click', () => {
-      homeView.set('home');
-      setTimeout(() => document.querySelector('[data-section="automations"], .ou-autos')?.scrollIntoView({ block: 'start' }), 50);
-    });
     const sec = document.querySelector('#frame .fsec');
     if (sec) {
       sec.classList.add('fprojects');
@@ -237,9 +245,13 @@ globalThis.frameView = (() => {
   document.addEventListener('DOMContentLoaded', () => {
     set(load('sidebar') === 'rail');
     document.getElementById('frameTog').addEventListener('click', toggle);
-    document.getElementById('frame-agents').addEventListener('click', (e) => { if (e.target.closest('[data-action="pick"]') && ui.view !== 'wall') homeView.set('wall'); });
+    document.getElementById('frame-agents').addEventListener('click', (e) => {
+      const sel = e.target.closest('[data-action="home-select"]');
+      if (sel) { e.stopPropagation(); homeSelect(sel.dataset.id); return; }
+      if (e.target.closest('[data-action="pick"]') && ui.view !== 'wall') homeView.set('wall');
+    });
     mount();
   });
 
-  return { draw, toggle, treeGroups };
+  return { draw, toggle, treeGroups, homeSelect };
 })();
