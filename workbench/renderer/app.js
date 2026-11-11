@@ -605,7 +605,7 @@ function renderTitle() {
   setHtml('core', (warn ? `${warn} ` : '') + (s.core.online ? '<span class="tcore ok" role="img" title="Core online" aria-label="Core online"></span>'
     : `<button class="tcore off" data-action="restart-core" title="Core offline${age !== null ? `, last seen ${Math.round(age / 1000)}s ago` : ''}. Click to restart it." aria-label="Core offline. Restart"></button>`));
   const cur = s.projects.find((p) => p.id === ui.projectId);
-  setHtml('project-pick', `<span>${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}</span>${icon('chevronDown', 14)}`);
+  setHtml('project-pick', `${cur && globalThis.projectIconHtml ? projectIconHtml(cur.icon, 16) : ''}<span>${esc(cur ? cur.name : s.projects.length ? 'Pick a project' : 'No project')}</span>${icon('chevronDown', 14)}`);
   const needs = needsCount();
   wall.roll(document.getElementById('needsN'), needs);
   const chip = document.getElementById('needs');

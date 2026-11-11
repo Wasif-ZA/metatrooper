@@ -58,7 +58,11 @@ export async function seedRows(request, project) {
   const { project_id } = await request('project.open', { path: project });
   const home = path.resolve(project, '..', '..');
   const api = path.join(home, 'demo', 'api-server');
-  gitRepo(api, { 'README.md': '# api-server\n\nOrders and payments API.\n' });
+  // api-server ships its own favicon (the sidebar shows it); shop-cart has none, so it shows its monogram.
+  gitRepo(api, {
+    'README.md': '# api-server\n\nOrders and payments API.\n',
+    'public/favicon.svg': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#2563eb"/><path d="M12 8.5c-3 0-3.5 1.75-3.5 4s-.75 3.5-2.5 3.5c1.75 0 2.5 1.25 2.5 3.5s.5 4 3.5 4M20 8.5c3 0 3.5 1.75 3.5 4s.75 3.5 2.5 3.5c-1.75 0-2.5 1.25-2.5 3.5s-.5 4-3.5 4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>\n',
+  });
   const { project_id: api_id } = await request('project.open', { path: api });
   await request('project.open', { path: project });
   seedFixtures(home, { shop: { id: project_id, path: project }, api: { id: api_id, path: api } });
@@ -66,7 +70,10 @@ export async function seedRows(request, project) {
 
 function gitRepo(dir, files) {
   fs.mkdirSync(dir, { recursive: true });
-  for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
+  for (const [name, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+    fs.writeFileSync(path.join(dir, name), text);
+  }
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Demo', '-c', 'user.email=demo@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('add', '-A');
