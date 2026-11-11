@@ -33,6 +33,7 @@ import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
 import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
+import { formatComment } from './editor-comment.js';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
 import { activeTheme, DEFAULTS, settings, settingsError, settingsFile } from '../../core/src/settings.ts';
 import { checkOverride, readOverrides, resolveProjectIcon, writeOverride, type IconOverride } from './projecticon.ts';
@@ -58,7 +59,7 @@ const POLL_MS = 1000;
 export const UI_METHODS = new Set([
   'session.search', 'session.list', 'session.read', 'session.handoff', 'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
   'project.open', 'session.launch', 'session.focus', 'session.seen', 'session.hide', 'session.limit-resume', 'project.clear', 'project.hide', 'engines.check',
-  'needs.dismiss', 'session.paste-prompt', 'session.send', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
+  'needs.dismiss', 'session.paste-prompt', 'shell.list', 'shell.open', 'shell.close', 'session.clear-status', 'session.resume', 'needs_you.mark-read', 'needs_you.mark-unread', 'pane.open', 'pane.close', 'pane.assign', 'pane.capture', 'approval.resolve', 'loop.choose', 'lend.set',
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove',
   'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create',
@@ -352,6 +353,27 @@ function handlers(): void {
     return out;
   });
 
+  on('comment', async (c: { projectId?: unknown; session_id?: unknown; path?: unknown; line?: unknown; endLine?: unknown; side?: unknown; excerpt?: unknown; text?: unknown }) => {
+    if (typeof c?.text !== 'string' || !c.text.trim()) return { ok: false, error: 'Write a comment first.' };
+    const projectId = c.projectId === undefined ? view.projectId : c.projectId;
+    const d = db();
+    const row = d && typeof c.session_id === 'string' ? (d.prepare('SELECT project_id, host FROM session WHERE id = ?').get(c.session_id) as { project_id: string; host: string } | undefined) : undefined;
+    if (typeof projectId !== 'string' || !row || row.project_id !== projectId) return { ok: false, error: 'Pick a session in this project.' };
+    if (row.host === 'external') return { ok: false, error: 'the session was opened outside Ouros; type into its own terminal' };
+    if (!namedPaths([c.path]) || typeof c.line !== 'number' || !Number.isSafeInteger(c.line) || c.line < 1 ||
+        (c.endLine !== undefined && (typeof c.endLine !== 'number' || !Number.isSafeInteger(c.endLine) || c.endLine < c.line)) ||
+        (c.side !== undefined && c.side !== 'old' && c.side !== 'new') || (c.excerpt !== undefined && typeof c.excerpt !== 'string')) return { ok: false, error: 'Pick a file and line.' };
+    try {
+      const out = await call('session.send', { session_id: c.session_id, text: formatComment(c) }, { ui: true });
+      schedulePush();
+      if (out.kind !== 'reply') return { ok: false, error: 'The core is offline.' };
+      const err = out.reply.error;
+      return err ? { ok: false, error: err.message } : { ok: true };
+    } catch (e) {
+      return { ok: false, error: String((e as Error)?.message || e) };
+    }
+  });
+
   on('pickFolder', async () => {
     if (!win) return null;
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
@@ -500,6 +522,10 @@ function handlers(): void {
     }
     if (op === 'show') {
       const a = (arg && typeof arg === 'object' ? arg : {}) as { path?: unknown; rev?: unknown; session_id?: unknown; scope?: unknown };
+      if (a.session_id !== undefined) {
+        const row = d && typeof a.session_id === 'string' ? (d.prepare('SELECT project_id FROM session WHERE id = ?').get(a.session_id) as { project_id: string } | undefined) : undefined;
+        if (!row || row.project_id !== projectId) return null;
+      }
       const cwd = a.session_id === undefined ? project.path : cwdOf(a.session_id);
       if (!cwd) return null;
       const rev = a.rev === 'HEAD' || a.rev === ':' ? a.rev : a.rev === 'base' && a.session_id !== undefined ? await diffBase(a.session_id, a.scope, cwd).catch(() => null) : null;

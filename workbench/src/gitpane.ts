@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { posix } from 'node:path';
 import type { OwnedPath } from '../../core/src/sessions/owners.ts';
 
-export type Run = (args: string[], input?: string) => Promise<string>;
+export type Run = (args: string[], input?: string, options?: { maxBuffer: number }) => Promise<string>;
 
 const exec = promisify(execFile);
 
@@ -34,8 +34,8 @@ export const GIT_SAFE_ENV = { GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_COUNT: '1', GI
 
 /** git in `cwd` with the repo's code-running settings off; `input` goes to stdin, which is always closed. */
 export function runIn(cwd: string): Run {
-  return async (args, input?: string) => {
-    const p = exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } });
+  return async (args, input?: string, options) => {
+    const p = exec('git', args, { cwd, encoding: 'utf8', timeout: 60000, maxBuffer: options?.maxBuffer ?? 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, ...GIT_SAFE_ENV } });
     p.child.stdin?.on('error', () => {});
     p.child.stdin?.end(input ?? '', 'utf8');
     return (await p).stdout;
@@ -116,11 +116,16 @@ export const SHOW_MAX_BYTES = 512 * 1024;
 export async function showAt(git: Run, rev: string, rel: unknown): Promise<string | null> {
   if (!namedPaths([rel]) || !/^(HEAD|:|[0-9a-f]{40}|[0-9a-f]{64})$/.test(rev)) return null;
   const obj = `${rev === ':' ? ':0' : rev}:./${posix.normalize((rel as string).replace(/\\/g, '/'))}`;
-  let size: number;
-  try { size = Number((await git(['cat-file', '-s', obj])).trim()); } catch { return ''; }
-  if (!(size <= SHOW_MAX_BYTES)) return null;
-  const text = await git(['cat-file', '--filters', obj]);
-  return text.includes('\0') ? null : text;
+  let id: string;
+  try { id = (await git(['rev-parse', '--verify', obj])).trim(); } catch { return ''; }
+  if (!/^([0-9a-f]{40}|[0-9a-f]{64})$/.test(id)) return null;
+  try {
+    if ((await git(['cat-file', '-t', id])).trim() !== 'blob') return null;
+    const size = Number((await git(['cat-file', '-s', id])).trim());
+    if (!Number.isSafeInteger(size) || size < 0 || size > SHOW_MAX_BYTES) return null;
+    const text = await git(['cat-file', 'blob', id], undefined, { maxBuffer: SHOW_MAX_BYTES + 1 });
+    return Buffer.byteLength(text, 'utf8') > SHOW_MAX_BYTES || text.includes('\0') ? null : text;
+  } catch { return null; }
 }
 
 /** One write from the Git tab. Paths go after `--`, the message goes on stdin, nothing passes through a shell. */

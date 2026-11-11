@@ -80,10 +80,10 @@ const expected = [
   'notify.sink.set', 'notify.sink.list', 'notify.sink.test', 'notify.sink.remove', 'grant.candidates', 'grant.window', 'grant.revoke', 'grant.pin', 'takeover.resume', 'takeover.pause',
   'done.result', 'usage.summary', 'usage.session', 'stats.sessions', 'stats.checks', 'session.owners', 'audit.list', 'worktree.create', 'automation.list', 'automation.set', 'automation.enable', 'automation.delete', 'plugin.preview', 'plugin.install', 'plugin.remove', 'session.read', 'session.handoff',
   'session.labels-set', 'labels.list', 'session.monitor-set', 'session.reviewers-set', 'session.approve', 'session.reject', 'session.priority-set', 'session.block-set', 'session.block-clear',
-  'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next', 'session.send',
+  'label.list', 'label.set', 'automation.labels-set', 'automation.run', 'cron.next',
 ];
 // Protects main.ts:57-66 and the call handler: exact capability set and the actual IPC gate.
-test('wire-00 exact 69 IPC methods pass with UI authentication; other methods are refused', async () => {
+test('wire-00 exact 68 IPC methods pass with UI authentication; other methods are refused', async () => {
   const calls: any[] = []; let handler: Function = () => {};
   const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
     call: async (...args: any[]) => { calls.push(args); return { kind: 'reply', reply: { result: {} } }; }, schedulePush() {} });
@@ -92,10 +92,26 @@ test('wire-00 exact 69 IPC methods pass with UI authentication; other methods ar
   assert.deepEqual(Array.from(vm.runInContext('[...UI_METHODS]', c)).sort(), [...expected].sort());
   for (const name of expected) await handler(name, { test: true });
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), expected.map(name => [name, { test: true }, { ui: true }]));
-  for (const name of ['core.stop', 'done.check', 'plugin.secret.set', 'hooks.install', '__proto__', 'plugin.install.extra', '', null, 3]) {
+  for (const name of ['session.send', 'core.stop', 'done.check', 'plugin.secret.set', 'hooks.install', '__proto__', 'plugin.install.extra', '', null, 3]) {
     const r = await handler(name, {}); assert.equal(r.reply.error.code, -32601, String(name));
   }
   assert.equal(calls.length, expected.length);
+});
+
+test('git show refuses another project session before looking up its cwd', async () => {
+  let handler: Function = () => {};
+  const dirs: unknown[] = [];
+  const c = vm.createContext({ on: (_name: string, fn: Function) => { handler = fn; },
+    db: () => ({ prepare: (sql: string) => ({ get: (id: string) => sql.includes('FROM project') ? { path: 'project' } : id === 'own' ? { project_id: 'p1' } : id === 'other' ? { project_id: 'p2' } : undefined }) }),
+    runIn: (cwd: string) => cwd, cwdOf: (id: string) => { dirs.push(id); return 'session'; },
+    showAt: async (cwd: string) => cwd,
+  });
+  vm.runInContext(stripTypeScriptTypes(extract(/  on\('git', async[^]*?\n  \}\);/)), c);
+  for (const session_id of ['other', 'missing', null, 3]) assert.equal(await handler('p1', 'show', { session_id, rev: 'HEAD', path: 'a.ts' }), null);
+  assert.deepEqual(dirs, []);
+  assert.equal(await handler('p1', 'show', { session_id: 'own', rev: 'HEAD', path: 'a.ts' }), 'session');
+  assert.deepEqual(dirs, ['own']);
+  assert.equal(await handler('p1', 'show', { rev: 'HEAD', path: 'a.ts' }), 'project');
 });
 
 // Protects preload.cjs:14 and main.ts:648: the renderer's dirty bit reaches onClose.

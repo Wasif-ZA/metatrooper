@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('troop', {
   commentDiffLine: (c) => ipcRenderer.invoke('commentDiffLine', c),
   commentFiles: (sessionId, files) => ipcRenderer.invoke('commentFiles', { session_id: sessionId, paths: Array.from(files || [], (f) => webUtils.getPathForFile(f)).filter(Boolean) }),
   git: (projectId, op, arg) => ipcRenderer.invoke('git', projectId, op, arg),
+  comment: (c) => ipcRenderer.invoke('comment', c),
   handbackFile: (projectId, file) => ipcRenderer.invoke('handbackFile', projectId, file),
   snapshotImage: (file) => ipcRenderer.invoke('snapshotImage', file),
   onCommentPicked: (fn) => {
