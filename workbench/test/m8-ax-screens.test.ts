@@ -57,7 +57,7 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'RailCard', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -359,9 +359,9 @@ test('Home launches the ready fallback when a saved engine is unavailable', asyn
 });
 
 
-test('Home approval row in the Needs you queue preserves whole-row activation', () => {
+test('Home approval row in the card Needs you section preserves whole-row activation', () => {
   g.ui.snap.approvals = [{ id: 'approve-row' }]; const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.type === 'li' && n.props['data-action'] === 'sheet');
+  const row = h.one((n: any) => n.props?.['data-action'] === 'sheet');
   assert.equal(row.props.role, 'button'); assert.equal(row.props.tabIndex, 0);
   assert.match(renderToStaticMarkup(React.createElement(row.type, row.props)), /1 action waits for a yes/);
 });
@@ -445,10 +445,10 @@ for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test
   g.ui.snap.needs_you = [note('whole-row', kind === 'loop' || kind === 'lend' ? 'other' : kind,
     kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : { read_at: kind === 'done' || kind === 'failed' ? 'read' : null })];
   const h = harness(Home); h.draw();
-  const rows = h.all((n: any) => n.type === 'li' && n.props['data-id'] === 'whole-row');
+  const rows = h.all((n: any) => typeof n.type === 'string' && n.props['data-id'] === 'whole-row');
   if (kind === 'done' || kind === 'failed') { assert.equal(rows.length, 0); return; }
   assert.equal(rows.length, 1);
-  const opening = /<li\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(rows[0].type, rows[0].props)))?.[0];
+  const opening = /<div\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(rows[0].type, rows[0].props)))?.[0];
   assert.ok(opening?.includes('data-action="inbox-open"'));
   assert.ok(opening?.includes('data-id="whole-row"'));
 });
@@ -541,20 +541,23 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
   g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ny-ghead')).length, 0);
 });
 
-test('Home rail opens on the oldest waiting agent and shows its branch, commit, changes, PR and lineage', () => {
+test('Home card opens on the oldest waiting agent: Needs you first, then workspace, version control with PR, and lineage', () => {
   homeStore.set({ open: [], selected: null, usage: false });
   const newer = session('newer', 'waiting_for_you', { state_at: '2026-11-10T02:00:00Z' });
   const older = session('older', 'waiting_for_you', { state_at: '2026-11-10T01:00:00Z', reason: 'Keep the retry?' });
   g.ui.snap.live = [newer, older]; g.ui.snap.sessions = [newer, older, session('kid', 'working', { parent_id: 'older' })];
-  g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: null } } };
+  g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
   const h = harness(Home); h.draw();
-  const rail = h.one((n: any) => n.type?.name === 'RailAgent');
-  assert.equal(rail.props.x.id, 'older');
-  const html = renderToStaticMarkup(rail);
-  for (const text of ['Keep the retry?', 'feat/x', 'abc1234', '+3', '-1', 'PR #7', 'Merge', 'Lineage · 1 running', 'Task kid']) assert.ok(html.includes(text), text);
+  const card = h.one((n: any) => n.type?.name === 'RailCard');
+  assert.equal(card.props.sel.id, 'older');
+  const html = renderToStaticMarkup(card);
+  const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
+  const order = ['Needs you · 2', 'Keep the retry?', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid'].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y));
   assert.deepEqual(calls, []);
   homeStore.set({ selected: 'newer' }); h.draw();
-  const plain = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailAgent'));
+  const plain = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
+  assert.match(plain, /Open on Wall/);
   assert.doesNotMatch(plain, /Commit|Changes|PR #|Lineage/);
 });
 
@@ -590,27 +593,29 @@ test('Home recent work shows the six newest sessions as pills with their latest 
   delete g.localStorage;
 });
 
-test('Home agent is one compact block: title and age, then a subagents line; opening shows the orchestrator first, each row with model, progress and what it is doing, and a row with steps opens to its checklist', () => {
+test('Home agent block: title, then a collapsed subagents trigger; opening shows the orchestrator header and member rows with model, detail and elapsed, and a member with steps opens to its checklist', () => {
   homeStore.set({ open: [], selected: null, usage: false });
   const steps = { done: 1, total: 2, items: [{ text: 'Plan', done: true }, { text: 'Build', done: false }] };
-  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', steps, last_line: 'reading checkout.ts' }), session('a', 'done', { parent_id: 'lead' }),
-    session('b', 'working', { parent_id: 'lead', model: 'gpt-5.4', last_line: 'running tests' }), session('c', 'exited', { parent_id: 'lead', outcome: 'failed' }), session('d', 'waiting_for_you', { parent_id: 'lead', reason: 'permission' }),
+  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', last_line: 'reading checkout.ts' }), session('a', 'done', { parent_id: 'lead' }),
+    session('b', 'working', { parent_id: 'lead', model: 'gpt-5.4', last_line: 'running tests', steps }), session('c', 'exited', { parent_id: 'lead', outcome: 'failed', reason: 'tests broke' }), session('d', 'waiting_for_you', { parent_id: 'lead', reason: 'permission' }),
     session('solo', 'waiting_for_you', { steps })];
   const h = harness(Home); h.draw();
   const row = (id: string) => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'AgentRow' && n.props.x.id === id));
   const closed = row('lead');
-  assert.match(closed, /<div class="ou-hm-l1"><span class="ou-hm-title">Task lead<\/span><span class="ou-hm-age">1m ago<\/span><\/div>/);
-  assert.match(closed, /<b>4 subagents<\/b><span class="ou-hm-think">1 working<\/span>/);
-  assert.doesNotMatch(closed, /ou-hm-tree|ou-hm-proj|ou-hm-branch|No steps reported|Open on Wall/);
-  assert.match(row('solo'), /<b class="ou-hm-pw-waiting">waiting<\/b><span class="ou-hm-steps">1\/2 steps<\/span>/);
+  assert.match(closed, /<div class="ou-hm-title">Task lead<\/div><div class="ou-hm-trigger" data-active="true" aria-expanded="false" aria-label="4 subagents" aria-description="2 working · 1 done · 1 failed"/);
+  assert.match(closed, /<span class="ou-hm-tlabel">4 subagents<\/span><span class="ou-hm-tsum ou-hm-info">2 working · 1 done · 1 failed<\/span>/);
+  assert.equal((closed.match(/class="ou-hm-av"/g) || []).length, 3); assert.match(closed, /ou-hm-more">\+1</);
+  assert.doesNotMatch(closed, /ou-hm-opening|Orchestrator/);
+  assert.match(row('solo'), /<span class="ou-hm-tlabel ou-hm-st-waiting-text">Waiting<\/span><span class="ou-hm-tsum ou-hm-info">1\/2 steps<\/span>/);
   homeStore.set({ open: ['lead'] }); h.draw();
   const html = row('lead');
-  assert.deepEqual([...html.matchAll(/<li class="ou-hm-(lead|kid)" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[1], m[2], m[3]]),
-    [['lead', 'lead', 'working'], ['kid', 'a', 'done'], ['kid', 'b', 'working'], ['kid', 'c', 'failed'], ['kid', 'd', 'waiting']]);
-  assert.match(html, /<span class="ou-hm-model">gpt-5.4<\/span><span class="ou-hm-pword ou-hm-pw-working">.*?Working<\/span><span class="ou-hm-now">running tests<\/span>/);
-  assert.match(html, /Working 1\/2<\/span><span class="ou-hm-now">reading checkout.ts<\/span>/);
+  assert.match(html, /<span class="ou-hm-olabel">Orchestrator<\/span><span class="ou-hm-otitle">Task lead<\/span>/);
+  assert.match(html, /<span class="ou-hm-oagents">5 agents · 3 working · 1 done · 1 failed<\/span>/);
+  assert.deepEqual([...html.matchAll(/<li class="ou-hm-member" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[1], m[2]]), [['a', 'done'], ['b', 'working'], ['c', 'failed'], ['d', 'waiting']]);
+  assert.match(html, /<span class="ou-hm-mdetail">1\/2 steps · running tests<\/span><\/span><span class="ou-hm-model">gpt-5.4<\/span>/);
+  assert.match(html, /<span class="ou-hm-mdetail ou-hm-bad">tests broke<\/span>/);
   assert.doesNotMatch(html, /Build/);
-  homeStore.set({ open: ['lead', 'steps:lead'] }); h.draw();
+  homeStore.set({ open: ['lead', 'steps:b'] }); h.draw();
   assert.match(row('lead'), /Plan.*Build/);
 });
 

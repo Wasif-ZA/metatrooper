@@ -172,26 +172,46 @@ function StartBox({ ready }) {
 const stepsOf = (x) => (x.steps && x.steps.total ? { done: x.steps.done, total: x.steps.total, items: x.steps.items || [] } : null);
 const isWorking = (k) => k.state === 'working' || k.state === 'starting';
 
-function Marks({ list, size = 22 }) {
-  return (
-    <span className="ou-hm-marks">
-      {list.slice(0, 3).map((k) => <span key={k.id} className="ou-hm-mk" style={{ width: size, height: size }}><EngineMark id={k.engine_id} size={size - 6} title={k.engine_id} /></span>)}
-      {list.length > 3 ? <span className="ou-hm-mk ou-hm-more" style={{ width: size, height: size }}>+{list.length - 3}</span> : null}
-    </span>
-  );
-}
-
-export const progressOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
-  : isWorking(k) ? 'working'
+const statusOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
+  : isWorking(k) ? 'running'
     : k.state === 'failed' || /fail/.test(String(k.outcome || '')) ? 'failed'
-      : DONE_STATES.includes(k.state) ? 'done' : 'working');
-const PROGRESS_WORD = { done: 'Done', working: 'Working', failed: 'Failed', waiting: 'Waiting' };
-const since = (x) => String(ago(x.started_at || x.state_at) || '').replace(/ ago$/, '');
+      : k.state === 'exited' && /cancel/.test(String(k.outcome || '')) ? 'stopped'
+        : DONE_STATES.includes(k.state) ? 'completed' : 'running');
+const STATUS_WORD = { running: 'Running', waiting: 'Waiting', completed: 'Completed', failed: 'Failed', stopped: 'Stopped' };
+export const progressOf = (k) => ({ running: 'working', waiting: 'waiting', completed: 'done', failed: 'failed', stopped: 'done' })[statusOf(k)];
+const settled = (k) => ['completed', 'failed', 'stopped'].includes(statusOf(k));
 
-function Dot({ k }) {
-  const p = progressOf(k);
-  return <span className={`ou-hm-dot ou-hm-dot-${p}`} role="img" aria-label={PROGRESS_WORD[p]} title={PROGRESS_WORD[p]} />;
+// From t3code (MIT), apps/web/src/components/chat/AgentElapsed.tsx
+function formatElapsedSeconds(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  if (minutes === 0) return `${seconds}s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 0) return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`;
+  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
+
+const elapsedOf = (list) => {
+  const starts = list.map((k) => Date.parse(k.started_at || '')).filter((t) => !Number.isNaN(t));
+  if (!starts.length) return '';
+  const ends = list.every(settled) ? list.map((k) => Date.parse(k.state_at || '')).filter((t) => !Number.isNaN(t)) : [];
+  return formatElapsedSeconds(((ends.length ? Math.max(...ends) : Date.now()) - Math.min(...starts)) / 1000);
+};
+
+// From t3code (MIT), packages/client-runtime/src/state/subagentDisplay.ts
+export function summarizeSubagentStatuses(statuses) {
+  const counts = { working: 0, done: 0, failed: 0, stopped: 0 };
+  for (const status of statuses) {
+    if (status === 'running' || status === 'waiting') counts.working += 1;
+    else if (status === 'completed') counts.done += 1;
+    else if (status === 'failed') counts.failed += 1;
+    else counts.stopped += 1;
+  }
+  return Object.keys(counts).filter((key) => counts[key] > 0).map((key) => `${counts[key]} ${key}`).join(' · ');
+}
+
+const detailOf = (k) => String((settled(k) ? k.reason || k.last_line : k.last_line || k.reason) || '').replace(/`/g, '').replace(/\s+/g, ' ').trim();
+const tipOf = (k) => [nameOf(k), [k.model || k.engine_id, STATUS_WORD[statusOf(k)], elapsedOf([k])].filter(Boolean).join(' · '), detailOf(k)].filter(Boolean).join('\n');
 
 const press = (fn) => ({
   role: 'button', tabIndex: 0,
@@ -199,116 +219,212 @@ const press = (fn) => ({
   onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); fn(); } },
 });
 
-function DetailRow({ k, lead, openList, toggle }) {
-  const p = progressOf(k);
+function Avatar({ k, status = true }) {
+  return (
+    <span className="ou-hm-av" aria-hidden="true">
+      <EngineMark id={k.engine_id} size={14} title={k.engine_id} />
+      {status ? <span className={`ou-hm-avdot ou-hm-st-${statusOf(k)}`} /> : null}
+    </span>
+  );
+}
+
+function Dot({ k }) {
+  const s = statusOf(k);
+  return <span className={`ou-hm-dot ou-hm-st-${s}`} role="img" aria-label={STATUS_WORD[s]} title={STATUS_WORD[s]} />;
+}
+
+function Steps({ st }) {
+  return (
+    <ol className="ou-hm-check">
+      {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
+    </ol>
+  );
+}
+
+function MemberRow({ k, openList, toggle }) {
   const st = stepsOf(k);
   const key = `steps:${k.id}`;
   const open = Boolean(st) && openList.includes(key);
+  const s = statusOf(k);
+  const detail = st && !settled(k) ? `${st.done}/${st.total} steps${detailOf(k) ? ` · ${detailOf(k)}` : ''}` : detailOf(k);
   return (
-    <li className={lead ? 'ou-hm-lead' : 'ou-hm-kid'} data-id={k.id} data-progress={p}>
-      <div className="ou-hm-drow" aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
-        <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
-        <span className="ou-hm-dname">{nameOf(k)}</span>
+    <li className="ou-hm-member" data-id={k.id} data-progress={progressOf(k)}>
+      <div className="ou-hm-mrow" title={tipOf(k)} aria-label={st ? `${open ? 'Hide' : 'Show'} steps for ${nameOf(k)}` : `Open ${nameOf(k)}`} aria-description={STATUS_WORD[s]}
+        aria-expanded={st ? open : undefined} {...press(() => (st ? toggle(key) : openOnWall(k)))}>
+        <Avatar k={k} />
+        <span className="ou-hm-mtext">
+          <span className="ou-hm-mtitle">{nameOf(k)}</span>
+          {detail ? <span className={`ou-hm-mdetail${s === 'failed' ? ' ou-hm-bad' : ''}`}>{detail}</span> : null}
+        </span>
         {k.model ? <span className="ou-hm-model">{k.model}</span> : null}
-        <span className={`ou-hm-pword ou-hm-pw-${p}`}><Dot k={k} />{PROGRESS_WORD[p]}{st ? ` ${st.done}/${st.total}` : ''}</span>
-        <span className="ou-hm-now">{k.last_line || k.reason || ''}</span>
-        <span className="ou-hm-age">{since(k)}</span>
-        {st ? <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span> : <span className="ou-hm-chevpad" />}
+        <span className="ou-hm-elapsed">{elapsedOf([k])}</span>
+        <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
       </div>
-      {st ? (
-        <Drop open={open} className="ou-hm-drop">
-          <ol className="ou-hm-check">
-            {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
-          </ol>
-        </Drop>
-      ) : null}
+      {st ? <Drop open={open} className="ou-hm-drop ou-hm-msteps"><Steps st={st} /></Drop> : null}
     </li>
   );
 }
 
+const workflowIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="4" height="4" rx="1" /><rect x="8.5" y="8.5" width="4" height="4" rx="1" /><path d="M3.5 5.5v2a2 2 0 0 0 2 2h3" /></svg>;
+
 function AgentRow({ x, kids, openList, selected, toggle, select }) {
   const open = openList.includes(x.id);
   const st = stepsOf(x);
-  const p = progressOf(x);
-  const working = kids.filter(isWorking).length;
+  const group = kids.length ? kids : [x];
+  const statuses = group.map(statusOf);
+  const active = statuses.some((s) => s === 'running' || s === 'waiting');
+  const failed = statuses.includes('failed');
+  const label = kids.length ? `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}` : STATUS_WORD[statusOf(x)];
+  const summary = kids.length ? summarizeSubagentStatuses(statuses) : st ? `${st.done}/${st.total} steps` : (x.model || x.engine_id);
+  const all = [x, ...kids];
+  const agents = `${all.length} ${all.length === 1 ? 'agent' : 'agents'} · ${summarizeSubagentStatuses(all.map(statusOf))}`;
   const flip = () => { select(x.id); toggle(x.id); };
   return (
     <li className={`ou-hm-agent${selected ? ' ou-hm-sel' : ''}`} data-id={x.id} data-state={x.state}>
-      <div className="ou-hm-block" aria-expanded={open} {...press(flip)}>
-        <div className="ou-hm-l1"><span className="ou-hm-title">{nameOf(x)}</span><span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span></div>
-        <div className="ou-hm-subrow">
-          <Marks list={kids.length ? kids : [x]} />
-          {kids.length ? (
-            <span className="ou-hm-subtext"><b>{kids.length} {kids.length === 1 ? 'subagent' : 'subagents'}</b><span className={working ? 'ou-hm-think' : ''}>{working ? `${working} working` : 'all settled'}</span></span>
-          ) : (
-            <span className="ou-hm-subtext"><b className={`ou-hm-pw-${p}`}>{PROGRESS_WORD[p].toLowerCase()}</b>{st ? <span className="ou-hm-steps">{st.done}/{st.total} steps</span> : null}</span>
-          )}
-          <span className="ou-hm-age">{since(x)}</span>
-          <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
-        </div>
+      <div className="ou-hm-title">{nameOf(x)}</div>
+      <div className="ou-hm-trigger" data-active={active || open ? 'true' : 'false'} aria-expanded={open} aria-label={label} aria-description={summary} {...press(flip)}>
+        <span className="ou-hm-stack" aria-hidden="true">
+          {group.slice(0, 3).map((k) => <Avatar key={k.id} k={k} status={group.length === 1} />)}
+          {group.length > 3 ? <span className="ou-hm-av ou-hm-more">+{group.length - 3}</span> : null}
+        </span>
+        <span className="ou-hm-ttext">
+          <span className={`ou-hm-tlabel${statusOf(x) === 'waiting' && !kids.length ? ' ou-hm-st-waiting-text' : ''}`}>{label}</span>
+          <span className={`ou-hm-tsum${active ? ' ou-hm-info' : failed ? ' ou-hm-bad' : ''}`}>{summary}</span>
+        </span>
+        <span className="ou-hm-elapsed">{elapsedOf(group)}</span>
+        <span className="ou-hm-chevdown" data-open={open ? 'true' : 'false'}>{chev}</span>
       </div>
       <Drop open={open} className="ou-hm-drop">
-        <ul className="ou-hm-tree">
-          <DetailRow k={x} lead openList={openList} toggle={toggle} />
-          {kids.map((k) => <DetailRow key={k.id} k={k} openList={openList} toggle={toggle} />)}
-        </ul>
+        <div className="ou-hm-panelbox">
+          <section className="ou-hm-opening" aria-label={`Orchestrator: ${nameOf(x)}`}>
+            <header className="ou-hm-ohead">
+              <span className="ou-hm-oicon">{workflowIcon}</span>
+              <span className="ou-hm-ohtext">
+                <span className="ou-hm-olabel">Orchestrator</span>
+                <span className="ou-hm-otitle">{nameOf(x)}</span>
+                <span className="ou-hm-odesc"><Avatar k={x} />{x.model ? <span className="ou-hm-model">{x.model}</span> : null}{detailOf(x) ? <span>{detailOf(x)}</span> : null}</span>
+              </span>
+              <span className="ou-hm-oagents">{agents}</span>
+            </header>
+            {st ? (
+              <section aria-label="Orchestrator steps">
+                <h4 className="ou-hm-phase"><span>Steps</span><span>{st.done}/{st.total}</span></h4>
+                <Steps st={st} />
+              </section>
+            ) : null}
+            {kids.length ? (
+              <section aria-label="Subagents">
+                <h4 className="ou-hm-phase"><span>Subagents</span><span>{kids.filter(settled).length}/{kids.length}</span></h4>
+                <ul className="ou-hm-members">{kids.map((k) => <MemberRow key={k.id} k={k} openList={openList} toggle={toggle} />)}</ul>
+              </section>
+            ) : null}
+          </section>
+        </div>
       </Drop>
     </li>
   );
 }
 
-function RailAgent({ x, kids }) {
+const openOnWall = (x) => {
+  homeView.set('wall');
+  if (x.project_id && x.project_id !== ui.projectId) { ui.pendingPick = x.id; switchProject(x.project_id); return; }
+  void pick(x.id);
+};
+
+function PanelSection({ title, heading = false, children }) {
+  return (
+    <section className="ou-hm-psec" aria-label={title}>
+      {heading ? <h3 className="ou-hm-psech">{title}</h3> : null}
+      <div className="ou-hm-prows">{children}</div>
+    </section>
+  );
+}
+
+function PanelRow({ icon, label, value, onClick, chevron = false, mono = false, children }) {
+  return (
+    <div className={`ou-hm-prow${onClick ? ' ou-hm-pclick' : ''}`} {...(onClick ? press(onClick) : {})}>
+      <span className="ou-hm-picon">{icon}</span>
+      <span className={`ou-hm-plabel${mono ? ' ou-hm-mono' : ''}`}>{label}</span>
+      {value != null ? <span className="ou-hm-pvalue">{value}</span> : null}
+      {children}
+      {chevron ? <span className="ou-hm-picon">{chev}</span> : null}
+    </div>
+  );
+}
+
+function RailCard({ waiting, approvals, alerts, sel, kids, select, selId }) {
   const [answer, setAnswer] = useState('');
   const [merging, setMerging] = useState(false);
-  const g = ui.snap?.git?.[x.id] || {};
-  const branch = g.branch || x.branch || null;
+  const g = (sel && ui.snap?.git?.[sel.id]) || {};
+  const branch = sel ? g.branch || sel.branch || null : null;
   const pr = g.pr || null;
-  const here = !x.project_id || x.project_id === ui.projectId;
-  const host = (g.root || x.cwd) ? (g.root || x.cwd).split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === x.project_id)?.name || 'This computer';
+  const here = sel && (!sel.project_id || sel.project_id === ui.projectId);
+  const host = sel ? ((g.root || sel.cwd) ? (g.root || sel.cwd).split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === sel.project_id)?.name || 'This computer') : '';
   const send = async () => {
     const t = answer.trim();
     if (!t || !here) return;
-    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${x.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
+    try { await troop.termInput(sel.id, t + '\r'); setAnswer(''); toast(`Sent to ${sel.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
   };
-  const running = kids.filter(isWorking).length;
+  const need = waiting.length + approvals.length + alerts.length;
+  const running = kids.filter((k) => !settled(k)).length;
   return (
-    <div className="ou-hm-panel">
-      {x.state === 'waiting_for_you' ? (
-        <div className="ou-hm-ask">
-          <p><b>{x.engine_id}</b> {x.reason || x.last_line || 'is waiting for you'}</p>
-          <TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? 'Answer, Enter sends' : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} />
-        </div>
-      ) : null}
-      <ul className="ou-hm-props">
-        <li>{hostIcon}<span className="ou-hm-name">{host}</span></li>
-        <li role="button" tabIndex={0} className="ou-hm-click" data-action="pick" data-id={x.id}>{editorIcon}<span className="ou-hm-name">Open on Wall</span>{chev}</li>
-      </ul>
-      {branch ? (
-        <ul className="ou-hm-props">
-          <li>{branchIcon}<span className="ou-hm-name ou-hm-mono">{branch}</span></li>
-          {g.commit ? <li>{commitIcon}<span className="ou-hm-name">Commit</span><span className="ou-hm-mono">{g.commit}</span></li> : null}
-          <li>{filesIcon}<span className="ou-hm-name">Changes</span><span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span></li>
-          {pr ? (
-            <li>{prIcon}{pr.url && typeof openTermLink === 'function' ? <button type="button" className="ou-hm-name ou-hm-link" onClick={() => openTermLink(pr.url)}>PR #{pr.number}</button> : <span className="ou-hm-name">PR #{pr.number}</span>}{pr.checks ? <span className={`ou-hm-checks ou-hm-ck-${pr.checks}`} title={`Checks ${pr.checks}`}>checks {pr.checks}</span> : null}<span className="ou-hm-prstate">{String(pr.state || '').toLowerCase()}</span>
-              {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" label="Merge" onClick={() => setMerging(true)} /> : null}
-            </li>
+    <div className="ou-hm-card">
+      {need ? (
+        <PanelSection title={`Needs you · ${need}`} heading>
+          {waiting.map((w) => (
+            <div key={w.id} className={`ou-hm-prow ou-hm-pclick ou-hm-need${w.id === selId ? ' ou-hm-on' : ''}`} data-id={w.id} title={tipOf(w)} {...press(() => select(w.id))}>
+              <Avatar k={w} />
+              <span className="ou-hm-mtext"><span className="ou-hm-mtitle">{nameOf(w)}</span><span className="ou-hm-mdetail">{w.reason || w.last_line || 'asked a question'}</span></span>
+            </div>
+          ))}
+          {approvals.length ? <div className="ou-hm-prow ou-hm-pclick" data-action="sheet" role="button" tabIndex={0}><span className="ou-hm-plabel">{approvals.length} {approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes</span><span className="ou-hm-picon">{chev}</span></div> : null}
+          {alerts.map((n) => <div key={n.id} className="ou-hm-prow ou-hm-pclick" data-action="inbox-open" data-id={n.id} role="button" tabIndex={0}><span className="ou-hm-plabel">{n.text}</span><span className="ou-hm-pvalue">{ago(n.at)}</span></div>)}
+          {sel && sel.state === 'waiting_for_you' ? (
+            <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(sel)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
           ) : null}
-        </ul>
+        </PanelSection>
       ) : null}
-      {kids.length ? (
-        <div className="ou-hm-props">
-          <div className="ou-hm-rtitle">Lineage {'·'} {running} running</div>
-          <ul className="ou-hm-lineage">
-            {kids.map((k) => <li key={k.id} data-progress={progressOf(k)}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{nameOf(k)}</span><Dot k={k} /><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
-          </ul>
-        </div>
+      {sel ? (
+        <Swap k={sel.id}>
+          <PanelSection title="Workspace">
+            <PanelRow icon={hostIcon} label={host} />
+            <PanelRow icon={editorIcon} label="Open on Wall" chevron onClick={() => openOnWall(sel)} />
+          </PanelSection>
+          {branch ? (
+            <PanelSection title="Version control">
+              <PanelRow icon={branchIcon} label={branch} mono />
+              {g.commit ? <PanelRow icon={commitIcon} label="Commit" value={<span className="ou-hm-mono">{g.commit}</span>} /> : null}
+              <PanelRow icon={filesIcon} label="Changes" value={<span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span>} />
+              {pr ? (
+                <PanelRow icon={prIcon} label={`PR #${pr.number}`} onClick={pr.url && typeof openTermLink === 'function' ? () => openTermLink(pr.url) : undefined}
+                  value={<span className={`ou-hm-checks ou-hm-ck-${pr.checks || 'none'}`}>{[pr.checks ? `checks ${pr.checks}` : null, String(pr.state || '').toLowerCase()].filter(Boolean).join(' · ')}</span>}>
+                  {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" variant="ghost" label="Merge" onClick={(e) => { e?.stopPropagation?.(); setMerging(true); }} /> : null}
+                </PanelRow>
+              ) : null}
+            </PanelSection>
+          ) : null}
+          {kids.length ? (
+            <PanelSection title={`Lineage · ${running} running`} heading>
+              <ul className="ou-hm-members ou-hm-lin">
+                {kids.map((k) => (
+                  <li key={k.id} className="ou-hm-prow ou-hm-pclick" data-progress={progressOf(k)} title={tipOf(k)} {...press(() => openOnWall(k))}>
+                    <span className="ou-hm-bare"><EngineMark id={k.engine_id} size={16} title={k.engine_id} /><span className={`ou-hm-avdot ou-hm-st-${statusOf(k)}`} /></span>
+                    <span className="ou-hm-plabel">{nameOf(k)}</span>
+                    <span className="ou-hm-pvalue ou-hm-small">{elapsedOf([k])}</span>
+                  </li>
+                ))}
+              </ul>
+            </PanelSection>
+          ) : null}
+        </Swap>
       ) : null}
+      {!need && !sel ? <PanelSection title="Quiet"><div className="ou-hm-prow"><span className="ou-hm-plabel ou-hm-mutedtext">Nothing needs you.</span></div></PanelSection> : null}
       {merging && pr ? (
         <AlertDialog isOpen onOpenChange={(o) => { if (!o) setMerging(false); }} title={`Merge PR #${pr.number}?`}
           description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from Ouros.`} actionLabel="Merge"
           onAction={async () => {
             setMerging(false);
-            const r = await rpc('gh.merge', { session_id: x.id });
+            const r = await rpc('gh.merge', { session_id: sel.id });
             if (r && r.result) toast(`Merged PR #${pr.number}`); else toast((r && r.error && (r.error.message || r.error)) || 'Could not merge', true);
           }} />
       ) : null}
@@ -684,23 +800,7 @@ export function Home() {
       </div>
 
       <aside className="ou-hm-rail">
-        <section className="ou-hm-rq">
-          {needsCount + approvals.length ? <div className="ou-hm-rtitle">Needs you <span className="ou-hm-hot">{needsCount + approvals.length}</span></div> : null}
-          {waiting.length || approvals.length || alerts.length ? (
-            <ul className="ou-hm-queue">
-              {waiting.map((x) => (
-                <li key={x.id} className={x.id === selId ? 'ou-hm-sel' : ''} role="button" tabIndex={0} data-id={x.id}
-                  onClick={() => select(x.id)} onKeyDown={(e) => { if (e.key === 'Enter') select(x.id); }}>
-                  <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
-                  <span className="ou-hm-qtext"><b>{nameOf(x)}</b><span>{x.reason || x.last_line || 'asked a question'}</span></span>
-                </li>
-              ))}
-              {approvals.length ? <li role="button" tabIndex={0} data-action="sheet"><span className="ou-hm-qtext"><b>{approvals.length} {approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes</b><span>Review</span></span></li> : null}
-              {alerts.map((n) => <li key={n.id} role="button" tabIndex={0} data-action="inbox-open" data-id={n.id}><span className="ou-hm-qtext"><b>{n.text}</b><span>{n.kind} {'·'} {ago(n.at)}</span></span></li>)}
-            </ul>
-          ) : <p className="ou-hm-muted">Nothing needs you.</p>}
-        </section>
-        {sel ? <Swap k={sel.id}><RailAgent key={sel.id} x={sel} kids={kidsOf(sel.id)} /></Swap> : null}
+        <RailCard waiting={waiting} approvals={approvals} alerts={alerts} sel={sel} kids={sel ? kidsOf(sel.id) : []} select={select} selId={selId} />
       </aside>
     </div>
   );
