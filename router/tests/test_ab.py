@@ -143,3 +143,23 @@ def test_arm_a_alone_loads_the_bash_hook_via_settings(tmp_path, monkeypatch):
     hook = json.loads(seen["A"])["hooks"]["PreToolUse"][0]
     assert hook["matcher"] == "Bash" and hook["hooks"][0]["command"].endswith("-m metarouter.hook")
     assert hook["hooks"][0]["timeout"] == 10 and seen["B"] == ""
+
+
+def test_arm_c_runs_alone_with_hook_and_memory_but_no_block(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    (home / "recipes").mkdir(parents=True)
+    (home / "recipes" / "mine.json").write_text("{}")
+    monkeypatch.setenv("METAROUTER_HOME", str(home))
+    repo = make_repo(tmp_path)
+    fake = tmp_path / "c_agent.py"
+    fake.write_text("import json, os, pathlib, sys\nargs = sys.argv[1:]\n"
+                    "ok = '--settings' in args and not pathlib.Path('CLAUDE.md').exists() and os.environ.get('METAROUTER_HOOK') != 'off'"
+                    " and pathlib.Path(os.environ['METAROUTER_HOME'], 'recipes', 'mine.json').exists()\n"
+                    "pathlib.Path('ok.txt').write_text(str(ok))\n"
+                    "print(json.dumps({'num_turns': 2, 'total_cost_usd': 0.01}))\n")
+    code = cli.main(["--json", "ab", "--task", "t", "--check", "grep -q True ok.txt", "--repo", str(repo), "--runs", "2",
+                     "--arms", "C", "--yes", "--agent-cmd", f'"{sys.executable}" "{fake.as_posix()}"'])
+    r = json.loads(capsys.readouterr().out)
+    assert code == 0 and list(r["out"]) == ["C (hook and your recipes, hints, config, no block)"]
+    assert r["out"]["C (hook and your recipes, hints, config, no block)"]["pass_rate"] == 1.0
+    assert len(worktrees(repo)) == 1

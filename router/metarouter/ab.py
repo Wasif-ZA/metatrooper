@@ -119,13 +119,13 @@ def one_run(repo, arm, agent, argv, task, check, shell):
         if made.returncode:
             raise RuntimeError(f"git worktree add failed: {made.stderr.strip()}")
         set_block(tree, AGENTS[agent][0], arm == "A")
-        if arm == "A" and agent == "claude":
+        if arm in "AC" and agent == "claude":
             hook = run_dir / "hook-settings.json"
             hook.write_text(json.dumps(HOOK), encoding="utf-8")
             argv = [*argv, "--settings", str(hook)]
         start = time.monotonic()
         try:
-            proc = subprocess.run(argv, input=task, cwd=tree, env=agent_env(agent, run_dir, memory=arm == "A"), capture_output=True,
+            proc = subprocess.run(argv, input=task, cwd=tree, env=agent_env(agent, run_dir, memory=arm in "AC"), capture_output=True,
                                   text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
             stdout, row["exit"] = proc.stdout or "", proc.returncode
         except subprocess.TimeoutExpired:
@@ -161,12 +161,14 @@ def ab_lane(args):
     task, check = flag_value(args, "--task"), flag_value(args, "--check")
     agent = flag_value(args, "--agent") or "claude"
     runs, repo = flag_value(args, "--runs") or "3", Path(flag_value(args, "--repo") or ".").resolve()
-    usage = 'usage: metarouter ab --task "<prompt>" --check "<command>" --yes [--agent claude|codex] [--runs 3] [--repo .]'
-    if not task or not check or agent not in AGENTS or not runs.isdigit() or int(runs) < 1:
+    arms = flag_value(args, "--arms") or "AB"
+    usage = ('usage: metarouter ab --task "<prompt>" --check "<command>" --yes [--agent claude|codex] [--runs 3] [--repo .]'
+             ' [--arms AB|C|ABC]')
+    if not task or not check or agent not in AGENTS or not runs.isdigit() or int(runs) < 1 or not set(arms) <= set("ABC"):
         return Result(ok=False, lane="ab", exit=2, note=usage)
     if "--yes" not in args:
         return Result(ok=False, lane="ab", exit=2,
-                      note=f"ab runs {agent} {int(runs) * 2} times unattended with its permission prompts off, in temporary "
+                      note=f"ab runs {agent} {int(runs) * len(arms)} times unattended with its permission prompts off, in temporary "
                            f"worktrees of {repo.as_posix()}. It can still reach files outside them and spends your plan's "
                            f"usage. Add --yes to go ahead")
     top = git(repo, "rev-parse", "--show-toplevel")
@@ -180,10 +182,13 @@ def ab_lane(args):
     argv, sh = binary + AGENTS[agent][1], shell()
     rows = []
     for n in range(1, int(runs) + 1):
-        for arm in ("A", "B"):
+        for arm in arms:
             rows.append({"run": n, **one_run(repo, arm, agent, argv, task, check, sh)})
-    a, b = summary([r for r in rows if r["arm"] == "A"]), summary([r for r in rows if r["arm"] == "B"])
-    out = {"A (block and your recipes, hints, config)": a, "B (no block, empty home)": b, "A minus B": diff(a, b)}
+    names = {"A": "A (block and your recipes, hints, config)", "B": "B (no block, empty home)",
+             "C": "C (hook and your recipes, hints, config, no block)"}
+    out = {names[arm]: summary([r for r in rows if r["arm"] == arm]) for arm in arms}
+    if "A" in arms and "B" in arms:
+        out["A minus B"] = diff(out[names["A"]], out[names["B"]])
     now = datetime.datetime.now().astimezone()
     report = log.home() / "ab" / f"{now:%Y%m%dT%H%M%S}.json"
     report.parent.mkdir(parents=True, exist_ok=True)
