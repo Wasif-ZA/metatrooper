@@ -353,9 +353,9 @@ function handlers(): void {
     return out;
   });
 
-  on('comment', async (c: { projectId?: unknown; session_id?: unknown; path?: unknown; line?: unknown; endLine?: unknown; side?: unknown; excerpt?: unknown; text?: unknown }) => {
+  on('comment', async (c: { session_id?: unknown; path?: unknown; line?: unknown; endLine?: unknown; side?: unknown; excerpt?: unknown; text?: unknown }) => {
     if (typeof c?.text !== 'string' || !c.text.trim()) return { ok: false, error: 'Write a comment first.' };
-    const projectId = c.projectId === undefined ? view.projectId : c.projectId;
+    const projectId = view.projectId;
     const d = db();
     const row = d && typeof c.session_id === 'string' ? (d.prepare('SELECT project_id, host FROM session WHERE id = ?').get(c.session_id) as { project_id: string; host: string } | undefined) : undefined;
     if (typeof projectId !== 'string' || !row || row.project_id !== projectId) return { ok: false, error: 'Pick a session in this project.' };

@@ -237,7 +237,7 @@ export function onProblems(fn) {
   let off = null, dead = false;
   const sub = (m) => { if (!dead) off = m.editor.onDidChangeMarkers(() => fn(problems())); };
   if (monaco) sub(monaco); else waiting.push(sub);
-  return () => { dead = true; off?.dispose(); };
+  return () => { dead = true; off?.dispose(); const i = waiting.indexOf(sub); if (i >= 0) waiting.splice(i, 1); };
 }
 
 // `base` with a one-file unified patch applied, or null when a context or removed line does not match.
@@ -252,8 +252,7 @@ export function applyPatch(base, patch) {
     if (m) {
       const at = Number(m[1]) - (m[2] === '0' ? 0 : 1);
       if (at < i || at > lines.length) return null;
-      out.push(...lines.slice(i, at));
-      i = at;
+      for (; i < at; i++) out.push(lines[i]);
       prev = '@';
       continue;
     }
@@ -267,7 +266,7 @@ export function applyPatch(base, patch) {
     prev = l[0];
   }
   if (!prev) return null;
-  out.push(...lines.slice(i));
+  for (; i < lines.length; i++) out.push(lines[i]);
   if (newNoNl) nl = false;
   else if (oldNoNl) nl = true;
   return out.join('\n') + (nl && out.length ? '\n' : '');
@@ -296,7 +295,7 @@ export function patchSides(patch, text) {
         if (l[0] !== '-') { mod.push(s); if (fill && fill[i++] !== s) return null; }
       }
     }
-    if (fill) { old.push(...fill.slice(i)); mod.push(...fill.slice(i)); }
+    if (fill) for (; i < fill.length; i++) { old.push(fill[i]); mod.push(fill[i]); }
     return { original: old.join('\n'), modified: mod.join('\n') };
   };
   return (typeof text === 'string' && build(text.replace(/\r\n?/g, '\n').split('\n'))) || build(null);

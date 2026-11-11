@@ -641,13 +641,16 @@ function FileIcon({ path, isDir }) {
 
 const Ring = () => <span className="ou-ide-ring" title="Changed by an agent" />;
 
+const letterOf = (f) => (f.worktree && f.worktree !== '.' ? statusLetter(f.index, f.worktree, false)
+  : f.index && f.index !== '.' && f.index !== '?' ? statusLetter(f.index, f.worktree, true) : null);
+
+// One path -> letter map per git status result.
+const statusMaps = new WeakMap();
 function gitStatusOf(st, path) {
   if (!st.git || !st.git.files) return null;
-  const f = st.git.files.find((x) => x.path === path);
-  if (!f) return null;
-  if (f.worktree && f.worktree !== '.') return statusLetter(f.index, f.worktree, false);
-  if (f.index && f.index !== '.' && f.index !== '?') return statusLetter(f.index, f.worktree, true);
-  return null;
+  let map = statusMaps.get(st.git);
+  if (!map) statusMaps.set(st.git, map = new Map(st.git.files.map((f) => [f.path, letterOf(f)])));
+  return map.get(path) ?? null;
 }
 
 function TreeDecorations({ st, path, isChanged }) {
@@ -723,7 +726,7 @@ function treeItems(st, rel, changed, dirty = gitDirs(st)) {
       const children = !kids ? [{ id: `${path}//loading`, label: <LoadDir st={st} rel={path} />, isDisabled: true }]
         : kids.length ? treeItems(st, path, changed, dirty) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }];
       const errors = (st.problems || []).some((p) => p.severity === 'error' && p.path.startsWith(`${path}/`));
-      const letters = (st.git?.files || []).filter((f) => under(f.path, path)).map((f) => gitStatusOf(st, f.path));
+      const letters = (st.git?.files || []).filter((f) => under(f.path, path)).map(letterOf);
       const letter = errors || letters.some((s) => s === 'C' || s === 'D') ? 'error' : letters.includes('M') ? 'm' : letters.some((s) => ['A', 'U', 'R'].includes(s)) ? 'a' : dirty.has(path) ? 'm' : '';
       return { id: path, style, label: <span className={letter ? `ou-ide-label-${letter}` : ''}>{e.name}</span>, children, isExpanded: Boolean(st.open && st.open.has(path)), endContent: letter ? <span className={`ou-ide-folderdot ou-ide-label-${letter}`} title={errors ? 'Contains errors' : 'Contains changes'} /> : undefined };
     }
@@ -984,7 +987,7 @@ function DiffView({ st, tab }) {
     setSides(undefined);
     setDraft(null);
     if (tab.diff === '') setSides(null);
-    else if (tab.diff !== undefined && !needsText) void diffSides(st, tab).then((s) => { if (live) setSides(s); });
+    else if (tab.diff !== undefined && !needsText) void diffSides(st, tab).catch(() => null).then((s) => { if (live) setSides(s); });
     return () => { live = false; };
   }, [st, tab, tab.diff, tab.text, needsText]);
   useEffect(() => {

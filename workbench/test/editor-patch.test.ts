@@ -30,6 +30,14 @@ test('applyPatch refuses a base the patch does not fit', () => {
   assert.equal(applyPatch('a\n', 'Binary files differ\n'), null);
 });
 
+test('applyPatch and patchSides handle a 200,000-line file', () => {
+  const big = 'x\n'.repeat(200_000);
+  const edit = '@@ -1 +1 @@\n-x\n+y\n';
+  const want = 'y\n' + 'x\n'.repeat(199_999);
+  assert.equal(applyPatch(big, edit), want);
+  assert.equal(patchSides(edit, want)!.modified, want);
+});
+
 test('a view zone is kept only while key, height, side and line all match', () => {
   const z = { height: 150, side: 'new', line: 4 };
   assert.equal(sameZone('draft', z, { key: 'draft', height: 150, side: 'new', line: 4 }), true);

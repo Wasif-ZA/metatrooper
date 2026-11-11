@@ -68,6 +68,21 @@ test('comment IPC refuses missing, other-project and external sessions', async (
   } finally { h.close(); }
 });
 
+test('comment IPC ignores a renderer-supplied project and refuses a session outside the open one', async () => {
+  const h = commentHarness();
+  try {
+    assert.equal((await h.send({ projectId: 'p2', session_id: 's2', path: 'a.ts', line: 1, text: 'hi' })).ok, false);
+    assert.equal(h.calls.length, 0);
+  } finally { h.close(); }
+});
+
+test('formatComment stays fast on huge whitespace runs', () => {
+  const t = Date.now();
+  const s = formatComment({ path: 'a.ts', line: 1, excerpt: ' '.repeat(1_000_000), text: 'a' + ' '.repeat(1_000_000) + 'b' });
+  assert.ok(Date.now() - t < 200, `took ${Date.now() - t} ms`);
+  assert.ok(s.length <= MAX);
+});
+
 test('preload exposes comment IPC', async () => {
   let api: any;
   const calls: any[] = [];
