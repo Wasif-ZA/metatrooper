@@ -121,6 +121,7 @@ function activityText(r) {
   return action;
 }
 
+const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
 
@@ -241,7 +242,7 @@ function SubAgents({ x, kids, open, toggle }) {
       </div>
       <Drop open={open} className="ou-hm-drop">
         <ul className="ou-hm-lineage">
-          {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{taskOf(k)}</span><span className={`ou-hm-state ou-hm-st-${k.state}`}>{STATE_WORD[k.state] || k.state}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
+          {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{nameOf(k)}</span><span className={`ou-hm-state ou-hm-st-${k.state}`}>{STATE_WORD[k.state] || k.state}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
         </ul>
       </Drop>
     </div>
@@ -266,7 +267,7 @@ function AgentRow({ x, kids, openList, selected, toggle, select }) {
           {waiting ? <span className="ou-hm-wait">{spin}Waiting</span> : null}
           <span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span>
         </div>
-        <div className="ou-hm-l2"><span className="ou-hm-title">{taskOf(x)}</span></div>
+        <div className="ou-hm-l2"><span className="ou-hm-title">{nameOf(x)}</span></div>
         <div className="ou-hm-l3">
           <span className="ou-hm-mono ou-hm-branch">{branch || STATE_WORD[x.state] || x.state}</span>
           <span className="ou-hm-gap" />
@@ -279,7 +280,7 @@ function AgentRow({ x, kids, openList, selected, toggle, select }) {
           <ol className="ou-hm-check">
             {st.items.map((it, i) => <li key={i} data-done={it.done ? 'true' : 'false'}>{it.done ? circleDone : circle}<span className="ou-hm-ctext">{it.text}</span></li>)}
           </ol>
-        ) : <p className="ou-hm-muted">{kids.length ? 'No steps reported. Sub-agents are listed above.' : 'No steps reported yet.'}</p>}
+        ) : <p className="ou-hm-muted">{kids.length ? 'No steps reported. Sub-agents are listed below.' : 'No steps reported yet.'}</p>}
         {x.last_line ? <pre className="ou-hm-last">{x.last_line}</pre> : null}
         <div className="ou-hm-dropacts"><Button size="sm" variant="ghost" label="Open on Wall" data-action="pick" data-id={x.id} /></div>
       </Drop>
@@ -295,7 +296,7 @@ function RailAgent({ x, kids }) {
   const branch = g.branch || x.branch || null;
   const pr = g.pr || null;
   const here = !x.project_id || x.project_id === ui.projectId;
-  const host = x.cwd ? x.cwd.split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === x.project_id)?.name || 'This computer';
+  const host = (g.root || x.cwd) ? (g.root || x.cwd).split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === x.project_id)?.name || 'This computer';
   const send = async () => {
     const t = answer.trim();
     if (!t || !here) return;
@@ -320,7 +321,7 @@ function RailAgent({ x, kids }) {
           {g.commit ? <li>{commitIcon}<span className="ou-hm-name">Commit</span><span className="ou-hm-mono">{g.commit}</span></li> : null}
           <li>{filesIcon}<span className="ou-hm-name">Changes</span><span className="ou-hm-mono"><b className="ou-hm-add">+{g.added || 0}</b> <b className="ou-hm-del">-{g.deleted || 0}</b></span></li>
           {pr ? (
-            <li>{prIcon}<span className="ou-hm-name">PR #{pr.number}</span><span className="ou-hm-prstate">{String(pr.state || '').toLowerCase()}</span>
+            <li>{prIcon}{pr.url && typeof openTermLink === 'function' ? <button type="button" className="ou-hm-name ou-hm-link" onClick={() => openTermLink(pr.url)}>PR #{pr.number}</button> : <span className="ou-hm-name">PR #{pr.number}</span>}{pr.checks ? <span className={`ou-hm-checks ou-hm-ck-${pr.checks}`} title={`Checks ${pr.checks}`}>checks {pr.checks}</span> : null}<span className="ou-hm-prstate">{String(pr.state || '').toLowerCase()}</span>
               {String(pr.state).toUpperCase() === 'OPEN' ? <Button size="sm" label="Merge" onClick={() => setMerging(true)} /> : null}
             </li>
           ) : null}
@@ -330,7 +331,7 @@ function RailAgent({ x, kids }) {
         <div className="ou-hm-props">
           <div className="ou-hm-rtitle">Lineage {'·'} {running} running</div>
           <ul className="ou-hm-lineage">
-            {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{taskOf(k)}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
+            {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{nameOf(k)}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
           </ul>
         </div>
       ) : null}
@@ -604,17 +605,20 @@ export function Home() {
   if (!homeView.shown()) return null;
   const s = ui.snap || {};
   const live = s.live || [];
-  const everyone = [...live, ...(s.sessions || []).filter((x) => !live.some((l) => l.id === x.id))]
-    .filter((x) => x.state !== 'exited' && !ui.pendingHide?.has(x.id));
+  const tree = s.tree_rows || {};
+  const known = [...live, ...(s.sessions || []).filter((x) => !live.some((l) => l.id === x.id))];
+  const all = [...known.map((x) => (tree[x.id] ? { ...tree[x.id], ...Object.fromEntries(Object.entries(x).filter(([, v]) => v != null)) } : x)),
+    ...Object.values(tree).filter((r) => !known.some((x) => x.id === r.id))].filter((x) => !ui.pendingHide?.has(x.id));
+  const everyone = all.filter((x) => x.state !== 'exited');
   const byId = new Map(everyone.map((x) => [x.id, x]));
-  const kidsOf = (id) => everyone.filter((y) => y.parent_id === id);
+  const kidsOf = (id) => all.filter((y) => y.parent_id === id);
   const tops = everyone.filter((x) => !x.parent_id || !byId.has(x.parent_id))
     .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
 
   const newest = (a, b) => String(b.state_at || b.started_at || '').localeCompare(String(a.state_at || a.started_at || ''));
   const active = tops.filter((x) => !DONE_STATES.includes(x.state) && !isWorking(x));
   const busy = tops.filter(isWorking).sort(newest);
-  const settledAll = [...tops.filter((x) => DONE_STATES.includes(x.state)), ...(s.sessions || []).filter((x) => x.state === 'exited' && !x.parent_id && !ui.pendingHide?.has(x.id))].sort(newest);
+  const settledAll = [...tops.filter((x) => DONE_STATES.includes(x.state)), ...all.filter((x) => x.state === 'exited' && !x.parent_id)].sort(newest);
   const settled = settledAll.slice(0, 20);
 
   const waiting = waitingAll().slice().sort((a, b) => String(a.state_at || '').localeCompare(String(b.state_at || '')));
@@ -697,7 +701,7 @@ export function Home() {
                 {recentSessions.map((x) => (
                   <div key={x.id} className="ou-dash-row" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
                     <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
-                    <span className="ou-dash-row-text">{taskOf(x)}</span>
+                    <span className="ou-dash-row-text">{nameOf(x)}</span>
                     <span className={`ou-hm-state ou-hm-st-${x.state}`}>{STATE_WORD[x.state] || x.state}</span>
                     <span className="ou-dash-row-time">{ago(x.state_at)}</span>
                   </div>
@@ -733,7 +737,7 @@ export function Home() {
                 <li key={x.id} className={x.id === selId ? 'ou-hm-sel' : ''} role="button" tabIndex={0} data-id={x.id}
                   onClick={() => select(x.id)} onKeyDown={(e) => { if (e.key === 'Enter') select(x.id); }}>
                   <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
-                  <span className="ou-hm-qtext"><b>{taskOf(x)}</b><span>{x.reason || x.last_line || 'asked a question'}</span></span>
+                  <span className="ou-hm-qtext"><b>{nameOf(x)}</b><span>{x.reason || x.last_line || 'asked a question'}</span></span>
                 </li>
               ))}
               {approvals.length ? <li role="button" tabIndex={0} data-action="sheet"><span className="ou-hm-qtext"><b>{approvals.length} {approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes</b><span>Review</span></span></li> : null}
