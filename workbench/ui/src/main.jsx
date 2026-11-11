@@ -108,7 +108,7 @@ globalThis.addEventListener?.('home-select', () => homeStore.set({ open: [], tic
 
 document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() !== 'n' || !e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
-  if (e.target.closest?.('input, textarea, select, .cm-editor')) return;
+  if (e.target.closest?.('input, textarea, select, .monaco-editor')) return;
   e.preventDefault();
   openNewTask();
 });

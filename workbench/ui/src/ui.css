@@ -466,16 +466,6 @@ html { font-size: 16px; }
 .ou-ide-view { flex: 1; position: relative; min-height: 0; overflow: hidden; background: var(--pane); }
 .ou-ide-ed { height: 100%; }
 .ou-ide-ed[hidden] { display: none; }
-.ou-ide-diff { height: 100%; overflow: auto; padding: 8px 0 24px; font: 13px/20px var(--mono); background: var(--pane); }
-.ou-ide-dl { display: flex; min-width: max-content; white-space: pre; }
-.ou-ide-dn { flex: none; width: 52px; padding-right: 12px; text-align: right; color: var(--mute); user-select: none; }
-.ou-ide-ds { flex: none; width: 16px; color: var(--mute); user-select: none; }
-.ou-ide-dt { padding-right: 24px; color: var(--body-strong); }
-.ou-ide-k-add { background: var(--add-bg); }
-.ou-ide-k-del { background: var(--del-bg); }
-.ou-ide-k-del .ou-ide-dt { color: var(--del); }
-.ou-ide-k-hunk { align-items: center; height: 24px; margin: 4px 0; background: var(--canvas); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
-.ou-ide-k-hunk .ou-ide-dt { color: var(--mute); }
 .ou-ide-panel { flex: none; height: 200px; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--hairline); }
 .ou-ide-phead { flex: none; display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 4px 0 8px; }
 .ou-ide-agents { flex: 1; min-height: 0; display: flex; overflow-x: auto; }

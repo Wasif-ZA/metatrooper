@@ -5,27 +5,15 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "esbuild src/main.jsx --bundle --format=iife --jsx=automatic --minify --loader:.css=css --outfile=../renderer/ui.bundle.js"
+    "build": "esbuild src/main.jsx --bundle --format=iife --jsx=automatic --minify --loader:.css=css --outfile=../renderer/ui.bundle.js && esbuild src/monaco.js --bundle --format=iife --global-name=ccMonaco --minify --loader:.ttf=file --outfile=../renderer/monaco/monaco.js && esbuild node_modules/monaco-editor/esm/vs/editor/editor.worker.js node_modules/monaco-editor/esm/vs/languages/features/json/json.worker.js node_modules/monaco-editor/esm/vs/languages/features/css/css.worker.js node_modules/monaco-editor/esm/vs/languages/features/html/html.worker.js node_modules/monaco-editor/esm/vs/languages/features/typescript/ts.worker.js --bundle --format=iife --minify --entry-names=[name] --outdir=../renderer/monaco"
   },
   "dependencies": {
     "@astryxdesign/core": "0.7.11",
     "@astryxdesign/theme-neutral": "0.7.11",
-    "@codemirror/autocomplete": "6.20.4",
-    "@codemirror/commands": "6.11.1",
-    "@codemirror/lang-css": "6.3.1",
-    "@codemirror/lang-html": "6.4.12",
-    "@codemirror/lang-javascript": "6.2.5",
-    "@codemirror/lang-json": "6.0.2",
-    "@codemirror/lang-markdown": "6.5.2",
-    "@codemirror/lang-python": "6.2.1",
-    "@codemirror/language": "6.13.1",
-    "@codemirror/search": "6.7.2",
-    "@codemirror/state": "6.7.6",
-    "@codemirror/view": "6.43.15",
-    "@lezer/highlight": "1.2.5",
     "@stylexjs/stylex": "^0.19.0",
     "gsap": "3.15.1",
     "marked": "18.1.2",
+    "monaco-editor": "0.57.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

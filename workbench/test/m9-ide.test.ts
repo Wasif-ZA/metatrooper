@@ -385,14 +385,12 @@ test('closing a dirty tab asks while closing a clean tab does not', async () => 
 
 test('CRLF files save as CRLF and LF files save as LF', async () => {
   const crlfState = editorState('row1\r\nrow2\r\n', 'crlf.txt', { change() {}, save() {} });
-  assert.equal(crlfState.lineBreak, '\n');
   assert.equal(crlfState.sliceDoc(), 'row1\nrow2\n');
 
-  const tr = crlfState.update({ changes: { from: 4, insert: '\r\nmiddle' } });
-  assert.equal(tr.state.sliceDoc(), 'row1\nmiddle\nrow2\n');
+  const edited = editorState('row1\r\nmiddle\r\nrow2\r\n', 'crlf.txt', { change() {}, save() {} });
+  assert.equal(edited.sliceDoc(), 'row1\nmiddle\nrow2\n');
 
   const lfState = editorState('row1\nrow2\n', 'lf.txt', { change() {}, save() {} });
-  assert.equal(lfState.lineBreak, '\n');
   assert.equal(lfState.sliceDoc().includes('\r'), false);
 
   await drawIde();
@@ -401,7 +399,7 @@ test('CRLF files save as CRLF and LF files save as LF', async () => {
   await __openFile(cur, 'crlf.txt');
   const crlfTab = __tabOf(cur, 'crlf.txt');
   crlfTab.dirty = true;
-  crlfTab.state = tr.state;
+  crlfTab.state = edited;
 
   calls.length = 0;
   g.api.fsWrite = async (...args: any[]) => {
@@ -586,7 +584,6 @@ test('fix-04 normalized edits save back with the original CRLF or LF bytes', () 
     writeFileSync(join(temp, name), 'café' + newline + 'two' + newline);
     const opened = readText(temp, name) as { text: string; mtimeMs: number };
     const state = editorState(opened.text, name, { change() {}, save() {} });
-    assert.equal(state.lineBreak, '\n');
     assert.equal((writeText(temp, name, state.sliceDoc() + 'three\n', opened.mtimeMs) as { ok: boolean }).ok, true);
     assert.equal(readFileSync(join(temp, name), 'utf8'), 'café' + newline + 'two' + newline + 'three' + newline);
   }

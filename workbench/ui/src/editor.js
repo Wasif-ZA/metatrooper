@@ -1,118 +1,215 @@
-import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, layer, RectangleMarker } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { indentOnInput, bracketMatching, syntaxHighlighting, HighlightStyle, indentUnit } from '@codemirror/language';
-import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
-import { search, searchKeymap } from '@codemirror/search';
-import { javascript } from '@codemirror/lang-javascript';
-import { json } from '@codemirror/lang-json';
-import { markdown } from '@codemirror/lang-markdown';
-import { css } from '@codemirror/lang-css';
-import { html } from '@codemirror/lang-html';
-import { python } from '@codemirror/lang-python';
-import { tags as t } from '@lezer/highlight';
-
-const RULERS = [80, 100, 120];
 const PY = ['py', 'pyw', 'pyi'];
-
-const outline = '1px solid var(--hairline-strong)';
-
-const ourosTheme = EditorView.theme({
-  '&': { height: '100%', background: 'var(--pane)', color: 'var(--body-strong)', font: '13px/20px var(--mono)' },
-  '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '20px' },
-  '.cm-content': { caretColor: 'var(--ink)' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--ink)' },
-  '.cm-gutters': { background: 'var(--pane)', color: 'var(--faint)', border: 'none', minWidth: '46px' },
-  '.cm-lineNumbers': { minWidth: '46px' },
-  '.cm-lineNumbers .cm-gutterElement': { textAlign: 'right', paddingRight: '16px', paddingLeft: '8px', boxSizing: 'border-box', opacity: '0.6' },
-  '.cm-activeLine': { background: 'var(--canvas)' },
-  '.cm-activeLineGutter': { background: 'var(--canvas)', opacity: '1', color: 'var(--body-strong)' },
-  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { background: 'var(--canvas-soft)' },
-  '&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket': { background: 'none', outline },
-  '.cm-searchMatch, .cm-searchMatch-selected': { background: 'none', outline },
-  '.cm-panels': { background: 'var(--canvas)', color: 'var(--body-strong)' },
-  '.cm-panels.cm-panels-top': { borderBottom: '1px solid var(--hairline)' },
-  '.cm-panel input, .cm-panel button': { borderRadius: '0', border: '1px solid var(--hairline)', background: 'var(--canvas-deep)', color: 'var(--ink)', backgroundImage: 'none' },
-  '.cm-ruler': { background: 'var(--hairline)', pointerEvents: 'none' },
-}, { dark: true });
-
-const ourosHighlight = HighlightStyle.define([
-  { tag: [t.keyword, t.controlKeyword, t.moduleKeyword, t.operatorKeyword, t.definitionKeyword, t.modifier], color: 'var(--syn-keyword)' },
-  { tag: [t.string, t.special(t.string), t.regexp, t.monospace], color: 'var(--syn-string)' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--syn-number)' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName), t.tagName, t.link, t.url], color: 'var(--syn-fn)' },
-  { tag: [t.typeName, t.className, t.namespace, t.attributeName, t.propertyName], color: 'var(--syn-type)' },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--faint)' },
-  { tag: [t.punctuation, t.operator, t.bracket, t.separator], color: 'var(--body)' },
-  { tag: t.heading, color: 'var(--ink)', fontWeight: '600' },
-  { tag: t.strong, fontWeight: '600' },
-  { tag: t.emphasis, fontStyle: 'italic' },
-  { tag: t.invalid, color: 'var(--del)' },
-]);
-
-function language(path) {
-  const ext = path.split('.').pop().toLowerCase();
-  if (['js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx'].includes(ext)) return javascript({ jsx: true, typescript: true });
-  if (ext === 'json') return json();
-  if (ext === 'md') return markdown();
-  if (ext === 'css') return css();
-  if (ext === 'html') return html();
-  if (PY.includes(ext)) return python();
-  return [];
-}
+const LANG = {
+  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript', ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
+  json: 'json', md: 'markdown', css: 'css', html: 'html', py: 'python', pyw: 'python', pyi: 'python',
+};
+const WORKERS = { json: 'json', css: 'css', html: 'html', typescript: 'ts', javascript: 'ts' };
+const SEVERITY = { 8: 'error', 4: 'warning', 2: 'info', 1: 'hint' };
 
 const ext = (path) => path.split('.').pop().toLowerCase();
-const wrap = new Compartment();
-const wrapped = (state) => wrap.get(state) === EditorView.lineWrapping;
+const langOf = (path) => LANG[ext(path)] || 'plaintext';
 
-const rulers = layer({
-  above: false,
-  class: 'cm-rulers',
-  update: (u) => u.geometryChanged || u.viewportChanged || u.transactions.some((tr) => tr.reconfigured),
-  markers(view) {
-    if (wrapped(view.state)) return [];
-    const start = view.coordsAtPos(view.viewport.from);
-    if (!start) return [];
-    const textLeft = start.left - (view.scrollDOM.getBoundingClientRect().left - view.scrollDOM.scrollLeft * view.scaleX);
-    const height = Math.max(view.contentHeight, view.scrollDOM.clientHeight) * view.scaleY;
-    return RULERS.map((n) => new RectangleMarker('cm-ruler', textLeft + n * view.defaultCharacterWidth * view.scaleX, 0, view.scaleX, height));
-  },
-});
+let monaco = null;
+let loading = null;
+let seq = 0;
 
-const toggleWrap = (view) => (view.dispatch({ effects: wrap.reconfigure(wrapped(view.state) ? [] : EditorView.lineWrapping) }), true);
+// A tab's text: plain until Monaco loads, then a model that keeps undo across remounts.
+class Doc {
+  constructor(text, path, on) { this.text = text.replace(/\r\n?/g, '\n'); this.path = path; this.on = on; this.model = null; this.view = null; }
+  sliceDoc() { return this.model ? this.model.getValue() : this.text; }
+  dispose() { this.model?.dispose(); this.model = null; }
+}
 
-const findKeys = searchKeymap.filter((k) => k.key !== 'Mod-g' && k.key !== 'Shift-Mod-g');
+export const editorState = (text, path, on) => new Doc(text, path, on);
 
-export function editorState(text, path, on) {
-  const tabs = text.split('\n', 200).some((l) => l.startsWith('\t'));
-  const py = PY.includes(ext(path));
-  return EditorState.create({
-    doc: text,
-    extensions: [
-      lineNumbers(), highlightActiveLine(), highlightActiveLineGutter(), drawSelection(), history(), indentOnInput(), bracketMatching(), closeBrackets(),
-      EditorState.tabSize.of(tabs || py ? 4 : 2),
-      indentUnit.of(tabs ? '\t' : py ? '    ' : '  '),
-      wrap.of(['md', 'markdown', 'mdx', 'txt'].includes(ext(path)) ? EditorView.lineWrapping : []),
-      rulers,
-      search({ top: true }),
-      language(path),
-      syntaxHighlighting(ourosHighlight),
-      ourosTheme,
-      EditorView.updateListener.of((u) => {
-        if (u.docChanged) on.change();
-        if ((u.selectionSet || u.docChanged) && on.selection) {
-          const head = u.state.selection.main.head;
-          const line = u.state.doc.lineAt(head);
-          on.selection({ line: line.number, col: head - line.from + 1 });
-        }
-      }),
-      keymap.of([{ key: 'Mod-s', preventDefault: true, run: () => (on.save(), true) }, { key: 'Alt-z', preventDefault: true, run: toggleWrap }, ...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...findKeys, indentWithTab]),
-    ],
+export function loadMonaco() {
+  return loading ||= new Promise((resolve, reject) => {
+    // getWorker, not getWorkerUrl: the URL path wraps workers in blob: URLs, which the page CSP refuses
+    globalThis.MonacoEnvironment = { getWorker: (_, label) => new Worker(`monaco/${WORKERS[label] || 'editor'}.worker.js`, { name: label }) };
+    const link = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: 'monaco/monaco.css' });
+    const script = Object.assign(document.createElement('script'), { src: 'monaco/monaco.js' });
+    script.onload = () => resolve(setup(globalThis.ccMonaco));
+    script.onerror = () => { loading = null; reject(new Error('The editor did not load.')); };
+    document.head.append(link, script);
   });
 }
 
+function setup(m) {
+  monaco = m;
+  for (const d of [m.typescript.typescriptDefaults, m.typescript.javascriptDefaults]) {
+    d.setDiagnosticsOptions({ noSemanticValidation: true });
+    d.setCompilerOptions({ ...d.getCompilerOptions(), jsx: m.typescript.JsxEmit.Preserve, allowJs: true, allowNonTsExtensions: true });
+  }
+  theme();
+  let queued = false;
+  const again = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; theme(); }); } };
+  new MutationObserver(again).observe(document.documentElement, { attributes: true });
+  return m;
+}
+
+function theme() {
+  const probe = document.createElement('span');
+  (document.getElementById('ide') || document.body).append(probe);
+  const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+  const hex = (name) => {
+    probe.style.color = `var(${name})`;
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = getComputedStyle(probe).color;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return '#' + (a === 255 ? [r, g, b] : [r, g, b, a]).map((x) => x.toString(16).padStart(2, '0')).join('');
+  };
+  const c = Object.fromEntries(['pane', 'body', 'body-strong', 'faint', 'mute', 'canvas', 'canvas-soft', 'canvas-deep', 'ink', 'hairline', 'hairline-strong',
+    'syn-keyword', 'syn-string', 'syn-number', 'syn-fn', 'syn-type', 'del', 'add-bg', 'del-bg'].map((k) => [k, hex(`--${k}`)]));
+  probe.remove();
+  const fg = (k) => c[k].slice(1, 7);
+  const dark = parseInt(fg('pane').slice(0, 2), 16) + parseInt(fg('pane').slice(2, 4), 16) + parseInt(fg('pane').slice(4, 6), 16) < 384;
+  monaco.editor.defineTheme('cc', {
+    base: dark ? 'vs-dark' : 'vs',
+    inherit: true,
+    rules: [
+      { token: '', foreground: fg('body-strong') },
+      { token: 'keyword', foreground: fg('syn-keyword') },
+      { token: 'string', foreground: fg('syn-string') },
+      { token: 'regexp', foreground: fg('syn-string') },
+      { token: 'number', foreground: fg('syn-number') },
+      { token: 'tag', foreground: fg('syn-fn') },
+      { token: 'type', foreground: fg('syn-type') },
+      { token: 'attribute.name', foreground: fg('syn-type') },
+      { token: 'comment', foreground: fg('faint') },
+      { token: 'delimiter', foreground: fg('body') },
+      { token: 'operator', foreground: fg('body') },
+      { token: 'strong', fontStyle: 'bold' },
+      { token: 'emphasis', fontStyle: 'italic' },
+      { token: 'invalid', foreground: fg('del') },
+    ],
+    colors: {
+      'editor.background': c.pane, 'editor.foreground': c['body-strong'], 'editorGutter.background': c.pane,
+      'editorLineNumber.foreground': c.faint, 'editorLineNumber.activeForeground': c['body-strong'],
+      'editor.lineHighlightBackground': c.canvas, 'editor.lineHighlightBorder': c.canvas,
+      'editorCursor.foreground': c.ink, 'editor.selectionBackground': c['canvas-soft'], 'editor.inactiveSelectionBackground': c['canvas-soft'],
+      'editorRuler.foreground': c.hairline, 'editorIndentGuide.background1': c.hairline, 'editorWhitespace.foreground': c.hairline,
+      'editorBracketMatch.background': '#00000000', 'editorBracketMatch.border': c['hairline-strong'],
+      'editor.findMatchBackground': '#00000000', 'editor.findMatchBorder': c['hairline-strong'], 'editor.findMatchHighlightBorder': c.hairline,
+      'editorWidget.background': c.canvas, 'editorWidget.border': c.hairline, 'editorHoverWidget.background': c.canvas, 'editorHoverWidget.border': c.hairline,
+      'input.background': c['canvas-deep'], 'input.foreground': c.ink, 'input.border': c.hairline, 'focusBorder': c['hairline-strong'],
+      'diffEditor.insertedLineBackground': c['add-bg'], 'diffEditor.removedLineBackground': c['del-bg'],
+      'diffEditor.insertedTextBackground': c['add-bg'], 'diffEditor.removedTextBackground': c['del-bg'],
+      'editorBracketHighlight.foreground1': c.body, 'editorBracketHighlight.foreground2': c.body, 'editorBracketHighlight.foreground3': c.body, 'diffEditor.diagonalFill': c.hairline, 'diffEditorGutter.insertedLineBackground': c['add-bg'], 'diffEditorGutter.removedLineBackground': c['del-bg'],
+    },
+  });
+  monaco.editor.setTheme('cc');
+}
+
+const options = (path) => ({
+  theme: 'cc', automaticLayout: true, bracketPairColorization: { enabled: false }, rulers: [], minimap: { enabled: false }, scrollBeyondLastLine: false, fixedOverflowWidgets: true,
+  fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || 'monospace', fontSize: 13, lineHeight: 20,
+  wordWrap: ['md', 'markdown', 'mdx', 'txt'].includes(ext(path)) ? 'on' : 'off',
+});
+
+function attach(doc) {
+  if (doc.model) return doc.model;
+  doc.model = monaco.editor.createModel(doc.text, langOf(doc.path), monaco.Uri.from({ scheme: 'file', path: `/${++seq}/${doc.path}` }));
+  doc.model.setEOL(monaco.editor.EndOfLineSequence.LF);
+  const tabs = doc.text.split('\n', 200).some((l) => l.startsWith('\t'));
+  doc.model.updateOptions({ tabSize: tabs || PY.includes(ext(doc.path)) ? 4 : 2, insertSpaces: !tabs });
+  doc.model.onDidChangeContent(() => doc.on.change());
+  return doc.model;
+}
+
+// Ctrl+K and Ctrl+G belong to the app; hand them past the editor
+function appKeys(parent) {
+  parent.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || e.shiftKey || e.altKey || !/^[kg]$/i.test(e.key)) return;
+    e.stopPropagation();
+    e.preventDefault();
+    parent.parentElement?.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: true, bubbles: true }));
+  }, true);
+}
+
 export function openEditor(parent, textOrState, path, on) {
-  const state = textOrState instanceof EditorState ? textOrState : editorState(textOrState, path, on);
-  return new EditorView({ state, parent });
+  let doc = textOrState instanceof Doc ? textOrState : editorState(textOrState, path, on);
+  let ed = null, dead = false, line = null, focus = false;
+  const show = (n) => { ed.setPosition({ lineNumber: n, column: 1 }); ed.revealLineInCenter(n); ed.focus(); };
+  appKeys(parent);
+  loadMonaco().then((m) => {
+    if (dead) return;
+    ed = m.editor.create(parent, { ...options(path), model: attach(doc) });
+    if (doc.view) ed.restoreViewState(doc.view);
+    ed.onDidChangeCursorPosition((e) => on.selection?.({ line: e.position.lineNumber, col: e.position.column }));
+    // addAction, not addCommand: a command keybinding is global and fires for the last editor that added it
+    ed.addAction({ id: 'cc.save', label: 'Save', keybindings: [m.KeyMod.CtrlCmd | m.KeyCode.KeyS], run: () => on.save() });
+    ed.addAction({ id: 'cc.wrap', label: 'Toggle word wrap', keybindings: [m.KeyMod.Alt | m.KeyCode.KeyZ], run: () => ed.updateOptions({ wordWrap: ed.getRawOptions().wordWrap === 'on' ? 'off' : 'on' }) });
+    if (line) show(line); else if (focus) ed.focus();
+  }, () => {});
+  return {
+    get state() { return doc; },
+    setState(next) {
+      if (next === doc) return;
+      const old = doc;
+      doc = next;
+      if (ed) ed.setModel(attach(doc));
+      old.dispose();
+    },
+    focus() { if (ed) ed.focus(); else focus = true; },
+    goto(n) { if (ed) show(n); else line = n; },
+    pos() { const p = ed?.getPosition(); return p ? { line: p.lineNumber, col: p.column } : { line: 1, col: 1 }; },
+    destroy() { dead = true; if (ed) { doc.view = ed.saveViewState(); ed.dispose(); } },
+  };
+}
+
+export function openDiff(parent, sides, path) {
+  let ed = null, dead = false, models = [];
+  appKeys(parent);
+  loadMonaco().then((m) => {
+    if (dead) return;
+    models = [m.editor.createModel(sides.original, langOf(path)), m.editor.createModel(sides.modified, langOf(path))];
+    ed = m.editor.createDiffEditor(parent, { ...options(path), readOnly: true, originalEditable: false, useInlineViewWhenSpaceIsLimited: true });
+    ed.setModel({ original: models[0], modified: models[1] });
+  }, () => {});
+  return () => { dead = true; ed?.dispose(); for (const x of models) x.dispose(); };
+}
+
+// Markers for open file tabs, for the Problems panel; empty until Monaco has loaded.
+export function problems() {
+  if (!monaco) return [];
+  return monaco.editor.getModelMarkers({}).filter((x) => x.resource.scheme === 'file').map((x) => ({
+    path: x.resource.path.replace(/^\/\d+\//, ''), line: x.startLineNumber, col: x.startColumn,
+    severity: SEVERITY[x.severity] || 'info', message: x.message, source: x.source || x.owner,
+  }));
+}
+
+export function onProblems(fn) {
+  let off = null, dead = false;
+  void loadMonaco().then((m) => { if (!dead) off = m.editor.onDidChangeMarkers(() => fn(problems())); }, () => {});
+  return () => { dead = true; off?.dispose(); };
+}
+
+// Both sides of a one-file unified patch; `text` (the new side) fills the unchanged gaps when it matches.
+export function patchSides(patch, text) {
+  const hunks = [];
+  for (const raw of patch.split('\n')) {
+    const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(raw);
+    if (m) hunks.push({ at: Number(m[1]) - (m[2] === '0' ? 0 : 1), lines: [] });
+    else if (hunks.length && /^[ +-]/.test(raw)) hunks.at(-1).lines.push(raw.replace(/\r$/, ''));
+  }
+  if (!hunks.length) return null;
+  const build = (fill) => {
+    const old = [], mod = [];
+    let i = 0;
+    for (const h of hunks) {
+      if (fill) {
+        if (h.at < i || h.at > fill.length) return null;
+        for (; i < h.at; i++) { old.push(fill[i]); mod.push(fill[i]); }
+      }
+      for (const l of h.lines) {
+        const s = l.slice(1);
+        if (l[0] !== '+') old.push(s);
+        if (l[0] !== '-') { mod.push(s); if (fill && fill[i++] !== s) return null; }
+      }
+    }
+    if (fill) { old.push(...fill.slice(i)); mod.push(...fill.slice(i)); }
+    return { original: old.join('\n'), modified: mod.join('\n') };
+  };
+  return (typeof text === 'string' && build(text.replace(/\r\n?/g, '\n').split('\n'))) || build(null);
 }

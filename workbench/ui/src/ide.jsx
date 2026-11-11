@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Badge } from '@astryxdesign/core/Badge';
@@ -16,7 +16,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { editorState, openEditor } from './editor.js';
+import { editorState, openEditor, openDiff, patchSides } from './editor.js';
 import { Preview, isMd } from './preview.jsx';
 import { AgentHead } from './agenthead.jsx';
 import { paletteView } from './palette.jsx';
@@ -116,7 +116,7 @@ async function refresh(st, before, after) {
       if (!r || r.error || r.mtimeMs === t.mtimeMs || t.dirty || !st.tabs.includes(t)) continue;
       t.mtimeMs = r.mtimeMs;
       t.text = r.text;
-      if (t.view) t.view.setState(editorState(r.text, t.path, onFor(st, t))); else t.state = null;
+      if (t.view) t.view.setState(editorState(r.text, t.path, onFor(st, t))); else { t.state?.dispose(); t.state = null; }
     }
     if (st.git) await loadGitStatus(st);
   } catch {} finally {
@@ -239,11 +239,8 @@ const onFor = (st, ref) => {
 
 function goto(t) {
   if (!t.view || !t.gotoLine) return;
-  const doc = t.view.state.doc;
-  const line = doc.line(Math.max(1, Math.min(t.gotoLine, doc.lines)));
+  t.view.goto(t.gotoLine);
   t.gotoLine = null;
-  t.view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
-  t.view.focus();
 }
 
 async function readTab(st, t, path) {
@@ -447,11 +444,12 @@ async function saveTab(st, path, force = false) {
   if (t.saving) return false;
   t.saving = true;
   let r;
-  try { r = await api.fsWrite(st.pid, path, state.sliceDoc(), force ? null : (t.mtimeMs ?? null)); } finally { t.saving = false; }
+  const text = state.sliceDoc();
+  try { r = await api.fsWrite(st.pid, path, text, force ? null : (t.mtimeMs ?? null)); } finally { t.saving = false; }
   if (r && r.ok) {
     t.mtimeMs = r.mtimeMs;
     const now = t.view ? t.view.state : t.state;
-    if (now && now.doc === state.doc) t.dirty = false;
+    if (now && now.sliceDoc() === text) t.dirty = false;
     bump();
     if (st.git) await loadGitStatus(st);
     return true;
@@ -471,7 +469,7 @@ async function reloadTab(st, path) {
   t.error = undefined;
   t.dirty = false;
   if (t.view) t.view.setState(editorState(r.text, path, onFor(st, t)));
-  else { t.text = r.text; t.state = null; }
+  else { t.text = r.text; t.state?.dispose(); t.state = null; }
   bump();
 }
 
@@ -876,32 +874,24 @@ function EditorHost({ st, tab, hidden }) {
     const view = openEditor(ref.current, tab.state || tab.text, tab.path, onFor(st, tab));
     tab.view = view;
     tab.state = null;
-    const head = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(head);
-    tab.line = line.number;
-    tab.col = head - line.from + 1;
+    const p = view.pos();
+    tab.line = p.line;
+    tab.col = p.col;
     goto(tab);
     bump();
-    return () => { tab.state = view.state; tab.view = null; view.destroy(); };
+    return () => { tab.state = view.state; tab.view = null; view.destroy(); if (!st.tabs.includes(tab)) tab.state.dispose(); };
   }, [ready, st, tab]);
   return <div ref={ref} className="ou-ide-ed" hidden={hidden} onKeyDown={(e) => { if (!e.ctrlKey && !e.altKey && !e.metaKey) e.stopPropagation(); }} />;
 }
 
 function DiffView({ tab }) {
+  const ref = useRef(null);
+  // no api returns the base file, so the old side is rebuilt from the patch and the file on disk
+  const sides = useMemo(() => (tab.diff ? patchSides(tab.diff, tab.text) : null), [tab.diff, tab.text]);
+  useEffect(() => (sides ? openDiff(ref.current, sides, tab.path) : undefined), [sides, tab.path]);
   if (tab.diff === undefined) return <p className="ou-ide-muted ou-ide-pad">Loading.</p>;
-  const lines = tab.diff ? diffLines(tab.diff) : [];
-  if (!lines.length) return <p className="ou-ide-muted ou-ide-pad">No changes to show for this file.</p>;
-  return (
-    <div className="ou-ide-diff">
-      {lines.map((l, i) => (
-        <div key={i} className={`ou-ide-dl ou-ide-k-${l.kind}`}>
-          <span className="ou-ide-dn">{l.kind === 'del' || l.kind === 'hunk' ? '' : l.line}</span>
-          <span className="ou-ide-ds">{l.kind === 'add' ? '+' : l.kind === 'del' ? '-' : ''}</span>
-          <span className="ou-ide-dt">{l.kind === 'hunk' ? l.text : l.text.slice(1)}</span>
-        </div>
-      ))}
-    </div>
-  );
+  if (!sides) return <p className="ou-ide-muted ou-ide-pad">No changes to show for this file.</p>;
+  return <div ref={ref} className="ou-ide-mdiff" style={{ height: '100%' }} />;
 }
 
 function OpenInVsCodeButton({ st, tab }) {
