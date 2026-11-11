@@ -220,8 +220,8 @@ test('60704072 Needs you has exactly one empty message, in the list, and none in
   assert.equal((renderToStaticMarkup(tree).match(/Nothing is waiting on you\./g) || []).length, 1);
 });
 
-test('1720c8e3 Home agent block reads the task, then its own engine mark and state with its model', (t) => {
-  // Render the real Home session row and check its three lines in order.
+test('1720c8e3 Home task view reads the project, then the task title, in its breadcrumb', (t) => {
+  // Render the real Home task view for one working session and check its breadcrumb.
   g.ui.pendingHide = new Set();
   g.ui.snap.sessions = [{ id: 'a', project_id: 'p1', engine_id: 'codex', state: 'working', task: 'Review changes' }];
   for (const [key, value] of Object.entries({ taskOf: (x: any) => x.task })) {
@@ -229,10 +229,10 @@ test('1720c8e3 Home agent block reads the task, then its own engine mark and sta
     Object.defineProperty(g, key, { configurable: true, writable: true, value });
     t.after(() => previous ? Object.defineProperty(g, key, previous) : delete g[key]);
   }
-  const rows = descendants(screen(Home)).filter(n => n?.type?.name === 'AgentRow');
-  assert.equal(rows.length, 1);
-  const html = renderToStaticMarkup(rows[0]);
-  assert.match(html, /<div class="ou-hm-title">Review changes<\/div>.*?<title>codex<\/title>.*?<span class="ou-hm-tlabel">Running<\/span><span class="ou-hm-tsum ou-hm-info">codex<\/span>/);
+  const views = descendants(screen(Home)).filter(n => n?.type?.name === 'TaskView');
+  assert.equal(views.length, 1);
+  const html = renderToStaticMarkup(views[0]);
+  assert.match(html, /<span class="ou-hm-crumbproj">Test project<\/span><span class="ou-hm-crumbsep">\/<\/span><span class="ou-hm-crumbtitle">Review changes<\/span>/);
 });
 
 test('e016fa92 Add-ons Check again renders as ghost and retains check-engines action', () => {

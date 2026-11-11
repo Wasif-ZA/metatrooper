@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
 import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
@@ -196,7 +195,7 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
   const start = presetOf(initial?.cron);
   const [form, setForm] = useState({
     icon: initial?.icon || EMOJI[0], name: initial?.name || '', project_id: initial?.project_id || ui.projectId || (s.projects || [])[0]?.id || '',
-    prompt: initial?.prompt || '', engine_id: initial?.engine_id || engines[0]?.id || '', labels: initial?.labels || [],
+    prompt: initial?.prompt || '', engine_id: initial?.engine_id || engines[0]?.id || '', labels: (initial?.labels || []).map((l) => (typeof l === 'string' ? l : l.name)),
     ...start, custom: initial?.cron || '0 9 * * 1-5', runner: (initial?.runner || []).join(' '), script: initial?.script || '',
   });
   const [picking, setPicking] = useState(false);
@@ -218,8 +217,15 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
     if (r && r.result) { toast(initial?.id ? 'Automation saved' : 'Automation created'); onSaved(); } else toast((r && r.error && (r.error.message || r.error)) || 'Could not save the automation', true);
   };
   return (
-    <Dialog isOpen onOpenChange={(o) => { if (!o) onClose(); }} aria-label={initial?.id ? 'Edit automation' : 'New automation'} width={720}>
-      <DialogHeader title={initial?.id ? 'Edit automation' : 'New automation'} onOpenChange={(o) => { if (!o) onClose(); }} />
+    <section className="ou-ae-page" aria-label={initial?.id ? 'Edit automation' : 'New automation'}>
+      <header className="ou-ae-top">
+        <button type="button" className="ou-ae-crumb" onClick={onClose}>Automations</button>
+        <span className="ou-ae-sep">/</span>
+        <h1 className="ou-ae-heading">{initial?.id ? 'Edit automation' : 'New automation'}</h1>
+        <span className="ou-ap-gap" />
+        <Button variant="ghost" size="sm" label="Cancel" onClick={onClose} />
+        <Button variant="primary" size="sm" label={initial?.id ? 'Save' : 'Create automation'} isDisabled={!ready} onClick={save} />
+      </header>
       <div className="ou-ae">
         <div className="ou-ae-row">
           <span className="ou-ae-emoji">
@@ -268,20 +274,47 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
             </div>
           </div>
         ) : null}
-        <div className="ou-ae-foot">
-          <Button variant="ghost" label="Cancel" onClick={onClose} />
-          <Button variant="primary" label={initial?.id ? 'Save' : 'Create automation'} isDisabled={!ready} onClick={save} />
-        </div>
       </div>
-    </Dialog>
+    </section>
   );
 }
 
-export function HomeAutomations() {
+const TEMPLATES = [
+  { icon: '\u{1F9EA}', name: 'Nightly test sweep', prompt: 'Run the full test suite each night. Fix what fails, one cause per branch.', cron: '0 2 * * *' },
+  { icon: '\u{1F50D}', name: 'Morning issue triage', prompt: 'Read new GitHub issues, label them, and draft a fix for anything marked easy.', cron: '30 8 * * 1-5' },
+  { icon: '\u{1F4E6}', name: 'Dependency check', prompt: 'Look for outdated or vulnerable packages and open a branch with safe upgrades.', cron: '0 9 * * 1' },
+  { icon: '\u{1F4DD}', name: 'Changelog draft', prompt: 'Summarise today’s commits into a short changelog entry for review.', cron: '0 17 * * 1-5' },
+  { icon: '\u{1F9F9}', name: 'Friday tidy-up', prompt: 'Remove dead code and stale TODOs. Keep each change small and explained.', cron: '0 16 * * 5' },
+];
+
+const sortIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2.5v9M2 9.5l2 2 2-2M10 11.5v-9M8 4.5l2-2 2 2" /></svg>;
+const clockBig = <svg width="28" height="28" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round"><circle cx="7" cy="7" r="5.5" /><path d="M7 3.8V7l2 1.3" /></svg>;
+const labelName = (l) => (typeof l === 'string' ? l : l?.name || '');
+const labelColour = (l, colours) => (typeof l === 'string' ? colours[l] : l?.colour) || null;
+
+function TemplateCards({ onPick }) {
+  return (
+    <ul className="ou-ap-templates">
+      {TEMPLATES.map((t) => (
+        <li key={t.name}>
+          <button type="button" className="ou-ap-template" onClick={() => onPick(t)}>
+            <span className="ou-ap-emoji" aria-hidden="true">{t.icon}</span>
+            <span className="ou-ap-ttext"><b>{t.name}</b><span>{t.prompt}</span></span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function AutomationsPage() {
   const [list, setList] = useState(null);
   const [view, setView] = useState(() => { try { return load('auto-view') || 'box'; } catch { return 'box'; } });
+  const [tab, setTab] = useState('yours');
   const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('newest');
   const [colours, setColours] = useState({});
   const [editing, setEditing] = useState(null);
   const box = useRef(null);
@@ -289,7 +322,7 @@ export function HomeAutomations() {
   useLayoutEffect(() => {
     if (shownView.current === view) return;
     shownView.current = view;
-    if (canMove(box.current)) stagger(box.current.querySelectorAll('.ou-hm-autobox > li, .ou-hm-autolist > li'), 8);
+    if (canMove(box.current)) stagger(box.current.querySelectorAll('.ou-ap-items > li'), 8);
   }, [view]);
   const refresh = async () => {
     const [r, l] = await Promise.all([rpc('automation.list', {}, true), rpc('label.list', {}, true)]);
@@ -300,69 +333,84 @@ export function HomeAutomations() {
   const s = ui.snap || {};
   const projName = (pid) => (s.projects || []).find((p) => p.id === pid)?.name || pid;
   const q = query.trim().toLowerCase();
+  const order = {
+    newest: (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')),
+    name: (a, b) => String(a.name).localeCompare(String(b.name)),
+    next: (a, b) => String(a.next_due || '9').localeCompare(String(b.next_due || '9')),
+  }[sort];
   const shown = (list || []).filter((a) => (filter === 'all' || (filter === 'active') === Boolean(a.enabled))
-    && (!q || [a.name, projName(a.project_id), ...(a.labels || [])].some((v) => String(v || '').toLowerCase().includes(q))));
+    && (!q || [a.name, a.prompt, projName(a.project_id), ...(a.labels || []).map(labelName)].some((v) => String(v || '').toLowerCase().includes(q)))).slice().sort(order);
   const pickView = (v) => { setView(v); try { save('auto-view', v); } catch {} };
   const runNow = async (a) => {
     const r = await rpc('automation.run', { id: a.id });
     if (r && r.result) { toast(`Ran ${a.name}`); void refresh(); } else toast((r && r.error && (r.error.message || r.error)) || 'Could not run it', true);
   };
   const flip = async (a) => { await rpc('automation.enable', { id: a.id, enabled: !a.enabled }); void refresh(); };
-  return (
-    <section className="ou-hm-autos" data-view={view} ref={box}>
-      <div className="ou-hm-autohead">
-        <h2 className="ou-hm-h">Automations<span className="ou-hm-count">{(list || []).length}</span></h2>
-        <span className="ou-hm-autotools">
-          <span className="ou-hm-search">{searchIcon}<TextInput size="sm" label="Search automations" isLabelHidden placeholder="Search" value={query} onChange={setQuery} width={160} /></span>
-          <span className="ou-hm-filter">{filterIcon}<Selector size="sm" variant="ghost" label="Filter automations" isLabelHidden value={filter} onChange={(v) => setFilter(v || 'all')} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }]} /></span>
-          <Button size="sm" icon={plusIcon} label="New automation" onClick={() => setEditing({})} />
-          <span className="ou-hm-seg" role="group" aria-label="Layout">
-            <button type="button" aria-pressed={view === 'list'} title="List" onClick={() => pickView('list')}>{listIcon}</button>
-            <button type="button" aria-pressed={view === 'box'} title="Boxes" onClick={() => pickView('box')}>{boxIcon}</button>
-          </span>
-        </span>
+  const fresh = (a) => { const t = Date.parse(a.runs?.[0]?.at || ''); return !Number.isNaN(t) && Date.now() - t < 86400000; };
+
+  if (editing) {
+    return (
+      <div className="ou-ap">
+        <AutomationEditor initial={editing} labelNames={Object.keys(colours)} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />
       </div>
-      <p className="ou-hm-muted">Runs while Ouros is open.</p>
-      {list === null ? <p className="ou-hm-muted">Loading.</p> : !shown.length ? <p className="ou-hm-muted">{list.length ? 'No automation matches.' : 'No automations yet. Add one in Settings.'}</p> : (
-        [['Active', shown.filter((a) => a.enabled)], ['Paused', shown.filter((a) => !a.enabled)]].filter(([, rows]) => rows.length).map(([title, rows]) => (
-          <div key={title} className="ou-hm-autogroup">
-            <h3 className="ou-hm-sub">{title}<span className="ou-hm-pill">{rows.length}</span></h3>
-            <ul className={view === 'box' ? 'ou-hm-autobox' : 'ou-hm-autolist'}>
-              {rows.map((a) => {
-                const status = <button type="button" className={`ou-hm-auto-st${a.enabled ? ' ou-on' : ''}`} title={a.enabled ? 'Pause' : 'Resume'} onClick={() => flip(a)}>{a.enabled ? 'Active' : 'Paused'}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</button>;
-                const chips = (
-                  <span className="ou-hm-chips">
-                    <span className="ou-ny-chip">{folderIcon}{projName(a.project_id)}</span>
-                    <span className="ou-ny-chip">{clockIcon}{scheduleWords(a)}</span>
-                    {(a.labels || []).map((l) => <span key={l} className="ou-ny-chip ou-hm-label" style={colours[l] ? { color: colours[l], borderColor: `color-mix(in srgb, ${colours[l]} 45%, transparent)` } : undefined}>{l}</span>)}
-                  </span>
-                );
-                const run = <Button size="sm" variant="ghost" icon={playIcon} label="Run now" onClick={() => runNow(a)} />;
-                return view === 'box' ? (
-                  <li key={a.id} data-id={a.id}>
-                    <span className="ou-hm-autotop">
-                      <span className="ou-hm-emoji" aria-hidden="true">{a.icon || '⚙️'}</span>
-                      <button type="button" className="ou-hm-autoname ou-hm-link" title="Edit" onClick={() => setEditing(a)}>{a.name}</button>
-                      <span className="ou-hm-autoside">{run}</span>
-                    </span>
-                    {a.prompt ? <p className="ou-hm-autoprompt">{a.prompt}</p> : null}
-                    {chips}
-                    <span>{status}</span>
-                  </li>
-                ) : (
-                  <li key={a.id} data-id={a.id}>
-                    <span className="ou-hm-emoji" aria-hidden="true">{a.icon || '⚙️'}</span>
-                    <button type="button" className="ou-hm-autoname ou-hm-link" title="Edit" onClick={() => setEditing(a)}>{a.name}</button>
-                    {chips}
-                    <span className="ou-hm-autoside">{status}{run}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))
+    );
+  }
+  return (
+    <div className="ou-ap" ref={box}>
+      <h1 className="ou-ap-title">Automations</h1>
+      <div className="ou-ap-bar">
+        <span className="ou-ap-tabs" role="tablist" aria-label="Automations">
+          {[['yours', 'Yours'], ['templates', 'Templates']].map(([k, label]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
+        </span>
+        <span className="ou-ap-gap" />
+        {searching ? <TextInput size="sm" hasAutoFocus label="Search automations" isLabelHidden placeholder="Search" value={query} onChange={setQuery} width={180}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setQuery(''); setSearching(false); } }} /> : null}
+        <button type="button" className="ou-ap-icon" aria-label="Search" aria-pressed={searching} title="Search" onClick={() => setSearching(!searching)}>{searchIcon}</button>
+        <span className="ou-ap-sel" title="Filter">{filterIcon}<Selector size="sm" variant="ghost" label="Filter automations" isLabelHidden value={filter} onChange={(v) => setFilter(v || 'all')} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }]} /></span>
+        <span className="ou-ap-sel" title="Sort">{sortIcon}<Selector size="sm" variant="ghost" label="Sort automations" isLabelHidden value={sort} onChange={(v) => setSort(v || 'newest')} options={[{ value: 'newest', label: 'Newest' }, { value: 'name', label: 'Name' }, { value: 'next', label: 'Next run' }]} /></span>
+        <span className="ou-hm-seg" role="group" aria-label="Layout">
+          <button type="button" aria-pressed={view === 'list'} title="List" onClick={() => pickView('list')}>{listIcon}</button>
+          <button type="button" aria-pressed={view === 'box'} title="Boxes" onClick={() => pickView('box')}>{boxIcon}</button>
+        </span>
+        <Button size="sm" variant="primary" icon={plusIcon} label="New automation" onClick={() => setEditing({})} />
+      </div>
+      <p className="ou-ap-note">Runs while Ouros is open.</p>
+      {tab === 'templates' ? <TemplateCards onPick={(t) => setEditing(t)} /> : list === null ? <p className="ou-ap-note">Loading.</p> : !(list || []).length ? (
+        <div className="ou-ap-empty">
+          <span className="ou-ap-emptyicon">{clockBig}</span>
+          <h2>Schedule a task</h2>
+          <p>An agent starts on its own at the times you set. Pick one to begin, or write your own.</p>
+          <TemplateCards onPick={(t) => setEditing(t)} />
+        </div>
+      ) : !shown.length ? <p className="ou-ap-note">No automation matches.</p> : (
+        <ul className={`ou-ap-items ou-ap-${view}`}>
+          {shown.map((a) => (
+            <li key={a.id} data-id={a.id}>
+              <div className="ou-ap-item" role="button" tabIndex={0} title="Edit" onClick={(e) => { if (!e.target.closest('button, .astryx-button')) setEditing(a); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setEditing(a); }}>
+                <span className="ou-ap-itop">
+                  <span className="ou-ap-emoji" aria-hidden="true">{a.icon || '⚙️'}</span>
+                  <span className="ou-ap-name">{a.name}</span>
+                  <span className="ou-ap-type">{a.engine_id || 'agent'}</span>
+                  {fresh(a) ? <span className="ou-ap-unread" role="img" aria-label="New run" title="Ran in the last day" /> : null}
+                </span>
+                {a.prompt ? <span className="ou-ap-prompt">{a.prompt}</span> : null}
+                <span className="ou-ap-foot">
+                  <button type="button" className={`ou-ap-state${a.enabled ? ' ou-on' : ''}`} title={a.enabled ? 'Pause' : 'Resume'} onClick={() => flip(a)}>{a.enabled ? 'Active' : 'Paused'}</button>
+                  <span>{'·'}</span>
+                  <span>{a.words || scheduleWords(a)}</span>
+                  {a.enabled && nextWords(a.next_due) ? <><span>{'·'}</span><span>{nextWords(a.next_due)}</span></> : null}
+                  <span>{'·'}</span>
+                  <span>{projName(a.project_id)}</span>
+                  {(a.labels || []).map((l) => <span key={labelName(l)} className="ou-ap-label" style={labelColour(l, colours) ? { color: labelColour(l, colours) } : undefined}>{labelName(l)}</span>)}
+                  <span className="ou-ap-gap" />
+                  <Button size="sm" variant="ghost" icon={playIcon} label="Run now" onClick={() => runNow(a)} />
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
-      {editing ? <AutomationEditor initial={editing} labelNames={Object.keys(colours)} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} /> : null}
-    </section>
+    </div>
   );
 }

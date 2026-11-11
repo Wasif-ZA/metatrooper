@@ -7,15 +7,15 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
-import { Usage } from './usage.jsx';
-import { Audit } from './audit.jsx';
-import { HomeAutomations } from './automations.jsx';
+import { AutomationsPage } from './automations.jsx';
 import { EngineMark } from './icons/index.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
-export const homeStore = createStore({ tick: 0, open: [], selected: null, usage: false });
+export const homeStore = createStore({ tick: 0, open: [], selected: null });
 
 export const openNewTask = () => {
+  ui.homeSel = '';
+  homeStore.set({ tick: homeStore.get().tick + 1 });
   if (typeof homeView !== 'undefined' && !homeView.shown()) homeView.set('home');
   const focus = () => document.querySelector('#home .ou-hm-task textarea')?.focus();
   focus();
@@ -59,47 +59,9 @@ const commitIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" s
 const filesIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 1.5h4.5l2.5 2.5v8.5h-7zM5.5 7h3M7 5.5v3M5.5 10h3" /></svg>;
 const prIcon = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="3.5" cy="3" r="1.5" /><circle cx="3.5" cy="11" r="1.5" /><circle cx="10.5" cy="11" r="1.5" /><path d="M3.5 4.5v5M10.5 9.5V5.5a1.5 1.5 0 0 0-1.5-1.5H7M8.5 2.5L7 4l1.5 1.5" /></svg>;
 
-const warnIcon = (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="ou-dash-usagewarn-icon">
-    <path d="M8 2.5l6 11H2zM8 6.5v3.5M8 12v.5" />
-  </svg>
-);
-
-function formatTokens(n) {
-  const v = Number(n) || 0;
-  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`.replace('.0M', 'M');
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`.replace('.0k', 'k');
-  return String(v);
-}
-
-function formatDay(iso) {
-  if (!iso) return '';
-  const parts = String(iso).split('-');
-  if (parts.length >= 3) return `${parts[1]}/${parts[2]}`;
-  return String(iso);
-}
-
-function formatUntil(resets_at) {
-  if (!resets_at) return '';
-  const diffMs = new Date(resets_at).getTime() - Date.now();
-  if (isNaN(diffMs) || diffMs <= 0) return 'in 0m';
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 60) return `in ${Math.max(1, mins)}m`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `in ${hours}h`;
-  return `in ${Math.round(hours / 24)}d`;
-}
-
 const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
 const STATE_WORD = { waiting_for_you: 'waiting', working: 'running', starting: 'starting', done: 'done', idle: 'idle', exited: 'exited', unknown: 'unknown' };
 const DONE_STATES = ['done', 'exited', 'idle'];
-
-function UsageWarn({ limit }) {
-  if (!limit) return null;
-  const rel = formatUntil(limit.resets_at);
-  const text = `${limit.provider} has used ${Math.round(limit.used_pct)}% of its ${limit.window} window${rel ? `, resets ${rel}` : ''}`;
-  return <div className="ou-dash-usagewarn">{warnIcon}<span>{text}</span></div>;
-}
 
 const ic = { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' };
 const attachIcon = <svg {...ic}><path d="M11.5 6.5l-4.6 4.6a2.5 2.5 0 0 1-3.5-3.5l5-5a1.6 1.6 0 0 1 2.3 2.3L5.9 9.7a.7.7 0 0 1-1-1l4.3-4.3" /></svg>;
@@ -107,6 +69,8 @@ const slidersIcon = <svg {...ic}><path d="M2 4h6M10.5 4H12M2 10h1.5M6 10h6" /><c
 const sendIcon = <svg {...ic}><path d="M7 11.5v-9M3.5 6L7 2.5 10.5 6" /></svg>;
 const hostIcon = <svg {...ic}><rect x="1.5" y="2" width="11" height="7.5" rx="1.2" /><path d="M5 12h4M7 9.5V12" /></svg>;
 const editorIcon = <svg {...ic}><path d="M6 2.5H3a1 1 0 0 0-1 1v7.5a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V8M8 2.5h3.5v3.5M6.5 7.5L11.5 2.5" /></svg>;
+const folderSmall = <svg {...ic}><path d="M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" /></svg>;
+const shieldSmall = <svg {...ic}><path d="M7 1.5l4.5 1.8v3.4c0 2.7-2 4.6-4.5 5.3-2.5-.7-4.5-2.6-4.5-5.3V3.3z" /></svg>;
 const circle = <svg {...ic} className="ou-hm-cbox"><circle cx="7" cy="7" r="5" /></svg>;
 const circleDone = <svg {...ic} className="ou-hm-cbox ou-hm-cdone"><circle cx="7" cy="7" r="5" /><path d="M4.8 7.2l1.6 1.6 2.8-3.1" /></svg>;
 
@@ -142,18 +106,13 @@ function StartBox({ ready }) {
   };
   const edit = (v) => { ui.drafts['home-task'] = v; setTask(v); };
   return (
+    <div className="ou-hm-composerwrap">
     <div ref={ref} className="ou-composer ou-hm-task" onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); void start(); } }}>
-      <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Ask anything. @ files, / commands" onChange={edit} />
+      <TextArea label="Task for a new agent" isLabelHidden rows={2} value={task} placeholder="Describe the task. @ files, / commands" onChange={edit} />
       {more ? (
         <div className="ou-composerfoot ou-hm-opts">
           <TextInput size="sm" width={240} label="Branch for a new worktree" isLabelHidden placeholder="Branch (agent gets its own worktree)" value={branch} onChange={setBranch} />
           <TextInput size="sm" width={180} label="Model" isLabelHidden placeholder="Model (agent default)" value={model} onChange={setModel} />
-          <Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
-            { value: 'default', label: 'Approval: as in Settings' },
-            { value: 'ask', label: 'Approval: ask before each tool call' },
-            { value: 'edits', label: 'Approval: file edits allowed' },
-            { value: 'contained', label: 'Approval: auto' },
-          ]} />
         </div>
       ) : null}
       <div className="ou-hm-cbar">
@@ -165,6 +124,17 @@ function StartBox({ ready }) {
         </span>
         <IconButton size="sm" variant="primary" icon={sendIcon} label="Start" tooltip="Start (Ctrl+Enter)" className="ou-hm-send" data-action="home-start" data-engine={chosen} onClick={start} />
       </div>
+    </div>
+    <div className="ou-hm-chips">
+      <span className="ou-hm-chip">{folderSmall}<Selector label="Project" isLabelHidden size="sm" variant="ghost" value={ui.projectId || ''} onChange={(v) => { if (v && v !== ui.projectId) switchProject(v); }}
+        options={(ui.snap?.projects || []).map((p) => ({ value: p.id, label: p.name }))} /></span>
+      <span className="ou-hm-chip">{shieldSmall}<Selector label="Approval" isLabelHidden size="sm" variant="ghost" value={approval} onChange={setApproval} options={[
+        { value: 'default', label: 'Approval as in Settings' },
+        { value: 'ask', label: 'Ask first' },
+        { value: 'edits', label: 'Edits allowed' },
+        { value: 'contained', label: 'Auto' },
+      ]} /></span>
+    </div>
     </div>
   );
 }
@@ -241,87 +211,137 @@ function Steps({ st }) {
   );
 }
 
-function MemberRow({ k, openList, toggle }) {
+function SlimRow({ k, lead, openList, toggle }) {
   const st = stepsOf(k);
   const key = `steps:${k.id}`;
   const open = Boolean(st) && openList.includes(key);
-  const s = statusOf(k);
-  const detail = st && !settled(k) ? `${st.done}/${st.total} steps${detailOf(k) ? ` · ${detailOf(k)}` : ''}` : detailOf(k);
+  const doing = detailOf(k);
   return (
-    <li className="ou-hm-member" data-id={k.id} data-progress={progressOf(k)}>
-      <div className="ou-hm-mrow" title={tipOf(k)} aria-label={st ? `${open ? 'Hide' : 'Show'} steps for ${nameOf(k)}` : `Open ${nameOf(k)}`} aria-description={STATUS_WORD[s]}
-        aria-expanded={st ? open : undefined} {...press(() => (st ? toggle(key) : openOnWall(k)))}>
+    <li className={`ou-hm-slim${lead ? ' ou-hm-lead' : ''}`} data-id={k.id} data-progress={progressOf(k)}>
+      <div className="ou-hm-slimrow" title={tipOf(k)} aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
         <Avatar k={k} />
-        <span className="ou-hm-mtext">
-          <span className="ou-hm-mtitle">{nameOf(k)}</span>
-          {detail ? <span className={`ou-hm-mdetail${s === 'failed' ? ' ou-hm-bad' : ''}`}>{detail}</span> : null}
+        <span className="ou-hm-slimtext">
+          <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
+          <span className="ou-hm-slimsub">{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
         </span>
-        {k.model ? <span className="ou-hm-model">{k.model}</span> : null}
-        <span className="ou-hm-elapsed">{elapsedOf([k])}</span>
-        <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
       </div>
-      {st ? <Drop open={open} className="ou-hm-drop ou-hm-msteps"><Steps st={st} /></Drop> : null}
+      {st ? <Drop open={open} className="ou-hm-drop ou-hm-slimsteps-list"><Steps st={st} /></Drop> : null}
     </li>
   );
 }
 
-const workflowIcon = <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="4" height="4" rx="1" /><rect x="8.5" y="8.5" width="4" height="4" rx="1" /><path d="M3.5 5.5v2a2 2 0 0 0 2 2h3" /></svg>;
+function Trigger({ x, kids, open, toggle }) {
+  const statuses = kids.map(statusOf);
+  const working = statuses.filter((s) => s === 'running' || s === 'waiting').length;
+  const failed = statuses.includes('failed');
+  const label = `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}`;
+  const summary = summarizeSubagentStatuses(statuses);
+  return (
+    <div className="ou-hm-trigger" data-active={working || open ? 'true' : 'false'} aria-expanded={open} aria-label={label} aria-description={summary} {...press(() => toggle(x.id))}>
+      <span className="ou-hm-stack" aria-hidden="true">
+        {kids.slice(0, 3).map((k) => <Avatar key={k.id} k={k} status={false} />)}
+        {kids.length > 3 ? <span className="ou-hm-av ou-hm-more">+{kids.length - 3}</span> : null}
+      </span>
+      <span className="ou-hm-ttext">
+        <span className="ou-hm-tlabel">{label}</span>
+        <span className={`ou-hm-tsum${working ? ' ou-hm-workingtext' : failed ? ' ou-hm-bad' : ' ou-hm-donetext'}`}>{summary}</span>
+      </span>
+      <span className="ou-hm-elapsed">{elapsedOf(kids)}</span>
+      <span className="ou-hm-chevdown" data-open={open ? 'true' : 'false'}>{chev}</span>
+    </div>
+  );
+}
 
-function AgentRow({ x, kids, openList, selected, toggle, select }) {
+function TaskView({ x, kids, openList, toggle }) {
+  const [answer, setAnswer] = useState('');
+  const here = !x.project_id || x.project_id === ui.projectId;
+  const send = async () => {
+    const t = answer.trim();
+    if (!t || !here) return;
+    try { await troop.termInput(x.id, t + '\r'); setAnswer(''); toast(`Sent to ${x.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
+  };
   const open = openList.includes(x.id);
   const st = stepsOf(x);
-  const group = kids.length ? kids : [x];
-  const statuses = group.map(statusOf);
-  const active = statuses.some((s) => s === 'running' || s === 'waiting');
-  const failed = statuses.includes('failed');
-  const label = kids.length ? `${kids.length} ${kids.length === 1 ? 'subagent' : 'subagents'}` : STATUS_WORD[statusOf(x)];
-  const summary = kids.length ? summarizeSubagentStatuses(statuses) : st ? `${st.done}/${st.total} steps` : (x.model || x.engine_id);
-  const all = [x, ...kids];
-  const agents = `${all.length} ${all.length === 1 ? 'agent' : 'agents'} · ${summarizeSubagentStatuses(all.map(statusOf))}`;
-  const flip = () => { select(x.id); toggle(x.id); };
+  const workKey = `work:${x.id}`;
+  const workOpen = openList.includes(workKey);
+  const pending = kids.filter((k) => !settled(k));
+  const proj = (ui.snap?.projects || []).find((p) => p.id === (x.project_id || ui.projectId))?.name || 'No project';
+  const s = statusOf(x);
+  const stop = async () => {
+    try { await troop.termInput(x.id, '\u001b'); toast(`Asked ${x.engine_id} to stop`); } catch (err) { toast(String(err?.message || err), true); }
+  };
   return (
-    <li className={`ou-hm-agent${selected ? ' ou-hm-sel' : ''}`} data-id={x.id} data-state={x.state}>
-      <div className="ou-hm-title">{nameOf(x)}</div>
-      <div className="ou-hm-trigger" data-active={active || open ? 'true' : 'false'} aria-expanded={open} aria-label={label} aria-description={summary} {...press(flip)}>
-        <span className="ou-hm-stack" aria-hidden="true">
-          {group.slice(0, 3).map((k) => <Avatar key={k.id} k={k} status={group.length === 1} />)}
-          {group.length > 3 ? <span className="ou-hm-av ou-hm-more">+{group.length - 3}</span> : null}
-        </span>
-        <span className="ou-hm-ttext">
-          <span className={`ou-hm-tlabel${statusOf(x) === 'waiting' && !kids.length ? ' ou-hm-st-waiting-text' : ''}`}>{label}</span>
-          <span className={`ou-hm-tsum${active ? ' ou-hm-info' : failed ? ' ou-hm-bad' : ''}`}>{summary}</span>
-        </span>
-        <span className="ou-hm-elapsed">{elapsedOf(group)}</span>
-        <span className="ou-hm-chevdown" data-open={open ? 'true' : 'false'}>{chev}</span>
-      </div>
-      <Drop open={open} className="ou-hm-drop">
-        <div className="ou-hm-panelbox">
-          <section className="ou-hm-opening" aria-label={`Orchestrator: ${nameOf(x)}`}>
-            <header className="ou-hm-ohead">
-              <span className="ou-hm-oicon">{workflowIcon}</span>
-              <span className="ou-hm-ohtext">
-                <span className="ou-hm-olabel">Orchestrator</span>
-                <span className="ou-hm-otitle">{nameOf(x)}</span>
-                <span className="ou-hm-odesc"><Avatar k={x} />{x.model ? <span className="ou-hm-model">{x.model}</span> : null}{detailOf(x) ? <span>{detailOf(x)}</span> : null}</span>
-              </span>
-              <span className="ou-hm-oagents">{agents}</span>
-            </header>
-            {st ? (
-              <section aria-label="Orchestrator steps">
-                <h4 className="ou-hm-phase"><span>Steps</span><span>{st.done}/{st.total}</span></h4>
-                <Steps st={st} />
-              </section>
-            ) : null}
-            {kids.length ? (
-              <section aria-label="Subagents">
-                <h4 className="ou-hm-phase"><span>Subagents</span><span>{kids.filter(settled).length}/{kids.length}</span></h4>
-                <ul className="ou-hm-members">{kids.map((k) => <MemberRow key={k.id} k={k} openList={openList} toggle={toggle} />)}</ul>
-              </section>
-            ) : null}
-          </section>
+    <article className="ou-hm-taskview" data-id={x.id} data-state={x.state}>
+      <nav className="ou-hm-crumb" aria-label="Task">
+        <span className="ou-hm-crumbproj">{proj}</span>
+        <span className="ou-hm-crumbsep">/</span>
+        <span className="ou-hm-crumbtitle">{nameOf(x)}</span>
+      </nav>
+      <div className="ou-hm-thread">
+        <div className="ou-hm-worked" aria-expanded={st ? workOpen : undefined} {...(st ? press(() => toggle(workKey)) : {})}>
+          <span className={`ou-hm-dot ou-hm-st-${s}`} />
+          <span>{settled(x) ? 'Worked for' : s === 'waiting' ? 'Waiting for you after' : 'Working for'} {elapsedOf([x])}</span>
+          {st ? <span className="ou-hm-worksteps">{st.done}/{st.total} steps</span> : null}
+          {st ? <span className="ou-hm-chevbox" data-open={workOpen ? 'true' : 'false'}>{chev}</span> : null}
         </div>
-      </Drop>
-    </li>
+        {st ? <Drop open={workOpen} className="ou-hm-drop ou-hm-worklist"><Steps st={st} /></Drop> : null}
+        {kids.length ? (
+          <div className="ou-hm-subs">
+            <Trigger x={x} kids={kids} open={open} toggle={toggle} />
+            <Drop open={open} className="ou-hm-drop">
+              <ul className="ou-hm-slimlist">
+                <SlimRow k={x} lead openList={openList} toggle={toggle} />
+                {kids.map((k) => <SlimRow key={k.id} k={k} openList={openList} toggle={toggle} />)}
+              </ul>
+            </Drop>
+          </div>
+        ) : null}
+        {x.last_line || x.reason ? <p className="ou-hm-latest">{x.last_line || x.reason}</p> : null}
+        {s === 'waiting' ? (
+          <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(x)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
+        ) : null}
+        {pending.length ? (
+          <div className="ou-hm-waiton">
+            <span className="ou-hm-waitspin" aria-hidden="true" />
+            <span className="ou-hm-waitlabel">Waiting on {pending.length} {pending.length === 1 ? 'subagent' : 'subagents'}</span>
+            <span className="ou-hm-waitnames">{pending.map(nameOf).join(', ')}</span>
+            {isWorking(x) || pending.some(isWorking) ? <button type="button" className="ou-hm-stop" title="Interrupt the orchestrator (sends Esc)" onClick={stop}>Stop</button> : null}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+const startIcons = {
+  task: <svg {...ic}><circle cx="7" cy="7" r="5.25" /><path d="M7 4.5v5M4.5 7h5" /></svg>,
+  folder: <svg {...ic}><path d="M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" /><path d="M7 6.5v3M5.5 8h3" /></svg>,
+  wall: <svg {...ic}><rect x="1.5" y="1.5" width="11" height="11" rx="2" /><path d="M7 1.5v11M1.5 7h11" /></svg>,
+  book: <svg {...ic}><path d="M2.5 2h6.5a2 2 0 0 1 2 2v8H4.5a2 2 0 0 1-2-2zM2.5 10a2 2 0 0 1 2-2H11M5 4.5h3.5" /></svg>,
+};
+
+function StartState({ composer }) {
+  const items = [
+    ['task', 'New task', 'Start an agent on something in this project', () => openNewTask()],
+    ['folder', 'Import projects', 'Add a folder from this computer', null, 'open-folder'],
+    ['wall', 'Open the Wall', 'Every agent terminal side by side', () => homeView.set('wall')],
+    ['book', 'Learn Ouros', 'Shortcuts and commands', () => globalThis.paletteView?.open?.()],
+  ];
+  return (
+    <div className="ou-hm-start">
+      <h1 className="ou-hm-hello">What should we build next?</h1>
+      {composer}
+      <ul className="ou-hm-startlist">
+        {items.map(([icon, title, sub, run, action]) => (
+          <li key={title}>
+            <button type="button" className="ou-hm-startitem" data-action={action} onClick={run || undefined}>
+              <span className="ou-hm-starticon">{startIcons[icon]}</span>
+              <span className="ou-hm-starttext"><b>{title}</b><span>{sub}</span></span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -352,38 +372,15 @@ function PanelRow({ icon, label, value, onClick, chevron = false, mono = false, 
   );
 }
 
-function RailCard({ waiting, approvals, alerts, sel, kids, select, selId }) {
-  const [answer, setAnswer] = useState('');
+function RailCard({ sel, kids }) {
   const [merging, setMerging] = useState(false);
   const g = (sel && ui.snap?.git?.[sel.id]) || {};
   const branch = sel ? g.branch || sel.branch || null : null;
   const pr = g.pr || null;
-  const here = sel && (!sel.project_id || sel.project_id === ui.projectId);
   const host = sel ? ((g.root || sel.cwd) ? (g.root || sel.cwd).split(/[/\\]/).filter(Boolean).pop() : (ui.snap?.projects || []).find((p) => p.id === sel.project_id)?.name || 'This computer') : '';
-  const send = async () => {
-    const t = answer.trim();
-    if (!t || !here) return;
-    try { await troop.termInput(sel.id, t + '\r'); setAnswer(''); toast(`Sent to ${sel.engine_id}`); } catch (err) { toast(String(err?.message || err), true); }
-  };
-  const need = waiting.length + approvals.length + alerts.length;
   const running = kids.filter((k) => !settled(k)).length;
   return (
     <div className="ou-hm-card">
-      {need ? (
-        <PanelSection title={`Needs you · ${need}`} heading>
-          {waiting.map((w) => (
-            <div key={w.id} className={`ou-hm-prow ou-hm-pclick ou-hm-need${w.id === selId ? ' ou-hm-on' : ''}`} data-id={w.id} title={tipOf(w)} {...press(() => select(w.id))}>
-              <Avatar k={w} />
-              <span className="ou-hm-mtext"><span className="ou-hm-mtitle">{nameOf(w)}</span><span className="ou-hm-mdetail">{w.reason || w.last_line || 'asked a question'}</span></span>
-            </div>
-          ))}
-          {approvals.length ? <div className="ou-hm-prow ou-hm-pclick" data-action="sheet" role="button" tabIndex={0}><span className="ou-hm-plabel">{approvals.length} {approvals.length === 1 ? 'action waits' : 'actions wait'} for a yes</span><span className="ou-hm-picon">{chev}</span></div> : null}
-          {alerts.map((n) => <div key={n.id} className="ou-hm-prow ou-hm-pclick" data-action="inbox-open" data-id={n.id} role="button" tabIndex={0}><span className="ou-hm-plabel">{n.text}</span><span className="ou-hm-pvalue">{ago(n.at)}</span></div>)}
-          {sel && sel.state === 'waiting_for_you' ? (
-            <div className="ou-hm-ask"><TextInput size="sm" label="Answer" isLabelHidden placeholder={here ? `Answer ${nameOf(sel)}, Enter sends` : 'Answer from its own project'} value={answer} onChange={setAnswer} onEnter={send} width="100%" isDisabled={!here} /></div>
-          ) : null}
-        </PanelSection>
-      ) : null}
       {sel ? (
         <Swap k={sel.id}>
           <PanelSection title="Workspace">
@@ -418,7 +415,6 @@ function RailCard({ waiting, approvals, alerts, sel, kids, select, selId }) {
           ) : null}
         </Swap>
       ) : null}
-      {!need && !sel ? <PanelSection title="Quiet"><div className="ou-hm-prow"><span className="ou-hm-plabel ou-hm-mutedtext">Nothing needs you.</span></div></PanelSection> : null}
       {merging && pr ? (
         <AlertDialog isOpen onOpenChange={(o) => { if (!o) setMerging(false); }} title={`Merge PR #${pr.number}?`}
           description={`This merges ${branch || 'the branch'} on GitHub. It cannot be undone from Ouros.`} actionLabel="Merge"
@@ -432,260 +428,11 @@ function RailCard({ waiting, approvals, alerts, sel, kids, select, selId }) {
   );
 }
 
-function ChartBox({ title, sub, children }) {
-  return (
-    <div className="ou-dash-chart-box">
-      <div className="ou-dash-chart-head">
-        <span className="ou-dash-chart-title">{title}</span>
-        <span className="ou-dash-chart-sub">{sub}</span>
-      </div>
-      <div className="ou-dash-chart-body">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ChartDates({ days }) {
-  if (!days || !days.length) return <div className="ou-dash-chart-dates" aria-hidden="true"><span>&nbsp;</span></div>;
-  const first = days[0]?.day;
-  const mid = days[Math.floor(days.length / 2)]?.day;
-  const last = days[days.length - 1]?.day;
-  return (
-    <div className="ou-dash-chart-dates">
-      <span>{formatDay(first)}</span>
-      <span>{formatDay(mid)}</span>
-      <span>{formatDay(last)}</span>
-    </div>
-  );
-}
-
-function ChartRuns({ data, loading, error }) {
-  if (loading) return <ChartBox title="Runs by outcome" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Runs by outcome" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const days = data.days;
-  const max = Math.max(1, ...days.map((d) => (d.succeeded || 0) + (d.failed || 0) + (d.unchecked || 0)));
-  return (
-    <ChartBox title="Runs by outcome" sub="Last 14 days">
-      <div className="ou-dash-chart-bars">
-        {days.map((d, i) => {
-          const s = d.succeeded || 0;
-          const f = d.failed || 0;
-          const u = d.unchecked || 0;
-          const total = s + f + u;
-          const heightPct = Math.round((total / max) * 100);
-          if (total === 0) {
-            return (
-              <div key={d.day || i} className="ou-dash-chart-col">
-                <div className="ou-dash-bar-tick" />
-              </div>
-            );
-          }
-          const uPct = (u / total) * 100;
-          const fPct = (f / total) * 100;
-          const sPct = (s / total) * 100;
-          return (
-            <div key={d.day || i} className="ou-dash-chart-col">
-              <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                {u > 0 ? <rect x="0" y="0" width="10" height={uPct} fill="var(--st-other)" /> : null}
-                {f > 0 ? <rect x="0" y={uPct} width="10" height={fPct} fill="var(--st-bad)" /> : null}
-                {s > 0 ? <rect x="0" y={uPct + fPct} width="10" height={sPct} fill="var(--st-ok)" /> : null}
-              </svg>
-            </div>
-          );
-        })}
-      </div>
-      <ChartDates days={days} />
-      <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />Succeeded</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-bad)' }} />Failed</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-other)' }} />Unchecked</span>
-      </div>
-    </ChartBox>
-  );
-}
-
-const ENGINE_COLORS = ['var(--st-run)', 'var(--st-ok)', 'var(--st-wait)', 'var(--st-other)'];
-
-function ChartTokens({ data, loading, error }) {
-  if (loading) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const raw = data.by_agent || [];
-  const map = new Map();
-  for (const r of raw) {
-    const cur = map.get(r.engine_id) || { engine_id: r.engine_id, tokens: 0, usd: 0 };
-    cur.tokens += Number(r.tokens) || 0;
-    cur.usd += Number(r.usd) || 0;
-    map.set(r.engine_id, cur);
-  }
-  const engines = Array.from(map.values());
-  if (!engines.length) return <ChartBox title="Tokens and cost by engine" sub="This week"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const max = Math.max(1, ...engines.map((e) => e.tokens));
-  return (
-    <ChartBox title="Tokens and cost by engine" sub="This week">
-      <div className="ou-dash-chart-bars">
-        {engines.map((e, idx) => {
-          const heightPct = e.tokens > 0 ? Math.max(4, Math.round((e.tokens / max) * 100)) : 0;
-          const color = ENGINE_COLORS[idx % ENGINE_COLORS.length];
-          return (
-            <div key={e.engine_id} className="ou-dash-chart-col" style={{ alignItems: 'center' }}>
-              <div className="ou-dash-engine-val">
-                <span>{formatTokens(e.tokens)}</span>
-                <span>${(e.usd || 0).toFixed(2)}</span>
-              </div>
-              <div style={{ width: '100%', height: '56px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                {e.tokens === 0 ? (
-                  <div className="ou-dash-bar-tick" />
-                ) : (
-                  <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                    <rect x="0" y="0" width="10" height="100" fill={color} />
-                  </svg>
-                )}
-              </div>
-              <span className="ou-dash-engine-label" title={e.engine_id}>{e.engine_id}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="ou-dash-chart-dates" aria-hidden="true"><span>&nbsp;</span></div>
-      <div className="ou-dash-legend" aria-hidden="true"><span>&nbsp;</span></div>
-    </ChartBox>
-  );
-}
-
-function ChartSessions({ data, loading, error }) {
-  if (loading) return <ChartBox title="Sessions by state" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Sessions by state" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const days = data.days;
-  const parsed = days.map((d) => {
-    const st = d.started || {};
-    const w = st.working || 0;
-    const wait = st.waiting_for_you || 0;
-    const done = st.done || 0;
-    const other = Object.entries(st).reduce((n, [k, v]) => (['working', 'waiting_for_you', 'done'].includes(k) ? n : n + (v || 0)), 0);
-    const total = w + wait + done + other;
-    return { day: d.day, w, wait, done, other, total };
-  });
-  const max = Math.max(1, ...parsed.map((p) => p.total));
-  return (
-    <ChartBox title="Sessions by state" sub="Last 14 days">
-      <div className="ou-dash-chart-bars">
-        {parsed.map((p, i) => {
-          const heightPct = Math.round((p.total / max) * 100);
-          if (p.total === 0) {
-            return (
-              <div key={p.day || i} className="ou-dash-chart-col">
-                <div className="ou-dash-bar-tick" />
-              </div>
-            );
-          }
-          const otherPct = (p.other / p.total) * 100;
-          const donePct = (p.done / p.total) * 100;
-          const waitPct = (p.wait / p.total) * 100;
-          const wPct = (p.w / p.total) * 100;
-          return (
-            <div key={p.day || i} className="ou-dash-chart-col">
-              <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                {p.other > 0 ? <rect x="0" y="0" width="10" height={otherPct} fill="var(--st-other)" /> : null}
-                {p.done > 0 ? <rect x="0" y={otherPct} width="10" height={donePct} fill="var(--st-ok)" /> : null}
-                {p.wait > 0 ? <rect x="0" y={otherPct + donePct} width="10" height={waitPct} fill="var(--st-wait)" /> : null}
-                {p.w > 0 ? <rect x="0" y={otherPct + donePct + waitPct} width="10" height={wPct} fill="var(--st-run)" /> : null}
-              </svg>
-            </div>
-          );
-        })}
-      </div>
-      <ChartDates days={days} />
-      <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-run)' }} />Working</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-wait)' }} />Waiting</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />Done</span>
-        <span className="ou-dash-legend-item"><span className="ou-dash-legend-sq" style={{ background: 'var(--st-other)' }} />Other</span>
-      </div>
-    </ChartBox>
-  );
-}
-
-function ChartChecks({ data, loading, error }) {
-  if (loading) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><div className="ou-dash-chart-empty">Loading.</div></ChartBox>;
-  if (error || !data || !data.days) return <ChartBox title="Done-check pass rate" sub="Last 14 days"><div className="ou-dash-chart-empty">No data yet.</div></ChartBox>;
-  const days = data.days;
-  const totalPassed = days.reduce((n, d) => n + (d.passed || 0), 0);
-  const totalRuns = days.reduce((n, d) => n + (d.runs || 0), 0);
-  return (
-    <ChartBox title="Done-check pass rate" sub="Last 14 days">
-      <div className="ou-dash-chart-bars">
-        {days.map((d, i) => {
-          if (d.rate == null || !d.runs) {
-            return (
-              <div key={d.day || i} className="ou-dash-chart-col">
-                <div className="ou-dash-bar-tick" />
-              </div>
-            );
-          }
-          const heightPct = Math.max(2, Math.round(d.rate * 100));
-          return (
-            <div key={d.day || i} className="ou-dash-chart-col">
-              <svg viewBox="0 0 10 100" preserveAspectRatio="none" className="ou-dash-bar-svg" style={{ height: `${heightPct}%` }}>
-                <rect x="0" y="0" width="10" height="100" fill="var(--st-ok)" />
-              </svg>
-            </div>
-          );
-        })}
-      </div>
-      <ChartDates days={days} />
-      <div className="ou-dash-legend">
-        <span className="ou-dash-legend-item">
-          <span className="ou-dash-legend-sq" style={{ background: 'var(--st-ok)' }} />
-          {`${totalPassed} of ${totalRuns} passed`}
-        </span>
-      </div>
-    </ChartBox>
-  );
-}
-
 export function Home() {
-  const { open = [], selected, usage: usageOpen } = homeStore.use();
-  const [statsSessions, setStatsSessions] = useState(null);
-  const [statsChecks, setStatsChecks] = useState(null);
-  const [usageWeek, setUsageWeek] = useState(null);
-  const [usageToday, setUsageToday] = useState(null);
-  const [recentHidden, setRecentHidden] = useState(() => { try { return localStorage.getItem('ouros.home.recentHidden') === '1'; } catch { return false; } });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
+  const { open = [] } = homeStore.use();
+  const selected = ui.homeSel;
   useEffect(() => { if (homeView.shown()) homeStore.set({ open: [] }); }, [homeView.shown()]);
-
-  useEffect(() => {
-    let active = true;
-    const fetchAll = async () => {
-      if (!homeView.shown()) return;
-      try {
-        const [sessRes, checksRes, weekRes, todayRes] = await Promise.all([
-          rpc('stats.sessions', { project_id: ui.projectId, days: 14 }, true),
-          rpc('stats.checks', { project_id: ui.projectId, days: 14 }, true),
-          rpc('usage.summary', { window: 'week' }, true),
-          rpc('usage.summary', { window: 'today' }, true),
-        ]);
-        if (!active) return;
-        setStatsSessions(sessRes?.result || null);
-        setStatsChecks(checksRes?.result || null);
-        setUsageWeek(weekRes?.result || null);
-        setUsageToday(todayRes?.result || null);
-        setLoading(false);
-      } catch {
-        if (!active) return;
-        setError(true);
-        setLoading(false);
-      }
-    };
-    setLoading(true);
-    setError(false);
-    void fetchAll();
-    const iv = setInterval(() => { void fetchAll(); }, 60000);
-    return () => { active = false; clearInterval(iv); };
-  }, [ui.projectId, homeView.shown()]);
-
+  if (ui.view === 'automations' && project()) return <AutomationsPage />;
   if (!homeView.shown()) return null;
   const s = ui.snap || {};
   const live = s.live || [];
@@ -693,115 +440,33 @@ export function Home() {
   const known = [...live, ...(s.sessions || []).filter((x) => !live.some((l) => l.id === x.id))];
   const all = [...known.map((x) => (tree[x.id] ? { ...tree[x.id], ...Object.fromEntries(Object.entries(x).filter(([, v]) => v != null)) } : x)),
     ...Object.values(tree).filter((r) => !known.some((x) => x.id === r.id))].filter((x) => !ui.pendingHide?.has(x.id));
-  const everyone = all.filter((x) => x.state !== 'exited');
-  const byId = new Map(everyone.map((x) => [x.id, x]));
+  const byId = new Map(all.map((x) => [x.id, x]));
   const kidsOf = (id) => all.filter((y) => y.parent_id === id);
-  const tops = everyone.filter((x) => !x.parent_id || !byId.has(x.parent_id))
-    .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
-
   const newest = (a, b) => String(b.state_at || b.started_at || '').localeCompare(String(a.state_at || a.started_at || ''));
-  const active = tops.filter((x) => !DONE_STATES.includes(x.state) && !isWorking(x));
-  const busy = tops.filter(isWorking).sort(newest);
-  const settledAll = [...tops.filter((x) => DONE_STATES.includes(x.state)), ...all.filter((x) => x.state === 'exited' && !x.parent_id)].sort(newest);
-  const settled = settledAll.slice(0, 20);
-
   const waiting = waitingAll().slice().sort((a, b) => String(a.state_at || '').localeCompare(String(b.state_at || '')));
-  const working = everyone.filter((x) => x.state === 'working' || x.state === 'starting');
-  const alerts = (s.needs_you || []).filter((n) => !n.read_at && !isInfo(n));
-  const approvals = s.approvals || [];
-  const needsCount = waiting.length + alerts.length;
-  const fallback = waiting[0]?.id || working.slice().sort((a, b) => String(b.state_at || '').localeCompare(String(a.state_at || '')))[0]?.id || null;
-  const selId = selected && (byId.has(selected) || waiting.some((w) => w.id === selected)) ? selected : fallback;
-  const sel = selId ? byId.get(selId) || waiting.find((w) => w.id === selId) : null;
-
+  const working = all.filter((x) => x.state !== 'exited' && isWorking(x)).sort(newest);
+  const fallback = selected === '' ? null : waiting[0]?.id || working[0]?.id || null;
+  const picked = (selected && byId.get(selected)) || (fallback && (byId.get(fallback) || waiting.find((w) => w.id === fallback))) || null;
+  const task = picked?.parent_id && byId.get(picked.parent_id) ? byId.get(picked.parent_id) : picked;
+  const openList = task && picked && task !== picked ? [...open, task.id] : open;
   const toggle = (id) => {
     const cur = homeStore.get().open || [];
     homeStore.set({ open: cur.includes(id) ? cur.filter((k) => k !== id) : [...cur, id] });
   };
-  const select = (id) => homeStore.set({ selected: id });
-  const row = (x) => <AgentRow key={x.id} x={x} kids={kidsOf(x.id)} openList={open} selected={x.id === selId} toggle={toggle} select={select} />;
-
-  const limits = s.limits || [];
-  const hot = limits.filter((l) => l.status === 'ok' && l.used_pct >= 80);
-  const highestLimit = hot.length ? hot.slice().sort((a, b) => (b.used_pct || 0) - (a.used_pct || 0))[0] : null;
-  const usdVal = Number(usageToday?.usd) || 0;
-  const usdEst = Boolean(usageToday?.usd_estimated);
+  if (task && !selected) ui.homeSel = task.id;
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
-
-  const recentWork = all.slice().sort(newest).slice(0, 6);
-  const flipRecent = () => { const v = !recentHidden; setRecentHidden(v); try { localStorage.setItem('ouros.home.recentHidden', v ? '1' : '0'); } catch {} };
-
+  const composer = ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (
-    <div className="ou-home ou-hm">
+    <div className={`ou-home ou-hm${task ? '' : ' ou-hm-solo'}`}>
       <div className="ou-hm-main">
-        {ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />}
-        <p className="ou-hm-summary">
-          <span className={needsCount ? 'ou-hm-hot' : ''}>{needsCount} need you</span>{' · '}
-          <span>{working.length} working</span>{' · '}
-          <span className={approvals.length ? 'ou-hm-hot' : ''}>{approvals.length} {approvals.length === 1 ? 'approval' : 'approvals'}</span>{' · '}
-          <span>{usdEst ? '~' : ''}${usdVal.toFixed(2)} today</span>
-        </p>
-        <UsageWarn limit={highestLimit} />
-
-        {tops.length || settled.length ? (
-          <section className="ou-hm-group">
-            {active.length ? <ul className="ou-hm-agents">{active.map(row)}</ul> : null}
-            {[['working', 'Working', busy, true], ['settled', 'Settled', settled, false]].map(([key, title, rows, byDefault]) => {
-              const isOpen = rows.length > 0 && (open.includes(`fold:${key}`) !== byDefault);
-              return (
-                <div key={key} className="ou-hm-fgroup">
-                  <button type="button" className="ou-hm-foot" aria-expanded={isOpen} disabled={!rows.length} onClick={() => toggle(`fold:${key}`)}>
-                    <span>{title}</span><span className="ou-hm-count">{key === 'settled' ? settledAll.length : rows.length}</span>
-                    <span className="ou-hm-chevbox" data-open={isOpen ? 'true' : 'false'}>{chev}</span>
-                  </button>
-                  <Drop open={isOpen} className="ou-hm-fbody"><ul className="ou-hm-agents">{rows.map(row)}</ul></Drop>
-                </div>
-              );
-            })}
-          </section>
-        ) : <EmptyState title="No agents yet" description="Start one with the task box above (Ctrl+N)." isCompact />}
-
-        <HomeAutomations />
-
-        <section className="ou-hm-recent">
-          <div className="ou-hm-recenthead">
-            <h2 className="ou-hm-h">Recent work</h2>
-            <button type="button" className="ou-hm-fold ou-hm-hide" aria-expanded={!recentHidden} onClick={flipRecent}>{recentHidden ? 'Show' : 'Hide'}</button>
-          </div>
-          {recentHidden ? null : recentWork.length ? (
-            <ul className="ou-hm-pills">
-              {recentWork.map((x) => (
-                <li key={x.id} className="ou-hm-pill" data-action="pick" data-id={x.id} role="button" tabIndex={0} title={`${nameOf(x)}: ${x.last_line || x.reason || STATE_WORD[x.state] || x.state}`}>
-                  <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
-                  <span className="ou-hm-pilltext"><b>{nameOf(x)}</b><span>{x.last_line || x.reason || STATE_WORD[x.state] || x.state}</span></span>
-                  <Dot k={x} />
-                  <span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span>
-                </li>
-              ))}
-            </ul>
-          ) : <p className="ou-hm-muted">Nothing yet.</p>}
-        </section>
-
-        <section className="ou-hm-usage">
-          <button type="button" className="ou-hm-fold" aria-expanded={Boolean(usageOpen)} onClick={() => homeStore.set({ usage: !usageOpen })}>
-            <span className="ou-hm-chevbox" data-open={usageOpen ? 'true' : 'false'}>{chev}</span><span>Usage and trends</span>
-          </button>
-          <Drop open={Boolean(usageOpen)} className="ou-hm-drop">
-            <div className="ou-dash-charts">
-              <ChartRuns data={statsSessions} loading={loading} error={error} />
-              <ChartTokens data={usageWeek} loading={loading} error={error} />
-              <ChartSessions data={statsSessions} loading={loading} error={error} />
-              <ChartChecks data={statsChecks} loading={loading} error={error} />
-            </div>
-            <Usage />
-            <Audit />
-          </Drop>
-        </section>
+        {task ? (
+          <>
+            <div className="ou-hm-center"><Swap k={task.id}><TaskView x={task} kids={kidsOf(task.id)} openList={openList} toggle={toggle} /></Swap></div>
+            <div className="ou-hm-dock">{composer}</div>
+          </>
+        ) : <StartState composer={composer} />}
       </div>
-
-      <aside className="ou-hm-rail">
-        <RailCard waiting={waiting} approvals={approvals} alerts={alerts} sel={sel} kids={sel ? kidsOf(sel.id) : []} select={select} selId={selId} />
-      </aside>
+      {task ? <aside className="ou-hm-rail"><RailCard sel={task} kids={kidsOf(task.id)} /></aside> : null}
     </div>
   );
 }

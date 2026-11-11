@@ -57,7 +57,7 @@ const { React, renderToStaticMarkup, Settings, settingsStore, Inbox, inboxStore,
 const g: any = globalThis;
 const calls: any[] = [];
 let data: any;
-const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'RailCard', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
+const own = new Set(['Inbox', 'Glyph', 'NoteActions', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'Addons', 'Home', 'RailCard', 'AutomationsPage', 'TemplateCards', 'StartBox', 'Tile', 'AgentCard', 'AgentHead', 'PluginInstall', 'Automations', 'Field', 'Screen', 'CheckCommand']);
 
 // Supply the server snapshot for the synthetic settings store.
 settingsStore.use = () => React.useSyncExternalStore(() => () => {}, settingsStore.get, settingsStore.get);
@@ -299,35 +299,8 @@ test('Add-ons loads once, clears on leave, reloads and ignores a stale response'
   assert.match(h.html(), /No plugins installed\./); assert.doesNotMatch(h.html(), />stale</);
 });
 
-test('Home summary line counts need you, working, approvals and spend, with urgent counts in accent', () => {
-  g.ui.snap.sessions = [session('working', 'working'), session('starting', 'starting'), session('done', 'done'), session('hidden', 'working'), session('gone', 'exited')];
-  g.ui.pendingHide.add('hidden'); g.ui.snap.live = [session('wait', 'waiting_for_you', { project_id: 'p2' })];
-  g.ui.snap.approvals = [{ id: 'ap' }];
-  g.ui.snap.needs_you = [note('loop', 'other', { ref: 'loop:s1' }), note('lend', 'other', { ref: 'lend:p1 https://alpha.example' }), note('question', 'question'), note('read', 'question', { read_at: 'read' }), note('info', 'done')];
-  const h = harness(Home); h.draw();
-  const line = h.one(hasClass('ou-hm-summary'));
-  assert.equal(textContent(line), '4 need you · 2 working · 1 approval · $0.00 today');
-  assert.deepEqual(React.Children.toArray(line.props.children).filter((n: any) => React.isValidElement(n) && hasClass('ou-hm-hot')(n)).map(textContent), ['4 need you', '1 approval']);
-  g.ui.snap.live = []; g.ui.snap.sessions = []; g.ui.snap.approvals = []; g.ui.snap.needs_you = []; h.draw();
-  assert.equal(h.all(hasClass('ou-hm-hot')).length, 0);
-});
 
-test('Home lists each agent once, waiting first, then the Working fold open and the Settled fold closed', () => {
-  homeStore.set({ open: [], selected: null, usage: false });
-  g.ui.snap.sessions = [session('working', 'working'), session('starting', 'starting'), session('done', 'done'), session('hidden', 'working'), session('gone', 'exited'), session('kid', 'working', { parent_id: 'working' })];
-  g.ui.pendingHide.add('hidden'); g.ui.snap.live = [session('wait', 'waiting_for_you', { project_id: 'p2' })];
-  const h = harness(Home); const html = h.html();
-  assert.deepEqual(h.all((n: any) => n.type?.name === 'AgentRow').map((n: any) => [n.props.x.id, n.props.kids.map((k: any) => k.id)]), [['wait', []], ['working', ['kid']], ['starting', []], ['done', []], ['gone', []]]);
-  assert.deepEqual(h.all(hasClass('ou-hm-foot')).map((n: any) => [textContent(n.props.children[0]), n.props['aria-expanded']]), [['Working', true], ['Settled', false]]);
-  assert.doesNotMatch(html, /Task hidden/);
-});
 
-test('Home empty state, quiet rail and visibility', () => {
-  homeStore.set({ open: [], selected: null, usage: false });
-  const h = harness(Home); const html = h.html();
-  assert.match(html, /No agents yet/); assert.match(html, /Nothing needs you\./); assert.doesNotMatch(html, /ou-hm-panel/);
-  g.ui.view = 'wall'; assert.equal(h.html(), ''); g.ui.view = 'home'; g.ui.projectId = 'missing'; assert.equal(h.html(), '');
-});
 
 test('Home start box appears only with a non-red engine and ends with the Start arrow', () => {
   g.ui.snap.engines = [{ id: 'bad', light: 'red' }]; const h = harness(Home); h.draw(); assert.equal(h.all(label('Start')).length, 0);
@@ -359,11 +332,97 @@ test('Home launches the ready fallback when a saved engine is unavailable', asyn
 });
 
 
-test('Home approval row in the card Needs you section preserves whole-row activation', () => {
-  g.ui.snap.approvals = [{ id: 'approve-row' }]; const h = harness(Home); h.draw();
-  const row = h.one((n: any) => n.props?.['data-action'] === 'sheet');
-  assert.equal(row.props.role, 'button'); assert.equal(row.props.tabIndex, 0);
-  assert.match(renderToStaticMarkup(React.createElement(row.type, row.props)), /1 action waits for a yes/);
+
+test('Home picks the oldest waiting task, else the newest working one; a picked sub-agent shows its parent; an empty pick shows the start state', () => {
+  homeStore.set({ open: [], tick: 0 }); delete g.ui.homeSel;
+  const kid = session('kid', 'waiting_for_you', { parent_id: 'lead', state_at: '2026-11-10T01:00:00Z' });
+  g.ui.snap.sessions = [session('lead', 'working', { state_at: '2026-11-10T03:00:00Z' }), kid, session('late', 'waiting_for_you', { state_at: '2026-11-10T05:00:00Z' }), session('busy', 'working', { state_at: '2026-11-10T06:00:00Z' }), session('old', 'done')];
+  g.ui.snap.live = g.ui.snap.sessions.filter((x: any) => x.state !== 'done');
+  const h = harness(Home); h.draw();
+  const view = () => h.one((n: any) => n.type?.name === 'TaskView').props.x.id;
+  assert.equal(view(), 'lead'); assert.equal(g.ui.homeSel, 'lead');
+  assert.equal(h.one((n: any) => n.type?.name === 'TaskView').props.openList.includes('lead'), true);
+  g.ui.homeSel = 'kid'; h.draw(); assert.equal(view(), 'lead'); assert.ok(h.one((n: any) => n.type?.name === 'TaskView').props.openList.includes('lead'));
+  g.ui.homeSel = 'busy'; h.draw(); assert.equal(view(), 'busy');
+  g.ui.homeSel = ''; h.draw(); assert.equal(h.all((n: any) => n.type?.name === 'TaskView').length, 0); assert.equal(h.all((n: any) => n.type?.name === 'StartState').length, 1);
+  g.ui.snap.live = g.ui.snap.live.filter((x: any) => x.state !== 'waiting_for_you'); delete g.ui.homeSel; h.draw(); assert.equal(view(), 'busy');
+  g.ui.view = 'wall'; assert.equal(h.html(), ''); g.ui.view = 'home'; g.ui.projectId = 'missing'; assert.equal(h.html(), '');
+});
+
+test('Home task view: breadcrumb, worked line, a collapsed subagents trigger in status colours, the latest line, and waiting-on with Stop; opening lists slim rows with the orchestrator first and steps only after a row is clicked', () => {
+  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'lead';
+  const steps = { done: 1, total: 2, items: [{ text: 'Plan', done: true }, { text: 'Build', done: false }] };
+  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', last_line: 'Okay, splitting the checkout.', steps, started_at: new Date(Date.now() - 65000).toISOString() }),
+    session('a', 'done', { parent_id: 'lead' }), session('b', 'working', { parent_id: 'lead', model: 'gpt-5.4', last_line: 'running tests', steps }),
+    session('c', 'exited', { parent_id: 'lead', outcome: 'failed', reason: 'tests broke' })];
+  const h = harness(Home); h.draw();
+  const view = () => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView'));
+  const html = view();
+  const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
+  const order = ['<span class="ou-hm-crumbproj">Alpha</span>', '<span class="ou-hm-crumbtitle">Task lead</span>', 'Working for 1m 0', '1/2 steps', '<span class="ou-hm-tlabel">3 subagents</span>',
+    '<span class="ou-hm-tsum ou-hm-workingtext">1 working · 1 done · 1 failed</span>', '<p class="ou-hm-latest">Okay, splitting the checkout.</p>', 'Waiting on 1 subagent', 'Task b', '>Stop</button>'].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y));
+  assert.doesNotMatch(html, /ou-hm-slimlist|Plan|Build/);
+  homeStore.set({ open: ['lead'] }); h.draw();
+  const open = view();
+  assert.deepEqual([...open.matchAll(/<li class="ou-hm-slim( ou-hm-lead)?" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[2], m[3]]), [['lead', 'working'], ['a', 'done'], ['b', 'working'], ['c', 'failed']]);
+  assert.match(open, /<span class="ou-hm-slimsub"><span class="ou-hm-model">gpt-5.4<\/span><span class="">running tests<\/span><\/span>/);
+  assert.match(open, /<span class="ou-hm-bad">tests broke<\/span>/);
+  assert.doesNotMatch(open, /Build/);
+  homeStore.set({ open: ['lead', 'steps:b'] }); h.draw();
+  assert.match(view(), /Plan.*Build/);
+});
+
+test('Home start state: a heading, the composer with project and approval chips, and four start actions; no details card', () => {
+  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = ''; g.ui.snap.engines = [{ id: 'ready', light: 'green' }];
+  const h = harness(Home); const html = h.html();
+  assert.match(html, /<h1 class="ou-hm-hello">What should we build next\?<\/h1>/);
+  assert.ok(html.indexOf('ou-hm-hello') < html.indexOf('ou-hm-task') && html.indexOf('ou-hm-task') < html.indexOf('ou-hm-startlist'));
+  assert.ok(h.all(label('Project')).length === 1 && h.all(label('Approval')).length === 1);
+  assert.deepEqual([...html.matchAll(/<span class="ou-hm-starttext"><b>([^<]+)<\/b>/g)].map(m => m[1]), ['New task', 'Import projects', 'Open the Wall', 'Learn Ouros']);
+  assert.match(html, /data-action="open-folder"/);
+  assert.doesNotMatch(html, /ou-hm-card|ou-hm-rail/);
+});
+
+test('Home leaves Needs you notes and approvals to their own screen', () => {
+  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = '';
+  g.ui.snap.approvals = [{ id: 'ap' }]; g.ui.snap.needs_you = [note('q', 'question'), note('l', 'other', { ref: 'loop:s1' })];
+  const html = harness(Home).html();
+  assert.doesNotMatch(html, /data-action="sheet"|data-action="inbox-open"|Needs you/);
+});
+
+test('Home details card for the task: workspace, version control with PR and Merge, then lineage; no Needs you inside', () => {
+  homeStore.set({ open: [], tick: 0 }); g.ui.homeSel = 'older';
+  const older = session('older', 'waiting_for_you', { reason: 'Keep the retry?' });
+  g.ui.snap.live = [older]; g.ui.snap.sessions = [older, session('kid', 'working', { parent_id: 'older' })];
+  g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
+  const h = harness(Home); h.draw();
+  const html = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
+  const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
+  const order = ['Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid'].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y));
+  assert.doesNotMatch(html, /Needs you|Keep the retry/);
+  assert.match(renderToStaticMarkup(h.one((n: any) => n.type?.name === 'TaskView')), /Keep the retry\?/);
+  assert.deepEqual(calls, []);
+});
+
+test('Automations is its own page: Yours and Templates tabs, an empty list offers templates, and a template opens the editor page filled in', async () => {
+  g.ui.view = 'automations';
+  const realInterval = g.setInterval; g.setInterval = () => 0;
+  g.rpc = async (...args: any[]) => { calls.push(['rpc', ...args]); return { result: args[0] === 'automation.list' ? { automations: [] } : { labels: [] } }; };
+  const h = harness(Home, true); h.draw(); await flush(); h.draw();
+  const html = h.html();
+  assert.match(html, /<h1 class="ou-ap-title">Automations<\/h1>/);
+  assert.deepEqual(h.all((n: any) => n.props?.role === 'tab').map((n: any) => textContent(n.props.children)), ['Yours', 'Templates']);
+  assert.match(html, /Schedule a task/);
+  const templates = h.all(hasClass('ou-ap-template'));
+  assert.equal(templates.length, 5);
+  templates[0].props.onClick(); h.draw();
+  const editor = h.one((n: any) => n.type?.name === 'AutomationEditor');
+  assert.equal(editor.props.initial.name, 'Nightly test sweep'); assert.equal(editor.props.initial.cron, '0 2 * * *');
+  assert.match(renderToStaticMarkup(editor), /<h1 class="ou-ae-heading">New automation<\/h1>/);
+  assert.doesNotMatch(renderToStaticMarkup(editor), /role="dialog"/);
+  g.ui.view = 'home'; g.setInterval = realInterval;
 });
 
 test('screen text is escaped by React', () => {
@@ -441,17 +500,6 @@ for (const [kind, id, rowLabel, rowAction] of [
   assert.equal(textContent(h.one(hasClass(kind === 'waiting' ? 'ou-ipane-task' : 'ou-ipane-noticetext'))), rowLabel);
 });
 
-for (const kind of ['question', 'loop', 'lend', 'done', 'failed'] as const) test('Home ' + kind + ' note ' + (kind === 'done' || kind === 'failed' ? 'stays off the Needs you queue once read' : 'carries its action on the queue row'), () => {
-  g.ui.snap.needs_you = [note('whole-row', kind === 'loop' || kind === 'lend' ? 'other' : kind,
-    kind === 'loop' ? { ref: 'loop:s-loop' } : kind === 'lend' ? { ref: 'lend:p1 https://alpha.example' } : { read_at: kind === 'done' || kind === 'failed' ? 'read' : null })];
-  const h = harness(Home); h.draw();
-  const rows = h.all((n: any) => typeof n.type === 'string' && n.props['data-id'] === 'whole-row');
-  if (kind === 'done' || kind === 'failed') { assert.equal(rows.length, 0); return; }
-  assert.equal(rows.length, 1);
-  const opening = /<div\b[^>]*>/.exec(renderToStaticMarkup(React.createElement(rows[0].type, rows[0].props)))?.[0];
-  assert.ok(opening?.includes('data-action="inbox-open"'));
-  assert.ok(opening?.includes('data-id="whole-row"'));
-});
 
 const hasClass = (name: string) => (n: any) => typeof n.props.className === 'string' && n.props.className.split(' ').includes(name);
 const textContent = (node: any): string => Array.isArray(node) ? node.map(textContent).join('') : React.isValidElement(node) ? textContent(node.props.children) : node == null ? '' : String(node);
@@ -541,83 +589,9 @@ test('Inbox groups, two-line rows, state rings, unread state and notice order ma
   g.ui.snap.live = []; h.draw(); assert.equal(h.all(hasClass('ou-ny-ghead')).length, 0);
 });
 
-test('Home card opens on the oldest waiting agent: Needs you first, then workspace, version control with PR, and lineage', () => {
-  homeStore.set({ open: [], selected: null, usage: false });
-  const newer = session('newer', 'waiting_for_you', { state_at: '2026-11-10T02:00:00Z' });
-  const older = session('older', 'waiting_for_you', { state_at: '2026-11-10T01:00:00Z', reason: 'Keep the retry?' });
-  g.ui.snap.live = [newer, older]; g.ui.snap.sessions = [newer, older, session('kid', 'working', { parent_id: 'older' })];
-  g.ui.snap.git = { older: { branch: 'feat/x', added: 3, deleted: 1, changed: [], commit: 'abc1234', pr: { number: 7, state: 'OPEN', url: '', checks: 'pass' } } };
-  const h = harness(Home); h.draw();
-  const card = h.one((n: any) => n.type?.name === 'RailCard');
-  assert.equal(card.props.sel.id, 'older');
-  const html = renderToStaticMarkup(card);
-  const at = (t: string) => { const i = html.indexOf(t); assert.ok(i >= 0, t); return i; };
-  const order = ['Needs you · 2', 'Keep the retry?', 'Open on Wall', 'feat/x', 'abc1234', 'ou-hm-add">+3<', 'ou-hm-del">-1<', 'PR #7', 'checks pass · open', 'Merge', 'Lineage · 1 running', 'Task kid'].map(at);
-  assert.deepEqual(order, [...order].sort((x, y) => x - y));
-  assert.deepEqual(calls, []);
-  homeStore.set({ selected: 'newer' }); h.draw();
-  const plain = renderToStaticMarkup(h.one((n: any) => n.type?.name === 'RailCard'));
-  assert.match(plain, /Open on Wall/);
-  assert.doesNotMatch(plain, /Commit|Changes|PR #|Lineage/);
-});
 
-test('Home section order: task box, summary, agents, automations, recent work, folded usage', () => {
-  homeStore.set({ open: [], selected: null, usage: false });
-  g.ui.snap.engines = [{ id: 'ready', light: 'green' }]; g.ui.snap.sessions = [session('working', 'working')];
-  const h = harness(Home); const html = h.html();
-  const at = (s: string) => { const i = html.indexOf(s); assert.ok(i >= 0, s); return i; };
-  const order = ['ou-hm-task', 'ou-hm-summary', 'ou-hm-group', 'ou-hm-autos', 'Runs while Ouros is open.', 'Recent work', 'Usage and trends', 'ou-hm-rail'].map(at);
-  assert.deepEqual(order, [...order].sort((a, b) => a - b));
-  assert.doesNotMatch(html, /ou-dash-charts/);
-  homeStore.set({ usage: true }); assert.match(h.html(), /ou-dash-charts/);
-  assert.doesNotMatch(html, /Recent activity|Recent sessions/);
-});
 
-test('Home recent work shows the six newest sessions as pills with their latest line, and its hide toggle is remembered', () => {
-  homeStore.set({ open: [], selected: null, usage: false });
-  const stored = new Map<string, string>();
-  g.localStorage = { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => { stored.set(k, v); } };
-  g.ui.snap.sessions = Array.from({ length: 8 }, (_, i) => session('s' + i, i === 7 ? 'exited' : 'working', { state_at: `2026-11-10T0${i}:00:00Z`, last_line: 'line ' + i }));
-  g.ui.snap.sessions.push(session('hid', 'working', { state_at: '2026-11-10T09:00:00Z' })); g.ui.pendingHide.add('hid');
-  const h = harness(Home); h.draw();
-  const pills = h.all(hasClass('ou-hm-pill'));
-  assert.deepEqual(pills.map((n: any) => n.props['data-id']), ['s7', 's6', 's5', 's4', 's3', 's2']);
-  assert.ok(pills.every((n: any) => n.props['data-action'] === 'pick' && n.props.role === 'button' && n.props.tabIndex === 0));
-  assert.match(renderToStaticMarkup(pills[0]), /<b>Task s7<\/b><span>line 7<\/span>/);
-  const toggle = h.one((n: any) => hasClass('ou-hm-hide')(n));
-  assert.equal(textContent(toggle.props.children), 'Hide'); toggle.props.onClick(); h.draw();
-  assert.equal(h.all(hasClass('ou-hm-pill')).length, 0); assert.equal(stored.get('ouros.home.recentHidden'), '1');
-  const again = harness(Home); again.draw(); assert.equal(again.all(hasClass('ou-hm-pill')).length, 0);
-  g.localStorage = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
-  const blocked = harness(Home); blocked.draw(); assert.equal(blocked.all(hasClass('ou-hm-pill')).length, 6);
-  delete g.localStorage;
-});
 
-test('Home agent block: title, then a collapsed subagents trigger; opening shows the orchestrator header and member rows with model, detail and elapsed, and a member with steps opens to its checklist', () => {
-  homeStore.set({ open: [], selected: null, usage: false });
-  const steps = { done: 1, total: 2, items: [{ text: 'Plan', done: true }, { text: 'Build', done: false }] };
-  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude', model: 'opus-5.5', last_line: 'reading checkout.ts' }), session('a', 'done', { parent_id: 'lead' }),
-    session('b', 'working', { parent_id: 'lead', model: 'gpt-5.4', last_line: 'running tests', steps }), session('c', 'exited', { parent_id: 'lead', outcome: 'failed', reason: 'tests broke' }), session('d', 'waiting_for_you', { parent_id: 'lead', reason: 'permission' }),
-    session('solo', 'waiting_for_you', { steps })];
-  const h = harness(Home); h.draw();
-  const row = (id: string) => renderToStaticMarkup(h.one((n: any) => n.type?.name === 'AgentRow' && n.props.x.id === id));
-  const closed = row('lead');
-  assert.match(closed, /<div class="ou-hm-title">Task lead<\/div><div class="ou-hm-trigger" data-active="true" aria-expanded="false" aria-label="4 subagents" aria-description="2 working · 1 done · 1 failed"/);
-  assert.match(closed, /<span class="ou-hm-tlabel">4 subagents<\/span><span class="ou-hm-tsum ou-hm-info">2 working · 1 done · 1 failed<\/span>/);
-  assert.equal((closed.match(/class="ou-hm-av"/g) || []).length, 3); assert.match(closed, /ou-hm-more">\+1</);
-  assert.doesNotMatch(closed, /ou-hm-opening|Orchestrator/);
-  assert.match(row('solo'), /<span class="ou-hm-tlabel ou-hm-st-waiting-text">Waiting<\/span><span class="ou-hm-tsum ou-hm-info">1\/2 steps<\/span>/);
-  homeStore.set({ open: ['lead'] }); h.draw();
-  const html = row('lead');
-  assert.match(html, /<span class="ou-hm-olabel">Orchestrator<\/span><span class="ou-hm-otitle">Task lead<\/span>/);
-  assert.match(html, /<span class="ou-hm-oagents">5 agents · 3 working · 1 done · 1 failed<\/span>/);
-  assert.deepEqual([...html.matchAll(/<li class="ou-hm-member" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[1], m[2]]), [['a', 'done'], ['b', 'working'], ['c', 'failed'], ['d', 'waiting']]);
-  assert.match(html, /<span class="ou-hm-mdetail">1\/2 steps · running tests<\/span><\/span><span class="ou-hm-model">gpt-5.4<\/span>/);
-  assert.match(html, /<span class="ou-hm-mdetail ou-hm-bad">tests broke<\/span>/);
-  assert.doesNotMatch(html, /Build/);
-  homeStore.set({ open: ['lead', 'steps:b'] }); h.draw();
-  assert.match(row('lead'), /Plan.*Build/);
-});
 
 test('Automation schedules read in words', () => {
   const cases: [any, string][] = [

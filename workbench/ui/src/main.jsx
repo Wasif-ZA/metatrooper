@@ -97,12 +97,14 @@ document.addEventListener('keydown', (e) => {
 
 // home.js stays loaded for homeView.set and shown; only its drawing is replaced.
 homeView.draw = () => {
-  el('home').hidden = !homeView.shown();
+  el('home').hidden = !(homeView.shown() || (ui.view === 'automations' && Boolean(project())));
   document.querySelectorAll('.vseg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === (ui.view || 'wall'))));
   homeStore.set({ tick: homeStore.get().tick + 1 });
 };
 
 globalThis.newTask = openNewTask;
+
+globalThis.addEventListener?.('home-select', () => homeStore.set({ open: [], tick: homeStore.get().tick + 1 }));
 
 document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() !== 'n' || !e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
