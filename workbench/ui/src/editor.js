@@ -166,6 +166,9 @@ export function openEditor(parent, textOrState, path, on) {
   };
 }
 
+// A placed view zone stays only while its key, height, side and line all still match.
+export const sameZone = (key, z, x) => x.key === key && x.height === z.height && x.side === z.side && x.line === z.line;
+
 // hooks.onLine({ side, line, excerpt }) fires on a glyph-margin click; hooks.onMove fires when lines shift on screen.
 export function openDiff(parent, sides, path, hooks = {}) {
   let ed = null, dead = false, models = [];
@@ -199,7 +202,7 @@ export function openDiff(parent, sides, path, hooks = {}) {
     zones(list) {
       if (!ed) return new Map();
       for (const [key, z] of zones) {
-        if (list.some((x) => x.key === key && x.height === z.height)) continue;
+        if (list.some((x) => sameZone(key, z, x))) continue;
         z.editor.changeViewZones((a) => a.removeZone(z.id));
         zones.delete(key);
       }
@@ -209,7 +212,7 @@ export function openDiff(parent, sides, path, hooks = {}) {
         const node = document.createElement('div');
         let id;
         editor.changeViewZones((a) => { id = a.addZone({ afterLineNumber: x.line, heightInPx: x.height, domNode: node }); });
-        zones.set(x.key, { id, editor, node, height: x.height });
+        zones.set(x.key, { id, editor, node, height: x.height, side: x.side, line: x.line });
       }
       return new Map([...zones].map(([k, z]) => [k, z.node]));
     },
@@ -230,6 +233,39 @@ export function onProblems(fn) {
   let off = null, dead = false;
   void loadMonaco().then((m) => { if (!dead) off = m.editor.onDidChangeMarkers(() => fn(problems())); }, () => {});
   return () => { dead = true; off?.dispose(); };
+}
+
+// `base` with a one-file unified patch applied, or null when a context or removed line does not match.
+export function applyPatch(base, patch) {
+  const lines = base.replace(/\r\n?/g, '\n').split('\n');
+  let nl = lines.at(-1) === '';
+  if (nl) lines.pop();
+  const out = [];
+  let i = 0, prev = '', oldNoNl = false, newNoNl = false;
+  for (const raw of patch.split('\n')) {
+    const m = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/.exec(raw);
+    if (m) {
+      const at = Number(m[1]) - (m[2] === '0' ? 0 : 1);
+      if (at < i || at > lines.length) return null;
+      out.push(...lines.slice(i, at));
+      i = at;
+      prev = '@';
+      continue;
+    }
+    if (!prev) continue;
+    const l = raw.replace(/\r$/, '');
+    if (l[0] === '\\') { if (prev === '-') oldNoNl = true; else if (prev === '+' || prev === ' ') newNoNl = true; continue; }
+    if (!/^[ +-]/.test(l)) continue;
+    const s = l.slice(1);
+    if (l[0] !== '+' && lines[i++] !== s) return null;
+    if (l[0] !== '-') out.push(s);
+    prev = l[0];
+  }
+  if (!prev) return null;
+  out.push(...lines.slice(i));
+  if (newNoNl) nl = false;
+  else if (oldNoNl) nl = true;
+  return out.join('\n') + (nl && out.length ? '\n' : '');
 }
 
 // Both sides of a one-file unified patch; `text` (the new side) fills the unchanged gaps when it matches.
