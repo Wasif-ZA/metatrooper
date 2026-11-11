@@ -54,7 +54,7 @@
 .ou-ide-pane:hover .ou-ide-tree [role="group"] { border-left-color: var(--hairline); }
 .ou-ide-folderdot { flex: none; width: 6px; height: 6px; margin: 0 4px 0 auto; border-radius: 50%; background: #e2c08d; }
 .ou-ide-tree .ou-ide-row-m, .ou-ide-tree .ou-ide-row-m * { color: #e2c08d; }
-.ou-ide-tree :is(.ou-ide-row-a, .ou-ide-row-u), .ou-ide-tree :is(.ou-ide-row-a, .ou-ide-row-u) * { color: #73c991; }
+.ou-ide-tree :is(.ou-ide-row-a, .ou-ide-row-u, .ou-ide-row-r), .ou-ide-tree :is(.ou-ide-row-a, .ou-ide-row-u, .ou-ide-row-r) * { color: #73c991; }
 .ou-ide-tree :is(.ou-ide-row-d, .ou-ide-row-c), .ou-ide-tree :is(.ou-ide-row-d, .ou-ide-row-c) * { color: var(--del); }
 .ou-ide-tree .ou-ide-row-dirty, .ou-ide-tree .ou-ide-row-dirty * { color: #e2c08d; }
 .ou-ide-tree [class*="ou-ide-row-"] .ou-ide-ficon:is(.ou-ide-lang-ts, .ou-ide-lang-py) { color: var(--lang-ts); }
@@ -65,7 +65,7 @@
 .ou-ide-tree-decorations, .ou-ide-gitletter, .ou-ide-scletter, .ou-ide-engine, .ou-ide-count { font-family: inherit; }
 .ou-ide-gitletter { min-width: 14px; font-size: 12px; text-align: center; }
 .ou-ide-git-m { color: #e2c08d; }
-.ou-ide-git-a, .ou-ide-git-u { color: #73c991; }
+.ou-ide-git-a, .ou-ide-git-u, .ou-ide-git-r { color: #73c991; }
 .ou-ide-git-c { color: var(--del); }
 
 /* Search */
@@ -82,6 +82,7 @@
 /* Source control */
 .ou-ide-sccommit { gap: 6px; padding: 0 8px 8px; }
 .ou-ide-scmsg { min-height: 52px; font-size: 13px; }
+.ou-ide-scmsg:focus, .ou-ide-scmsg:focus-visible { outline: 1px solid var(--body); outline-offset: -1px; border-radius: 0; box-shadow: none; }
 .ou-ide-scactions { height: 26px; }
 .ou-ide-scactions > :first-child { flex: 1; height: 26px; min-height: 26px; justify-content: center; }
 .ou-ide-schead { height: 22px; padding: 0 8px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
@@ -93,7 +94,7 @@
 .ou-ide-scrow:hover > button, .ou-ide-scrow:focus-within > button { visibility: visible; }
 .ou-ide-scletter { width: 14px; margin-left: 2px; font-size: 12px; font-weight: 500; }
 .ou-ide-scname-m { color: #e2c08d; }
-.ou-ide-scname-a, .ou-ide-scname-u { color: #73c991; }
+.ou-ide-scname-a, .ou-ide-scname-u, .ou-ide-scname-r { color: #73c991; }
 .ou-ide-scname-d { color: var(--del); text-decoration: line-through; }
 .ou-ide-scname-c { color: var(--del); }
 

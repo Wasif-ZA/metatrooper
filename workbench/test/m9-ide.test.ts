@@ -247,15 +247,17 @@ test('save calls fsWrite with the tab baseMtimeMs and updates mtimeMs on ok', as
 
   const h = harness(Ide);
   h.draw();
-  const saveBtn = h.one((n: any) => n.props?.label === 'Save');
-  assert.equal(saveBtn.props.isDisabled, false);
+  const menu = h.one((n: any) => n.props?.id === 'ide-tab-menu');
+  const save = menu.props.items.find((item: any) => item.label === 'Save');
+  assert.ok(save);
+  assert.equal(save.isDisabled, false);
 
   g.api.fsWrite = async (...args: any[]) => {
     calls.push(['fsWrite', ...args]);
     return { ok: true, mtimeMs: 1700000000456 };
   };
 
-  await saveBtn.props.onClick();
+  await save.onClick();
 
   const writeCall = calls.find((c) => c[0] === 'fsWrite');
   assert.ok(writeCall);
@@ -540,11 +542,12 @@ test('Not built yet is displayed and save is prevented when api.fsWrite is missi
   const h = harness(Ide);
   h.draw();
 
-  const saveBtn = h.one((n: any) => n.props?.label === 'Save');
-  assert.equal(saveBtn.props.isDisabled, true);
+  const menu = h.one((n: any) => n.props?.id === 'ide-tab-menu');
+  const save = menu.props.items.find((item: any) => item.label === 'Save');
+  assert.ok(save);
+  assert.equal(save.isDisabled, true);
 
-  const badge = h.one((n: any) => n.props?.label === 'Not built yet');
-  assert.ok(badge);
+  assert.match(renderToStaticMarkup(save.endContent), /Not built yet/);
 
   calls.length = 0;
   const res = await __saveTab(cur, 'nowrite.txt');

@@ -459,8 +459,6 @@ html { font-size: 16px; }
 .ou-ide-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--mono); color: var(--mute); }
 .ou-ide-path b { font-weight: 400; color: var(--body-strong); }
 .ou-ide-crumbr { flex: none; display: inline-flex; align-items: center; gap: 8px; font: 11px var(--mono); }
-.ou-ide-save { height: 22px; padding: 0 6px; font-size: 12px; font-weight: 500; color: var(--mute); }
-.ou-ide-save:not([disabled]):not([aria-disabled="true"]) { color: var(--ink); }
 .ou-ide-add { color: var(--add); }
 .ou-ide-del { color: var(--del); }
 .ou-ide-view { flex: 1; position: relative; min-height: 0; overflow: hidden; background: var(--pane); }
@@ -591,7 +589,7 @@ html { font-size: 16px; }
   }
 }
 
-#home, #needsview, #addons, .ou-col, .ou-sbody, .ou-snav, .ou-ide-tree, .ou-ide-diff, .ou-md, [role="listbox"] { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
+#home, #needsview, #addons, .ou-col, .ou-sbody, .ou-snav, .ou-ide-tree, .ou-md, [role="listbox"] { scrollbar-width: thin; scrollbar-color: var(--hairline) transparent; }
 #home::-webkit-scrollbar, #needsview::-webkit-scrollbar, #addons::-webkit-scrollbar, .ou-col::-webkit-scrollbar, .ou-sbody::-webkit-scrollbar, .ou-snav::-webkit-scrollbar, .ou-ide-tree::-webkit-scrollbar, [role="listbox"]::-webkit-scrollbar { width: 8px; height: 8px; }
 #home::-webkit-scrollbar-thumb, #needsview::-webkit-scrollbar-thumb, #addons::-webkit-scrollbar-thumb, .ou-col::-webkit-scrollbar-thumb, .ou-sbody::-webkit-scrollbar-thumb, .ou-snav::-webkit-scrollbar-thumb, .ou-ide-tree::-webkit-scrollbar-thumb, [role="listbox"]::-webkit-scrollbar-thumb { background: var(--hairline); }
 

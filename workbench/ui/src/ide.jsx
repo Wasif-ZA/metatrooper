@@ -18,7 +18,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { createStore } from './store.js';
 import * as Ic from './icons/index.js';
 import * as Sc from './icons/screens.jsx';
-import { editorState, openEditor, openDiff, patchSides, preloadMonaco } from './editor.js';
+import { editorState, openEditor, openDiff, patchSides, preloadMonaco, onProblems } from './editor.js';
 import { sendComment } from './comment.js';
 import './ide-editor.css';
 import { Preview, isMd } from './preview.jsx';
@@ -1221,6 +1221,14 @@ export function Ide() {
   bridge.restartTerminal = () => { if (cur) closeShell(cur.pid); setPanel(true); setBottom('terminal'); setGen((g) => g + 1); };
 
   const st = cur;
+  useEffect(() => {
+    if (!st) return;
+    return onProblems((list) => { st.problems = list; bump(); });
+  }, [st]);
+  const rail = st && project() ? railHost() : null;
+  useEffect(() => {
+    rail?.querySelectorAll('[data-ide-side]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.ideSide === st.side)));
+  });
   if (!st || !project()) return null;
   const changed = changedSet();
   const active = st.active ? tabOf(st, st.active) : null;
@@ -1229,9 +1237,9 @@ export function Ide() {
   const gitCount = st.git && st.git.files ? new Set(st.git.files.map((f) => f.path)).size : null;
   const views = (
     <>
-      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={16} />} onClick={() => { st.side = 'files'; bump(); }} />
-      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" aria-pressed={st.side === 'search'} icon={<Ic.Search size={16} />} onClick={() => { st.side = 'search'; bump(); }} />
-      <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" aria-pressed={st.side === 'changes'}
+      <IconButton size="sm" variant="ghost" label="Files" tooltip="Files" data-ide-side="files" aria-pressed={st.side === 'files'} icon={<Sc.FileIcon size={16} />} onClick={() => { st.side = 'files'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label="Search" tooltip="Search (Ctrl+Shift+F)" data-ide-side="search" aria-pressed={st.side === 'search'} icon={<Ic.Search size={16} />} onClick={() => { st.side = 'search'; bump(); }} />
+      <IconButton size="sm" variant="ghost" label={gitCount !== null ? `Changes ${gitCount}` : 'Changes'} tooltip="Source control" data-ide-side="changes" aria-pressed={st.side === 'changes'}
         icon={<span className="ou-ide-railicon"><Ic.Branch size={16} />{gitCount ? <span className="ou-ide-railbadge">{gitCount > 99 ? '99+' : gitCount}</span> : null}</span>}
         onClick={() => { st.side = 'changes'; bump(); void loadGitStatus(st); }} />
     </>
@@ -1253,7 +1261,7 @@ export function Ide() {
   return (
     <div className="ou-ide" key={st.pid}>
       <aside className="ou-ide-side">
-        {railHost() ? createPortal(<>{views}<span className="ou-ide-raildiv" aria-hidden="true" /></>, railHost()) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
+        {rail ? createPortal(<>{views}<span className="ou-ide-raildiv" aria-hidden="true" /></>, rail) : <nav className="ou-ide-rail" aria-label="Side views">{views}</nav>}
         <div className="ou-ide-pane">
           <div className="ou-ide-head">
             <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? (gitCount !== null ? `Changes ${gitCount}` : 'Changes') : 'Explorer'}</span>
