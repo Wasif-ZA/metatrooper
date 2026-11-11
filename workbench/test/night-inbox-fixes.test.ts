@@ -12,7 +12,6 @@ const temp = mkdtempSync(join(tmpdir(), 'night-inbox-fixes-'));
 after(() => rmSync(temp, { recursive: true, force: true }));
 const requireUI = createRequire(join(wb, 'ui/package.json'));
 // The CLI with inherited handles also works where Windows denies child pipe creation.
-// Keep installed UI packages external, as the neighboring screen tests do.
 const entry = join(temp, 'entry.jsx'), bundle = join(temp, 'screens.mjs');
 writeFileSync(entry, ['inbox'].map(name => `export * from ${JSON.stringify(join(wb, 'ui/src', name + '.jsx').replace(/\\/g, '/'))};`).join('\n') + "\nexport * as React from 'react'; export { renderToStaticMarkup } from 'react-dom/server';");
 const platform = process.platform === 'win32' ? 'win32-' + process.arch : process.platform + '-' + process.arch;
@@ -25,7 +24,6 @@ const g: any = globalThis;
 const calls: any[] = [];
 const own = new Set(['Inbox', 'DetailAsk', 'DetailNotice', 'TerminalPreview', 'NoteActions']);
 
-// Match the neighboring screen harness, including dependency changes and effect cleanup.
 function harness(Screen: any) {
   const frames = new Map<string, any[]>();
   let nodes: any[] = [];
