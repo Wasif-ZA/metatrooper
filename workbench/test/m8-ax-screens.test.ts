@@ -558,15 +558,52 @@ test('Home rail opens on the oldest waiting agent and shows its branch, commit, 
   assert.doesNotMatch(plain, /Commit|Changes|PR #|Lineage/);
 });
 
-test('Home section order: task box, summary, agents, automations, recent rows, folded usage', () => {
+test('Home section order: task box, summary, agents, automations, recent work, folded usage', () => {
   homeStore.set({ open: [], selected: null, usage: false });
   g.ui.snap.engines = [{ id: 'ready', light: 'green' }]; g.ui.snap.sessions = [session('working', 'working')];
   const h = harness(Home); const html = h.html();
   const at = (s: string) => { const i = html.indexOf(s); assert.ok(i >= 0, s); return i; };
-  const order = ['ou-hm-task', 'ou-hm-summary', 'ou-hm-group', 'ou-hm-autos', 'Runs while Ouros is open.', 'Recent activity', 'Recent sessions', 'Usage and trends', 'ou-hm-rail'].map(at);
+  const order = ['ou-hm-task', 'ou-hm-summary', 'ou-hm-group', 'ou-hm-autos', 'Runs while Ouros is open.', 'Recent work', 'Usage and trends', 'ou-hm-rail'].map(at);
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
   assert.doesNotMatch(html, /ou-dash-charts/);
   homeStore.set({ usage: true }); assert.match(h.html(), /ou-dash-charts/);
+  assert.doesNotMatch(html, /Recent activity|Recent sessions/);
+});
+
+test('Home recent work shows the six newest sessions as pills with their latest line, and its hide toggle is remembered', () => {
+  homeStore.set({ open: [], selected: null, usage: false });
+  const stored = new Map<string, string>();
+  g.localStorage = { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => { stored.set(k, v); } };
+  g.ui.snap.sessions = Array.from({ length: 8 }, (_, i) => session('s' + i, i === 7 ? 'exited' : 'working', { state_at: `2026-11-10T0${i}:00:00Z`, last_line: 'line ' + i }));
+  g.ui.snap.sessions.push(session('hid', 'working', { state_at: '2026-11-10T09:00:00Z' })); g.ui.pendingHide.add('hid');
+  const h = harness(Home); h.draw();
+  const pills = h.all(hasClass('ou-hm-pill'));
+  assert.deepEqual(pills.map((n: any) => n.props['data-id']), ['s7', 's6', 's5', 's4', 's3', 's2']);
+  assert.ok(pills.every((n: any) => n.props['data-action'] === 'pick' && n.props.role === 'button' && n.props.tabIndex === 0));
+  assert.match(renderToStaticMarkup(pills[0]), /<b>Task s7<\/b><span>line 7<\/span>/);
+  const toggle = h.one((n: any) => hasClass('ou-hm-hide')(n));
+  assert.equal(textContent(toggle.props.children), 'Hide'); toggle.props.onClick(); h.draw();
+  assert.equal(h.all(hasClass('ou-hm-pill')).length, 0); assert.equal(stored.get('ouros.home.recentHidden'), '1');
+  const again = harness(Home); again.draw(); assert.equal(again.all(hasClass('ou-hm-pill')).length, 0);
+  g.localStorage = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+  const blocked = harness(Home); blocked.draw(); assert.equal(blocked.all(hasClass('ou-hm-pill')).length, 6);
+  delete g.localStorage;
+});
+
+test('Home sub-agents stay folded to one summary line; opening shows the orchestrator first, then each sub-agent with its progress colour', () => {
+  homeStore.set({ open: [], selected: null, usage: false });
+  g.ui.snap.sessions = [session('lead', 'working', { engine_id: 'claude' }), session('a', 'done', { parent_id: 'lead' }), session('b', 'working', { parent_id: 'lead' }),
+    session('c', 'exited', { parent_id: 'lead', outcome: 'failed' }), session('d', 'waiting_for_you', { parent_id: 'lead' })];
+  const h = harness(Home); h.draw();
+  const row = () => h.one((n: any) => n.type?.name === 'AgentRow' && n.props.x.id === 'lead');
+  const closed = renderToStaticMarkup(row());
+  assert.match(closed, /<b>4 sub-agents<\/b><span class="ou-hm-think">1 working<\/span>/);
+  assert.doesNotMatch(closed, /ou-hm-tree/);
+  homeStore.set({ open: ['sub:lead'] }); h.draw();
+  const html = renderToStaticMarkup(row());
+  assert.deepEqual([...html.matchAll(/<li class="ou-hm-(lead|kid)" data-id="([^"]+)" data-progress="([^"]+)"/g)].map(m => [m[1], m[2], m[3]]),
+    [['lead', 'lead', 'working'], ['kid', 'a', 'done'], ['kid', 'b', 'working'], ['kid', 'c', 'failed'], ['kid', 'd', 'waiting']]);
+  assert.match(html, /orchestrator/);
 });
 
 test('Automation schedules read in words', () => {

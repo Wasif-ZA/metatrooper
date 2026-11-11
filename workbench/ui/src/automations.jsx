@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { NumberInput } from '@astryxdesign/core/NumberInput';
@@ -7,6 +7,7 @@ import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { EngineMark } from './icons/index.js';
+import { canMove, stagger } from './motion.js';
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
 
@@ -283,6 +284,13 @@ export function HomeAutomations() {
   const [filter, setFilter] = useState('all');
   const [colours, setColours] = useState({});
   const [editing, setEditing] = useState(null);
+  const box = useRef(null);
+  const shownView = useRef(view);
+  useLayoutEffect(() => {
+    if (shownView.current === view) return;
+    shownView.current = view;
+    if (canMove(box.current)) stagger(box.current.querySelectorAll('.ou-hm-autobox > li, .ou-hm-autolist > li'), 8);
+  }, [view]);
   const refresh = async () => {
     const [r, l] = await Promise.all([rpc('automation.list', {}, true), rpc('label.list', {}, true)]);
     setList(r && r.result ? r.result.automations : []);
@@ -301,7 +309,7 @@ export function HomeAutomations() {
   };
   const flip = async (a) => { await rpc('automation.enable', { id: a.id, enabled: !a.enabled }); void refresh(); };
   return (
-    <section className="ou-hm-autos" data-view={view}>
+    <section className="ou-hm-autos" data-view={view} ref={box}>
       <div className="ou-hm-autohead">
         <h2 className="ou-hm-h">Automations<span className="ou-hm-count">{(list || []).length}</span></h2>
         <span className="ou-hm-autotools">

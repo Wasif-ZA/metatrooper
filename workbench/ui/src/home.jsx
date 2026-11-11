@@ -11,6 +11,7 @@ import { Usage } from './usage.jsx';
 import { Audit } from './audit.jsx';
 import { HomeAutomations } from './automations.jsx';
 import { EngineMark } from './icons/index.js';
+import { canMove, conceal, crossfade, reveal } from './motion.js';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null, usage: false });
 
@@ -21,17 +22,6 @@ export const openNewTask = () => {
   setTimeout(focus, 50);
 };
 
-let gsap = null;
-let calm = true;
-// gsap reads document on import, so it loads only where a real DOM exists
-if (typeof Document === 'function' && typeof document !== 'undefined' && document instanceof Document && typeof window.matchMedia === 'function') {
-  import('gsap').then((core) => {
-    core.gsap.matchMedia().add({ calm: '(prefers-reduced-motion: reduce)', move: '(prefers-reduced-motion: no-preference)' }, (ctx) => { calm = Boolean(ctx.conditions.calm); });
-    gsap = core.gsap;
-  });
-}
-const motionOn = () => Boolean(gsap) && !calm;
-
 function Drop({ open, className, children }) {
   const ref = useRef(null);
   const kept = useRef(children);
@@ -41,9 +31,8 @@ function Drop({ open, className, children }) {
   useLayoutEffect(() => {
     if (first.current) { first.current = false; return; }
     const el = ref.current;
-    if (!el || !motionOn()) { setClosing(false); return; }
-    if (open) gsap.fromTo(el, { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.2, ease: 'power2.out', overwrite: true, clearProps: 'height,opacity' });
-    else { setClosing(true); gsap.to(el, { height: 0, opacity: 0, duration: 0.18, ease: 'power2.in', overwrite: true, onComplete: () => setClosing(false) }); }
+    if (!el) return;
+    if (open) { setClosing(false); reveal(el); } else { setClosing(true); conceal(el, () => setClosing(false)); }
   }, [open]);
   const shown = open ? children : closing ? kept.current : null;
   return <div ref={ref} className={className} hidden={!shown}>{shown}</div>;
@@ -52,12 +41,15 @@ function Drop({ open, className, children }) {
 function Swap({ k, children }) {
   const ref = useRef(null);
   const prev = useRef(k);
+  const ghost = useRef(null);
+  if (ref.current && prev.current !== k && canMove(ref.current)) ghost.current = ref.current.cloneNode(true);
   useLayoutEffect(() => {
     if (prev.current === k) return;
     prev.current = k;
-    if (ref.current && motionOn()) gsap.fromTo(ref.current, { opacity: 0, x: 6 }, { opacity: 1, x: 0, duration: 0.22, ease: 'power2.out', overwrite: true, clearProps: 'opacity,transform' });
+    if (ref.current) crossfade(ref.current, ghost.current);
+    ghost.current = null;
   }, [k]);
-  return <div ref={ref}>{children}</div>;
+  return <div className="ou-hm-swap"><div ref={ref}>{children}</div></div>;
 }
 
 const chev = <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="ou-hm-chev"><path d="M5 3.5L8.5 7 5 10.5" /></svg>;
@@ -96,29 +88,6 @@ function formatUntil(resets_at) {
   const hours = Math.round(mins / 60);
   if (hours < 24) return `in ${hours}h`;
   return `in ${Math.round(hours / 24)}d`;
-}
-
-function activityText(r) {
-  const action = String(r?.action || '').replace(/[._]/g, ' ').trim();
-  const detail = r?.detail;
-  if (!detail) return action;
-  if (typeof detail === 'string') {
-    const trimmed = detail.trim();
-    if (trimmed.startsWith('{')) {
-      try {
-        const obj = JSON.parse(trimmed);
-        if (obj && typeof obj === 'object') {
-          const val = obj.engine || obj.engine_id || (obj.prompt ? String(obj.prompt).slice(0, 60) : '') || obj.path || obj.reason;
-          if (val) return action ? `${action} ${val}` : String(val);
-        }
-        return action;
-      } catch {
-        return action ? `${action} ${trimmed}` : trimmed;
-      }
-    }
-    return action ? `${action} ${detail}` : detail;
-  }
-  return action;
 }
 
 const nameOf = (x) => x.title || (x.prompt ? String(x.prompt).trim().split(/\r?\n/)[0].slice(0, 120) : '') || taskOf(x);
@@ -226,23 +195,48 @@ function Marks({ list, size = 22 }) {
   );
 }
 
+export const progressOf = (k) => (k.state === 'waiting_for_you' ? 'waiting'
+  : isWorking(k) ? 'working'
+    : k.state === 'failed' || /fail/.test(String(k.outcome || '')) ? 'failed'
+      : DONE_STATES.includes(k.state) ? 'done' : 'working');
+const PROGRESS_WORD = { done: 'Done', working: 'Working', failed: 'Failed', waiting: 'Waiting' };
+
+function Dot({ k }) {
+  const p = progressOf(k);
+  return <span className={`ou-hm-dot ou-hm-dot-${p}`} role="img" aria-label={PROGRESS_WORD[p]} title={PROGRESS_WORD[p]} />;
+}
+
+function LineageRow({ k, lead }) {
+  const p = progressOf(k);
+  return (
+    <li className={lead ? 'ou-hm-lead' : 'ou-hm-kid'} data-id={k.id} data-progress={p}>
+      <EngineMark id={k.engine_id} size={16} title={k.engine_id} />
+      <span className="ou-hm-name">{nameOf(k)}</span>
+      {lead ? <span className="ou-hm-role">orchestrator</span> : null}
+      <span className={`ou-hm-pword ou-hm-pw-${p}`}><Dot k={k} />{PROGRESS_WORD[p]}</span>
+      <span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span>
+    </li>
+  );
+}
+
 function SubAgents({ x, kids, open, toggle }) {
   const working = kids.filter(isWorking).length;
   const newest = kids.map((k) => k.state_at || k.started_at || '').sort().pop();
   const key = `sub:${x.id}`;
   return (
     <div className="ou-hm-subs">
-      <div className="ou-hm-subrow" role="button" tabIndex={0} aria-expanded={open}
+      <div className="ou-hm-subrow" role="button" tabIndex={0} aria-expanded={open} aria-label={`${kids.length} sub-agents, ${working} working`}
         onClick={(e) => { e.stopPropagation(); toggle(key); }}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(key); } }}>
         <Marks list={kids} />
-        <span className="ou-hm-subtext"><b>{kids.length} sub-{kids.length === 1 ? 'agent' : 'agents'}</b><span className={working ? 'ou-hm-acc' : ''}>{working ? `${working} working` : 'all settled'}</span></span>
+        <span className="ou-hm-subtext"><b>{kids.length} sub-{kids.length === 1 ? 'agent' : 'agents'}</b><span className={working ? 'ou-hm-think' : ''}>{working ? `${working} working` : 'all settled'}</span></span>
         <span className="ou-hm-age">{ago(newest) || ''}</span>
         <span className="ou-hm-chevbox" data-open={open ? 'true' : 'false'}>{chev}</span>
       </div>
       <Drop open={open} className="ou-hm-drop">
-        <ul className="ou-hm-lineage">
-          {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{nameOf(k)}</span><span className={`ou-hm-state ou-hm-st-${k.state}`}>{STATE_WORD[k.state] || k.state}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
+        <ul className="ou-hm-lineage ou-hm-tree">
+          <LineageRow k={x} lead />
+          {kids.map((k) => <LineageRow key={k.id} k={k} />)}
         </ul>
       </Drop>
     </div>
@@ -331,7 +325,7 @@ function RailAgent({ x, kids }) {
         <div className="ou-hm-props">
           <div className="ou-hm-rtitle">Lineage {'·'} {running} running</div>
           <ul className="ou-hm-lineage">
-            {kids.map((k) => <li key={k.id}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{nameOf(k)}</span><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
+            {kids.map((k) => <li key={k.id} data-progress={progressOf(k)}><EngineMark id={k.engine_id} size={14} title={k.engine_id} /><span className="ou-hm-name">{nameOf(k)}</span><Dot k={k} /><span className="ou-hm-age">{ago(k.state_at || k.started_at) || ''}</span></li>)}
           </ul>
         </div>
       ) : null}
@@ -566,7 +560,7 @@ export function Home() {
   const [statsChecks, setStatsChecks] = useState(null);
   const [usageWeek, setUsageWeek] = useState(null);
   const [usageToday, setUsageToday] = useState(null);
-  const [auditRows, setAuditRows] = useState([]);
+  const [recentHidden, setRecentHidden] = useState(() => { try { return localStorage.getItem('ouros.home.recentHidden') === '1'; } catch { return false; } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -575,19 +569,17 @@ export function Home() {
     const fetchAll = async () => {
       if (!homeView.shown()) return;
       try {
-        const [sessRes, checksRes, weekRes, todayRes, auditRes] = await Promise.all([
+        const [sessRes, checksRes, weekRes, todayRes] = await Promise.all([
           rpc('stats.sessions', { project_id: ui.projectId, days: 14 }, true),
           rpc('stats.checks', { project_id: ui.projectId, days: 14 }, true),
           rpc('usage.summary', { window: 'week' }, true),
           rpc('usage.summary', { window: 'today' }, true),
-          rpc('audit.list', { project_id: ui.projectId, limit: 8 }, true),
         ]);
         if (!active) return;
         setStatsSessions(sessRes?.result || null);
         setStatsChecks(checksRes?.result || null);
         setUsageWeek(weekRes?.result || null);
         setUsageToday(todayRes?.result || null);
-        if (auditRes?.result?.rows) setAuditRows(auditRes.result.rows);
         setLoading(false);
       } catch {
         if (!active) return;
@@ -644,7 +636,8 @@ export function Home() {
   const usdEst = Boolean(usageToday?.usd_estimated);
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
 
-  const recentSessions = (s.sessions || []).filter((x) => !ui.pendingHide?.has(x.id)).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || '')).slice(0, 8);
+  const recentWork = all.slice().sort(newest).slice(0, 6);
+  const flipRecent = () => { const v = !recentHidden; setRecentHidden(v); try { localStorage.setItem('ouros.home.recentHidden', v ? '1' : '0'); } catch {} };
 
   return (
     <div className="ou-home ou-hm">
@@ -678,38 +671,24 @@ export function Home() {
 
         <HomeAutomations />
 
-        <div className="ou-hm-split">
-          <section>
-            <h2 className="ou-hm-h">Recent activity</h2>
-            {auditRows.length ? (
-              <div className="ou-dash-list">
-                {auditRows.map((r) => (
-                  <div key={r.id || `${r.at}-${r.agent}`} className="ou-dash-row">
-                    <span className={`ou-dash-dot ${r.source === 'agent' ? 'ou-dash-dot-agent' : 'ou-dash-dot-system'}`} />
-                    <span className="ou-dash-agent-name">{r.agent}</span>
-                    <span className="ou-dash-row-text">{activityText(r)}</span>
-                    <span className="ou-dash-row-time">{ago(r.at)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="ou-hm-muted">No activity yet.</p>}
-          </section>
-          <section>
-            <h2 className="ou-hm-h">Recent sessions</h2>
-            {recentSessions.length ? (
-              <div className="ou-dash-list">
-                {recentSessions.map((x) => (
-                  <div key={x.id} className="ou-dash-row" data-action="pick" data-id={x.id} role="button" tabIndex={0}>
-                    <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
-                    <span className="ou-dash-row-text">{nameOf(x)}</span>
-                    <span className={`ou-hm-state ou-hm-st-${x.state}`}>{STATE_WORD[x.state] || x.state}</span>
-                    <span className="ou-dash-row-time">{ago(x.state_at)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="ou-hm-muted">No sessions yet.</p>}
-          </section>
-        </div>
+        <section className="ou-hm-recent">
+          <div className="ou-hm-recenthead">
+            <h2 className="ou-hm-h">Recent work</h2>
+            <button type="button" className="ou-hm-fold ou-hm-hide" aria-expanded={!recentHidden} onClick={flipRecent}>{recentHidden ? 'Show' : 'Hide'}</button>
+          </div>
+          {recentHidden ? null : recentWork.length ? (
+            <ul className="ou-hm-pills">
+              {recentWork.map((x) => (
+                <li key={x.id} className="ou-hm-pill" data-action="pick" data-id={x.id} role="button" tabIndex={0} title={`${nameOf(x)}: ${x.last_line || x.reason || STATE_WORD[x.state] || x.state}`}>
+                  <EngineMark id={x.engine_id} size={14} title={x.engine_id} />
+                  <span className="ou-hm-pilltext"><b>{nameOf(x)}</b><span>{x.last_line || x.reason || STATE_WORD[x.state] || x.state}</span></span>
+                  <Dot k={x} />
+                  <span className="ou-hm-age">{ago(x.state_at || x.started_at) || ''}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="ou-hm-muted">Nothing yet.</p>}
+        </section>
 
         <section className="ou-hm-usage">
           <button type="button" className="ou-hm-fold" aria-expanded={Boolean(usageOpen)} onClick={() => homeStore.set({ usage: !usageOpen })}>

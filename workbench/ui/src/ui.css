@@ -802,3 +802,60 @@ html { font-size: 16px; }
 .ou-ae-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .ou-hm-autoname.ou-hm-link { color: var(--ink); font-weight: 500; }
 .ou-home [aria-label="New automation"] h2, .ou-home [aria-label="Edit automation"] h2, [aria-label="New automation"] h2, [aria-label="Edit automation"] h2 { outline: none; box-shadow: none; text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+
+/* Home polish: progress dots, thinking summary, orchestrator tree, recent work pills, motion timing. */
+.ou-hm { --pg-done: #3fb950; --pg-working: #e3b341; --pg-failed: #f0524f; --pg-waiting: var(--wait); }
+.ou-hm-chevbox { transition-duration: 150ms; transition-timing-function: ease-out; }
+.ou-hm-swap { position: relative; }
+.ou-hm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--mute); }
+.ou-hm-dot-done { background: var(--pg-done); }
+.ou-hm-dot-working { background: var(--pg-working); }
+.ou-hm-dot-failed { background: var(--pg-failed); }
+.ou-hm-dot-waiting { background: var(--pg-waiting); }
+.ou-hm-pword { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; min-width: 72px; }
+.ou-hm-pw-done { color: var(--pg-done); }
+.ou-hm-pw-working { color: var(--pg-working); }
+.ou-hm-pw-failed { color: var(--pg-failed); }
+.ou-hm-pw-waiting { color: var(--pg-waiting); }
+.ou-hm-tree { position: relative; padding: 4px 0 2px; }
+.ou-hm-tree li { height: 32px; gap: 10px; }
+.ou-hm-tree .ou-hm-lead .ou-hm-name { font-weight: 600; }
+.ou-hm-tree .ou-hm-kid { position: relative; padding-left: 26px; }
+.ou-hm-tree .ou-hm-kid::before { content: ""; position: absolute; left: 7px; top: 0; bottom: 50%; width: 12px; border-left: 1px solid var(--hairline-strong); border-bottom: 1px solid var(--hairline-strong); border-bottom-left-radius: 6px; }
+.ou-hm-tree .ou-hm-kid + .ou-hm-kid::before { top: -16px; }
+.ou-hm-role { font-size: 11px; color: var(--mute); padding: 1px 6px; border: 1px solid var(--hairline); border-radius: 6px; white-space: nowrap; }
+.ou-hm-lineage li[data-progress] .ou-hm-dot { margin-left: 4px; }
+.ou-hm-recenthead { display: flex; align-items: center; gap: 8px; }
+.ou-hm-hide { margin-left: auto; font-size: 12px; color: var(--mute); }
+.ou-hm-pills { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.ou-hm-pill { display: inline-flex; align-items: center; gap: 8px; max-width: calc(50% - 4px); min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 18px; background: var(--canvas-soft); cursor: pointer; }
+.ou-hm-pill:hover { border-color: var(--hairline-strong); }
+.ou-hm-pill:focus-visible { outline: 1px solid var(--body); outline-offset: 1px; }
+.ou-hm-pilltext { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.ou-hm-pilltext b { font-weight: 500; color: var(--ink); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-hm-pilltext span { font-size: 11px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-hm-think { color: var(--st-run); }
+/* From t3code (MIT), apps/web/src/index.css */
+@keyframes status-pulse {
+  0%, 40% { opacity: 1; animation-timing-function: steps(6); }
+  50%, 90% { opacity: 0.5; animation-timing-function: steps(6); }
+  100% { opacity: 1; }
+}
+/* From t3code (MIT), apps/web/src/index.css */
+@keyframes live-tool-shine {
+  from { background-position: -4.5rem 0, 0 0; }
+  to { background-position: calc(100% + 4.5rem) 0, 0 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ou-hm-dot-working, .ou-hm-dot-waiting { animation: status-pulse 2s infinite; }
+  /* From t3code (MIT), apps/web/src/index.css */
+  .ou-hm-think {
+    color: transparent;
+    background-image: linear-gradient(to right, transparent, var(--ink), transparent), linear-gradient(var(--st-run), var(--st-run));
+    background-size: 4.5rem 100%, 100% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: live-tool-shine 2.2s steps(30) infinite;
+  }
+}
