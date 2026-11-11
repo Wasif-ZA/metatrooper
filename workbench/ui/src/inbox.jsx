@@ -918,6 +918,8 @@ export function Inbox() {
                         isLabelHidden
                         options={handOptions}
                         value=""
+                        isDisabled={!sessionObj.prompt}
+                        disabledMessage={sessionObj.prompt ? undefined : 'The original task was not recorded, so it cannot be handed over'}
                         onChange={(val) => {
                           if (val) setHandoverTarget(val);
                         }}
@@ -986,7 +988,7 @@ export function Inbox() {
               <div className="ou-ny-slot-body">The handoff note shows here once the core records it.</div>
             </div>
           </div>
-          {handoverTarget && sessionObj ? (
+          {handoverTarget && sessionObj?.prompt ? (
             <AlertDialog
               isOpen={Boolean(handoverTarget)}
               onOpenChange={(open) => {
@@ -1001,11 +1003,10 @@ export function Inbox() {
                 const r = await rpc('session.launch', {
                   project_id: sessionObj.project_id || ui.projectId,
                   engine_id: chosen,
-                  prompt: taskOf(sessionObj),
+                  prompt: sessionObj.prompt,
                 });
                 if (r && r.result) {
                   toast(`Handed to ${chosen}`);
-                  inboxStore.set({ selectedId: r.result.session_id });
                 } else {
                   const errText = (r && r.error && (r.error.message || r.error)) || 'Failed to hand over';
                   toast(errText, true);
