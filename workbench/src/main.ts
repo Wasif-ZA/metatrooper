@@ -30,7 +30,7 @@ import { openReaderDb } from '../../core/src/store/db.ts';
 import { call } from '../../core/src/pipe/client.ts';
 import { browserAudit, dataVersion, snapshot, taskOf, toastFor, withContext, withLiveText, type LiveText, type Snapshot } from './queries.ts';
 import { fileDiff, gitIn, handback, sessionChanges } from './handback.ts';
-import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, type GitView } from './gitpane.ts';
+import { gitAct, gitView, namedPaths, ownerGroups, parseStatusV2, runIn, showAt, type GitView } from './gitpane.ts';
 import { ownersAsync, repoOfAsync } from '../../core/src/sessions/owners.ts';
 import { copied, diffLineBody, elementBody, filesBody } from './comments.ts';
 import { attachTerm, detachAll, detachTerm, termInput, termResize } from './terminals.ts';
@@ -497,6 +497,13 @@ function handlers(): void {
         if (out || op === 'diff-staged' || !(await lit(['ls-files', '--others', '--exclude-standard', '--', rel]))) return out;
         try { return await lit(['diff', '--no-ext-diff', '--no-textconv', '--no-index', '--', '/dev/null', rel]); } catch (e) { return (e as { stdout?: string }).stdout ?? ''; }
       } catch { return null; }
+    }
+    if (op === 'show') {
+      const a = (arg && typeof arg === 'object' ? arg : {}) as { path?: unknown; rev?: unknown; session_id?: unknown; scope?: unknown };
+      const cwd = a.session_id === undefined ? project.path : cwdOf(a.session_id);
+      if (!cwd) return null;
+      const rev = a.rev === 'HEAD' || a.rev === ':' ? a.rev : a.rev === 'base' && a.session_id !== undefined ? await diffBase(a.session_id, a.scope, cwd).catch(() => null) : null;
+      return rev ? showAt(runIn(cwd), rev, a.path).catch(() => null) : null;
     }
     let error: string | undefined;
     let commit: string | undefined;
