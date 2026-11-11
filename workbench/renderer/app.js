@@ -424,6 +424,7 @@ function applyLook(look) {
   root.dataset.look = look.theme.look || 'plain';
   root.style.colorScheme = look.theme.scheme || 'dark';
   termView.setLook(look);
+  globalThis.setUiScheme?.();
 }
 
 async function setLook(id) {
