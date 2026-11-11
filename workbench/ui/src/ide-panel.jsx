@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Ic from './icons/index.js';
 
 const shells = new Map();
@@ -112,6 +112,7 @@ export const countProblems = (problems) => ({
 
 /** Markers grouped by file, errors first, then by line. */
 export function Problems({ problems, open, FileIcon }) {
+  const [folded, setFolded] = useState(new Set());
   if (!problems.length) return <div className="ou-ip-problems"><p className="ou-ip-empty">No problems in open files.</p></div>;
   const byFile = new Map();
   for (const p of problems) byFile.set(p.path, [...(byFile.get(p.path) || []), p]);
@@ -119,13 +120,14 @@ export function Problems({ problems, open, FileIcon }) {
     <div className="ou-ip-problems" role="tree" aria-label="Problems">
       {[...byFile].map(([path, list]) => (
         <div key={path} role="group">
-          <div className="ou-ip-pfile" role="treeitem" title={path}>
+          <button type="button" className="ou-ip-pfile" role="treeitem" title={path} aria-expanded={!folded.has(path)} onClick={() => setFolded((prev) => { const next = new Set(prev); if (!next.delete(path)) next.add(path); return next; })}>
+            <span className="ou-ide-chev" aria-hidden="true"><Ic.ChevronRightIcon size={16} /></span>
             <FileIcon path={path} />
             <span className="ou-ip-pname">{path.split('/').pop()}</span>
             <span className="ou-ip-pdir">{path.split('/').slice(0, -1).join('/')}</span>
             <span className="ou-ip-pcount">{list.length}</span>
-          </div>
-          {[...list].sort((a, b) => (RANK[a.severity] ?? 2) - (RANK[b.severity] ?? 2) || a.line - b.line || a.col - b.col).map((p, i) => (
+          </button>
+          {folded.has(path) ? null : [...list].sort((a, b) => (RANK[a.severity] ?? 2) - (RANK[b.severity] ?? 2) || a.line - b.line || a.col - b.col).map((p, i) => (
             <button key={i} type="button" role="treeitem" className="ou-ip-prow" title={p.message} onClick={() => open(path, p.line)}>
               {sevIcon(p.severity)}
               <span className="ou-ip-pmsg">{p.message}</span>

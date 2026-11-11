@@ -30,7 +30,7 @@
 :root:not(.side-rail):not(.side-auto) .ou-ide-railviews > button[aria-pressed="true"]::before { inset: auto 4px -3px; width: auto; height: 2px; }
 :root:not(.side-rail):not(.side-auto):not([data-view="ide"]) .ou-ide-railviews > * { display: none; }
 .ou-ide-railicon { position: relative; display: inline-flex; }
-.ou-ide-railbadge { position: absolute; left: 10px; top: 8px; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; font: 600 9.5px/14px 'Geist', 'Segoe UI', sans-serif; text-align: center; color: var(--canvas-deep); background: var(--ink); border-radius: 7px; box-shadow: 0 0 0 2px var(--canvas-deep); }
+.ou-ide-railbadge { position: absolute; left: 10px; top: 8px; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; font: 600 9.5px/14px 'Geist', 'Segoe UI', sans-serif; text-align: center; color: var(--canvas-deep); background: var(--ink); border-radius: 0; box-shadow: 0 0 0 2px var(--canvas-deep); }
 /* fallback when the app rail is absent */
 .ou-ide-side:has(> .ou-ide-rail) { flex-direction: row; }
 .ou-ide-rail { flex: none; display: flex; flex-direction: column; width: 40px; border-right: 1px solid var(--hairline); }
@@ -48,6 +48,12 @@
 /* Rows: 22px, 8px left padding, one hover and one selected colour */
 .ou-ide-tree, .ou-ide-tree [role="treeitem"], .ou-ide-tree .astryx-tree-list-item { font-size: 13px; }
 .ou-ide-root { height: 22px; padding-left: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.ou-ide-rootrow { display: flex; align-items: center; min-width: 0; }
+.ou-ide-rootrow .ou-ide-root { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-ide-root-actions { display: flex; gap: 2px; padding-right: 8px; opacity: 0; }
+.ou-ide-pane:hover .ou-ide-root-actions, .ou-ide-root-actions:focus-within { opacity: 1; }
+.ou-ide-root-actions button { width: 22px; height: 22px; min-width: 22px; min-height: 22px; }
+.ou-ide-head:has([aria-label="Explorer actions"]) .ou-ide-head-actions { opacity: 1; }
 .ou-ide-hit:hover, .ou-ide-match:hover, .ou-ide-sfile:hover, .ou-ide-scrow:hover { background: var(--row-hover); }
 .ou-ide-cur, .ou-ide-scrow:focus-visible { background: var(--row-selected); color: var(--ink); }
 .ou-ide-tree .astryx-tree-list { --tree-list-indent: 8px; --tree-list-row-gap: 0px; }
@@ -77,6 +83,7 @@
 [aria-expanded="false"] > .ou-ide-chev { transform: none; }
 .ou-ide-sfile .ou-ide-count, .ou-ide-schead .ou-ide-count { min-width: 18px; height: 16px; padding: 0 5px; box-sizing: border-box; font-size: 11px; line-height: 16px; text-align: center; letter-spacing: 0; color: var(--body-strong); background: var(--canvas-soft); border-radius: 8px; }
 .ou-ide-sfile .ou-ide-count { margin-left: auto; }
+.ou-ide-schead .ou-ide-count { border-radius: 0; }
 .ou-ide-match { height: 22px; padding-left: 24px; font: 13px 'Geist', 'Segoe UI', sans-serif; }
 .ou-ide-match .ou-ide-ln { display: none; }
 .ou-ide-mtext b { background: rgba(234, 92, 0, .33); color: var(--ink); }
@@ -85,10 +92,16 @@
 .ou-ide-sccommit { gap: 6px; padding: 0 8px 8px; }
 .ou-ide .ou-ide-scmsg { width: 100%; padding: 0; border: 0; background: transparent; font-size: 13px; }
 .ou-ide-scmsg .astryx-text-area { border-radius: 0; background: var(--canvas); }
-.ou-ide-scmsg textarea { box-sizing: border-box; height: 26px; min-height: 26px; padding: 3px 8px; font: 13px/18px 'Geist', 'Segoe UI', sans-serif; resize: none; }
+.ou-ide-scmsg textarea { box-sizing: border-box; height: 26px; min-height: 26px; padding: 3px 8px; font: 13px/18px 'Geist', 'Segoe UI', sans-serif; resize: none; overflow: hidden; white-space: nowrap; scrollbar-width: none; }
+.ou-ide-scmsg textarea::-webkit-scrollbar { display: none; }
+.ou-ide-scmsg textarea::placeholder { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ou-ide-scmsg-multiline textarea { white-space: pre-wrap; }
 .ou-ide-scmsg:focus, .ou-ide-scmsg:focus-visible { outline: 1px solid var(--body); outline-offset: -1px; border-radius: 0; box-shadow: none; }
-.ou-ide-scactions { height: 26px; }
+.ou-ide-scactions { height: 26px; gap: 0; }
 .ou-ide-scactions > :first-child { flex: 1; height: 26px; min-height: 26px; justify-content: center; }
+.ou-ide-scactions button { border-radius: 0; background: var(--primary, var(--ink)); color: var(--on-primary, var(--canvas-deep)); }
+.ou-ide-scactions button:is(:disabled, [aria-disabled="true"]) { opacity: .5; }
+.ou-ide-scactions .ou-ide-scsplit { flex: none; width: 24px; min-width: 24px; height: 26px; min-height: 26px; padding: 0; border-left: 1px solid var(--on-primary, var(--canvas-deep)); }
 .ou-ide-schead { height: 22px; padding: 0 8px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
 .ou-ide-scfold { flex: 1; min-width: 0; display: flex; align-items: center; height: 22px; padding: 0; border: 0; background: transparent; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--body-strong); cursor: pointer; text-align: left; }
 .ou-ide-schead > button[aria-label] { visibility: hidden; }
@@ -104,10 +117,12 @@
 
 /* Tabs: 35px; dirty dot until hover, then close; close shows on the active tab */
 #ide-tab-menu { flex: none; display: block; min-width: 0; }
-.ou-ide-tabs nav, .ou-ide-tabs .astryx-tab-strip { height: 35px; gap: 0; }
+.ou-ide-tabs { background: var(--canvas-deep); border-bottom: 0; }
+.ou-ide-tabs nav, .ou-ide-tabs .astryx-tab-strip { height: 35px; gap: 0; background: var(--canvas-deep); }
 .ou-ide-tabs .astryx-tab { box-sizing: border-box; height: 35px; margin: 0; padding: 0 4px 0 10px; gap: 6px; border-top: 1px solid transparent; border-right: 1px solid var(--hairline); background: var(--canvas-deep); color: var(--mute); box-shadow: none; font: 13px 'Geist', 'Segoe UI', sans-serif; }
-.ou-ide-tabs .astryx-tab:hover { background: var(--canvas); color: var(--body-strong); }
-.ou-ide-tabs .astryx-tab[data-selected] { background: var(--pane); color: var(--ink); border-top-color: var(--ink); }
+.ou-ide-tabs .astryx-tab:hover { background: var(--canvas-deep); color: var(--body-strong); }
+.ou-ide-tabs .astryx-tab[data-selected] { background: var(--pane); color: var(--ink); border-top-color: var(--ink); border-inline: 0; border-bottom: 0; box-shadow: none; outline: none; }
+.ou-ide-tabs .astryx-tab > span[aria-hidden="true"]:first-child { display: none; }
 .ou-ide-tabs .astryx-tab-indicator { display: none; }
 .ou-ide-tabend { position: relative; display: inline-flex; align-items: center; gap: 4px; }
 .ou-ide-tabactions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; padding-left: 6px; }

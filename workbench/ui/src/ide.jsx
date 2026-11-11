@@ -5,6 +5,7 @@ import { Badge } from '@astryxdesign/core/Badge';
 import { Button } from '@astryxdesign/core/Button';
 import { ContextMenu } from '@astryxdesign/core/ContextMenu';
 import { Dialog } from '@astryxdesign/core/Dialog';
+import { DropdownMenu } from '@astryxdesign/core/DropdownMenu';
 import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { Heading } from '@astryxdesign/core/Heading';
 import { IconButton } from '@astryxdesign/core/IconButton';
@@ -721,9 +722,10 @@ function treeItems(st, rel, changed, dirty = gitDirs(st)) {
       const kids = st.dirs.get(path);
       const children = !kids ? [{ id: `${path}//loading`, label: <LoadDir st={st} rel={path} />, isDisabled: true }]
         : kids.length ? treeItems(st, path, changed, dirty) : [{ id: `${path}//empty`, label: 'Empty', isDisabled: true }];
-      const has = dirty.has(path);
-      const letter = gitStatusOf(st, path) || (st.git?.files || []).map((f) => f.path.startsWith(`${path}/`) ? gitStatusOf(st, f.path) : null).find(Boolean);
-      return { id: path, style, label: <span className={letter ? `ou-ide-label-${letter.toLowerCase()}` : ''}>{e.name}</span>, children, isExpanded: Boolean(st.open && st.open.has(path)), endContent: has ? <span className={`ou-ide-folderdot ou-ide-label-${(letter || 'M').toLowerCase()}`} title="Contains changes" /> : undefined };
+      const errors = (st.problems || []).some((p) => p.severity === 'error' && p.path.startsWith(`${path}/`));
+      const letters = (st.git?.files || []).filter((f) => under(f.path, path)).map((f) => gitStatusOf(st, f.path));
+      const letter = errors || letters.some((s) => s === 'C' || s === 'D') ? 'error' : letters.includes('M') ? 'm' : letters.some((s) => ['A', 'U', 'R'].includes(s)) ? 'a' : dirty.has(path) ? 'm' : '';
+      return { id: path, style, label: <span className={letter ? `ou-ide-label-${letter}` : ''}>{e.name}</span>, children, isExpanded: Boolean(st.open && st.open.has(path)), endContent: letter ? <span className={`ou-ide-folderdot ou-ide-label-${letter}`} title={errors ? 'Contains errors' : 'Contains changes'} /> : undefined };
     }
     return {
       id: path,
@@ -786,7 +788,11 @@ function Files({ st, changed }) {
           <ContextMenu id="ide-tree-menu" size="sm" label="File actions" items={items}
             onContextMenu={(e) => setTarget(rowTarget(st, e.target))}
             onOpenChange={(open) => { const run = pending.current; pending.current = null; if (!open && run) setTimeout(run, 0); }}>
-            <TreeList key={`${ui.projectId}:${st.treeKey || 0}`} density="compact" aria-label={`${p.name} files`} header={<button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span className="ou-ide-chev" aria-hidden="true"><Icon icon="chevronRight" size="sm" color="inherit" /></span>{p.name}</button>} items={st.rootOpen ? treeItems(st, '', changed) : []}
+            <TreeList key={`${ui.projectId}:${st.treeKey || 0}`} density="compact" aria-label={`${p.name} files`} header={<div className="ou-ide-rootrow"><button type="button" className="ou-ide-root" aria-expanded={st.rootOpen} onClick={() => { st.rootOpen = !st.rootOpen; bump(); }}><span className="ou-ide-chev" aria-hidden="true"><Icon icon="chevronRight" size="sm" color="inherit" /></span>{p.name}</button><span className="ou-ide-root-actions">
+              <IconButton size="sm" variant="ghost" label="New file" tooltip="New file" icon={<Ic.PlusIcon size={14} />} onClick={() => startNew(st, '', false)} />
+              <IconButton size="sm" variant="ghost" label="New folder" tooltip="New folder" icon={<Ic.FolderAddIcon size={14} />} onClick={() => startNew(st, '', true)} />
+              <IconButton size="sm" variant="ghost" label="Collapse folders" tooltip="Collapse folders" icon={<Sc.MinusIcon size={14} />} onClick={() => collapseAll(st)} />
+            </span></div>} items={st.rootOpen ? treeItems(st, '', changed) : []}
               onKeyDown={(e) => {
                 const t = e.key === 'F2' ? rowTarget(st, e.target) : null;
                 if (t) { e.preventDefault(); st.renaming = t.path; bump(); }
@@ -870,7 +876,7 @@ function SourceControl({ st }) {
     const el = message.current;
     if (!el) return;
     el.style.height = '26px';
-    if (st.commitMsg) el.style.height = `${Math.max(26, el.scrollHeight)}px`;
+    if (st.commitMsg.includes('\n')) el.style.height = `${Math.max(26, el.scrollHeight)}px`;
   }, [st.commitMsg]);
 
   if (st.git && st.git.error) {
@@ -886,11 +892,13 @@ function SourceControl({ st }) {
   return (
     <>
       <div className="ou-ide-sccommit">
-        <TextArea ref={message} containerClassName="ou-ide-scmsg" rows={1} aria-label="Commit message" placeholder={`Message (Ctrl+Enter to commit on "${st.git?.branch || ''}")`} value={st.commitMsg}
+        <TextArea ref={message} containerClassName={st.commitMsg.includes('\n') ? 'ou-ide-scmsg ou-ide-scmsg-multiline' : 'ou-ide-scmsg'} rows={1} aria-label="Commit message" placeholder="Message (Ctrl+Enter to commit)" value={st.commitMsg}
           onChange={(value) => { st.commitMsg = value; bump(); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && canCommit) { e.preventDefault(); void gitCommit(st); } }} />
         <div className="ou-ide-scactions">
           <Button size="sm" variant="primary" label="Commit" icon={<Sc.CheckIcon size={14} />} isDisabled={!canCommit} onClick={() => void gitCommit(st)} />
+          <DropdownMenu size="sm" menuWidth={160} items={['Commit', 'Commit staged'].map((label) => ({ label, isDisabled: !canCommit, onClick: () => void gitCommit(st) }))}
+            renderTrigger={(props) => <IconButton {...props} className="ou-ide-scsplit" size="sm" variant="primary" label="Commit actions" icon={<Ic.ChevronDownIcon size={14} />} isDisabled={!canCommit} />} />
         </div>
       </div>
       <div className="ou-ide-tree">
@@ -1299,13 +1307,14 @@ export function Ide() {
             <span className="ou-ide-head-title">{st.side === 'search' ? 'Search' : st.side === 'changes' ? 'SOURCE CONTROL' : 'Explorer'}</span>
             <span className="ou-ide-head-actions">
               {st.side === 'files' ? (
-                <>
-                  <IconButton size="sm" variant="ghost" label="New file" tooltip="New file" icon={<Ic.PlusIcon size={14} />} onClick={() => startNew(st, '', false)} />
-                  <IconButton size="sm" variant="ghost" label="New folder" tooltip="New folder" icon={<Ic.FolderAddIcon size={14} />} onClick={() => startNew(st, '', true)} />
-                  <IconButton size="sm" variant="ghost" label="Collapse folders" tooltip="Collapse folders" icon={<Sc.MinusIcon size={14} />} onClick={() => collapseAll(st)} />
-                </>
+                <DropdownMenu size="sm" menuWidth={180} items={[
+                  { label: 'New file', onClick: () => startNew(st, '', false) },
+                  { label: 'New folder', onClick: () => startNew(st, '', true) },
+                  { label: 'Collapse folders', onClick: () => collapseAll(st) },
+                  { label: 'Commands', onClick: () => paletteView.open() },
+                ]} renderTrigger={(props) => <IconButton {...props} size="sm" variant="ghost" label="Explorer actions" tooltip="Explorer actions" icon={<Icon icon="more" size="sm" color="inherit" />} />} />
               ) : null}
-              {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} /> : <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} />}
+              {st.side === 'changes' ? <IconButton size="sm" variant="ghost" label="Refresh" tooltip="Refresh" icon={<Sc.ReloadIcon size={14} />} onClick={() => void loadGitStatus(st)} /> : st.side === 'search' ? <IconButton size="sm" variant="ghost" label="Commands" tooltip="Commands (Ctrl+Shift+P)" icon={<Sc.TerminalIcon size={14} />} onClick={() => paletteView.open()} /> : null}
             </span>
           </div>
           {st.side === 'search' ? <Search st={st} /> : st.side === 'changes' ? <SourceControl st={st} /> : <Files st={st} changed={changed} />}
@@ -1316,7 +1325,7 @@ export function Ide() {
           onContextMenu={(e) => { st.tabMenu = e.target.closest?.('[data-tab-value]')?.dataset.tabValue || null; bump(); }}>
         <div className="ou-ide-tabs">
           {st.tabs.length ? (
-            <TabList size="sm" layout="hug" hasDivider overflow="auto" value={st.active || ''} onChange={(v) => { st.active = v; bump(); }}>
+            <TabList size="sm" layout="hug" overflow="auto" value={st.active || ''} onChange={(v) => { st.active = v; bump(); }}>
               {st.tabs.map((t) => (
                 <Tab key={t.path} value={t.path} label={base(t.path)} className={fileLabelClass(st, t.path)} title={t.path} icon={<FileIcon path={t.path} />} endContent={(
                   <span className={t.dirty ? 'ou-ide-tabend ou-ide-tabdirty' : 'ou-ide-tabend'}>

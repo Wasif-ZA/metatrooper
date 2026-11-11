@@ -2,6 +2,9 @@
 .ou-ide-panel, .ou-ide-phead { background: var(--term-bg, var(--pane)); }
 .ou-ide-phead { height: 35px; padding: 0 8px 0 12px; }
 .ou-ide-phead .astryx-tab { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: uppercase; background: transparent; border-radius: 0; }
+.ou-ide-phead .astryx-tab:is([data-selected], :hover, :focus, :focus-visible) { background: transparent; box-shadow: none; }
+.ou-ide-phead .astryx-tab[data-selected] { outline: none; }
+.ou-ide-phead .astryx-tab > span[aria-hidden="true"]:first-child { display: none; }
 .ou-ide-phead .astryx-tab-indicator { height: 1px; border-radius: 0; }
 .ou-ip-tabcount { font: inherit; background: transparent; }
 .ou-ip-body { display: flex; flex: 1; min-height: 0; }
@@ -16,7 +19,9 @@
 .ou-ip-problems { flex: 1; min-height: 0; overflow: auto; padding: 2px 0; font-size: 13px; }
 .ou-ip-empty { margin: 0; padding: 6px 20px; color: var(--mute); font-size: 13px; }
 .ou-ip-pfile, .ou-ip-prow { display: flex; align-items: center; gap: 6px; width: 100%; height: 22px; box-sizing: border-box; white-space: nowrap; text-align: left; }
-.ou-ip-pfile { padding: 0 12px; color: var(--body-strong); }
+.ou-ip-pfile { padding: 0 12px; border: 0; background: transparent; font: inherit; color: var(--body-strong); cursor: pointer; }
+.ou-ip-pfile:hover { background: var(--canvas); }
+.ou-ip-pfile:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
 .ou-ip-pname { flex: none; }
 .ou-ip-pdir { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--mute); }
 .ou-ip-pcount { flex: none; min-width: 16px; padding: 0 5px; box-sizing: border-box; font: 11px/16px var(--mono); text-align: center; color: var(--ink); background: var(--canvas-soft); }
@@ -25,8 +30,8 @@
 .ou-ip-prow:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
 .ou-ip-pmsg { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ou-ip-psrc, .ou-ip-ppos { flex: none; font-size: 12px; color: var(--mute); }
-.ou-ip-err { flex: none; color: var(--bad); }
-.ou-ip-warn { flex: none; color: var(--wait); }
+.ou-ip-err { flex: none; color: #f14c4c; }
+.ou-ip-warn { flex: none; color: #cca700; }
 .ou-ip-info { flex: none; color: var(--mute); }
 
 .ou-ip-sprob { gap: 4px; padding: 0 4px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
