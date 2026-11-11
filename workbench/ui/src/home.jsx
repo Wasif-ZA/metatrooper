@@ -8,7 +8,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { createStore } from './store.js';
 import { AutomationsPage } from './automations.jsx';
-import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop } from './icons/index.js';
+import { EngineMark, Branch, CommitIcon as Commit, ChangesIcon as Changes, PullRequestIcon as PullRequest, AttachIcon as Attach, OptionsIcon as Options, SendIcon as Send, Workspace, OpenOnWall, StepOpenIcon as StepOpen, Done, Project, ApprovalIcon as Approval, ChevronRightIcon as ChevronRight, FolderAddIcon as FolderAdd, ScheduleIcon as Schedule, WallIcon as Wall, LearnIcon as Learn, ProgressRing, StopIcon as Stop, CalendarIcon as Calendar } from './icons/index.js';
 import { canMove, conceal, crossfade, reveal } from './motion.js';
 
 export const homeStore = createStore({ tick: 0, open: [], selected: null });
@@ -196,9 +196,9 @@ const press = (fn) => ({
 
 function Avatar({ k, status = true }) {
   return (
-    <span className="ou-hm-av" aria-hidden="true">
-      <EngineMark id={k.engine_id} size={14} title={k.engine_id} />
-      {status ? <Ring k={k} size={10} className="ou-hm-avring" /> : null}
+    <span className={`ou-hm-av${status ? ' ou-hm-ringed' : ''}`} aria-hidden="true">
+      {status ? <Ring k={k} size={26} className="ou-hm-avring" /> : null}
+      <EngineMark id={k.engine_id} size={status ? 12 : 14} title={k.engine_id} />
     </span>
   );
 }
@@ -228,7 +228,7 @@ function SlimRow({ k, lead, openList, toggle }) {
       <div className="ou-hm-slimrow" title={tipOf(k)} aria-expanded={st ? open : undefined} {...(st ? press(() => toggle(key)) : {})}>
         <Avatar k={k} />
         <span className="ou-hm-slimtext">
-          <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
+          <span className="ou-hm-slimname">{nameOf(k)}{lead ? <span className="ou-hm-role">orchestrator</span> : null}{st && lead ? <span className="ou-hm-slimsteps">{st.done}/{st.total}</span> : null}</span>
           <span className="ou-hm-slimsub">{k.model ? <span className="ou-hm-model">{k.model}</span> : null}{doing ? <span className={statusOf(k) === 'failed' ? 'ou-hm-bad' : ''}>{doing}</span> : null}</span>
         </span>
       </div>
@@ -320,7 +320,7 @@ function TaskView({ x, kids, openList, toggle }) {
   );
 }
 
-const startIcons = { folder: <FolderAdd size={18} />, clock: <Schedule size={18} />, wall: <Wall size={18} />, book: <Learn size={18} /> };
+const startIcons = { folder: <FolderAdd size={18} />, clock: <Calendar size={18} />, wall: <Wall size={18} />, book: <Learn size={18} /> };
 
 function StartState({ composer }) {
   const items = [
@@ -455,6 +455,7 @@ export function Home() {
     homeStore.set({ open: cur.includes(id) ? cur.filter((k) => k !== id) : [...cur, id] });
   };
   if (task && !selected) ui.homeSel = task.id;
+  if (!task && selected !== '') ui.homeSel = '';
   const ready = (s.engines || []).filter((e) => e.light !== 'red');
   const composer = ready.length ? <StartBox ready={ready} /> : <EmptyState title="No agent is ready. Check Add-ons." isCompact />;
   return (

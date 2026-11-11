@@ -5,7 +5,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Switch } from '@astryxdesign/core/Switch';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EngineIcon as Engine, EmojiIcon as Emoji } from './icons/index.js';
+import { EngineMark, ListViewIcon as ListView, GridViewIcon as GridView, RunIcon as Run, Search, Filter, Project, ScheduleIcon as Schedule, ChevronRightIcon as ChevronRight, PlusIcon as Plus, SortIcon as Sort, EmojiIcon as Emoji } from './icons/index.js';
 import { canMove, stagger } from './motion.js';
 
 const BLANK = { name: '', every_min: 30, runner: 'node', script: '', engine_id: '', prompt: '' };
@@ -88,7 +88,6 @@ const boxIcon = <GridView size={14} />;
 const playIcon = <Run size={12} />;
 const searchIcon = <Search size={14} />;
 const folderIcon = <Project size={12} />;
-const engineIcon = <Engine size={12} />;
 const clockIcon = <Schedule size={12} />;
 const chevSmall = <ChevronRight size={12} />;
 const plusIcon = <Plus size={12} />;
@@ -122,7 +121,7 @@ export function cronOf({ preset, minute, time, day, custom }) {
 
 const runWords = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
-export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
+export function AutomationEditor({ initial, labelNames, colours = {}, onClose, onSaved }) {
   const s = ui.snap || {};
   const engines = (s.engines || []).filter((e) => e.light !== 'red');
   const start = presetOf(initial?.cron);
@@ -188,7 +187,12 @@ export function AutomationEditor({ initial, labelNames, onClose, onSaved }) {
         </div>
         <label className="ou-ae-label">Labels</label>
         <div className="ou-hm-chips">
-          {[...new Set([...labelNames, ...form.labels])].map((l) => <button key={l} type="button" className={`ou-ny-chip ou-ae-lab${form.labels.includes(l) ? ' ou-on' : ''}`} aria-pressed={form.labels.includes(l)} onClick={() => toggleLabel(l)}>{l}</button>)}
+          {[...new Set([...labelNames, ...form.labels])].map((l) => {
+            const c = colours[l];
+            const on = form.labels.includes(l);
+            return <button key={l} type="button" className={`ou-ap-chip ou-ap-label ou-ae-lab${on ? ' ou-on' : ''}`} aria-pressed={on} onClick={() => toggleLabel(l)}
+              style={c ? { color: c, borderColor: `color-mix(in srgb, ${c} ${on ? 70 : 35}%, transparent)`, background: on ? `color-mix(in srgb, ${c} 14%, transparent)` : 'none' } : undefined}><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{l}</button>;
+          })}
           <TextInput size="sm" label="New label" isLabelHidden placeholder="New label, Enter adds" value={newLabel} onChange={setNewLabel} width={170}
             onEnter={() => { const v = newLabel.trim().slice(0, 32); if (v && !form.labels.includes(v)) set('labels')([...form.labels, v]); setNewLabel(''); }} />
         </div>
@@ -295,7 +299,7 @@ export function AutomationsPage() {
   if (editing) {
     return (
       <div className="ou-ap">
-        <AutomationEditor initial={editing} labelNames={Object.keys(colours)} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />
+        <AutomationEditor initial={editing} labelNames={Object.keys(colours)} colours={colours} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />
       </div>
     );
   }
@@ -314,7 +318,7 @@ export function AutomationsPage() {
         <span className="ou-ap-chips">
           <span className="ou-ap-chip">{folderIcon}{projName(a.project_id)}</span>
           <span className="ou-ap-chip">{clockIcon}{a.words || (a.every_min ? `Every ${a.every_min} min` : 'On demand')}{a.enabled && nextWords(a.next_due) ? ` · ${nextWords(a.next_due)}` : ''}</span>
-          <span className="ou-ap-chip">{engineIcon}{a.engine_id || 'agent'}</span>
+          <span className="ou-ap-chip"><EngineMark id={a.engine_id} size={12} title={a.engine_id} />{a.engine_id || 'agent'}</span>
           {(a.labels || []).map((l) => {
             const c = labelColour(l, colours);
             return <span key={labelName(l)} className="ou-ap-chip ou-ap-label" style={c ? { color: c, borderColor: `color-mix(in srgb, ${c} 45%, transparent)` } : undefined}><span className="ou-ap-ldot" style={c ? { background: c } : undefined} />{labelName(l)}</span>;
