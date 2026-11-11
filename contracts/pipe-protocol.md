@@ -171,6 +171,9 @@ state is `waiting_for_you`: only a person can answer it, and `session.send` refu
 | `session.handoff` | `{session_id}` | {handoff: {id, session_id, parent_id, at, cwd, summary, files: [{path, committed}], transcript} \| null}: the latest handoff by at | -32002, -32602 |  |  |
 | `session.labels-set` | `{session_id, labels: string[]}` | {labels} | -32602, -32002 |  | yes |
 | `labels.list` | `{project_id}` | {labels: [{name, count}]} | -32602 |  |  |
+| `session.reviewers-set` | `{session_id, reviewers: string[], approvers: string[]}` | {ok: true}; reviewers are engine ids, the only approver is "you"; a reviewer or approver already set keeps its state. When the session exits ok, each reviewer engine reviews its changes in a child session (parent_id = the session, same folder) and its last line VERDICT: PASS or FAIL sets the review passed or failed with a note; a child that exits without one fails with note "no verdict" | -32602, -32002 |  | yes |
+| `session.approve` | `{session_id, note?}` | {ok: true}; marks the "you" approver passed; -32002 when the session has no approver | -32602, -32002 |  | yes |
+| `session.reject` | `{session_id, note}` | {ok: true}; marks the "you" approver failed with `note` (required) and raises a failed Needs you row; -32002 when the session has no approver | -32602, -32002 |  | yes |
 | `session.send` | `{session_id, text}` | {sent: true}: pastes `text` (1 to 4000 characters, no control characters) then presses Enter; refused for an `external` session and while the session is `waiting_for_you` | -32002, -32602 |  |  |
 | `session.paste-prompt` | `{session_id}` | {written, reason?}: types the held prompt once; refused for an `external` session | -32002, -32602 |  |  |
 | `needs_you.mark-read` | `{id}` | {} | -32002 |  |  |
